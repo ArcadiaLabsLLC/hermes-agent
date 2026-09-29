@@ -37,7 +37,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-import yaml
 
 from agent_runtime.host_store import binding
 from agent_runtime.host_store.fake import FakeHostSecureStore
@@ -147,7 +146,11 @@ def _phone_config(home: Path, port: int) -> None:
     # The profile keeps its file log at WARNING; INFO here makes agent.log record the turn's opening
     # words, so the scan below proves the log itself is sealed rather than merely quiet.
     config.setdefault("logging", {})["level"] = "INFO"
-    (home / "config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    # Hermes's own YAML writer: the test environment carries Hermes's dependencies, which do not
+    # include PyYAML (the file errored at import under scripts/run_tests.sh).
+    from hermes_yaml import safe_dump
+
+    (home / "config.yaml").write_text(safe_dump(config), encoding="utf-8")
 
 
 def _sign_in_driver(verify, flow):
@@ -277,22 +280,21 @@ def phone_turn(app: Path) -> dict:
             **_what_the_turn_left(home, store)}
 
 
-#: The child: the phone wheel's absent modules (the profile's ``switched_off_modules``) cannot be
-#: imported, and every attempt outside a ``find_spec`` presence probe is recorded with the line that
-#: made it — a turn that swallows the ImportError still reached into the switched-off tree. Two kinds
-#: of attempt only a source checkout can make are not recorded: one made BY a switched-off module's
-#: own file, and the tool registry's directory scan naming a switched-off tool module — the wheel
-#: has neither file. The wheel also carries its build stamp and no ``.git``, so Hermes's version is
-#: the stamp's, never ``git describe``'s.
+#: The child. ``phone``: its only first-party tree is the phone wheel's app tree
+#: (:func:`_stage_phone_wheel`) — directory scans (the tool registry, the plugin loader) see only the
+#: files the wheel ships, and with no ``.git`` nothing asks ``git`` for Hermes's version. A finder on
+#: top records every import of a switched-off module outside a ``find_spec`` presence probe, with the
+#: line that made it — a turn that swallows the ImportError still reached into the switched-off
+#: tree. ``full``: the checkout, every module installed, the version primed as a wheel's stamp.
 _CHILD = r"""
-import json, os, sys
+import json, sys
 from pathlib import Path
 
-app, test_file, wheel = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+app, test_file, wheel, checkout = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4]).resolve()
+OFF = tuple(json.loads(sys.argv[5]))
 root = Path.cwd().resolve()
-from agent_runtime.bundle_profiles.manifest import load_profile
-
-OFF = tuple(load_profile("bundled-phone").switched_off_modules)
+if wheel == "phone":
+    sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != checkout]
 attempts = []
 
 def _off(name):
@@ -307,7 +309,7 @@ def _importer(frame):
         if code.co_name == "find_spec" and name.endswith(("importlib/util.py", "importlib.util>")):
             probe = True
         if site is None and not name.startswith("<") and "/importlib/" not in name:
-            site = (Path(code.co_filename).resolve(), frame.f_lineno, code.co_name)
+            site = (Path(code.co_filename).resolve(), frame.f_lineno)
         frame = frame.f_back
     return probe, site
 
@@ -316,24 +318,25 @@ class PhoneWheel:
         if _off(name):
             probe, site = _importer(sys._getframe(1))
             if not probe and site is not None:
-                where, line, func = site
+                where, line = site
                 rel = where.relative_to(root).as_posix() if where.is_relative_to(root) else str(where)
-                importer = rel[:-3].replace("/", ".").removesuffix(".__init__")
-                scan = rel == "tools/registry.py" and func == "discover_builtin_tools"
-                if not (_off(importer) or scan):
-                    attempts.append({"module": name, "site": rel, "line": line})
+                attempts.append({"module": name, "site": rel, "line": line})
             raise ModuleNotFoundError(f"not in the phone wheel: {name}", name=name)
 
 if wheel == "phone":
     sys.meta_path.insert(0, PhoneWheel())
+    import hermes_cli
+    if not Path(hermes_cli.__file__).resolve().is_relative_to(root):
+        raise SystemExit(f"control failed: hermes_cli imported from {hermes_cli.__file__}, not the staged wheel")
     try:
         import tools.terminal_tool  # noqa: F401
         raise SystemExit("control failed: tools.terminal_tool imported")
     except ModuleNotFoundError:
         pass
 
-import hermes_cli.version_info as version_info
-version_info._cached_version_info = version_info.VersionInfo("0.0.0", "0.0.0", 0, "0" * 39 + "1", None, "build")
+if wheel == "full":  # a checkout carries .git; the wheel's version is its stamp, never `git describe`'s
+    import hermes_cli.version_info as version_info
+    version_info._cached_version_info = version_info.VersionInfo("0.0.0", "0.0.0", 0, "0" * 39 + "1", None, "build")
 
 import importlib.util
 spec = importlib.util.spec_from_file_location("phone_turn_scenario", test_file)
@@ -343,7 +346,44 @@ result = scenario.phone_turn(app)
 result["attempted"] = attempts
 result["registry_loaded"] = "tools.process_registry" in sys.modules
 print("RESULT " + json.dumps(result), flush=True)
+# The turn's daemon threads (auto-title, the token writer) outlive the serve; interpreter exit with
+# one of them holding the import lock hangs in SessionDB.__del__'s lazy import (a runtime-queue row).
+# The scenario is over: leave without finalizing.
+sys.stderr.flush()
+import os
+os._exit(0)
 """
+
+
+def _stage_phone_wheel(dest: Path) -> tuple[str, ...]:
+    """Lay out the phone wheel's app tree at *dest*: the profile gate's kept modules (the closure walk,
+    their enclosing packages) with the packager's own file list (package data, resources, the build
+    stamp). Not the packager's forced set — the switched-off modules kept code imports unguarded are
+    the gate's work list, and the turn must not reach them. Returns the switched-off prefixes."""
+    import shutil
+
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_closure import profile_walk
+    from scripts.bundle_profile_package import (
+        BUILD_SHA_FILE, Plan, _with_parents, bake_dir, first_party_files, tracked_files,
+    )
+
+    manifest = load_profile("bundled-phone")
+    walk, index = profile_walk(manifest, parents=True)
+    plan = Plan(profile=manifest.profile, target="android_arm64", python_version="3.14",
+                first_party=_with_parents(set(walk.kept), index), pinned=set(), distributions=set())
+    for rel in first_party_files(plan, index, tracked_files(), manifest.packaging_resources,
+                                 manifest.excluded_data, manifest.packaging_skill_platforms):
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / rel, dest / rel)
+    (dest / BUILD_SHA_FILE).write_text("0" * 39 + "1\n", encoding="utf-8")
+    # The host's secure store is the app's, not the wheel's: the CI fake stands in for it.
+    shutil.copyfile(REPO_ROOT / "agent_runtime/host_store/fake.py", dest / "agent_runtime/host_store/fake.py")
+    # The wheel ships its bytecode baked (``--bake-with``). Unbaked, every import of the turn compiles,
+    # and a daemon thread still compiling at exit holds the import lock that ``SessionDB.__del__``'s
+    # lazy import then waits on forever (a runtime-queue row).
+    bake_dir(dest, Path(sys.executable))
+    return tuple(manifest.switched_off_modules)
 
 
 def _unseamed(attempts: list[dict]) -> list[dict]:
@@ -369,15 +409,23 @@ def _unseamed(attempts: list[dict]) -> list[dict]:
     return out
 
 
+@pytest.mark.timeout(300)  # the phone case stages the wheel first (the packager's walk, ~40 s)
 @pytest.mark.parametrize("wheel", ["phone", "full"])
 def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(tmp_path, wheel):
     """``phone``: the switched-off modules are absent. ``full``: every module is installed, so the
     background drain loads the process registry, whose import-time delegation recovery opens the
     state DB beside the sealed store — the bound store must still hold every byte (the recovery's own
     write path is pinned in test_host_store_seam.py)."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+
     app = tmp_path / "app"
-    proc = subprocess.run([sys.executable, "-c", _CHILD, str(app), __file__, wheel], cwd=REPO_ROOT,
-                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=170)
+    if wheel == "phone":
+        cwd = tmp_path / "wheel"
+        off = _stage_phone_wheel(cwd)
+    else:
+        cwd, off = REPO_ROOT, tuple(load_profile("bundled-phone").switched_off_modules)
+    proc = subprocess.run([sys.executable, "-c", _CHILD, str(app), __file__, wheel, str(REPO_ROOT), json.dumps(off)],
+                          cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200)
     lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT ")]
     assert proc.returncode == 0 and lines, (proc.stdout[-3000:], proc.stderr[-6000:])
     result = json.loads(lines[-1][len("RESULT "):])

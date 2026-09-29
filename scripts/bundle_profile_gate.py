@@ -23,7 +23,11 @@ Refused (each a row with the evidence that convicts it):
 * ``subprocess_call`` — a kept module CALLS a process spawner (the stdlib
   import alone is allowed: the auth path reaches it);
 * ``pinned`` — a switched-off (absent) module that a kept module imports at
-  module level, unguarded: the profile cannot leave it out without a seam;
+  module level, unguarded: the profile cannot leave it out without a seam. The
+  loop's lifecycle placeholders are such a seam: a module whose every imported
+  name resolves on the placeholder the embedded entry registers — asked in a
+  child interpreter with the switched-off modules absent — is reported as
+  answered, not pinned;
 * ``closure`` — the closure's own packaging refusals (an omitted distribution
   imported unguarded, …).
 
@@ -171,6 +175,87 @@ def distribution_findings(shipped, lock: dict[str, dict], admitted_native) -> li
     return out
 
 
+def eager_imported_names(pinned: set[str], kept, index: dict[str, Path]) -> dict[str, set[str] | None]:
+    """pinned module -> the names kept modules import from it at module level, unguarded; None
+    when some kept module binds the module itself (``import m``), whose later uses no name list
+    can bound."""
+    out: dict[str, set[str] | None] = {m: set() for m in pinned}
+    for module in kept:
+        path = index[module]
+        tree = _parse(path)
+        if tree is None:
+            continue
+        guarded = _guarded_ids(tree)
+        package = module if path.name == "__init__.py" else module.rpartition(".")[0]
+        for node in tree.body:
+            if id(node) in guarded:
+                continue
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in out:
+                        out[alias.name] = None
+            elif isinstance(node, ast.ImportFrom):
+                base = node.module or ""
+                if node.level:
+                    anchor = package.split(".")[: len(package.split(".")) - (node.level - 1)]
+                    base = ".".join([*anchor, base] if base else anchor)
+                if base in out and out[base] is not None:
+                    out[base].update(alias.name for alias in node.names)
+    return out
+
+
+#: Run in a child interpreter: the profile's switched-off modules absent, the loop's placeholders
+#: registered as the embedded entry registers them, then each name the kept code imports at module
+#: level asked of the module that is actually in ``sys.modules``.
+_PLACEHOLDER_PROBE = r"""
+import json, sys
+root, off, wanted = sys.argv[1], tuple(json.loads(sys.argv[2])), json.loads(sys.argv[3])
+sys.path.insert(0, root)
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if any(name == m or name.startswith(m + ".") for m in off):
+            raise ModuleNotFoundError(f"switched off: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders, is_lifecycle_placeholder
+
+ensure_lifecycle_placeholders()
+answered = {}
+for module, names in wanted.items():
+    stand_in = sys.modules.get(module)
+    ok = stand_in is not None and is_lifecycle_placeholder(stand_in)
+    for name in names:
+        try:
+            ok = ok and callable(getattr(stand_in, name))
+        except Exception:
+            ok = False
+    answered[module] = ok
+print(json.dumps(answered))
+"""
+
+
+def placeholder_seams(manifest, walk, index: dict[str, Path]) -> dict[str, list[str]]:
+    """The pinned modules the loop's placeholders (``agent_runtime.loop_tool_lifecycles``) answer:
+    every name kept code imports from them at module level resolves on the placeholder the embedded
+    entry registers. Proven at run time in a child interpreter, never by reading the placeholder
+    table's spelling: a name the table lacks raises there, and the module stays pinned."""
+    import subprocess
+
+    names = eager_imported_names(set(walk.pinned), walk.kept, index)
+    wanted = {m: sorted(n) for m, n in names.items() if n}
+    if not wanted:
+        return {}
+    done = subprocess.run(
+        [sys.executable, "-c", _PLACEHOLDER_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
+         json.dumps(wanted)],
+        capture_output=True, text=True, timeout=300, cwd=ROOT)
+    if done.returncode != 0:
+        raise RuntimeError(f"placeholder probe failed: {done.stderr[-2000:]}")
+    answered = json.loads(done.stdout.strip().splitlines()[-1])
+    return {m: wanted[m] for m in sorted(wanted) if answered.get(m)}
+
+
 def gate(profile: str) -> dict:
     """Judge ``profile``: the kept modules once, the shipped distributions per target."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -180,7 +265,9 @@ def gate(profile: str) -> dict:
     if unknown:
         raise ValueError(f"packaging.targets names no known target: {unknown}")
     walk, index = profile_walk(manifest, parents=True)
-    findings: list[dict] = [{"kind": "pinned", "subject": m, "module": m} for m in sorted(walk.pinned)]
+    seams = placeholder_seams(manifest, walk, index)
+    findings: list[dict] = [{"kind": "pinned", "subject": m, "module": m}
+                            for m in sorted(walk.pinned) if m not in seams]
     for module in sorted(walk.kept):
         if module.startswith(BROWSER_MODULE_PREFIXES):
             findings.append({"kind": "browser", "subject": module, "module": module})
@@ -201,7 +288,7 @@ def gate(profile: str) -> dict:
         }
     refused = findings + [dict(f, target=t) for t, row in per_target.items() for f in row["findings"]]
     return {"profile": manifest.profile, "targets": list(per_target), "kept_modules": len(walk.kept),
-            "module_findings": findings, "targets_detail": per_target, "refusals": refused,
+            "placeholder_seams": seams, "module_findings": findings, "targets_detail": per_target, "refusals": refused,
             "passed": not refused}
 
 
@@ -234,6 +321,11 @@ def render_markdown(result: dict) -> str:
     for dist, via in sorted(first.get("reached_via", {}).items()):
         if dist in flagged:
             lines.append(f"| {dist} | `{' → '.join(via)}` |")
+    seams = result.get("placeholder_seams") or {}
+    if seams:
+        lines += ["", "Switched-off modules kept code imports at module level that the loop's placeholders "
+                  "(`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: "
+                  + "; ".join(f"`{m}` ({', '.join(f'`{n}`' for n in names)})" for m, names in seams.items()) + "."]
     lazy = first.get("unguarded_switched_off_imports", [])
     lines += ["", f"Lazy, unguarded imports into switched-off modules (an ImportError if the line runs "
               f"on a phone; each must sit behind its feature's own switch or a seam): {len(lazy)} sites, "

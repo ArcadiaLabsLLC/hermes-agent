@@ -163,8 +163,11 @@ class DelegationLane(LanePass):
     def read_durable(self, db_path: Path) -> tuple[list[Any], dict[str, Any] | None]:
         """The in-flight rows, read-only, or a typed ``unavailable`` source entry."""
 
+        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+
         try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+            conn = _host_history.open_state_db_reader(db_path, timeout=5) \
+                or sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
         except Exception as exc:
             return [], _store_unreadable(exc)
         try:

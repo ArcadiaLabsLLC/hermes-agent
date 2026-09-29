@@ -732,8 +732,9 @@ def collect_state_db_stats(db_path: Path) -> Dict[str, Any]:
     try:
         # A short timeout keeps doctor snappy when a writer holds the lock.  The tracked connect
         # lets byte-probe helpers see this connection and refuse raw opens that would cancel locks.
-        conn = _connect_tracked_db(read_only_db_uri(db_path), tracking_path=Path(db_path),
-                                   uri=True, timeout=2.0)
+        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
+        conn = _host_history.open_state_db_reader(db_path, timeout=2.0) or _connect_tracked_db(
+            read_only_db_uri(db_path), tracking_path=Path(db_path), uri=True, timeout=2.0)
     except Exception as exc:
         logger.debug("collect_state_db_stats: cannot open %s read-only: %s", db_path, exc)
         return stats

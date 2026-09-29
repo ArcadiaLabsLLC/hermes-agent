@@ -117,6 +117,32 @@ def test_http_errors_classify_as_the_sdks_do(name):
     assert (actual.reason, actual.retryable, actual.status_code) == (expected.reason, expected.retryable, expected.status_code)
 
 
+@pytest.mark.parametrize("failure", [httpx.ConnectTimeout, httpx.PoolTimeout, httpx.WriteTimeout, httpx.ReadTimeout,
+                                     httpx.ConnectError, httpx.WriteError, httpx.ReadError, httpx.RemoteProtocolError])
+def test_a_request_that_gets_no_answer_raises_as_the_sdk_raises_it(failure):
+    """No HTTP answer: the SDK raises ``APITimeoutError`` for a timeout and ``APIConnectionError``
+    otherwise, each FROM the transport error; the SDK-free client raises its classes of the same
+    names, message and cause. The loop's retry arms and error classifier key on exactly these."""
+    from agent.error_classifier import classify_api_error
+    from agent.transports import httpx_client
+
+    def handler(request):
+        raise failure("no answer", request=request)
+
+    sdk, free = _clients(handler)
+    errors = []
+    for client in (sdk, free):
+        with pytest.raises(Exception) as caught:
+            client.chat.completions.create(model="m", messages=[{"role": "user", "content": "x"}])
+        errors.append(caught.value)
+    views = [(type(e).__name__, str(e), type(e.__cause__), [c.__name__ for c in type(e).__mro__[:3]]) for e in errors]
+    assert views[1][:3] == views[0][:3]
+    assert isinstance(errors[1], httpx_client.APIConnectionError)
+    assert isinstance(errors[1], httpx_client.APITimeoutError) == issubclass(failure, httpx.TimeoutException)
+    expected, actual = (classify_api_error(e, provider="openrouter", model="m") for e in errors)
+    assert (actual.reason, actual.retryable) == (expected.reason, expected.retryable)
+
+
 def test_a_provider_echoing_the_key_never_puts_it_in_the_error():
     secret = "fixture-secret-echoed-by-provider"
     free = SdkFreeClient(api_key=secret, base_url=BASE_URL, http_client=httpx.Client(

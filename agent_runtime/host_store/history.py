@@ -140,6 +140,24 @@ def connect_state_db(path: PathLike, *, timeout: float):
     return connect_image(path, timeout=timeout)
 
 
+def open_state_db_reader(path: PathLike, *, timeout: float):
+    """Bound: a query-only connection onto the sealed image of *path*; unbound: None.
+
+    Upstream reads rows beside the sessions with its own ``sqlite3.connect(…?mode=ro)``
+    (the running-work lanes, the dispatch store, the readiness probe, the doctor's stats).
+    Bound, the file is an envelope such a reader cannot open; it reads the image
+    ``SessionDB`` reads instead. Unbound the caller keeps its own read-only open."""
+    if not bound():
+        return None
+    conn = connect_state_db(path, timeout=timeout)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+    except BaseException:
+        conn.close()
+        raise
+    return conn
+
+
 def erase_history(home: PathLike, *, db_name: str = "state.db") -> List[Path]:
     """Delete every history file this profile wrote under *home*: the DB image and its temp
     files, and the ``sessions/`` transcripts and dumps. The DB must be closed. The host then

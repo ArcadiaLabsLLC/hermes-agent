@@ -140,3 +140,35 @@ def test_the_phone_profile_names_only_known_targets():
 
     targets = load_profile("bundled-phone").packaging_targets
     assert targets and set(targets) <= set(TARGETS)
+
+
+def test_a_pin_the_loop_placeholders_answer_is_a_seam_proven_at_run_time(tmp_path):
+    """``run_agent`` imports ``cleanup_vm`` / ``get_active_env`` from the terminal lifecycle at module
+    level; the phone does not ship it and ``agent_runtime.loop_tool_lifecycles`` registers a
+    placeholder carrying those names. The gate asks the placeholder in a child interpreter: every name
+    answered -> not pinned. A name it lacks, or a bare ``import m``, keeps the pin."""
+    from types import SimpleNamespace
+
+    from scripts.bundle_profile_gate import placeholder_seams
+
+    sources = {
+        "loop_a": "from tools.terminal_tool_lifecycle import cleanup_vm, get_active_env\n"
+                  "from tools.browser_tool_lifecycle import cleanup_browser\n",
+        "loop_b": "from tools.skills_hub import GitHubAuth\n",
+    }
+    index = {}
+    for name, source in sources.items():
+        index[name] = tmp_path / f"{name}.py"
+        index[name].write_text(source, encoding="utf-8")
+    pinned = {"tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.skills_hub"}
+    manifest = SimpleNamespace(switched_off_modules=tuple(sorted(pinned)))
+    walk = SimpleNamespace(pinned=pinned, kept=set(sources))
+    assert placeholder_seams(manifest, walk, index) == {
+        "tools.browser_tool_lifecycle": ["cleanup_browser"],
+        "tools.terminal_tool_lifecycle": ["cleanup_vm", "get_active_env"],
+    }
+
+    # Negative controls: a name the placeholder table lacks, and a bare module import, stay pinned.
+    index["loop_a"].write_text("from tools.terminal_tool_lifecycle import cleanup_vm, cleanup_all_environments\n"
+                               "import tools.browser_tool_lifecycle\n", encoding="utf-8")
+    assert placeholder_seams(manifest, walk, index) == {}

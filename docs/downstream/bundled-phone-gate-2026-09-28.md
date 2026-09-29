@@ -42,14 +42,27 @@ pins: `tools.terminal_tool_lifecycle` / `tools.browser_tool_lifecycle` are answe
 `agent_runtime/loop_tool_lifecycles.py`'s placeholders (the gate does not know them yet — a
 runtime-queue row), and `tools.skills_hub` is pinned by `tools.skills_hub_clawhub`.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1659 first-party modules kept. Verdict: **REFUSED** (160 findings).
+**Re-taken at lane h7-phone (2026-09-29): 156 -> 152 findings.** The baseline is this tree's own
+before-run (main `c434bc3dfa`: 156, not the 160 above — `openai` had already left the closure and
+main had grown to 1672 kept modules). Per bucket, before -> after: native 4 -> 3 (`pydantic-core`
+gone: the gateway's pydantic contract models, the connectors RPCs — a seam in
+`tui_gateway/server.py` — the connectors gateway/portal wire clients and MCP OAuth are switched off,
+`tools.connectors.enabled: false`, and `pydantic` / `pydantic-core` are omitted distributions);
+pinned 3 -> 1 (`tools.terminal_tool_lifecycle` / `tools.browser_tool_lifecycle` are answered by the
+loop's placeholders, which the gate now asks at run time in a child interpreter — see the seam line
+under the table; `tools.skills_hub` stays pinned by `tools.skills_hub_clawhub`); process 3 -> 3;
+subprocess_call 80 -> 80 modules; unproven 2 -> 2; provider_sdk 0 -> 0. Kept modules 1672 -> 1634
+(the file-level backup / restore family switched off: bound, `state.db` is a sealed image a sqlite3
+file copy cannot open); lazy unguarded sites 578 into 89 -> 610 into 98 (the switched-off
+connectors, contracts and MCP OAuth modules are now lazy targets).
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1634 first-party modules kept. Verdict: **REFUSED** (152 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
-| native | 5 | `cffi`, `cryptography`, `jiter`, `pillow-heif`, `pydantic-core` |
-| pinned | 3 | `tools.browser_tool_lifecycle`, `tools.skills_hub`, `tools.terminal_tool_lifecycle` |
+| native | 3 | `cffi`, `cryptography`, `pillow-heif` |
+| pinned | 1 | `tools.skills_hub` |
 | process | 3 | `psutil`, `termios`, `tty` |
-| provider_sdk | 1 | `openai` |
 | subprocess_call | 80 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_search`, `tools.mcp_tool`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
 | unproven | 2 | `psutil`, `ruamel-yaml-clib` |
 
@@ -58,9 +71,9 @@ How each shipped distribution is first reached (first target):
 | distribution | via |
 |---|---|
 | cryptography | `agent_runtime.serve_rpc.gateway_peers → agent_runtime.gateway_peers → agent_runtime.gateway_peers.dial → agent_runtime.gateway_tls` |
-| jiter | `plugins.model_providers.opencode_zen → agent → agent.jiter_preload` |
-| openai | `plugins.image_gen._common` |
 | pillow-heif | `plugins.image_gen.openai_codex → agent.image_routing` |
 | psutil | `plugins.memory.openviking` |
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 580 sites, into 89 modules.
+Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`).
+
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 610 sites, into 98 modules.

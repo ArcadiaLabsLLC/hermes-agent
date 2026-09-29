@@ -3515,10 +3515,19 @@ from . import (  # noqa: E402
     methods_projects as _methods_projects, methods_session_foreign as _methods_session_foreign,
     methods_session_control as _methods_session_control, methods_subagents as _methods_subagents,
     methods_vault as _methods_vault, methods_free_tier as _methods_free_tier,
-    methods_connectors as _methods_connectors, methods_connectors_account as _methods_connectors_account,
     methods_display as _methods_display, methods_display_watch as _methods_display_watch,
     methods_onboarding as _methods_onboarding, methods_i18n as _methods_i18n,
     methods_shared_metrics as _methods_shared_metrics)
+try:
+    from . import methods_connectors as _methods_connectors  # noqa: E402
+    from . import methods_connectors_account as _methods_connectors_account  # noqa: E402
+except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic contracts) are not shipped
+    from types import SimpleNamespace
+
+    def _no_connector_rpcs(server):  # rpc_dispatch reads the set; no connector method is served
+        server._CONNECTOR_RPC_METHODS = frozenset()
+
+    _methods_connectors = _methods_connectors_account = SimpleNamespace(register=_no_connector_rpcs)
 
 for _m in (
     _session_transports, _session_reaper, _session_lifecycle, _session_workdir, _compute_host_bridge, _model_switch,

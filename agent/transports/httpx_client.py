@@ -44,6 +44,8 @@ import httpx
 from agent.transports import sdk_shapes
 
 __all__ = [
+    "APIConnectionError",
+    "APITimeoutError",
     "CHAT_COMPLETIONS_WIRE",
     "CODEX_RESPONSES_WIRE",
     "AsyncSdkFreeClient",
@@ -98,6 +100,27 @@ class ProviderStreamError(Exception):
         self.message = message
         self.body = body
         self.status_code = None
+
+
+class APIConnectionError(Exception):
+    """The request got no HTTP answer: the SDKs' ``APIConnectionError``, raised from the transport
+    error as they raise it (``raise APIConnectionError(request=request) from err``), so a caller's
+    retry arm — ``codex_runtime.run_codex_stream`` retries a pre-stream failure once when its
+    ``__cause__`` is an ``httpx.TransportError`` — takes the same path on both clients."""
+
+    def __init__(self, *, message: str = "Connection error.", request: httpx.Request | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.request = request
+        self.status_code = None
+        self.body = None
+
+
+class APITimeoutError(APIConnectionError):
+    """The SDKs' ``APITimeoutError``: the request timed out before an answer (an ``httpx.TimeoutException``)."""
+
+    def __init__(self, request: httpx.Request | None = None) -> None:
+        super().__init__(message="Request timed out.", request=request)
 
 
 class SdkFreeWireUnavailable(RuntimeError):
@@ -396,7 +419,15 @@ class HttpCore:
             params={**self._default_query, **(query or {})} or None,
             timeout=effective_timeout if effective_timeout is not None else httpx.USE_CLIENT_DEFAULT,
         )
-        response = self._client.send(request, stream=True)
+        # The SDKs' request loop, minus its own retries (the loop's callers own retrying): a timeout
+        # is an APITimeoutError, any other failure to get an answer an APIConnectionError, each raised
+        # from the original error.
+        try:
+            response = self._client.send(request, stream=True)
+        except httpx.TimeoutException as err:
+            raise APITimeoutError(request=request) from err
+        except Exception as err:
+            raise APIConnectionError(request=request) from err
         if not 200 <= response.status_code < 300:
             self._raise_for_status(response)
         return response

@@ -8,9 +8,8 @@ a client on each wire and answers a contract question. This is the runtime proof
 profile gate's static one (``scripts/bundle_profile_gate.py`` no longer reports
 ``provider_sdk``): a guarded import site the gate accepts must also be a site that RUNS.
 
-What still needs pydantic on the worker path is named in the runtime queue (the connectors
-handlers ``tui_gateway/server.py`` imports at module level), so ``tui_gateway.server`` is not
-in the list below.
+The native gateway itself (``tui_gateway.server``) loads too: its connectors RPCs, the one
+module-level door into the pydantic contract models, sit behind a seam the phone wheel leaves out.
 
 Killing mutation (applied, red recorded, reverted — see the commit message): unguard the
 module-level ``from openai import ...`` in ``agent/auxiliary_wire.py`` -> red.
@@ -28,7 +27,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 
 CHILD = textwrap.dedent('''
-    import importlib.abc, json, sys
+    import importlib.abc, json, os, sys
+    RESULT = os.fdopen(os.dup(1), "w")  # the gateway owns stdout (its JSON-RPC stream) once imported
     BLOCKED = {"openai", "anthropic", "jiter", "pydantic", "pydantic_core"}
 
     class Blocker(importlib.abc.MetaPathFinder):
@@ -44,6 +44,7 @@ CHILD = textwrap.dedent('''
     from agent.auxiliary_client import _create_openai_client, _to_async_client
     from agent_runtime.conversations import in_process_peer, questions
     from tui_gateway.contract_seam import registry
+    import tui_gateway.server
 
     agent = SimpleNamespace(provider="openrouter", api_mode="codex_responses", _client_log_context=lambda: "",
                             _build_keepalive_http_client=lambda *a, **k: None)
@@ -59,7 +60,8 @@ CHILD = textwrap.dedent('''
     }
     questions.validate_answer({"method": "approval", "params": {"choices": ["once", "deny"]}}, {"choice": "once"})
     out["loaded"] = sorted(m for m in sys.modules if m.split(".")[0] in BLOCKED)
-    print(json.dumps(out))
+    out["connector_rpcs"] = sorted(tui_gateway.server._CONNECTOR_RPC_METHODS)
+    print(json.dumps(out), file=RESULT, flush=True)
 ''')
 
 
@@ -74,6 +76,7 @@ def test_the_phone_path_runs_without_any_sdk_or_pydantic(tmp_path):
     assert result.returncode == 0, result.stderr[-4000:]
     out = json.loads(result.stdout.strip().splitlines()[-1])
     assert out["loaded"] == []
+    assert out["connector_rpcs"] == []  # the seam's stand-in: no connector method is served
     assert (out["codex"], out["anthropic"], out["aux"], out["aux_async"]) == (
         "SdkFreeClient", "SdkFreeAnthropicClient", "SdkFreeClient", "AsyncSdkFreeClient")
     assert "zz_unknown: Extra inputs are not permitted" in out["unknown_key"]

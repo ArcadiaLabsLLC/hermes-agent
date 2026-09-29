@@ -56,6 +56,8 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
     "auth.subprocess_signin": "agent_runtime/provider_signin.py::subprocess_signin_enabled",
     "tui_gateway.pydantic_contracts": "tui_gateway/contract_seam.py::pydantic_contracts_enabled",
     "sessions.git_probe": "tui_gateway/git_probe.py::git_probe_enabled",
+    # Upstream's own connectors switch (read with an in-code default, no DEFAULT_CONFIG entry).
+    "tools.connectors.enabled": "tools/connectors/gateway/config.py::load_config",
     # ``providers.<slug>.enabled`` is upstream's per-provider switch (DEFAULT_CONFIG's ``providers``
     # is an empty mapping, so no slug is a default key).
     "providers.qwen-oauth.enabled": "hermes_cli/config_providers.py::is_provider_enabled",

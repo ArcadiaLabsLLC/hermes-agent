@@ -65,6 +65,9 @@ config:
   # The in-process gateway reads its wire contracts from the catalog generated from the pydantic
   # models (tui_gateway/contract_seam.py), never from pydantic itself.
   tui_gateway.pydantic_contracts: false
+  # Upstream's connectors switch: the gateway/portal connectors (and their pydantic wire models)
+  # are not packaged, so the connectors tool is out of the schema and its RPCs answer "unavailable".
+  tools.connectors.enabled: false
   # The system prompt's environment probe spawns python/pip/git (tools/env_probe.py); a phone
   # starts no process and has none of them.
   agent.environment_probe: false
@@ -112,6 +115,12 @@ packaging:
   # Base dependencies the phone omits. Refused by the closure script unless every import site
   # in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:
+    - distribution: pydantic
+      imports: [pydantic]
+      degrades: the in-process gateway validates its wire against the generated contract catalog (tui_gateway/contract_seam.py, tui_gateway.pydantic_contracts false); the connectors RPCs and MCP OAuth are not packaged
+    - distribution: pydantic-core
+      imports: [pydantic_core]
+      degrades: nothing beyond pydantic's row — only pydantic imports it
     - distribution: openai
       imports: [openai]
       degrades: nothing on the provider wires — agent.provider_sdks false builds the SDK-free clients (agent/transports/httpx_client.py, httpx_responses.py, httpx_anthropic.py); OpenAI cloud STT (openai package check) and OpenAI streaming TTS are unavailable; mem0 OSS uses the SDK-free client
@@ -235,6 +244,19 @@ packaging:
     - gateway.platforms.yuanbao_proto
     - gateway.platforms.yuanbao_sticker
     - plugins.platforms
+    # pydantic (pydantic-core is Rust): the gateway's pydantic contract models — the in-process gateway
+    # reads the generated catalog through tui_gateway/contract_seam.py — the connectors account RPCs
+    # (a seam in tui_gateway/server.py), the connectors gateway/portal wire clients, MCP device OAuth.
+    - tui_gateway.contracts
+    - tui_gateway.methods_connectors
+    - tui_gateway.methods_connectors_account
+    - tools.connectors.portal
+    - tools.connectors.gateway.client
+    - tools.connectors.gateway.wire
+    # MCP OAuth: its provider and manager import the `mcp` SDK (a provider SDK the phone never ships).
+    - tools.mcp_oauth_device
+    - tools.mcp_oauth_manager
+    - tools.mcp_oauth_provider
     # Checkout-bound.
     - gateway.code_skew
     - hermes_cli.update_cmd
@@ -311,6 +333,11 @@ packaging:
     - hermes_cli.plugins_updates
     - hermes_cli.secrets_cli
     - hermes_cli.onepassword_secrets_cli
+    # File-level backup / restore / snapshot of the SQLite stores: bound, state.db is a sealed image
+    # a sqlite3 file copy cannot open, and the host backs up its own app container.
+    - hermes_cli.backup
+    - hermes_cli.backup_restore
+    - hermes_cli.backup_sqlite
     # Process-starting integrations: LSP servers, verify runner, shell hooks, ACP/app-server children, desktop bot.
     - agent.lsp
     - agent.verify

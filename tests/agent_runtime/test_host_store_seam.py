@@ -324,3 +324,60 @@ def test_file_logs_are_sealed_records_when_bound(app):
     finally:
         hermes_logging._reset_queued_handlers()
         hermes_logging._logging_initialized = False
+
+
+def test_the_state_db_readers_beside_session_db_read_the_sealed_image(app):
+    """The raw readers of ``state.db`` outside ``SessionDB`` — the running-work delegation lane, the
+    dispatch store (which also writes), the readiness probe and the doctor's stats — read the sealed
+    image when bound. Before the seam each opened the envelope as SQLite and got "file is not a
+    database" (the lane reported the store unreadable; the dispatch store wrote a plaintext DB)."""
+    import sqlite3
+    import time
+
+    from agent_runtime.dispatch_store import db as dispatch_db
+    from agent_runtime.dispatch_store import record_dispatch
+    from agent_runtime.running_work.lanes_chat import DelegationLane
+    from gateway.readiness import _probe_state_db
+    from hermes_state_dbfile import collect_state_db_stats
+
+    root, home = app
+    FakeHostSecureStore().bind(profile="p1", store_root=root)
+    _pending_delegation(home)
+    record_dispatch(dispatch_id="x-1", sender_session_id="s1", target_persona="helper", ask=f"find {CHAT}")
+    db_path = home / "state.db"
+    assert not db_path.read_bytes().startswith(b"SQLite format 3") and CHAT.encode() not in db_path.read_bytes()
+
+    rows, refusal = DelegationLane(now=time.time(), accountant=None).read_durable(db_path)
+    assert refusal is None and [row[0] for row in rows] == ["d-1"]
+    assert [row["dispatch_id"] for row in dispatch_db.running_dispatches()] == ["x-1"]
+    assert _probe_state_db(home) == {"status": "ok"}
+    assert collect_state_db_stats(db_path)["page_count"]
+
+    # Positive control: the file really is an envelope a raw sqlite3 reader cannot open.
+    with pytest.raises(sqlite3.DatabaseError):
+        conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+        try:
+            conn.execute("SELECT name FROM sqlite_master").fetchall()
+        finally:
+            conn.close()
+
+
+def test_the_bound_pairing_store_lists_platforms_held_in_slots(app):
+    """``PairingStore.list_pending()`` / ``list_approved()`` with no platform enumerated the pairing
+    dir with ``iterdir``; bound, every ``<platform>-pending.json`` lives in a host-store slot, so the
+    listing was empty while the codes and approvals were there."""
+    from gateway.pairing import PairingStore
+
+    root, home = app
+    FakeHostSecureStore().bind(profile="p1", store_root=root)
+    store = PairingStore()
+    assert store.generate_code("telegram", "u-1", "Ada")
+    assert store.generate_code("slack", "u-2", "Bob")
+    code = store.generate_code("discord", "u-3", "Cy")
+    assert store.approve_code("discord", code)
+    # Positive control: nothing is on disk for a directory walk to find.
+    assert not [p for p in store._dir.iterdir() if p.name.endswith(".json")]
+
+    assert sorted(row["platform"] for row in store.list_pending()) == ["slack", "telegram"]
+    assert [row["platform"] for row in store.list_approved()] == ["discord"]
+    assert store.clear_pending() == 2 and store.list_pending() == []
