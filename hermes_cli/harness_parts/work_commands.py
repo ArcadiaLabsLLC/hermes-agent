@@ -6,6 +6,10 @@ running-work verb family and the confirmation-target helper only it calls.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from enum import Enum, auto
+
 from hermes_cli.harness_support import (
     ERROR_EXIT_CODES,
     _error_envelope,
@@ -18,9 +22,12 @@ from hermes_cli.harness_support import (
 
 __layer__ = "lanes"
 __all__ = [
+    "WorkCancelOutcome",
+    "WorkCancelVerdict",
     "_cmd_work_cancel",
     "_cmd_work_list",
     "_cmd_work_peek",
+    "_work_cancel_outcome",
     "_work_target_details",
 ]
 
@@ -137,72 +144,110 @@ def _cmd_work_peek(args) -> int:
     return 0
 
 
-def _cmd_work_cancel(args) -> int:
-    from datetime import datetime, timezone
+class WorkCancelVerdict(Enum):
+    """Every way ``harness work cancel`` can end — one member per exit path.
+
+    Deliberately not a string Enum: the verdict is an internal decision, never
+    a wire word, and string values would re-declare words the wire already
+    owns (``cancel_work``'s ``"cancelled"`` status, the error codes)."""
+
+    NOT_FOUND = auto()
+    SUPERSEDED = auto()
+    CONFIRMATION_REQUIRED = auto()
+    DRY_RUN = auto()
+    REFUSED = auto()
+    CANCELLED = auto()
+
+
+@dataclass(frozen=True)
+class WorkCancelOutcome:
+    """What one cancel request decided: the verdict, the exit code a caller
+    branches on, and the envelope to print.
+
+    ``envelope`` is ``None`` for exactly one verdict,
+    ``CONFIRMATION_REQUIRED``: that refusal is printed by the ONE confirmation
+    chokepoint (``harness_support._require_yes``), which names the target
+    itself, so this verb never prints a competing envelope of its own.
+    """
+
+    verdict: WorkCancelVerdict
+    exit_code: int
+    envelope: dict | None
+
+
+def _stamp_epoch(text: str):
+    """Epoch seconds for an ISO stamp; naive input is read as UTC.
+
+    Every `started_at` on this wire carries an offset — the projection
+    anchors the process registry's naive LOCAL stamps at its boundary
+    precisely so this comparison cannot be made against two different
+    frames of reference. Before that, a naive local stamp read as UTC
+    landed hours in the FUTURE in any UTC-plus timezone, so a
+    legitimate cancel issued seconds ago compared as "earlier than the
+    work started" and was refused `stale_revision`. The naive branch
+    stays as a defensive fallback for a caller-supplied `--issued-at`
+    written without an offset, where UTC is the documented reading.
+    """
+
+    raw = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _cancel_is_superseded(issued_at: str, started_at: str) -> bool:
+    """Replay guard. A cancel issued BEFORE this work started cannot have been
+    aimed at it: work ids are stable per spawn, so a retried/queued command
+    arriving after the original target died and a new one took its place would
+    otherwise kill the wrong thing. Superseding is the same ruling the active
+    realm/workspace writes make with --issued-at. An unparseable stamp on
+    either side never supersedes."""
+
+    if not (issued_at and started_at):
+        return False
+    issued_epoch, started_epoch = _stamp_epoch(issued_at), _stamp_epoch(started_at)
+    return issued_epoch is not None and started_epoch is not None and issued_epoch < started_epoch
+
+
+def _work_cancel_outcome(args) -> WorkCancelOutcome:
+    """Decide one cancel request. The only effects are the confirmation
+    chokepoint's own refusal print and, on the last path, the kill itself."""
 
     from agent_runtime.running_work import cancel_work, find_work_row
 
     work_id = str(getattr(args, "work_id", "") or "")
     row = find_work_row(work_id)
     if row is None:
-        _print_stage42(
+        return WorkCancelOutcome(
+            WorkCancelVerdict.NOT_FOUND,
+            ERROR_EXIT_CODES["not_found"],
             _error_envelope(
                 "not_found",
                 "no running work with that id",
                 safe_details={"work_id": work_id},
             ),
-            args=args,
-            default_output="json",
         )
-        return ERROR_EXIT_CODES["not_found"]
 
-    # Replay guard. A cancel issued BEFORE this work started cannot have been
-    # aimed at it: work ids are stable per spawn, so a retried/queued command
-    # arriving after the original target died and a new one took its place would
-    # otherwise kill the wrong thing. Superseding is the same ruling the active
-    # realm/workspace writes make with --issued-at.
     issued_at = str(getattr(args, "issued_at", None) or "").strip()
     started_at = str(row.get("started_at") or "")
-    if issued_at and started_at:
-        def _epoch(text: str):
-            """Epoch seconds for an ISO stamp; naive input is read as UTC.
-
-            Every `started_at` on this wire carries an offset — the projection
-            anchors the process registry's naive LOCAL stamps at its boundary
-            precisely so this comparison cannot be made against two different
-            frames of reference. Before that, a naive local stamp read as UTC
-            landed hours in the FUTURE in any UTC-plus timezone, so a
-            legitimate cancel issued seconds ago compared as "earlier than the
-            work started" and was refused `stale_revision`. The naive branch
-            stays as a defensive fallback for a caller-supplied `--issued-at`
-            written without an offset, where UTC is the documented reading.
-            """
-
-            raw = text[:-1] + "+00:00" if text.endswith("Z") else text
-            try:
-                parsed = datetime.fromisoformat(raw)
-            except ValueError:
-                return None
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed.timestamp()
-
-        issued_epoch, started_epoch = _epoch(issued_at), _epoch(started_at)
-        if issued_epoch is not None and started_epoch is not None and issued_epoch < started_epoch:
-            _print_stage42(
-                _error_envelope(
-                    "stale_revision",
-                    "cancel was issued before this work started; superseded",
-                    safe_details={
-                        "work_id": work_id,
-                        "issued_at": issued_at,
-                        "started_at": started_at,
-                    },
-                ),
-                args=args,
-                default_output="json",
-            )
-            return ERROR_EXIT_CODES["stale_revision"]
+    if _cancel_is_superseded(issued_at, started_at):
+        return WorkCancelOutcome(
+            WorkCancelVerdict.SUPERSEDED,
+            ERROR_EXIT_CODES["stale_revision"],
+            _error_envelope(
+                "stale_revision",
+                "cancel was issued before this work started; superseded",
+                safe_details={
+                    "work_id": work_id,
+                    "issued_at": issued_at,
+                    "started_at": started_at,
+                },
+            ),
+        )
 
     target = _work_target_details(row)
     if not _require_yes(
@@ -213,37 +258,41 @@ def _cmd_work_cancel(args) -> int:
         ),
         safe_details=target,
     ):
-        return ERROR_EXIT_CODES["confirmation_required"]
+        return WorkCancelOutcome(
+            WorkCancelVerdict.CONFIRMATION_REQUIRED,
+            ERROR_EXIT_CODES["confirmation_required"],
+            None,
+        )
 
     if getattr(args, "dry_run", False):
-        _print_stage42(
+        return WorkCancelOutcome(
+            WorkCancelVerdict.DRY_RUN,
+            0,
             _object_envelope(
                 "work_cancel",
                 {"dry_run": True, "would_cancel": target, "cancelled": False},
             ),
-            args=args,
-            default_output="json",
         )
-        return 0
 
     result = cancel_work(work_id, reason=str(getattr(args, "reason", "") or "operator_cancel"))
     if result.get("status") != "cancelled":
         code = str(result.get("code") or "internal_error")
-        _print_stage42(
+        return WorkCancelOutcome(
+            WorkCancelVerdict.REFUSED,
+            ERROR_EXIT_CODES.get(code, 1),
             _error_envelope(
                 code,
                 str(result.get("detail") or f"cancel refused: {code}"),
                 safe_details={**target, "detail": result.get("detail")},
             ),
-            args=args,
-            default_output="json",
         )
-        return ERROR_EXIT_CODES.get(code, 1)
 
-    _print_stage42(
-        # ``status``/``code``/``kind`` are stripped from the spread: the first
-        # two are already expressed by the exit code, and ``kind`` would
-        # overwrite the envelope's own kind discriminator.
+    # ``status``/``code``/``kind`` are stripped from the spread: the first
+    # two are already expressed by the exit code, and ``kind`` would
+    # overwrite the envelope's own kind discriminator.
+    return WorkCancelOutcome(
+        WorkCancelVerdict.CANCELLED,
+        0,
         _object_envelope(
             "work_cancel",
             {
@@ -256,7 +305,11 @@ def _cmd_work_cancel(args) -> int:
                 },
             },
         ),
-        args=args,
-        default_output="json",
     )
-    return 0
+
+
+def _cmd_work_cancel(args) -> int:
+    outcome = _work_cancel_outcome(args)
+    if outcome.envelope is not None:
+        _print_stage42(outcome.envelope, args=args, default_output="json")
+    return outcome.exit_code
