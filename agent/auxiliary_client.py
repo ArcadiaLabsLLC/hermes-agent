@@ -56,15 +56,14 @@ def _load_openai_cls() -> type:
     global _OPENAI_CLS_CACHE
     # Fork seam (embedded Hermes): a profile that ships no provider SDK (``agent.provider_sdks:
     # false``) gets the SDK-free client class, for construction and ``isinstance`` alike.
-    from agent.transports.httpx_client import SdkFreeClient, SdkFreeWireUnavailable, provider_sdks_enabled
+    from agent.transports.httpx_client import SdkFreeClient, provider_sdks_enabled, sdk_import_failure
     if not provider_sdks_enabled():
         return SdkFreeClient
     if _OPENAI_CLS_CACHE is None:
         try:
             from openai import OpenAI as _cls
         except ImportError as exc:  # fork seam: only a profile with agent.provider_sdks: false omits it
-            raise SdkFreeWireUnavailable("the openai SDK is not installed; a profile without it must set "
-                                         "agent.provider_sdks: false") from exc
+            raise sdk_import_failure("openai", exc) from exc
         _OPENAI_CLS_CACHE = _cls
     return _OPENAI_CLS_CACHE
 

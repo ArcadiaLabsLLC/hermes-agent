@@ -61,6 +61,7 @@ __all__ = [
     "iter_sse_events",
     "missing_sdk",
     "provider_sdks_enabled",
+    "sdk_import_failure",
     "chat_tool_call_factories",
     "sdk_free_async_client",
     "sdk_free_client",
@@ -131,6 +132,22 @@ class NoProviderSdk(Exception):
     """Stands in for an SDK class a profile does not ship: nothing is an instance of it and
     nothing raises it, so ``isinstance`` / ``except`` against it is never true. The fallback of
     an SDK import site guarded for the phone profile (``agent.provider_sdks: false``)."""
+
+
+def sdk_import_failure(package: str, exc: ImportError) -> SdkFreeWireUnavailable:
+    """The error for an SDK import that failed: absent only when *package* itself is not found.
+
+    An installed SDK whose own import fails -- a dependency's compiled module built for another
+    interpreter (``pydantic_core``'s ``cp314`` extension under 3.12) -- is not a profile that
+    ships no SDK, and telling the operator to set ``agent.provider_sdks: false`` sends them the
+    wrong way. The chained cause stays attached either way.
+    """
+    if isinstance(exc, ModuleNotFoundError) and exc.name == package:
+        return SdkFreeWireUnavailable(f"the {package} SDK is not installed; a profile without it must set "
+                                      "agent.provider_sdks: false")
+    return SdkFreeWireUnavailable(f"the {package} SDK is installed but failed to import "
+                                  f"({type(exc).__name__}: {exc}); its environment is broken or was built "
+                                  "for another Python -- run `hermes pm repair`")
 
 
 def missing_sdk(name: str) -> Callable[..., Any]:

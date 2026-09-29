@@ -113,9 +113,8 @@ def _load_openai_cls() -> type:
         try:
             from openai import OpenAI as _OPENAI_CLS_CACHE
         except ImportError as exc:  # fork seam: only a profile with agent.provider_sdks: false omits it
-            from agent.transports.httpx_client import SdkFreeWireUnavailable
-            raise SdkFreeWireUnavailable("the openai SDK is not installed; a profile without it must set "
-                                         "agent.provider_sdks: false") from exc
+            from agent.transports.httpx_client import sdk_import_failure
+            raise sdk_import_failure("openai", exc) from exc
     return _OPENAI_CLS_CACHE
 
 

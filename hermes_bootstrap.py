@@ -560,6 +560,23 @@ if not _pm_repair:
               file=sys.stderr)
     try:
         recover_if_needed(_root)
+        # Fork seam: a generation built for another Python loses its compiled modules on this
+        # interpreter (openai → pydantic_core); re-enter the generation's own. `pm` keeps its
+        # launch contract, as in prepare_launch. See hermes_cli/interpreter_abi.py.
+        if command_argv(sys.argv[1:])[:1] != ["pm"]:
+            from hermes_cli.interpreter_abi import generation_interpreter_for_mismatch
+
+            _abi_python = generation_interpreter_for_mismatch(_root)
+            if _abi_python is not None:
+                _abi_spec = getattr(sys.modules.get("__main__"), "__spec__", None)
+                _abi_command = relaunch_command(
+                    _abi_python, _root, sys.argv, sys.orig_argv, getattr(_abi_spec, "name", None),
+                )
+                if os.name == "nt":
+                    import subprocess
+
+                    raise RelaunchExit(subprocess.call(_abi_command))
+                os.execv(str(_abi_python), _abi_command)
         activate_dependencies(_root)
     except (RuntimeError, OSError) as exc:
         if isinstance(exc, PermissionError) and (message := install_state_permission_message(_root, exc)):
