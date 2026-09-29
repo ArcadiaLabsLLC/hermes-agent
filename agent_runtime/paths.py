@@ -720,3 +720,11 @@ def install_record_path(store_root: Path | str) -> Path:
 #: is warming up. Same rationale as ``dispatch_delivery.DRAIN_STATE_FILENAME``
 #: and the per-session turn store's documented exclusion.
 SERVE_AUTH_TOKEN_FILENAME = "serve_auth_token"
+
+
+#: The serve's per-root daemon files, named here so the core cache's exclusion list can
+#: name them without importing the daemon shell (``serve_registry`` / ``serve_socket``),
+#: which the phone wheel does not ship.
+SERVE_INSTANCES_DIRNAME = "serve_instances"
+SOCKET_LOCK_FILENAME = "serve_socket.lock"
+SOCKET_OWNER_FILENAME = "serve_socket.owner.json"

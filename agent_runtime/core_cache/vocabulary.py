@@ -18,9 +18,10 @@ from agent_runtime.paths import (
     OFFICE_ARCHIVE_DIRNAME,
     REALM_SYNC_DIRNAME,
     SERVE_AUTH_TOKEN_FILENAME,
+    SERVE_INSTANCES_DIRNAME,
+    SOCKET_LOCK_FILENAME,
+    SOCKET_OWNER_FILENAME,
 )
-from agent_runtime.serve_registry import SERVE_INSTANCES_DIRNAME
-from agent_runtime.serve_socket.vocabulary import SOCKET_LOCK_FILENAME, SOCKET_OWNER_FILENAME
 
 __layer__ = "models"
 

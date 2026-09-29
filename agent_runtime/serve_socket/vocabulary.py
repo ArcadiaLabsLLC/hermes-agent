@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from agent_runtime.paths import SOCKET_LOCK_FILENAME, SOCKET_OWNER_FILENAME
+
 __layer__ = "models"
 
 __all__ = [
@@ -73,12 +75,6 @@ __all__ = [
 #: that reads ``SOCKET_HOST`` is asking about the local lane and still gets the
 #: local answer.
 SOCKET_HOST = "127.0.0.1"
-
-
-SOCKET_LOCK_FILENAME = "serve_socket.lock"
-
-
-SOCKET_OWNER_FILENAME = "serve_socket.owner.json"
 
 
 #: Connections a single serve will hold. A durable service is meant to be

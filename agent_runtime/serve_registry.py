@@ -178,6 +178,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from .paths import SERVE_INSTANCES_DIRNAME
 from .serde import write_json_atomic
 
 __layer__ = "models"
@@ -215,7 +216,6 @@ __all__ = [
     "write_serve_ended",
 ]
 
-SERVE_INSTANCES_DIRNAME = "serve_instances"
 SERVE_INSTANCE_SCHEMA_VERSION = 1
 
 #: The end-reason sidecar's filename tail: ``serve_instances/<pid>.ended.json``.
