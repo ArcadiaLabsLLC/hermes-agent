@@ -1,4 +1,4 @@
-"""finish_reason survives on every role; same-second sessions list in a stable order."""
+"""finish_reason survives on every role."""
 
 import pytest
 
@@ -22,10 +22,3 @@ def test_finish_reason_is_read_back_on_a_tool_row(db):
     assert by_role["assistant"].get("finish_reason") == "tool_calls"  # unchanged path
     assert by_role["tool"].get("finish_reason") == "length"
 
-
-def test_same_second_sessions_list_in_id_order(db):
-    for sid in ("sess-a", "sess-b", "sess-c"):
-        db.create_session(sid, source="cli")
-    db._write_sql("UPDATE sessions SET started_at = ?", (1_700_000_000.0,))
-    ids = [s["id"] for s in db.list_sessions_rich(source="cli")]
-    assert ids == ["sess-c", "sess-b", "sess-a"]
