@@ -122,7 +122,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane LEDGER-DOCS)
 
-- [ ] **Stage 6 desktop's owner-ruling DONE heading fails the landed-commit citation gate.** · `fork / docs` · `tests/test_docket_stage_claims.py` fails unchanged on `2455c606b4`; distinguish owner disposition from a shipped-code claim in `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` without inventing a landing · evidence: the ACP named-provider identity note § Installation qualification (deleted with the ACP surface, lane ACP-DROP; last present at `f6894e3497`). **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
 - [ ] **Fork CI on `main` runs on every push again but has not been green once since it resumed** · `fork / ci` · `gh run list --branch main --workflow ci.yaml`: 68 runs since 2026-09-15, 38 failure · 28 cancelled · 0 success (red jobs on run 35992190948: Python tests, ruff enforcement, Windows footguns `/tmp` baseline, windows_only tests); `fork-gates.yml` red on every push, `Changed-line mutation claims` → `mutation-check configuration error: cxr1-codex-readiness-asks-the-pool-alone: mutation source not found in agent_runtime/profile_readiness` (run 36062192326) · classify each red job as fork-caused / upstream-caused / runner-environmental before fixing · filed by lane LEDGER-DOCS 2026-09-24 **UNCLAIMED** **TAKEN 2026-09-29 h10-fhrest**
 
