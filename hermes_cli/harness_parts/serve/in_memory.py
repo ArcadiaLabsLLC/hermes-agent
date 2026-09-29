@@ -131,19 +131,22 @@ class _LineSink:
         return None
 
 
-def require_bound_host_store(environ: MutableMapping[str, str] = os.environ) -> None:
+def require_bound_host_store(home: Path | None = None) -> None:
     """Refuse an embedded serve whose host has not bound a secure store over its Hermes home.
 
     Raises ``HostStoreNotBound`` when nothing is bound, ``OutsideStoreRoot`` when the
-    binding's root does not contain ``HERMES_HOME`` (its secret files would have no slot).
+    binding's root does not contain the Hermes home (its secret files would have no slot).
+    ``home`` defaults to the RESOLVED root (``get_hermes_home``) — the one the serve will
+    actually write under — never a second read of the environment.
     """
 
     from agent_runtime.host_store.binding import OutsideStoreRoot, require
+    from hermes_constants import get_hermes_home
 
     bound = require()
-    home = Path(os.path.abspath(environ.get("HERMES_HOME", "")))
-    if not environ.get("HERMES_HOME") or not home.is_relative_to(bound.store_root):
-        raise OutsideStoreRoot(f"HERMES_HOME {home} is not under the host store root {bound.store_root}")
+    home = Path(os.path.abspath(home if home is not None else get_hermes_home()))
+    if not home.is_relative_to(bound.store_root):
+        raise OutsideStoreRoot(f"Hermes home {home} is not under the host store root {bound.store_root}")
 
 
 class EmbeddedServe:
