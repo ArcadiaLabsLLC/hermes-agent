@@ -9,9 +9,12 @@ import uuid
 #: Exit 2 is the one non-zero code both desktop updaters never retry: the legacy
 #: retry arms in ``scripts/desktop-update/posix.sh`` and ``windows.ps1`` exempt only
 #: 0 and 2, and the PM path never retries. A fold review is deterministic, so a
-#: retry would only repeat it. Both scripts still report it with their generic
-#: "Update failed (exit 2)" text; the banner below is what names the cause.
+#: retry would only repeat it. Both scripts match exit 2 plus
+#: :data:`HISTORY_REVIEW_BANNER` on stdout and report a refusal, not a failure.
 HISTORY_REVIEW_EXIT = 2
+
+#: Printed first by :func:`guard_fork_history`; the desktop updaters key on it.
+HISTORY_REVIEW_BANNER = "HERMES_UPDATE_HISTORY_REVIEW_REQUIRED"
 
 #: The first commit of the fork's reconstructed history (2026-09-15, "fork: build
 #: test platform"; its parent is upstream's). A checkout whose HEAD does not descend
@@ -100,7 +103,7 @@ def guard_fork_history(git_cmd, cwd: Path, target: str) -> HistoryAssessment:
         return history
     if not has_fork_ancestry(git_cmd, cwd):
         return history
-    print("HERMES_UPDATE_HISTORY_REVIEW_REQUIRED")
+    print(HISTORY_REVIEW_BANNER)
     refs = []
     prefix = "refs/hermes-update-backups/review-" + uuid.uuid4().hex
     commands = ["start"]

@@ -64,7 +64,10 @@ def test_fold_refusal_preserves_dirty_files_index_and_both_histories(repo, capsy
     assert git(repo, "status", "--porcelain") == status
     rescued = git(repo, "for-each-ref", "--format=%(objectname)", "refs/hermes-update-backups/").splitlines()
     assert sorted(rescued) == sorted([old, tip])
-    assert "tracked trees match" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "tracked trees match" in out
+    # scripts/desktop-update/{posix.sh,windows.ps1} key their refusal text on this literal.
+    assert "HERMES_UPDATE_HISTORY_REVIEW_REQUIRED" in out.splitlines()
 
 
 def test_genuine_divergence_is_not_assumed_to_be_a_fold(repo):
