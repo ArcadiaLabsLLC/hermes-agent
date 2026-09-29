@@ -26,7 +26,6 @@ import pytest
 from tools import path_identity
 from tools.path_identity import (
     denotes_same_file,
-    posix_match_forms,
     windows_spelling_of_msys_path,
 )
 
@@ -37,60 +36,6 @@ _WINDOWS_ONLY = pytest.mark.skipif(
 _POSIX_ONLY = pytest.mark.skipif(
     os.name == "nt", reason="pins POSIX-native symlink/case behaviour"
 )
-
-
-class TestPosixMatchForms:
-    """The spelling set a POSIX-rooted blocklist must be matched against."""
-
-    def test_posix_literal_survives_normalization(self):
-        """The security bypass, stated as a guarantee.
-
-        ``os.path.normpath("/etc/hosts")`` is ``"\\etc\\hosts"`` where ``os.sep``
-        is a backslash. A guard comparing only that form matched none of the
-        POSIX literals it was built from and answered ALLOW.
-        """
-        assert "/etc/hosts" in posix_match_forms("/etc/hosts")
-        assert "/dev/zero" in posix_match_forms("/dev/zero")
-
-    def test_normalized_form_comes_first(self):
-        """Callers index ``forms[0]`` for the host-native spelling."""
-        assert posix_match_forms("/etc/hosts")[0] == os.path.normpath("/etc/hosts")
-
-    def test_traversal_is_collapsed_in_every_form(self):
-        """Adding a spelling must not create a way to smuggle ``..`` past a
-        prefix test: normalization happens BEFORE the spellings fan out."""
-        for form in posix_match_forms("/etc/../etc/hosts"):
-            assert ".." not in form
-        assert "/etc/hosts" in posix_match_forms("/etc/../etc/hosts")
-
-    @_WINDOWS_ONLY
-    def test_windows_yields_both_spellings(self):
-        forms = posix_match_forms("/etc/hosts")
-        assert forms == ("\\etc\\hosts", "/etc/hosts")
-
-    @_WINDOWS_ONLY
-    def test_native_windows_path_gains_no_posix_root(self):
-        """The added spelling cannot create a false positive.
-
-        A native Windows path is always drive- or UNC-anchored, so no form it
-        produces can match an ``/etc/``-style root — which is what makes adding
-        the POSIX spelling safe for a *prefix* guard rather than only an
-        exact-set one.
-        """
-        for form in posix_match_forms(r"C:\Users\x\etc\hosts"):
-            assert not form.startswith("/etc")
-            assert not form.startswith("/dev")
-
-    def test_posix_host_returns_exactly_one_form(self):
-        if os.sep != "/":
-            pytest.skip("statement is about POSIX hosts")
-        assert posix_match_forms("/etc/hosts") == ("/etc/hosts",)
-
-    def test_total_on_non_string_input(self):
-        """Total, per the module's purity contract: no raise, ever."""
-        assert posix_match_forms(Path("/etc/hosts"))  # PathLike is coerced
-        assert posix_match_forms(None) == ()
-        assert posix_match_forms(3) == ()
 
 
 class TestWindowsSpellingOfMsysPath:
@@ -256,3 +201,37 @@ class TestDenotesSameFile:
 
     def test_pathlike_operands_are_accepted(self, tmp_path):
         assert denotes_same_file(tmp_path, str(tmp_path)) is True
+
+
+class TestCallersTakeTheIdentityAnswer:
+    """The joins, not only the predicate (review on #125262)."""
+
+    @pytest.mark.platforms("windows")
+    def test_git_bash_spelling_of_a_temp_artifact_is_exempt_and_nothing_wider(self, tmp_path):
+        from tools.approval_detection import detect_dangerous_command
+
+        temp_dir = os.path.realpath(tmp_path)
+        drive, rest = temp_dir[0], temp_dir[3:].replace("\\", "/")
+        msys_temp = f"/{drive.lower()}/{rest}"
+        with mock_patch("tempfile.gettempdir", return_value=temp_dir):
+            assert detect_dangerous_command(f"rm -f {msys_temp}/hermes-verify-a.py") == (
+                False, None, None)
+            # Near misses: the same checks as the native spelling still refuse.
+            for operand in (
+                f"{msys_temp}/other.py",
+                f"{msys_temp}/nested/../hermes-verify-a.py",
+                f"{msys_temp}-evil/hermes-verify-a.py",
+            ):
+                assert detect_dangerous_command(f"rm -f {operand}")[0] is True, operand
+
+    @pytest.mark.platforms("windows")
+    def test_single_tts_chunk_already_at_its_output_is_not_copied_onto_itself(self, tmp_path):
+        from tools.tts_tool_delivery import _concat_audio_files
+
+        chunk = tmp_path / "speech.mp3"
+        chunk.write_bytes(b"ID3")
+        # Same file, other case: abspath() compared these unequal and
+        # shutil.copyfile then raised SameFileError.
+        output = str(chunk).upper()
+        assert _concat_audio_files([str(chunk)], output) == output
+        assert chunk.read_bytes() == b"ID3"

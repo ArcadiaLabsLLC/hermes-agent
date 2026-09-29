@@ -4,40 +4,26 @@ two spellings denote the same real file.
 Why this module exists
 ----------------------
 
-Nothing owned that question, so every guard re-derived it and each one got it
-wrong differently. Four defects landed in a single night, three distinct
-mechanisms, one root cause:
-
-1. ``tools/file_tools.py`` ``_SENSITIVE_PATH_PREFIXES`` — ``os.path.normpath``
-   rewrites ``/etc/hosts`` to ``\\etc\\hosts`` wherever ``os.sep`` is a
-   backslash, so a ``.startswith("/etc")`` prefix test returned False and the
-   guard answered ALLOW for exactly the paths it exists to refuse. A **security
-   bypass**, silent, on every Windows host — including the ones handing real
-   Linux paths to the container backends.
-2. ``tools/approval.py`` ``_is_verification_artifact_cleanup`` — Git Bash spells
-   a temp artifact ``/c/Users/.../Temp/x``; the exemption only knew
-   ``C:\\Users\\...``, so it missed, and the leading ``/`` then tripped the
-   "delete in root path" rule. The safest command in the suite scored as a
-   destructive one.
-3. The MSYS shell hop in ``tools/environments/local.py`` — a *different* root
-   cause (argument escaping, not identity) that this module deliberately does
-   NOT claim; see "What this module is not" below.
-4. ``tools/file_tools.py`` ``_BLOCKED_DEVICE_PATHS`` — the SAME defect as (1),
-   already found and fixed three hundred lines above it, and left open-coded
-   there so the next guard repeated it.
-
-(4) is the proof the cause is structural rather than incidental: the correct
-technique was already in the file and the next guard still got it wrong. So the
-technique gets a home, and guards call it instead of re-deriving it.
+Nothing owned that question, so each caller re-derived it with whatever
+string comparison was nearest to hand — ``os.path.abspath(a) != abspath(b)``,
+``normpath(a) == normpath(b)``, ``realpath(a) == realpath(b)`` — and each
+spelling answers a different question. On Windows the first two call one file
+two files when the spellings differ only in case or separator, which is how
+``shutil.copyfile`` in the TTS single-chunk path could be handed the same file
+twice and raise ``SameFileError``. And the verification-artifact cleanup
+exemption in ``tools/approval_detection.py`` only knew the native spelling of
+the temp dir, so the Git-Bash spelling ``/c/Users/.../Temp/x`` of the same
+file was refused, and refused loudly: the leading ``/`` also tripped the
+"delete in root path" rule.
 
 What this module owns
 ---------------------
 
-* **Spelling** — every form an operand may arrive in, as an explicit set
-  (:func:`posix_match_forms`), and the one narrow Windows/MSYS translation a
-  guard is allowed to apply (:func:`windows_spelling_of_msys_path`).
 * **Identity** — whether two operands name the same real file after symlink
   resolution and platform case folding (:func:`denotes_same_file`).
+* **The one spelling translation a guard may apply** — Git-Bash/MSYS drive
+  paths to their Windows spelling (:func:`windows_spelling_of_msys_path`),
+  asked for explicitly at the call site.
 
 What this module is not
 -----------------------
@@ -82,7 +68,6 @@ from typing import Optional
 
 __all__ = [
     "denotes_same_file",
-    "posix_match_forms",
     "windows_spelling_of_msys_path",
 ]
 
@@ -93,45 +78,6 @@ __all__ = [
 _MSYS_DRIVE_PATH = re.compile(r"/([A-Za-z])/(.+)", re.DOTALL)
 
 _IS_WINDOWS = os.name == "nt"
-
-
-def posix_match_forms(path: str) -> tuple[str, ...]:
-    """Return every spelling a POSIX-rooted blocklist must be matched against.
-
-    ``os.path.normpath`` rewrites "/dev/zero" to "\\dev\\zero" and "/etc/hosts"
-    to "\\etc\\hosts" wherever ``os.sep`` is a backslash, so a guard that
-    compares only the normalized form matches NONE of the POSIX literals it is
-    built from. It does not fail loudly — it silently answers "not blocked" for
-    exactly the paths it exists to refuse.
-
-    The host platform is not the question. Reads and writes execute through Git
-    Bash / WSL and through the container backends (docker, modal, daytona,
-    singularity, vercel_sandbox), where /dev, /proc and /etc are real and a
-    POSIX path is the normal case rather than the exotic one.
-
-    Adding the POSIX spelling cannot create a false positive against a
-    root-anchored prefix: a native Windows path is always drive- or
-    UNC-anchored ("C:/…", "//host/…") and so can never match an "/etc/"-style
-    root.
-
-    *path* must already be tilde-expanded — see the module docstring on why
-    that expansion is the caller's job.
-    """
-    if not isinstance(path, str):
-        try:
-            path = os.fspath(path)
-        except TypeError:
-            return ()
-    try:
-        normalized = os.path.normpath(path)
-    except (OSError, ValueError):
-        return (path,)
-    if os.sep == "/":
-        return (normalized,)
-    posix_form = normalized.replace(os.sep, "/")
-    if posix_form == normalized:
-        return (normalized,)
-    return (normalized, posix_form)
 
 
 def windows_spelling_of_msys_path(operand: str) -> Optional[str]:
