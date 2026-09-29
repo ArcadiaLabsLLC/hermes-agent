@@ -1,18 +1,62 @@
 """Fork-owned tests moved out of ``tests/gateway/relay/test_contract_doc_conformance.py`` (seam Stage 5).
 
-Same names, same bodies; the upstream file keeps only upstream's tests.
+Same names, same bodies. Upstream purged that file (aedc6ccc3a, "purge
+low-value tests"), so the helpers these tests read now live here.
 """
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
 from gateway.session import SessionSource
 
-from tests.gateway.relay.test_contract_doc_conformance import (  # noqa: F401 — upstream names the moved tests use
-    _doc_text,
-    _parse_discriminator_columns,
-    _session_source_wire_keys,
+# Repo root: tests/gateway/relay/ -> repo root is parents[3]
+_CONTRACT_DOC = (
+    Path(__file__).resolve().parents[3] / "website" / "docs" / "developer-guide" / "relay-connector-contract.md"
 )
+
+
+def _doc_text() -> str:
+    assert _CONTRACT_DOC.exists(), f"Contract doc missing at {_CONTRACT_DOC}."
+    return _CONTRACT_DOC.read_text(encoding="utf-8")
+
+
+def _table_cells(line: str) -> list[str]:
+    """Split one markdown table row into cells, honouring escaped pipes."""
+    return [c.strip().strip("*` ") for c in re.split(r"(?<!\\)\|", line.strip("|"))]
+
+
+def _parse_discriminator_columns(text: str) -> list[str]:
+    """Parse the per-platform table's column headers (minus the ``Platform`` key)."""
+    section = text.split("### SessionSource discriminators per platform", 1)[-1]
+    for line in section.splitlines():
+        line = line.strip()
+        if line.startswith("|"):
+            return [c for c in _table_cells(line)[1:] if c]
+    return []
+
+
+def _session_source_wire_keys() -> set[str]:
+    """Keys ``SessionSource.to_dict()`` can emit, from a maximally-populated source."""
+    from gateway.config import Platform
+
+    src = SessionSource(
+        platform=Platform.DISCORD,
+        chat_id="c",
+        chat_name="n",
+        chat_type="channel",
+        user_id="u",
+        user_name="un",
+        thread_id="t",
+        chat_topic="topic",
+        user_id_alt="ua",
+        chat_id_alt="ca",
+        guild_id="g",
+        parent_chat_id="p",
+        message_id="m",
+    )
+    return set(src.to_dict().keys())
 
 
 def _parse_session_source_table(text: str) -> set[str]:
