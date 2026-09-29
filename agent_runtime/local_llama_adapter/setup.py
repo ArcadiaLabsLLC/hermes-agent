@@ -282,8 +282,8 @@ class SetupManager:
         if not self.capabilities()["features"]["install"]:
             fail("unsupported_platform", "Use an existing executable on this host")
         tag, release_id, variant_id = (params.get(k) for k in ("tag", "release_id", "variant_id"))
-        # The destination is validated for the operator's benefit; PM installs into its own store.
-        parent = host_path(params.get("destination_parent"), directory=True)
+        # PM installs into its own store, so no destination is read: ``destination_parent`` is
+        # still accepted from a client that sends it and ignored.
         variant = next((v for v in _variants(tag) if v["variant_id"] == variant_id), None) if release_id == tag else None
         if variant is None:
             fail("release_unavailable", "This release has no asset bundle for that variant")
@@ -300,7 +300,7 @@ class SetupManager:
                 fail("operation_busy", "Too many pending installation plans")
             plan = {"plan_id": str(uuid.uuid4()), "plan_revision": 1, "expires": time.time() + 900,
                     "release_id": release_id, "tag": tag, "variant_id": variant_id,
-                    "destination_parent": str(parent), "directory": str(target), "variant": variant,
+                    "directory": str(target), "variant": variant,
                     "required_free_bytes": _INSTALL_HEADROOM_BYTES, "free_bytes": free,
                     "config_revision": self.manager.config_revision,
                     "inventory_revision": self.data["inventory_revision"],

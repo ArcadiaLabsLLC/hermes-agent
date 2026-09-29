@@ -142,7 +142,7 @@ stricter), page limits 1–100, user labels 120 chars and lists at documented ca
 | `host_paths.validate` / console | `path:string`, `purpose:installation_parent|model_root|offline_archive` | `normalized_path:string`, `exists:bool`, `readable:bool`, `writable:bool|null`, `free_bytes:int|null`, `issues:Issue[]`, `observed_at` |
 | `hardware.get` / console | `{}` | `os:string`, `architecture:string`, `cpu_features:string[]`, `ram_bytes:int|null`, `vram_bytes:int|null`, `gpus:Gpu[]`, `issues:Issue[]`, `observed_at` |
 | `releases.list` / console | `channel:stable|prerelease`, `cursor?:string`, `limit?:int=20` | `releases:Release[]`, `next_cursor:string|null`, `cached:bool`, `fetched_at`, `stale:bool`, `retry_after_seconds:int|null` |
-| `installation.plan` / console | `release_id:string`, `variant_id:string`, `destination_parent:string`, `source:official_download|offline_cached`, `offline_paths?:string[]` | `plan:InstallPlan` |
+| `installation.plan` / console | `release_id:string`, `variant_id:string`, `destination_parent?:string` (ignored: the install goes into PM's store), `source:official_download|offline_cached`, `offline_paths?:string[]` | `plan:InstallPlan` |
 | `installation.apply` / console | Guard + `plan_id:UUID`, `plan_revision:int`, `acknowledged_warning_ids:string[]` | `operation:Operation`, `active_operation:Operation|null` |
 | `operations.cancel` / console | `request_id:UUID`, `operation_id:UUID` | `target:Operation`, `cancel_disposition:requested|already_requested|already_terminal` |
 | `installations.activate` / console | Guard + `installation_id?:UUID` OR `validation_token?:UUID`, `expect_inventory_revision:int`, `expect_active_installation_id:UUID|null` | `operation:Operation`, `active_operation:Operation|null` |
@@ -185,7 +185,7 @@ Records:
   Download URLs remain backend-private. Missing trusted digest makes automatic
   installation unavailable; do not label a locally computed hash publisher verification.
 - `InstallPlan={plan_id:UUID,plan_revision:int,expires_at:string,release_id:string,
-  variant_id:string,destination_parent:string,final_directory:string,
+  variant_id:string,final_directory:string,
   artifacts:Artifact[],required_free_bytes:int,free_bytes:int,
   dependencies:Issue[],warnings:Issue[],warning_ids:string[],
   config_revision:int,inventory_revision:int,hardware_fingerprint:string,

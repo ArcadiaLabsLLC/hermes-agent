@@ -97,7 +97,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-26 (launcher lane LLAMA-SWITCH, filed by the orchestrator)
 
-- [ ] **`installation.plan` stops requiring `destination_parent`** — `agent_runtime/local_llama_adapter/setup.py` `SetupManager.plan` still validates `host_path(params.get("destination_parent"))` and answers `invalid_path` without it, though PM installs into `store_root()`; the launcher keeps a dead folder field until this lands · `fork / local llama` · then the launcher drops the request param and the field (row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`) · evidence: launcher `d80c6ae4e` and its wizard CHANGE commit body · filed by lane LLAMA-SWITCH 2026-09-26 **UNCLAIMED** **TAKEN 2026-09-29 h9-bundle**
 
 ### Filed on arrival — 2026-09-25 (launcher lane REALM-HISTORY, filed by the orchestrator)
 

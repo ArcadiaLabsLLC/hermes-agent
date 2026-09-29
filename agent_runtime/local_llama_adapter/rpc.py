@@ -16,6 +16,8 @@ SETUP_FIELDS = {
     "setup.capabilities": set(), "setup.status": {"request_id", "operation_id"},
     "installations.detect": set(), "installations.validate": {"executable_path"},
     "host_paths.validate": {"path", "purpose"}, "hardware.get": set(), "releases.list": set(),
+    # ``destination_parent``: accepted and ignored (PM installs into its store) until the
+    # launcher stops sending it; then it leaves this set.
     "installation.plan": {"tag", "release_id", "variant_id", "destination_parent"},
     "installation.apply": GUARDS | {"plan_id", "plan_revision", "acknowledged_warning_ids"},
     "installations.activate": GUARDS | {"installation_id", "validation_token", "expect_inventory_revision"},

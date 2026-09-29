@@ -27,8 +27,9 @@ keys are in `agent_runtime/local_llama/setup_rpc.py: FIELDS`.
 - `releases.list {}`: releases with release_id/tag/stable_alias/prerelease and
   variants `{variant_id,backend,download_bytes,artifacts}`. Artifacts are official
   asset IDs, names, bytes and SHA256; private download URLs are not client inputs.
-- `installation.plan {tag,release_id,variant_id,destination_parent}`: `plan` pins
-  exact asset bundle, host parent/final directory, revisions, expiry and warning_ids.
+- `installation.plan {tag,release_id,variant_id}`: `plan` pins exact asset bundle,
+  the PM store directory, revisions, expiry and warning_ids (`destination_parent` is
+  accepted and ignored until the launcher stops sending it).
   It performs no download. UI displays required/free bytes and chosen version.
 - `installation.apply`: guard fields plus plan_id, plan_revision,
   acknowledged_warning_ids. GPU variant requires explicit cuda_driver review.

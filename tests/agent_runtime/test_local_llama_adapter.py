@@ -562,8 +562,13 @@ def test_an_install_runs_upstreams_installer_and_stays_inactive_until_activated(
                                                    "compatibility": "compatible", "capabilities": []})
     release = manager.setup.releases()["releases"][0]
     variant = next(v for v in release["variants"] if v["backend"] == "cpu")
+    # No ``destination_parent``: PM installs into its store, so the plan reads none.
     plan = manager.setup.plan({"tag": release["tag"], "release_id": release["release_id"],
-                               "variant_id": variant["variant_id"], "destination_parent": str(tmp_path)})["plan"]
+                               "variant_id": variant["variant_id"]})["plan"]
+    assert plan["directory"] == str(tmp_path) and "destination_parent" not in plan
+    # A client that still sends one is accepted; the value is not read (a path that does not exist).
+    manager.setup.plan({"tag": release["tag"], "release_id": release["release_id"],
+                        "variant_id": variant["variant_id"], "destination_parent": str(tmp_path / "absent")})
     manager.config["executable_path"] = None
     request = guards(manager, plan_id=plan["plan_id"], plan_revision=1, acknowledged_warning_ids=[])
     manager.setup.submit("install", request)
