@@ -2146,8 +2146,9 @@ def check_compression_model_feasibility(agent: Any) -> None:
                 provider=_aux_provider, custom_providers=agent._custom_providers,
             )
         # Aux model must meet MINIMUM_CONTEXT_LENGTH like the main model, else it cannot summarise a full window.
+        import agent_runtime.local_llama_adapter as _lla  # fork seam: the marker's one owner
         managed_local_same_model = (
-            getattr(agent, "requested_provider", None) == "local-llama-hermes"
+            getattr(agent, "requested_provider", None) == _lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER
             and getattr(agent, "provider", None) == "custom"
             and aux_model == agent.model
             and aux_context == agent.context_compressor.context_length

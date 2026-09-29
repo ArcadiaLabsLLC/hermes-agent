@@ -227,7 +227,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-29 (lane h9-bundle)
 
-- [ ] **Move the two sub-64K floor exemptions off the `local-llama-hermes` literal: `agent/agent_init.py` and `agent/conversation_compression.py` compare `requested_provider` to it; key them on the adapter's `FLOOR_EXEMPTION_REQUESTED_PROVIDER` (or `llamacpp`) so the old spelling leaves the tree** · `seams` · evidence: `agent_runtime/local_llama_adapter/__init__.py` `FLOOR_EXEMPTION_REQUESTED_PROVIDER`; `tests/agent/test_compression_feasibility_downstream.py` builds its marker through the adapter **TAKEN 2026-09-29 h10-rtseam**
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
