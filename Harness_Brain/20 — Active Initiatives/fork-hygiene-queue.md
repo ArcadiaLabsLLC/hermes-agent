@@ -27,7 +27,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 
-- [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted. **TAKEN 2026-09-29 h10-fhrel**
+- [ ] **Retire the Windows signal-safety carry when upstream adopts an equivalent fix.** · [[Windows console signal safety]]; held upstream candidate recorded in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`; no parallel supervisor or PID helper added, no PR submitted. **TAKEN 2026-09-29 h10-fhrel** · VERDICT 2026-09-29 h10-fhrel: not retirable yet: `tui_gateway/host_supervisor.py` and the carry's other files at manifest base `ee5f49b943` are still upstream's pre-fix bytes (the fork diff is intact), so upstream has not adopted an equivalent. Owed: re-check at the next upstream merge; retire in that merge's lane if upstream carries it
 
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
