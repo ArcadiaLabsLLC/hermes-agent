@@ -19,6 +19,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
+- [ ] **`tests/agent_runtime/test_embedded_phone_session.py` (the phone e2e) cannot be collected by `scripts/run_tests.sh`: its interpreter (`.hermes/tools/python-3.14.7…`) has no `yaml`, so the file errors at import and the runner reports it only as "no tests ran" — give the runner's env the test deps or make the import lazy, so the phone e2e is on the standard run** · fork-hygiene · evidence: `.lane-logs/land.log` at the p2-hphone landing; the lane ran it under `~/.venvs/hermes-test` · UNCLAIMED
 - [ ] **`test_function_legibility_floor` red on main: `agent_runtime/realm_revert.py` `_revert_one` NEW, `revert_realm_sync` 159→167 lines** · fork-hygiene · evidence: red on 312103de32 (lane w5-hstt) · UNCLAIMED
 - [ ] **`tests/scripts/test_bundle_native.py` times out at 30 s in `pm/store.py` `tree_digest` (home_io_guard) — no test reports** · fork-hygiene · evidence: red on 312103de32 via run_tests.sh (lane w5-hstt) · UNCLAIMED
 
