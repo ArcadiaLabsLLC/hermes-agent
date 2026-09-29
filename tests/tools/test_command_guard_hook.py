@@ -58,3 +58,42 @@ def test_direct_terminal_call_meets_the_guard_under_yolo(guard, monkeypatch):
     assert result.get("status") != "blocked"
     env.execute.assert_called_once()
     assert [c for c, _ in guard] == ["rm build.log", "echo ok"]
+
+
+def test_hung_guard_fails_closed_instead_of_wedging_the_command(monkeypatch):
+    """A guard that never returns must deny within ``plugins.hook_callback_timeout``, not hold the
+    terminal call (and every later one) forever."""
+    import threading
+
+    mgr = PluginManager()
+    monkeypatch.setattr(plugins_mod, "_plugin_manager", mgr)
+    monkeypatch.setattr(plugins_mod, "_plugin_managers_by_home", {})
+    monkeypatch.setattr(mgr, "discover_and_load", lambda force=False: None)
+    monkeypatch.setattr("hermes_cli.plugins._resolve_hook_callback_timeout", lambda: 0.2)
+    release = threading.Event()
+
+    def _hung(command, **_):
+        release.wait(timeout=10.0)
+        return None
+
+    PluginContext(PluginManifest(name="hung", source="user"), mgr).register_hook("command_guard", _hung)
+    try:
+        result, env = _terminal("echo hi")
+    finally:
+        release.set()
+    assert result["status"] == "blocked"
+    assert "command_guard plugin callback timed out" in result["error"]
+    env.execute.assert_not_called()
+
+
+def test_guard_dispatch_failure_blocks_rather_than_silently_allowing(guard, monkeypatch):
+    """A guard is registered but the hook dispatch itself raises: the command must not run
+    unguarded behind a DEBUG line."""
+    def _broken(*_a, **_k):
+        raise RuntimeError("plugin manager exploded")
+
+    monkeypatch.setattr("hermes_cli.lifecycle.invoke_hook", _broken)
+    result, env = _terminal("echo ok")
+    assert result["status"] == "blocked"
+    assert "command guard dispatch failed" in result["error"]
+    env.execute.assert_not_called()
