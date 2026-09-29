@@ -303,7 +303,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-26 (lane HELD-TESTS, filed by the orchestrator)
 
-- [ ] **`tests/tools/test_file_write_surrogate_roundtrip.py` litters the cwd on Windows: line 23 runs `bash -c "cat > C:\…\out.bin"` through whichever `bash` PATH finds, and a WSL bash creates a file named with PUA-mapped `:`/`\`** · `upstream / suite` · 8 untracked `C<U+F03A><U+F05C>Users…out.bin` files per run · fix: hand bash the POSIX spelling, or write from Python · evidence: `X:/wt/heldtests/.lane-logs/B-winrt-*.log` · filed 2026-09-26 **TAKEN 2026-09-29 h10-rtseam**
 - [ ] **`tests/tools/test_file_read_guards.py::TestDedupStubLoopGuard` / `TestFileDedup` flake on Windows: 1–3 different tests fail per run of one tree (e.g. `test_file_modification_clears_block`: the stub-loop `_warning` comes back where `error` is expected)** · `upstream / suite` · 2 reruns per side on the win-posix-guard-forms branch (#121645) and its base · evidence: `X:/wt/heldtests/.lane-logs/wpgf-rr-*.log` · filed 2026-09-26 **TAKEN 2026-09-29 h10-rtseam**
 
 
