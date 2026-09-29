@@ -15,7 +15,11 @@ import re
 from types import SimpleNamespace
 from typing import Any, Iterable
 
-from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+try:
+    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
+    from agent.transports.httpx_client import chat_tool_call_factories
+    ChatCompletionMessageToolCall, Function = chat_tool_call_factories()
 
 TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 TOOL_CALL_JSON_RE = re.compile(

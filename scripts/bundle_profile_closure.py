@@ -158,13 +158,28 @@ def _guarded_ids(tree: ast.AST) -> set[int]:
     """ids of every node inside a ``try`` body / ``with suppress(...)`` that absorbs ImportError."""
     guarded: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Try) and any(_catches_import_error(h.type) for h in node.handlers):
-            for stmt in node.body:
-                guarded.update(id(n) for n in ast.walk(stmt))
-        elif isinstance(node, (ast.With, ast.AsyncWith)) and any(_suppresses_import_error(i) for i in node.items):
+        absorbs = _ABSORBS_IMPORT_ERROR.get(type(node))
+        if absorbs is not None and absorbs(node):
             for stmt in node.body:
                 guarded.update(id(n) for n in ast.walk(stmt))
     return guarded
+
+
+#: Statement kind -> whether its BODY may fail to import without it being a load that must succeed:
+#: a ``try`` catching ImportError, a ``with suppress(ImportError)``, and ``if TYPE_CHECKING:`` (never
+#: runs: an import there is an annotation, not a load).
+_ABSORBS_IMPORT_ERROR = {
+    ast.Try: lambda node: any(_catches_import_error(h.type) for h in node.handlers),
+    ast.With: lambda node: any(_suppresses_import_error(i) for i in node.items),
+    ast.AsyncWith: lambda node: any(_suppresses_import_error(i) for i in node.items),
+    ast.If: lambda node: _is_type_checking(node.test),
+}
+
+
+def _is_type_checking(test: ast.expr) -> bool:
+    """``TYPE_CHECKING`` / ``typing.TYPE_CHECKING`` — the constant that is False at run time."""
+    return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+        isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING")
 
 
 def _literal_import_module(node: ast.AST) -> str | None:

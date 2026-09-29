@@ -453,7 +453,7 @@ def _(rid, params: dict) -> dict:
     server→client requests; a WebSocket client that never sends it gets every such request failed fast
     instead of stalling the agent for the deadline (#112548)."""
     from tui_gateway import server_requests
-    from tui_gateway.contracts import registry as contracts
+    from tui_gateway.contract_seam import registry as contracts  # fork seam: pydantic or the catalog
     server_requests.advertise(_caller_transport(), bool(params.get("server_requests")))
     return _ok(rid, {"server_requests": sorted(contracts.SERVER_REQUESTS)})
 

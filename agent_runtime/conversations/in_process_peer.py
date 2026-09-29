@@ -58,7 +58,8 @@ def _gateway_dispatch(request: dict, transport) -> dict | None:
 
 
 def _admits_profile(method: str) -> bool:
-    from tui_gateway.contracts import registry
+    # The registry the profile selects: a phone reads the generated catalog, never pydantic.
+    from tui_gateway.contract_seam import registry
 
     contract = registry.METHODS.get(method)
     return contract is not None and "profile" in getattr(contract.params, "model_fields", {})

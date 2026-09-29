@@ -130,7 +130,7 @@ def _emit_cancel(req: ServerRequest, reason: str) -> None:
 
 
 def _register(req: ServerRequest) -> None:
-    from tui_gateway.contracts import registry as contracts
+    from tui_gateway.contract_seam import registry as contracts  # fork seam: pydantic or the catalog
 
     contract = contracts.SERVER_REQUESTS.get(req.method)
     if contract is None:

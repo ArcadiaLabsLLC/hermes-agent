@@ -8,11 +8,23 @@ from contextlib import contextmanager
 __layer__ = "lanes"
 
 
-def install() -> None:
-    from tui_gateway import server
+_OPERATIONS = ("list", "detail", "history")
+
+
+def declare_contracts() -> None:
+    """The ``eternia.skills.*`` wire contracts (pydantic models), declared once per process.
+
+    Under ``tui_gateway.pydantic_contracts: false`` nothing calls this at run time: the
+    catalog generated from these same models (``tui_gateway/contract_catalog_data.py``)
+    carries them, and ``scripts/gen_contract_catalog.py`` calls this to render them.
+    """
+    from tui_gateway.contracts import registry
     from tui_gateway.contracts.base import JsonValue, Result
     from tui_gateway.contracts.common import SessionParams
-    from tui_gateway.contracts.registry import method
+
+    names = ["eternia.skills." + operation for operation in _OPERATIONS]
+    if all(name in registry.METHODS for name in names):
+        return
 
     class InspectParams(SessionParams):
         skill_id: str | None = None
@@ -20,9 +32,19 @@ def install() -> None:
     class InspectResult(Result):
         data: dict[str, JsonValue]
 
-    for operation in ("list", "detail", "history"):
+    for name in names:
+        if name not in registry.METHODS:
+            registry.method(name, params=InspectParams, result=InspectResult)
+
+
+def install() -> None:
+    from tui_gateway import server
+    from tui_gateway.contract_seam import pydantic_contracts_enabled
+
+    if pydantic_contracts_enabled():
+        declare_contracts()
+    for operation in _OPERATIONS:
         name = "eternia.skills." + operation
-        method(name, params=InspectParams, result=InspectResult)
 
         def inspect(rid, params, operation=operation):
             snapshot = server.handle_request({"jsonrpc": "2.0", "id": rid,

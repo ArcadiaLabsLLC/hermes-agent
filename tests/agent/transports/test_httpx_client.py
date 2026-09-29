@@ -162,5 +162,6 @@ def test_the_profile_switch_picks_the_client_at_the_one_chokepoint():
     (home / "config.yaml").write_text(json.dumps({"agent": {"provider_sdks": False}}), encoding="utf-8")
     assert isinstance(_build(), SdkFreeClient)
     assert isinstance(_build("chat_completions"), SdkFreeClient)
-    with pytest.raises(SdkFreeWireUnavailable, match="codex_responses"):
-        _build("codex_responses")
+    assert isinstance(_build("codex_responses"), SdkFreeClient)  # one OpenAI-shaped client, both wires
+    with pytest.raises(SdkFreeWireUnavailable, match="anthropic_messages"):
+        _build("anthropic_messages")  # its own client family, built in agent.anthropic_adapter

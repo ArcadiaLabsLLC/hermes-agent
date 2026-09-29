@@ -9,6 +9,10 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
   -> ``test_omitting_a_distribution_needs_every_import_site_guarded`` red (its positive control).
 * ``_catches_import_error`` returns True for any handler
   -> ``test_omitting_a_distribution_needs_every_import_site_guarded`` red (a ``ValueError`` guard passes).
+* ``_guarded_ids`` drops its ``TYPE_CHECKING`` arm
+  -> ``test_an_import_under_type_checking_is_an_annotation_not_a_load`` red.
+* ``_is_type_checking`` answers True for any test
+  -> the same test red (its ``if DEBUG:`` positive control).
 """
 
 from __future__ import annotations
@@ -90,6 +94,30 @@ def test_omitting_a_distribution_needs_every_import_site_guarded(tmp_path):
     sites, problems = _unguarded(tmp_path / "bad", guarded=guarded, wrong=wrong_guard)
     assert len(sites) == 3
     assert len(problems) == 1 and "pkg.wrong" in problems[0]
+
+
+def test_an_import_under_type_checking_is_an_annotation_not_a_load(tmp_path):
+    annotated = """
+        import typing
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            import heavy
+
+        if typing.TYPE_CHECKING:
+            from heavy import thing
+    """
+    sites, problems = _unguarded(tmp_path / "ok", annotated=annotated)
+    assert sites and all(site["guarded"] for site in sites) and problems == []
+
+    runs = """
+        DEBUG = False
+
+        if DEBUG:
+            import heavy
+    """
+    sites, problems = _unguarded(tmp_path / "bad", runs=runs)
+    assert len(sites) == 1 and len(problems) == 1  # positive control: any other ``if`` is a load
 
 
 def test_a_target_excluded_or_guard_only_distribution_is_optional_not_undeclared():

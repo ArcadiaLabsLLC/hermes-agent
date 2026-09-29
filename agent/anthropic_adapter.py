@@ -58,6 +58,12 @@ def _get_anthropic_sdk():
 
 def _require_sdk(purpose: str, verb: str = "Install it with"):
     """``_get_anthropic_sdk()`` or ImportError naming the feature that needs it."""
+    # Fork seam (embedded Hermes): a profile that ships no provider SDK (``agent.provider_sdks:
+    # false``) builds the SDK-free client through the same builder — never a lazy install.
+    from agent.transports.httpx_client import provider_sdks_enabled
+    if not provider_sdks_enabled():
+        from agent.transports.httpx_anthropic import SDK_FREE_ANTHROPIC
+        return SDK_FREE_ANTHROPIC
     sdk = _get_anthropic_sdk()
     if sdk is None and _anthropic_install_error is not None:
         raise ImportError(f"The 'anthropic' package is required for {purpose}: "

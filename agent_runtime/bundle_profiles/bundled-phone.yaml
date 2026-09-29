@@ -62,6 +62,9 @@ config:
   agent.provider_sdks: false
   conversations.subprocess_worker: false
   auth.subprocess_signin: false
+  # The in-process gateway reads its wire contracts from the catalog generated from the pydantic
+  # models (tui_gateway/contract_seam.py), never from pydantic itself.
+  tui_gateway.pydantic_contracts: false
   # The system prompt's environment probe spawns python/pip/git (tools/env_probe.py); a phone
   # starts no process and has none of them.
   agent.environment_probe: false
@@ -104,6 +107,12 @@ packaging:
   # no pure alternative). CPython's own ssl / sqlite3 are the interpreter, not distributions.
   admitted_native:
     pillow: "image sheets and image prep; the one compiled library architecture §6 admits"
+  # Base dependencies the phone omits. Refused by the closure script unless every import site
+  # in the kept modules is guarded (try/suppress ImportError).
+  omitted_distributions:
+    - distribution: openai
+      imports: [openai]
+      degrades: nothing on the provider wires — agent.provider_sdks false builds the SDK-free clients (agent/transports/httpx_client.py, httpx_responses.py, httpx_anthropic.py); OpenAI cloud STT (openai package check) and OpenAI streaming TTS are unavailable; mem0 OSS uses the SDK-free client
   # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
   # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
   # hides an unmarked skill from a phone's skill index at run time.

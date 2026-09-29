@@ -43,7 +43,10 @@ class DirectOpenAILLM(OpenAILLM):
         api_key = self.config.api_key or get_secret("OPENAI_API_KEY", "")
         if not api_key:
             raise ValueError("OpenAI API key is required for the Hermes Mem0 OSS provider")
-        from openai import OpenAI
+        try:
+            from openai import OpenAI
+        except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
+            from agent.transports.httpx_client import SdkFreeClient as OpenAI
         self.client = OpenAI(api_key=api_key, base_url=self.config.openai_base_url or get_secret("OPENAI_BASE_URL", "") or "https://api.openai.com/v1")
 
     def generate_response(self, messages: List[Dict[str, str]], response_format=None, tools: Optional[List[Dict]] = None, tool_choice: str = "auto", **kwargs):

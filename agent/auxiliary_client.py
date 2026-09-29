@@ -54,8 +54,17 @@ _OPENAI_CLS_CACHE: Optional[type] = None
 def _load_openai_cls() -> type:
     """Import and cache ``openai.OpenAI``."""
     global _OPENAI_CLS_CACHE
+    # Fork seam (embedded Hermes): a profile that ships no provider SDK (``agent.provider_sdks:
+    # false``) gets the SDK-free client class, for construction and ``isinstance`` alike.
+    from agent.transports.httpx_client import SdkFreeClient, SdkFreeWireUnavailable, provider_sdks_enabled
+    if not provider_sdks_enabled():
+        return SdkFreeClient
     if _OPENAI_CLS_CACHE is None:
-        from openai import OpenAI as _cls
+        try:
+            from openai import OpenAI as _cls
+        except ImportError as exc:  # fork seam: only a profile with agent.provider_sdks: false omits it
+            raise SdkFreeWireUnavailable("the openai SDK is not installed; a profile without it must set "
+                                         "agent.provider_sdks: false") from exc
         _OPENAI_CLS_CACHE = _cls
     return _OPENAI_CLS_CACHE
 
@@ -4692,7 +4701,11 @@ def _effective_provider_for_client(client: Any, fallback: str) -> str:
 
 def _to_async_client(sync_client, model: str, is_vision: bool = False):
     """Sync client → async counterpart, preserving Codex routing (``is_vision`` adds the Copilot vision header)."""
-    from openai import AsyncOpenAI
+    try:
+        from openai import AsyncOpenAI
+    except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
+        from agent.transports.httpx_client import missing_sdk
+        AsyncOpenAI = missing_sdk("openai.AsyncOpenAI")
     if isinstance(sync_client, _AuxProbeClientStub):
         return sync_client, model
     if isinstance(sync_client, CodexAuxiliaryClient):
@@ -4708,6 +4721,10 @@ def _to_async_client(sync_client, model: str, is_vision: bool = False):
     # ACP shims (subprocess, not an HTTP pool) are already async-safe and opt out of the wrapper.
     if _client_declares(sync_client, "HERMES_SKIP_ASYNC_WRAP"):
         return sync_client, model
+    # Fork seam (embedded Hermes): the SDK-free client's async twin runs its calls off-loop.
+    from agent.transports.httpx_client import sdk_free_async_client
+    if (sdk_free := sdk_free_async_client(sync_client)) is not None:
+        return sdk_free, model
     sync_base_url = str(sync_client.base_url)
     # A key_cmd/Entra client keeps its credential in the SDK's per-request provider slot, not in
     # ``.api_key`` (which stays ""); rebuilding from the snapshot alone ships NO Authorization

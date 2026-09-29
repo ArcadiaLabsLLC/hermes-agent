@@ -14,7 +14,10 @@ import asyncio
 from collections.abc import Mapping
 from typing import Any, Dict
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
+    from agent.transports.httpx_client import NoProviderSdk as OpenAI
 
 
 def async_api_key(sync_client: Any) -> Any:
