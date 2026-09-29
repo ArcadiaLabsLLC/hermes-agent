@@ -55,7 +55,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 - [ ] **Licence review before a bundled release: piper-tts (GPL-3.0-or-later + espeak-ng) and vcruntime140's Microsoft redistribution terms (via the interpreter); the five texts once missing are vetted (lane w4-hlic). Owner decision per component; the packager's `licenses.json` `review_required` is the list.** · closure doc "Release gates", flagged-for-review table.
 
 ### Filed on arrival — 2026-09-29 (lane w6-hwort)
-- [ ] **The `stt-parakeet` extra now carries both STT engines (onnx-asr runs Whisper and Parakeet): rename it for what it holds (e.g. `stt-onnx`) across `pyproject.toml`, `bundled-desktop.yaml` and PM's extra gates.** · `pyproject.toml` `[project.optional-dependencies]` **UNCLAIMED** **TAKEN 2026-09-29 h7-speech**
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 - [ ] **The bundle ships no `.py` file from the `skills` resource (50 tracked skill scripts, e.g. `skills/productivity/docx/scripts/*.py`): `first_party_files` drops every `.py` before the resource test, so a bundled skill that runs its script finds nothing — ship them, or record per skill why not (terminal/code_execution are off in bundled-desktop).** · `scripts/bundle_profile_package.py` `_data_file`; `git ls-files skills | grep '\.py$'`.

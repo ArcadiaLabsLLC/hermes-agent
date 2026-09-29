@@ -33,7 +33,7 @@ ANCHORS: dict[str, str | tuple[str, ...]] = {
     "tts-premium": "elevenlabs",
     "voice": "faster_whisper",
     "stt-whisper": "faster_whisper",
-    "stt-parakeet": ("onnx_asr", "onnxruntime"),
+    "stt-onnx": ("onnx_asr", "onnxruntime"),
     "audio-io": ("sounddevice", "numpy"),
     "speech-tts": ("onnxruntime", "numpy"),
     "silk": "pilk",

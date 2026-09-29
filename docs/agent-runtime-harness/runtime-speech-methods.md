@@ -32,7 +32,7 @@ the way Piper's and Kokoro's own inference code does, and
 `speak` tool still uses upstream's Piper when `piper-tts` is installed.
 
 Versions measured: onnx-asr 0.12.0, onnxruntime 1.29.0, numpy 2.4.3 (the
-`pyproject.toml` pins; both STT engines are the `stt-parakeet` extra, the TTS
+`pyproject.toml` pins; both STT engines are the `stt-onnx` extra, the TTS
 runner is `speech-tts`). **No ctranslate2** (owner ruling 2026-09-29): Whisper
 ran on faster-whisper / ctranslate2 until lane w6-hwort, which brought Intel's
 OpenMP runtime (`libiomp5md.dll`) and its licence review into the pack. The

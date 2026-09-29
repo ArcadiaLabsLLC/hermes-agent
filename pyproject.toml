@@ -335,7 +335,7 @@ audio-io = ["sounddevice==0.5.5", "numpy==2.4.3"]
 # the engine is chosen by the model folder, agent_runtime/speech_stt_engines.py).
 # onnx-asr is pure Python on numpy; [cpu] brings onnxruntime, which has no Intel
 # macOS wheel. Gated like piper so the speech pack's onnxruntime engines agree.
-stt-parakeet = [
+stt-onnx = [
   "onnx-asr[cpu]==0.12.0; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')",
 ]
 # Fork (bundled desktop): the speech pack's own TTS runner (agent_runtime/speech_onnx_voice.py)
@@ -621,7 +621,7 @@ neutts = "python_version < '3.14'"
 # Windows ARM64 wheel.
 kittentts = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 piper = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
-stt-parakeet = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
+stt-onnx = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 # onnxruntime has no Windows ARM64 or Intel macOS wheel.
 speech-tts = "(platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin')"
 

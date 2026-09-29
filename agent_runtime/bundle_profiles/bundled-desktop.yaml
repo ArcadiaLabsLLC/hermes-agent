@@ -206,7 +206,7 @@ packaging:
     speech:
       extras:
         - speech-tts    # speech service: TTS (On) — our onnxruntime runner, no piper-tts / espeak-ng (GPL)
-        - stt-parakeet  # speech service: STT, Whisper and Parakeet TDT tiers, both on onnx-asr / onnxruntime (On)
+        - stt-onnx      # speech service: STT, Whisper and Parakeet TDT tiers, both on onnx-asr / onnxruntime (On)
         # (stt-whisper is upstream's faster-whisper extra: ctranslate2 + Intel OpenMP. Not shipped
         # since owner ruling 2026-09-29; full Hermes keeps it for its own local STT.)
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
