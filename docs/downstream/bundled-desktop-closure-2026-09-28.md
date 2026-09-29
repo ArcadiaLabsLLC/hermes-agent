@@ -37,6 +37,11 @@ The script exits 1 (`REFUSED: …`) when an omitted distribution is imported ung
 | first-party modules kept by the walk | 2161 | 2135 |
 | pinned switched-off modules | 12 | 9 |
 
+The kept-module figures above were walked without entering kept modules' enclosing
+packages. The closure report now walks `parents=True`, as the packager and the profile
+gate do. Re-taken 2026-09-29 at the tree of lane h9-bundle (`--no-boot`): 2278 first-party
+modules kept without parents, 2296 with them (+18), 72 distributions either way.
+
 What moved it:
 
 - **Extras are not base.** `discord-py`, `python-telegram-bot`, `boto3`/`botocore` (Bedrock), `google-auth` (Vertex), `azure-identity`, `mistralai`, `elevenlabs`, `ddgs`, `qrcode`, `pip`, `soundfile`, `pilk`, `agent-client-protocol`, `aiohttp` are optional extras the walk reaches; the profile ships only `anthropic`, `mcp`, `fal`, `piper`, `stt-whisper`. Bedrock, Vertex, Azure identity and Mistral are therefore **unavailable** in bundled Hermes (their providers raise their own "install the extra" error; lazy installs are off). The messaging SDKs reached via `cron.scheduler → cron.scheduler_delivery → tools.send_message_tool → tools.send_message_senders` and `gateway.run → gateway.channel_directory` are extras, so they no longer count.

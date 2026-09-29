@@ -188,3 +188,20 @@ def test_the_speech_pack_runs_whisper_on_onnx_asr_and_ships_no_ctranslate2():
     closure = Graph(_lock(), placeholders=manifest.placeholder_distributions).closure(roots)
     assert {"onnx-asr", "onnxruntime", "numpy"} <= closure
     assert not {"ctranslate2", "faster-whisper", "av", "tokenizers"} & closure
+
+
+def test_the_closure_report_walks_enclosing_packages(monkeypatch):
+    """The report walks the way the packager does (``parents=True``), so its counts
+    include what a kept module's package ``__init__`` imports."""
+    from scripts import bundle_profile_closure as closure_script
+
+    seen = {}
+
+    def fake_closure(profile, **kwargs):
+        seen.update(kwargs)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(closure_script, "closure", fake_closure)
+    with pytest.raises(SystemExit):
+        closure_script.main(["--no-boot"])
+    assert seen == {"boot": False, "parents": True}

@@ -713,7 +713,9 @@ def main(argv=None) -> int:
     parser.add_argument("--markdown", type=Path, help="write the doc's tables here")
     parser.add_argument("--no-boot", action="store_true", help="skip the instrumented boot probe")
     args = parser.parse_args(argv)
-    result = closure(args.profile, boot=not args.no_boot)
+    # ``parents``: the report walks the way the packager and the profile gate do, so
+    # the modules a kept module's package ``__init__`` imports are counted.
+    result = closure(args.profile, boot=not args.no_boot, parents=True)
     if args.json:
         args.json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     if args.markdown:
