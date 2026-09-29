@@ -45,7 +45,6 @@ __all__ = [
     "_note_written_key",
     "_persisted_streak_seed",
     "_receipt_never_converged",
-    "_reset_convergence_state",
     "_streak_common_diff",
     "_streak_entries",
     "_streak_last_diff",
@@ -133,28 +132,6 @@ _boot_streak_seed_taken = False
 #: some of its passes were never observed here. It exists to stop the receipt
 #: over-claiming — see :func:`_note_written_key`.
 _streak_seeded = False
-
-
-def _reset_convergence_state() -> None:
-    """Forget this process's convergence history, as a fresh process would.
-
-    The seed is forgotten too, and it must be: a capture surviving into the next
-    case would seed that case's streak from a store pytest has already deleted.
-    """
-
-    global _last_written_digest, _streak_entries, _streak_length
-    global _streak_last_diff, _streak_common_diff, _never_converged_reported
-    global _boot_streak_seed, _boot_streak_seed_taken, _streak_seeded
-    with _convergence_lock:
-        _last_written_digest = None
-        _streak_entries = ()
-        _streak_length = 0
-        _streak_last_diff = None
-        _streak_common_diff = None
-        _never_converged_reported = False
-        _boot_streak_seed = None
-        _boot_streak_seed_taken = False
-        _streak_seeded = False
 
 
 def _changed_paths(

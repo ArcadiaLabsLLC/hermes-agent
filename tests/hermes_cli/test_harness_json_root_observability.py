@@ -112,6 +112,7 @@ LEDGER: dict[str, str] = {
         # ``_cmd_rebuild_read_model`` / ``_cmd_read_projection`` stood here until
         # Stage 6 (2026-08-22) retired the read_model.db lane with both verbs.
         "_cmd_contracts_dump",
+        # harness_parts/work_commands.py (split from runtime_commands, h10b-refac)
         "_cmd_work_list", "_cmd_work_peek", "_cmd_work_cancel",
     )
 }

@@ -40,13 +40,14 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import core_cache
+from tests._downstream import _seams
 
 
 @pytest.fixture(autouse=True)
 def fresh_cache_lane():
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
     yield
-    core_cache.reset_process_state()
+    _seams.reset_core_cache_process_state()
 
 
 @pytest.fixture(autouse=True)

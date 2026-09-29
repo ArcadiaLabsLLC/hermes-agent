@@ -136,8 +136,8 @@ file it is given.
 
 | method | tier | params |
 |---|---|---|
-| `runtime.speech.status` | read | optional `models_dir`, `stt_model`, `tts_voice` (inspect those instead of config) |
-| `runtime.speech.load` | console | `models_dir?`, `stt_model?`, `tts_voice?`, `which?` (`stt` \| `tts` \| `both`, default `both`) |
+| `runtime.speech.status` | read | optional `models_dir`, `stt_model`, `tts_voice`, `tts_preset` (inspect those instead of config) |
+| `runtime.speech.load` | console | `models_dir?`, `stt_model?`, `tts_voice?`, `tts_preset?` (a Kokoro preset from `tts.presets`; omitted keeps a loaded voice's preset, else Kokoro's default `af_heart`; another preset of the loaded voice reloads it), `which?` (`stt` \| `tts` \| `both`, default `both`) |
 | `runtime.speech.unload` | console | `which?` |
 | `runtime.speech.recognize.begin` | console | `sample_rate?` (16000), `encoding?` (`pcm_s16le`), `language?` (`en`) |
 | `runtime.speech.recognize.push` | console | `stream_id`, `seq` (0, 1, 2 …), `audio` (base64 PCM) |
@@ -165,12 +165,13 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
  voice_family?,                  # tts: "piper" | "kokoro" (null when neither companion file is there)
  disk_bytes?,                    # available
  device, compute_type, input_sample_rate, input_encoding,   # stt
- sample_rate}                    # tts (from the voice's .onnx.json)
+ sample_rate,                    # tts (from the voice's .onnx.json)
+ presets, preset}                # tts: Kokoro's voice presets ([] for Piper) and the one loaded / a load would use
 ```
 
 | state | meaning |
 |---|---|
-| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial` (stt: `engine` names whose file list `missing` is), `model_unsupported` (stt: a NeMo folder whose `model_type` is not TDT; `+model_type`), `phonemizer_missing` (tts; `missing` names the artifact files, `voice_family` which voice wanted them), `engine_missing` (tts: onnxruntime / numpy, i.e. no speech pack), `load_failed` |
+| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial` (stt: `engine` names whose file list `missing` is), `model_unsupported` (stt: a NeMo folder whose `model_type` is not TDT; `+model_type`), `phonemizer_missing` (tts; `missing` names the artifact files, `voice_family` which voice wanted them), `engine_missing` (tts: onnxruntime / numpy, i.e. no speech pack), `preset_unknown` (tts: `tts_preset` is not in the Kokoro voices file; `+presets`), `preset_unsupported` (tts: a `tts_preset` on a Piper voice), `load_failed` |
 | `available` | files complete, engine importable, not loaded |
 | `loading` | a load is running |
 | `loaded` | ready; `reserved_bytes` is its admission reservation |
@@ -428,7 +429,7 @@ chunks: one unchunked pass over 120 s grows to +1.9 GiB.
 
 | code | reason | from |
 |---|---|---|
-| -32602 | `models_dir_invalid`, `stt_model_invalid`, `tts_voice_invalid`, `which_invalid` | `status`, `load`, `unload` |
+| -32602 | `models_dir_invalid`, `stt_model_invalid`, `tts_voice_invalid`, `tts_preset_invalid`, `which_invalid` | `status`, `load`, `unload` |
 | -32602 | `audio_format_unsupported` (+`sample_rate`, `encoding`), `language_unsupported` | `recognize.begin` |
 | -32602 | `audio_invalid` | `recognize.push`: not base64, odd byte count, or over 64 KiB |
 | -32602 | `text_invalid` | `synthesize` |

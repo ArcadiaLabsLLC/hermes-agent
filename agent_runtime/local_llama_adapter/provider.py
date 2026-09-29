@@ -1,8 +1,8 @@
 """Persona-facing half: the provider profile, the visibility block, and the turn route.
 
 A persona that picked a local model stores provider ``llamacpp`` (upstream's id) and a preset
-UUID (the launcher contract). The pre-2026-09-29 id ``local-llama-hermes`` is still read as an
-alias (``is_local_llama_provider``) and never written. The turn runs on upstream's ``llamacpp``
+UUID (the launcher contract). The pre-2026-09-29 id is rewritten once at startup
+(``legacy_id_migration``) and no longer read. The turn runs on upstream's ``llamacpp``
 provider: the endpoint
 comes from ``resolve_runtime_provider(requested="llamacpp")`` (the ``server.json`` upstream's
 supervisor publishes), under a whole-turn lease (row 12). Row 10 (generation parameters) rides

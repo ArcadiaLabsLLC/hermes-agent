@@ -78,6 +78,58 @@ def test_an_unnamed_session_gets_no_receipt():
     assert [e["step"] for e in events] == ["provider_stream_first_delta", "provider_stream_consume"]
 
 
+# ── any delivery order (owner 2026-09-29): one dispatcher thread PER hook ─────
+
+
+_ORDERED = ("start", "delta", "delta", "end")
+
+
+@pytest.mark.parametrize("order", sorted(set(__import__("itertools").permutations(_ORDERED))))
+def test_every_delivery_order_writes_one_receipt(order):
+    events: list = []
+    agent = _agent(events)  # held: the registry is weak
+    receipt.remember_stream_agent(agent)
+    ids = {"session_id": "s1", "turn_id": "t1", "iteration": 1}
+    fire = {"start": lambda: receipt.on_stream_start(**ids),
+            "delta": lambda: receipt.on_stream_delta(**ids, delta="x", kind="text"),
+            "end": lambda: receipt.on_stream_end(**ids, finished=True, error=None)}
+    for name in order:
+        fire[name]()
+
+    consumes = [e for e in events if e["step"] == "provider_stream_consume"]
+    assert len(consumes) == 1
+    written_at = max(order.index("start"), order.index("end"))
+    counted = sum(1 for name in order[:written_at] if name == "delta")
+    assert consumes[0]["timing_values"] == {"provider_stream_text_delta_count": counted}
+    assert consumes[0]["status"] == "completed"
+    assert not receipt._STREAMS
+
+
+def test_a_retry_on_the_same_key_writes_its_own_receipt():
+    """A failed attempt's end, then the retry's start/end under one (turn, iteration)."""
+    events: list = []
+    agent = _agent(events)
+    receipt.remember_stream_agent(agent)
+    ids = {"session_id": "s1", "turn_id": "t1", "iteration": 1}
+    receipt.on_stream_start(**ids)
+    receipt.on_stream_end(**ids, finished=False, error="boom")
+    receipt.on_stream_end(**ids, finished=True, error=None)  # the retry's end, delivered first
+    receipt.on_stream_start(**ids)
+    assert [e["status"] for e in events if e["step"] == "provider_stream_consume"] == ["failed", "completed"]
+
+
+def test_a_delta_after_the_receipt_opens_nothing():
+    events: list = []
+    agent = _agent(events)
+    receipt.remember_stream_agent(agent)
+    ids = {"session_id": "s1", "turn_id": "t1", "iteration": 1}
+    receipt.on_stream_start(**ids)
+    receipt.on_stream_end(**ids, finished=True)
+    receipt.on_stream_delta(**ids, delta="late", kind="text")
+    assert not receipt._STREAMS
+    assert [e["step"] for e in events] == ["provider_stream_consume"]
+
+
 def test_an_unbound_turn_names_no_agent():
     receipt.remember_stream_agent()
     receipt.on_stream_start(session_id="", turn_id="t", iteration=1)

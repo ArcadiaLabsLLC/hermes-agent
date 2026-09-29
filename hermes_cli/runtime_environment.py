@@ -16,12 +16,12 @@ DECLARE, DON'T LAZY-INSTALL. Provider SDKs are declared here so a missing one is
 reported *before* the turn starts, with a command the operator can run. They
 used to be installed on demand from inside the running turn instead
 (``tools.lazy_deps.ensure("provider.anthropic")`` at the first Anthropic call),
-which is what corrupted the runtime venv on 2026-08-09. That lane is now closed
-through upstream's own door: the eternia-harness plugin defaults
-``HERMES_DISABLE_LAZY_INSTALLS=1`` (``tools.lazy_deps._allow_lazy_installs``), so no
-lazy install mutates the running venv — in a turn or out of one — unless the
-operator points ``HERMES_LAZY_INSTALL_TARGET`` at a durable side target. This
-module is the half that makes the refusal actionable instead of merely correct.
+which is what corrupted the runtime venv on 2026-08-09. That lane is gone:
+upstream's package manager (``pm``) owns installs, and the eternia-harness plugin
+defaults ``HERMES_DISABLE_LAZY_INSTALLS=1`` so upstream's startup venv sync
+(``hermes_cli.venv_sync``) never mutates or relaunches the running venv either.
+This module is the half that makes a missing package actionable: it names the
+``pm`` command before the turn spends tokens.
 """
 
 from __future__ import annotations

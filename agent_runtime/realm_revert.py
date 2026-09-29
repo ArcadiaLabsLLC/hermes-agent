@@ -323,8 +323,11 @@ class _Upstream:
     exists and would not decode can be told apart from one that is absent.
     """
 
-    def __init__(self, subtree: Path, *, realm_id: str | None = None) -> None:
+    def __init__(self, subtree: Path, *, realm_id: str | None = None, skill_root: Path | None = None) -> None:
         self._subtree = subtree
+        #: A version restore (``--to``) reads skills from THAT version's mirror,
+        #: never from the live inbox — see ``realm_revert_version``.
+        self._skill_root = skill_root
         #: The SKILL family's upstream is NOT under the subtree: it is the
         #: per-realm INBOX mirror, which is the subtree's ``skills/`` tree copied
         #: LF-canonical and package-filtered (tombstones dropped) by the pull. The
@@ -429,9 +432,13 @@ class _Upstream:
 
         from .skill_promotion import realm_inbox_dir
 
-        if self._realm_id is None:
+        if self._skill_root is not None:
+            root = self._skill_root
+        elif self._realm_id is None:
             return None, False
-        package = realm_inbox_dir(self._realm_id).joinpath(*slug.split("/"))
+        else:
+            root = realm_inbox_dir(self._realm_id)
+        package = root.joinpath(*slug.split("/"))
         return (package if (package / "SKILL.md").is_file() else None), False
 
     def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:

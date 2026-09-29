@@ -29,7 +29,6 @@ __all__ = [
     "_receipt_fingerprint_home_lazy_capture",
     "capture_fingerprint_home",
     "declare_fingerprint_home_boot_site",
-    "reset_fingerprint_home",
     "resolved_fingerprint_home",
 ]
 
@@ -216,27 +215,6 @@ def resolved_fingerprint_home() -> tuple[Path, bool]:
     return captured
 
 
-def reset_fingerprint_home() -> None:
-    """Forget the captured home, as a fresh process would. Tests only.
-
-    Its own function rather than only a line inside
-    :func:`reset_process_state` because the per-test environment sandbox moves
-    ``HERMES_HOME`` between cases, and a capture frozen from case 1 would answer
-    case 2 with a directory pytest has already deleted — a fingerprint that is
-    stable for the wrong reason. The ``tests/agent_runtime`` conftest drops it
-    autouse, the same way it drops the profile-runner resolve memo.
-
-    Drops the boot-site declaration too, and that is load-bearing rather than
-    tidy: a case that drove a serve boot would otherwise leave every LATER case
-    in the session claiming to be a serve, and each one's ordinary lazy capture
-    would emit the receipt that means a defect recurred.
-    """
-
-    global _fingerprint_home, _fingerprint_home_eager, _fingerprint_home_boot_site
-    with _fingerprint_home_lock:
-        _fingerprint_home = None
-        _fingerprint_home_eager = False
-        _fingerprint_home_boot_site = None
 
 
 @contextmanager

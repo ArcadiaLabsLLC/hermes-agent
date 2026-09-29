@@ -559,15 +559,12 @@ def _emit_peer_event(
     later by people who were not there. What the row holds is in the row.
     """
 
-    from hermes_time import now
-
     from ..events import EventLog
-    from ..models import Event
+    from ..store_events import emit_store_event
+    from .models import PEER_EVENT_NULLABLE_KEYS
 
-    try:
-        EventLog().append(Event(now(), event_type, None, None, None, dict(payload)))
-    except Exception:  # noqa: BLE001 — an evidence channel, never the mutation
-        pass
+    # The one store-event rule: None dropped, except the schema's nullable keys.
+    emit_store_event(EventLog(), event_type, payload, domain="gateway_peers", keep_none=PEER_EVENT_NULLABLE_KEYS)
 
     # S2d. The SAME call site feeds the launcher's push lane, because the
     # launcher's hermes stream carries no events at all (its hydrate core and

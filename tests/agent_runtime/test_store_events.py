@@ -47,3 +47,23 @@ def test_a_gestureless_office_event_carries_no_correlation_key(isolate_agent_run
     first, second = (event.payload for event in log.events)
     assert first == {"workspace_id": "ws_a"}
     assert second["workspace_id"] == "ws_b" and "gesture-1" in second.values()  # positive control
+
+
+def test_a_schema_nullable_key_keeps_its_none_and_no_other_does():
+    log = _Log()
+    emit_store_event(log, "gateway.peer.reachability",
+                     {"peer_install_id": "p", "unreachable_since": None, "error": None},
+                     domain="gateway_peers", keep_none=frozenset({"unreachable_since"}))
+    assert log.events[0].payload == {"peer_install_id": "p", "unreachable_since": None}
+
+
+def test_the_peer_emitter_writes_through_the_one_rule(monkeypatch):
+    """The fold: ``_emit_peer_event`` keeps the nullable ``unreachable_since`` and drops
+    any other None, exactly as ``emit_store_event`` does for every store."""
+    from agent_runtime.gateway_peers import trust_store
+
+    log = _Log()
+    monkeypatch.setattr("agent_runtime.events.EventLog", lambda *a, **k: log)
+    trust_store._emit_peer_event("gateway.peer.reachability",
+                                 {"peer_install_id": "p", "unreachable_since": None, "grant_id": None})
+    assert log.events[0].payload == {"peer_install_id": "p", "unreachable_since": None}

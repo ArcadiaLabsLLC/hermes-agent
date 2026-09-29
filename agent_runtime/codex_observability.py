@@ -19,6 +19,14 @@ event, not when upstream enqueued it (upstream runs one dispatcher per callback,
 so a slow co-consumer does not delay ours, but a busy box can); and the
 per-attempt split and the client-resolve stamp are gone (plugin-fit §4 Q4).
 
+Because each hook has its OWN dispatcher thread, the three events of one stream can
+be delivered in any order under load (owner 2026-09-29: tolerate it). Any event opens
+the stream's record; the receipt is written once, when both its start and its end
+have been delivered, whichever came last. A text delta delivered before the start
+still counts, and times first-token as 0 ms; a text delta delivered after the receipt
+was written is not counted (a start or end on that key is a retry's and opens it anew), so ``provider_stream_text_delta_count`` is a lower bound
+on a busy box, never an over-count.
+
 The observers run on the dispatcher thread, where the turn's ContextVar binding
 (``persona_turn_binding``) is not visible, so the plugin's ``llm_execution``
 middleware — which runs in the turn's thread — names the bound agent for its
@@ -60,9 +68,37 @@ _STREAMS: "OrderedDict[tuple, _OpenStream]" = OrderedDict()
 
 @dataclass
 class _OpenStream:
-    started: float
+    started: float | None = None
     first_delta: float | None = None
     text_deltas: int = 0
+    ended: float | None = None
+    status: str = "completed"
+
+
+#: Keys whose receipt was written, kept so a late delta does not reopen the stream.
+_CLOSED: "OrderedDict[tuple, None]" = OrderedDict()
+
+
+def _open(key: tuple) -> "_OpenStream":
+    """The stream's record, opened by whichever of its events is delivered first. Under _LOCK."""
+    stream = _STREAMS.get(key)
+    if stream is None:
+        stream = _STREAMS[key] = _OpenStream()
+        while len(_STREAMS) > _MAX_OPEN_STREAMS:
+            _STREAMS.popitem(last=False)
+    return stream
+
+
+def _take_if_complete(key: tuple) -> "_OpenStream | None":
+    """Pop the record once both its start and end are in, and remember the key closed. Under _LOCK."""
+    stream = _STREAMS.get(key)
+    if stream is None or stream.started is None or stream.ended is None:
+        return None
+    del _STREAMS[key]
+    _CLOSED[key] = None
+    while len(_CLOSED) > _MAX_OPEN_STREAMS:
+        _CLOSED.popitem(last=False)
+    return stream
 
 
 def _emit_provider_timing(
@@ -125,12 +161,16 @@ def remember_stream_agent(agent: Any = None) -> None:
 def on_stream_start(*, session_id: Any = "", turn_id: Any = "", iteration: Any = 0, **_kwargs: Any) -> None:
     """``on_stream_start`` observer: open the stream's clock (named sessions only)."""
     now = time.perf_counter()
+    key = _key(session_id, turn_id, iteration)
     with _LOCK:
-        if str(session_id or "") not in _AGENTS:
+        agent = _AGENTS.get(str(session_id or ""))
+        if agent is None:
             return
-        _STREAMS[_key(session_id, turn_id, iteration)] = _OpenStream(started=now)
-        while len(_STREAMS) > _MAX_OPEN_STREAMS:
-            _STREAMS.popitem(last=False)
+        _CLOSED.pop(key, None)  # a start or end on a written key is a retry's: it opens anew
+        _open(key).started = now
+        stream = _take_if_complete(key)
+    if stream is not None:  # the end was delivered first
+        _write_receipt(agent, stream)
 
 
 def on_stream_delta(
@@ -140,10 +180,11 @@ def on_stream_delta(
     if kind != "text":
         return
     now = time.perf_counter()
+    key = _key(session_id, turn_id, iteration)
     with _LOCK:
-        stream = _STREAMS.get(_key(session_id, turn_id, iteration))
-        if stream is None:
+        if str(session_id or "") not in _AGENTS or key in _CLOSED:
             return
+        stream = _open(key)
         if stream.first_delta is None:
             stream.first_delta = now
         stream.text_deltas += 1
@@ -155,17 +196,28 @@ def on_stream_end(
 ) -> None:
     """``on_stream_end`` observer: write the first-delta and consume receipts."""
     now = time.perf_counter()
+    key = _key(session_id, turn_id, iteration)
     with _LOCK:
-        stream = _STREAMS.pop(_key(session_id, turn_id, iteration), None)
         agent = _AGENTS.get(str(session_id or ""))
-    if stream is None or agent is None:
-        return
-    status = "completed" if finished and not error else "failed"
+        if agent is None:
+            return
+        _CLOSED.pop(key, None)  # a start or end on a written key is a retry's: it opens anew
+        stream = _open(key)
+        stream.ended = now
+        stream.status = "completed" if finished and not error else "failed"
+        stream = _take_if_complete(key)
+    if stream is not None:
+        _write_receipt(agent, stream)
+
+
+def _write_receipt(agent: Any, stream: "_OpenStream") -> None:
+    """The two receipts of one complete stream; instants delivered out of order clamp at 0."""
     values = {"provider_stream_text_delta_count": stream.text_deltas}
     if stream.first_delta is not None:
         _emit_provider_timing(agent, "stream_first_delta", _ms(stream.first_delta - stream.started))
     consume_from = stream.first_delta if stream.first_delta is not None else stream.started
-    _emit_provider_timing(agent, "stream_consume", _ms(now - consume_from), status=status, timing_values=values)
+    _emit_provider_timing(agent, "stream_consume", _ms(stream.ended - consume_from), status=stream.status,
+                          timing_values=values)
 
 
 _ARM_LOCK = threading.Lock()
@@ -210,6 +262,7 @@ def reset_for_tests() -> None:
     with _LOCK:
         _AGENTS.clear()
         _STREAMS.clear()
+        _CLOSED.clear()
     with _ARM_LOCK:
         leases, _ARM["leases"], _ARM["turns"] = _ARM["leases"], [], 0
     for lease in leases:

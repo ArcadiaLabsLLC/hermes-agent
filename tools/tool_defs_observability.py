@@ -22,6 +22,23 @@ def bump_tool_defs_counter(name: str) -> None:
     setattr(_tool_defs_counters, name, getattr(_tool_defs_counters, name, 0) + 1)
 
 
+def ensure_plugin_tools_discovered() -> None:
+    """Discover plugins for the ACTIVE home before a schema recomputation walks the registry.
+
+    ``model_tools`` discovers once at import, but plugin managers are per resolved home: a
+    process that later serves another profile (or re-homes) found its plugin tools only when
+    something inside the walk lazily discovered them, so the first tool list of that home
+    lacked ``skill_search`` and the second had it (h10b-fix, owner 2026-09-29). Idempotent;
+    runs only on a memo miss.
+    """
+    try:
+        from hermes_cli.plugins import discover_plugins
+
+        discover_plugins()
+    except Exception as exc:  # pragma: no cover — never break tool loading
+        logger.debug("plugin discovery before tool definitions failed: %s", exc)
+
+
 def tool_defs_cache_hits_this_thread() -> int:
     """This thread's cumulative ``get_tool_definitions`` memo HITS."""
 

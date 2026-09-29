@@ -10,7 +10,7 @@ import argparse
 
 from .common_args import _add_stage42_global_args
 from agent_runtime.harness_doctor import DEFAULT_WORKTREE_MIN_AGE_SECONDS
-from hermes_cli.harness_parts import gateway_commands, runtime_commands
+from hermes_cli.harness_parts import gateway_commands, runtime_commands, verify_commands, work_commands
 from hermes_cli.harness_parts.doctor_commands import _cmd_doctor
 from hermes_cli.harness_parts.gateway_identity_commands import (
     _cmd_gateway_id,
@@ -367,7 +367,7 @@ def add_verify(subs) -> None:
     verify.add_argument("--json", action="store_true")
     verify.add_argument("--mode", choices=["live-tony", "ci", "temp-root"], default="ci")
     verify.add_argument("--skip-tests", action="store_true")
-    verify.set_defaults(func=runtime_commands._cmd_verify)
+    verify.set_defaults(func=verify_commands._cmd_verify)
 
 
 def add_config(subs) -> None:
@@ -556,12 +556,12 @@ def add_work(subs) -> None:
     _add_stage42_global_args(
         work_list, controls=frozenset({"limit", "sort"})
     )
-    work_list.set_defaults(func=runtime_commands._cmd_work_list)
+    work_list.set_defaults(func=work_commands._cmd_work_list)
     work_peek = work_subs.add_parser("peek", help="Bounded read-only look at one item's recent output/progress")
     work_peek.add_argument("work_id", help="Work id from `harness work list`, e.g. terminal:sess-1")
     # Peek answers about ONE row, so nothing to sort, page or bound.
     _add_stage42_global_args(work_peek)
-    work_peek.set_defaults(func=runtime_commands._cmd_work_peek)
+    work_peek.set_defaults(func=work_commands._cmd_work_peek)
     work_cancel = work_subs.add_parser("cancel", help="Interrupt one piece of running work through its owning subsystem")
     work_cancel.add_argument("work_id", help="Work id from `harness work list`")
     work_cancel.add_argument("--reason", default="operator_cancel", help="Recorded interrupt reason")
@@ -573,7 +573,7 @@ def add_work(subs) -> None:
     _add_stage42_global_args(
         work_cancel, controls=frozenset({"dry_run", "yes"})
     )
-    work_cancel.set_defaults(func=runtime_commands._cmd_work_cancel)
+    work_cancel.set_defaults(func=work_commands._cmd_work_cancel)
 
 
 def _cmd_serve(args) -> int:

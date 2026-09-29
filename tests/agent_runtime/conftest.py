@@ -182,7 +182,7 @@ def reset_core_cache_fingerprint_home():
     reset — the same argument as the memo above.
     """
 
-    from agent_runtime.core_cache import reset_fingerprint_home
+    from tests._downstream._seams import reset_fingerprint_home
 
     reset_fingerprint_home()
     yield

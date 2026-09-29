@@ -256,6 +256,12 @@ def _add_realm_sync_verbs(realm_subs) -> None:
         action="store_true",
         help="Revert every drifted item in this realm",
     )
+    realm_sync_revert.add_argument(
+        "--to",
+        default=None,
+        metavar="SHA",
+        help="Restore to this published version (a sha from `realm sync history`) instead of the last pull; writes no baseline, so restored rows read as local edits, and rows created after that version are kept for you to keep or delete",
+    )
     _add_stage42_global_args(
         realm_sync_revert, controls=frozenset({"dry_run", "yes"})
     )
