@@ -297,7 +297,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-29 (PR #125262 review follow-up, filed by the orchestrator)
 
-- [ ] **`tools/file_tools.py::_is_blocked_device_path("/dev/zero")` returns False on a Windows host, so a container-backend read of `/dev/zero` may not be blocked — prove it end to end on Windows; if it reproduces, a separate upstream PR (not #125262)** · `upstream` · seen in code only, not run · filed 2026-09-29 **UNCLAIMED** **TAKEN 2026-09-29 h10-rtseam**
 
 ### Filed on arrival — 2026-09-27 (lane PR-REPLIES, filed by the orchestrator)
 
