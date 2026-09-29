@@ -94,7 +94,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its Remote tab renders UNSUPPORTED and restore-to-version records a refused row until H1 and H3 exist. Evidence for all four: `EterniaLauncher/docs/mission_control/planned/realm-history-and-publish-policy-design-sheet.md` §3.
 
-- [ ] **H2 — the publish envelope carries `changed_paths` + `changed_count` from `_published_artifacts_differ` (computed and discarded today, `publish.py:439-452`) and `residual_drift` (store_drift.items still present after baselines, reason baseline_refused / baseline_write_failed / not_in_publish_set)** · `agent_runtime/realm_sync/publish.py` **TAKEN 2026-09-29 h10-rtfork**
 - [ ] **H3 — `hermes harness realm sync revert <realm> --to <sha> [--item …|--all]`: reconcile the local store against that commit's subtree through the pull arms with the same outcome vocabulary; upstream HEAD unchanged; the launcher already sends `--to` and degrades on "unrecognized arguments"** · `agent_runtime/realm_sync.py` **TAKEN 2026-09-29 h10-rtfork**
 - [ ] **H4 — no per-row local edit journal: a local edit shows the row's `updated_at` via H1, else "since last sync" — record the decision, build nothing** · decision row **TAKEN 2026-09-29 h10-rtfork**
 
