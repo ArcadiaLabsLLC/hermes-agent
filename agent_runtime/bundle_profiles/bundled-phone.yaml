@@ -14,6 +14,10 @@
 schema_version: 1
 profile: bundled-phone
 
+# Credentials and chat history are not a config switch: the embedded entry
+# (hermes_cli/harness_parts/serve/in_memory.py, EmbeddedServe.start) refuses to serve until
+# the host has bound its secure store (agent_runtime/host_store, plan Stage 2 steps 5 and 9).
+
 toolsets:
   disabled:
     # Shell family — not packaged (matrix: "—").
@@ -52,6 +56,18 @@ config:
   auth.adopt_external_logins: false
   providers.qwen-oauth.enabled: false
   telemetry.shared_metrics.enabled: false
+  # Stage 2 steps 6-8: no provider SDK (raw-HTTP client, agent/transports/httpx_client.py), no
+  # conversation worker subprocess (the in-process worker behind NativePeer), no `hermes auth
+  # login` child (the in-process sign-in runner).
+  agent.provider_sdks: false
+  conversations.subprocess_worker: false
+  auth.subprocess_signin: false
+  # The system prompt's environment probe spawns python/pip/git (tools/env_probe.py); a phone
+  # starts no process and has none of them.
+  agent.environment_probe: false
+  # agent.log records each turn's opening words at INFO (agent/turn_context.py); a phone keeps no
+  # plaintext chat on disk, so its file log starts at WARNING.
+  logging.level: WARNING
 
 environment:
   HF_HUB_OFFLINE: "1"
@@ -69,10 +85,6 @@ refused_routes:
     - /api/local-models/download-browsed
 
 unswitched:
-  - area: Native conversation workers (subprocess per profile)
-    gap: runtime.conversation.* still spawns agent_runtime.conversations.worker; the in-process worker behind NativePeer is plan Stage 2 step 8 (lane p1-hloop)
-  - area: Credentials and history storage
-    gap: auth.json / .anthropic_oauth.json / the state DB are still plaintext files under HERMES_HOME; the secure-store and history seams are plan Stage 2 steps 5 and 9 (lane p1-hsec)
   - area: Realm sync
     gap: realm_sync still shells out to git; the dulwich/HTTP backend behind the realm_sync seam is not built
 

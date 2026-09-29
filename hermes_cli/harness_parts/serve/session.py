@@ -294,6 +294,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         exit_code = self._boot_socket_lane()
         if exit_code is not None:
             return exit_code
+        self._boot_embedded_conversations()
         self._boot_gateway_lane()
         self._boot_register_instance()
         self._arm_service_stderr_log()

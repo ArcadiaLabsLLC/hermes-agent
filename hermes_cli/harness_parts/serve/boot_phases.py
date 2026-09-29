@@ -170,6 +170,26 @@ class BootPhases:
             self.socket_block = {"outcome": f"error:{type(exc).__name__}"}
         return None
 
+    def _boot_embedded_conversations(self) -> None:
+        """An embedded serve's host app is its only client and it has no socket lane: bind
+        the ``runtime.conversation.*`` owner here, where a daemon binds it with its socket.
+
+        The worker factory is the profile's (``conversations.subprocess_worker``): on a phone,
+        the in-process worker behind ``NativePeer``.
+        """
+
+        if (self.shell.kind != "embedded" or self.store_root_path is None
+                or not self.install_block.get("install_id")):
+            return
+        try:
+            from agent_runtime.conversations.binding import bind as bind_conversations
+            self.conversation_owner = bind_conversations(
+                self.store_root_path, self.install_block["install_id"])
+        except Exception:
+            import logging as _conversation_logging
+            _conversation_logging.getLogger(__name__).warning(
+                "independent conversations unavailable in the embedded serve")
+
     def _open_socket_lane(self, lock_result: Any) -> None:
         """This serve won the per-root lock: bind the lane and advertise it."""
 

@@ -62,16 +62,24 @@ def run_stdio(requests, app_dir: Path, monkeypatch, **options) -> list[dict]:
 
 
 def run_in_memory(requests, app_dir: Path, monkeypatch, **options) -> list[dict]:
-    """The embedded serve: the same loop over the in-memory pipe, embedded shell."""
+    """The embedded serve: the same loop over the in-memory pipe, embedded shell, with a fake
+    host secure store bound over the app folder for the leg (the entry refuses without one)."""
+    from agent_runtime.host_store.binding import unbind_host_store
+    from agent_runtime.host_store.fake import FakeHostSecureStore
+
     _use_app_folder(app_dir, monkeypatch)
     lines: list[str] = []
-    serve = EmbeddedServe(lines.append, **options)
-    serve.start()
-    for line in _lines(requests):
-        serve.send(line)
-    serve.close()
-    if serve.wait(WAIT_SECONDS) is None:
-        raise AssertionError(f"the embedded serve did not end within {WAIT_SECONDS}s of EOF")
+    FakeHostSecureStore().bind(profile="parity", store_root=app_dir)
+    try:
+        serve = EmbeddedServe(lines.append, **options)
+        serve.start()
+        for line in _lines(requests):
+            serve.send(line)
+        serve.close()
+        if serve.wait(WAIT_SECONDS) is None:
+            raise AssertionError(f"the embedded serve did not end within {WAIT_SECONDS}s of EOF")
+    finally:
+        unbind_host_store()
     return [json.loads(line) for line in lines if line]
 
 

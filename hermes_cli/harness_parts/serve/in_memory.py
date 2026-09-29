@@ -14,10 +14,21 @@ Host contract (the Stage 3 C shim is its caller):
 
 1. :func:`configure_app_folder` once, before anything reads ``HERMES_HOME`` —
    module-level constants resolve it at import;
-2. :class:`EmbeddedServe` with an ``on_frame`` callback (called on the serve's
+2. ``agent_runtime.host_store.binding.bind_host_store(...)`` with the OS secure
+   store's callbacks, over a store root that contains the app folder's Hermes home.
+   :meth:`EmbeddedServe.start` refuses (:class:`~agent_runtime.host_store.binding.
+   HostStoreNotBound` / ``OutsideStoreRoot``) without it: unbound, every credential
+   and history store would be a plaintext file;
+3. :class:`EmbeddedServe` with an ``on_frame`` callback (called on the serve's
    threads, one complete line at a time, without the trailing newline);
-3. :meth:`EmbeddedServe.send` per inbound line; :meth:`EmbeddedServe.close` is
+4. :meth:`EmbeddedServe.send` per inbound line; :meth:`EmbeddedServe.close` is
    EOF, which ends the loop exactly as a closed stdin does.
+
+:meth:`EmbeddedServe.start` also registers the agent loop's lifecycle placeholders
+(``agent_runtime.loop_tool_lifecycles``) before anything can import the loop — the
+phone wheel does not ship the terminal and browser tool lifecycles it imports.
+The profile's switches (``bundled-phone.yaml``: no provider SDK, no subprocess
+worker, no subprocess sign-in) are the host's config, written like any profile's.
 """
 
 from __future__ import annotations
@@ -38,6 +49,7 @@ __all__ = [
     "InMemoryPipe",
     "app_folder_environment",
     "configure_app_folder",
+    "require_bound_host_store",
 ]
 
 _EOF = object()
@@ -112,6 +124,21 @@ class _LineSink:
         return None
 
 
+def require_bound_host_store(environ: MutableMapping[str, str] = os.environ) -> None:
+    """Refuse an embedded serve whose host has not bound a secure store over its Hermes home.
+
+    Raises ``HostStoreNotBound`` when nothing is bound, ``OutsideStoreRoot`` when the
+    binding's root does not contain ``HERMES_HOME`` (its secret files would have no slot).
+    """
+
+    from agent_runtime.host_store.binding import OutsideStoreRoot, require
+
+    bound = require()
+    home = Path(os.path.abspath(environ.get("HERMES_HOME", "")))
+    if not environ.get("HERMES_HOME") or not home.is_relative_to(bound.store_root):
+        raise OutsideStoreRoot(f"HERMES_HOME {home} is not under the host store root {bound.store_root}")
+
+
 class EmbeddedServe:
     """One embedded runtime: ``serve_loop`` on its own thread over an :class:`InMemoryPipe`.
 
@@ -130,6 +157,10 @@ class EmbeddedServe:
     def start(self) -> None:
         if self._thread is not None:
             raise RuntimeError("an embedded serve starts once per app process")
+        require_bound_host_store()
+        from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
+
+        ensure_lifecycle_placeholders()  # before any request can import the agent loop
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 

@@ -42,6 +42,14 @@ class OutsideStoreRoot(HostStoreError):
     """A secret or history path outside the bound store root (never written in plaintext)."""
 
 
+class HostStoreNotBound(HostStoreError):
+    """The process has no host store, and the caller must not fall back to plaintext files.
+
+    The embedded serve (the phone profile's entry) raises it before it accepts a request:
+    unbound, every credential and history store would be upstream's plaintext file.
+    """
+
+
 @dataclass(frozen=True)
 class HostStoreCallbacks:
     read: Callable[[str], Optional[bytes]]
@@ -112,8 +120,8 @@ def bound() -> bool:
 
 
 def require() -> HostStoreBinding:
-    """The binding, or :class:`HostStoreError` when the process has none."""
+    """The binding, or :class:`HostStoreNotBound` when the process has none."""
     current = _BINDING
     if current is None:
-        raise HostStoreError("no host store is bound")
+        raise HostStoreNotBound("no host store is bound")
     return current
