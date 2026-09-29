@@ -160,3 +160,18 @@ def test_gate_refuses_to_install_over_a_missing_route():
 
     with pytest.raises(RouteGateError, match="name no mounted route"):
         install_route_gate(FastAPI(), load_profile(PROFILE))
+
+
+def test_the_cpu_speech_pack_strips_cudnn_and_keeps_what_parakeet_reads():
+    """Owner ruling 2026-09-28 item 7. Mutation: delete the ``cudnn64_9.dll`` entry -> red;
+    widen the onnx-asr globs to ``preprocessors/data/*`` -> the positive controls go red
+    (``fbanks.npz`` and the 16 kHz resamplers load at Parakeet start)."""
+    from scripts.bundle_profile_package import _excluded
+
+    excluded = load_profile(PROFILE).excluded_data
+    assert _excluded("site-packages/ctranslate2/cudnn64_9.dll", excluded)
+    assert _excluded("site-packages/onnx_asr/preprocessors/data/nemo128.onnx", excluded)
+    for kept in ("ctranslate2/ctranslate2.dll", "ctranslate2/libiomp5md.dll",
+                 "onnx_asr/preprocessors/data/fbanks.npz", "onnx_asr/preprocessors/data/resample_8_16.onnx",
+                 "onnx_asr/preprocessors/data/resample_48_16.onnx"):
+        assert not _excluded(f"site-packages/{kept}", excluded), kept

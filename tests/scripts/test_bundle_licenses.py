@@ -39,6 +39,27 @@ def test_a_copyleft_component_compiled_into_a_permissive_wheel_is_flagged():
     assert review_reasons("MIT", embedded) == ["embedded espeak-ng: GPL-family licence"]
 
 
+def test_intel_openmp_is_listed_for_review_and_the_accepted_vc_runtime_is_not(tmp_path: Path):
+    """Owner ruling 2026-09-28 items 7-8. Mutation: drop the ``accepted`` skip in
+    ``review_reasons`` -> cpython is back in ``review_required``; drop ctranslate2's
+    ``EMBEDDED_COMPONENTS`` row -> it leaves review."""
+    site = tmp_path / "site-packages"
+    _install(site, "ctranslate2", "MIT")
+    (tmp_path / "app").mkdir()
+    record = write_licence_records(tmp_path, "core", {"ctranslate2"}, "win32-x64", "c0ffee" * 7, core=True,
+                                   wheels={})
+    rows = {r["distribution"]: r for r in record["components"]}
+    assert "ctranslate2" in record["review_required"] and "cpython" not in record["review_required"]
+    assert rows["ctranslate2"]["embedded"][0]["name"] == "intel-openmp"
+    assert rows["ctranslate2"]["embedded"][0]["review"] is True
+    vcruntime = next(c for c in rows["cpython"]["embedded"] if c["name"] == "vcruntime140")
+    assert vcruntime["review"] is False and vcruntime["accepted"].startswith("owner ruling 2026-09-28 item 8")
+    assert rows["cpython"]["review"] is False
+    # Positive control: the same component WITHOUT the ruling is still flagged.
+    unruled = {k: v for k, v in vcruntime.items() if k not in ("accepted", "review")}
+    assert review_reasons("PSF-2.0", [unruled]) == ["embedded vcruntime140: proprietary or non-SPDX licence"]
+
+
 def _meta(text: str):
     return HeaderParser().parsestr(text)
 

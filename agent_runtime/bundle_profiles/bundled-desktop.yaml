@@ -206,7 +206,8 @@ packaging:
     speech:
       extras:
         - piper         # speech service: TTS (On)
-        - stt-whisper   # speech service: STT (On)
+        - stt-whisper   # speech service: STT, Whisper tiers (On)
+        - stt-parakeet  # speech service: STT, Parakeet TDT tiers on onnxruntime (On)
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
   resources:
     - skills
@@ -241,6 +242,14 @@ packaging:
     site-packages/piper/hebrew/nakdimon.onnx: "Hebrew diacritizer model (20 MiB): no models in the installer; loaded only for a Hebrew voice"
     site-packages/piper/tashkeel/model.onnx: "Arabic diacritizer model: no models in the installer; loaded only for an Arabic voice"
     site-packages/piper/train: "Piper's voice-training code: dev code, never imported by synthesis"
+    site-packages/ctranslate2/cudnn64_9.dll: "cuDNN (owner ruling 2026-09-28 item 7): a CUDA-only library in a CPU speech pack; ctranslate2 loads the DLLs it finds and runs CPU int8 without it (measured: tiny.en decodes with it removed)"
+    site-packages/onnx_asr/preprocessors/data/*_conv.onnx: "onnx-asr's Conv-STFT graphs for GPU providers: the CPU path uses its numpy preprocessors"
+    site-packages/onnx_asr/preprocessors/data/gigaam*: "GigaAM (Russian) preprocessors: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/kaldi*: "Kaldi/Vosk preprocessors: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/whisper*: "Whisper-ONNX preprocessors: bundled Whisper runs on ctranslate2"
+    site-packages/onnx_asr/preprocessors/data/wespeaker.onnx: "speaker-embedding preprocessor: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/nemo*.onnx: "NeMo ONNX preprocessors: the CPU path uses the numpy one (preprocessors/data/fbanks.npz)"
+    site-packages/onnx_asr/preprocessors/data/resample_*_8.onnx: "resamplers to 8 kHz: Parakeet takes 16 kHz (the 16 kHz ones load at model start)"
     app/tools/neutts_samples: "NeuTTS reference clips: NeuTTS is not in the bundled speech set"
     app/tools/wakewords: "Hermes wake-word models: wake_word.enabled is false, the Launcher owns the mic"
     app/agent_runtime/bundle_profiles/licence-texts: "vetted licence texts: the packager copies the ones a wheel lacks to the output's licence-texts/, which licenses.json cites; the runtime never reads them"

@@ -1,4 +1,4 @@
-"""Bundled Hermes's speech service: one faster-whisper STT model and one Piper voice.
+"""Bundled Hermes's speech service: one STT model (faster-whisper or Parakeet TDT) and one Piper voice.
 
 Plan D3 items 1-2 (launcher ``docs/embedded_hermes/planned/``): the Launcher
 downloads speech models into its models folder and samples the voice; bundled
@@ -20,6 +20,9 @@ model is a directory (faster-whisper never resolves a directory against the
 Hub) and a Piper voice is an existing ``.onnx`` (upstream's resolver returns an
 existing path before its download branch). The bundled profile also sets
 ``HF_HUB_OFFLINE``, which upstream's Piper resolver now honours too.
+
+Which STT engine runs a model is decided by the model folder's artifact set
+(:func:`agent_runtime.speech_stt_engines.engine_for`), never by a config string.
 """
 
 from __future__ import annotations
@@ -36,7 +39,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from agent_runtime import speech_stt_engines as stt_engines
 from agent_runtime.model_admission import AdmissionRefused, ModelAdmission, admission
+from agent_runtime.speech_stt_engines import nonempty as _nonempty
 
 __layer__ = "stores"
 
@@ -68,8 +73,8 @@ MAX_STREAM_SECONDS = 120
 #: 0.7 s whatever the clip length (whisper pads to a 30 s window), so the first pass starts early.
 FIRST_PARTIAL_MS = 300
 PARTIAL_INTERVAL_MS = 600
-#: A partial transcribes at most this much trailing audio, so its cost stays flat on long takes.
-PARTIAL_WINDOW_SECONDS = 30
+#: How much trailing audio a partial transcribes is the engine's
+#: (``speech_stt_engines.SttEngine.partial_window_seconds``).
 #: Streams open at once, and how long an untouched one lives.
 MAX_STREAMS = 4
 STREAM_IDLE_SECONDS = 60.0
@@ -80,13 +85,9 @@ MAX_TEXT_CHARS = 4000
 
 #: Estimated resident bytes per byte on disk, and fixed runtime overhead (measured on the CPU
 #: path in the contract doc; an estimate, so it rounds up).
-_STT_DISK_FACTOR = 1.0
-_STT_OVERHEAD = 96 * 1024 * 1024
+#: (Each STT engine carries its own figures: ``speech_stt_engines.STT_ENGINES``.)
 _TTS_DISK_FACTOR = 1.5
 _TTS_OVERHEAD = 64 * 1024 * 1024
-
-_WHISPER_REQUIRED = ("model.bin", "config.json", "tokenizer.json")
-_WHISPER_VOCABULARY = ("vocabulary.txt", "vocabulary.json")
 
 #: A Piper voice's espeak-ng pronunciation data, in the voice's own folder (the Launcher downloads
 #: the language subset with the voice; the speech pack ships none). The phoneme tables every
@@ -121,25 +122,25 @@ def _local_path(value: Any) -> Path | None:
     return path if path.is_absolute() else None
 
 
-def inspect_stt(path: Path | None, *, engine_ok: bool) -> dict:
-    """``available`` or ``unavailable`` + reason for a faster-whisper (CTranslate2) model DIRECTORY."""
+def inspect_stt(path: Path | None, *, importable: Callable[[str], bool]) -> dict:
+    """``available`` or ``unavailable`` + reason for an STT model DIRECTORY: a faster-whisper
+    (CTranslate2) directory or a Parakeet TDT int8 ONNX export — the folder's files say which."""
     if path is None:
         return _unavailable("model_unset", None)
     if not path.is_dir():
         return _unavailable("model_missing", path)
-    missing = [name for name in _WHISPER_REQUIRED if not _nonempty(path / name)]
-    if not any(_nonempty(path / name) for name in _WHISPER_VOCABULARY):
-        missing.append(_WHISPER_VOCABULARY[0])
+    engine = stt_engines.engine_for(path)
+    missing = stt_engines.missing_files(engine, path)
     if missing:
-        return _unavailable("model_partial", path, missing=missing)
-    try:
-        json.loads((path / "config.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return _unavailable("model_partial", path, missing=["config.json"])
-    if not engine_ok:
-        return _unavailable("engine_missing", path, engine="faster-whisper")
+        return _unavailable("model_partial", path, missing=missing, engine=engine.name)
+    model_type = stt_engines.unsupported_model_type(engine, path)
+    if model_type is not None:
+        return _unavailable("model_unsupported", path, engine=engine.name, model_type=model_type)
+    if not importable(engine.name):
+        return _unavailable("engine_missing", path, engine=engine.name)
     size = sum(f.stat().st_size for f in path.iterdir() if f.is_file())
-    return {"state": "available", "reason": None, "model_path": str(path), "disk_bytes": size}
+    return {"state": "available", "reason": None, "model_path": str(path), "disk_bytes": size,
+            "engine": engine.name}
 
 
 def inspect_tts(path: Path | None, *, engine_ok: bool) -> dict:
@@ -224,21 +225,14 @@ def _packaged_espeak_data() -> bool:
     return bool(origin) and _nonempty(Path(origin).parent / ESPEAK_DIR / "phontab")
 
 
-def _nonempty(path: Path) -> bool:
-    try:
-        return path.is_file() and path.stat().st_size > 0
-    except OSError:
-        return False
-
-
 # ── engines (upstream's, behind one seam so tests can stand in) ────────────
 
 
 class SpeechEngines:
     """The real engines. Tests pass a fake with the same five methods."""
 
-    def stt_importable(self) -> bool:
-        return importlib.util.find_spec("faster_whisper") is not None
+    def stt_importable(self, engine: str = stt_engines.WHISPER) -> bool:
+        return stt_engines.engine_importable(stt_engines.STT_ENGINES[engine])
 
     def tts_importable(self) -> bool:
         from agent_runtime._upstream_doors import piper_engine_importable
@@ -246,6 +240,14 @@ class SpeechEngines:
         return piper_engine_importable()
 
     def load_stt(self, path: Path, *, device: str, compute_type: str) -> Any:
+        """The model in ``path`` on the engine its artifact set names (``engine_for``)."""
+        engine = stt_engines.engine_for(path).name
+        return _SttModel(engine, self._STT_LOADERS[engine](self, path, device, compute_type))
+
+    def transcribe(self, model: Any, pcm: bytes, *, final: bool) -> str:
+        return self._STT_DECODERS[model.engine](self, model.model, pcm, final)
+
+    def _load_whisper(self, path: Path, device: str, compute_type: str) -> Any:
         from agent_runtime._upstream_doors import whisper_load_model
         from agent_runtime.speech_decode import ensure_av_placeholder
 
@@ -255,7 +257,13 @@ class SpeechEngines:
 
         return whisper_load_model(str(path), device=device, compute_type=compute_type)
 
-    def transcribe(self, model: Any, pcm: bytes, *, final: bool) -> str:
+    def _load_parakeet(self, path: Path, device: str, compute_type: str) -> Any:
+        return stt_engines.load_parakeet(path)  # CPU int8 is the only build this service loads
+
+    def _transcribe_parakeet(self, model: Any, pcm: bytes, final: bool) -> str:
+        return stt_engines.transcribe_parakeet(model, pcm)
+
+    def _transcribe_whisper(self, model: Any, pcm: bytes, final: bool) -> str:
         import numpy as np
 
         from agent_runtime._upstream_doors import whisper_confident_text
@@ -290,6 +298,18 @@ class SpeechEngines:
     def synthesize(self, voice: Any, text: str) -> Iterator[tuple[int, bytes]]:
         for chunk in voice.synthesize(text):
             yield chunk.sample_rate, chunk.audio_int16_bytes
+
+    #: STT engine name -> its loader and its decoder (routing is data, not a ladder).
+    _STT_LOADERS = {stt_engines.WHISPER: _load_whisper, stt_engines.PARAKEET: _load_parakeet}
+    _STT_DECODERS = {stt_engines.WHISPER: _transcribe_whisper, stt_engines.PARAKEET: _transcribe_parakeet}
+
+
+@dataclass(frozen=True)
+class _SttModel:
+    """A loaded STT model and the engine that decodes it."""
+
+    engine: str
+    model: Any
 
 
 def _stt_config() -> dict:
@@ -331,6 +351,7 @@ class _Slot:
     error: dict | None = None
     unloaded_reason: str | None = None
     sample_rate: int | None = None
+    engine: str | None = None
 
 
 @dataclass
@@ -403,11 +424,11 @@ class SpeechService:
         if note:
             return _unavailable(note, None)
         if slot.kind == "stt":
-            return inspect_stt(path, engine_ok=self.engines.stt_importable())
+            return inspect_stt(path, importable=self.engines.stt_importable)
         return inspect_tts(path, engine_ok=self.engines.tts_importable())
 
     def _slot_view(self, slot: _Slot, params: dict | None = None) -> dict:
-        engine = "faster-whisper" if slot.kind == "stt" else "piper"
+        engine = slot.engine or (stt_engines.WHISPER if slot.kind == "stt" else "piper")
         if slot.state in ("loaded", "loading"):
             view = {"state": slot.state, "reason": None, "model_path": str(slot.path)}
         else:
@@ -416,7 +437,8 @@ class SpeechService:
             view = self._inspect(slot, path, notes.get("stt_model" if slot.kind == "stt" else "tts_voice"))
             if slot.error is not None and view["state"] == "available":
                 view.update(state="unavailable", reason=slot.error["reason"], error=slot.error)
-        view.update(engine=engine, reserved_bytes=slot.reserved, unloaded_reason=slot.unloaded_reason)
+        view.update(engine=view.get("engine") or engine, reserved_bytes=slot.reserved,
+                    unloaded_reason=slot.unloaded_reason)
         if slot.kind == "stt":
             view.update(device="cpu", compute_type="int8", input_sample_rate=INPUT_SAMPLE_RATE,
                         input_encoding=INPUT_ENCODING)
@@ -453,11 +475,11 @@ class SpeechService:
             view = self._inspect(slot, path, note)
             if view["state"] != "available":
                 return {"state": "unavailable", "reason": view["reason"], **{k: v for k, v in view.items()
-                                                                          if k in ("missing", "engine")}}
+                                                                          if k in ("missing", "engine", "model_type")}}
             if already_loaded:
                 self._drop(slot, "replaced")
-            slot.state, slot.path, slot.error = "loading", path, None
-        estimate = self._estimate(slot.kind, view["disk_bytes"])
+            slot.state, slot.path, slot.error, slot.engine = "loading", path, None, view.get("engine")
+        estimate = self._estimate(slot.kind, view["disk_bytes"], view.get("engine"))
         try:
             self.authority.reserve(slot.holder, kind=slot.kind, resource="ram", bytes=estimate,
                                    evict=lambda s=slot: self._evict(s))
@@ -483,9 +505,10 @@ class SpeechService:
         return {"state": "loaded", "reason": None, "reserved_bytes": estimate}
 
     @staticmethod
-    def _estimate(kind: str, disk_bytes: int) -> int:
+    def _estimate(kind: str, disk_bytes: int, engine: str | None = None) -> int:
         if kind == "stt":
-            return int(disk_bytes * _STT_DISK_FACTOR) + _STT_OVERHEAD
+            figures = stt_engines.STT_ENGINES[engine or stt_engines.WHISPER]
+            return int(disk_bytes * figures.disk_factor) + figures.overhead_bytes
         return int(disk_bytes * _TTS_DISK_FACTOR) + _TTS_OVERHEAD
 
     def _busy(self, slot: _Slot) -> bool:
@@ -599,8 +622,9 @@ class SpeechService:
                     and fresh * 1000 >= interval * _BYTES_PER_SECOND_IN):
                 stream.partial_running = True
                 stream.partial_at_bytes = len(stream.pcm)
-                whole = len(stream.pcm) <= PARTIAL_WINDOW_SECONDS * _BYTES_PER_SECOND_IN
-                window = bytes(stream.pcm[-PARTIAL_WINDOW_SECONDS * _BYTES_PER_SECOND_IN:])
+                seconds = stt_engines.STT_ENGINES[self.stt.engine or stt_engines.WHISPER].partial_window_seconds
+                whole = seconds is None or len(stream.pcm) <= seconds * _BYTES_PER_SECOND_IN
+                window = bytes(stream.pcm) if whole else bytes(stream.pcm[-seconds * _BYTES_PER_SECOND_IN:])
                 stream.partial_future = self._stt_pool.submit(self._partial, stream, window, len(stream.pcm), whole)
             return {"contract": SPEECH_CONTRACT, "stream_id": stream.stream_id, "seq": seq,
                     "audio_ms": _ms(len(stream.pcm))}

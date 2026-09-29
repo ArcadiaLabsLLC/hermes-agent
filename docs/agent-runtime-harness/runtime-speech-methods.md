@@ -18,11 +18,28 @@ manifest set without moving `RPC_CONTRACT_VERSION`.
 |---|---|
 | STT load | `tools/transcription_local.py::_load_local_whisper_model` (via `_upstream_doors.whisper_load_model`), `device="cpu"`, `compute_type="int8"` |
 | STT decode | `build_local_transcribe_kwargs` (VAD, confidence gate, `language: en` unless `stt.language` says otherwise) and `_join_confident_segments` |
+| STT load + decode, Parakeet | onnx-asr 0.12.0 `load_model("nemo-conformer-tdt", <dir>, quantization="int8", providers=["CPUExecutionProvider"])`, then `recognize` per chunk (`agent_runtime/speech_stt_engines.py`) |
 | TTS load | `tools/tts_tool_local.py::_load_piper_voice_for_config` (the same LRU slot the `speak` tool reads); unload is `release_tts_provider("piper")` |
 | TTS synth | `PiperVoice.synthesize` (one chunk per sentence) |
 
 Versions measured: faster-whisper 1.2.1, ctranslate2 4.8.2, piper-tts 1.8.0,
-onnxruntime 1.30.0, numpy 2.5.3 (the `pyproject.toml` pins).
+onnxruntime 1.30.0, numpy 2.5.3 (the `pyproject.toml` pins). Parakeet: onnx-asr 0.12.0,
+onnxruntime 1.29.0, numpy 2.5.3.
+
+**The STT engine is chosen by the model folder's files, never by a config
+string** (`speech_stt_engines.engine_for`). A folder whose `config.json` names
+`model_type: nemo-conformer-tdt`, or that holds an `encoder-model*.onnx`, is
+Parakeet; anything else is read as faster-whisper. `status`, `load` and the
+admission estimate all read that one answer, and `status.stt.engine` reports it
+(`faster-whisper` | `parakeet-tdt`).
+
+Why onnx-asr and not sherpa-onnx or an own runner: it adds the least. It is a
+7 MB pure-Python MIT package whose only hard requirement is numpy, running on
+the onnxruntime the speech pack already carries — no native build, no TTS code,
+no espeak-ng. It is given a model TYPE and an existing local directory, which
+makes its resolver offline; its `huggingface_hub` branch is unreachable. The
+speech pack ships only the preprocessor data the CPU path reads
+(`fbanks.npz` and the resamplers to 16 kHz); the rest is `excluded_data`.
 
 ## Models: explicit local paths, never a download
 
@@ -31,6 +48,10 @@ A model is named by an **absolute path**, or by a bare name under `models_dir`:
 - STT: a faster-whisper (CTranslate2) **directory** holding `model.bin`,
   `config.json`, `tokenizer.json` and `vocabulary.txt` (or `.json`).
   faster-whisper never resolves a directory against the Hub.
+- STT, Parakeet: the int8 ONNX export of Parakeet TDT 0.6B v2
+  (`istupakov/parakeet-tdt-0.6b-v2-onnx`, 661 MB): `config.json`
+  (`model_type: nemo-conformer-tdt`), `vocab.txt`, `encoder-model.int8.onnx`
+  and `decoder_joint-model.int8.onnx`. Weights CC-BY-4.0 (attribution).
 - TTS: a Piper voice `<name>.onnx` with its `<name>.onnx.json` beside it.
   Upstream's resolver returns an existing `.onnx` before its download branch.
 - TTS pronunciation data: the voice's own `espeak-ng-data/` folder beside the
@@ -112,7 +133,7 @@ when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 | state | meaning |
 |---|---|
-| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial`, `espeak_data_partial` (tts; `missing` names the `espeak-ng-data/…` files), `espeak_data_missing` (tts; no data beside the voice and none installed with piper), `engine_missing`, `load_failed` |
+| `unavailable` | `reason` ∈ `model_unset`, `model_not_local`, `model_missing`, `model_partial` (stt: `engine` names whose file list `missing` is), `model_unsupported` (stt: a NeMo folder whose `model_type` is not TDT; `+model_type`), `espeak_data_partial` (tts; `missing` names the `espeak-ng-data/…` files), `espeak_data_missing` (tts; no data beside the voice and none installed with piper), `engine_missing`, `load_failed` |
 | `available` | files complete, engine importable, not loaded |
 | `loading` | a load is running |
 | `loaded` | ready; `reserved_bytes` is its admission reservation |
@@ -174,12 +195,22 @@ transports carry already, so a side channel is not warranted.
 
 ## Streaming recognition
 
-Whisper is not a streaming model: every pass re-decodes the take so far (the
-last 30 s at most). The first partial runs after 300 ms of audio, later ones
-after 600 ms of new audio, one pass at a time. A pass costs about the same
-whatever the clip length, because whisper pads to a 30 s window. The final pass
-queues behind a partial already running; `adopted_partial` skips it when that
-partial covered everything.
+Neither engine is a streaming model: every pass re-decodes the take so far. The
+first partial runs after 300 ms of audio, later ones after 600 ms of new audio,
+one pass at a time. The final pass queues behind a partial already running;
+`adopted_partial` skips it when that partial covered everything.
+
+- **Whisper** partials cover the last 30 s at most. A pass costs about the same
+  whatever the clip length, because whisper pads to a 30 s window.
+- **Parakeet** partials cover the whole take, decoded in **chunks**. Its encoder
+  attends over its whole input, so one pass costs time and memory in proportion
+  to the audio (measured below: 3.1 s and +0.95 GiB for 30 s, 15.8 s and
+  +1.9 GiB for 120 s in one pass). The runner cuts the take every 10 s, in the
+  quietest 200 ms of the 4 s before each boundary, and decodes each finished
+  chunk once (cached by its bytes). A cut depends only on audio at or before its
+  boundary, so the cuts of a growing take never move, and a partial or the final
+  decodes only the open tail (< 10 s). TDT decodes greedily, so a partial and the
+  final are the same computation.
 
 ## Latency — measured
 
@@ -198,6 +229,36 @@ from `recognize.end` to its reply.
 
 Both transcribed the sentence correctly. One decode pass on this CPU: tiny.en
 ~0.4–0.5 s, base.en ~0.7–0.8 s (for a 1 s or a 4 s clip alike).
+
+**Parakeet TDT 0.6B v2 int8, measured 2026-09-28 (lane w5-hstt).** Same
+machine, CPU, other sessions on the box; the bench's method and clips
+(`docs/downstream/voice-model-bench-2026-09-28.md`: three LibriSpeech dev-clean
+utterances, 200 ms of silence before and 300 ms after, 100 ms chunks at real
+time through `handle_request`). Three runs; the three clip figures per cell.
+
+| STT model | first words | final | WER | load | RAM (resident growth) |
+|---|---|---|---|---|---|
+| Parakeet TDT 0.6B v2 int8 | 0.09 / 0.08 / 0.08 s · 0.11 / 0.08 / 0.07 s · 0.11 / 0.10 / 0.11 s | 0.67 / 0.82 / 0.71 s · 0.56 / 0.67 / 0.50 s · 0.92 / 1.27 / 0.51 s | **0 / 38** (all three runs) | 5.5–5.8 s | +0.71 GiB loaded, +0.80 GiB after decoding; process peak 0.83 GiB |
+| `faster-whisper-tiny.en` (same run, re-baseline) | 1.03 / 2.78 / 1.12 s | 0.80 / 0.97 / 0.70 s | 5 / 38 | 3.6 s | +0.10 GiB loaded, +0.13 GiB after |
+
+The first call after load (1 s of audio) took 0.28–0.33 s and is not in the
+figures. Every final that exceeded 0.7 s had queued behind a partial still
+running. A 126-second take (the three clips eight times over, 15 cuts) held
+resident growth at +0.83 GiB; the cold whole-take pass took 5.0–5.9 s and the
+next pass over the same take 0.44–0.55 s (every finished chunk cached). WER
+8 / 304: all eight are the same dropped "of" in "instant of panic", none at a cut.
+
+**The speech pack, re-measured 2026-09-28 (lane w5-hstt, win32-x64, packager
+`--verify` 0 problems, `scripts/bundle_ceilings.py`'s `lzma_size`):** before
+(`312103de32`) 15 distributions, 159.51 MiB installed, 31.29 MiB LZMA; after,
+16 distributions (onnx-asr added, 0.19 MiB installed with its excluded
+preprocessor graphs left out; `cudnn64_9.dll` stripped, 0.25 MiB), 159.49 MiB
+installed, **31.24 MiB LZMA**. Both engines decode from the built pack on the
+pinned 3.14 interpreter: Parakeet transcribed clip `1272-135031-0004` exactly,
+Whisper tiny.en ran on CPU int8 with no cuDNN present. Licences: the pack's
+`review_required` is `ctranslate2` (embedded `intel-openmp`, `libiomp5md.dll`,
+`review: true`) and `piper-tts`; the core's is empty (the interpreter's
+`vcruntime140` carries `accepted`, owner ruling item 8).
 
 Piper `en_US-lessac-medium`: load 4.7–5.1 s (+85 MiB), first chunk 0.26–0.28 s (2.0 s on the very first run after install)
 for the sentence, whole sentence (3.5 s of audio) 0.26–0.28 s warm.
@@ -227,9 +288,13 @@ for the sentence, whole sentence (3.5 s of audio) 0.26–0.28 s warm.
   the lease). Wire holders are stored as `remote:<holder>` — they can never
   replace a local row — are never evicted, and lapse if not renewed.
 
-Speech estimates: STT = directory size + 96 MiB, TTS = voice size × 1.5 + 64 MiB
-(measured resident: base.en +137 MiB against 237 MiB reserved; lessac-medium
-+85 MiB against 154 MiB reserved — estimates round up).
+Speech estimates: STT = directory size + the engine's overhead — 96 MiB for
+faster-whisper, 256 MiB for Parakeet (`speech_stt_engines.STT_ENGINES`) — and
+TTS = voice size × 1.5 + 64 MiB (measured resident: base.en +137 MiB against
+237 MiB reserved; Parakeet int8 +0.80 GiB after decoding, +0.83 GiB on a
+126 s take, against 887 MiB reserved; lessac-medium +85 MiB against 154 MiB
+reserved — estimates round up). Parakeet's figure holds because it decodes in
+chunks: one unchunked pass over 120 s grows to +1.9 GiB.
 
 ## Errors
 
