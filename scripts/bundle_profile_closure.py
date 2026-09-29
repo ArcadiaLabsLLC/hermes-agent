@@ -254,7 +254,9 @@ class Walk:
     def __init__(self, roots, pruned, index, first_party_tops, *, parents: bool = False):
         """``parents``: importing ``a.b.c`` runs ``a/__init__`` and ``a/b/__init__`` first, so a
         kept module's enclosing packages are reached too (at module level: their imports are
-        eager). Off by default — the desktop closure's recorded figures were taken without it."""
+        eager). Off by default — the desktop closure's recorded figures were taken without it; the
+        packaging step (``scripts/bundle_profile_package.py``) and the profile gate walk with it,
+        because what they ship is what the bundle imports."""
         self.kept: set[str] = set()
         self.tops: dict[str, list[str]] = {}
         self.pinned: set[str] = set()

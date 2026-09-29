@@ -20,6 +20,8 @@ from scripts.bundle_profile_package import (
     marker_env,
     named_timezone_problems,
     resource_problems,
+    serve_import_problems,
+    serve_import_table,
 )
 
 
@@ -113,6 +115,73 @@ def test_a_hyphenated_bundled_plugin_is_walked(tmp_path: Path):
     manifest = SimpleNamespace(packaging_roots=(), switched_off_modules=(), packaging_plugins=("my-plugin",))
     shipped, _, _ = first_party_plan(manifest, module_index(tmp_path, plugins=("my-plugin",)))
     assert shipped == {"plugins", "plugins.my_plugin", "plugins.my_plugin.impl"}
+
+
+def test_a_package_init_s_relative_siblings_ship_with_the_module_that_enters_it(tmp_path: Path):
+    """Importing ``pkg.a`` runs ``pkg/__init__`` first: its ``from . import b`` must ship ``pkg.b``."""
+    _write(tmp_path, "root.py", "from pkg.a import x\n")
+    _write(tmp_path, "pkg/__init__.py", "from . import a, b\n")
+    _write(tmp_path, "pkg/a.py", "x = 1\n")
+    _write(tmp_path, "pkg/b.py", "")
+    from scripts.bundle_profile_closure import module_index
+
+    manifest = SimpleNamespace(packaging_roots=("root",), switched_off_modules=(), packaging_plugins=())
+    shipped, _, _ = first_party_plan(manifest, module_index(tmp_path))
+    assert shipped == {"root", "pkg", "pkg.a", "pkg.b"}
+
+
+def _serve_tree(root: Path, *, with_sibling: bool) -> None:
+    """A miniature bundle: the parser door, a serve handler importing lazily into a package
+    whose ``__init__`` imports a sibling with ``from . import``, and a ``-m`` worker."""
+    _write(root, "app/hermes_cli/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/parser/__init__.py",
+           "def build_parser(subs):\n"
+           "    from hermes_cli.harness_parts.parser.machine import add_serve\n"
+           "    add_serve(subs.add_parser('harness').add_subparsers())\n")
+    _write(root, "app/hermes_cli/harness_parts/parser/machine.py",
+           "def _cmd_serve(args):\n"
+           "    from hermes_cli.harness_parts.serve.commands import run\n"
+           "def add_serve(subs):\n"
+           "    serve = subs.add_parser('serve')\n"
+           "    serve.add_argument('--ndjson', action='store_true')\n"
+           "    serve.set_defaults(func=_cmd_serve)\n")
+    _write(root, "app/hermes_cli/harness_parts/serve/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/serve/commands.py", "from . import loop\ndef run():\n    pass\n")
+    _write(root, "app/hermes_cli/harness_parts/serve/loop.py", "def rpc():\n    import rpc.registry\n")
+    _write(root, "app/rpc/__init__.py", "from . import chat\n")
+    _write(root, "app/rpc/registry.py", "")
+    if with_sibling:
+        _write(root, "app/rpc/chat.py", "")
+    _write(root, "app/worker.py", "ARGV = ['python', '-m', 'worker_entry']\n")
+    _write(root, "app/worker_entry.py", "")
+    (root / "site-packages").mkdir(parents=True, exist_ok=True)
+
+
+def test_the_serve_import_probe_names_a_module_the_bundle_cannot_import(tmp_path: Path):
+    """The built-bundle check: the bundle's interpreter, isolated, imports what serve loads."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = "%d.%d.0" % sys.version_info[:2]
+    good, bad = tmp_path / "good", tmp_path / "bad"
+    _serve_tree(good, with_sibling=True)
+    _serve_tree(bad, with_sibling=False)
+    index = module_index(good / "app")
+    shipped = set(index)
+    table = serve_import_table(shipped, index)
+    assert table["spawned"] == ["worker_entry"]
+    assert table["lazy"]["hermes_cli.harness_parts.serve.loop"] == ["rpc.registry"]
+    assert serve_import_problems(good, shipped, index, version) == []  # positive control
+    problems = serve_import_problems(bad, shipped, index, version)
+    assert len(problems) == 1 and problems[0].startswith(
+        "serve entrypoint does not import inside the bundle: rpc.registry: ImportError"), problems
+
+
+def test_the_serve_import_probe_refuses_an_interpreter_of_another_version(tmp_path: Path):
+    problems = serve_import_problems(tmp_path, set(), {}, "2.7.18")
+    assert len(problems) == 1 and "needs a CPython 2.7 interpreter" in problems[0]
 
 
 def test_markers_are_evaluated_for_the_target_not_by_uv():

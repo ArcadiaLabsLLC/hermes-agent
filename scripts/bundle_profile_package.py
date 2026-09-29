@@ -51,12 +51,15 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import warnings
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -264,7 +267,11 @@ def first_party_plan(manifest, index: dict[str, Path] | None = None) -> tuple[se
     ImportError, so the feature stays off by its switch and its code ships.
     Each shipped module brings the modules it imports at module level.
     """
-    result, index = profile_walk(manifest, index)
+    # ``parents``: every kept module's enclosing packages are shipped, and importing the module
+    # RUNS their ``__init__`` — so the walk must follow those imports too. Without it
+    # ``tools/agent_chat/__init__`` (``from . import detached, schemas, send``) shipped while the
+    # siblings it imports did not, and ``agent_runtime.serve_rpc`` failed to import in the bundle.
+    result, index = profile_walk(manifest, index, parents=True)
     forced = set(result.pinned) | {row["target"] for row in result.unguarded_into_pruned}
     loaded = _eager_first_party_closure(forced, index) - result.kept
     return _with_parents(result.kept | loaded, index), loaded, index
@@ -277,7 +284,7 @@ sys.path[:0] = [*json.loads(sites), root]
 import scripts.bundle_profile_closure as closure_script
 closure_script.TARGET_ENV.clear()
 closure_script.TARGET_ENV.update(json.loads(env))
-result = closure_script.closure(profile, boot=False, extra_extras=tuple(json.loads(extra)))
+result = closure_script.closure(profile, boot=False, extra_extras=tuple(json.loads(extra)), parents=True)
 print(json.dumps({"needed": [r["name"] for r in result["needed"]],
                   "refusals": closure_script.refusals(result)}))
 """
@@ -581,8 +588,116 @@ def named_timezone_problems(site: Path, python: Path | str = sys.executable) -> 
     return [f"named timezone {NAMED_TIMEZONE} does not resolve inside the bundle: {last}"]
 
 
-def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> list[str]:
-    """Recompute the plan from the source tree and the bundle's OWN site-packages; compare."""
+#: The argv bundled Hermes starts with (``python -I -m hermes_cli.main harness serve --ndjson``,
+#: the manifest's serve entry). The probe resolves its handler from the bundle's OWN parser.
+SERVE_ARGV = ("harness", "serve", "--ndjson")
+
+_SERVE_IMPORT_PROBE = r"""
+import argparse, importlib, json, sys
+app, site, table_path, argv = sys.argv[1], sys.argv[2], sys.argv[3], json.loads(sys.argv[4])
+sys.path[:0] = [app, site]
+with open(table_path, encoding="utf-8") as handle:
+    table = json.load(handle)
+lazy, spawned, packages_known = table["lazy"], table["spawned"], set(table["packages"])
+failures, tried = [], []
+def load(name):
+    if name in tried:
+        return
+    tried.append(name)
+    try:
+        importlib.import_module(name)
+    except BaseException as exc:
+        failures.append(f"{name}: {type(exc).__name__}: {exc}")
+from hermes_cli.harness_parts.parser import build_parser
+root = argparse.ArgumentParser(prog="hermes")
+build_parser(root.add_subparsers(dest="command"))
+entry = root.parse_args(argv).func.__module__
+load(entry)
+# The handler's own lazy imports (the serve command module), then every lazy import of the
+# modules loaded under those packages (the serve loop's runtime.* lane, ...).
+first = lazy.get(entry, [])
+for name in first:
+    load(name)
+packages = {n if n in packages_known else n.rpartition(".")[0] for n in first} - {""}
+for module in sorted(m for m in list(sys.modules) if any(m.startswith(p + ".") for p in packages)):
+    for name in lazy.get(module, []):
+        load(name)
+for name in spawned:  # the ``python -m <module>`` children a shipped module starts
+    load(name)
+print(json.dumps({"entry": entry, "tried": tried, "failures": failures}))
+"""
+
+
+def _spawned_modules(path: Path) -> list[str]:
+    """``"-m", "<literal>"`` adjacent in a list/tuple literal: a ``python -m`` child process."""
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.List, ast.Tuple)):
+            for flag, name in zip(node.elts, node.elts[1:]):
+                if (isinstance(flag, ast.Constant) and flag.value == "-m" and isinstance(name, ast.Constant)
+                        and isinstance(name.value, str)):
+                    found.append(name.value)
+    return found
+
+
+def serve_import_table(modules: set[str], index: dict[str, Path]) -> dict:
+    """What the probe imports, read from the code: each shipped module's lazy unguarded
+    first-party imports, and every ``-m <module>`` a shipped module spawns."""
+    lazy: dict[str, list[str]] = {}
+    spawned: set[str] = set()
+    for module in sorted(modules):
+        path = index.get(module)
+        if path is None:
+            continue
+        targets: list[str] = []
+        for dotted, eager, guarded, _line in _imports(path, module, path.name == "__init__.py"):
+            owner = _owner(dotted, index)
+            if not eager and not guarded and owner in modules and owner != module and owner not in targets:
+                targets.append(owner)
+        if targets:
+            lazy[module] = targets
+        spawned.update(m for m in _spawned_modules(path) if m in modules)
+    packages = sorted(m for m in modules if index.get(m) is not None and index[m].name == "__init__.py")
+    return {"lazy": lazy, "spawned": sorted(spawned), "packages": packages}
+
+
+def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Path], python_version: str,
+                          python: Path | str = sys.executable) -> list[str]:
+    """The bundle's interpreter, isolated (``-I -S -B``, only ``app`` + ``site-packages``), imports
+    what ``hermes harness serve`` loads: its handler (from the bundle's own parser), that handler's
+    lazy imports and theirs, and the ``-m`` children a shipped module spawns (conversation workers)."""
+    done = subprocess.run([str(python), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+                          capture_output=True, text=True, timeout=60)
+    have, want = done.stdout.strip(), ".".join(python_version.split(".")[:2])
+    if have != want:
+        return [f"serve import probe needs a CPython {want} interpreter (--python); {python} is {have or '?'}"]
+    with tempfile.TemporaryDirectory(prefix="hermes-serve-probe-") as scratch:
+        table = Path(scratch) / "table.json"
+        table.write_text(json.dumps(serve_import_table(first_party, index)), encoding="utf-8")
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("HERMES", "PYTHON"))}
+        env["HERMES_HOME"] = str(Path(scratch) / "home")
+        done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _SERVE_IMPORT_PROBE, str(out / "app"),
+                               str(out / "site-packages"), str(table), json.dumps(list(SERVE_ARGV))],
+                              capture_output=True, text=True, timeout=300, env=env, cwd=scratch,
+                              stdin=subprocess.DEVNULL)
+    lines = done.stdout.strip().splitlines()
+    if done.returncode != 0 or not lines:
+        last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]
+        return [f"serve import probe did not run: {last}"]
+    result = json.loads(lines[-1])
+    return [f"serve entrypoint does not import inside the bundle: {line}" for line in result["failures"]]
+
+
+def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
+                  python: Path | str = sys.executable) -> list[str]:
+    """Recompute the plan from the source tree and the bundle's OWN site-packages; compare.
+    Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone."""
     record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
     site, app = out / "site-packages", out / "app"
     plan = make_plan(manifest, site, record["target"], record["python_version"], index=index)
@@ -597,6 +712,8 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None) -> 
                                   manifest.excluded_data, manifest.packaging_skill_platforms)
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
+    index = index if index is not None else module_index(plugins=manifest.packaging_plugins)
+    problems += serve_import_problems(out, plan.first_party, index, record["python_version"], python)
     return problems
 
 
@@ -633,12 +750,16 @@ def main(argv=None) -> int:
     parser.add_argument("--bake-with", type=Path, help="target interpreter to compile bytecode with")
     parser.add_argument("--verify", type=Path, help="only verify an existing bundle directory")
     parser.add_argument("--verify-pack", type=Path, help="only verify an engine pack (with --verify's core)")
+    parser.add_argument("--python", type=Path, default=None,
+                        help="the bundle's interpreter, for the serve import probe (default: --bake-with, "
+                             "else this interpreter; it must be the bundle's CPython X.Y)")
     args = parser.parse_args(argv)
 
     from agent_runtime.bundle_profiles.manifest import load_profile
 
     manifest = load_profile(args.profile)
     index = module_index(plugins=manifest.packaging_plugins)
+    probe_python = args.python or args.bake_with or Path(sys.executable)
     if args.verify_pack:
         if not args.verify:
             parser.error("--verify-pack needs --verify <core bundle>")
@@ -649,7 +770,7 @@ def main(argv=None) -> int:
               f"{len(problems)} problem(s)")
         return 1 if problems else 0
     if args.verify:
-        problems = verify_bundle(args.verify, manifest, index)
+        problems = verify_bundle(args.verify, manifest, index, probe_python)
         for line in problems:
             print(line)
         print(f"bundle {'MATCHES' if not problems else 'DOES NOT MATCH'} manifest {args.profile}: "
@@ -674,7 +795,7 @@ def main(argv=None) -> int:
     record = write_bundle(plan, manifest, read_site(stage), stage, args.out, index)
     if args.bake_with:
         record["baked_pyc"] = bake(args.out, args.bake_with)
-    problems = verify_bundle(args.out, manifest, index)
+    problems = verify_bundle(args.out, manifest, index, probe_python)
     print(f"packaged {record['first_party_files']} first-party files, "
           f"{len(record['distributions'])} distributions ({record['third_party_files']} files) -> {args.out}")
     dists = read_site(stage)
