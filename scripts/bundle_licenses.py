@@ -17,10 +17,12 @@ The core output also lists the interpreter (placed by the installer, pinned in
 
 ``review: true`` marks a licence a human must rule on before release: any
 GPL-family (GPL / LGPL / AGPL), non-commercial, proprietary or unknown licence,
-a known copyleft component compiled into a permissively-labelled wheel
-(:data:`EMBEDDED_COMPONENTS`), or a distribution whose licence text is not in
-the output. Flagging never removes anything: what ships is the closure's
-decision, not this module's.
+a known copyleft or proprietary component shipped inside a permissively-labelled
+wheel (:data:`EMBEDDED_COMPONENTS`), or a distribution whose licence text is not
+in the output. Each embedded component row carries its own ``review``. A
+component whose licence an owner has ruled on carries ``accepted`` (the ruling)
+and no longer puts its distribution in review. Flagging never removes anything:
+what ships is the closure's decision, not this module's.
 
 A wheel that ships no licence text gets a vetted one from
 ``agent_runtime/bundle_profiles/licence-texts/`` (:func:`licence_overrides`):
@@ -49,9 +51,12 @@ LICENCE_TEXTS = ROOT / "agent_runtime" / "bundle_profiles" / "licence-texts"
 #: Where an output carries the override texts it cites (output-relative).
 OUTPUT_LICENCE_TEXTS = "licence-texts"
 
-#: Copyleft code compiled into a wheel whose own metadata names a permissive licence
-#: (or none). Keyed by normalized distribution name.
+#: Copyleft or proprietary code shipped inside a wheel whose own metadata names a permissive
+#: licence (or none). Keyed by normalized distribution name.
 EMBEDDED_COMPONENTS: dict[str, list[dict[str, str]]] = {
+    "ctranslate2": [{"name": "intel-openmp", "licence": "LicenseRef-Intel-Simplified-Software-License",
+                     "note": "libiomp5md.dll, Intel's OpenMP runtime shipped beside ctranslate2.dll "
+                             "(Windows wheel); listed for licence review, owner ruling 2026-09-28 item 7"}],
     "piper-tts": [{"name": "espeak-ng", "licence": "GPL-3.0-or-later",
                    "note": "compiled into piper's espeakbridge extension (phonemizer)"}],
     "sherpa-onnx": [{"name": "espeak-ng", "licence": "GPL-3.0-or-later",
@@ -71,7 +76,8 @@ INTERPRETER_COMPONENTS: list[dict[str, str]] = [
     {"name": "mpdecimal", "licence": "BSD-2-Clause"},
     {"name": "expat", "licence": "MIT"},
     {"name": "vcruntime140", "licence": "LicenseRef-Microsoft-Visual-C-Runtime-Redistributable",
-     "note": "Windows only: Microsoft's redistributable C runtime shipped beside python.exe"},
+     "note": "Windows only: Microsoft's redistributable C runtime shipped beside python.exe",
+     "accepted": "owner ruling 2026-09-28 item 8: Microsoft's redistribution terms are accepted"},
 ]
 
 #: Trove classifier -> SPDX, for distributions without ``License-Expression``.
@@ -106,6 +112,8 @@ def review_reasons(expression: str, components: list[dict[str, str]] = ()) -> li
         if expression and pattern.search(expression) and reason not in reasons:
             reasons.append(reason)
     for component in components:
+        if component.get("accepted"):
+            continue  # an owner ruled on this licence; the row names the ruling
         for reason in review_reasons(component["licence"]):
             reasons.append(f"embedded {component['name']}: {reason}")
     return reasons
@@ -249,7 +257,8 @@ def _component(name: str, version: str, expression: str, files: list[str], url: 
            "wheel_sha256": sha.split(":", 1)[1] if sha.startswith("sha256:") else None,
            "review": bool(reasons), "review_reasons": reasons}
     if components:
-        row["embedded"] = list(components)
+        row["embedded"] = [{**c, "review": not c.get("accepted") and bool(review_reasons(c["licence"]))}
+                           for c in components]
     row.update(extra)
     return row
 

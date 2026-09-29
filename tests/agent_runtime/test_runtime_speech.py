@@ -67,7 +67,7 @@ class FakeEngines:
         self.loads = []
         self.passes = []
 
-    def stt_importable(self):
+    def stt_importable(self, engine="faster-whisper"):
         return True
 
     def tts_importable(self):
@@ -172,7 +172,7 @@ def real_engines(authority, monkeypatch):
     """The real engines with the loaders counted — they must never be reached for a bad model."""
     engines = speech_service.SpeechEngines()
     reached = []
-    monkeypatch.setattr(engines, "stt_importable", lambda: True)
+    monkeypatch.setattr(engines, "stt_importable", lambda *a: True)
     monkeypatch.setattr(engines, "tts_importable", lambda: True)
     monkeypatch.setattr(engines, "load_stt", lambda *a, **k: reached.append("stt"))
     monkeypatch.setattr(engines, "load_tts", lambda *a, **k: reached.append("tts"))
@@ -567,3 +567,125 @@ def test_loading_whisper_registers_the_av_placeholder_first(tmp_path, monkeypatc
                         lambda *a, **k: seen.append(speech_decode.is_av_placeholder(sys.modules.get("av"))))
     speech_service.SpeechEngines().load_stt(_whisper_dir(tmp_path), device="cpu", compute_type="int8")
     assert seen == [True]
+
+
+# ── Parakeet TDT: the engine the model folder's files name ──────────────────
+
+
+PARAKEET_SET = ("config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx")
+
+
+def _parakeet_dir(root, *, drop=()):
+    folder = root / "parakeet-tdt-0.6b-v2-int8"
+    folder.mkdir()
+    for name in PARAKEET_SET:
+        if name not in drop:
+            body = b'{"model_type": "nemo-conformer-tdt", "features_size": 128}' if name == "config.json" else b"\3" * 64
+            (folder / name).write_bytes(body)
+    return folder
+
+
+def test_the_model_folders_files_choose_the_engine_and_its_reservation(fakes, authority):
+    """Mutation: ``engine_for`` always answers faster-whisper -> the Parakeet folder reads
+    ``model_partial`` (no ``model.bin``); Parakeet's estimate swapped for whisper's -> the
+    reservation is 160 MiB short."""
+    engines, root = fakes
+    parakeet, whisper = _parakeet_dir(root), _whisper_dir(root)
+    wire = Wire()
+    status = wire.result("runtime.speech.status", {"stt_model": str(parakeet)})["stt"]
+    assert (status["state"], status["engine"]) == ("available", "parakeet-tdt")
+    loaded = wire.result("runtime.speech.load", {"which": "stt", "stt_model": str(parakeet)})
+    disk = sum(f.stat().st_size for f in parakeet.iterdir())
+    assert loaded["results"]["stt"]["reserved_bytes"] == disk + 256 * MiB
+    assert loaded["stt"]["engine"] == "parakeet-tdt"
+    # Positive control: the whisper folder, through the same service, reads the other engine.
+    swapped = wire.result("runtime.speech.load", {"which": "stt", "stt_model": str(whisper)})
+    assert swapped["stt"]["engine"] == "faster-whisper"
+    assert swapped["results"]["stt"]["reserved_bytes"] == sum(f.stat().st_size for f in whisper.iterdir()) + 96 * MiB
+
+
+@pytest.mark.parametrize("drop", ["encoder-model.int8.onnx", "config.json"])
+def test_a_partial_parakeet_folder_reads_unavailable_with_no_network(drop, tmp_path, no_network, real_engines):
+    """A torn Parakeet download is judged against Parakeet's list, before any loader. Mutation:
+    drop ``encoder-model*.onnx`` from ``engine_for``'s markers -> the config-less folder is judged
+    as whisper (``missing`` names ``model.bin``). The positive control is the complete folder."""
+    _parakeet_dir(tmp_path, drop=(drop,))
+    params = {"models_dir": str(tmp_path), "stt_model": "parakeet-tdt-0.6b-v2-int8", "which": "stt"}
+    status = Wire().result("runtime.speech.status", params)["stt"]
+    loaded = Wire().result("runtime.speech.load", params)["results"]["stt"]
+    assert (status["reason"], status["engine"], status["missing"]) == ("model_partial", "parakeet-tdt", [drop])
+    assert loaded["reason"] == "model_partial"
+    assert real_engines == [] and no_network == []
+    (tmp_path / "parakeet-tdt-0.6b-v2-int8" / drop).write_bytes(
+        b'{"model_type": "nemo-conformer-tdt"}' if drop == "config.json" else b"\3")
+    Wire().result("runtime.speech.load", params)
+    assert real_engines == ["stt"] and no_network == []
+
+
+def test_parakeet_loads_by_model_type_from_the_local_folder_on_cpu(tmp_path, monkeypatch):
+    """onnx-asr stood in: the real ``SpeechEngines`` hands it the model TYPE (never a Hub name,
+    which its resolver would download) and the folder, int8, CPU. Mutation: pass
+    ``nemo-parakeet-tdt-0.6b-v2`` -> red."""
+    import sys
+    import types
+
+    calls, heard = [], []
+
+    class Model:
+        def recognize(self, audio, sample_rate):
+            heard.append((len(audio), sample_rate))
+            return " hello "
+
+    def load_model(model, path, **kwargs):
+        calls.append((model, path, kwargs))
+        return Model()
+
+    monkeypatch.setitem(sys.modules, "onnx_asr", types.SimpleNamespace(load_model=load_model))
+    folder = _parakeet_dir(tmp_path)
+    engines = speech_service.SpeechEngines()
+    model = engines.load_stt(folder, device="cpu", compute_type="int8")
+    assert calls == [("nemo-conformer-tdt", str(folder),
+                      {"quantization": "int8", "providers": ["CPUExecutionProvider"]})]
+    pytest.importorskip("numpy")  # the speech pack's; the CI test venv has none
+    assert engines.transcribe(model, _pcm(500), final=False) == "hello"
+    assert heard == [(8000, 16000)]
+
+
+def _speech_with_gaps(seconds):
+    """Loud 16 kHz samples with a 300 ms silence every 1.3 s: an inter-word gap to cut in."""
+    import numpy as np
+
+    # Never periodic: two chunks with equal bytes would share one cache entry.
+    samples = (8000 + np.arange(seconds * 16000) // 16000).astype(np.int16)
+    for start in range(10400, len(samples), 20800):
+        samples[start:start + 4800] = 0
+    return samples
+
+
+def test_parakeet_decodes_a_growing_take_chunk_by_chunk_and_each_chunk_once():
+    """Mutation: ``chunk_cuts`` returns no cut -> one 35 s pass (the memory the chunking
+    bounds); skip the cache lookup in ``_chunk_text`` -> the second pass re-decodes the
+    finished chunks (the second pass decodes four chunks, not two)."""
+    pytest.importorskip("numpy")  # the speech pack's; the CI test venv has none
+    from agent_runtime.speech_stt_engines import CHUNK_SECONDS, ParakeetRunner, chunk_cuts
+
+    lengths = []
+
+    class Model:
+        def recognize(self, audio, sample_rate):
+            lengths.append(len(audio))
+            return f"w{len(lengths)}"
+
+    samples = _speech_with_gaps(35)
+    runner = ParakeetRunner(Model())
+    runner.transcribe(samples[:30 * 16000].tobytes())
+    first_pass = list(lengths)
+    assert len(first_pass) >= 3 and max(first_pass) < CHUNK_SECONDS * 16000
+    cuts = chunk_cuts(samples)
+    assert cuts[:len(first_pass) - 1] == chunk_cuts(samples[:30 * 16000])  # cuts never move
+    assert all(samples[cut] == 0 for cut in cuts)  # every cut lands in a gap
+    lengths.clear()
+    text = runner.transcribe(samples.tobytes())
+    # Only the chunk the new audio closed and the open tail; the finished chunks come from cache.
+    assert lengths == [cuts[-1] - cuts[-2], len(samples) - cuts[-1]]
+    assert text.split()[:len(first_pass) - 1] == [f"w{i}" for i in range(1, len(first_pass))]
