@@ -25,6 +25,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
+- [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **UNCLAIMED**
+- [ ] **`test_tool_blocks.py::test_a_blocked_tool_is_refused_through_the_tool_call_bridge` is red on origin/main (`{"error": "Unknown tool: tool_call"}`) — the tool_call bridge no longer resolves, so the blocked-call refusal through it is unproven** · `fork / plugin` · evidence: lane h10-rtfork, same failure on origin/main · filed 2026-09-29 **UNCLAIMED**
 - [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **UNCLAIMED**
 
 
