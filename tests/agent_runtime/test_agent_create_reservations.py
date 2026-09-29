@@ -186,7 +186,7 @@ def test_an_explicitly_empty_request_is_recorded_as_empty_not_absent(
     """``[]`` and absence are different values and the receipt keeps them apart.
 
     ANTI-VACUITY. Read back through the LOADER as well as off the bytes: the
-    obvious wrong implementation is ``raw.get("skills") or None`` in ``_read``,
+    obvious wrong implementation is ``raw.get("skills") or None`` in ``_read_create_record``,
     which round-trips the file correctly and collapses ``[]`` to ``None`` in
     memory — invisible to a bytes-only probe.
     """

@@ -15,13 +15,13 @@ __layer__ = "lanes"
 
 @method("runtime.operator.conversation.read", tier=TIER_READ)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
-    build = deferred_reply(rid, "runtime.operator.conversation.read", lambda: _read(rid, params, context))
+    build = deferred_reply(rid, "runtime.operator.conversation.read", lambda: _read_reply(rid, params, context))
     if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
         return DEFERRED
     return build()
 
 
-def _read(rid, params: dict, context: RpcContext | None) -> dict:
+def _read_reply(rid, params: dict, context: RpcContext | None) -> dict:
     try:
         return ok(rid, read_operator_conversation(params,
                   can_interrupt=context is not None and context.interrupt_operator is not None))

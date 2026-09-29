@@ -76,6 +76,7 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from . import paths
+from .serde import read_versioned_receipt
 from .locks import HarnessLockUnavailable, chat_turn_reservation_lock
 
 __layer__ = "stores"
@@ -235,12 +236,12 @@ def read_chat_turn_receipt(turn_request_id: str) -> ChatTurnRecord | None:
     """Read an atomic receipt without accepting or replaying work."""
     digest = turn_request_digest(turn_request_id)
     path = paths.chat_turn_reservation_path(digest)
-    return _read(path, digest=digest) if path.is_file() else None
+    return _read_turn_record(path, digest=digest) if path.is_file() else None
 
 
 def unsettled_chat_receipts(session_scope: str) -> list[ChatTurnRecord]:
     """Recover the pre-journal admission window from its existing authority."""
-    records = (_read(path, digest=path.stem)
+    records = (_read_turn_record(path, digest=path.stem)
                for path in paths.chat_turn_reservations_dir().glob("*.json"))
     return [record for record in records
             if record.session_scope == session_scope and record.state == STATE_ACCEPTED]
@@ -275,7 +276,7 @@ def reserve_chat_turn(
         with chat_turn_reservation_lock(digest):
             path = paths.chat_turn_reservation_path(digest)
             if path.exists():
-                record = _read(path, digest=digest)
+                record = _read_turn_record(path, digest=digest)
                 _validate_scope(record, verb=verb, session_scope=session_scope)
                 yield ChatTurnReservation(record, replayed=True)
             else:
@@ -319,7 +320,7 @@ def settle_chat_turn(*, turn_request_id: str, exit_code: int) -> bool:
         with chat_turn_reservation_lock(digest):
             if not path.exists():
                 return False
-            record = _read(path, digest=digest)
+            record = _read_turn_record(path, digest=digest)
             _write(
                 replace(
                     record,
@@ -368,14 +369,11 @@ def _validate_scope(
     )
 
 
-def _read(path, *, digest: str) -> ChatTurnRecord:
+def _read_turn_record(path, *, digest: str) -> ChatTurnRecord:
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        if int(raw.get("schema_version") or 0) != _SCHEMA_VERSION:
-            raise ValueError("unsupported schema_version")
-        state = str(raw.get("state") or "")
-        if state not in _VALID_STATES:
-            raise ValueError("invalid state")
+        raw, state = read_versioned_receipt(
+            path, schema_version=_SCHEMA_VERSION, valid_states=_VALID_STATES
+        )
         exit_raw = raw.get("exit_code")
         record = ChatTurnRecord(
             key_digest=str(raw["turn_request_id_sha256"]),

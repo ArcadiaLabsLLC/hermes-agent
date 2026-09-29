@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Iterator
@@ -10,6 +9,7 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from . import paths
+from .serde import read_versioned_receipt
 from .locks import (
     HarnessLockUnavailable,
     persona_chat_instance_lock,
@@ -132,12 +132,9 @@ def _validated_key(value: str) -> str:
 
 def _read_receipt(path, *, digest: str) -> PersonaChatMintReceipt:
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        if int(raw.get("schema_version") or 0) != _SCHEMA_VERSION:
-            raise ValueError("unsupported schema_version")
-        state = str(raw.get("state") or "")
-        if state not in _VALID_STATES:
-            raise ValueError("invalid state")
+        raw, state = read_versioned_receipt(
+            path, schema_version=_SCHEMA_VERSION, valid_states=_VALID_STATES
+        )
         receipt = PersonaChatMintReceipt(
             key_digest=str(raw["idempotency_key_sha256"]),
             persona_id=str(raw["persona_id"]),

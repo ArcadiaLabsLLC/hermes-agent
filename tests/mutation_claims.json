@@ -274,7 +274,7 @@
     {
       "id": "s4-an-explicit-empty-skills-request-reads-back-as-absent",
       "path": "agent_runtime/agent_create_reservations.py",
-      "symbol": "_read",
+      "symbol": "_read_create_record",
       "operator": "collapse-empty-list-to-none",
       "find": "            skills=(\n                [str(item) for item in raw[\"skills\"]]\n                if isinstance(raw.get(\"skills\"), list)\n                else None\n            ),",
       "replace": "            skills=(raw.get(\"skills\") or None),",

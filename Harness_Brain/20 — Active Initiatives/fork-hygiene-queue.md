@@ -23,7 +23,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
-- [ ] **Duplicate-helper gate red on main: `_read` duplicated across `agent_runtime/agent_create_reservations.py`, `agent_runtime/chat_turn_reservations.py` and `agent_runtime/serve_rpc/operator_conversation.py` (operator-chat commits 454ed7a69a…359849b0d2), plus a stale baseline row for the first two** · fork-hygiene · evidence: seen at the w5-htts landing, 2026-09-28 · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
 - [ ] **`test_function_legibility_floor` red on main: `agent_runtime/realm_revert.py` `_revert_one` NEW, `revert_realm_sync` 159→167 lines** · fork-hygiene · evidence: red on 312103de32 (lane w5-hstt) · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
 - [ ] **`tests/scripts/test_bundle_native.py` times out at 30 s in `pm/store.py` `tree_digest` (home_io_guard) — no test reports** · fork-hygiene · evidence: red on 312103de32 via run_tests.sh (lane w5-hstt) · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
 

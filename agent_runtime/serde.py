@@ -358,6 +358,28 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def read_versioned_receipt(
+    path: Path, *, schema_version: int, valid_states: frozenset[str] | set[str]
+) -> tuple[dict[str, Any], str]:
+    """A digest-keyed receipt's raw record and its checked ``state``.
+
+    The envelope every receipt store shares (``persona_chat_mints``,
+    ``agent_create_reservations``, ``chat_turn_reservations``): read the JSON,
+    refuse a foreign ``schema_version``, refuse a state outside the store's
+    vocabulary. Raises ``ValueError`` (or the reader's ``OSError`` /
+    ``JSONDecodeError``); each store maps that onto its own typed
+    ``reservation_corrupt``-style error and builds its own record.
+    """
+
+    raw = read_json(path)
+    if int(raw.get("schema_version") or 0) != schema_version:
+        raise ValueError("unsupported schema_version")
+    state = str(raw.get("state") or "")
+    if state not in valid_states:
+        raise ValueError("invalid state")
+    return raw, state
+
+
 def safe_assignment_token(value: Any) -> str:
     """``value`` as an id-safe token (alnum plus ``_ - .``, trimmed, at most 120
     characters); ``""`` when nothing survives. The persona-assignment rows'
