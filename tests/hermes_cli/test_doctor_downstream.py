@@ -14,6 +14,16 @@ import pytest
 from hermes_cli import doctor as doctor_mod
 
 
+@pytest.fixture(autouse=True)
+def _no_dashboard_import_probe(monkeypatch):
+    """Upstream's ``_check_web_dashboard_import`` (ee5f49b943) spawns a child that imports the whole
+    web server; every full ``run_doctor`` here paid that past the 30 s per-test budget. The probe
+    has its own upstream test (``test_doctor_web_dashboard_import.py``); these pin the home."""
+    from hermes_cli.doctor_platform import _check_web_dashboard_import
+    monkeypatch.setattr(doctor_mod, "DOCTOR_CHECKS", tuple(
+        row for row in doctor_mod.DOCTOR_CHECKS if row[1] is not _check_web_dashboard_import))
+
+
 class TestDoctorResolvesTheHomeAtCallTime:
     """The home doctor reports on is the one live when it RUNS.
 
