@@ -9,10 +9,27 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 from tests.hermes_cli.test_apply_profile_override import (  # noqa: F401 — upstream names the moved tests use
-    _pin_hermes_root,
     _run_apply_profile_override,
 )
+
+
+def _pin_hermes_root(monkeypatch, hermes_root: Path) -> None:
+    """Pin the platform-default Hermes root (fork-owned seam).
+
+    Upstream dropped its ``_pin_hermes_root`` helper for a module-local
+    autouse fixture that this file does not inherit, so the pin lives here.
+    """
+    monkeypatch.setattr(
+        "hermes_constants._get_platform_default_hermes_home", lambda: hermes_root
+    )
+
+
+@pytest.fixture(autouse=True)
+def _platform_home(tmp_path, monkeypatch):
+    _pin_hermes_root(monkeypatch, tmp_path / ".hermes")
 
 
 class TestApplyProfileOverrideHermesHomeGuard:
