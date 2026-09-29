@@ -551,11 +551,11 @@ def test_unbounded_chat_lane_resolution_is_scoped_end_to_end(
 ):
     # Through the real chat-lane chokepoint, with the permission store forced to
     # `unbounded`: a persona with no admission sees no MCP toolset at all.
-    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_bundle, chat_lane_scope
     from agent_runtime.tool_visibility import ToolVisibilityOptions
 
     monkeypatch.setattr(
-        chat_lane_bundle,
+        chat_lane_scope,
         "permission_options_for_chat",
         lambda persona, session_id=None, **_kwargs: ToolVisibilityOptions(
             permission_mode="unbounded"
@@ -646,12 +646,12 @@ def test_the_flag_off_turn_resolves_no_manual_and_pays_no_config_load(monkeypatc
     off nothing is ever admitted, so there is no surface to document and no
     policy resolve to pay for."""
 
-    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_bundle, chat_lane_scope
 
     def _never(*_args, **_kwargs):
         raise AssertionError("the flag-off path must not resolve admission")
 
-    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _never)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", _never)
 
     assert chat_lane_bundle.mission_chat_operating_skills(
         _qa_with_manual("launcher_qa"), session_id=None
@@ -740,14 +740,14 @@ def test_a_non_qa_persona_resolves_the_same_surfaces_manual(qa_profile, monkeypa
 
 
 def test_manual_resolution_never_fails_a_turn(qa_profile, monkeypatch):
-    from agent_runtime import chat_lane_bundle
+    from agent_runtime import chat_lane_bundle, chat_lane_scope
 
     _enable_root_admission(monkeypatch)
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("the admission policy is wedged")
 
-    monkeypatch.setattr(chat_lane_bundle, "resolve_mcp_admission", _boom)
+    monkeypatch.setattr(chat_lane_scope, "resolve_mcp_admission", _boom)
 
     assert chat_lane_bundle.mission_chat_operating_skills(
         _qa_with_manual(), session_id=None
