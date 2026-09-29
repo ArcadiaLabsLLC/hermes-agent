@@ -182,6 +182,10 @@ launcher's copy in the same wave.
   `git -C X:/Eternia/hermes-agent worktree add X:/Eternia/worktrees/<lane> -b <branch> origin/main`.
   A `fetch` + `worktree add` run inside the primary checkout yanked `main` back to its
   pre-merge tip once (2026-08-31) and both usual tells lied.
+- Never `git stash`. The stash stack and the rerere cache are shared by every worktree of
+  the clone: on 2026-09-29 one lane's `stash pop` applied another lane's entry and its own
+  was lost. Park work as a WIP commit on your branch, or `git diff > file` / `git apply`;
+  check any conflict rerere resolves for you by hand.
 - Never `git checkout`/`switch` in the primary; never amend; never force-push; a lane never
   pushes `main`. Push after every commit. Never remove a worktree a lane could resume in.
 - MOVE and CHANGE never share a commit. One MOVE and one CHANGE per lane. Commit messages
