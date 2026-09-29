@@ -351,17 +351,23 @@ def _cmd_realm_sync_revert(args) -> int:
     """
 
     from agent_runtime.realm_revert import revert_realm_sync
+    from agent_runtime.realm_revert_version import revert_realm_sync_to_version
 
     if not _require_yes(args):
         return 8
     dry_run = bool(getattr(args, "dry_run", False))
+    selection = {
+        "item_specs": list_flag_or_empty(args, "items"),
+        "revert_all": bool(getattr(args, "revert_all", False)),
+        "dry_run": dry_run,
+    }
+    to = getattr(args, "to", None)
     try:
-        data = revert_realm_sync(
-            args.realm_id,
-            item_specs=list_flag_or_empty(args, "items"),
-            revert_all=bool(getattr(args, "revert_all", False)),
-            dry_run=dry_run,
-        )
+        if to is not None:
+            # ``--to <sha>``: restore to one published version; writes no baseline.
+            data = revert_realm_sync_to_version(args.realm_id, to=to, **selection)
+        else:
+            data = revert_realm_sync(args.realm_id, **selection)
     except RealmSyncError as exc:
         return emit_harness_error(exc, args=args)
     envelope = attach_root_observability(_object_envelope("realm_sync_revert", data))
