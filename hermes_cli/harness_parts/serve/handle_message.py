@@ -623,7 +623,6 @@ class MessageHandling:
             "requested_deadline_seconds": message.get("deadline_seconds"),
             "minimum_deadline_seconds": effective_minimum,
         }
-        self.frames.emit(draining_frame)
         # RS-3, and it has to be BEFORE the listeners close: from the
         # next line on this lane refuses new connections, and a
         # contender that read the sidecar in that window used to see a
@@ -631,11 +630,21 @@ class MessageHandling:
         # lets it conclude "leaving" instead and wait the drain out
         # (``SocketOwnerLock.acquire``) rather than degrade to stdio for
         # the rest of the session — the operator's 2026-09-07 restart.
+        # And BEFORE the stdio frame: a write to a dead stdio owner is the
+        # one step here that can raise or block (2026-09-26), and the
+        # stamp and the deadline watchdog must not sit behind it.
         if self.socket_lock is not None:
             try:
                 self.socket_lock.mark_draining()
             except Exception:
                 pass
+        threading.Thread(
+            target=self._drain_deadline_watchdog,
+            args=(started,),
+            name="harness-serve-drain-deadline",
+            daemon=True,
+        ).start()
+        self._emit_stdio(draining_frame)
         # New connections are refused from here on BOTH doors (existing
         # ones stay up to be told how it ends), and every attached
         # client hears it at the same moment the stdio supervisor does.

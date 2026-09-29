@@ -442,7 +442,19 @@ class SubscriptionLanes:
 
         if connection is None:
             return 0
-        owner = self._owner_of(connection)
+        return self._cancel_standing_streams(self._owner_of(connection), connection)
+
+    def _reclaim_stdio_streams(self) -> int:
+        """The stdio consumer is gone (EOF, or its ``shutdown`` order): cancel ITS streams.
+
+        The same reclaim a closed socket gets, for the inherited pipe. Without it an
+        ending serve joined the stdio launcher's own standing ``harness stream``
+        forever — the stuck worker of the 2026-09-26 wedge.
+        """
+
+        return self._cancel_standing_streams(self._owner_of(None), None)
+
+    def _cancel_standing_streams(self, owner: str, connection: Any) -> int:
         with self.inflight_lock:
             abandoned = [
                 request

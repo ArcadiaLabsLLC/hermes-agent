@@ -647,6 +647,46 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         # forge a turn into a process that is on its way down). Best effort by
         # contract: a runtime that cannot start the drain still serves, and the
         # completions stay pending for the next boot rather than being lost.
+        #
+        # NOT on a serve that asked for the socket lane and found another live
+        # owner holding it: the store's writers are the owner's, and a second
+        # delivery drain over the same store is two processes forging into one
+        # thread (2026-09-26: pid 22388, a non-owner stdio child, ran 5,401
+        # passes on the live store beside the owner). Its completions are
+        # durable and the owner's drain delivers them. A lock that could not be
+        # TAKEN for another reason (``error:*``) proves no owner exists, so that
+        # serve still drains rather than leave deliveries with nobody.
+        if self._another_serve_owns_this_root():
+            self._service_log(
+                {
+                    "event": "dispatch_delivery_drain_skipped",
+                    "boot_id": self.boot_id,
+                    "reason": "not_socket_owner",
+                    "owner_pid": self.socket_block.get("pid"),
+                }
+            )
+        else:
+            self._start_delivery_drain()
+        # Independent lifecycle: failure in another delivery consumer does
+        # not disable room execution. Capabilities report accepting=False if
+        # this worker itself could not start.
+        if self.discussion_owner is not None:
+            try:
+                self.discussion_owner.start()
+            except Exception:
+                import logging as _discussion_logging
+                _discussion_logging.getLogger(__name__).warning(
+                    "discussion worker did not start", exc_info=True,
+                )
+
+    def _another_serve_owns_this_root(self) -> bool:
+        """This serve asked for the socket lane and a LIVE owner holds it."""
+
+        from agent_runtime.serve_socket.vocabulary import LOCK_OUTCOME_HELD
+
+        return self.socket_block.get("outcome") == LOCK_OUTCOME_HELD
+
+    def _start_delivery_drain(self) -> None:
         try:
             from agent_runtime.dispatch_delivery import start_delivery_drain
 
@@ -670,17 +710,6 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
-        # Independent lifecycle: failure in another delivery consumer does
-        # not disable room execution. Capabilities report accepting=False if
-        # this worker itself could not start.
-        if self.discussion_owner is not None:
-            try:
-                self.discussion_owner.start()
-            except Exception:
-                import logging as _discussion_logging
-                _discussion_logging.getLogger(__name__).warning(
-                    "discussion worker did not start", exc_info=True,
-                )
 
     def _bind_subscription_lanes(self) -> None:
 
@@ -781,8 +810,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
 
     def _serve_until_eof(self) -> int:
 
+        stdio_shutdown = False
         try:
-            stdio_shutdown = False
             for raw in self.reader:
                 line = raw.strip()
                 if not line:
@@ -800,82 +829,121 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             if self.service and not stdio_shutdown:
                 self._detach_stdio_owner()
                 self._park_until_service_stop()
-        finally:
-            # The reader is done; from here the process is unwinding normally,
-            # which is what the drain monitor's grace window is waiting to see.
+        except BaseException:
+            # The reader itself failed: unwind as before — the pool is joined on
+            # the way out, and the exception is the run's to record.
             self.reader_unwound.set()
-            # ``wait`` is True everywhere except after a drain TIMEOUT, where
-            # the whole point is that the remaining work has already outlived
-            # its deadline and joining it would restore the hang.
             self.pool.shutdown(wait=self.pool_shutdown_wait)
+            raise
+        # The reader is done; from here the process is unwinding normally,
+        # which is what the drain monitor's grace window is waiting to see.
+        self.reader_unwound.set()
+        if self.drain_state is None:
+            return self._end_without_drain(stdio_shutdown)
+        # ``wait`` is True everywhere except after a drain TIMEOUT, where the
+        # whole point is that the remaining work has already outlived its
+        # deadline and joining it would restore the hang. The drain's own exit
+        # watchdog bounds this join; the drain owns the lane and the lock.
+        self.pool.shutdown(wait=self.pool_shutdown_wait)
         self.liveness_stop.set()
-        if self.drain_state is not None:
-            # The drain owns the terminal frame (``drain_complete`` /
-            # ``drain_timeout``); emitting ``shutdown`` as well would tell a
-            # consumer that a TIMED-OUT drain ended cleanly — the one thing it
-            # must not conclude.
-            #
-            # But the reader can get here BEFORE the monitor has published
-            # anything: a `shutdown` op, or the pipe reaching EOF, while a drain
-            # is still in progress. That path used to fall straight to
-            # ``return drain_exit_code`` — no terminal frame at all, the registry
-            # entry left on disk, and code 0 even when the drain had TIMED OUT.
-            # A drain that exits silently is exactly the crash it exists to
-            # replace, so wait a bounded moment for the monitor (the pool is
-            # already joined above, so it is normally one poll away) and, if it
-            # never publishes, say so in a typed frame of its own.
-            if not self.drain_finished.wait(_DRAIN_ABANDON_GRACE_SECONDS):
-                if self.drain_terminal_published.is_set():
-                    # A drain that already DECIDED how it ended owns the
-                    # terminal frame; this path is only for a drain that never
-                    # got one. Publishing ``drain_abandoned`` on top of a
-                    # completed drain told a supervisor that a successful
-                    # restart gave up, and exited 3 on it — the frame and the
-                    # code both wrong, about work that had actually landed. The
-                    # exit watchdog covers the case where the publisher is the
-                    # thing that hung.
-                    return self.drain_exit_code
-                abandoned = {
-                    "event": "drain_abandoned",
-                    "pid": os.getpid(),
-                    "boot_id": self.boot_id,
-                    **self.drain_state.counters(),
-                    "drain_ms": self.drain_state.elapsed_ms(),
-                    "detail": (
-                        "the transport closed while a drain was still in "
-                        "progress; the drain published no terminal frame"
-                    ),
-                }
-                self.frames.emit(abandoned)
-                self._broadcast_lanes(abandoned)
-                self._close_socket_lane(reason="drain_abandoned")
-                self._unregister_instance(reason="drain_abandoned")
-                self._note_end(EndReason.DRAINED)
-                self._write_end()
-                # Nonzero on purpose, and the SAME code a timeout uses: a
-                # supervisor must be able to tell "drained" from "gave up".
-                return DRAIN_TIMEOUT_EXIT_CODE
+        return self._await_drain_terminal()
+
+    def _await_drain_terminal(self) -> int:
+        """The reader ended while a drain was in progress: its verdict, or ``drain_abandoned``.
+
+        The drain owns the terminal frame (``drain_complete`` / ``drain_timeout``);
+        emitting ``shutdown`` as well would tell a consumer that a TIMED-OUT drain
+        ended cleanly — the one thing it must not conclude. But the reader can get
+        here BEFORE the monitor has published anything: a `shutdown` op, or the
+        pipe reaching EOF, while a drain is still in progress. A drain that exits
+        silently is exactly the crash it exists to replace, so wait a bounded moment
+        for the monitor (the pool is already joined, so it is normally one poll
+        away) and, if it never publishes, say so in a typed frame of its own.
+        """
+
+        if self.drain_finished.wait(_DRAIN_ABANDON_GRACE_SECONDS):
             # ``_finish_drain`` published the frame, closed the socket lane, and
             # unregistered; ``drain_exit_code`` is its verdict, not this path's.
             return self.drain_exit_code
+        if self.drain_terminal_published.is_set():
+            # A drain that already DECIDED how it ended owns the terminal frame;
+            # publishing ``drain_abandoned`` on top of a completed drain told a
+            # supervisor that a successful restart gave up, and exited 3 on it.
+            # The exit watchdog covers the case where the publisher is the thing
+            # that hung.
+            return self.drain_exit_code
+        abandoned = {
+            "event": "drain_abandoned",
+            "pid": os.getpid(),
+            "boot_id": self.boot_id,
+            **self.drain_state.counters(),
+            "drain_ms": self.drain_state.elapsed_ms(),
+            "detail": (
+                "the transport closed while a drain was still in "
+                "progress; the drain published no terminal frame"
+            ),
+        }
+        self._emit_stdio(abandoned)
+        self._broadcast_lanes(abandoned)
+        self._close_socket_lane(reason="drain_abandoned")
+        self._unregister_instance(reason="drain_abandoned")
+        self._note_end(EndReason.DRAINED)
+        self._write_end()
+        # Nonzero on purpose, and the SAME code a timeout uses: a supervisor
+        # must be able to tell "drained" from "gave up".
+        return DRAIN_TIMEOUT_EXIT_CODE
+
+    def _end_without_drain(self, stdio_shutdown: bool) -> int:
+        """A stdio ``shutdown`` or EOF with no drain: a bounded join, and on EOF the lane goes FIRST.
+
+        The fix for the 2026-09-26 wedge (``X:/wt/_holds/serve-wedge-0926``): this
+        tail joined the pool (``shutdown(wait=True)``, unbounded) BEFORE closing the
+        socket lane, releasing the owner lock, unregistering and writing the end
+        note, so ONE worker that never returned — the stdio consumer's own standing
+        ``harness stream`` — kept a dead runtime registered as the live socket owner,
+        listener open, for two hours while every launcher attached to it.
+
+        Now the stdio consumer's streams are cancelled like a closed socket's, and
+        the join is bounded by the drain's exit deadline — held only by a chat turn
+        or a long run, the holds a drain honours — after which the process is taken
+        down. On EOF (the parent is gone) the runtime stops being the owner before it
+        waits for anything. A ``shutdown`` ORDER keeps the old order: its sender is
+        alive and reading, and work it queued in front of the order still runs as
+        the registered runtime (``test_serve_service_foundations``).
+        """
+
         # RL-16. The two events that reach this line are the two service mode
         # taught the loop to tell apart, and the sidecar keeps them apart too: a
         # stdio ``{"op":"shutdown"}`` is an ORDER somebody gave, while EOF is an
         # OBSERVATION that the pipe closed. ``stdin_eof`` is unreachable under
         # ``--service`` by construction — there EOF parks instead of exiting —
         # so it is a word only a launcher's stdio child can ever write.
+        self.liveness_stop.set()
         self._note_end(EndReason.SHUTDOWN_OP if stdio_shutdown else EndReason.STDIN_EOF)
-        shutdown_frame = {"event": "shutdown", "pid": os.getpid()}
+        shutdown_frame: dict[str, Any] = {"event": "shutdown", "pid": os.getpid()}
+        self._reclaim_stdio_streams()
+        if stdio_shutdown:
+            stuck = self._join_pool_within_exit_deadline()
+            self._give_up_the_lane(shutdown_frame)
+        else:
+            self._give_up_the_lane(shutdown_frame)
+            stuck = self._join_pool_within_exit_deadline()
+        if stuck is None:
+            self._emit_stdio(shutdown_frame)
+            return 0
+        self._emit_stdio({**shutdown_frame, "stuck_request_ids": stuck})
+        if self.hard_exit is not None:
+            self.hard_exit(DRAIN_TIMEOUT_EXIT_CODE)
+        return DRAIN_TIMEOUT_EXIT_CODE
+
+    def _give_up_the_lane(self, shutdown_frame: dict[str, Any]) -> None:
         # Socket clients hear it BEFORE the transport closes under them: an
         # attached client whose socket simply died could not tell a clean
-        # service shutdown from a crash, which is the distinction the durable
-        # service exists to make legible.
+        # service shutdown from a crash.
         self._broadcast_lanes(shutdown_frame)
         self._close_socket_lane(reason="shutdown")
         self._unregister_instance(reason="shutdown")
         self._write_end()
-        self.frames.emit(shutdown_frame)
-        return 0
 
     def _note_end(self, reason: str) -> None:
         """Latch WHY this runtime is ending. Inert when unarmed; never raises."""

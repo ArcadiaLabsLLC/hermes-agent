@@ -107,6 +107,89 @@ class DrainLane:
     """The drain half of :class:`~hermes_cli.harness_parts.serve.session.ServeSession`:
     the monitor thread, the one terminal frame, and the exit watchdog."""
 
+    def _emit_stdio(self, frame: dict[str, Any]) -> None:
+        """One frame to the stdio owner, never raising.
+
+        The drain and the ending tail write to a pipe whose reader may be gone —
+        a dead launcher, the 2026-09-26 wedge. On Windows that write raises
+        ``OSError(EINVAL)`` rather than ``BrokenPipeError``, and raised inside
+        ``_request_drain`` it aborted the drain AFTER it had latched
+        ``drain_state``: no sidecar stamp, no monitor, a runtime answering
+        ``drain_in_progress`` for 115 minutes. The frame is for an observer; the
+        drain's own steps never depend on it landing.
+        """
+
+        try:
+            self.frames.emit(frame)
+        except Exception:
+            pass
+
+    def _join_pool_within_exit_deadline(self) -> list[str] | None:
+        """Join the pool, bounded. ``None`` when it joined; else the stuck request ids.
+
+        Bounded by the drain's exit deadline (read at call time, the seam a test
+        lowers), re-armed while a chat turn or a long run is in flight — the holds
+        a drain honours, for the same recording-safety reason — and given up only
+        on work nothing is allowed to hold the process open for.
+        """
+
+        if not self.pool_shutdown_wait:
+            self.pool.shutdown(wait=False)
+            return None
+        joined = threading.Event()
+
+        def _join() -> None:
+            try:
+                self.pool.shutdown(wait=True)
+            finally:
+                joined.set()
+
+        threading.Thread(target=_join, name="harness-serve-pool-join", daemon=True).start()
+        while not joined.wait(_DRAIN_EXIT_DEADLINE_SECONDS):
+            with self.inflight_lock:
+                held = any(item.is_chat_turn or item.is_long_run for item in self.inflight.values())
+                stuck = sorted(self.inflight)
+            if not held:
+                return stuck
+        return None
+
+    def _drain_deadline_watchdog(self, state: _DrainState) -> None:
+        """End a drain whose monitor stopped: past its deadline with no new hold, time out.
+
+        Independent of the monitor on purpose. The monitor is the drain's only
+        timekeeper, and on 2026-09-26 it never ran (the stdio write in front of its
+        start raised) — ``deadline_holds=0`` after 115 minutes. A healthy monitor
+        either finishes the drain or records a hold at every lapsed deadline, so a
+        window of ``deadline + exit deadline`` with neither is a dead or blocked
+        monitor, and the drain ends as a timeout through the ONE terminal path.
+        """
+
+        holds_seen = 0
+        while not self.drain_finished.wait(state.deadline_seconds + _DRAIN_EXIT_DEADLINE_SECONDS):
+            if self.drain_terminal_published.is_set():
+                return
+            holds = state.counters()["deadline_holds"]
+            if holds > holds_seen:
+                holds_seen = holds
+                continue
+            with self.inflight_lock:
+                stuck = sorted(self.inflight)
+            self._finish_drain(
+                DRAIN_TIMEOUT_EXIT_CODE,
+                {
+                    "event": "drain_timeout",
+                    "pid": os.getpid(),
+                    "boot_id": self.boot_id,
+                    **state.counters(),
+                    "drain_ms": state.elapsed_ms(),
+                    "deadline_seconds": state.deadline_seconds,
+                    "stuck_request_ids": stuck,
+                    "monitor_stalled": True,
+                    "terminal": True,
+                },
+            )
+            return
+
     def _finish_drain(self, code: int, frame: dict[str, Any]) -> None:
         """Emit the drain's terminal frame, then get the process out.
 
@@ -147,7 +230,7 @@ class DrainLane:
                 name="harness-serve-drain-exit",
                 daemon=True,
             ).start()
-        self.frames.emit(frame)
+        self._emit_stdio(frame)
         # Socket clients are owed the SAME terminal frame: a client that
         # asked for the drain over the socket, and every client that was
         # merely attached, learns how it ended on the transport it is on.
@@ -292,7 +375,7 @@ class DrainLane:
                     # sees each hold rather than silence.
                     state.note_deadline_held()
                     expiry.update(state.counters())
-                    self.frames.emit(expiry)
+                    self._emit_stdio(expiry)
                     self._broadcast_lanes(expiry)
                     deadline = now + state.deadline_seconds
                     last_progress = now
@@ -307,7 +390,7 @@ class DrainLane:
                     "request_ids": remaining,
                     "drain_ms": state.elapsed_ms(),
                 }
-                self.frames.emit(progress)
+                self._emit_stdio(progress)
                 # The ONE drain frame that reached stdio and nothing else.
                 # Its entire purpose is that "a draining service never looks
                 # dead to a watchdog" — and the socket client IS such a
