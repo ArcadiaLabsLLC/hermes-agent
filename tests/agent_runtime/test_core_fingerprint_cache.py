@@ -830,6 +830,12 @@ def test_a_key_written_with_an_empty_wal_matches_once_it_is_gone(
     _write_wal(wal, b"")
     _new_context()
     converge_persisted_core()
+    # SQLite 3.53 unlinks an unused empty WAL when the build's connection
+    # closes, so the precondition is re-established rather than assumed: the
+    # file is present and empty before the settle check, on every SQLite.
+    if not os.path.exists(wal):
+        _write_wal(wal, b"")
+    assert os.path.exists(wal) and os.path.getsize(wal) == 0
     assert _wal_is_in_the_closure(wal), (
         "the chat SessionDB's -wal path is not in the fingerprint's entries at "
         "all, so a match below would be true for want of anything to be true of"
