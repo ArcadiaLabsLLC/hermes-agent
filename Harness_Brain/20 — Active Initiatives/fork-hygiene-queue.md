@@ -11,7 +11,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
-- [ ] **Fence test updater retargeting from the real owning installation.** · The contained canonical runner reached `update_owning_install` from a temporary release-channel fixture; its child entered the primary checkout and rejected pytest arguments. No update ran, but process limits are not filesystem isolation. Finish residual qualification in an isolated environment; also resolve the newly observed stale PID-marker collection refusal. [Contained continuation](../../docs/downstream/discussion-qualification-2026-09-28.md#contained-continuation). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel**
 
 - [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. **TAKEN 2026-09-29 h10-fhrel**
 

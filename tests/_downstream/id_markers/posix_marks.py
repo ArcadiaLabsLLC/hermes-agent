@@ -285,7 +285,6 @@ if _WIN:
         # (fork_marks) carries both marks -- hooks._merge concatenates.
         **{node: (_TCC_POSIX_VENV,) for node in (
             *(f"tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::{test}" for test in (
-                "test_noop_on_non_macos",
                 "test_install_signs_the_anchor_copy",
                 "test_anchors_repair_generation_interpreter",
                 "test_anchors_uv_managed_interpreter",
