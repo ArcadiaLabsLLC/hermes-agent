@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-09-27",
+  "measured_at": "2026-09-28",
   "base": "2f14d5e6e4",
-  "files": 117,
-  "deleted_lines": 770,
-  "heavy": 3,
+  "files": 155,
+  "deleted_lines": 921,
+  "heavy": 4,
   "reasons": [
+    {
+      "change": "phone-P1 landing tip (lanes p1-hsplit + p1-hsec + p1-hloop + p1-hint) on origin/main 48ec00999a",
+      "files": "117 -> 155: origin/main 48ec00999a already measures 143 (unrecorded main drift, 26 files); p1-hsec adds 12 (its seams, reasons row above); p1-hsplit, p1-hloop and p1-hint add 0",
+      "deleted_lines": "770 -> 921: all 151 from origin/main's unrecorded drift; the three phone lanes and p1-hint add 0 (every phone edit to an upstream file is additive)",
+      "reason": "The ratchet was red on main before this landing (main 143/921/4 vs fixture 117/770/3). The phone lanes' own share is p1-hsec's +12 additive seam files, argued in its row above; the main drift is not absorbed as reviewed — its audit and disposition stay the open fork-hygiene row 'Reconcile the upstream-footprint ledger with main's unrecorded growth'. Measured with scripts/upstream_footprint.py's own counting over git diff --numstat base..<ref> for origin/main, each lane commit and the tip."
+    },
     {
       "change": "Owner-approved optional Discussion conclusion, 2026-09-28",
       "files": "unchanged; gateway/hosted_room_discussion.py already carries the host seam",

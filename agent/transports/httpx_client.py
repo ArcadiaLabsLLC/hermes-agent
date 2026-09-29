@@ -162,11 +162,11 @@ _SCHEMA: dict[str, dict[str, tuple[str, str] | None]] = {
 
 def _typed(kind: str, arity: str, value: Any) -> Any:
     if arity == "list":
-        return [_record(kind, item) for item in value] if isinstance(value, list) else value
-    return _record(kind, value)
+        return [_sdk_shaped_record(kind, item) for item in value] if isinstance(value, list) else value
+    return _sdk_shaped_record(kind, value)
 
 
-def _record(kind: str, raw: Any) -> Any:
+def _sdk_shaped_record(kind: str, raw: Any) -> Any:
     """``raw`` as the SDK's ``kind`` model: typed fields as records, extras raw."""
     if not isinstance(raw, Mapping):
         return raw
@@ -192,11 +192,11 @@ def _record(kind: str, raw: Any) -> Any:
 
 def completion_record(payload: Mapping[str, Any]) -> Any:
     """A parsed ``chat.completion`` JSON body as the SDK's ``ChatCompletion``."""
-    return _record("completion", payload)
+    return _sdk_shaped_record("completion", payload)
 
 
 def _chunk_record(payload: Mapping[str, Any]) -> Any:
-    return _record("chunk", payload)
+    return _sdk_shaped_record("chunk", payload)
 
 
 # ── client ───────────────────────────────────────────────────────────────────

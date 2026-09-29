@@ -474,6 +474,21 @@ def test_unload_releases_the_reservations(fakes, authority):
     assert authority.status()["reservations"] == []
 
 
+def test_unloading_speech_to_text_ends_its_open_streams(fakes):
+    """Mutation: ``_unload_slot`` stops clearing ``_streams`` -> the stream still answers after STT unload."""
+    engines, root = fakes
+    wire = Wire()
+    _loaded(wire, root)
+    sid = wire.result("runtime.speech.recognize.begin")["stream_id"]
+    chunk = base64.b64encode(_pcm(100)).decode()
+    wire.result("runtime.speech.unload", {"which": "tts"})
+    # Positive control: unloading the OTHER model leaves the stream open.
+    assert wire.result("runtime.speech.recognize.push", {"stream_id": sid, "seq": 0, "audio": chunk})["seq"] == 0
+    wire.result("runtime.speech.unload", {"which": "stt"})
+    gone = wire.call("runtime.speech.recognize.push", {"stream_id": sid, "seq": 1, "audio": chunk})
+    assert gone["error"]["data"]["reason"] == "stream_not_found"
+
+
 # ── Piper pronunciation data (espeak-ng) ────────────────────────────────────
 
 

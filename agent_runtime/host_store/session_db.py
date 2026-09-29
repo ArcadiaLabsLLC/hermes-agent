@@ -100,7 +100,7 @@ class _Image:
             self.anchor.close()
 
 
-def _acquire(path: Path) -> _Image:
+def _acquire_image(path: Path) -> _Image:
     key = _canonical(path)
     with _IMAGES_LOCK:
         image = _IMAGES.get(key)
@@ -110,7 +110,7 @@ def _acquire(path: Path) -> _Image:
         return image
 
 
-def _release(image: _Image) -> None:
+def _release_image(image: _Image) -> None:
     key = _canonical(image.path)
     with _IMAGES_LOCK:
         image.refs -= 1
@@ -144,12 +144,12 @@ def encrypted_session_db_class(base: type) -> type:
             except BaseException:
                 image, self._hsec_image = self._hsec_image, None
                 if image is not None:
-                    _release(image)
+                    _release_image(image)
                 raise
 
         def _hsec_attach(self) -> _Image:
             if self._hsec_image is None:
-                self._hsec_image = _acquire(Path(self.db_path))
+                self._hsec_image = _acquire_image(Path(self.db_path))
             return self._hsec_image
 
         def _open_writer(self) -> None:
@@ -219,7 +219,7 @@ def encrypted_session_db_class(base: type) -> type:
             finally:
                 image, self._hsec_image = self._hsec_image, None
                 if image is not None:
-                    _release(image)
+                    _release_image(image)
 
     EncryptedSessionDB.__qualname__ = EncryptedSessionDB.__name__ = "EncryptedSessionDB"
     _CLASSES[base] = EncryptedSessionDB

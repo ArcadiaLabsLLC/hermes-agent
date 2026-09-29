@@ -8,7 +8,7 @@ a hand-written expectation. Every refusal carries its positive control.
 
 Killing mutations (applied, red recorded, reverted — see the commit message):
 
-* ``_record`` drops extras (``extra[key] = value`` removed)  -> both parity tests red.
+* ``_sdk_shaped_record`` drops extras (``extra[key] = value`` removed)  -> both parity tests red.
 * ``_raise_for_status`` raises with ``status_code=None``      -> error-classification test red.
 * ``_redact`` returns the text unredacted                     -> key-echo test red.
 * ``sdk_free_client`` never consults ``provider_sdks_enabled`` -> selection test red.
