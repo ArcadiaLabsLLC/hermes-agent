@@ -17,6 +17,11 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Reconcile the upstream-footprint ledger with main's unrecorded growth.** · Executed measurement of `08ee5074cb`: `files=141 deleted_lines=900 heavy=4`, fixture `117/766/3`. Discussion's separately recorded conclusion allowance adds four deleted lines only; it does not absorb this baseline drift. Audit and disposition the changed upstream files rather than raising the aggregate silently. `scripts/upstream_footprint.py`, `tests/fixtures/upstream_footprint.json` · filed 2026-09-28 Discussion qualification.
 
+### Filed on arrival — 2026-09-28 (lane w5-hstt)
+
+- [ ] **`test_function_legibility_floor` red on main: `agent_runtime/realm_revert.py` `_revert_one` NEW, `revert_realm_sync` 159→167 lines** · fork-hygiene · evidence: red on 312103de32 (lane w5-hstt) · UNCLAIMED
+- [ ] **`tests/scripts/test_bundle_native.py` times out at 30 s in `pm/store.py` `tree_digest` (home_io_guard) — no test reports** · fork-hygiene · evidence: red on 312103de32 via run_tests.sh (lane w5-hstt) · UNCLAIMED
+
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 - [ ] **36 reds on this Windows box at `687f1fbe70e`, identical before and after the httpx2 2.12.0 bump: `tests/tools/test_mcp_{cimd,client_cert,oauth,oauth_integration,oauth_user_agent,oauth_manager,sse_transport,multiplex_connection_keys,startup_summary_names_failures,shared_connection_resolved_identity,tool_issue_948,windows_orphan_fix}.py` (mostly `OAuthNonInteractiveError`, `npx` path resolution, SSE `auth=`/`sse_read_timeout` not forwarded) and `tests/scripts/test_bundle_native.py` — triage environment vs code.** · runner logs of lane w4-hfix2 (base vs branch, same 36). **UNCLAIMED**
 
