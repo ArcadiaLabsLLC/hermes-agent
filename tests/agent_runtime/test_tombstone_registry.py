@@ -3668,6 +3668,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "reset_runtime_resolve_cache",
         scope=_AR,
     ),
+    *rows(
+        # Lane h10-fhrel (2026-09-29): dead-code queue row
+        # `_split_discovery_roots` (S2 TEST SEAM -> DELETE): a fork-added
+        # one-line alias of `_split_path_list` inside an upstream file; its
+        # only reader was two asserts duplicating `_split_path_list`'s own.
+        "s-h10",
+        "HEAD",
+        Form.CODE,
+        "a fork-added alias of _split_path_list with no caller in the runner; "
+        "the two test asserts that read it restated _split_path_list's",
+        "_split_discovery_roots",
+        scope=("scripts.run_tests_parallel",),
+    ),
     # -- the 2026-09-25 upstream merge ------------------------------------
     *rows(
         "s-merge-2026-09-25",

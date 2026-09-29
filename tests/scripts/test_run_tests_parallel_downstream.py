@@ -148,7 +148,6 @@ def test_file_list_split_keeps_windows_drive_letters(tmp_path: Path) -> None:
         "tests/a.py",
         "tests/b.py",
     ]
-    assert mod._split_discovery_roots("tests:packages") == ["tests", "packages"]
 
 
 def test_a_file_list_longer_than_the_os_will_stat_still_splits(monkeypatch) -> None:
@@ -184,7 +183,6 @@ def test_a_file_list_longer_than_the_os_will_stat_still_splits(monkeypatch) -> N
 
     monkeypatch.setattr(mod.Path, "exists", _too_long)
     assert mod._split_path_list("tests/a.py:tests/b.py") == ["tests/a.py", "tests/b.py"]
-    assert mod._split_discovery_roots("tests:packages") == ["tests", "packages"]
 
 
 def _drive_main_over_one_file(

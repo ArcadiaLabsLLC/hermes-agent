@@ -987,11 +987,6 @@ def _split_path_list(raw: str) -> list[str]:
     return [value for value in out if value.strip()]
 
 
-def _split_discovery_roots(raw: str) -> list[str]:
-    """Split configured roots without cutting an absolute Windows drive path."""
-    return _split_path_list(raw)
-
-
 def _pytest_argv(file: Path, pytest_args: List[str]) -> List[str]:
     """``python -m pytest <file> …``, wrapped in ``coverage run`` when asked.
 
