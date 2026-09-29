@@ -59,3 +59,36 @@ def test_native_stream_recorder_tags_the_worker_and_hashes_the_request(probe):
     other = probe["patched_stream"](None, messages=messages, system="other", tools=[{"name": "read_file"}]).rec
     assert other["system_sha"] != rec["system_sha"]
     assert other["tools_sha"] == rec["tools_sha"]
+
+
+def test_a_call_without_the_tag_up_front_still_records_its_worker(probe):
+    """After a second auto-compaction the native wire leads with a synthetic placeholder user
+    turn, so ``messages[0]`` carries no ``[probe-session N]`` tag. The row must still land in its
+    own worker's bucket; the call runs on the agent's API worker thread, which inherits
+    ContextVars (``_context_thread_target``) but not ``threading.local`` state."""
+    import threading
+
+    from agent.chat_completion_helpers import _context_thread_target
+
+    probe["_orig_stream"] = lambda self, **kw: _Stream()
+    compacted = [
+        {"role": "user", "content": [{"type": "text", "text": "(empty)"}]},
+        {"role": "assistant", "content": "summary of the earlier turns"},
+        {"role": "user", "content": "continue"},
+    ]
+    recs = []
+
+    class _Agent:
+        def __init__(self, **kw):
+            pass
+
+        def run_conversation(self, task):
+            call = lambda: recs.append(probe["patched_stream"](None, messages=compacted, system="s").rec)
+            t = threading.Thread(target=_context_thread_target(call))
+            t.start()
+            t.join()
+
+    probe["AIAgent"] = _Agent
+    probe["worker"](3)
+
+    assert [r["worker"] for r in recs] == [3]
