@@ -241,6 +241,21 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_update_step_survives_pipe_leak_flood_and_live_child_stall": (pytest.mark.timeout(330),),
     "tests/scripts/install/test_install_ps1_managed_python_provenance.py::"
     "test_python_find_timeout_kills_uv_and_fails_stage": (pytest.mark.timeout(60),),
+    # Upstream's bundle test copies the host interpreter's whole prefix into its
+    # payload and tree-digests it ~55 times under the home-I/O guard (a realpath per
+    # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).
+    "tests/scripts/test_bundle_native.py::"
+    "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (pytest.mark.timeout(360),),
+    # The fork's stdio child env carries its OWN profile's HERMES_HOME (downstream B-2), so
+    # two profiles' equal stdio configs are two identities; upstream's tail asserts they
+    # share the owner's child.
+    "tests/tools/test_mcp_multiplex_connection_keys.py::"
+    "test_same_named_server_with_other_credentials_is_a_separate_connection": (
+        _fork_replaces(
+            "tools.mcp_tool_config._inject_child_hermes_home (per-profile child HERMES_HOME)",
+            "tests/agent_runtime/test_persona_binding_child_env.py",
+        ),
+    ),
     "tests/tools/test_tool_search_multiquery.py::TestBatchedDescribe::"
     "test_registered_direct_surface_name_keeps_exact_error": (
         _fork_replaces(

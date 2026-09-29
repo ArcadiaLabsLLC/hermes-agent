@@ -23,10 +23,12 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
-- [ ] **`tests/scripts/test_bundle_native.py` times out at 30 s in `pm/store.py` `tree_digest` (home_io_guard) — no test reports** · fork-hygiene · evidence: red on 312103de32 via run_tests.sh (lane w5-hstt) · UNCLAIMED **TAKEN 2026-09-29 h7-reds**
+### Filed on arrival — 2026-09-29 (lane h7-reds)
+- [ ] **Upstream-owned Windows reds, identical in a pure-upstream tree at merge-base `2f14d5e6e4`: 51 in `tests/tools/test_mcp_{cimd,oauth,oauth_integration,oauth_manager,oauth_user_agent,shared_connection_resolved_identity,startup_summary_names_failures,tool_issue_948,windows_orphan_fix}.py` (40 are `OAuthNonInteractiveError`: the tests mock `sys.stdin.isatty` but `_stdin_is_console` also asks `GetConsoleMode`) plus `tests/scripts/test_bundle_native.py` (`No module named hermes_bootstrap`: the fixture repo omits it, `launcher_wrapper` imports it) — decide upstream PR vs `upstream_reds.py` rows** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED
+- [ ] **`tests/test_env_gap_registry.py::test_no_skip_row_points_at_a_deleted_test` red for `[tools]` (`test_lazy_deps_durable_target.py`, file gone) and `[hermes_cli]` (six ids in `test_web_ui_build.py`, `test_cmd_update.py`, `test_venv_holder_windows_live.py`) — delete the stale `_ENV_GAP_SKIPS` rows** · fork-hygiene · evidence: h7-reds touched run, 2026-09-29 · UNCLAIMED
+- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
-- [ ] **36 reds on this Windows box at `687f1fbe70e`, identical before and after the httpx2 2.12.0 bump: `tests/tools/test_mcp_{cimd,client_cert,oauth,oauth_integration,oauth_user_agent,oauth_manager,sse_transport,multiplex_connection_keys,startup_summary_names_failures,shared_connection_resolved_identity,tool_issue_948,windows_orphan_fix}.py` (mostly `OAuthNonInteractiveError`, `npx` path resolution, SSE `auth=`/`sse_read_timeout` not forwarded) and `tests/scripts/test_bundle_native.py` — triage environment vs code.** · runner logs of lane w4-hfix2 (base vs branch, same 36). **UNCLAIMED** **TAKEN 2026-09-29 h7-reds**
 
 ### Filed on arrival — 2026-09-27 (Windows console signal safety)
 

@@ -1,9 +1,9 @@
 """Fork-owned half of ``tests/hermes_cli/conftest.py`` (seam Stage 5).
 
 Every name here was fork-added to that conftest. The root ``conftest.py``
-registers this module when pytest registers ``tests/hermes_cli/conftest.py``, under a
-``tests/hermes_cli/_downstream_conftest.py`` name, so its fixtures keep that
-directory's scope and its hooks run; the upstream conftest carries no fork line
+attaches this module when pytest registers ``tests/hermes_cli/conftest.py``: its
+fixtures are grafted onto that conftest (so they keep that directory's scope)
+and its hooks are registered as a fixture-free plugin; the upstream conftest carries no fork line
 (lane CARRY3).
 
 **The map** (lane B5, 2026-09-25; the layout sheet is

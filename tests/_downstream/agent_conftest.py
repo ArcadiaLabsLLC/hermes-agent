@@ -32,8 +32,8 @@ Two independent mechanisms live here. Neither weakens an assertion.
    emptied here by the 2026-08-10 audit — twenty of its twenty-four rows were
    stale tests or a real defect — and deleted fork-wide by lane B5 (Q30). See the block comment above 
 Fork-owned half of ``tests/agent/conftest.py`` (seam Stage 5): the root
-``conftest.py`` registers it when pytest registers that conftest, under a
-``tests/agent/_downstream_conftest.py`` name (directory scope); that upstream
+``conftest.py`` attaches it when pytest registers that conftest (fixtures grafted
+onto it at directory scope, hooks as a fixture-free plugin); that upstream
 conftest carries no fork line (lane CARRY3).
 """
 
