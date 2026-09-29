@@ -2060,7 +2060,11 @@ def _build_context_engine(agent, _agent_cfg, cs, _custom_providers, _effective_c
 
 
 def _managed_local_marker():
-    # Fork seam: the managed local llama turn marker, read from its one owner (the adapter).
+    # Fork seam: the managed local llama turn marker, read from its one owner (the adapter). A
+    # wheel without the adapter (the bundled phone) has no managed local turn: None, never imported.
+    from agent_runtime.loop_tool_lifecycles import shipped
+    if not shipped("agent_runtime.local_llama_adapter"):
+        return None
     import agent_runtime.local_llama_adapter as _lla
     return _lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER
 
@@ -2080,8 +2084,9 @@ def _enforce_minimum_context(agent):
         and not isinstance(agent._config_context_length, bool)
         and agent._config_context_length > 0
     )
+    _marker = _managed_local_marker()
     _allow_managed_local_context = (
-        agent.requested_provider == _managed_local_marker() and agent.provider == "custom"
+        _marker is not None and agent.requested_provider == _marker and agent.provider == "custom"
         and isinstance(agent._config_context_length, int)
         and not isinstance(agent._config_context_length, bool)
         and agent._config_context_length >= 4096 and _ctx == agent._config_context_length
