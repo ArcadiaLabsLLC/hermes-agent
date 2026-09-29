@@ -133,19 +133,24 @@ def inspect_stt(path: Path | None, *, importable: Callable[[str], bool]) -> dict
             "engine": engine.name}
 
 
-def inspect_tts(path: Path | None, *, engine_ok: bool) -> dict:
+def inspect_tts(path: Path | None, *, engine_ok: bool, preset: str | None = None) -> dict:
     """``available`` or ``unavailable`` + reason for a voice on the pack's onnxruntime runner.
 
     A Piper voice is ``<voice>.onnx`` + ``.onnx.json``; Kokoro is its ``.onnx`` with
     ``voices-v1.0.bin`` beside it. Either needs its phonemizer artifact beside it
     (:data:`agent_runtime.speech_phonemize.PHONEMIZER_ARTIFACTS`) — checked here, before the
     loader, so a voice without one reads ``phonemizer_missing`` rather than failing to load.
+
+    ``presets`` lists the Kokoro voice presets its voices file carries (``[]`` for Piper) and
+    ``preset`` the one a load would use: ``preset`` when given, else Kokoro's default. A preset the
+    file does not carry reads ``preset_unknown``; any preset on a Piper voice ``preset_unsupported``.
     """
     if path is None:
         return _unavailable("model_unset", None)
     if path.suffix.lower() != ".onnx":
         return _unavailable("model_not_local", path)
-    from agent_runtime.speech_onnx_voice import KOKORO_SAMPLE_RATE, KOKORO_VOICES, voice_family
+    from agent_runtime.speech_onnx_voice import (KOKORO_DEFAULT_PRESET, KOKORO_SAMPLE_RATE, KOKORO_VOICES,
+                                                 kokoro_presets, voice_family)
 
     sidecar = path.with_name(path.name + ".json")
     family = voice_family(path)
@@ -171,10 +176,22 @@ def inspect_tts(path: Path | None, *, engine_ok: bool) -> dict:
         absent = [p.name for p in artifact_files(family, path) if not _nonempty(p)]
         if absent:
             return _unavailable("phonemizer_missing", path, missing=absent, voice_family=family)
+    presets: list[str] = []
+    if family == "kokoro":
+        listed = kokoro_presets(companion)
+        if listed is None:
+            return _unavailable("model_partial", path, missing=[companion.name])
+        presets = listed
+        if preset is not None and preset not in presets:
+            return _unavailable("preset_unknown", path, voice_family=family, presets=presets)
+        preset = preset or KOKORO_DEFAULT_PRESET
+    elif preset is not None:
+        return _unavailable("preset_unsupported", path, voice_family=family, presets=presets)
     if not engine_ok:
         return _unavailable("engine_missing", path, engine="onnxruntime")
     return {"state": "available", "reason": None, "model_path": str(path), "voice_family": family,
-            "disk_bytes": path.stat().st_size + companion.stat().st_size, "sample_rate": rate}
+            "disk_bytes": path.stat().st_size + companion.stat().st_size, "sample_rate": rate,
+            "presets": presets, "preset": preset}
 
 
 # ── engines (upstream's, behind one seam so tests can stand in) ────────────
@@ -209,10 +226,10 @@ class SpeechEngines:
     def _load_parakeet(self, path: Path, device: str, compute_type: str) -> Any:
         return stt_engines.load_parakeet(path)
 
-    def load_tts(self, path: Path) -> Any:
+    def load_tts(self, path: Path, *, preset: str | None = None) -> Any:
         from agent_runtime.speech_onnx_voice import load_voice
 
-        return load_voice(path)
+        return load_voice(path, preset=preset)
 
     def unload_tts(self) -> None:
         pass  # the voice object is the whole model: dropping the slot's reference frees it
@@ -273,6 +290,8 @@ class _Slot:
     unloaded_reason: str | None = None
     sample_rate: int | None = None
     engine: str | None = None
+    preset: str | None = None  # tts: the Kokoro preset loaded (None for Piper)
+    presets: list[str] = field(default_factory=list)  # tts: the presets that voice carries
 
 
 @dataclass
@@ -341,21 +360,34 @@ class SpeechService:
         tts = pick("tts_voice", params.get("tts_voice"), configured_tts, ".onnx")
         return stt, tts, notes
 
-    def _inspect(self, slot: _Slot, path: Path | None, note: str | None) -> dict:
+    @staticmethod
+    def _preset(params: dict) -> str | None:
+        """``tts_preset``: a Kokoro voice preset name (status lists them as ``tts.presets``)."""
+        value = params.get("tts_preset")
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip() or "\0" in value:
+            raise SpeechRefused("tts_preset_invalid", "invalid_params", "tts_preset must be a non-empty string")
+        return value
+
+    def _inspect(self, slot: _Slot, path: Path | None, note: str | None, preset: str | None = None) -> dict:
         if note:
             return _unavailable(note, None)
         if slot.kind == "stt":
             return inspect_stt(path, importable=self.engines.stt_importable)
-        return inspect_tts(path, engine_ok=self.engines.tts_importable())
+        return inspect_tts(path, engine_ok=self.engines.tts_importable(), preset=preset)
 
     def _slot_view(self, slot: _Slot, params: dict | None = None) -> dict:
         engine = slot.engine or (stt_engines.WHISPER if slot.kind == "stt" else "onnxruntime")
         if slot.state in ("loaded", "loading"):
             view = {"state": slot.state, "reason": None, "model_path": str(slot.path)}
+            if slot.kind == "tts":
+                view.update(preset=slot.preset, presets=list(slot.presets))
         else:
             stt, tts, notes = self._resolve(params or {})
             path = stt if slot.kind == "stt" else tts
-            view = self._inspect(slot, path, notes.get("stt_model" if slot.kind == "stt" else "tts_voice"))
+            view = self._inspect(slot, path, notes.get("stt_model" if slot.kind == "stt" else "tts_voice"),
+                                 self._preset(params or {}) if slot.kind == "tts" else None)
             if slot.error is not None and view["state"] == "available":
                 view.update(state="unavailable", reason=slot.error["reason"], error=slot.error)
         view.update(engine=view.get("engine") or engine, reserved_bytes=slot.reserved,
@@ -380,23 +412,27 @@ class SpeechService:
         if which not in ("stt", "tts", "both"):
             raise SpeechRefused("which_invalid", "invalid_params", "which must be stt, tts or both")
         stt_path, tts_path, notes = self._resolve(params)
+        preset = self._preset(params)
         results = {}
         for slot, path, note_key in ((self.stt, stt_path, "stt_model"), (self.tts, tts_path, "tts_voice")):
             if which in (slot.kind, "both"):
-                results[slot.kind] = self._load_slot(slot, path, notes.get(note_key))
+                results[slot.kind] = self._load_slot(slot, path, notes.get(note_key),
+                                                     preset if slot.kind == "tts" else None)
         return {"contract": SPEECH_CONTRACT, "results": results, **self.status(params)}
 
-    def _load_slot(self, slot: _Slot, path: Path | None, note: str | None) -> dict:
+    def _load_slot(self, slot: _Slot, path: Path | None, note: str | None, preset: str | None = None) -> dict:
+        """``preset`` omitted keeps a loaded voice's preset; another preset of it is a reload."""
         with self._lock:
             if slot.state == "loading":
                 return {"state": "loading", "reason": "load_in_progress"}
             already_loaded = slot.state == "loaded"
-            if already_loaded and slot.path == path:
+            if already_loaded and slot.path == path and preset in (None, slot.preset):
                 return {"state": "loaded", "reason": None}
-            view = self._inspect(slot, path, note)
+            view = self._inspect(slot, path, note, preset)
             if view["state"] != "available":
                 return {"state": "unavailable", "reason": view["reason"], **{k: v for k, v in view.items()
-                                                                          if k in ("missing", "engine", "model_type", "voice_family")}}
+                                                                          if k in ("missing", "engine", "model_type",
+                                                                                   "voice_family", "presets")}}
             if already_loaded:
                 self._drop(slot, "replaced")
             slot.state, slot.path, slot.error, slot.engine = "loading", path, None, view.get("engine")
@@ -412,7 +448,7 @@ class SpeechService:
             if slot.kind == "stt":
                 model = self.engines.load_stt(path, device="cpu", compute_type="int8")
             else:
-                model = self.engines.load_tts(path)
+                model = self.engines.load_tts(path, preset=view.get("preset"))
         except Exception as exc:  # noqa: BLE001 - a load failure is a typed state, never a raise
             self.authority.release(slot.holder)
             with self._lock:
@@ -422,6 +458,8 @@ class SpeechService:
         with self._lock:
             slot.model, slot.state, slot.reserved, slot.unloaded_reason = model, "loaded", estimate, None
             slot.sample_rate = view.get("sample_rate")
+            if slot.kind == "tts":
+                slot.preset, slot.presets = view.get("preset"), list(view.get("presets") or [])
             self._mark_idle(slot)
         return {"state": "loaded", "reason": None, "reserved_bytes": estimate}
 
@@ -446,6 +484,7 @@ class SpeechService:
             except Exception:  # noqa: BLE001 - the reference is dropped either way
                 pass
         slot.model, slot.state, slot.path, slot.reserved = None, "unloaded", None, 0
+        slot.preset, slot.presets = None, []
         slot.unloaded_reason = reason
         self.authority.release(slot.holder)
 
