@@ -1,7 +1,10 @@
 """The persisted per-lane observability rows, their index and retention.
 
-Separate because it owns one store: ``persist_prompt_observability_context`` is
-the only writer of the per-lane index (program rule 13).
+Separate because it owns one store: ``persist_context_row`` is the only writer
+of the per-lane index (program rule 13). The skills-catalog writer is INJECTED
+into it (``store_catalog``) rather than imported, so the catalog module can read
+this store's rows without an import cycle; the public composition is
+``catalog_lookup.persist_prompt_observability_context``.
 """
 
 from __future__ import annotations
@@ -9,14 +12,13 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from utils import atomic_json_write
 
 from .. import paths
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
 from ..serde import to_jsonable
-from .catalog_store import _store_skills_catalog
 from .context_budget import (
     _context_budget,
     _context_budget_needs_refresh,
@@ -30,7 +32,7 @@ from .spans import PROMPT_OBSERVABILITY_TIMINGS_KEY
 __layer__ = "stores"
 __all__ = [
     "PROMPT_OBSERVABILITY_RETAIN_PER_LANE",
-    "persist_prompt_observability_context",
+    "persist_context_row",
     "load_live_prompt_observability_contexts",
     "load_persisted_context_row",
     "load_latest_prompt_observability_contexts",
@@ -74,9 +76,18 @@ _PERSIST_REF_FIELDS = (
 )
 
 
-def persist_prompt_observability_context(context: dict[str, Any]) -> None:
+def persist_context_row(
+    context: dict[str, Any],
+    *,
+    store_catalog: Callable[[str, list], None],
+) -> None:
     """THE persist chokepoint (one owner): ref-transform, compact write,
     latest-pointer index, and retention happen here and nowhere else.
+
+    ``store_catalog(ref, rows)`` lands each hoisted skill list in the
+    content-addressed catalog store before the row that refers to it is
+    written. It is a required parameter, never a default: a persist that
+    skipped it would write refs no reader could resolve.
 
     The caller's dict is NEVER mutated — the live ``chat.final`` wire echo
     still carries the built row with its inline canonical lists (slimming that
@@ -106,7 +117,7 @@ def persist_prompt_observability_context(context: dict[str, Any]) -> None:
             # fake empty one. A re-persisted ref-shaped row keeps its refs.
             continue
         ref = _skills_list_content_hash(value)
-        _store_skills_catalog(ref, value)
+        store_catalog(ref, value)
         row[ref_field] = ref
     root = paths.prompt_observability_dir()
     root.mkdir(parents=True, exist_ok=True)

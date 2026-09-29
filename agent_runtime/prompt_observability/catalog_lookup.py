@@ -1,4 +1,6 @@
-"""``skills_catalog_by_hash``: a hoisted ref resolved from the catalog store, else from the live rows.
+"""The two verbs that span both stores: ``persist_prompt_observability_context``
+(a row persisted with its catalogs) and ``skills_catalog_by_hash`` (a hoisted
+ref resolved from the catalog store, else from the live rows).
 
 Separate because it reads both stores (the catalog directory and the persisted
 rows) and neither store may import the other.
@@ -9,13 +11,22 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .catalog_store import _store_skills_catalog, load_skills_catalog_from_store
-from .context_store import load_latest_prompt_observability_contexts
+from .context_store import load_latest_prompt_observability_contexts, persist_context_row
 from .hoist import HOISTED_SKILL_LIST_FIELDS, _skills_list_content_hash
 
 __layer__ = "stores"
 __all__ = [
+    "persist_prompt_observability_context",
     "skills_catalog_by_hash",
 ]
+
+
+def persist_prompt_observability_context(context: dict[str, Any]) -> None:
+    """Persist one observability row, its hoisted skill lists landing in the
+    catalog store first (``context_store.persist_context_row`` is the one
+    writer; this binds the catalog writer it takes by injection)."""
+
+    persist_context_row(context, store_catalog=_store_skills_catalog)
 
 
 def skills_catalog_by_hash(
