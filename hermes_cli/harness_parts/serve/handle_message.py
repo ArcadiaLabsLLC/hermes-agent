@@ -857,6 +857,7 @@ class MessageHandling:
                 spawn_chat_turn=partial(self._spawn_chat_turn, sink, connection),
                 spawn_reply=partial(self._spawn_reply, sink),
                 interrupt_operator=partial(interrupt_operator_turn, self),
+                launcher_request=self._launcher_requester(connection, sink),
             ),
         )
         # The ONE frame this lane does not write: the handler took the

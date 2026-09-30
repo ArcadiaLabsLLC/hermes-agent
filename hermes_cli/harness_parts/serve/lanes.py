@@ -111,20 +111,24 @@ class ArgvLanes:
 
         if not request.is_chat_turn:
             return None
-        if request.from_gateway:
-            sink = self._gateway_turn_launcher_sink()
-            if sink is None:
-                return None
-            link = LauncherLink(sink, ORIGIN_PAIRED_DEVICE)
-        elif answers_launcher_requests(request.owner):
-            link = LauncherLink(sink, ORIGIN_LOCAL)
-        else:
+        link = self._launcher_link(request.owner, request.from_gateway, sink)
+        if link is None:
             return None
         try:
             refresh_app_function_tools(link)
         except Exception:  # a tool list must never cost the turn
             logger.warning("launcher app-function refresh failed", exc_info=True)
         return bind_launcher_link(link)
+
+    def _launcher_link(self, owner, from_gateway, sink):
+        if from_gateway:
+            sink = self._gateway_turn_launcher_sink()
+            return None if sink is None else LauncherLink(sink, ORIGIN_PAIRED_DEVICE)
+        return LauncherLink(sink, ORIGIN_LOCAL) if answers_launcher_requests(owner) else None
+
+    def _launcher_requester(self, connection, sink):
+        link = self._launcher_link(self._owner_of(connection), _is_gateway(connection), sink)
+        return link.request if link is not None else None
 
     def _gateway_turn_launcher_sink(self) -> Any:
         """The local Launcher a paired-device turn asks: stdio first, then a socket."""

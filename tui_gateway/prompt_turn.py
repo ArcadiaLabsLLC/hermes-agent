@@ -201,6 +201,7 @@ class _TurnScopes:
     """Reset tokens for the thread/context scopes a turn binds (filled incrementally)."""
 
     approval: Any = None
+    launcher: Any = None
     session_tokens: list = dataclasses.field(default_factory=list)
     home: Any = None  # per-turn HERMES_HOME override for a resumed remote profile
     secret: Any = None
@@ -610,6 +611,8 @@ def _prepare_turn_input(sid: str, session: dict, st: _TurnRun, text: Any, images
     mid-turn is applied first so the explicit pick wins over a config change."""
     from tools.approval_context import set_current_session_key
     scopes = st.scopes
+    from agent_runtime.conversations.worker_app_functions import bind as bind_app_functions
+    scopes.launcher = bind_app_functions(sid, session)
     scopes.approval = set_current_session_key(session["session_key"])
     scopes.session_tokens = _set_session_context(session["session_key"], ui_session_id=sid)
     # Profile turn: that profile's home + secrets + terminal policy. Launch-profile turn: unscoped in a
@@ -1018,6 +1021,9 @@ def _finish_turn(sid: str, session: dict, st: _TurnRun) -> None:
         from tools.terminal_scope import reset_terminal_scope
         reset_terminal_scope(scopes.terminal)
     _clear_session_context(scopes.session_tokens)
+    if scopes.launcher is not None:
+        from agent_runtime.conversations.worker_app_functions import reset as reset_app_functions
+        reset_app_functions(scopes.launcher)
 
 
 # Bounded so a contended state.db cannot hold ``_sessions_lock``; a skipped heal is retried on the next prompt.

@@ -208,3 +208,5 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
+
+- `test_duplicate_helper_bodies::test_no_new_duplicate_anywhere_in_the_fork` fails on main `3c885f1232`: `_model` is shared by conversations RPC and phonemizer; `_owner` by spawn stand-ins and bundle closure. Rename the unrelated private helpers to state their responsibility. Confirmed by the unified-document lane on main; no body duplication or new helper in that lane.

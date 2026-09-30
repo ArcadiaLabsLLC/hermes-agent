@@ -48,6 +48,8 @@ def _install_gateway_methods() -> None:
             from .worker_skills import install
 
             install()
+            from .worker_app_functions import install as install_app_functions
+            install_app_functions()
             _installed = True
 
 

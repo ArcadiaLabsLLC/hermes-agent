@@ -212,8 +212,10 @@ class ComputeHost:
         result so the parent can ack the client)."""
         def body(server: Any, sid: str, request_id: Any) -> None:
             params = frame.get("params")
-            error = ("session not found" if sid not in server._sessions
-                     else None if isinstance(params, dict) else "response params must be an object")
+            # Agent construction may ask a declared request before session registration.
+            # resolve_response still verifies its pending id and owning sid.
+            error = ("response params must be an object" if not isinstance(params, dict)
+                     else "session not found" if "lock" in params and sid not in server._sessions else None)
             if error:
                 self._reply("respond.error", sid, request_id, message=error)
                 return
@@ -361,6 +363,8 @@ class ComputeHost:
         profile_home = str(frame.get("profile_home") or "")
         session_db = home_token = secret_token = None
         owns_db = False
+        from tui_gateway.transport import bind_transport, reset_transport
+        transport_token = bind_transport(self._transport)
         try:
             if profile_home:
                 from hermes_constants import set_hermes_home_override
@@ -392,6 +396,7 @@ class ComputeHost:
             if server._transfer_db_to_agent(agent, session_db):
                 owns_db = False
         finally:
+            reset_transport(transport_token)
             if owns_db and session_db is not None:
                 with contextlib.suppress(Exception):
                     from hermes_state_registry import release_or_close

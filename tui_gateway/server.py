@@ -2559,7 +2559,8 @@ def _make_agent(
     ignore_rules = is_truthy_value(os.environ.get("HERMES_IGNORE_RULES"))
     with _sessions_lock:
         session = _sessions.get(sid)
-    agent = AIAgent(
+    from agent_runtime.conversations.worker_app_functions import create_agent
+    agent = create_agent(AIAgent, sid, session or {"source": platform_override},
         model=model, max_iterations=_cfg_max_turns(cfg, 500), provider=runtime.get("provider"),
         requested_provider=runtime.get("requested_provider"),
         base_url=runtime.get("base_url"), api_key=runtime.get("api_key"), api_mode=runtime.get("api_mode"),
@@ -2788,6 +2789,10 @@ def _schedule_agent_build(sid: str, delay: float = 0.05) -> None:
     """Pre-warm a deferred session's agent off the response path (session.create + cold resume; _sess() also builds on demand)."""
 
     if (session := _sessions.get(sid)) is not None:
+        from agent_runtime.conversations.worker_app_functions import enabled as has_native_app_tools
+        if has_native_app_tools(session):
+            session["lazy"] = True  # The turn must bind its Launcher before tool discovery.
+            return
         with _session_profile_runtime_scope(session, hydrate_secrets=False):
             if _session_uses_compute_host(session):
                 session["lazy"] = True

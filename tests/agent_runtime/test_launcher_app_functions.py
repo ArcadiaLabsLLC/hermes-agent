@@ -18,6 +18,7 @@ from agent_runtime import launcher_app_functions as laf
 from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
 _TOOLS = [
     {
@@ -227,8 +228,7 @@ def test_the_serve_dispatcher_routes_a_response_frame_and_answers_nothing():
     assert len(asked.sent) == before  # no error frame answered the response
 
 
-class _Lanes:
-    _gateway_turn_launcher_sink = ArgvLanes._gateway_turn_launcher_sink
+class _Lanes(ArgvLanes, SubscriptionLanes):
 
     def __init__(self, frames):
         self.frames = frames
@@ -342,3 +342,22 @@ def test_a_gateway_turn_asks_the_most_recent_socket_declaration():
     request = _ArgvRequest("r", _CHAT_ARGV, owner="gw-1", sink=_Launcher(), from_gateway=True)
     laf.reset_launcher_link(ArgvLanes._bind_launcher_link(lanes, request, request.sink))
     assert first.sent and not second.sent
+
+
+def test_native_requester_keeps_its_admitting_connection_and_proven_origin():
+    from types import SimpleNamespace
+
+    client, replacement = _Launcher(), _Launcher()
+    lanes = _Lanes(client)
+    assert lanes._launcher_requester(None, client) is None
+    _declare("stdio")
+    request = lanes._launcher_requester(None, client)
+    lanes.frames = replacement
+    result = request("launcher.generated.create", {"_meta": {"origin": "paired_device"}})
+    assert result["data"]["echo"]["_meta"] == {"origin": "local"}
+    assert not replacement.sent
+    remote = SimpleNamespace(key="gw-1", transport="gateway")
+    request = lanes._launcher_requester(remote, _Launcher())
+    assert request is not None
+    result = request("launcher.generated.create", {"_meta": {"origin": "local"}})
+    assert result["data"]["echo"]["_meta"] == {"origin": "paired_device"}

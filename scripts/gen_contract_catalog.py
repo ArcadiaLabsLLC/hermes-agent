@@ -37,6 +37,8 @@ def _registry():
     from tui_gateway.contracts import registry
 
     declare_contracts()
+    from agent_runtime.conversations.worker_app_functions import declare_contracts as declare_app_functions
+    declare_app_functions()
     return registry
 
 

@@ -2,9 +2,15 @@
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
   "files": 170,
-  "deleted_lines": 743,
+  "deleted_lines": 746,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "Owner-approved unified Launcher documents: connect native agents to the existing app-function authority.",
+      "files": "170 -> 170; all three native gateway files already carry fork seams.",
+      "deleted_lines": "743 -> 746: agent factory wrapper (1) and compute response precondition (2); heavy stays 4.",
+      "reason": "Discovery must precede the agent tool snapshot. Native turns bind the existing request transport; isolated compute must transport and settle discovery before its full session is registered. Capability policy, registry and documents remain Launcher-owned. Ordinary gateway paths retain their existing factory. See docs/downstream/unified-document-native-tools-2026-09-30.md."
+    },
     {
       "change": "lane s2-g2: the phone's kept psutil and tty import sites guarded — hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)",
       "files": "167 -> 170: hermes_cli/process_identity.py, hermes_constants_scratch.py, hermes_cli/secret_prompt.py",

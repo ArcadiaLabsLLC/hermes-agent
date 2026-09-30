@@ -202,6 +202,15 @@ class LauncherLink:
         if self.origin not in _ORIGINS:
             raise ValueError(f"origin must be one of {sorted(_ORIGINS)}, not {self.origin!r}")
 
+    def request(self, method: str, args: Mapping[str, Any]) -> dict[str, Any]:
+        """The connection owns origin and deadline; tool arguments cannot replace them."""
+        if not method.startswith(METHOD_PREFIX):
+            raise ValueError("Not an app function")
+        params = {key: value for key, value in args.items() if key != "_meta"}
+        params["_meta"] = {"origin": self.origin}
+        return CLIENT_REQUESTS.request(self.sink, method, params,
+            timeout=LIST_TIMEOUT_SECONDS if method == LIST_METHOD else CALL_TIMEOUT_SECONDS)
+
 
 _link: contextvars.ContextVar[LauncherLink | None] = contextvars.ContextVar(
     "launcher_app_function_link", default=None
@@ -256,10 +265,8 @@ def call_app_function(entry: AppFunctionEntry, args: Mapping[str, Any]) -> str:
     link = current_launcher_link()
     if link is None:
         return json.dumps({"error": "no Launcher is attached to this turn; app functions are unavailable"})
-    params = {key: value for key, value in dict(args or {}).items() if key != "_meta"}
-    params["_meta"] = {"origin": link.origin}
     try:
-        result = CLIENT_REQUESTS.request(link.sink, entry.method, params, timeout=CALL_TIMEOUT_SECONDS)
+        result = link.request(entry.method, args or {})
     except ClientRequestFailed as exc:
         refusal = exc.data.get("refusal") if isinstance(exc.data, dict) else None
         return json.dumps({"error": exc.message, "code": exc.code, "refusal": refusal}, ensure_ascii=False)
@@ -361,8 +368,7 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
         if id(link.sink) in _state.unanswered:
             return None
     try:
-        result = CLIENT_REQUESTS.request(link.sink, LIST_METHOD, {"_meta": {"origin": link.origin}},
-                                         timeout=LIST_TIMEOUT_SECONDS)
+        result = link.request(LIST_METHOD, {})
     except ClientRequestFailed as exc:
         logger.info("launcher app functions unavailable on this connection: %s", exc.message)
         if exc.timed_out or exc.code == _METHOD_NOT_FOUND:
