@@ -3570,6 +3570,19 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         scope=_AR,
     ),
     *rows(
+        # Lane h11-code (2026-09-29): dead-code queue row
+        # `READ_ONLY_ALLOWLIST_PROFILE`, sheet god-file-layout-sheets/mcp_admission.md
+        # §5 (TEST SEAM).
+        "s-h11",
+        "HEAD",
+        Form.CODE,
+        "the launcher-allowlist row name a read_only admission was compiled "
+        "from, with no production reader; it lives in tests/_downstream/_seams.py "
+        "for the parity tests that look the row up",
+        "READ_ONLY_ALLOWLIST_PROFILE",
+        scope=_AR,
+    ),
+    *rows(
         # Lane R1 (god-file program Wave 2, 2026-09-25): dead-code queue row
         # `reset_unreadable_instance_rows`, sheet
         # god-file-layout-sheets/persona_assignments.md §5 (TEST SEAM).
