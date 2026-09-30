@@ -201,6 +201,18 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
+    'test_browser_real_profile.py': [
+        (
+            _no_posix_file_modes,
+            'asserts the real-profile snapshot is owner-only (0o700 dirs, 0o600 '
+            'files) and that a lax one heals; chmod cannot express either mode '
+            'on this filesystem (class X, red on pure upstream too)',
+            {
+                'TestSnapshotRealProfile::test_snapshot_files_are_owner_only',
+                'TestSnapshotRealProfile::test_existing_lax_snapshot_heals_on_refresh',
+            },
+        ),
+    ],
     'test_file_write_safety.py': [
         (
             _no_posix_file_modes,

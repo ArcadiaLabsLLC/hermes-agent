@@ -673,6 +673,24 @@ if _WIN:
                 "test_support_markdown_does_not_collide_with_real_skill",
             )
         },
+        # Class X (triage-561, lane h12-fix 2026-09-29): red identically on pure upstream
+        # ee5f49b943 (fork-edited implementation, same failure text).
+        "tests/tools/test_process_registry.py::TestStdinHelpers::"
+        "test_close_stdin_allows_eof_driven_process_to_finish": (
+            _up_red("the EOF-driven child does not exit after close_stdin on Windows (class X)"),
+        ),
+        "tests/tools/test_process_registry.py::TestSpawnEnvSanitization::"
+        "test_spawn_local_strips_blocked_vars_from_background_env": (
+            _up_red("the sanitized env drops USERPROFILE, so Path.home() raises in the platform-"
+                    "default home fallback (class X)"),
+        ),
+        "tests/tools/test_browser_real_profile.py::TestRealProfileCdpLaunch::"
+        "test_snapshot_failure_fails_closed": (
+            _up_red_skip("hangs: _real_profile_cdp asks the REAL agent-browser (resolved outside the "
+                         "test home) for a session's cdp-url before the patched snapshot, and a live "
+                         "daemon holds the pipe past subprocess.run's timeout (class X; hung on pure "
+                         "upstream too)"),
+        ),
     })
 
 if _WIN and not sys.flags.utf8_mode:
@@ -687,4 +705,12 @@ if _WIN and not sys.flags.utf8_mode:
             "test_dead_worker_reap_surfaces_the_workers_own_last_output",
             "test_dead_worker_reap_reads_the_log_of_the_dispatching_board",
         )
+    })
+    ROWS.update({
+        f"tests/tools/test_browser_real_profile.py::TestWindowsLockedProfileCopy::"
+        f"test_copy_auth_file_bounds_locks_without_overwriting[{locked}]": (
+            _up_red("the child prints _AUTH_DB_LOCKED's em dash as UTF-8 and the parent decodes "
+                    "it under the cp1252 locale (class e-ENC; class X)"),
+        )
+        for locked in ("source", "destination")
     })

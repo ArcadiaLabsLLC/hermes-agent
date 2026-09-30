@@ -181,6 +181,23 @@ if _WIN:
         "test_kill_detached_session_uses_host_pid": (
             _posix_only("pins the psutil terminate seam; Windows kills the tree via taskkill"),
         ),
+        # Class X (triage-561, lane h12-fix 2026-09-29): red identically on pure upstream
+        # ee5f49b943, deterministic over three fork runs.
+        **{
+            f"tests/tools/test_process_registry.py::TestTerminateHostPidPosix::{test}": (
+                _posix_xfail("patches os.kill / os.killpg for the SIGTERM order; Windows "
+                             "terminates the tree by handle, so no signal is recorded"),
+            )
+            for test in (
+                "test_posix_terminates_parent_before_snapshot_descendants",
+                "test_posix_oserror_falls_back_to_os_kill",
+            )
+        },
+        "tests/tools/test_process_registry.py::TestSpawnRewriteCompoundBackground::"
+        "test_pty_path_uses_rewritten_command": (
+            _posix_xfail("the PTY branch spawns /bin/bash, which does not exist on Windows; "
+                         "the pipe fallback then launches for real"),
+        ),
         **{
             f"tests/gateway/test_systemd_notify.py::{test}": (
                 _posix_only("no socket.AF_UNIX, so no systemd notify socket"),
