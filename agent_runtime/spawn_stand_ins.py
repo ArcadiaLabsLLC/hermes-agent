@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 __layer__ = "lanes"
-__all__ = ["SPAWN_STAND_INS", "SpawnNotAvailable", "SpawnSeamStale", "StandIn", "ensure_spawn_stand_ins",
+__all__ = ["SPAWN_STAND_INS", "SlashCommandsUnavailable", "SpawnNotAvailable", "SpawnSeamStale", "StandIn", "ensure_spawn_stand_ins",
            "install_spawn_stand_ins", "is_spawn_stand_in", "remove_spawn_stand_ins", "spawn_stand_in_of"]
 
 #: Set on every stand-in callable: ``(module, qualname)`` of the function it replaces.
@@ -98,6 +98,23 @@ def _hook_not_run(_mod, *_a, **_k) -> dict:
 
 def _quick_command_error(mod, _self, _command, _exec_cmd, *_a, **_k) -> str:
     return mod.t("gateway.quick_command.error", error=SpawnNotAvailable(f"{mod.__name__} quick command"))
+
+
+class SlashCommandsUnavailable(SpawnNotAvailable):
+    """A typed slash command reached the phone, which runs none (owner decision D5, 2026-09-30).
+
+    Upstream runs each one in a ``python -m tui_gateway.slash_worker`` child; the phone's controls
+    are serve requests instead, so ``slash.exec`` answers this, never a second, in-process runner.
+    """
+
+    def __init__(self, target: str) -> None:
+        super().__init__(target)
+        self.strerror = "slash commands are unavailable on this device"
+        self.args = (self.errno, self.strerror)
+
+
+def _no_slash_commands(_mod, *_a, **_k):
+    raise SlashCommandsUnavailable("tui_gateway.server._SlashWorker.__init__")
 
 
 def _unknown_version(mod, *_a, **_k):
@@ -169,6 +186,7 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("tools.tts_command_provider", "terminate_command_process_tree", returns=None),
     StandIn("tools.tts_tool_delivery", "_ffmpeg_run"),
     StandIn("tools.vision_tools_image_prep", "_rasterize_svg_to_png", returns=False),
+    StandIn("tui_gateway.server", "_SlashWorker.__init__", answer=_no_slash_commands),
 )
 
 

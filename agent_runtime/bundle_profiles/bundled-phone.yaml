@@ -136,6 +136,19 @@ packaging:
       # names), so upstream's unguarded import sites resolve; the closure proves each at run time.
       stand_in: agent_runtime.provider_sdk_shim
       degrades: nothing on the provider wires — agent.provider_sdks false builds the SDK-free clients (agent/transports/httpx_client.py, httpx_responses.py, httpx_anthropic.py); OpenAI cloud STT (openai package check) and OpenAI streaming TTS are unavailable (the shim's client has no audio surface); mem0 OSS uses the SDK-free client
+    - distribution: cryptography
+      imports: [cryptography]
+      # PyJWT ships without its requested `crypto` extra (pyproject: pyjwt[crypto]); its algorithms
+      # module imports cryptography guarded, so HS256 and the phone's unverified claim reads remain
+      # (tools/skills_sync_client.py). The closure proves `jwt` imports with cryptography absent.
+      dropped_extras: ["pyjwt[crypto]"]
+      degrades: RS/ES/EdDSA JSON Web Token verification (dashboard sign-in, desktop only); the local secrets vault (agent.vault_store, owner D3 2026-09-30) and the external password managers (agent.vault_backends) are not packaged — the host's secure store binding is the phone's vault and the vault.* RPCs answer unavailable; the gateway's self-signed TLS mint (agent_runtime/gateway_tls.py) refuses, as a phone serves no remote gateway; every other kept import site is ImportError-guarded
+    - distribution: cffi
+      imports: [cffi, _cffi_backend]
+      degrades: nothing beyond cryptography's row — only cryptography needs it
+    - distribution: pillow-heif
+      imports: [pillow_heif]
+      degrades: nothing — the phone host transcodes HEIC/AVIF photos to JPEG before handing them to Hermes (owner D2 2026-09-30); agent.image_routing's HEIF opener registration is ImportError-guarded
     - distribution: psutil
       imports: [psutil]
       degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), and every kept import site is ImportError-guarded (discussions/native.py, conversations/native_peer.py, process_identity.py and hermes_constants_scratch.py since lane s2-g2)
@@ -501,6 +514,14 @@ packaging:
     # (tui_gateway/server.py imports it guarded; the phone serves no pdf.attach).
     - hermes_cli.venv_sync
     - tui_gateway.methods_pdf
+    # Owner decisions D3/D4/D5 (2026-09-30, phone-gate plan §5). D3: the secrets vault — the local
+    # Fernet store and the external password managers; the host's secure store binding is the phone's
+    # vault and the vault.* RPCs answer unavailable. D4: DuckDuckGo search runs its query in a worker
+    # subprocess; the HTTP-API web providers stay. (D5, no typed slash commands, is the _SlashWorker
+    # row in agent_runtime/spawn_stand_ins.py: tui_gateway.server is kept.)
+    - agent.vault_store
+    - agent.vault_backends
+    - plugins.web.ddgs
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
     - tests

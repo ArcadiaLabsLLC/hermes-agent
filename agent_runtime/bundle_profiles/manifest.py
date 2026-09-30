@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -159,7 +160,14 @@ def _omitted(row: Any) -> dict:
     stand_in = row.get("stand_in")
     if stand_in is not None and (not isinstance(stand_in, str) or not stand_in):
         raise ProfileManifestError(f"omitted distribution {name!r}: stand_in names a module")
+    dropped = _strings(row.get("dropped_extras"), "packaging.omitted_distributions[].dropped_extras")
+    if any(not re.fullmatch(r"[A-Za-z0-9._-]+\[[A-Za-z0-9._-]+\]", entry) for entry in dropped):
+        raise ProfileManifestError(f"omitted distribution {name!r}: dropped_extras entries are 'dist[extra]'")
     out = {"distribution": name, "imports": imports, "degrades": degrades}
+    if dropped:
+        # A shipped distribution's requested extra that requires this one ships WITHOUT that extra; the
+        # closure proves the distribution still imports with this one absent (bundle_profile_closure).
+        out["dropped_extras"] = dropped
     if stand_in:
         out["stand_in"] = stand_in  # a first-party module whose stand_in_modules() the entry registers
     return out
