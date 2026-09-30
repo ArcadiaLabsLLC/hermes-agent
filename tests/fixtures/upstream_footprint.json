@@ -2,9 +2,15 @@
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
   "files": 172,
-  "deleted_lines": 876,
+  "deleted_lines": 879,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "Owner-approved unified Launcher documents: connect native agents to the existing app-function authority.",
+      "files": "172 -> 172; all three native gateway files already carry fork seams.",
+      "deleted_lines": "876 -> 879: agent factory wrapper (1) and compute response precondition (2); heavy stays 4.",
+      "reason": "Discovery must precede the agent tool snapshot. Native turns bind the existing request transport; isolated compute must transport and settle discovery before its full session is registered. Capability policy, registry and documents remain Launcher-owned. Ordinary gateway paths retain their existing factory. See docs/downstream/unified-document-native-tools-2026-09-30.md."
+    },
     {
       "change": "lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) — phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)",
       "files": "170 -> 172: hermes_cli/venv_sync.py (relaunch_if_needed), tests/fixtures/resolution_allowlist.json (the pdftoppm `which` entry follows the handler to methods_pdf.py)",

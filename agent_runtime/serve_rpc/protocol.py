@@ -360,6 +360,7 @@ class RpcContext:
     spawn_chat_turn: Callable[[str, list[str], str], None] | None = None
     spawn_reply: Callable[[Callable[[], dict]], bool] | None = None
     interrupt_operator: Callable[[str], bool] | None = None
+    launcher_request: Callable[[str, dict], dict] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
+from .app_functions import AppFunctionPool
 from . import model_preferences, session_facts
 from .bindings import Bindings
 from .live import LiveConversation
@@ -39,11 +40,12 @@ class ConversationService:
             lambda generation: self._bindings.lost(generation))
         self._bindings = Bindings(self._attach, self._release, **(retention_options or {}))
         self._draining = False
+        self._app_functions = AppFunctionPool()
 
     def capabilities(self) -> dict:
         return {"version": 2, "install_id": self.install_id, "accepting": not self._draining,
                 "execution_identity_guard": True,
-                "images": True, "models": True, "skills": True,
+                "images": True, "models": True, "skills": True, "launcher_app_functions": True,
                 "independent_sessions": True, "disconnect_keeps_work": True}
 
     def open(self, scope: ConversationScope, *, key: str, cwd: str,
@@ -91,7 +93,7 @@ class ConversationService:
             elif stored_id and stored_id != route.native_id and result.get("resumed") != route.native_id:
                 raise ConversationError(Refusal.WRONG_OWNER)
             self.store.worker(route, *peer.process_identity)
-            return LiveConversation(route, native_id, worker, self.store)
+            return LiveConversation(route, native_id, worker, self.store, app_pool=self._app_functions)
         except Exception:
             self._workers.release(route.profile, worker)
             raise
@@ -107,7 +109,7 @@ class ConversationService:
         with self._bindings.borrow(route) as live:
             yield live
 
-    def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict) -> dict:
+    def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from .prompt import submit, validate
 
         validate(prompt)
@@ -118,6 +120,7 @@ class ConversationService:
                     raise ConversationError(Refusal.WORKER_LOST)
                 receipt, admitted = self.store.admit(live.route, identifier(turn_id), prompt)
             if admitted:
+                live.app_functions.bind(receipt.execution_id, launcher_request)
                 try:
                     submit(live.peer, live.native_id, prompt, receipt.execution_id)
                     live.dispatched(turn_id)
@@ -232,6 +235,7 @@ class ConversationService:
             self._draining = True
         self._bindings.close()
         self._workers.close()
+        self._app_functions.close()
 
     def drain_pending(self, *, close_idle: bool) -> list[str]:
         """An unreadable receipt or unclosed worker holds drain, never kills it."""

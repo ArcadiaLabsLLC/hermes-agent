@@ -14,6 +14,8 @@ def main() -> None:
     from tui_gateway.entry import main as serve_native
 
     install()
+    from agent_runtime.conversations.worker_app_functions import install as install_app_functions
+    install_app_functions()
     serve_native()
 
 
