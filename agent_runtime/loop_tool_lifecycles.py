@@ -35,7 +35,10 @@ release); ``agent.image_routing`` asks ``hermes_cli.local_runtime.capabilities``
 provider is the managed local runtime (no local runtime: never). One more is a fork seam of the
 phone gate (lane s2-g2): the fork's git chokepoint ``agent_runtime.git_cmd`` (``build_stamp``,
 ``build_identity``, ``repo_context`` and realm sync bind ``run_git`` at module level; no git on a
-phone, so each call refuses loudly). Each is placed only when its
+phone, so each call refuses loudly). And the secrets vault (lane s2-g5, owner decision D3): the turn
+path wires and releases the password managers' prompt callbacks in ``agent.vault_backends.unlock``
+(no manager on a phone: nothing to wire or release), and the ``vault.*`` RPCs reach the store and
+the managers, which refuse loudly. Each is placed only when its
 switched-off PACKAGE is absent, probed without importing it (``_PRESENCE``), so a desktop boot
 never pays for importing a package to learn it is there.
 With the real modules installed (desktop, full Hermes) it does nothing. It must run
@@ -64,6 +67,10 @@ LOCAL_ENVIRONMENT = "tools.environments.local"
 LOCAL_TTS = "tools.tts_tool_local"
 LOCAL_RUNTIME_CAPABILITIES = "hermes_cli.local_runtime.capabilities"
 GIT_COMMAND = "agent_runtime.git_cmd"
+VAULT_BACKENDS = "agent.vault_backends"
+VAULT_BACKENDS_BASE = "agent.vault_backends.base"
+VAULT_UNLOCK = "agent.vault_backends.unlock"
+VAULT_STORE = "agent.vault_store"
 
 
 class LifecycleNotShipped(RuntimeError):
@@ -103,6 +110,10 @@ def _not_managed(provider: Any = None, base_url: Any = None, *_args: Any, **_kwa
     return False
 
 
+def _no_callback(*_args: Any, **_kwargs: Any) -> None:
+    return None
+
+
 def not_shipped(module: str, name: str):
     """A stand-in for ``module.name`` where *module* is not shipped: calling it raises.
 
@@ -137,6 +148,19 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
     LOCAL_RUNTIME_CAPABILITIES: {"is_managed_provider": _not_managed,
                                  **_loud(LOCAL_RUNTIME_CAPABILITIES, "managed_model_supports_vision")},
     GIT_COMMAND: _loud(GIT_COMMAND, "run_git"),
+    # The secrets vault (owner decision D3, 2026-09-30: the phone drops the local store and the
+    # password managers; the host's secure store is its vault). Every turn wires the managers'
+    # per-thread prompt callbacks (tui_gateway.agent_callbacks, tools.thread_context) and a session's
+    # end releases its unlocks (tui_gateway.session_lifecycle): with no manager there is nothing to
+    # prompt for and nothing to release. The vault.* RPCs (tui_gateway.methods_vault) reach the
+    # store and the managers, which raise: each answers "not in this installation".
+    VAULT_UNLOCK: {name: _no_callback for name in (
+        "set_unlock_prompt_callback", "get_unlock_prompt_callback", "set_save_login_prompt_callback",
+        "get_save_login_prompt_callback", "set_code_prompt_callback", "get_code_prompt_callback",
+        "set_current_session_id", "release_session")} | _loud(VAULT_UNLOCK, "lock"),
+    VAULT_BACKENDS: _loud(VAULT_BACKENDS, "enabled_backends", "backend_for_handle"),
+    VAULT_BACKENDS_BASE: _loud(VAULT_BACKENDS_BASE, "external_backend_classes", "is_installed"),
+    VAULT_STORE: _loud(VAULT_STORE, "get_vault_store"),
 }
 
 #: module -> the module whose presence decides it, when that is its switched-off PACKAGE: probing the
@@ -144,6 +168,8 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
 _PRESENCE: dict[str, str] = {
     LOCAL_ENVIRONMENT: "tools.environments",
     LOCAL_RUNTIME_CAPABILITIES: "hermes_cli.local_runtime",
+    VAULT_BACKENDS_BASE: VAULT_BACKENDS,
+    VAULT_UNLOCK: VAULT_BACKENDS,
 }
 
 
@@ -178,4 +204,8 @@ def ensure_lifecycle_placeholders() -> tuple[str, ...]:
             setattr(stand_in, name, answer)
         sys.modules[module] = stand_in
         placed.append(module)
+    for module in placed:  # ``from package import submodule`` reads the attribute, as after a real import
+        parent, _, child = module.rpartition(".")
+        if parent in placed:
+            setattr(sys.modules[parent], child, sys.modules[module])
     return tuple(placed)

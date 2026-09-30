@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
-  "files": 172,
-  "deleted_lines": 876,
+  "files": 173,
+  "deleted_lines": 878,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane s2-g5: agent/secret_sources/bitwarden.py's _derive_encrypted_cache_key imports cryptography ImportError-guarded (raises RuntimeError, which both callers' best-effort cache paths already absorb) — phone-gate plan 2026-09-30, lane G5, owner decision D3",
+      "files": "172 -> 173: agent/secret_sources/bitwarden.py",
+      "deleted_lines": "876 -> 878: the two re-indented import lines; heavy unchanged at 4",
+      "reason": "The bundled phone profile omits cryptography (D3: the vault is dropped on phones), and the closure refuses an omitted distribution imported unguarded in any kept module. The Bitwarden secret source is kept (the secret-source registry imports it on the turn path) and its encrypted last-good cache is the one remaining unguarded site; a function-level stand-in cannot answer an import site. Upstream door: the same guard is an upstreamable 'cryptography is optional for the bws cache' change; its merge retires this carry."
+    },
     {
       "change": "lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) — phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)",
       "files": "170 -> 172: hermes_cli/venv_sync.py (relaunch_if_needed), tests/fixtures/resolution_allowlist.json (the pdftoppm `which` entry follows the handler to methods_pdf.py)",

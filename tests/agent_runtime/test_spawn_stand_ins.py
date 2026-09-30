@@ -157,3 +157,29 @@ def test_every_row_of_the_real_table_names_a_function_of_its_module():
         assert isinstance(function, types.FunctionType), row.target
         if isinstance(row.error, str):
             assert issubclass(getattr(sys.modules[row.module], row.error), BaseException), row.target
+
+
+def test_a_typed_slash_command_is_unavailable_on_the_phone_before_any_process(monkeypatch):
+    """Owner decision D5 (2026-09-30): no typed slash commands on the phone. The gateway's slash
+    worker is a stand-in there, so ``slash.exec`` answers "unavailable" and never starts
+    ``python -m tui_gateway.slash_worker``. Positive control: removed, the real ``__init__`` is back.
+    Killing mutation (recorded in the commit): delete the ``_SlashWorker.__init__`` row -> the gate
+    refuses the phone (``subprocess_call`` in ``tui_gateway.server``)."""
+    import subprocess
+
+    from tui_gateway import server
+
+    row = next(r for r in ssi.SPAWN_STAND_INS if r.target == "tui_gateway.server._SlashWorker.__init__")
+    real = server._SlashWorker.__init__
+    started: list = []
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: started.append(a) or pytest.fail("a process"))
+    ssi.install_spawn_stand_ins((row,))
+    try:
+        with pytest.raises(ssi.SlashCommandsUnavailable, match="slash commands are unavailable on this device"):
+            server._SlashWorker("session-key", "test-model")
+        assert isinstance(ssi.SlashCommandsUnavailable("x"), OSError)  # callers' `except Exception` answer it
+    finally:
+        ssi.remove_spawn_stand_ins((row,))
+    assert server._SlashWorker.__init__ is real
+    assert started == []
+

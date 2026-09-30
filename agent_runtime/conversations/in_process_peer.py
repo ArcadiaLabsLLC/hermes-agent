@@ -151,7 +151,17 @@ class InProcessPeer(PeerCore):
         if method in _SESSION_OPENERS and isinstance(request.get("id"), str):
             with self._lock:
                 self._openers.add(request["id"])
-        response = self._dispatch_scoped(request)
+        try:
+            response = self._dispatch_scoped(request)
+        except Exception as exc:
+            # An inline handler that raises is answered as the stdio door answers it
+            # (tui_gateway/entry.py) and the pool answers a long one: -32000, never a raise into
+            # the caller. On the phone this is how a switched-off feature's RPC (vault.*) answers.
+            if "method" not in request:
+                raise
+            _log().exception("in-process gateway handler failed for method=%r", method)
+            response = {"jsonrpc": "2.0", "id": request.get("id"),
+                        "error": {"code": -32000, "message": f"handler error: {exc}"}}
         if response is not None:
             self._transport.write(response)
 

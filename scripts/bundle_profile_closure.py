@@ -581,6 +581,82 @@ def stand_in_answered(manifest, unguarded: dict[str, list[dict]]) -> dict[str, l
     return out
 
 
+def _dropped(manifest) -> dict[str, set[str]]:
+    """distribution -> the requested extras an omitted row drops (``pyjwt[crypto]`` -> {"crypto"})."""
+    out: dict[str, set[str]] = {}
+    for row in manifest.omitted_distributions:
+        for entry in row.get("dropped_extras", ()):
+            name, _, extra = entry.partition("[")
+            out.setdefault(_norm(name), set()).add(extra.rstrip("]"))
+    return out
+
+
+def without_dropped_extras(requested: dict[str, set[str]], manifest) -> dict[str, set[str]]:
+    """``requested`` minus the extras the profile's omitted rows drop: their requirements are not followed.
+
+    An extra is optional to its distribution by construction; whether THIS one's code imports without
+    it is not assumed but proven at run time (:func:`dropped_extra_failures`)."""
+    dropped = _dropped(manifest)
+    return {name: extras - dropped.get(name, set()) for name, extras in requested.items()}
+
+
+#: Asked in a child interpreter with the omitted imports made unfindable: every top-level module of a
+#: distribution that ships without a dropped extra must still import.
+_DROPPED_EXTRA_PROBE = r"""
+import importlib, json, sys
+blocked, tops = set(json.loads(sys.argv[1])), json.loads(sys.argv[2])
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] in blocked:
+            raise ModuleNotFoundError(f"omitted: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+for name in blocked:
+    for loaded in [m for m in sys.modules if m.split(".")[0] == name]:
+        del sys.modules[loaded]
+failed = {}
+for top in tops:
+    try:
+        importlib.import_module(top)
+    except Exception as exc:  # noqa: BLE001 — the answer is the refusal
+        failed[top] = f"{type(exc).__name__}: {exc}"
+print(json.dumps(failed))
+"""
+
+
+def dropped_extra_failures(manifest, graph: "Graph", shipped: set[str]) -> list[str]:
+    """``dist[extra] -> reason`` for each dropped extra whose shipped distribution does NOT import with
+    the omitted distributions absent (an import error there is a phone that cannot start)."""
+    import subprocess
+
+    dropped = _dropped(manifest)
+    if not dropped:
+        return []
+    blocked = sorted({top for row in manifest.omitted_distributions for top in row["imports"]})
+    by_dist: dict[str, list[str]] = {}
+    for top, names in graph.mapping.items():
+        for name in names:
+            by_dist.setdefault(_norm(name), []).append(top)
+    out = []
+    for name, extras in sorted(dropped.items()):
+        label = f"{name}[{','.join(sorted(extras))}]"
+        if name not in shipped:
+            continue  # not shipped on this target: nothing to import
+        tops = sorted(t for t in by_dist.get(name, []) if not t.startswith("_") and t.isidentifier())
+        if not tops:
+            out.append(f"{label}: not installed, so its import without the extra is unproven")
+            continue
+        done = subprocess.run([sys.executable, "-c", _DROPPED_EXTRA_PROBE, json.dumps(blocked), json.dumps(tops)],
+                              capture_output=True, text=True, timeout=300, cwd=ROOT)
+        if done.returncode != 0:
+            raise RuntimeError(f"dropped-extra probe failed for {label}: {done.stderr[-2000:]}")
+        failed = json.loads(done.stdout.strip().splitlines()[-1])
+        out += [f"{label}: {top} does not import without the omitted distributions ({why})"
+                for top, why in sorted(failed.items())]
+    return out
+
+
 def omitted_import_sites(manifest, walk_result: Walk) -> dict[str, list[dict]]:
     """Every import site of an omitted distribution in the kept modules (each must be guarded)."""
     return {row["distribution"]: [dict(site, top=top) for top in row["imports"]
@@ -647,7 +723,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
         tops.setdefault(top, ["(pinned module)"])
 
     placeholders = {_norm(d) for d in manifest.placeholder_distributions}
-    graph = Graph(_lock(), requested_extras(env=env), placeholders, env=env)
+    graph = Graph(_lock(), without_dropped_extras(requested_extras(env=env), manifest), placeholders, env=env)
     declared_base, declared_extras = declared(env=env)
     omitted = {_norm(r["distribution"]) for r in manifest.omitted_distributions}
     base = graph.closure(declared_base - omitted)
@@ -711,6 +787,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
         "omitted_unguarded_import_sites": {d: [s for s in ss if s.get("dotted") not in answered.get(d, ())]
                                            for d, ss in unguarded_sites.items()},
         "stand_in_answered": answered,
+        "dropped_extra_failures": dropped_extra_failures(manifest, graph, shipped),
         "excludable": excl,
         "needed_measured_bytes": sum(r.get("size_bytes", 0) for r in rows),
         "needed_estimated_bytes": sum(r.get("wheel_bytes_estimate") or 0 for r in rows if not r["installed"]),
@@ -735,6 +812,7 @@ def refusals(result: dict) -> list[str]:
     out += [f"placeholder distribution {d} is imported by kept first-party code"
             for d in result.get("placeholder_imported", [])]
     out += [f"placeholder distribution {d} is a base dependency" for d in result.get("placeholder_is_base", [])]
+    out += [f"dropped extra {reason}" for reason in result.get("dropped_extra_failures", [])]
     return out
 
 

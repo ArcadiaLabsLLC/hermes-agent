@@ -110,6 +110,25 @@ def test_a_certificate_that_will_not_parse_is_typed_and_is_never_overwritten(
     assert b"nope" in certificate_path(tmp_path).read_bytes()
 
 
+def test_a_build_without_cryptography_mints_nothing_and_says_why(tmp_path: Path, monkeypatch):
+    """The phone wheel omits ``cryptography`` (``bundled-phone.yaml``, owner D3 2026-09-30): a phone
+    runs no remote gateway listener. Both halves answer ``cryptography_unavailable`` — never a
+    certificate in the clear, never the ``malformed_certificate`` a missing library would otherwise
+    be read as. Positive control: the same roots mint and load with the library present."""
+
+    minted = tmp_path / "minted"
+    assert ensure_certificate(minted).ok  # positive control: the library is really there
+    monkeypatch.setitem(__import__("sys").modules, "cryptography", None)  # `import cryptography` raises
+
+    fresh = ensure_certificate(tmp_path / "fresh")
+    assert fresh.state == "error:cryptography_unavailable"
+    assert not certificate_path(tmp_path / "fresh").exists()
+    assert not private_key_path(tmp_path / "fresh").exists()
+    assert read_certificate(minted).state == "error:cryptography_unavailable"
+    assert ensure_certificate(minted).state == "error:cryptography_unavailable"
+    assert certificate_path(minted).exists()  # the pinned pair is kept, never re-minted
+
+
 def test_a_certificate_without_its_key_reads_absent_rather_than_half_valid(
     tmp_path: Path,
 ):

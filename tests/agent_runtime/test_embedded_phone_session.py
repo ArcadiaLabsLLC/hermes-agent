@@ -219,7 +219,41 @@ def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
     }
 
 
-def phone_turn(app: Path) -> dict:
+def _gateway_answer(peer, method: str, params: dict) -> dict:
+    """The in-process gateway's raw answer frame (``peer.call`` keeps only the error code)."""
+    import uuid
+    from concurrent.futures import Future
+
+    rid, future = uuid.uuid4().hex, Future()
+    with peer._lock:
+        peer._pending[rid] = future
+    try:
+        peer.write({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        return future.result(timeout=60)
+    finally:
+        with peer._lock:
+            peer._pending.pop(rid, None)
+
+
+def _absent_features(wheel: str) -> dict:
+    """What the owner's phone decisions left out (2026-09-30), asked of the live in-process gateway
+    after the turn: D3 the secrets vault (``vault.*``), D5 typed slash commands (``slash.exec``: the
+    worker it would start is a stand-in), D4 DuckDuckGo search (``plugins.web.ddgs``)."""
+    from agent.web_search_registry import list_providers
+    from agent_runtime.conversations.binding import get_service
+
+    out = {"web_providers": sorted(p.name for p in list_providers()),
+           "ddgs_loaded": sorted(m for m in sys.modules if m.startswith("plugins.web.ddgs"))}
+    if wheel != "phone":  # the full wheel's vault is real: listing it would open an OS keyring
+        return out
+    peer = next(iter(get_service()._workers._workers.values())).peer
+    session_id = next(iter(peer._sessions))
+    out["vault"] = {m: _gateway_answer(peer, m, {}) for m in ("vault.list", "vault.sources", "vault.lock")}
+    out["slash"] = _gateway_answer(peer, "slash.exec", {"session_id": session_id, "command": "/help"})
+    return out
+
+
+def phone_turn(app: Path, wheel: str = "phone") -> dict:
     """Sign in and run one chat turn over ``EmbeddedServe`` frames; report what the turn left.
 
     Runs in the child interpreter the test starts (:data:`_CHILD`), so the phone wheel's absent
@@ -260,6 +294,7 @@ def phone_turn(app: Path) -> dict:
         _sign_in(phone)
         os.environ.pop(KEY_ENV, None)  # the chat must find the key through the host store, not this process
         result = _chat_turn(phone, install_id, app, home)
+        absent = _absent_features(wheel)
     finally:
         serve.close()
         exit_code = serve.wait(60)
@@ -270,7 +305,7 @@ def phone_turn(app: Path) -> dict:
             if e["turn_id"] == "turn-1" and e["frame"].get("params", {}).get("type") == "message.complete"]
     return {"turn": result["turn"]["state"], "turn_tail": json.dumps(result)[-3000:],
             "reply": done[-1]["text"] if done else None, "exit_code": exit_code, "spawned": spawned,
-            **_what_the_turn_left(home, store)}
+            "absent": absent, **_what_the_turn_left(home, store)}
 
 
 #: The child. ``phone``: its only first-party tree is the phone wheel's app tree
@@ -359,7 +394,7 @@ import importlib.util
 spec = importlib.util.spec_from_file_location("phone_turn_scenario", test_file)
 scenario = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scenario)
-result = scenario.phone_turn(app)
+result = scenario.phone_turn(app, wheel)
 result["attempted"] = attempts
 result["registry_loaded"] = "tools.process_registry" in sys.modules
 result["scanned"] = scanned
@@ -493,8 +528,19 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
         forced = tmp_path / "phone_forced"
         assert str(forced / "tools") in result["tools_path"], result["tools_path"]
         assert Path(result["forced_origin"]) == forced / "tools" / "terminal_tool.py", result["forced_origin"]
+        # Owner decisions D3-D5: every vault.* RPC answers that the vault is not here; a typed slash
+        # command answers that slash commands are unavailable, from the worker's stand-in, before
+        # any process; DuckDuckGo is not a web provider and its plugin never loaded. Positive
+        # control: the other web providers registered (and the full wheel's ddgs does, below).
+        absent = result["absent"]
+        for method, frame in absent["vault"].items():
+            assert "not in this installation" in frame["error"]["message"], (method, frame)
+        assert "slash commands are unavailable on this device" in absent["slash"]["error"]["message"], absent
+        assert "ddgs" not in absent["web_providers"] and absent["ddgs_loaded"] == [], absent
+        assert absent["web_providers"], absent
     else:
         assert result["registry_loaded"]  # the full wheel really ran the recovery the seam routes
+        assert "ddgs" in result["absent"]["web_providers"], result["absent"]  # the phone's check can see it
     assert result["spawned"] == []
     leaks = _leaks(app)
     assert SECRET not in leaks, leaks  # the key is only in the host store

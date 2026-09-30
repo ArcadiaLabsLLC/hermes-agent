@@ -115,8 +115,11 @@ def _derive_encrypted_cache_key(access_token: str, salt: bytes) -> bytes:
     lazily: eagerly mapping ``_rust.pyd`` on Windows blocks the updater replacing it."""
     # Keep the native cryptography extension lazy. Most CLI commands import this module while building
     # argparse, even though only encrypted-cache reads/writes need it. See #73381.
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    try:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    except ImportError as exc:  # a build without cryptography: both callers' best-effort cache misses
+        raise RuntimeError("the encrypted cache needs the cryptography package") from exc
 
     return HKDF(algorithm=hashes.SHA256(), length=32, salt=salt,
                 info=_ENCRYPTED_CACHE_INFO).derive(access_token.encode("utf-8"))

@@ -272,3 +272,69 @@ def _run_seams_child(mode: str, tmp_path) -> dict:
         env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
     assert proc.returncode == 0, proc.stderr[-4000:]
     return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+_VAULT_CHILD = r'''
+import json, sys
+OFF = ("agent.vault_store", "agent.vault_backends")
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if name in OFF or name.startswith(tuple(m + "." for m in OFF)):
+            raise ModuleNotFoundError(f"switched off: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+out = {}
+if sys.argv[1] == "control":
+    try:
+        from agent.vault_backends import unlock  # noqa: F401
+        out["unlock"] = "imported"
+    except ModuleNotFoundError as exc:
+        out["unlock"] = exc.name
+    print(json.dumps(out)); raise SystemExit
+from agent_runtime.loop_tool_lifecycles import LifecycleNotShipped, ensure_lifecycle_placeholders
+out["placed"] = sorted(m for m in ensure_lifecycle_placeholders() if m.startswith(OFF))
+from agent.vault_backends import unlock
+from agent.vault_backends.unlock import set_unlock_prompt_callback
+from tools.thread_context import _callback_api
+set_unlock_prompt_callback(lambda *a: "pw")
+out["prompt"] = unlock.get_unlock_prompt_callback()
+out["pairs"] = len(_callback_api())
+unlock.release_session("s1")
+for name, call in (("enabled_backends", lambda: __import__("agent.vault_backends", fromlist=["x"]).enabled_backends()),
+                   ("vault_store", lambda: __import__("agent.vault_store", fromlist=["x"]).get_vault_store()),
+                   ("lock", lambda: unlock.lock())):
+    try:
+        call()
+        out[name] = "ran"
+    except LifecycleNotShipped:
+        out[name] = "refused"
+print(json.dumps(out))
+'''
+
+
+def test_the_turn_wires_no_password_manager_where_the_vault_is_switched_off(tmp_path):
+    """Owner decision D3 (2026-09-30): the phone drops ``agent.vault_store`` and ``agent.vault_backends``.
+    Every turn still wires the managers' prompt callbacks (``tui_gateway.agent_callbacks``,
+    ``tools.thread_context``) and a session's end releases its unlocks: on the stand-in there is no
+    manager to prompt for, and the store and the managers refuse loudly (the ``vault.*`` RPCs).
+
+    Positive control: without the stand-in the same child cannot import the unlock callbacks.
+    Killing mutation: drop ``VAULT_UNLOCK`` from ``_LOOP_NAMES`` -> red."""
+    control = _run_vault_child("control", tmp_path)
+    assert control == {"unlock": "agent.vault_backends"}
+
+    out = _run_vault_child("seam", tmp_path)
+    assert out["placed"] == ["agent.vault_backends", "agent.vault_backends.base", "agent.vault_backends.unlock",
+                             "agent.vault_store"]
+    assert out["prompt"] is None and out["pairs"] == 5
+    assert out["enabled_backends"] == out["vault_store"] == out["lock"] == "refused"
+
+
+def _run_vault_child(mode: str, tmp_path) -> dict:
+    proc = subprocess.run(
+        [sys.executable, "-c", _VAULT_CHILD, mode], cwd=REPO_ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", timeout=240,
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+    assert proc.returncode == 0, proc.stderr[-4000:]
+    return json.loads(proc.stdout.strip().splitlines()[-1])

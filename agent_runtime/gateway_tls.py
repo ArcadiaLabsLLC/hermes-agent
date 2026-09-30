@@ -190,6 +190,8 @@ def read_certificate(store_root: Path | str) -> GatewayCertificate:
         der = _der_from_pem(cert.read_bytes())
     except OSError:
         return _error(store_root, "unreadable")
+    except CryptographyUnavailable:
+        return _error(store_root, "cryptography_unavailable")
     except Exception:
         return _error(store_root, "malformed_certificate")
     if der is None:
@@ -309,11 +311,30 @@ def server_ssl_context(store_root: Path | str) -> ssl.SSLContext:
 # ---------------------------------------------------------------------------
 
 
+class CryptographyUnavailable(ImportError):
+    """This build does not ship ``cryptography``: it mints and reads no gateway certificate.
+
+    The bundled phone profile omits the distribution (``bundled-phone.yaml``, owner decision D3
+    2026-09-30): a phone runs no remote gateway listener, so there is nothing to wrap in TLS. An
+    ``ImportError`` so :func:`ensure_certificate`'s arm answers ``cryptography_unavailable``.
+    """
+
+
+def _cryptography():
+    """The ``cryptography`` names the mint and the PEM read use, imported lazily (the Rust
+    extension is not mapped at boot) and ImportError-guarded for the builds that omit it."""
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+    except ImportError as exc:
+        raise CryptographyUnavailable("the cryptography package is not in this installation") from exc
+    return x509, hashes, serialization, ec, NameOID
+
+
 def _mint(store_root: Path | str, *, common_name: str | None) -> GatewayCertificate:
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.x509.oid import NameOID
+    x509, hashes, serialization, ec, NameOID = _cryptography()
 
     name = (common_name or "").strip() or "hermes-gateway"
     key = ec.generate_private_key(ec.SECP256R1())
@@ -366,8 +387,7 @@ def _mint(store_root: Path | str, *, common_name: str | None) -> GatewayCertific
 
 
 def _der_from_pem(pem: bytes) -> bytes | None:
-    from cryptography import x509
-    from cryptography.hazmat.primitives import serialization
+    x509, _hashes, serialization, _ec, _name_oid = _cryptography()
 
     certificate = x509.load_pem_x509_certificate(pem)
     return certificate.public_bytes(serialization.Encoding.DER)

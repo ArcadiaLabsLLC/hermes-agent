@@ -182,20 +182,36 @@ retires no gate finding. What it retires is the runtime defect the runtime-queue
 phone e2e stages the tree and its recorder sees no scan import of a forced module. Kept 1615 -> 1616
 (`forced_tree` itself).
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1616 first-party modules kept. Verdict: **REFUSED** (10 findings).
+**Re-taken at lane s2-g5 (2026-09-30): 10 -> 0 findings, PASS (exit 0).** Phone-gate plan lane G5,
+the owner decisions of 2026-09-30 applied, both counts from `~/.venvs/hermes-test` (CPython 3.14.5),
+the before-run on this lane's base `170d87d5a2`. D2: `pillow-heif` is omitted (the host transcodes
+HEIC/AVIF to JPEG; `agent.image_routing`'s opener registration was already guarded). D3:
+`agent.vault_store` and `agent.vault_backends` are switched off; the turn path's password-manager
+callback wiring (`tui_gateway.agent_callbacks`, `tools.thread_context`, `session_lifecycle`) lands
+on loop placeholders that answer "no manager", the `vault.*` RPCs answer "not in this installation"
+(the in-process peer now answers a raising inline handler with -32000, as the stdio door does), and
+`cryptography` / `cffi` are omitted: `agent_runtime/gateway_tls.py` imports it guarded
+(`cryptography_unavailable` for the mint and the read), `agent/secret_sources/bitwarden.py`'s key
+derivation likewise (its callers' best-effort cache misses), and PyJWT ships without its requested
+`crypto` extra — a new `omitted_distributions[].dropped_extras` row the closure stops following only
+after a child interpreter with `cryptography` unfindable imports `jwt`. D4: `plugins.web.ddgs` is
+switched off. D5: `tui_gateway.server._SlashWorker.__init__` is a stand-in row
+(`agent_runtime/spawn_stand_ins.py`) that answers "slash commands are unavailable on this device"
+before any process — no in-process slash runner. Per kind, before -> after: native 6 -> 0,
+subprocess_call 4 -> 0. Kept 1616 -> 1606. Killing mutation: delete the `_SlashWorker.__init__` row
+-> `REFUSED (1 findings)`, exit 1, `subprocess_call` in `tui_gateway.server` (`subprocess.Popen`); reverted. The phone e2e asserts each absence (vault RPCs, `slash.exec`, no ddgs provider,
+positive control: the full wheel registers ddgs).
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1606 first-party modules kept. Verdict: **PASS** (0 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
-| native | 3 | `cffi`, `cryptography`, `pillow-heif` |
-| subprocess_call | 3 modules | `agent.vault_backends.base`, `plugins.web.ddgs.provider`, `tui_gateway.server` |
 
 How each shipped distribution is first reached (first target):
 
 | distribution | via |
 |---|---|
-| cryptography | `model_tools → hermes_cli.plugins → agent.secret_sources.registry → agent.secret_sources.bitwarden` |
-| pillow-heif | `plugins.image_gen.openai_codex → agent.image_routing` |
 
 Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `agent_runtime.git_cmd` (`run_git`); `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`); `tools.tts_tool_local` (`_LOCAL_TTS_MODEL_CACHES`, `_generate_kittentts`, `_generate_neutts`, `_generate_piper_tts`, `_load_kittentts_model_for_config`, `_load_piper_voice_for_config`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 806 sites, into 142 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 828 sites, into 146 modules.

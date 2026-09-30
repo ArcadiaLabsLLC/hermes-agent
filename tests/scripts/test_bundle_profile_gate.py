@@ -335,3 +335,43 @@ def test_a_pin_the_packager_ships_in_the_forced_tree_is_answered_from_its_plan(t
     result = {"profile": "p", "targets": ["t"], "kept_modules": 2, "passed": False, "refusals": [],
               "module_findings": [], "targets_detail": {"t": {}}, "forced_tree_seams": ["tools.skills_hub"]}
     assert "sibling tree (`phone_forced/`" in render_markdown(result) and "`tools.skills_hub`" in render_markdown(result)
+
+
+def test_the_phones_kept_cryptography_import_sites_are_guarded():
+    """Phone-gate lane G5 (owner D3): with the vault switched off, the two kept modules that still
+    reach ``cryptography`` import it ImportError-guarded, so the phone can omit it (and ``cffi``).
+    Positive control: the same walk finds the sites — they are there, and guarded."""
+    from pathlib import Path
+
+    from scripts.bundle_profile_closure import _imports
+
+    root = Path(__file__).resolve().parents[2]
+    for rel in ("agent_runtime/gateway_tls.py", "agent/secret_sources/bitwarden.py"):
+        module = rel[:-3].replace("/", ".")
+        sites = [(line, guarded) for dotted, _eager, guarded, line in _imports(root / rel, module, False)
+                 if dotted.split(".")[0] == "cryptography"]
+        assert sites, rel
+        assert [line for line, guarded in sites if not guarded] == [], (rel, sites)
+
+
+def test_a_dropped_extra_is_not_followed_and_ships_only_when_its_distribution_imports_without_it():
+    """``omitted_distributions[].dropped_extras``: the phone ships PyJWT without its requested ``crypto``
+    extra, so the closure stops following ``pyjwt[crypto] -> cryptography`` — but only because a child
+    interpreter with ``cryptography`` unfindable still imports ``jwt``. Positive control: the same probe
+    with the distribution's own top module blocked refuses, so the probe really imports."""
+    from types import SimpleNamespace
+
+    from scripts.bundle_profile_closure import Graph, _lock, dropped_extra_failures, without_dropped_extras
+
+    row = {"distribution": "cryptography", "imports": ("cryptography",), "degrades": "x",
+           "dropped_extras": ("pyjwt[crypto]",)}
+    manifest = SimpleNamespace(omitted_distributions=(row,))
+    assert without_dropped_extras({"pyjwt": {"crypto"}, "httpx": {"socks"}}, manifest) == \
+        {"pyjwt": set(), "httpx": {"socks"}}
+    graph = Graph(_lock(), {})
+    assert dropped_extra_failures(manifest, graph, {"pyjwt"}) == []
+    assert dropped_extra_failures(manifest, graph, set()) == []  # not shipped on the target: nothing to prove
+
+    blocked_self = SimpleNamespace(omitted_distributions=({**row, "imports": ("cryptography", "jwt")},))
+    refused = dropped_extra_failures(blocked_self, graph, {"pyjwt"})
+    assert len(refused) == 1 and refused[0].startswith("pyjwt[crypto]: jwt does not import"), refused
