@@ -56,7 +56,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-30 (Stage 2 G4 landing, filed by the orchestrator)
 
-- [ ] **Widening PRs (owner 2026-09-30: draft all, publish at most 5 after verifying each is needed): group the `held widening PR: publish …` rows of `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` by area, draft one PR branch + feature-request body per group, publish the 5 most-needed, record every draft/PR number on its ledger rows** · `fork / upstream` · **TAKEN 2026-09-30 up-widen**
+- [ ] **Publish the three held widening drafts `widen/{terminal,processes,misc}` (bodies + commands in `X:/wt/_holds/pr-bodies/widen-<group>.{pr,issue}.md`); swap each ledger row's `DRAFT` for `PR #N (open)`. The first five went up 2026-09-30 (owner: at most 5): #129695 mcp, #129698 skills, #129700 pet, #129702 text-streaming, #129704 codex-cache** · `fork / upstream` · OWNER: publish when the first five get a maintainer answer
 
 - [ ] **Cut the Windows console-signal upstream PR: upstream `tests/conftest.py`'s import-time stale-lock sweep and `tui_gateway/host_supervisor.py` probe liveness with `os.kill(pid, 0)` on win32 (CTRL_C_EVENT to the console group), which upstream CONTRIBUTING "Critical rules" 1 forbids; offer the `gateway.status._pid_exists` swaps together with the live-guard console-event refusal, after measuring which upstream Windows tests the refusal reds** · `fork / upstream` · evidence: ledger rows `tests/conftest.py`, `tests/_fixtures/live_system_guard.py`, `tui_gateway/host_supervisor.py` (HELD, lane up-offer 2026-09-30) · UNCLAIMED
 
