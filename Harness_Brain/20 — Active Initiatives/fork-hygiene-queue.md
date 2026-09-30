@@ -11,6 +11,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Repair the stale Toolsets citation in the chat-turn canon.** · The citation-adjacency gate on `6c3fce3947` reports one unwaived failure in `docs/agent-runtime-harness/05-chat-turn-lane.md`, whose Toolsets paragraph points away from `clarify`, `delegation` and `terminal`; gate inputs are unchanged by the QA follow-up. [Check receipt](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#documentation-checks). Filed 2026-09-30 Projects QA. UNCLAIMED
+
+- [ ] **Diagnose the local CLI startup stall opening the inherited TLS key-log device target.** · The bounded inspector trace stops at `ssl.create_default_context` assigning `keylog_filename`, reached while `pm/downloader.py` constructs its opener during startup; no chat journal was created. Preserve certificate validation and logging oversight; classify host configuration versus startup handling before changing code. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#local-startup-stall). Filed 2026-09-30 Projects QA. UNCLAIMED
+
 - [ ] **Repair stale chat-lane patch targets and classify the unrelated `_model` duplicate-helper collision.** · Six failures reproduced on clean primary; [chat-first qualification](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison). Filed 2026-09-29 chat-first-groups. UNCLAIMED
 
 - **Additional evidence for the claimed validated-suite residuals:** 68 gateway/TLS failures reproduce on clean primary with Python 3.13.15; this does not supersede the separate Python 3.12 green receipt. [Comparison](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison). Filed 2026-09-29 chat-first-groups.
