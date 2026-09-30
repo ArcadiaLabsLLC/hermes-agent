@@ -28,7 +28,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-09-29 (lane h10b-triage)
 
 - [ ] **`harness_core` is missing from the shared-metrics `toolset` enum (class C3 remainder): the fork registers it in upstream's `toolsets.py` before `BUILTIN_TOOLSET_NAMES` is captured, so the contract exports a name upstream's v3 schema does not carry (`test_shared_metrics_efficiency.py::test_v3_schema_accepts_exactly_the_contract_values`)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · VERDICT 2026-09-29 h11-code: the other six C3 items DONE in this row's commit; this one waits on h11-fp's `toolsets.py` row — (a) register `harness_core` from a fork module after the capture, so metrics collapse it to `custom` (recommended: no upstream bytes, a fork toolset name never leaves the machine), (b) add it to the v3 schema enum (an upstream file) **TAKEN 2026-09-29 h11-code**
-- [ ] **The fork-edited `tools/file_tools_write_guards.py` refuses writes under load ("Refusing to overwrite") where upstream's does not: three tests red at 8 workers, green solo and green on pure upstream (class C1)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 **TAKEN 2026-09-29 h11-code**
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
@@ -283,6 +282,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED** · VERDICT 2026-09-29 h10-rtseam: still true on upstream/main 5bb2be179d. Not one line: `invoke_middleware` fans out once, so the chain needs a manager entry point. Drafted `up/middleware-request-chain` (940ab495bc, pushed to origin, NOT opened): `PluginManager.invoke_middleware_chain` + `_apply_request_chain` on it, red→green test in `tests/hermes_cli/test_plugins.py`. Owed: the owner opens it when PRs resume; then the eternia-harness plugin may split its composed callback · OWNER 2026-09-29: open the PR (after the branch pass) **TAKEN 2026-09-29 h10b-up** · VERDICT 2026-09-29 h10b-up2: branch pass: `up/middleware-request-chain` OPEN (clean on 77e2992020; new test red->green, the 1 other red is identical on upstream). Table: X:/Eternia/worktrees/h10b-logs/up-verdicts.md
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-09-29 (lane h11-code)
+
+- [ ] **`tools/file_tools_read_tracking._file_version` compares an `fstat` of the open handle with a path `os.stat` taken after the digest; on Windows under load `st_ctime_ns` differs by ~1 ms, the version is `None`, the full read is recorded partial and `write_file` refuses ("last read with offset/limit pagination") — reproduces on pure upstream `ee5f49b943` (3 files, 16 reds in 12 parallel runs); compare `fstat` with `fstat` on the same handle** · `upstream` · evidence: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 (re-classed U2 2026-09-29) · filed 2026-09-29
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
