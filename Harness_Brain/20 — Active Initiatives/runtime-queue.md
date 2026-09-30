@@ -286,7 +286,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
-- [ ] **`test_execute_code_composition_strips_inherited_hermes_entries` reds on Windows (inherited `c:\python312\lib\site-packages` not stripped) once its F821 is fixed (draft `up/test-local-env-magicmock-import`)** · `upstream / suite` · evidence: h10-up `.lane-logs/up4-test.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
