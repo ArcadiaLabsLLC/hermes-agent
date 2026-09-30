@@ -57,7 +57,11 @@ def _facts(service, scope, params):
 
 
 def _model(service, scope, params):
-    return service.select_model(scope, identifier(params["session_id"]), identifier(params["model_id"]))
+    save_default = params.get("save_default", False)
+    if type(save_default) is not bool:
+        raise ConversationError(Refusal.INVALID_REQUEST)
+    return service.select_model(scope, identifier(params["session_id"]), identifier(params["model_id"]),
+                                save_default=save_default)
 
 
 def _skills(action, service, scope, params):

@@ -8,9 +8,10 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 
-from . import session_facts
+from . import model_preferences, session_facts
 from .bindings import Bindings
 from .live import LiveConversation
 from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
@@ -25,13 +26,15 @@ __layer__ = "lanes"
 
 class ConversationService:
     def __init__(self, root: Path, install_id: str, *, profile_home: Callable[[str], Path],
-                 worker_factory=start_worker, retention_options=None):
+                 worker_factory=start_worker, retention_options=None, auth_home: Path | None = None):
         self.root, self.install_id = root.resolve(), install_id
+        self.auth_home = auth_home.resolve() if auth_home is not None else None
         self.store = ConversationStore(self.root / "native_conversation_routes.db")
         self.store.recover()
         self.profile_home = profile_home
         self._lock = threading.RLock()
-        self._workers = Workers(worker_factory,
+        factory = partial(worker_factory, auth_home=self.auth_home) if self.auth_home is not None else worker_factory
+        self._workers = Workers(factory,
             lambda generation, frame: self._bindings.receive(generation, frame),
             lambda generation: self._bindings.lost(generation))
         self._bindings = Bindings(self._attach, self._release, **(retention_options or {}))
@@ -61,7 +64,7 @@ class ConversationService:
             recovered = live.recover()
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
             return {"session_id": route.id, "install_id": self.install_id,
-                    "facts": session_facts.facts(route.id, recovered["recovery"], inventory), **recovered}
+                    "facts": self._facts(route, recovered["recovery"], inventory), **recovered}
 
     def _attach(self, route, *, created: bool) -> LiveConversation:
         receipt = self.store.latest(route)
@@ -77,6 +80,8 @@ class ConversationService:
         params = ({"cwd": route.cwd, "source": "eternia_intelligence"} if created else
                   {"session_id": route.native_id, "observe_only": True, "omit_messages": True,
                    "source": "eternia_intelligence"})
+        if created:
+            params.update(model_preferences.default_target(Path(route.home), self.auth_home))
         try:
             result = peer.call("session.create" if created else "session.resume", params)
             native_id = identifier(result["session_id"])
@@ -156,16 +161,28 @@ class ConversationService:
         with self._session(scope, session_id) as live:
             snapshot = live.peer.call("session.recover", {"session_id": live.native_id})
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
-            return session_facts.facts(session_id, snapshot, inventory)
+            return self._facts(live.route, snapshot, inventory)
 
-    def select_model(self, scope: ConversationScope, session_id: str, model_id: str) -> dict:
+    def _facts(self, route, snapshot: dict, inventory: dict) -> dict:
+        from hermes_cli.config import is_managed
+
+        return {**session_facts.facts(route.id, snapshot, inventory),
+                "default_model_id": model_preferences.default_id(Path(route.home), self.auth_home),
+                "can_save_model_default": not is_managed()}
+
+    def select_model(self, scope: ConversationScope, session_id: str, model_id: str,
+                     *, save_default: bool = False) -> dict:
         with self._session(scope, session_id) as live, live.operations:
             if live.turn_id is not None:
                 raise ConversationError(Refusal.BUSY)
+            from hermes_cli.config import is_managed
+            if save_default and is_managed():
+                raise ConversationError(Refusal.NATIVE_REFUSAL)
             inventory = live.peer.call("model.options", {"session_id": live.native_id})
-            session_facts.select(live.peer, live.native_id, model_id, inventory)
+            session_facts.select(live.peer, live.native_id, model_id, inventory, save_default=save_default)
             confirmed = self.facts(scope, session_id)
-            if confirmed["current_model_id"] != model_id:
+            if (confirmed["current_model_id"] != model_id or
+                    (save_default and confirmed["default_model_id"] != model_id)):
                 raise ConversationError(Refusal.UNKNOWN)
             return confirmed
 

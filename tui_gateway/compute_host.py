@@ -488,6 +488,9 @@ class ComputeHost:
         sid = str(frame.get("sid") or "")
         route_name = str(frame.get("route_name") or "")
         command = str(frame.get("command") or "")
+        if route_name == "config.set.model":
+            from tui_gateway.compute_model_selection import apply
+            return apply(server, frame, session)
         if route_name in {"session.save", "session.compress"}:
             params = {"session_id": sid}
             if route_name == "session.compress":

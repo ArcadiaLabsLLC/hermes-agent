@@ -13,6 +13,10 @@ The Hermes-native runtime serving Mission Control and Intelligence: operator roo
 independent conversations, discussions, personas, workspaces, office and board.
 Shared service authority does not mean a shared conversation identity.
 
+`provider_cursor::` 2026-09-29 — [shared provider authority](../../docs/downstream/shared-provider-authority-2026-09-29.md):
+native conversations reuse the selected service's credentials and catalog while
+retaining profile/tool isolation and independent, confirmed model choices.
+
 `native_cursor::` 2026-09-26 — native conversation workers and non-spatial discussion
 admission; [wire contracts](../../docs/agent-runtime-harness/03-transport-and-wire.md#native-conversation-methods),
 [qualification and repository limits](../../docs/downstream/native-hermes-qualification-2026-09-26.md).

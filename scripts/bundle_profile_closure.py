@@ -61,7 +61,34 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 NATIVE_SUFFIXES = (".pyd", ".so", ".dll", ".dylib")
-_SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", "web", "website", "apps", "ui-tui"}
+_SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__"}
+#: The repo's non-Python trees (the dashboard frontends, the website), skipped at the TOP LEVEL only:
+#: skipped anywhere, ``web`` also hid ``plugins/web/`` — every web provider, and the
+#: ``plugins.web.firecrawl.provider`` that ``tools.web_tools`` imports at module level.
+_SKIP_TOP_DIRS = {"web", "website", "apps", "ui-tui"}
+
+#: Imports a registry makes BY NAME, from a table the AST walk cannot read: importer -> targets.
+#: The plugin context's ``register_<kind>_provider`` methods import their registry and base class
+#: (``hermes_cli.plugins._SCOPED_PROVIDER_REGISTRARS``); the secret-source registry imports its
+#: bundled sources (``agent.secret_sources.registry._BUILTIN_SOURCES``). A kept importer keeps its
+#: targets — lazy edges, so a switched-off target is recorded like any lazy import into one.
+#: ``tests/scripts/test_bundle_profile_closure.py`` holds this to the tables themselves, read at
+#: run time.
+DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
+    "hermes_cli.plugins": (
+        "agent.image_gen_registry", "agent.image_gen_provider",
+        "agent.video_gen_registry", "agent.video_gen_provider",
+        "agent.web_search_registry", "agent.web_search_provider",
+        "agent.browser_registry", "agent.browser_provider",
+        "agent.terminal_env_registry", "agent.terminal_env_provider",
+        "agent.secret_sources.registry", "agent.secret_sources.base",
+        "agent.tts_registry", "agent.tts_provider",
+        "agent.transcription_registry", "agent.transcription_provider",
+    ),
+    "agent.secret_sources.registry": (
+        "agent.secret_sources.bitwarden", "agent.secret_sources.onepassword", "agent.secret_sources.command",
+    ),
+}
 
 #: The bundle target: markers are evaluated for the interpreter the installer ships.
 TARGET_ENV = {
@@ -109,7 +136,7 @@ def module_index(root: Path = ROOT, plugins=()) -> dict[str, Path]:
     index: dict[str, Path] = {}
     for path in root.rglob("*.py"):
         rel = path.relative_to(root)
-        if _SKIP_DIRS.intersection(rel.parts[:-1]):
+        if _SKIP_DIRS.intersection(rel.parts[:-1]) or (len(rel.parts) > 1 and rel.parts[0] in _SKIP_TOP_DIRS):
             continue
         parts = list(rel.with_suffix("").parts)
         if plugins and parts[0] == "plugins" and len(parts) > 2 and parts[1] in plugins:
@@ -280,7 +307,8 @@ class Walk:
                     elif package in index and _under(package, pruned) and not _under(module, pruned):
                         self.pinned.add(package)
                     package = package.rpartition(".")[0]
-            for dotted, eager, guarded, line in _imports(path, module, path.name == "__init__.py"):
+            dynamic = ((target, False, False, 0) for target in DYNAMIC_IMPORTS.get(module, ()))
+            for dotted, eager, guarded, line in (*_imports(path, module, path.name == "__init__.py"), *dynamic):
                 owner = _owner(dotted, index)
                 if owner is None:
                     top = dotted.split(".")[0]

@@ -113,14 +113,13 @@ def _set_model(rid, params, key, value, session):
         from hermes_cli.model_switch import parse_model_switch_args
         sid = params.get("session_id", "")
         parsed_flags = parse_model_switch_args(value)
-        # Compute-host sessions ALWAYS defer, busy or idle. Their live agent is in
-        # the child process — the direct path below would build a SECOND agent in
-        # the server, switch that copy, and leave the child (which handles every
-        # turn) on the old model: checkmark shows the pick, requests keep the old
-        # model. The stash crosses the boundary in the turn frame and the child's
-        # turn thread applies it (_apply_pending_model_switch).
-        if session.get("running") or session.get("_compute_host_active"):
+        # Busy picks stay queued; idle compute picks must reach the live owner.
+        if session.get("running"):
             return _stash_pending_model_switch(rid, key, value, session, confirmed, parsed_flags)
+        if session.get("_compute_host_active"):
+            from tui_gateway import server
+            from tui_gateway.compute_model_selection import forward
+            return forward(server, rid, params, session)
         explicit_provider = parsed_flags.explicit_provider
         failed_agent_init = session.get("agent") is None and session.get("agent_error") is not None
         failed_ready = session.get("agent_ready") if failed_agent_init else None

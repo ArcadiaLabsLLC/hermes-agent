@@ -63,7 +63,7 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def _profiles(port: int) -> dict[str, Path]:
+def _profiles(port: int, shared: bool) -> dict[str, Path]:
     from hermes_cli.profiles import get_profile_dir
 
     homes = {}
@@ -72,9 +72,11 @@ def _profiles(port: int) -> dict[str, Path]:
         (home / "skills" / f"review-{profile}").mkdir(parents=True)
         (home / "skills" / f"review-{profile}" / "SKILL.md").write_text(
             f"---\nname: review-{profile}\ndescription: Profile review\n---\nRead only {profile}.\n", encoding="utf-8")
+        definitions = ("" if shared else
+            f"providers:\n  local-test:\n    api: http://127.0.0.1:{port}/v1\n    api_key: isolated-{profile}\n")
         (home / "config.yaml").write_text(
             "model:\n  default: test-model\n  provider: custom:local-test\n"
-            f"providers:\n  local-test:\n    api: http://127.0.0.1:{port}/v1\n    api_key: isolated-{profile}\n"
+            + definitions +
             "dashboard:\n  turn_isolation: false\nmcp_servers: {}\n", encoding="utf-8")
         homes[profile] = home
     return homes
@@ -88,19 +90,27 @@ def _settle(service, scope, sid, turn):
     return result
 
 
-def test_a_b_a_turns_sessions_and_recovery_with_no_child_process(tmp_path):
+@pytest.mark.parametrize("shared", [False, True], ids=["private-provider", "shared-provider"])
+def test_a_b_a_turns_sessions_and_recovery_with_no_child_process(tmp_path, shared):
     from hermes_cli.profiles import get_profile_dir
 
     Provider.requests = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     threading.Thread(target=provider.serve_forever, daemon=True).start()
-    homes = _profiles(provider.server_port)
+    homes = _profiles(provider.server_port, shared)
+    owner = tmp_path / "owner"
+    owner.mkdir()
+    (owner / "config.yaml").write_text(
+        f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n"
+        "    key_env: PRIVATE_LLM_KEY\n    models: [test-model]\n    discover_models: false\n", encoding="utf-8")
+    (owner / ".env").write_text("PRIVATE_LLM_KEY=shared-provider\n", encoding="utf-8")
     root = tmp_path / "runtime"
     root.mkdir()
     children_before = {c.pid for c in psutil.Process().children(recursive=True)}
     now = [0.0]
     service = ConversationService(root, "phone-install", profile_home=get_profile_dir,
                                   worker_factory=start_in_process_worker,
+                                  auth_home=owner if shared else None,
                                   retention_options={"clock": lambda: now[0]})
     sessions = {}
     try:
@@ -123,8 +133,8 @@ def test_a_b_a_turns_sessions_and_recovery_with_no_child_process(tmp_path):
                 if any("marker-" in str(m.get("content", "")) for m in body.get("messages", []))]
         assert len(chat) >= 3
         for auth, body in chat:
-            mine = auth.removeprefix("Bearer isolated-")
-            assert mine in {"a", "b"}
+            mine = next(p for p in ("a", "b") if f"marker-{p}-" in json.dumps(body))
+            assert auth == ("Bearer shared-provider" if shared else f"Bearer isolated-{mine}")
             assert f"marker-{'b' if mine == 'a' else 'a'}-" not in json.dumps(body)
         assert (homes["a"] / "state.db").is_file() and (homes["b"] / "state.db").is_file()
         peers = [entry.live.peer for entry in service._bindings._entries.values()]

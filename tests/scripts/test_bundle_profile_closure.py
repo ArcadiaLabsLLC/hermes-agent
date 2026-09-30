@@ -199,3 +199,41 @@ def test_the_bundled_desktop_profile_stands_no_placeholder_in_since_faster_whisp
     """PyAV's placeholder existed for faster-whisper, which the speech pack no longer ships (Whisper
     runs on onnx-asr). Mutation: restore the ``av`` entry -> red."""
     assert load_profile("bundled-desktop", validate=False).placeholder_distributions == {}
+
+
+def test_the_declared_dynamic_imports_are_the_registries_own_tables():
+    """``DYNAMIC_IMPORTS`` is a copy of two tables the AST walk cannot read; it is held to the
+    tables themselves, asked at run time, in both directions."""
+    from agent.secret_sources import registry as secret_registry
+    from hermes_cli import plugins as plugin_context
+    from scripts.bundle_profile_closure import DYNAMIC_IMPORTS
+
+    registrars = plugin_context._SCOPED_PROVIDER_REGISTRARS
+    assert set(DYNAMIC_IMPORTS["hermes_cli.plugins"]) == (
+        {row[2] for row in registrars} | {row[3].partition(":")[0] for row in registrars})
+    assert set(DYNAMIC_IMPORTS["agent.secret_sources.registry"]) == {row[0] for row in secret_registry._BUILTIN_SOURCES}
+    assert set(DYNAMIC_IMPORTS) == {"hermes_cli.plugins", "agent.secret_sources.registry"}
+
+
+def test_a_kept_registry_keeps_what_it_imports_by_name(tmp_path, monkeypatch):
+    import scripts.bundle_profile_closure as closure
+
+    for rel, text in {"reg.py": "TABLE = ('impl',)\n", "impl.py": "", "off/__init__.py": "", "other.py": ""}.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    index = module_index(tmp_path)
+    monkeypatch.setattr(closure, "DYNAMIC_IMPORTS", {"reg": ("impl", "off")})
+    walk = Walk(("reg",), ("off",), index, {"reg", "impl", "off", "other"})
+    assert walk.kept == {"reg", "impl"}
+    assert walk.unguarded_into_pruned == [{"module": "reg", "line": 0, "target": "off"}]
+    monkeypatch.setattr(closure, "DYNAMIC_IMPORTS", {})  # positive control: undeclared, unreached
+    assert Walk(("reg",), ("off",), index, {"reg", "impl", "off", "other"}).kept == {"reg"}
+
+
+def test_a_nested_web_package_is_indexed_and_the_top_level_frontend_is_not(tmp_path):
+    for rel in ("plugins/web/provider.py", "web/build.py"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("", encoding="utf-8")
+    index = module_index(tmp_path)
+    assert "plugins.web.provider" in index
+    assert "web.build" not in index

@@ -28,7 +28,8 @@ def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_pa
         service.send(scope, sid, "original", {"text": "Ask whether to continue.", "images": []})
         pending = until(open_, lambda p: bool(p["recovery"].get("open_requests")))
         question = pending["recovery"]["open_requests"][0]
-        service.respond(scope, sid, question["id"], {"answer": "Yes"})
+        service.respond(scope, sid, question["id"], {
+            "answers": {question["params"]["questions"][0]["qid"]: "Yes"}})
         provider.release.set()
         def outcome():
             page = open_()

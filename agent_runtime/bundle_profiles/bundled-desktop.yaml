@@ -51,6 +51,9 @@ config:
   mcp.stdio_servers: false
   # Piper: never fetch a voice by name; the Launcher downloads voice files.
   tts.piper.download_voices: false
+  # The Launcher is the one model downloader: the dashboard's model download routes refuse and the
+  # serve loop sets HF_HUB_OFFLINE (agent_runtime/bundle_profiles/model_downloads.py).
+  local_models.downloads: false
   # Execution backends: only `local` may be created (Docker, SSH, Modal,
   # Daytona, Singularity, Vercel and plugin backends are refused).
   terminal.external_backends: false

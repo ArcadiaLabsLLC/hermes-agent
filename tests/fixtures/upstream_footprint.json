@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-29",
   "base": "ee5f49b943",
-  "files": 180,
-  "deleted_lines": 955,
+  "files": 186,
+  "deleted_lines": 981,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "2026-09-29 owner-approved shared provider authority and confirmed native model selection",
+      "files": "180 -> 186: provider readers bind the existing auth owner; native compute model changes reuse the existing control channel. Per-file hooks and retirement conditions are in upstream-footprint-ledger.md.",
+      "deleted_lines": "955 -> 981: substitute provider-scoped readers, context-preserving thread starts and the existing session identity projection; idle compute selection replaces a deferred write with the child receipt. Heavy files remain 4.",
+      "reason": "There is no existing provider-only config/secret reader hook across these consumers. Thin call-site seams delegate to focused fork modules; existing pools, config writer, model resolver and compute owner remain authoritative. Real A-to-B-to-A inline/compute execution verifies credential isolation and selected-model delivery. No second catalog or execution owner."
+    },
     {
       "change": "lane h11-mcp (5c8e850b18, c05c9d58d7), landed on main while h10-fhrel was landing",
       "files": "179 -> 180: adds agent/tool_dispatch_helpers.py and hermes_cli/mcp_startup.py (additive, 0 deleted each), retires tools/mcp_tool.py",

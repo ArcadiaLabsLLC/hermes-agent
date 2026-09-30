@@ -1227,4 +1227,7 @@ def serve_loop(reader: TextIO, writer: TextIO, **options: Any) -> int:
     injected seams, ``socket_lane``, ``service``, …) with the same defaults.
     """
 
+    from agent_runtime.bundle_profiles.model_downloads import apply_model_download_switch
+
+    apply_model_download_switch()  # before any speech loader imports huggingface_hub
     return ServeSession(reader, writer, **options).run()

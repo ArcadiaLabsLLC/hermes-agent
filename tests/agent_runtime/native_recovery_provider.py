@@ -71,7 +71,8 @@ class _Handler(BaseHTTPRequestHandler):
             if not answered:
                 self.chunk({"role": "assistant", "tool_calls": [{"index": 0, "id": "question-" + uuid.uuid4().hex,
                     "type": "function", "function": {"name": "clarify", "arguments": json.dumps({
-                        "question": "Continue the isolated recovery test?", "choices": ["Yes", "No"]})}}]})
+                        "questions": [{"question": "Continue the isolated recovery test?",
+                                       "choices": ["Yes", "No"]}]})}}]})
                 self.chunk({}, "tool_calls")
             else:
                 self.chunk({"role": "assistant", "content": self.server.text})

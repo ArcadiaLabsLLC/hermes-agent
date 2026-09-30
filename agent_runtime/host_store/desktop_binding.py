@@ -9,7 +9,9 @@ typed refusal (:class:`~agent_runtime.host_store.desktop.SecureStoreUnavailable`
 process exits rather than writing a sign-in in plaintext.
 
 Chat history is NOT moved (``history=False``): the worker is a second process on the same
-``state.db`` and the encrypted image has one writer. The ruling covers sign-ins.
+``state.db`` and the encrypted image has one writer. The ruling covers sign-ins; desktop
+chat history stays a plain file by owner ruling 2026-09-29 (revisit only with a one-writer
+or multi-process sealed store). ``tests/agent_runtime/test_desktop_host_store.py`` pins it.
 
 Migration: a plaintext credential file left by an older bundled install (census:
 ``docs/downstream/credential-store-census-2026-09-28.md``) is written to its slot,
