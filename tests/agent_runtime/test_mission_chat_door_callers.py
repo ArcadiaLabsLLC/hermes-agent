@@ -1,6 +1,6 @@
 """The runtime's three remaining reaches UP into the CLI take the door (lane W3-B).
 
-``discussions/native.py`` (a turn), ``persona_open_chat.py`` (open-chat) run
+``discussions/native_context.py`` (a turn), ``persona_open_chat.py`` (open-chat) run
 their CLI handler through ``agent_runtime.mission_chat_door``; ``peer_directory``
 resolves a target through ``agent_runtime.mission_chat_persona``, the resolver
 moved down out of ``chat_target``. Each door caller is driven UNBOUND (the typed
@@ -17,13 +17,14 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import mission_chat_door
-from agent_runtime.discussions import native
+from agent_runtime.discussions import native_context
 from agent_runtime.mission_chat_door import MissionChatDoorUnbound
 from agent_runtime.persona_open_chat import perform_persona_instance_open_chat
 
 ROOT = Path(__file__).resolve().parents[2]
 CALLERS = (
     "agent_runtime/discussions/native.py",
+    "agent_runtime/discussions/native_context.py",
     "agent_runtime/peer_directory.py",
     "agent_runtime/persona_open_chat.py",
     "agent_runtime/mission_chat_persona.py",
@@ -45,7 +46,7 @@ def test_the_caller_never_imports_the_cli_namespace(path):
 def test_native_turn_unbound_is_the_typed_refusal(monkeypatch):
     monkeypatch.setattr(mission_chat_door, "_turn", None)
     with pytest.raises(MissionChatDoorUnbound):
-        native._invoke_native(SimpleNamespace(payload_sink=lambda _row: None))
+        native_context._invoke_native(SimpleNamespace(payload_sink=lambda _row: None))
 
 
 def test_native_turn_bound_hands_the_last_payload_to_the_worker(monkeypatch):
@@ -56,7 +57,7 @@ def test_native_turn_bound_hands_the_last_payload_to_the_worker(monkeypatch):
 
     monkeypatch.setattr(mission_chat_door, "_turn", handler)
     seen: list[dict] = []
-    assert native._invoke_native(SimpleNamespace(payload_sink=seen.append)) == 0
+    assert native_context._invoke_native(SimpleNamespace(payload_sink=seen.append)) == 0
     assert seen == [{"ok": True}]
 
 
