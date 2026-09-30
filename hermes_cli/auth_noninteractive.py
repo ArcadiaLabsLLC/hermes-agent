@@ -275,12 +275,14 @@ def auth_set_key_command(args) -> int:
 
 def _login_flow_for(provider: str) -> tuple[Optional[str], Optional[str]]:
     """``(flow, cli_command)`` for ``provider`` from the login catalog."""
-    try:
-        from hermes_cli.provider_catalog import (
-            OAUTH_FLOW_OVERRIDES,
-            provider_login_catalog,
-        )
+    # Imported outside the try: a moved catalog must fail loudly, not report every
+    # provider as unknown (it did, after the catalog left provider_catalog.py).
+    from hermes_cli.provider_login_catalog import (
+        OAUTH_FLOW_OVERRIDES,
+        provider_login_catalog,
+    )
 
+    try:
         commands = {row["id"]: row.get("cli_command") for row in OAUTH_FLOW_OVERRIDES}
         for row in provider_login_catalog():
             if row["id"] == provider:

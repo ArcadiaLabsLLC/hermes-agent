@@ -4,6 +4,7 @@ The upstream file is byte-identical to upstream again; upstream's verbatim
 ``Path`` equality is marked by id in ``tests/_downstream/id_markers/``.
 """
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -23,7 +24,10 @@ class TestSanePathIncludesHomebrew:
         """
         from tools.environments import local as local_mod
         from tools.environments.local import _make_run_env
-        windows_env = {"Path": r"C:\Windows\System32;C:\Program Files\Git\bin"}
+        # The rest of the real environment stays: the home resolver the env build
+        # reaches needs USERPROFILE, and only the PATH key's casing is under test.
+        windows_env = {k: v for k, v in os.environ.items() if k.upper() != "PATH"}
+        windows_env["Path"] = r"C:\Windows\System32;C:\Program Files\Git\bin"
         monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
         with patch.object(local_mod.os, "environ", windows_env):
             result = _make_run_env({})

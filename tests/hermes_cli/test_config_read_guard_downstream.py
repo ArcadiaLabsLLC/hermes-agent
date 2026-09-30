@@ -1,19 +1,13 @@
 """The fork's half of ``tests/hermes_cli/test_config_read_guard.py`` (lane CARRY2A).
 
-The upstream guard is byte-identical to upstream and is a strict xfail by id
-(``tests/_downstream/id_markers/``): the fork's
-``agent_runtime/persona_config_sync.py`` reads a PULLED REALM SUBTREE's
-``profiles/<name>/config.yaml`` with ``yaml.safe_load`` — a foreign, published
-document that shares the filename, not this machine's user config (same class as
-upstream's ``hermes_cli/managed_scope.py`` row). Routing it through the canonical
-loaders would overlay this machine's managed scope and ``${ENV}`` expansion onto
-somebody else's realm document, which ``read_remote_persona_defs()`` exists to
-prevent.
+The upstream guard is byte-identical to upstream and runs unmarked since
+2026-09-29: ``agent_runtime/persona_config_sync.py`` no longer reads a realm
+``config.yaml`` raw (``3ef9469649``, one authority for persona definitions), so the
+fork's allowlist entry and its strict xfail were retired together.
 
-This module runs upstream's OWN scan body with the fork's three differences
-applied for the duration of one test:
+This module runs upstream's OWN scan body with the fork's two remaining
+differences applied for the duration of one test:
 
-* the allowlist gains ``agent_runtime/persona_config_sync.py``;
 * ``.claude`` is pruned (ML-14 / B20(iii)): agent worktrees live under
   ``.claude/worktrees/<branch>/``, each a full copy of the repo whose files do
   not match the root-relative allowlist;
@@ -30,7 +24,7 @@ import pytest
 
 from tests.hermes_cli import test_config_read_guard as upstream
 
-FORK_ALLOWLIST = {"agent_runtime/persona_config_sync.py"}
+FORK_ALLOWLIST: frozenset[str] = frozenset()
 FORK_EXCLUDED_DIR_PARTS = {".claude"}
 VENV_MARKER = "pyvenv.cfg"
 

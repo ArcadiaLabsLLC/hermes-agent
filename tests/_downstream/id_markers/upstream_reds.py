@@ -292,6 +292,8 @@ if _WIN:
             'tests/hermes_cli/test_backup.py::TestSafeCopyDb::test_aborts_when_source_remains_busy_past_deadline',
         )},
         **{node: (_up_red('CRLF written where LF is asserted (class c-B, issue class #121221)'),) for node in (
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_automatic_backup_omits_crc_valid_partial_member',
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_incomplete_pre_update_backup_does_not_rotate_last_complete',
         )},
         **{node: (_up_red('HOME patched, USERPROFILE not, in a ~-expansion (class c-C, #121222)'),) for node in (
             'tests/hermes_cli/test_resume_latest_and_in_dir.py::test_in_dir_expands_user_home',
