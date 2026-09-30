@@ -40,7 +40,7 @@ Membership is mechanical: files are grouped by their top-level test directory
 in the unbundled list run alone. Bundles are submitted longest-first by their
 members' cached durations.
 
-The runner's core (``assign_bundles``, ``tally_events``, ``members_to_rerun``,
+The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``, ``members_to_rerun``,
 ``bundle_timeout``, ``run``) names no fork path, so it can be lifted into
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
@@ -396,6 +396,22 @@ def tally_events(lines: Iterable[str]) -> BundleEvents:
     return events
 
 
+def effective_bundle_rc(events: BundleEvents, bundle_rc: int) -> int:
+    """The bundle's exit status once the recorder's own receipt is read.
+
+    A process exit 0 is only a success when the recorder agrees: a recorded
+    session end with a non-zero ``rc`` (bundle 26 of the chat-first-groups
+    landing: exit 0, ``rc: 2``, no test events) or no session end at all
+    contradicts it, and a contradicted success is a failure — its members are
+    then confirmed per file, never labelled green off the exit code."""
+
+    if bundle_rc != 0:
+        return bundle_rc
+    if events.session_end is None:
+        return 1
+    return int(events.exit_status or 0)
+
+
 def members_to_rerun(member_rels: Sequence[str], events: BundleEvents, bundle_rc: int) -> List[str]:
     """The members of a non-zero bundle that must be re-run alone.
 
@@ -405,10 +421,13 @@ def members_to_rerun(member_rels: Sequence[str], events: BundleEvents, bundle_rc
     running and the ones queued behind it, so every member from the last one
     that recorded a test onward is re-run too. If the bundle failed but no
     member carries the failure (a session-level error), every member is
-    re-run. A zero-exit bundle re-runs nothing."""
+    re-run. ``bundle_rc`` is read through :func:`effective_bundle_rc`, so a
+    zero exit the recorder contradicts is a failure; a zero-exit bundle the
+    recorder confirms re-runs only a member that recorded nothing at all."""
 
+    bundle_rc = effective_bundle_rc(events, bundle_rc)
     if bundle_rc == 0:
-        return []
+        return [rel for rel in member_rels if rel not in events.files]
     complete = set(member_rels)
     if events.session_end is None:
         ran = [i for i, rel in enumerate(member_rels) if rel in events.files and events.files[rel].counts]
@@ -556,7 +575,7 @@ def run(
         rerun = set(members_to_rerun(rels, events, rc))
         stopped_in = None
         unreached: List[Path] = []
-        if rc != 0 and events.session_end is None:
+        if effective_bundle_rc(events, rc) != 0 and events.session_end is None:
             ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
             stopped_in = ran[-1] if ran else rels[0]
             unreached = [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]

@@ -74,6 +74,13 @@ MCP_ADMISSION_BUDGET_EXHAUSTED = "mcp_admission_budget_exhausted"
 #: and the cure does NOT reach a running process: ``_MCP_AVAILABLE`` is a
 #: module-level constant read at import, so the runtime must be restarted.
 MCP_SDK_UNAVAILABLE = "mcp_sdk_unavailable"
+#: This distribution runs no MCP client at all: config ``mcp.client`` is off
+#: (``bundled-phone.yaml``; its one reader is
+#: ``tools/mcp_tool_common.py::mcp_client_enabled``). Its own code because the
+#: client modules are not shipped there, so the SDK probe would import-fail and
+#: tell the operator to ``pip install`` a client this build deliberately omits.
+#: Asked at ``admit_mcp_servers`` before any client import.
+MCP_CLIENT_DISABLED = "mcp_client_disabled"
 
 #: The admission LANE — the runtime surface a persona turn runs on. Distinct
 #: from ``mcp_lane``'s entry-point lane (``harness`` / ``chat`` / …), which
@@ -281,6 +288,7 @@ MCP_DENIAL_CODES: tuple[str, ...] = (
     MCP_ADMISSION_TEARDOWN_FAILED,
     MCP_ADMISSION_BUDGET_EXHAUSTED,
     MCP_SDK_UNAVAILABLE,
+    MCP_CLIENT_DISABLED,
     MCP_NOT_REGISTERED_ON_LANE,
 )
 

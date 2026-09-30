@@ -44,7 +44,12 @@ import os
 
 import pytest
 
-from tests._env_gap_fence import EnvGapSkipRegistry, apply_skips
+from tests._env_gap_fence import (
+    EnvGapSkipRegistry,
+    apply_skips,
+    resolved_bash_spells_posix_mount_paths,
+    shell_true_is_not_posix,
+)
 
 # Per-test ceiling for the AIAgent-constructing tests described above. Sized so
 # the slowest measured run (38.7s on this host) has ~3x headroom while the sum
@@ -112,6 +117,35 @@ def _shell_hook_scripts_are_not_directly_executable() -> bool:
 
 
 _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
+    # ── Shell premise (class U3, triage-561; lane h12-fix 2026-09-29) ───────
+    # Red identically on pure upstream ee5f49b943; see tests/_env_gap_fence.py.
+    'test_command_token_source.py': [
+        (
+            shell_true_is_not_posix,
+            'key_cmd runs with shell=True; the command "date +%s%N" needs a POSIX '
+            'sh, and cmd.exe runs its own date builtin (exit 1) or echoes the '
+            'substitution literally, so no token changes between mints',
+            {
+                'TestCaching::test_token_is_cached_between_calls',
+                'TestCaching::test_expired_token_is_reminted',
+                'TestCaching::test_no_advertised_ttl_caches_on_a_bounded_window',
+                'TestAbsoluteExpiry::test_the_token_actually_gets_re_minted',
+            },
+        ),
+    ],
+    'test_terminal_approval_batch.py': [
+        (
+            resolved_bash_spells_posix_mount_paths,
+            'asserts the native nested path appears in `pwd` output; the resolved '
+            'MSYS bash prints it in POSIX mount form (/x/...)',
+            {
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[False-0]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[False-2]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[True-0]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[True-2]',
+            },
+        ),
+    ],
     'test_shell_hooks.py': [
         (
             _shell_hook_scripts_are_not_directly_executable,

@@ -22,21 +22,29 @@ def bump_tool_defs_counter(name: str) -> None:
     setattr(_tool_defs_counters, name, getattr(_tool_defs_counters, name, 0) + 1)
 
 
-def ensure_plugin_tools_discovered() -> None:
+def ensure_plugin_tools_discovered() -> bool:
     """Discover plugins for the ACTIVE home before a schema recomputation walks the registry.
 
     ``model_tools`` discovers once at import, but plugin managers are per resolved home: a
     process that later serves another profile (or re-homes) found its plugin tools only when
     something inside the walk lazily discovered them, so the first tool list of that home
     lacked ``skill_search`` and the second had it (h10b-fix, owner 2026-09-29). Idempotent;
-    runs only on a memo miss.
+    runs only on a memo miss (never on the hit path: an idempotent call still resolves the home).
+
+    Returns True when this call changed the registry generation — a first discovery registers
+    the plugin's tools — so the caller re-keys its memo AFTER it; keyed before, the first list
+    of a home was stored under a generation that no longer exists and built a second time.
     """
     try:
         from hermes_cli.plugins import discover_plugins
+        from tools.registry import registry
 
+        before = registry._generation
         discover_plugins()
+        return registry._generation != before
     except Exception as exc:  # pragma: no cover — never break tool loading
         logger.debug("plugin discovery before tool definitions failed: %s", exc)
+        return False
 
 
 def tool_defs_cache_hits_this_thread() -> int:

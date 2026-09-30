@@ -114,7 +114,13 @@ import tempfile
 
 import pytest
 
-from tests._env_gap_fence import EnvGapSkipRegistry, KnownDefectTracker, apply_skips
+from tests._env_gap_fence import (
+    EnvGapSkipRegistry,
+    KnownDefectTracker,
+    apply_skips,
+    bare_bash_is_not_posix,
+    resolved_bash_spells_posix_mount_paths,
+)
 
 
 def _cached(fn):
@@ -201,6 +207,18 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
+    'test_browser_real_profile.py': [
+        (
+            _no_posix_file_modes,
+            'asserts the real-profile snapshot is owner-only (0o700 dirs, 0o600 '
+            'files) and that a lax one heals; chmod cannot express either mode '
+            'on this filesystem (class X, red on pure upstream too)',
+            {
+                'TestSnapshotRealProfile::test_snapshot_files_are_owner_only',
+                'TestSnapshotRealProfile::test_existing_lax_snapshot_heals_on_refresh',
+            },
+        ),
+    ],
     'test_file_write_safety.py': [
         (
             _no_posix_file_modes,
@@ -222,6 +240,108 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'the tree builder correctly reports "file"',
             {
                 'TestObjectBuilding::test_build_tree_blob_and_exec',
+            },
+        ),
+    ],
+    # ── Shell premise (class U3, triage-561; lane h12-fix 2026-09-29) ───────
+    # Red identically on pure upstream ee5f49b943. Keyed on the shell the test
+    # REACHES (tests/_env_gap_fence.py, "Shared shell-premise probes").
+    'test_terminal_compound_background.py': [
+        (
+            bare_bash_is_not_posix,
+            'checks the rewrite with argv ["bash", "-n", "-c", ...]; CreateProcess '
+            'resolves a bare bash in System32 (the WSL launcher) before PATH, so '
+            'every parse answers E_UNEXPECTED even though Git Bash is installed',
+            {
+                'TestRewriteIsValidBash::test_rewrite_parses[echo hi && sleep 5 & echo done]',
+                'TestRewriteIsValidBash::test_rewrite_parses[a && b & c && d]',
+                'TestRewriteIsValidBash::test_rewrite_parses[echo hi && sleep 5 &>/dev/null & echo done]',
+                'TestRewriteIsValidBash::test_rewrite_parses[echo a && sleep 5 & echo b & echo c]',
+                'TestRewriteIsValidBash::test_rewrite_parses[A && B &]',
+                'TestRewriteIsValidBash::test_rewrite_parses[A && B &; C]',
+                'TestRewriteIsValidBash::test_rewrite_parses[A && B &\\nC]',
+                'TestRewriteIsValidBash::test_rewrite_parses[cd /tmp && python3 -m http.server 0 &>/dev/null & curl localhost]',
+                'TestRewriteIsValidBash::test_rewrite_parses[a && b & &>/dev/null c]',
+                'TestRewriteIsValidBash::test_rewrite_parses[case $x in p) b && c & ;; esac]',
+                'TestRewriteIsValidBash::test_rewrite_parses[A && B & echo x\\nC && D & echo y && E & echo z]',
+                'TestRewriteIsValidBash::test_trailing_statement_actually_runs',
+            },
+        ),
+    ],
+    'test_file_ops_cwd_tracking.py': [
+        (
+            bare_bash_is_not_posix,
+            'its fake environment runs every command as argv ["bash", "-c", ...], '
+            'which reaches the System32 WSL launcher (E_UNEXPECTED, UTF-16) rather '
+            'than a POSIX bash, so each stat / cd reads as a failure',
+            {
+                'TestShellFileOpsCwdTracking::test_exec_follows_env_cwd_after_cd',
+                'TestShellFileOpsCwdTracking::test_env_without_cwd_attribute_falls_back_to_self_cwd',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_names_the_invalid_working_directory',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_is_reported_as_such_on_every_read_path[read_file]',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_is_reported_as_such_on_every_read_path[read_file_raw]',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_is_reported_as_such_on_every_read_path[read_file_bytes]',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_is_reported_as_such_on_every_read_path[patch]',
+                'TestShellFileOpsCwdTracking::test_wrapper_cd_failure_is_reported_as_such_on_every_read_path[search]',
+                'TestShellFileOpsCwdTracking::test_container_hint_only_for_container_backends',
+            },
+        ),
+    ],
+    'test_search_giant_line_containment.py': [
+        (
+            bare_bash_is_not_posix,
+            'its fake environment runs the search as argv ["bash", "-c", ...] '
+            '(the System32 WSL launcher on this host), so the target stat fails '
+            'and the search never runs',
+            {
+                'test_giant_single_line_match_is_bounded[rg]',
+                'test_giant_single_line_match_is_bounded[grep]',
+                'test_line_cap_skipped_for_path_and_count_modes[files_only-rg]',
+                'test_line_cap_skipped_for_path_and_count_modes[files_only-grep]',
+                'test_line_cap_skipped_for_path_and_count_modes[count-rg]',
+                'test_line_cap_skipped_for_path_and_count_modes[count-grep]',
+            },
+        ),
+    ],
+    'test_docker_environment.py': [
+        (
+            bare_bash_is_not_posix,
+            're-runs the wrapped docker exec script locally as argv '
+            '["bash", "-c", ...], which reaches the System32 WSL launcher',
+            {
+                'test_wrapped_exec_scopes_explicit_forward_env_across_profiles',
+            },
+        ),
+    ],
+    'test_bot_desktop_placement.py': [
+        (
+            bare_bash_is_not_posix,
+            'replays the ssh remote-shell reparse locally as argv ["bash", "-c", ...], '
+            'which reaches the System32 WSL launcher (class U4 remainder)',
+            {
+                'test_remote_command_survives_the_ssh_remote_shell_reparse',
+            },
+        ),
+    ],
+    'test_terminal_foreground_timeout_cap.py': [
+        (
+            resolved_bash_spells_posix_mount_paths,
+            'the command writes to an unquoted native path (echo x >> X:\\...\\ran); '
+            'the resolved MSYS bash reads each backslash as an escape and writes '
+            'elsewhere, so the marker never appears',
+            {
+                'TestForegroundTimeoutCap::test_foreground_timeout_above_max_is_promoted_to_tracked_background',
+            },
+        ),
+    ],
+    'test_local_env_blocklist.py': [
+        (
+            resolved_bash_spells_posix_mount_paths,
+            'observe_terminal builds a bash script around native paths; the '
+            'resolved MSYS bash reads their backslashes as escapes and the '
+            'script ends inside an open quote (unexpected EOF)',
+            {
+                'test_terminal_child_observes_declared_policy',
             },
         ),
     ],

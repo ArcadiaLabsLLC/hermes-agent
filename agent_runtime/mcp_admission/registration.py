@@ -15,7 +15,7 @@ from ..serde import positive_float
 
 from .outcomes import McpAdmission, McpAdmissionDenial, McpAdmissionOutcome, McpCallBudget, McpTeardownOutcome
 from .transport import _default_registrar, classify_admission_transport, mcp_sdk_available
-from .vocabulary import MCP_ADMISSION_LANE_BUSY, MCP_ADMISSION_TEARDOWN_FAILED, MCP_ADMISSION_TIMEOUT, MCP_SDK_UNAVAILABLE, _MCP_TOOLSET_PREFIX, logger
+from .vocabulary import MCP_ADMISSION_LANE_BUSY, MCP_CLIENT_DISABLED, MCP_ADMISSION_TEARDOWN_FAILED, MCP_ADMISSION_TIMEOUT, MCP_SDK_UNAVAILABLE, _MCP_TOOLSET_PREFIX, logger
 
 __layer__ = "lanes"
 
@@ -62,12 +62,54 @@ def admit_mcp_servers(
 
     if admission is None or admission.is_empty:
         return McpAdmissionOutcome(denied=tuple(admission.denied) if admission else ())
+    if register is None and not _mcp_client_enabled():
+        return _client_disabled_outcome(admission)
     return Admission(
         admission,
         register=register,
         timeout_seconds=timeout_seconds,
         on_budget_exhausted=on_budget_exhausted,
     ).run()
+
+
+def _mcp_client_enabled() -> bool:
+    """Config ``mcp.client``, asked BEFORE anything imports the client runtime.
+
+    Its reader lives in ``tools.mcp_tool_common``, which every distribution ships;
+    ``tools.mcp_tool`` and its client siblings are what a build with the switch
+    off omits. Asked only on the production path: a caller-supplied ``register``
+    is not the client, so the switch says nothing about it (the SDK flag's rule)."""
+
+    from tools.mcp_tool_common import mcp_client_enabled
+
+    return mcp_client_enabled()
+
+
+def _client_disabled_outcome(admission: McpAdmission) -> McpAdmissionOutcome:
+    """Every admitted server denied with ``mcp_client_disabled``; nothing imported."""
+
+    disabled = tuple(
+        McpAdmissionDenial(
+            server=name,
+            code=MCP_CLIENT_DISABLED,
+            summary=(
+                f"'{name}' was not registered because this hermes distribution runs no "
+                "MCP client (config mcp.client is off) — not because the server is unavailable."
+            ),
+            fix_hint=(
+                "This build deliberately ships without the MCP client, so installing a "
+                "package will not help. Finish the turn without the server and say what "
+                "went unverified; an operator can run the persona on a distribution with "
+                "mcp.client on."
+            ),
+        )
+        for name in admission.server_names
+    )
+    return McpAdmissionOutcome(
+        attempted=True,
+        denied=tuple(admission.denied) + disabled,
+        execution_denied=disabled,
+    )
 
 
 class Admission:
