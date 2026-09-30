@@ -1,23 +1,49 @@
 """Fork-owned tests moved out of ``tests/hermes_cli/test_kanban_db.py`` (lane CARRY).
 
-Same names, same bodies; the upstream file is byte-identical to upstream.
+The crash artifact rides upstream's ``on_kanban_worker_exited`` observer, registered by the
+eternia-harness plugin (lane h13-del, 2026-09-29): ``kanban_db_dispatch.py`` is at upstream
+bytes, so the artifact is found under ``<board logs>/crashes/`` rather than named in the
+``crashed`` event.
 """
 
 from __future__ import annotations
 import hermes_cli.kanban_db_dispatch as _owner_hermes_cli_kanban_db_dispatch
 import hermes_cli.kanban_db_workspace as _owner_hermes_cli_kanban_db_workspace
 from pathlib import Path
+
+import pytest
+
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 from hermes_cli import kanban_db_dispatch as kbd
+from hermes_cli.plugins import get_plugin_manager
 
 from tests.hermes_cli.test_kanban_db import (  # noqa: F401 — upstream names the moved tests use
     kanban_home,
 )
 
 
+@pytest.fixture
+def crash_evidence_hook(kanban_home):
+    """The eternia-harness plugin's ``on_kanban_worker_exited`` callback, subscribed by the
+    plugin's own ``register()`` through upstream discovery (not appended by hand)."""
+    mgr = get_plugin_manager()
+    saved = {k: list(v) for k, v in mgr._hooks.items()}
+    mgr.discover_and_load()
+    names = [getattr(cb, "__name__", "") for cb in mgr._hooks.get("on_kanban_worker_exited", [])]
+    assert names.count("record_kanban_crash_evidence") == 1, names
+    try:
+        yield
+    finally:
+        mgr._hooks = saved
+
+
+def _artifacts(tid):
+    return sorted((kb.worker_logs_dir() / "crashes").glob(f"{tid}-*.json"))
+
+
 def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
-    kanban_home, tmp_path, monkeypatch,
+    kanban_home, tmp_path, monkeypatch, crash_evidence_hook,
 ):
     """Supervisor PID disappears while a detached child / sidecar process
     keeps running. The dispatcher must:
@@ -27,8 +53,7 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
       * write a durable JSON crash artifact under ``logs/crashes/``
       * classify the record as ``supervisor_lost_child`` (not just
         ``process_failed``)
-      * link the artifact path into both the ``crashed`` task_event and
-        the closed run's ``metadata``
+      * stamp the artifact with the closed run's id, claimer and event kind
       * keep all artifact text free of Bearer/JWT/signed-URL tokens
     """
     import json
@@ -94,21 +119,12 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
         crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
         assert crashed == [tid]
 
-        # The crashed event payload must carry an evidence_path and a
-        # classification of "supervisor_lost_child".
-        events = kb.list_events(conn, tid)
-        crash_events = [e for e in events if e.kind == "crashed"]
-        assert crash_events, f"no 'crashed' event recorded; got {[e.kind for e in events]}"
-        ev = crash_events[-1]
-        assert ev.payload is not None
-        evidence_path = ev.payload.get("evidence_path")
-        assert evidence_path, (
-            f"crashed event missing evidence_path; payload={ev.payload!r}"
-        )
-        classification = ev.payload.get("classification")
-        assert classification == "supervisor_lost_child", (
-            f"expected 'supervisor_lost_child', got {classification!r}"
-        )
+        runs = kb.list_runs(conn, tid)
+        closed = [r for r in runs if r.outcome == "crashed"]
+        assert closed, f"expected one closed crashed run; got {runs!r}"
+        found = _artifacts(tid)
+        assert len(found) == 1, f"expected one crash artifact, got {found!r}"
+        evidence_path = str(found[0])
 
         artifact = Path(evidence_path)
         assert artifact.exists(), f"artifact missing on disk: {artifact}"
@@ -122,6 +138,9 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
         assert doc["classification"] == "supervisor_lost_child"
         assert doc["worker_pid"] == dead_supervisor_pid
         assert doc["profile"] == "worker"
+        assert doc["run_id"] == closed[-1].id
+        assert doc["event_kind"] == "crashed"
+        assert doc["claimer"], "the run row's claim_lock survives the reclaim"
         assert "timestamp" in doc and isinstance(doc["timestamp"], str)
         assert "captured_at_epoch" in doc
 
@@ -158,21 +177,12 @@ def test_detect_crashed_workers_writes_supervisor_lost_child_artifact(
         ]:
             assert forbidden not in whole
 
-        # The closed run's metadata must also carry evidence_path so the
-        # dashboard's run-detail view can reach it without re-parsing
-        # task_events.
-        runs = kb.list_runs(conn, tid)
-        last_closed = [r for r in runs if r.outcome == "crashed"]
-        assert last_closed, f"expected one closed crashed run; got {runs!r}"
-        meta = last_closed[-1].metadata or {}
-        assert meta.get("evidence_path") == evidence_path
-        assert meta.get("classification") == "supervisor_lost_child"
     finally:
         conn.close()
 
 
 def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
-    kanban_home, tmp_path, monkeypatch,
+    kanban_home, tmp_path, monkeypatch, crash_evidence_hook,
 ):
     """When neither supervisor nor any sidecar is alive, the crash record
     is classified ``process_failed`` (and still written) — distinct from
@@ -201,13 +211,11 @@ def test_detect_crashed_workers_process_failed_when_no_live_sidecar(
         crashed = _owner_hermes_cli_kanban_db_dispatch.detect_crashed_workers(conn)
         assert crashed == [tid]
 
-        events = kb.list_events(conn, tid)
-        crash = [e for e in events if e.kind == "crashed"][-1]
-        assert crash.payload.get("classification") == "process_failed"
-        # Even without sidecars, an artifact path should still be written
-        # so operators have a single canonical place to look.
-        path = crash.payload.get("evidence_path")
-        assert path and Path(path).exists()
+        # Even without sidecars, an artifact is still written so operators
+        # have a single canonical place to look.
+        found = _artifacts(tid)
+        assert len(found) == 1
+        path = str(found[0])
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
         assert doc["classification"] == "process_failed"
         assert doc["sidecars"] == []

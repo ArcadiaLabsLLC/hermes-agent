@@ -203,4 +203,3 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
-- [ ] **`hermes_cli/kanban_crash_evidence.py` + its `kanban_db_dispatch.py` hook can move whole into the plugin: `on_kanban_worker_exited` carries `run_id`, `task_runs.claim_lock` survives the reclaim, `tasks.workspace_path` stays — no upstream kwarg is needed, so delete the upstream-file edit** · `fork / seams` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix **TAKEN 2026-09-29 h13-del**
