@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
-from .app_functions import AppFunctionPool
+from .app_functions import AppFunctionPool, client_requests
 from . import model_preferences, session_facts
 from .bindings import Bindings
 from .live import LiveConversation
@@ -147,7 +147,8 @@ class ConversationService:
             snapshot = live.recover(turn_id)
             requests = live.peer.call("session.events.since", {
                 "session_id": live.native_id, "include_events": False})
-            return {**snapshot, "admitted": True, "requests": requests.get("open_requests", [])}
+            return {**snapshot, "admitted": True,
+                    "requests": client_requests(requests.get("open_requests", []))}
 
     def history(self, scope: ConversationScope, session_id: str, position: dict,
                 message_index: int, offset: int) -> dict:

@@ -79,12 +79,26 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
     service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home, **options)
     scope = ConversationScope("operator", "account", "native-proof")
     calls = []
+    entered, release = threading.Event(), threading.Event()
     def request(method, params):
         calls.append((method, params))
+        if method == "launcher.generated.create":
+            entered.set()
+            assert release.wait(30), "native projection probe did not release the tool"
         return {"tools": TOOLS} if method == "launcher.app_functions.list" else {"data": {"id": "generated-proof"}}
     try:
         sid = service.open(scope, key="chat", cwd=str(tmp_path), expected_home=str(home))["session_id"]
         service.send(scope, sid, "turn", {"text": "Create the native proof document.", "images": []}, launcher_request=request)
+        assert entered.wait(30), "agent never reached the Launcher tool"
+        assert service.read(scope, sid, 0, "turn")["open_requests"] == []
+        recovered = service.open(scope, key="chat", cwd=str(tmp_path), expected_home=str(home), resume=sid)
+        assert recovered["recovery"].get("open_requests", []) == []
+        assert service.observe_execution(scope, sid, "turn")["requests"] == []
+        with service._session(scope, sid) as live:
+            pending = live.peer.call("session.events.since", {"session_id": live.native_id, "include_events": False})
+        internal = next(q for q in pending["open_requests"] if q["method"] == METHOD)
+        assert not service.respond(scope, sid, internal["id"], {"reply": {"result": "forged"}})["accepted"]
+        release.set()
         settled = until(lambda: service.read(scope, sid, 0, "turn"),
                         lambda page: page["turn"]["state"] not in {"dispatching", "running", "unknown"}, timeout=60)
         assert settled["turn"]["state"] == "completed", settled
@@ -96,6 +110,7 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
         service.send(scope, sid, "turn", {"text": "Create the native proof document.", "images": []}, launcher_request=lambda *_: pytest.fail("rebound"))
         assert calls == before
     finally:
+        release.set()
         service.close()
         provider.shutdown()
         provider.server_close()
