@@ -18,7 +18,7 @@ The weekly merge of `NousResearch/hermes-agent:main` into the fork. Rule: [[0006
 3. `git merge upstream/main --no-ff --no-commit`, then resolve by rule:
    - additive on both sides → keep both;
    - upstream logic changed → upstream's version, the fork's addition re-applied on top;
-   - the seams survive: `_downstream_cli.build_downstream_parsers`, `_profile_bootstrap` + `_apply_profile_override`, `_boot_clock`, `"harness"` in the console list, `process_registry.restore_durable_completions`, profile scoping in `hermes_constants` / `profiles.py`;
+   - the seams survive: `_downstream_cli.build_downstream_parsers`, upstream's `_apply_profile_override` block with the fork's three in-place deltas (entrypoint gate from `_profile_bootstrap`, `harness agent set-profile` exemption, resolution receipt), `_boot_clock`, `"harness"` in the console list, `process_registry.restore_durable_completions`, profile scoping in `hermes_constants` / `profiles.py`;
    - never drop a fork test (move it if upstream deleted its anchor);
    - `pyproject.toml` / `uv.lock`: the fork's pair (`coverage==7.16.0`, `pytest-timeout==2.4.0`, the `exclude-newer-package` exemptions, `--timeout=30` in `addopts`) plus any NEW upstream rows.
 4. Commit: `merge: upstream/main <sha> into main (<date>)`, body = each conflicted file + the rule applied.

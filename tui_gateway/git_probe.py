@@ -20,8 +20,9 @@ _NEG_TTL = 30.0  # "not a git repo" TTL: a fresh `git init` shows within seconds
 
 
 def git_probe_enabled() -> bool:
-    """``sessions.git_probe`` (default on) — fork seam: off in a profile that may start no subprocess
-    (the phone, which ships no git); the session's branch and repo root are then simply unknown."""
+    """Config ``sessions.git_probe`` (default on): may the gateway spawn ``git`` to probe session
+    cwds? Off in a distribution that may start no subprocess (one that ships no git); the session's
+    branch and repo root are then simply unknown. An unreadable config keeps today's behaviour."""
     from hermes_cli.config import config_switch
 
     return config_switch("sessions", "git_probe", default=True)

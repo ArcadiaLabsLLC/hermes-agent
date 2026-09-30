@@ -1039,14 +1039,7 @@ def _sanitize_consumer_codex_request(agent: Any, request: dict[str, Any]) -> dic
 def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta=None):
     """One streaming Responses API request over raw ``responses.create(stream=True)`` events."""
     import httpx as _httpx
-    # Fork seam: the SDK-free client (agent.provider_sdks: false) raises its own APIConnectionError,
-    # shaped as the SDK's, so a pre-stream failure takes the SDK's retry arm on either client.
-    from agent.transports.httpx_client import APIConnectionError as _SdkFreeConnectionError
-    try:
-        from openai import APIConnectionError as _SdkConnectionError
-    except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
-        _SdkConnectionError = _SdkFreeConnectionError
-    _APIConnectionError = (_SdkConnectionError, _SdkFreeConnectionError)
+    from openai import APIConnectionError as _APIConnectionError
     from agent import relay_llm
     transport_errors = (_httpx.RemoteProtocolError, _httpx.ReadTimeout, _httpx.ReadError, _httpx.ConnectError, ConnectionError)
     active_client = client or agent._ensure_primary_openai_client(reason="codex_stream_direct")

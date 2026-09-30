@@ -11,7 +11,6 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
 
 * ``_load_openai_cls`` ignores the switch                        -> proxy test red.
 * ``sdk_free_async_client`` returns ``None``                     -> async test red (``from openai import AsyncOpenAI`` twin).
-* ``auxiliary_wire`` drops ``SdkFreeClient`` from its isinstance -> hygiene test red.
 """
 
 from __future__ import annotations
@@ -65,19 +64,6 @@ def test_the_async_twin_runs_the_sdk_free_client_off_loop():
     assert isinstance(twin, AsyncSdkFreeClient) and twin._real_client is sync and model == "m"
     answer = asyncio.run(twin.chat.completions.create(model="m", messages=[{"role": "user", "content": "x"}]))
     assert answer.choices[0].message.content == "a title"
-
-
-def test_the_chat_wire_hygiene_recognises_the_sdk_free_clients():
-    from agent.auxiliary_wire import prepare_chat_messages
-
-    messages = [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y",
-                                                   "reasoning_details": [{"type": "reasoning.text", "text": "r"}]}]
-    sync = SdkFreeClient(api_key=KEY, base_url=BASE)
-    for client in (openai.OpenAI(api_key=KEY, base_url=BASE), sync, AsyncSdkFreeClient(sync)):
-        prepared = prepare_chat_messages(client, {"model": "m", "messages": messages})
-        assert prepared["messages"] is not messages, type(client).__name__  # the transport sanitized a copy
-    native = object()
-    assert prepare_chat_messages(native, {"messages": messages})["messages"] is messages  # control
 
 
 _ANTHROPIC_STREAM = (

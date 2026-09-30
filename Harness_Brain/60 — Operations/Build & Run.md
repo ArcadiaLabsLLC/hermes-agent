@@ -18,7 +18,7 @@ Mission Control's install of hermes for the launcher: `scripts/install-mission-c
 
 ## Profiles and homes
 
-- `hermes -p <profile> …` selects `HERMES_HOME=<store>/profiles/<profile>`; `_profile_bootstrap._apply_profile_override()` runs before any import that reads the filesystem — in a CLI process only, never under pytest.
+- `hermes -p <profile> …` selects `HERMES_HOME=<store>/profiles/<profile>`; `hermes_cli.main._apply_profile_override()` runs before any import that reads the filesystem — in a CLI process only, never under pytest.
 - Live store on this box: `X:/Eternia/.hermes/` (`config.yaml`, `profiles/…`, `agent-runtime/` = `HERMES_AGENT_RUNTIME_ROOT`). The launcher's runtime uses `profiles/base`. Root `HERMES_HOME` writes go to the ACTIVE profile (`active_profile`) — use `-p` explicitly.
 - Default model per home since 2026-09-06: `gpt-5.6-luna` on `openai-codex` (`hermes config set`, per profile); a running runtime reads config at boot.
 

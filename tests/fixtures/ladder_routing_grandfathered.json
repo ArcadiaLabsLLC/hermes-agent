@@ -167,10 +167,6 @@
   },
   {
    "arms": 3,
-   "site": "hermes_cli/_profile_bootstrap.py|_scan_profile_flag|ladder|arg"
-  },
-  {
-   "arms": 3,
    "site": "hermes_cli/charsheet_payload_contract.py|_boolean_paths|isinstance|value"
   },
   {

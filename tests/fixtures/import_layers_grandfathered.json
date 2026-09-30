@@ -55,8 +55,6 @@
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main|_clear_bytecode_cache",
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main|_read_git_revision_fingerprint",
   "hermes_cli/_downstream_cli.py|hermes_cli.main|_has_any_provider_configured",
-  "hermes_cli/_profile_bootstrap.py|hermes_cli.profiles|_invalid_profile_name_error",
-  "hermes_cli/_profile_bootstrap.py|hermes_cli.service_manager|_s6_running",
   "hermes_cli/auth_noninteractive.py|hermes_cli.auth_commands|_api_key_default_label",
   "hermes_cli/auth_noninteractive.py|hermes_cli.auth_commands|_normalize_provider",
   "hermes_cli/auth_noninteractive.py|hermes_cli.auth_commands|_provider_base_url",

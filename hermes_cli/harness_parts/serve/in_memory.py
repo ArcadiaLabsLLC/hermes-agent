@@ -171,6 +171,9 @@ class EmbeddedServe:
         from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
 
         ensure_lifecycle_placeholders()  # before any request can import the agent loop
+        from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
+
+        ensure_provider_sdk_shim()  # the phone's `openai`: upstream's SDK import sites get the SDK-free client
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 

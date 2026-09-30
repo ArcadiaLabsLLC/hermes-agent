@@ -39,8 +39,8 @@ logger = logging.getLogger("gateway.run")
 
 def platform_adapters_allowed() -> bool:
     """Config ``gateway.platform_adapters`` (default on): may the messaging gateway start platform
-    adapters (Telegram, Discord, Slack, ...)? A distribution without messaging (the bundled desktop
-    profile) turns it off. An unreadable config keeps today's behaviour (on)."""
+    adapters (Telegram, Discord, Slack, ...)? A distribution without messaging (an embedded desktop
+    host) turns it off. An unreadable config keeps today's behaviour (on)."""
     from hermes_cli.config import config_switch
 
     return config_switch("gateway", "platform_adapters")

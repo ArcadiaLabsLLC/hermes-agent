@@ -146,10 +146,7 @@ def _transcribe_openai(
         model_name = DEFAULT_STT_MODEL
 
     def _run(client):
-        try:
-            from openai import APIStatusError
-        except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
-            from agent.transports.httpx_client import NoProviderSdk as APIStatusError
+        from openai import APIStatusError
 
         def _create_transcription(path: str):
             create_kwargs: Dict[str, Any] = {
