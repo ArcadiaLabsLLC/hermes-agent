@@ -192,9 +192,6 @@ if _WIN:
         ),
         # Red on pure upstream/main 067fa1a257 on this box too (coordinator's
         # pure_upstream_rerun.log): upstream Windows reds, byte-identical files.
-        "tests/hermes_cli/test_home_init_soul_symlink.py::test_initialize_home_replaces_unwritable_soul_symlink[cyclic]": (
-            _up_red("a cyclic symlink resolves to WinError 1921, not the POSIX loop error"),
-        ),
         "tests/hermes_cli/test_shallow_boundary_repair.py::test_failed_shallow_maintenance_restores_original_bytes": (
             _up_red("read-only git object files refuse the restore on Windows (WinError 5)"),
         ),
@@ -388,14 +385,6 @@ if _WIN:
             'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_passes_child_pid_exclude_to_scan',
             'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_kills_descendants_of_killed_roots_but_spares_a_failed_roots_subtree',
             'tests/hermes_cli/test_plugins_cmd_catalog.py::test_catalog_platform_mismatch_refuses_before_install',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_skips_build_only_on_termux_when_fresh',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_skips_install_on_termux_when_bundle_fresh',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_scopes_npm_install_on_termux_workspace',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_keeps_desktop_workspace_install_behaviour',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_npm_install_forces_include_dev',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_keeps_desktop_always_build_behaviour',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_decodes_dev_prebuild_with_utf8_replace',
-            'tests/hermes_cli/test_tui_npm_install.py::test_make_tui_argv_exits_with_recovery_hint_when_workspace_unrecoverable',
         )},
         **{node: (_up_red('fake executable is an extensionless #! script, neither run nor found via PATHEXT (class e-EXE)'),) for node in (
             'tests/hermes_cli/test_goal_gates.py::test_run_gate_fail_captures_output',
@@ -475,6 +464,105 @@ if _WIN:
                          "teardown and gets StopIteration. Test passes, teardown errors; "
                          "PR candidate: an unbounded tick source"),
         ),
+        # Lane h10b-triage (2026-09-29): red in the fork's three-directory run AND in a
+        # pure-upstream tree at merge-base ee5f49b943 with the same exception
+        # (docs/downstream/triage-561-2026-09-29.md).
+        **{
+            node: (_up_red(
+                "compares a POSIX spelling of a path (forward slashes, lower-case "
+                "suffix, a /repo or /work literal) against the Windows one; test-side "
+                "spelling, PR candidate class win-path-spelling"),)
+            for node in (
+                "tests/agent/test_context_file_sources.py::"
+                "test_manifest_matches_what_the_prompt_actually_loads",
+                "tests/agent/lsp/test_manager_locking.py::"
+                "test_delta_baseline_is_capped_by_write_recency",
+                "tests/tools/test_bot_mode_dm.py::"
+                "test_delivery_pins_the_hermes_entrypoint_beside_this_interpreter",
+                "tests/tools/test_bot_relay.py::"
+                "test_waiter_is_a_runner_entrypoint_the_approval_gate_lets_through",
+                "tests/tools/test_browser_pm.py::"
+                "test_restricted_path_discovers_external_browser_without_execution",
+                "tests/tools/test_project_tools.py::"
+                "test_agent_session_project_create_keeps_profile_active_pointer_and_moves_session",
+                "tests/tools/test_project_tools.py::"
+                "test_agent_session_project_switch_keeps_profile_active_pointer",
+                "tests/tools/test_tool_result_storage.py::TestMaybePersistToolResult::"
+                "test_tool_use_id_cannot_escape_storage_dir",
+            )
+        },
+        **{
+            node: (_up_red(
+                "deletes a directory or database a live handle still holds; Windows "
+                "answers WinError 32 where POSIX unlinks"),)
+            for node in (
+                "tests/agent/lsp/test_workspace.py::test_resolve_workspace_for_file_survives_deleted_cwd",
+                "tests/agent/lsp/test_workspace_release.py::"
+                "test_reaper_shuts_down_client_whose_root_was_deleted",
+                *(f"tests/agent/test_in_place_compaction.py::{t}" for t in (
+                    "TestCompactedTurnsStaySearchable::test_compacted_turns_found_by_default_search",
+                    "TestCompactedTurnsStaySearchable::test_rewound_turns_stay_hidden",
+                    "TestInPlaceAntiGrowthGuard::test_in_place_refuses_growing_compression",
+                    "TestInPlaceAntiGrowthGuard::test_in_place_salvages_near_break_even_growth",
+                    "TestInPlaceCompaction::test_in_place_alternation_preserved",
+                    "TestInPlaceCompaction::test_in_place_keeps_same_session_id",
+                    "TestInPlaceCompaction::test_rotation_still_preflushes",
+                    "TestRotationFallbackWhenFlagOff::test_rotation_when_flag_off",
+                )),
+                *(f"tests/agent/test_compression_boundary_hook.py::{t}" for t in (
+                    "TestCompressionBoundaryHook::test_automatic_notification_follows_core_persistence",
+                    "TestCompressionBoundaryHook::test_failure_before_persistence_does_not_notify",
+                    "TestCompressionBoundaryHook::test_hook_failure_does_not_break_compression",
+                    "TestCompressionBoundaryHook::test_no_progress_does_not_notify",
+                    "TestCompressionBoundaryHook::test_on_session_start_called_with_compression_boundary",
+                    "TestSessionCompressEvent::test_event_emitted_on_compression",
+                )),
+            )
+        },
+        **{
+            f"tests/tools/test_hermes_subprocess_env.py::{t}": (_up_red(
+                "clears HOME/USERPROFILE and then reaches Path.home(); POSIX falls back "
+                "to pwd, Windows raises 'Could not determine home directory'"),)
+            for t in (
+                "TestBrowserPassthroughPattern::test_browser_keys_recoverable_after_strip",
+                "TestDelegatedChildMarker::"
+                "test_delegated_child_context_scrubs_parent_kanban_keys_and_sets_marker",
+                "TestInheritCredentials::test_provider_keys_preserved_when_inheriting",
+                "TestInheritCredentials::test_pythonutf8_set_when_inheriting",
+                "TestInheritCredentials::test_tier1_secrets_stripped_even_when_inheriting",
+                "TestInternalDynamicSecrets::test_auxiliary_non_secrets_preserved",
+                "TestInternalDynamicSecrets::test_gateway_relay_id_stripped_even_when_inheriting",
+                "TestInternalDynamicSecrets::test_stripped_by_default",
+                "TestStripByDefault::test_buzz_platform_vars_stripped_by_default",
+                "TestStripByDefault::test_provider_keys_stripped_by_default",
+                "TestStripByDefault::test_pythonutf8_set",
+                "TestStripByDefault::test_tier1_secrets_stripped_by_default",
+                "TestTierInvariants::test_tier1_always_stripped_both_paths",
+            )
+        },
+        **{
+            f"tests/tools/test_browser_use_cli.py::{t}": (_up_red(
+                "spawns a fake browser-use CLI written as a POSIX script; Windows "
+                "refuses it with WinError 193"),)
+            for t in (
+                "TestBackendCdpResolution::test_named_session_composes_with_provider_backend",
+                "TestBrowserExec::test_code_piped_on_stdin",
+                "TestBrowserExec::test_nonzero_exit_reports_failure_and_stderr",
+                "TestBrowserExec::test_session_sets_bu_name",
+                "TestLegacyCloudMigration::test_explicit_backend_does_not_set_bu_autospawn",
+                "TestLegacyCloudMigration::test_migrated_config_gets_bu_autospawn",
+                "TestLightpandaPreamble::test_lightpanda_session_skips_own_tab_preamble",
+                "TestNativeScreenshots::test_text_only_model_gets_plain_result_with_path",
+                "TestNativeScreenshots::test_vision_model_gets_multimodal_envelope",
+                "TestOwnTabPreamble::test_named_packaged_chromium_skips_preamble",
+                "TestOwnTabPreamble::test_named_provider_browser_skips_preamble",
+                "TestOwnTabPreamble::test_named_shared_browser_gets_preamble",
+                "TestOwnTabPreamble::test_sentinel_never_reaches_subprocess_env",
+                "TestOwnTabPreamble::test_unnamed_session_gets_no_preamble",
+                "TestVaultEgressRedaction::test_exec_redacts_registered_vault_secret_from_stdout_and_stderr",
+                "TestVaultSupervisorAttach::test_exec_attaches_supervisor_to_the_browser_it_drives",
+            )
+        },
     })
 
 if _WIN:

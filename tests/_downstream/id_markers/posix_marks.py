@@ -67,9 +67,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
                 "test_exec_falls_back_to_running_interpreter_when_probe_fails",
                 "test_probe_accepts_shell_launcher_wrapper",
             )),
-            ("tests/hermes_cli/test_node_runtime_npm_resolution.py", (
-                "test_resolve_node_runtime_npm_rescans_past_windows_drive_to_native_mount",
-            )),
             ("tests/hermes_cli/test_orphan_desktop_serve_reap.py", (
                 "test_reap_only_kills_ppid1_local_serves",
                 "test_reap_spare_lock_owned_ssh_remote_backend_of_foreign_client",
@@ -405,6 +402,36 @@ if _WIN:
                 "TestWebhookSecurity::test_webhook_loads_auth_secrets_from_platform_extra",
             )
         },
+        # Lane h10b-triage (2026-09-29): POSIX premises that also red in a pure-upstream
+        # tree at merge-base ee5f49b943 (docs/downstream/triage-561-2026-09-29.md).
+        **{
+            f"tests/agent/test_file_safety_write_credentials.py::TestProfileHomeProcessHome::{test}": (
+                _posix_xfail("the guard enumerates homes through the pwd module"),
+            )
+            for test in ("test_benign_paths_stay_writable", "test_every_home_is_guarded")
+        },
+        **{
+            node: (_posix_xfail("asserts a POSIX owner-only mode; NTFS reports 0o666 / 0o777"),)
+            for node in (
+                "tests/tools/test_browser_vault.py::TestVaultHardening::test_vault_dir_is_owner_only",
+                "tests/tools/test_browser_vault.py::TestVaultStore::test_file_permissions_0600",
+                "tests/tools/test_memory_tool.py::TestMemoryFileLockPermissions::"
+                "test_existing_loose_lock_file_is_tightened",
+                "tests/tools/test_memory_tool.py::TestMemoryFileLockPermissions::"
+                "test_new_lock_file_is_owner_only_under_permissive_umask",
+                "tests/tools/test_stage2_hook_nous_routing_env.py::"
+                "test_container_values_reach_home_and_every_profile_env",
+                "tests/tools/test_stage2_hook_nous_routing_env.py::"
+                "test_container_wins_over_stale_line_then_idempotent_then_removed_when_unset",
+            )
+        },
+        "tests/hermes_cli/test_node_runtime_npm_resolution.py::"
+        "test_resolve_node_runtime_npm_never_rescans_path_past_a_windows_shim": (
+            _posix_xfail("a Windows npm shim is refused only on a POSIX host (its docstring)"),
+        ),
+        "tests/tools/test_spill_safety.py::test_refuses_dangling_symlink": (
+            _posix_xfail("a dangling symlink write raises on POSIX; Windows creates the target"),
+        ),
     })
 
 #: Upstream test modules that call a POSIX-only ``os`` attribute at IMPORT (a
@@ -424,4 +451,5 @@ IMPORT_TIME_POSIX_SHIMS: dict[str, dict[str, object]] = {
 #: ``up/win-posix-only-apis`` (a module-level ``pytest.importorskip``).
 IMPORT_TIME_POSIX_MODULES: dict[str, str] = {
     "tests/scripts/install/test_install_sh_output.py": "termios",
+    "tests/hermes_cli/test_profile_rename_service.py": "pwd",
 } if _WIN else {}

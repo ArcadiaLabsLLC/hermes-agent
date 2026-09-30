@@ -25,6 +25,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **Support chat-first groups through existing Discussion and native conversation authorities: exact profile/participant binding, bounded default discussion and explicit per-message audience without duplicate agents or credential stores.** · Owner approval 2026-09-29; Launcher chat-first group UX depends on this seam. **TAKEN 2026-09-29 chat-first-groups**
 
+### Filed on arrival — 2026-09-29 (lane h10b-triage)
+
+- [ ] **Seven fork product changes red upstream or fork gates on Windows (class C3): `hermes_bootstrap` imports `hermes_cli.interpreter_abi` (`1655333833`), which upstream's source-launcher fixture does not copy (10 ids); `realm sync history` states no runtime root; `harness_core` missing from the metrics `toolset` enum; the fork's `tool_describe` leaks into upstream's web toolset assertion; skill bundles keyed by POSIX path; two skills-collision tests; `test_nt_namespace_guard` hangs in `Path.resolve()` only in the fork** · per-file list: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · UNCLAIMED
+- [ ] **The fork-edited `tools/file_tools_write_guards.py` refuses writes under load ("Refusing to overwrite") where upstream's does not: three tests red at 8 workers, green solo and green on pure upstream (class C1)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 · UNCLAIMED
+
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
 - [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **UNCLAIMED**
