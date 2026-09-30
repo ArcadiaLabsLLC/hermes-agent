@@ -34,7 +34,7 @@ The fork reaches into upstream files at a few anchors. The good shape is **one i
 
 | upstream file | seam | shape today |
 |---|---|---|
-| `hermes_cli/main.py` | `_boot_clock.mark_main_import_started()`; `_profile_bootstrap` imports + `_apply_profile_override()` at entry; `build_downstream_parsers(subparsers)` in `_build_cli_parser`; `process_registry.restore_durable_completions()` in `_prepare_agent_startup`; `"harness"` in the console-command list | mostly additive, BUT a 200-line upstream block was replaced by the `_profile_bootstrap` imports — the permanent-conflict shape |
+| `hermes_cli/main.py` | `_boot_clock.mark_main_import_started()`; upstream's `_apply_profile_override` block in place, gated by `_profile_bootstrap.is_hermes_cli_entrypoint`, carrying three fork deltas (the gate, the `harness agent set-profile` exemption, the `HERMES_PROFILE_RESOLUTION` receipt); `build_downstream_parsers(subparsers)` in `_build_cli_parser`; `process_registry.restore_durable_completions()` in `_prepare_agent_startup`; `"harness"` in the console-command list | additive — the 200-line block replacement was restored to upstream's bytes (lane h12-fp 2026-09-29) |
 | `hermes_constants.py` | +286 lines: profile-aware home resolution (`get_hermes_home` at call time, `display_hermes_home`) | heavy; conflicts every sync |
 | `hermes_cli/profiles.py` | +301 | heavy |
 | `tools/registry.py`, `tools/skills_tool.py`, `agent/prompt_builder.py`, `agent/skill_utils.py` | skill/toolset admission hooks, prompt sections | medium |

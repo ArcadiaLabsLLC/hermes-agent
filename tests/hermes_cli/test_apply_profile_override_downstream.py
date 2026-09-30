@@ -109,7 +109,7 @@ class TestApplyProfileOverrideHermesHomeGuard:
 
 
 def test_extracted_profile_scanner_normalizes_and_preserves_rebind(monkeypatch):
-    from hermes_cli import _profile_bootstrap as bootstrap
+    from hermes_cli import main as bootstrap
     monkeypatch.setattr(sys, "argv", ["hermes"])
     assert bootstrap._scan_profile_flag(["-p", " Work ", "chat"]) == ("work", 2, 0)
     assert bootstrap._scan_profile_flag(["--profile= Work ", "chat"]) == ("work", 1, 0)
@@ -118,7 +118,7 @@ def test_extracted_profile_scanner_normalizes_and_preserves_rebind(monkeypatch):
 
 def test_extracted_profile_scanner_distinguishes_cli_typos_from_pytest(monkeypatch, capsys):
     import pytest
-    from hermes_cli import _profile_bootstrap as bootstrap
+    from hermes_cli import main as bootstrap
     monkeypatch.setattr(sys, "argv", ["hermes"])
     with pytest.raises(SystemExit) as error:
         bootstrap._scan_profile_flag(["-p", "Work Bot", "chat"])
