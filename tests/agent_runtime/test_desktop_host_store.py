@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.bundle_profiles.manifest import apply_to_config, load_profile
-from agent_runtime.host_store import binding, desktop, desktop_binding, history, secret_files
+from agent_runtime.host_store import binding, desktop, desktop_binding, secret_files
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="DPAPI is Windows-only")
@@ -100,7 +100,7 @@ def _reads_back_through_the_seams() -> None:
 def test_sign_ins_under_dpapi_leave_no_secret_in_the_data_root(app):
     _install_profile(app)
     bound = desktop_binding.bind_desktop_host_store()
-    assert bound is not None and not bound.encrypts_history  # credentials only
+    assert bound is not None and bound.callbacks.protect_history_dir is None  # credentials only
     _sign_in(app)
 
     assert _leaks(app) == set()
@@ -124,14 +124,6 @@ def test_another_user_cannot_read_the_slots(tmp_path):
     assert desktop.DpapiHostSecureStore(blobs).read(slot) == ACCESS.encode()  # positive control: same user
     with pytest.raises(desktop.SecretUnreadable):
         desktop.DpapiHostSecureStore(blobs, scope=b"another-windows-user").read(slot)
-
-
-@windows_only
-def test_the_history_key_is_generated_once_and_held_in_the_store(tmp_path):
-    first = desktop.DpapiHostSecureStore(tmp_path).history_key("default")
-    assert len(first) == binding.HISTORY_KEY_BYTES
-    assert desktop.DpapiHostSecureStore(tmp_path).history_key("default") == first
-    assert desktop.DpapiHostSecureStore(tmp_path).history_key("other") != first
 
 
 class _CrashingStore(desktop.DpapiHostSecureStore):
@@ -219,7 +211,7 @@ def test_the_switch_is_off_by_default_and_on_in_bundled_desktop(app):
     _install_profile(app)
     bound = desktop_binding.bind_desktop_host_store(store_factory=_fake_store)
     assert bound is binding.current() and bound.store_root == app
-    assert secret_files.bound() and not history.bound()  # sign-ins only: history stays upstream's file
+    assert secret_files.bound()  # sign-ins only: history stays upstream's file
 
 
 def _fake_store(_blob_dir):

@@ -1,8 +1,8 @@
 """The phone entry end to end: the embedded serve over the in-memory transport, a fake host store.
 
-Embedded-hermes plan Stage 2 exit ("against the fake host store, no secret and no chat text is
-on disk in plaintext"), proven through the entry the phone shim calls rather than through each
-seam on its own. One app folder, the ``bundled-phone`` profile's config, a fake host secure
+Embedded-hermes plan Stage 2 exit, as amended by the owner ruling of 2026-09-30 ("no secret is on
+disk in plaintext; the chat history is upstream's files under the OS's file protection"), proven
+through the entry the phone shim calls rather than through each seam on its own. One app folder, the ``bundled-phone`` profile's config, a fake host secure
 store bound over the folder; then, over ``EmbeddedServe`` frames only:
 
 1. ``runtime.provider.signin.*`` signs in a fake provider — the in-process runner
@@ -11,16 +11,17 @@ store bound over the folder; then, over ``EmbeddedServe`` frames only:
 2. ``runtime.conversation.open`` / ``send`` / ``read`` runs one chat turn — the in-process
    worker (``conversations.subprocess_worker: false``) and the SDK-free client
    (``agent.provider_sdks: false``) against a loopback provider, which must receive the key;
-3. a byte scan of the whole app folder finds neither the key nor a word of the chat.
+3. a byte scan of the whole app folder finds no key, and the host was asked to protect the
+   Hermes home (``protect_history_dir``) before the serve ran.
 
 POSITIVE CONTROLS: the key reached the provider and sits in the host store's slots; the chat
-reached the provider and the state DB the scan read decrypts (through the bound store) to a
-transcript carrying it — so the scan looked where the bytes are. No Hermes process was started
+reached the provider and the same byte scan FINDS it in the history (upstream's state DB), so
+the scan looked where the bytes are. No Hermes process was started
 (the gateway's git branch probe is the one named spawn left; see the assertion).
 
 The entry's refusals: unbound, ``EmbeddedServe.start`` raises ``HostStoreNotBound`` and writes
-nothing; a binding whose root does not hold the Hermes home raises ``OutsideStoreRoot``; the
-loop's lifecycle placeholders are registered before the serve thread exists.
+nothing; a binding whose root does not hold the Hermes home raises ``OutsideStoreRoot``; a
+binding with no ``protect_history_dir`` raises ``HistoryProtectionMissing``; the loop's lifecycle placeholders are registered before the serve thread exists.
 
 Killing mutations (applied, red recorded, reverted — see the commit message).
 """
@@ -143,9 +144,6 @@ def _phone_config(home: Path, port: int) -> None:
             "providers": {PROVIDER: {"api": f"http://127.0.0.1:{port}/v1", "key_env": KEY_ENV}},
             "dashboard": {"turn_isolation": False}, "mcp_servers": {}}
     config = apply_to_config(load_profile("bundled-phone"), base)
-    # The profile keeps its file log at WARNING; INFO here makes agent.log record the turn's opening
-    # words, so the scan below proves the log itself is sealed rather than merely quiet.
-    config.setdefault("logging", {})["level"] = "INFO"
     # Hermes's own YAML writer: the test environment carries Hermes's dependencies, which do not
     # include PyYAML (the file errored at import under scripts/run_tests.sh).
     from hermes_yaml import safe_dump
@@ -203,26 +201,21 @@ def _chat_turn(phone: Phone, install_id: str, app: Path, home: Path) -> dict:
 
 
 def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
-    """Read back, through the bound store, the history and the log the byte scan covers."""
-    import hermes_logging
-    from agent_runtime.host_store import history
+    """Read back the history the byte scan covers, and what the host was asked to protect."""
     from hermes_state import SessionDB
 
-    hermes_logging.flush_log_queue()
     db = SessionDB(home / "state.db")
     try:
         transcript = json.dumps([db.get_messages(row["id"]) for row in db.list_sessions_rich(limit=10)])
     finally:
         db.close()
-    log = home / "logs" / "agent.log"
-    records = history.read_records(log) if log.is_file() else []
     return {
         "chat_auth": [auth for auth, body in Provider.requests if CHAT in json.dumps(body)],
         "key_in_store": any(SECRET.encode() in value for value in store.slots.values()),
         "state_db_bytes": (home / "state.db").stat().st_size if (home / "state.db").is_file() else 0,
         "transcript": [needle for needle in (CHAT, REPLY) if needle in transcript],
-        "log_records": len(records),
-        "log_has_chat": any(CHAT in record for record in records),
+        "protected": list(store.protected),
+        "home": str(home),
     }
 
 
@@ -422,11 +415,10 @@ def _unseamed(attempts: list[dict]) -> list[dict]:
 
 @pytest.mark.timeout(300)  # the phone case stages the wheel first (the packager's walk, ~40 s)
 @pytest.mark.parametrize("wheel", ["phone", "full"])
-def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(tmp_path, wheel):
+def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_history(tmp_path, wheel):
     """``phone``: the switched-off modules are absent. ``full``: every module is installed, so the
     background drain loads the process registry, whose import-time delegation recovery opens the
-    state DB beside the sealed store — the bound store must still hold every byte (the recovery's own
-    write path is pinned in test_host_store_seam.py)."""
+    state DB — the key must still be only in the host store."""
     from agent_runtime.bundle_profiles.manifest import load_profile
 
     app = tmp_path / "app"
@@ -444,12 +436,12 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(tmp_
     assert result["turn"] == "completed", result["turn_tail"]
     assert result["reply"] == REPLY
     assert result["exit_code"] is not None, "the embedded serve did not end at EOF"
-    # Positive controls: the key and the chat really travelled, the history the scan reads holds
-    # them, and the log recorded the chat — sealed, so the scan looked where the bytes are.
+    # Positive controls: the key and the chat really travelled, and the history holds the chat.
     assert result["chat_auth"] and all(auth == f"Bearer {SECRET}" for auth in result["chat_auth"])
     assert result["key_in_store"]
     assert result["state_db_bytes"] > 0 and result["transcript"] == [CHAT, REPLY]
-    assert result["log_records"] > 0 and result["log_has_chat"]
+    # The phone boot asked the host to protect the history folder, once, before the serve ran.
+    assert result["protected"] == [result["home"]]
     # The phone wheel: nothing on the turn path reached a switched-off module except through a
     # module-level seam (not even into an ImportError it swallowed), and no process was started —
     # no worker, no `hermes auth login`, no python/pip probe, no git probe. Positive control: the
@@ -460,7 +452,9 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_and_no_chat_text_on_disk(tmp_
     else:
         assert result["registry_loaded"]  # the full wheel really ran the recovery the seam routes
     assert result["spawned"] == []
-    assert _leaks(app) == {}
+    leaks = _leaks(app)
+    assert SECRET not in leaks, leaks  # the key is only in the host store
+    assert CHAT in leaks, leaks  # positive control: the scan reads the (OS-protected) history
 
 
 def test_an_unbound_host_store_is_refused_before_any_request(app):
@@ -478,11 +472,23 @@ def test_an_unbound_host_store_is_refused_before_any_request(app):
         EmbeddedServe(lambda _line: None).start()
     binding.unbind_host_store()
 
-    # Positive control: bound over the app folder, the same entry serves.
-    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    # A host that cannot protect the history folder is refused before any request.
+    bare = FakeHostSecureStore()
+    binding.bind_host_store(binding.HostStoreCallbacks(read=bare.read, write=bare.write, delete=bare.delete),
+                            profile="phone", store_root=app)
+    with pytest.raises(binding.HistoryProtectionMissing):
+        EmbeddedServe(lambda _line: None).start()
+    assert not (home / "state.db").exists()
+    binding.unbind_host_store()
+
+    # Positive control: bound over the app folder, the same entry serves — and asked the host to
+    # protect the Hermes home before its serve thread existed.
+    store = FakeHostSecureStore()
+    store.bind(profile="phone", store_root=app)
     frames = Frames()
     serve = EmbeddedServe(frames.on_frame)
     serve.start()
+    assert store.protected == [str(home)]
     serve.close()
     assert serve.wait(60) is not None
     assert any(f.get("event") == "ready" for f in frames.frames)

@@ -50,13 +50,9 @@ def dispatch_db_path() -> Path:
 
 
 def _connect() -> sqlite3.Connection:
-    from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
-
     path = dispatch_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Bound, state.db is the sealed image SessionDB writes (tools/async_delegation.py's ledger does the same).
-    conn = _host_history.connect_state_db(path, timeout=10) if _host_history.bound() \
-        else sqlite3.connect(path, timeout=10)
+    conn = sqlite3.connect(path, timeout=10)
     try:
         _initialize_schema(conn)
     except Exception:
@@ -199,11 +195,8 @@ def _query(where: str, params: tuple) -> list[dict[str, Any]]:
         # Read-only by contract: a projection asking "what is running" must
         # never CREATE the background-work database as a side effect.
         return []
-    from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
-
     try:
-        conn = _host_history.open_state_db_reader(path, timeout=5) \
-            or sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
     except Exception:
         return []
     try:

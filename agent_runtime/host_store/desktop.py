@@ -12,8 +12,8 @@ seam the phones use (owner ruling 2026-09-28, item 4). Full Hermes never binds o
   Anything else (no ``keyring`` in the bundle, a plaintext or null backend) is
   :class:`SecureStoreUnavailable` — a typed refusal, never a plaintext fallback.
 
-``history_key(profile)`` is a random 32-byte key generated once per profile and held in
-the same store (:data:`HISTORY_KEY_SLOT`, outside the path-slot namespace).
+Credentials only: the desktop passes no ``protect_history_dir`` (its history is a plain
+file by owner ruling 2026-09-29).
 """
 
 from __future__ import annotations
@@ -32,7 +32,6 @@ from agent_runtime.host_store.binding import HostStoreError
 
 __layer__ = "stores"
 
-HISTORY_KEY_SLOT = "hermes/v1-keys/{profile}/history"
 DEFAULT_SCOPE = b"hermes-host-store-v1"
 BLOB_SUFFIX = ".dpapi"
 _TMP_SUFFIX = ".dpapi-tmp"
@@ -55,12 +54,8 @@ class SecretUnreadable(HostStoreError):
     let a sign-in overwrite another account's credentials."""
 
 
-def _history_key_slot(profile: str) -> str:
-    return HISTORY_KEY_SLOT.format(profile=profile)
-
-
 class _SecureStoreBase:
-    """The ``HostStoreCallbacks`` shape plus a generate-once history key over read/write."""
+    """The ``HostStoreCallbacks`` credential shape: read / write / delete."""
 
     def read(self, slot: str) -> Optional[bytes]:
         raise NotImplementedError
@@ -71,23 +66,8 @@ class _SecureStoreBase:
     def delete(self, slot: str) -> None:
         raise NotImplementedError
 
-    def _write_if_absent(self, slot: str, value: bytes) -> None:
-        if self.read(slot) is None:
-            self.write(slot, value)
-
-    def history_key(self, profile: str) -> bytes:
-        slot = _history_key_slot(profile)
-        key = self.read(slot)
-        if key is None:
-            self._write_if_absent(slot, os.urandom(_binding.HISTORY_KEY_BYTES))
-            key = self.read(slot)  # the winner's key when two processes raced
-        if key is None or len(key) != _binding.HISTORY_KEY_BYTES:
-            raise HostStoreError(f"the history key for profile {profile!r} is missing or malformed")
-        return bytes(key)
-
     def callbacks(self) -> _binding.HostStoreCallbacks:
-        return _binding.HostStoreCallbacks(
-            read=self.read, write=self.write, delete=self.delete, history_key=self.history_key)
+        return _binding.HostStoreCallbacks(read=self.read, write=self.write, delete=self.delete)
 
 
 def _load_win32crypt() -> Any:
@@ -162,16 +142,6 @@ class DpapiHostSecureStore(_SecureStoreBase):
     def delete(self, slot: str) -> None:
         with self._lock:
             self.blob_path(slot).unlink(missing_ok=True)
-
-    def _write_if_absent(self, slot: str, value: bytes) -> None:
-        with self._lock:
-            tmp = self._stage(slot, value)
-            try:
-                os.link(tmp, self.blob_path(slot))  # atomic create-if-absent: a racing writer keeps its key
-            except FileExistsError:
-                pass
-            finally:
-                Path(tmp).unlink(missing_ok=True)
 
 
 class KeyringHostSecureStore(_SecureStoreBase):
