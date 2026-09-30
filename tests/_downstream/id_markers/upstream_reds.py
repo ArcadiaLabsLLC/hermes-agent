@@ -690,6 +690,53 @@ if _WIN:
                 "TestSanePathIncludesHomebrew::test_make_run_env_appends_homebrew_on_minimal_path",
             )
         },
+        # Class U2/U4 singletons (triage-561, lane h12-fix 2026-09-29): each id red twice solo
+        # on the fork and twice on pure upstream ee5f49b943.
+        "tests/agent/lsp/test_client_e2e.py::test_aborted_start_reports_exit_status_and_stderr_tail": (
+            _up_red("asserts the aborted server is reported as killed by a signal; Windows reports its exit code (0xC0000409) (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_direct_contexts_stream_inline.py::test_inline_stream_stale_detector_still_fires_from_monitor_thread": (
+            _up_red("the stale kill aborts the socket and httpcore raises WinError 10053 instead of the reconnect the test expects (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_failed_turn_site_codes.py::test_persistence_failure_default_copy_is_actionable_and_profile_aware": (
+            _up_red("the default persistence-failure copy still names ~/.hermes on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_stream_stale_kill_unwedge.py::test_wedged_stream_unwinds_within_its_stale_budget_and_reconnects": (
+            _up_red("closing the socket does not unwedge a blocked Windows reader; recovery takes ~21 s against the budget (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_desktop_startup_cost.py::test_current_packaged_launch_does_not_require_npm": (
+            _up_red("the packaged-launch probe spawns a command that does not resolve on Windows (WinError 2) (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_decide_pins_and_either_answer_ends_the_offer": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_interactive_offer_writes_only_on_a_yes_or_no": (
+            _up_red("no offer is made on this host (the pending-switch read is None); cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_pending_needs_docker_backend_unpinned_and_a_stale_container": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_pending_reads_a_bound_terminal_scope_not_the_launch_env": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_bot_desktop_placement.py::test_forward_port_carries_bytes_both_ways_through_the_exec_stream": (
+            _up_red("the forwarded socket is reset (WinError 10054) before the echo returns (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_computer_use.py::TestCuaEnvironmentScrubbing::test_cua_session_sanitizes_provider_env_vars": (
+            _up_red("no expected safe variable survives the scrub on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_computer_use.py::TestRegistration::test_cua_driver_cmd_env_override_is_resolved_dynamically": (
+            _up_red("the override path is not an executable on Windows, so the resolver returns None (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_read_file_utf8_binary_regression.py::TestReadFileBinaryClassification::test_nul_byte_in_text_stays_binary": (
+            _up_red("the read path classifies a NUL-bearing UTF-8 file as text on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_spawn_site_child_env.py::test_openviking_server_gets_the_bound_profiles_provider_keys_not_its_bot_tokens": (
+            _up_red("the OpenViking server spawn fails on this host, so its env is never observed (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_tts_path_traversal.py::test_media_directive_in_path_is_rejected_before_any_echo": (
+            _up_red("the test's MEDIA: path is not a legal Windows filename (WinError 123) before the guard runs (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
         # Class X (triage-561, lane h12-fix 2026-09-29): red identically on pure upstream
         # ee5f49b943 (fork-edited implementation, same failure text).
         "tests/tools/test_process_registry.py::TestStdinHelpers::"

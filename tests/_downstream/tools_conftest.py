@@ -313,6 +313,16 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             },
         ),
     ],
+    'test_bot_desktop_placement.py': [
+        (
+            bare_bash_is_not_posix,
+            'replays the ssh remote-shell reparse locally as argv ["bash", "-c", ...], '
+            'which reaches the System32 WSL launcher (class U4 remainder)',
+            {
+                'test_remote_command_survives_the_ssh_remote_shell_reparse',
+            },
+        ),
+    ],
     'test_terminal_foreground_timeout_cap.py': [
         (
             resolved_bash_spells_posix_mount_paths,
