@@ -54,6 +54,17 @@ def _lane_is_free(timeout: float) -> bool:
     return False
 
 
+def _wait_until(probe, timeout: float = WAIT):
+    """``probe()``'s first truthy answer within ``timeout``, else its last (falsy) one."""
+
+    deadline = time.monotonic() + timeout
+    while True:
+        answer = probe()
+        if answer or time.monotonic() >= deadline:
+            return answer
+        time.sleep(0.02)
+
+
 # ── 1. EOF gives up the lane before it waits for a stuck worker ─────────────
 
 
@@ -283,12 +294,15 @@ def test_a_serve_that_lost_the_lane_runs_no_delivery_drain(delivery_starts):
     try:
         with running_serve() as handle:
             assert handle.ready["socket"]["outcome"] == "lock_held_by"
-            skipped = [
+            # The drain decision runs just AFTER ``ready`` (session.run:
+            # _announce_ready, then _start_background_workers), so wait for the
+            # skip line — the decision itself — before asserting nothing started.
+            skipped = _wait_until(lambda: [
                 row for row in handle.sink.frames()
                 if row.get("event") == "stderr" and "dispatch_delivery_drain_skipped" in (row.get("line") or "")
-            ]
-            assert delivery_starts == []
+            ])
             assert skipped, "the skip must be on the service log, not silent"
+            assert delivery_starts == []
     finally:
         incumbent.release()
 
@@ -298,7 +312,7 @@ def test_the_owner_still_runs_the_delivery_drain(delivery_starts):
 
     with running_serve() as handle:
         assert handle.ready["socket"]["outcome"] == "listening"
-        assert delivery_starts == [1]
+        assert _wait_until(lambda: list(delivery_starts)) == [1]
 
 
 def test_a_shutdown_order_with_a_stuck_worker_is_bounded_too(monkeypatch):

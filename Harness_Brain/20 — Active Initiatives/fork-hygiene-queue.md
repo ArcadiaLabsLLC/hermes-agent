@@ -21,7 +21,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (h11-mcp landing)
 
-- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h10-fhrest)
 
