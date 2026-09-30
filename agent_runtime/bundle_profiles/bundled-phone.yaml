@@ -39,6 +39,8 @@ toolsets:
     - yuanbao
     - feishu_doc
     - feishu_drive
+    # Upstream's kanban board and goal gates (git-backed workspaces; not the fork's Mission Board).
+    - kanban
 
 config:
   delegation.worktree_isolation: false
@@ -370,6 +372,109 @@ packaging:
     - tools.working_diff
     - tools.self_repo_guard
     - tools.tirith_security
+    # Spawning modules the phone never runs, reached lazily or only from one another (phone-gate
+    # plan 2026-09-30, bucket D1). Each starts a process a phone cannot start. A D1 module the phone
+    # turn path still imports, or a kept module imports at module level, stays kept and is named
+    # here: its spawn sites are lane G3's (function stand-ins).
+    # The messaging gateway's shutdown forensics (service mode is "—" on phones). Kept: gateway.run
+    # (the turn path imports it: tui_gateway.agent_callbacks, the pending-sentinel door) and the
+    # run_inbound / run_shutdown / slash_commands it imports at module level; gateway.status (the
+    # turn's delivery store asks it, agent_runtime/dispatch_store/delivery.py).
+    - gateway.shutdown_forensics
+    # The package manager (security.allow_lazy_installs is false). pm/__init__ stays (a lazy PEP 562
+    # facade), and so does pm.extras: `from pm import install_hint` at module level (hermes_cli.auth
+    # and others) resolves through the facade to pm.extras, which the closure walk cannot see.
+    # Kept too: pm.install (the TTS tool asks it on the turn path) and the pm.package / pm.registry
+    # it imports at module level.
+    - pm.client
+    - pm.environment
+    - pm.features
+    - pm.packages
+    - pm.plugin_eviction
+    - pm.progress
+    - pm.recovery
+    - pm.runtime
+    - pm.runtime_stage
+    - pm._uv
+    - pm.operations
+    - pm.workspace
+    - pm.native_build
+    - pm.publication
+    # Upstream's kanban board (the whole hermes_cli.kanban* family: its modules import one another at
+    # module level) and git tooling: no git binary on phones. Kept: hermes_cli.source_check and
+    # source_releases (hermes_cli.banner imports source_check at module level, which imports
+    # source_releases), hermes_cli.gitlock (tools.checkpoint_manager imports it at module level), and
+    # hermes_cli.goals (the turn path asks it: tui_gateway/prompt_turn.py, hermes_cli/loops.py).
+    - tools.kanban_tools
+    - hermes_cli.kanban
+    - hermes_cli.kanban_blocked_pm
+    - hermes_cli.kanban_blocked_pm_tick
+    - hermes_cli.kanban_boards
+    - hermes_cli.kanban_crash_evidence
+    - hermes_cli.kanban_db
+    - hermes_cli.kanban_db_connect
+    - hermes_cli.kanban_db_dispatch
+    - hermes_cli.kanban_db_graph
+    - hermes_cli.kanban_db_notify
+    - hermes_cli.kanban_db_workspace
+    - hermes_cli.kanban_decompose
+    - hermes_cli.kanban_diagnostics
+    - hermes_cli.kanban_ops
+    - hermes_cli.kanban_output
+    - hermes_cli.kanban_parser
+    - hermes_cli.kanban_pr_acceptance
+    - hermes_cli.kanban_pr_acceptance_store
+    - hermes_cli.kanban_specify
+    - hermes_cli.kanban_swarm
+    - hermes_cli.kanban_transfer
+    - hermes_cli.worktree_ops
+    - hermes_cli.git_credentials
+    - hermes_cli.github_api
+    - hermes_cli.update_cmd_check
+    - hermes_cli.goal_command
+    - hermes_cli.quiet_single_query
+    # Desktop CLI helpers: file completion, systemd cleanup, MCP/plugin catalog pickers. Kept:
+    # hermes_cli.tools_config (tui_gateway/server.py asks it on the turn path) and the
+    # tools_config_cua / tools_config_post_setup it imports at module level; hermes_constants_scratch
+    # (hermes_constants asks it on the turn path).
+    - hermes_cli.commands_completion
+    - hermes_cli.profiles_service_cleanup
+    - hermes_cli.mcp_catalog
+    - hermes_cli.mcp_picker
+    - hermes_cli.curses_ui
+    - hermes_cli.plugin_catalog
+    - hermes_cli.plugins_cmd_catalog
+    # Process-starting integrations: Codex app-server (raw-HTTP Codex stays), Iron proxy daemon,
+    # compute-host bridge, env probe, delegation forensics. Kept: the secret sources command /
+    # bitwarden (the registry imports each on the turn path) and onepassword
+    # (agent.vault_backends.onepassword imports it at module level; the vault is owner decision D3);
+    # tools.bot_mode_dm (agent/turn_context.py asks it on the turn path).
+    - agent.transports.codex_app_server
+    - agent.transports.codex_app_server_session
+    - agent.proxy_sources.iron_proxy
+    - hermes_cli.proxy_cli
+    - tui_gateway.host_supervisor
+    - tools.env_probe
+    - tools.async_delegation_recovery_hints
+    # File-edit tooling (no file toolset on phones): checkpoint upkeep, rg search, node linter.
+    # tools.checkpoint_manager stays: the agent loop builds its CheckpointManager on every session
+    # (agent/agent_init.py::_init_session_state).
+    - tools.checkpoint_maintenance
+    - tools.checkpoint_manager_profile_rename
+    - tools.file_operations
+    - tools.file_operations_lint
+    - tools.file_operations_search
+    # Memory-provider spawners (Byterover CLI, mem0's docker/ollama setup, OpenViking's local
+    # server); the HTTP memory providers stay.
+    - plugins.memory.byterover
+    - plugins.memory.mem0._setup
+    - plugins.memory.openviking
+    # The skills hub's GitHub source and the hub modules that import it at module level (the hub
+    # itself is above; installs are desktop, Spec §7.4).
+    - tools.skills_hub_github
+    - tools.skills_hub_official
+    - tools.skills_hub_search
+    - tools.skills_hub_skillssh
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
     - tests
