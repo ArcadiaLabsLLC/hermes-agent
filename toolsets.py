@@ -255,28 +255,6 @@ TOOLSETS = {
     ),
 }
 
-# Downstream persona bundle; membership grants only these toolsets.
-TOOLSETS["harness_core"] = {'description': "Mission Control harness lane: the fork's agent-to-agent chat and board tools plus "
-                'the conversational core. The ONE toolset an Eternia persona profile declares; '
-                'integrations (spotify, discord, homeassistant, yuanbao, bfl, video_gen, '
-                'computer_use, cronjob, image_gen) are opt-in by name beside it. Membership is by '
-                'toolset so a tool registered into one of these later joins without an edit here.',
- 'includes': ['agent_chat',
-              'board',
-              'clarify',
-              'delegation',
-              'terminal',
-              'file',
-              'web',
-              'browser',
-              'browser-cdp',
-              'skills',
-              'memory',
-              'todo',
-              'session_search',
-              'vision',
-              'code_execution'],
- 'tools': []}
 # Captured before create_custom_toolset() can add user-named tools: shared metrics may export only
 # these names, so a plugin, MCP server or custom toolset name never leaves the machine.
 BUILTIN_TOOL_NAMES = frozenset(tool for spec in TOOLSETS.values() for tool in spec["tools"])

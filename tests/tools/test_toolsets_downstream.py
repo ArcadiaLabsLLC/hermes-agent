@@ -3,10 +3,15 @@
 Same names, same bodies; the upstream file keeps only upstream's tests.
 """
 
+from agent_runtime.harness_toolset import ensure_harness_core
 from toolsets import (
     TOOLSETS,
     resolve_toolset,
 )
+
+# ``harness_core`` is the fork's, registered through upstream's ``create_custom_toolset`` (lane h11-fp);
+# every fork reader ensures it, and so does this file before it resolves the name.
+ensure_harness_core()
 
 
 class TestSkillSearchToolsetCoverage:
@@ -123,6 +128,27 @@ class TestHarnessCoreToolset:
         from agent_runtime.toolset_names import expand_toolset_names
 
         assert expand_toolset_names(["debugging"]) == ["debugging"]
+
+    def test_a_process_that_resolves_tools_has_harness_core_through_the_plugin(self, tmp_path):
+        """No fork module is imported first: ``model_tools`` discovers the eternia-harness plugin, whose
+        ``register`` defines the composite. Positive control: ``toolsets`` alone does not carry it."""
+
+        import os
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, toolsets\n"
+            "before = 'harness_core' in toolsets.TOOLSETS\n"
+            "import model_tools\n"
+            "print(before, 'harness_core' in toolsets.TOOLSETS, 'agent_runtime.toolset_names' in sys.modules)\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=240,
+            env={**os.environ, "HERMES_HOME": str(tmp_path)},
+        )
+        assert out.returncode == 0, out.stderr[-4000:]
+        assert out.stdout.strip().splitlines()[-1] == "False True False"
 
     def test_expand_toolset_names_reads_no_registry(self):
         """The A6a property, in-process: names without the registrars."""

@@ -302,6 +302,9 @@ def register(ctx) -> None:
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
     migrate_retired_local_llama_id()
+    from agent_runtime.harness_toolset import ensure_harness_core
+
+    ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_system_prompt_section("eternia-harness.windows-tooling", render_windows_tooling)
     ctx.register_middleware("llm_request", brief_tool_descriptions)
@@ -317,8 +320,8 @@ def register(ctx) -> None:
     ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
-    # Joins the built-in `skills` toolset by registry membership; the platform bundles
-    # still name it in toolsets.py until a register-toolset PR lets a plugin join them.
+    # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
+    # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets).
     ctx.register_tool(
         "skill_search", toolset="skills", schema=SKILL_SEARCH_SCHEMA, handler=_handle_skill_search,
         check_fn=_check_skill_search, emoji="🔎",
