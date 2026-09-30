@@ -84,7 +84,8 @@
   "hermes_cli/provider_browser_login.py|hermes_cli.auth|_auth_file_path",
   "hermes_cli/provider_browser_login.py|hermes_cli.auth|_persist_provider_state_to_store",
   "scripts/verify_harness_skill_install.py|hermes_constants|_get_platform_default_hermes_home",
-  "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description"
+  "tools/tool_full_descriptions.py|tools.skill_manager_tool|_skill_manage_description",
+  "tui_gateway/methods_pdf.py|cli|_resolve_attachment_path"
  ],
  "undeclared": []
 }
