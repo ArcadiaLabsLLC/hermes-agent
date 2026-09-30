@@ -224,10 +224,10 @@ def get_tool_definitions(enabled_toolsets: Optional[List[str]] = None, disabled_
     """
     def compute():
         _bump_tool_defs_counter("misses")
-        _ensure_plugin_tools_discovered()
         return _compute_tool_definitions(enabled_toolsets, disabled_toolsets, quiet_mode,
                                          skip_tool_search_assembly=skip_tool_search_assembly)
     if not quiet_mode:
+        _ensure_plugin_tools_discovered()
         return compute()
     cache_key = _tool_defs_cache_key(enabled_toolsets, disabled_toolsets, skip_tool_search_assembly)
     # Cache the freshly-computed list, but hand callers a shallow copy so downstream mutations (e.g.
@@ -239,6 +239,10 @@ def get_tool_definitions(enabled_toolsets: Optional[List[str]] = None, disabled_
     # fingerprints it sees over its lifetime (#19251).
     with _tool_defs_cache_lock:
         cached = _tool_defs_cache.get(cache_key) if cache_key is not None else None
+    if cached is None and _ensure_plugin_tools_discovered():  # fork: a first discovery bumps the generation
+        cache_key = _tool_defs_cache_key(enabled_toolsets, disabled_toolsets, skip_tool_search_assembly)
+        with _tool_defs_cache_lock:
+            cached = _tool_defs_cache.get(cache_key) if cache_key is not None else None
     if cached is None:
         result = compute()
         if cache_key is None:

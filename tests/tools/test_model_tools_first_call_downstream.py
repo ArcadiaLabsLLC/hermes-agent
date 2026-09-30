@@ -22,3 +22,32 @@ def test_the_plugin_tool_is_in_the_toolset_once_discovered():
 
     discover_plugins()
     assert "skill_search" in _names(enabled_toolsets=["skills"])
+
+
+def _misses():
+    from tools.tool_defs_observability import _tool_defs_counters
+
+    return getattr(_tool_defs_counters, "misses", 0)
+
+
+def test_the_first_tool_list_of_a_home_is_built_once():
+    """The discovery that a first list triggers bumps the registry generation; the memo is keyed
+    after it, so the SAME request a second time is a hit, not a second build."""
+    from model_tools import _clear_tool_defs_cache
+
+    _clear_tool_defs_cache()
+    before = _misses()
+    _names(enabled_toolsets=["skills"])
+    _names(enabled_toolsets=["skills"])
+    assert _misses() - before == 1
+
+
+def test_a_different_request_is_still_a_miss():
+    """Positive control for the counter above: a second, different request builds again."""
+    from model_tools import _clear_tool_defs_cache
+
+    _clear_tool_defs_cache()
+    before = _misses()
+    _names(enabled_toolsets=["skills"])
+    _names(enabled_toolsets=["file"])
+    assert _misses() - before == 2
