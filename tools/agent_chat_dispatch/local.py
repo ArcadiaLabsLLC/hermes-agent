@@ -6,7 +6,6 @@ Map: ``tools/agent_chat_dispatch/__init__.py``.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import threading
 import time
@@ -193,28 +192,20 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
 
 
 def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
-    """Start the child: both streams piped, stdin closed, hidden on Windows."""
+    """Start the child — :mod:`tools.agent_chat_dispatch.local_child`, behind ``conversations.subprocess_worker``.
 
-    popen_kwargs: dict[str, Any] = {
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-        # Never inherit the parent's stdin: in serve that is the launcher's
-        # request pipe, and a child reading from it would steal requests.
-        "stdin": subprocess.DEVNULL,
-        "env": env,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
-        "bufsize": 1,
-    }
-    if os.name == "nt":
-        try:
-            from hermes_cli._subprocess_compat import windows_hide_flags
+    A profile that may start no subprocess (the phone: that switch off, the in-process
+    peer its only worker) leaves ``local_child`` out; the dispatch then settles as an
+    error that says so, through the caller's could-not-spawn path.
+    """
 
-            popen_kwargs["creationflags"] = windows_hide_flags()
-        except Exception:
-            pass
-    return subprocess.Popen(argv, **popen_kwargs)
+    from agent_runtime.conversations.worker import subprocess_worker_enabled
+
+    if not subprocess_worker_enabled():
+        raise RuntimeError("this profile starts no subprocess (conversations.subprocess_worker is off)")
+    from .local_child import spawn_child
+
+    return spawn_child(argv, env)
 
 
 def _settle_local(

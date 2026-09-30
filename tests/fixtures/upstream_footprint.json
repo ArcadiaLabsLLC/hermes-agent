@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
-  "files": 167,
-  "deleted_lines": 738,
+  "files": 170,
+  "deleted_lines": 743,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane s2-g2: the phone's kept psutil and tty import sites guarded — hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)",
+      "files": "167 -> 170: hermes_cli/process_identity.py, hermes_constants_scratch.py, hermes_cli/secret_prompt.py",
+      "deleted_lines": "738 -> 743: each import re-indented under try/except ImportError (1 + 2 + 2); heavy unchanged at 4",
+      "reason": "The bundled phone profile omits psutil (a phone starts no sibling process), which the closure allows only when every kept import site is ImportError-guarded, and refuses an unguarded termios/tty import. hermes_constants_scratch was to be switched off (plan bucket D1) but lane G1 kept it. secret_prompt was to be switched off behind a loop-placeholder stand-in (plan M2), but hermes_cli.config imports it while the embedded entry module itself is imported, before EmbeddedServe.start registers the placeholders — so the plan's own later step (guard the two imports) is taken now; the ImportError falls back to getpass, as any raise there already did. The upstream PRs are lane G4's; their merge retires this carry."
+    },
     {
       "change": "lane h13-sweep: the three MC timing stamps in agent/turn_api_request.py dropped (owner-delegated 2026-09-29, runtime-queue DOORS-A row option 1)",
       "files": "168 -> 167: agent/turn_api_request.py back to upstream bytes",

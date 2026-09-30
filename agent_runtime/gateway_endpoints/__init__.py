@@ -16,6 +16,8 @@ addresses   policy  the offer filter, RFC1918 / same-/24 / same-/64 tests, the
                     dial-order rank, R-D20's two words and their errno sets
 routes      stores  the routing table's owner of ``0.0.0.0/0`` (R-D8): one
                     bounded spawn per platform question, three parsers
+route_      stores  that spawn (``run_route_command``), a sibling imported
+command             lazily so a profile can leave it out (the phone)
 candidates  stores  ``gateway_listen_config``, the listener endpoint, this
                     machine's addresses in dial order, the candidate list, the
                     one dial host, and ``classify_dial_error``

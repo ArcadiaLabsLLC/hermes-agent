@@ -121,7 +121,10 @@ class PeerCore:
 class NativePeer(PeerCore):
     def __init__(self, process: subprocess.Popen, *, receive: Callable[[dict], None],
                  lost: Callable[[], None], containment=None):
-        import psutil
+        try:
+            import psutil
+        except ImportError as exc:  # the phone omits psutil, and starts no worker process to identify
+            raise RuntimeError("a native conversation peer needs psutil to stamp its worker process") from exc
 
         super().__init__(receive=receive, lost=lost)
         self.process = process

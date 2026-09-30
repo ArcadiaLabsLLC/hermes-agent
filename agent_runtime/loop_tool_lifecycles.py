@@ -32,7 +32,10 @@ upstream's bytes (lane h11-fp, 2026-09-29): ``agent.copilot_acp_client`` and
 (a loud stand-in: they start a child process only where it is shipped); ``tools.tts_tool`` and
 ``tools.tts_tool_lifecycle`` bind the local TTS engines (no engine, no model cache to warm or
 release); ``agent.image_routing`` asks ``hermes_cli.local_runtime.capabilities`` whether the
-provider is the managed local runtime (no local runtime: never). Each is placed only when its
+provider is the managed local runtime (no local runtime: never). One more is a fork seam of the
+phone gate (lane s2-g2): the fork's git chokepoint ``agent_runtime.git_cmd`` (``build_stamp``,
+``build_identity``, ``repo_context`` and realm sync bind ``run_git`` at module level; no git on a
+phone, so each call refuses loudly). Each is placed only when its
 switched-off PACKAGE is absent, probed without importing it (``_PRESENCE``), so a desktop boot
 never pays for importing a package to learn it is there.
 With the real modules installed (desktop, full Hermes) it does nothing. It must run
@@ -60,6 +63,7 @@ BROWSER_CLOUD = "tools.browser_tool_cloud"
 LOCAL_ENVIRONMENT = "tools.environments.local"
 LOCAL_TTS = "tools.tts_tool_local"
 LOCAL_RUNTIME_CAPABILITIES = "hermes_cli.local_runtime.capabilities"
+GIT_COMMAND = "agent_runtime.git_cmd"
 
 
 class LifecycleNotShipped(RuntimeError):
@@ -132,6 +136,7 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
                         "_load_kittentts_model_for_config", "_load_piper_voice_for_config")},
     LOCAL_RUNTIME_CAPABILITIES: {"is_managed_provider": _not_managed,
                                  **_loud(LOCAL_RUNTIME_CAPABILITIES, "managed_model_supports_vision")},
+    GIT_COMMAND: _loud(GIT_COMMAND, "run_git"),
 }
 
 #: module -> the module whose presence decides it, when that is its switched-off PACKAGE: probing the

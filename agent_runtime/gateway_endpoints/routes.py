@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Final
 
 from .addresses import _WILDCARD_HOSTS, _ipv4
 
@@ -48,38 +48,17 @@ def run_route_command(argv: list[str]) -> str | None:
     R-D2 probe.* So they collapse to one ``None`` rather than a taxonomy nobody
     would branch on. ``check=False`` and the bare ``except`` are the point of
     this function, not a shortcut taken inside it.
+
+    The spawn lives in :mod:`agent_runtime.gateway_endpoints.route_command`, imported
+    here: a profile that leaves it out (the phone runs no gateway listener) reads the
+    missing module the same way — the table did not answer.
     """
 
-    import subprocess
-    import sys
-
-    extra: dict[str, Any] = {}
-    if sys.platform == "win32":
-        # ``route.exe`` is a console program and this CLI is routinely spawned
-        # by a windowless launcher process; without this the operator would see
-        # a console blink every time the sheet refreshes.
-        flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        if flag:
-            extra["creationflags"] = flag
     try:
-        completed = subprocess.run(
-            argv,
-            # This CLI is spoken to over stdio by a launcher (see
-            # ``CALLER_STDIO_OWNER``), so a child that inherited stdin could eat
-            # a frame addressed to us. ``route``/``ip``/``ifconfig`` read none.
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_ROUTE_COMMAND_TIMEOUT_SECONDS,
-            check=False,
-            **extra,
-        )
-    except Exception:
+        from .route_command import run_route_command as run
+    except ImportError:
         return None
-    if completed.returncode != 0:
-        return None
-    return completed.stdout or ""
+    return run(argv)
 
 
 def windows_default_route_address(text: str) -> str | None:

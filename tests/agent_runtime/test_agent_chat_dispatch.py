@@ -33,6 +33,7 @@ from agent_runtime.dispatch_store import (
 )
 from agent_runtime.relay_policy import RELAY_CHAIN, RELAY_DEADLINE
 from tools import agent_chat_dispatch
+import tools.agent_chat_dispatch.local_child  # noqa: F401 - the spawn the tests patch
 from tools.agent_chat_tool import (
     AGENT_CHAT_DISPATCHES_SCHEMA,
     AGENT_CHAT_SEND_SCHEMA,
@@ -498,7 +499,7 @@ def _spec(**overrides):
 def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s-dev"}))
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
     monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
@@ -517,7 +518,7 @@ def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
 def test_a_child_that_prints_nothing_is_unknown_not_a_silent_success(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -531,7 +532,7 @@ def test_a_child_that_overruns_its_budget_is_killed_and_recorded(store_home, mon
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(hang=True)
     killed = []
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
     monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
     monkeypatch.setattr(
         agent_chat_dispatch.local, "_kill_child", lambda pid, started: killed.append((pid, started))
@@ -554,7 +555,7 @@ def test_a_spawn_failure_settles_the_row(store_home, monkeypatch):
     def boom(*a, **k):
         raise OSError("no exec for you")
 
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", boom)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", boom)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -578,7 +579,7 @@ def test_a_typed_chokepoint_refusal_still_reaches_the_sender(store_home, monkeyp
         ),
         returncode=2,
     )
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -782,7 +783,7 @@ def test_an_over_cap_chatty_child_still_yields_its_payload(store_home, monkeypat
     stdout = noise * 3000 + payload  # ~600KB, well past the 512KB cap
     assert len(stdout) > agent_chat_dispatch._MAX_STREAM_CHARS
     proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -819,7 +820,7 @@ def test_trailing_json_after_the_payload_does_not_become_the_result(store_home, 
     )
     stdout = payload + '\n{"event":"mcp_shutdown","ok":false}\n'
     proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -916,7 +917,7 @@ def test_the_supervisors_observed_outcome_beats_the_sweeps_guess(store_home, mon
             {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}
         )
     )
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     row = get_dispatch(dispatch_id)
@@ -950,7 +951,7 @@ def test_a_child_that_answered_with_nothing_records_the_silence(store_home, monk
             }
         )
     )
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
     monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
@@ -972,7 +973,7 @@ def test_a_child_from_an_older_runtime_still_gets_a_verdict(store_home, monkeypa
 
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s"}))
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
     monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
@@ -990,7 +991,7 @@ def test_a_child_that_printed_no_payload_records_no_verdict(store_home, monkeypa
 
     dispatch_id = _armed_dispatch()
     proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.local.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 

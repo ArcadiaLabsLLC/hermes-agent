@@ -112,14 +112,30 @@ profile's comments: `gateway.run` / `run_inbound` / `run_shutdown` / `slash_comm
 `_post_setup`), `hermes_constants_scratch`, the `command` / `bitwarden` / `onepassword` secret
 sources, `tools.bot_mode_dm`, `tools.checkpoint_manager`.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1619 first-party modules kept. Verdict: **REFUSED** (104 findings).
+**Re-taken at lane s2-g2 (2026-09-30): 104 -> 86 findings.** Phone-gate plan lane G2 (buckets D3,
+A `psutil`, B). The gate now prints its interpreter and runs only under the bundle's pinned CPython
+major.minor (`agent_runtime/bundle_profiles/interpreters.lock.json`, 3.14) or an explicit
+`--interpreter`; both counts here are from `~/.venvs/hermes-test` (CPython 3.14.5), the before-run on
+main `214699cafe`. `agent_runtime.git_cmd` is the one fork git chokepoint (`build_identity`,
+`repo_context` now call it; realm sync already did) and is switched off, its `run_git` a loud stand-in
+in the loop placeholder table; the four fork spawns moved to switched-off siblings
+(`store_file_io_windows`, `provider_signin_child`, `gateway_endpoints.route_command`,
+`tools.agent_chat_dispatch.local_child`); `hermes_cli.secret_prompt` stays KEPT with its
+`termios`/`tty` imports ImportError-guarded (getpass fallback) — the plan's M2 stand-in cannot work,
+because `hermes_cli.config` imports it while the embedded entry module is itself being imported,
+before `EmbeddedServe.start` registers the placeholders; `psutil` omitted after guarding its
+unguarded kept sites (two fork, `hermes_cli/process_identity.py`, and `hermes_constants_scratch.py`,
+which G1 kept rather than switching off). Three upstream files carry these guards
+(`tests/fixtures/upstream_footprint.json`: 167 -> 170 files, 738 -> 743 deleted lines). Per bucket, before -> after: subprocess_call 92 -> 80 (the seven fork modules' 12
+sites); process 4 -> 0; unproven 2 -> 0; native 6 -> 6 (G5). Kept 1619 -> 1617. The plan's 67 -> 50
+assumed G1 reached 67; the lane delta (-18) is the plan's (-17) plus the twelfth D3 site.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1618 first-party modules kept. Verdict: **REFUSED** (86 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
-| process | 3 | `psutil`, `termios`, `tty` |
-| subprocess_call | 51 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.profiles`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.honcho.client`, `plugins.web.ddgs.provider`, `pm.extras`, `pm.package`, `tools.agent_chat_dispatch.local`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
-| unproven | 1 | `psutil` |
+| subprocess_call | 44 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.vault_backends.base`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.profiles`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.honcho.client`, `plugins.web.ddgs.provider`, `pm.extras`, `pm.package`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
 
 How each shipped distribution is first reached (first target):
 
@@ -127,8 +143,7 @@ How each shipped distribution is first reached (first target):
 |---|---|
 | cryptography | `model_tools → hermes_cli.plugins → agent.secret_sources.registry → agent.secret_sources.bitwarden` |
 | pillow-heif | `plugins.image_gen.openai_codex → agent.image_routing` |
-| psutil | `run_agent → hermes_cli.profiles` |
 
-Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`); `tools.tts_tool_local` (`_LOCAL_TTS_MODEL_CACHES`, `_generate_kittentts`, `_generate_neutts`, `_generate_piper_tts`, `_load_kittentts_model_for_config`, `_load_piper_voice_for_config`).
+Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `agent_runtime.git_cmd` (`run_git`); `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`); `tools.tts_tool_local` (`_LOCAL_TTS_MODEL_CACHES`, `_generate_kittentts`, `_generate_neutts`, `_generate_piper_tts`, `_load_kittentts_model_for_config`, `_load_piper_voice_for_config`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 813 sites, into 141 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 819 sites, into 144 modules.

@@ -12,6 +12,7 @@ from typing import Any
 from hermes_time import now
 
 from . import paths
+from .git_cmd import run_git
 from .machine_roots import load_machine_roots
 
 __layer__ = "stores"
@@ -35,14 +36,11 @@ def _remove_harness_worktree(source_root: Path, worktree: Path, *, reason: str) 
             "worktree_links_severed",
             {"worktree": str(worktree), "count": severed, "reason": reason},
         )
-    result = subprocess.run(
-        ["git", "worktree", "remove", "--force", str(worktree)],
+    result = run_git(
+        ["worktree", "remove", "--force", str(worktree)],
         cwd=source_root,
-        text=True,
         encoding="utf-8",
         errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=60,
         check=False,
     )
@@ -121,15 +119,20 @@ def _remove_link_entry(path: str) -> bool:
         return False
 
 
+def _git_args(command: list[str]) -> list[str]:
+    """A ``["git", …]`` argv as :func:`run_git` takes it — without the ``git``."""
+    if not command or command[0] != "git":
+        raise ValueError(f"not a git argv: {command[:1]}")
+    return list(command[1:])
+
+
 def _run_git_quiet(cwd: Path, args: list[str]) -> None:
-    subprocess.run(
-        args,
+    """*args* is a full ``git …`` argv (the ``git`` is the chokepoint's to add)."""
+    run_git(
+        _git_args(args),
         cwd=cwd,
-        text=True,
         encoding="utf-8",
         errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         timeout=30,
         check=False,
     )
@@ -153,11 +156,10 @@ def worktree_patch_text(worktree: Path, *, include_untracked: bool = True, timeo
         # Byte-faithful capture: text mode would apply universal-newline
         # translation and silently strip CR from CRLF content, producing a
         # patch that no longer applies to CRLF working trees.
-        result = subprocess.run(
-            ["git", "diff", "--binary", "--no-ext-diff", "HEAD"],
+        result = run_git(
+            ["diff", "--binary", "--no-ext-diff", "HEAD"],
             cwd=root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            text=False,
             timeout=timeout_seconds,
             check=False,
         )
@@ -184,19 +186,17 @@ def worktree_patch_size_estimate(worktree: Path, *, timeout_seconds: int = 60) -
     if root is None:
         return 0
     try:
-        tracked = subprocess.run(
-            ["git", "diff", "--binary", "--no-ext-diff", "HEAD"],
+        tracked = run_git(
+            ["diff", "--binary", "--no-ext-diff", "HEAD"],
             cwd=root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            text=False,
             timeout=timeout_seconds,
             check=False,
         )
-        untracked = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        untracked = run_git(
+            ["ls-files", "--others", "--exclude-standard", "-z"],
             cwd=root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            text=False,
             timeout=timeout_seconds,
             check=False,
         )
@@ -334,13 +334,11 @@ def safe_affected_repo_labels(repos: list[str] | tuple[str, ...] | None) -> list
 
 def _git_output(workdir: Path, command: list[str], *, single: bool = False) -> Any:
     try:
-        result = subprocess.run(
-            command,
+        result = run_git(
+            _git_args(command),
             cwd=workdir,
-            text=True,
             encoding="utf-8",
             errors="replace",
-            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             timeout=10,
             check=False,
