@@ -322,4 +322,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - [ ] **The Copilot plain-client carry in `agent/process_bootstrap.py` (`api.githubcopilot.com` branch of `build_keepalive_http_client`) has no reproduced cause: the "second request stalls" did not reproduce on upstream `8d30c4eaab` (unauthenticated probe only — no Copilot credential on this box) — re-measure with a real Copilot login or drop the carry** · `seams / fork` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix
 
-- [ ] **Expose the existing Launcher app-function authority to independent native conversations so generated-document creation/refinement works through their real agent worker.** · `agent_runtime/conversations/worker_entry.py`, `agent_runtime/launcher_app_functions.py`; consumer: `EterniaLauncher/docs/companion/planned/UNIFIED_GENERATIVE_UI_2026-09-30.md`. **TAKEN 2026-09-30 codex-unified-genui**

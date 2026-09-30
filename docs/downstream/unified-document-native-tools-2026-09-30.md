@@ -26,7 +26,34 @@ Real agents execute tools through subprocess, isolated-compute and in-process
 workers. Removing the active-turn check or preserving a forged caller origin
 reddened its behavioral assertion; both mutations were restored.
 
-The tooling pass reports 1,287 passes and one pre-existing duplicate-helper-name
-failure, reproduced on main and filed in the fork-hygiene queue. The generated
-contract catalog also reconciles existing schema drift against its Python models.
-The validated suite and native Launcher acceptance remain in progress.
+Internal app-function waiters are excluded from user question projections in
+normal reads, recovery and observation; client answers cannot settle them.
+A planted projection leak failed the real-agent test before the fix. All three
+worker modes pass that test, including the forged-answer refusal.
+
+## Qualification — 2026-09-30
+
+The validated run completed: 2,173 files, 24,623 passed, 108 failed, 733 skipped
+in 1,556.7 seconds on Windows/Python 3.13.15. This is not a green full suite.
+A 50-file comparison on unchanged primary `3c885f1232` reproduced 101 of those
+108 failed assertions, plus the same four nonzero exits after passing assertions
+and ten collection failures. Existing queue owners retain these failures.
+
+The remaining seven assertions are: two worktree fleet-identity expectations;
+two startup probes redirected through the primary virtualenv; the known realm
+history ordering race (previous primary reproduction is recorded in chat-first
+qualification); one strict Windows XPASS; and missing `distlib` in the native
+wrapper publication fixture. No wrapper was rerun for comparison: the host-freeze
+investigation remains parked. These files and their runtime paths are unchanged
+by this slice. No test expectations or ceilings were weakened.
+
+Tooling before the final rebase: 1,328 passed, three existing failures (duplicate
+helper names and the two discussion ladder assertions), all reproduced on
+primary. The generated contract catalog reconciles existing model/schema drift.
+Incoming phone packaging changes were rebased cleanly. The final 19-file
+gate run repeats 1,328 passes and those same three baseline failures; native
+worker acceptance (four tests) and embedded phone acceptance (six) pass.
+
+Launcher acceptance uses an isolated local model fixture through the real native
+worker and app-function dispatcher: create, inspect and refine one mixed document.
+No provider keys or operator profile data are needed for this proof.
