@@ -377,7 +377,6 @@ if _WIN:
             _up_red_skip('polls 30 s for the spawned HTTP server port file, which never appears on this host; the 30 s per-test cap kills the whole process'),
         ),
         **{node: (_up_red('an open handle or read-only file blocks the delete, WinError 5 (class c-H)'),) for node in (
-            'tests/hermes_cli/test_plugin_install_ref.py::test_reinstall_after_manual_directory_removal_retains_pin',
             'tests/hermes_cli/test_shallow_boundary_repair.py::test_repair_does_not_mask_unrelated_object_loss',
         )},
         **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
