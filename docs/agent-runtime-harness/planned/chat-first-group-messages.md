@@ -79,6 +79,13 @@ pass Ruff F checks. Receipts: `qa-artifacts/group-provider-regression.log` and
 `group-provider-control.log` (local). These are isolated tests, not live-account
 desktop acceptance or a whole-repository green claim.
 
+The structural/contract run passed 1,270 checks; three failures reproduce on
+unchanged main `d244451a5d`: the duplicate-helper-name assertion (`_flag`, `_model`,
+`_owner`) and both discussion ladder assertions. Existing fork-hygiene/runtime
+queue rows retain them. Size, function legibility, layer direction, tombstones
+and CLI/payload contracts pass. No thresholds or baselines changed. Receipts:
+`qa-artifacts/group-provider-gates.log`; primary `group-provider-baseline.log`.
+
 ## Lifecycle follow-up
 
 `DiscussionService.idle_drain` conservatively treats every open run as busy,
