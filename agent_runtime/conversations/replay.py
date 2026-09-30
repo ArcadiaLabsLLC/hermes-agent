@@ -2,6 +2,7 @@
 import json
 
 from .projection import event_frames
+from .app_functions import client_requests
 
 __layer__ = "lanes"
 _PAGE_BYTES = 600 * 1024
@@ -30,4 +31,5 @@ def read_page(live, native, cursor, offset):
 
 def _page(native, rows, cursor, offset, more):
     return {"events": rows, "cursor": cursor, "offset": offset, "epoch": native["epoch"],
-            "more": more, "truncated": False, "open_requests": native.get("open_requests", [])}
+            "more": more, "truncated": False,
+            "open_requests": client_requests(native.get("open_requests", []))}

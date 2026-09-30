@@ -16,6 +16,11 @@ __layer__ = "lanes"
 MAX_BYTES = 2 * 1024 * 1024
 
 
+def client_requests(requests):
+    """Tool transport is runtime-owned; only user questions reach the client."""
+    return [request for request in requests if request.get("method") != METHOD]
+
+
 class AppFunctionPool:
     def __init__(self):
         self._pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="native-app-function")

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import threading
 
-from .app_functions import NativeAppFunctions
+from .app_functions import METHOD, NativeAppFunctions, client_requests
 from .model import UNSETTLED, ConversationError, Refusal, TurnState
 from .questions import SUPPORTED, validate_answer
 
@@ -99,6 +99,8 @@ class LiveConversation:
     def answer(self, request_id, result):
         page = self.peer.call("session.events.since", {"session_id": self.native_id, "include_events": False})
         pending = next((q for q in page.get("open_requests", ()) if q["id"] == request_id), None)
+        if pending is not None and pending.get("method") == METHOD:
+            return False
         if pending is not None:
             validate_answer(pending, result)
         elif len(json.dumps(result, ensure_ascii=True)) > 64 * 1024:
@@ -112,7 +114,7 @@ class LiveConversation:
         native = self.peer.call("session.recover", {"session_id": self.native_id,
             **({"execution_id": receipt.execution_id} if receipt and receipt.execution_id else {})})
         self.reconcile(native.get("execution"))
-        return native
+        return {**native, "open_requests": client_requests(native.get("open_requests", []))}
 
     def recover(self, turn_id=None):
         native = self._checkpoint(turn_id)
