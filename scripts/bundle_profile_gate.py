@@ -238,7 +238,7 @@ for module, names in wanted.items():
     ok = stand_in is not None and is_lifecycle_placeholder(stand_in)
     for name in names:
         try:
-            ok = ok and callable(getattr(stand_in, name))
+            getattr(stand_in, name)  # a table name resolves (a stand-in callable or value); any other raises
         except Exception:
             ok = False
     answered[module] = ok

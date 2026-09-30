@@ -168,6 +168,17 @@ def test_a_pin_the_loop_placeholders_answer_is_a_seam_proven_at_run_time(tmp_pat
         "tools.terminal_tool_lifecycle": ["cleanup_vm", "get_active_env"],
     }
 
+    # A table name that is a VALUE, not a callable, resolves too: ``tools.tts_tool_lifecycle`` binds
+    # the local TTS engines' model-cache mapping at module level (an empty, read-only mapping stands in).
+    index["loop_b"].write_text("from tools.tts_tool_local import _LOCAL_TTS_MODEL_CACHES, _generate_piper_tts\n",
+                               encoding="utf-8")
+    manifest = SimpleNamespace(switched_off_modules=("tools.tts_tool_local",))
+    walk = SimpleNamespace(pinned={"tools.tts_tool_local"}, kept={"loop_b"})
+    assert placeholder_seams(manifest, walk, index) == {
+        "tools.tts_tool_local": ["_LOCAL_TTS_MODEL_CACHES", "_generate_piper_tts"]}
+    manifest = SimpleNamespace(switched_off_modules=tuple(sorted(pinned)))
+    walk = SimpleNamespace(pinned=pinned, kept=set(sources))
+
     # Negative controls: a name the placeholder table lacks, and a bare module import, stay pinned.
     index["loop_a"].write_text("from tools.terminal_tool_lifecycle import cleanup_vm, cleanup_all_environments\n"
                                "import tools.browser_tool_lifecycle\n", encoding="utf-8")
