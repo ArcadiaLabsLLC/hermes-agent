@@ -24,7 +24,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (lane h10-fhrest)
 
-- [ ] **`tests/hermes_cli/test_update_fleet_restart_pending.py`: 4 tests red after 172 test_update_*/test_launchd_*/test_cmd_update* files in one process, green alone (53 passed)** · `fork / suite` · bisect pairwise (REDS2 method, `016a6cd71e`) · evidence: lane h10-fhrest `.lane-logs/r110b.log` · filed by lane h10-fhrest 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
