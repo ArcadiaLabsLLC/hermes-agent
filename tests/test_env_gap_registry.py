@@ -44,7 +44,14 @@ from pathlib import Path
 
 import pytest
 
-from tests._env_gap_fence import EnvGapSkipRegistry, firing_skip_rows, stale_skip_rows
+from tests._env_gap_fence import (
+    EnvGapSkipRegistry,
+    bare_bash_is_not_posix,
+    describes_host,
+    firing_skip_rows,
+    resolved_bash_spells_posix_mount_paths,
+    stale_skip_rows,
+)
 
 TESTS_ROOT = Path(__file__).resolve().parent
 
@@ -370,3 +377,39 @@ def test_the_known_defect_tracker_records_an_xfail_and_a_strict_xpass():
     tracker.record(SimpleNamespace(nodeid=node, when="call", outcome="passed"))
     tracker.record(SimpleNamespace(nodeid=node, when="setup", outcome="failed"))
     assert tracker.failures == [node, node]
+
+
+def test_a_row_scoped_to_another_host_class_is_not_called_stale():
+    """A mixed registry: one row fires here, the other describes a host class this is not.
+
+    The U3 shell rows (``bare_bash_is_not_posix`` is the System32 WSL launcher's) sit
+    beside rows every Windows host fires; on a Windows host WITHOUT the launcher the
+    fleet-wide reading called them stale. Killing mutation: drop
+    ``or not describes_this_host(probe)`` from ``stale_skip_rows`` -> ``['f.py::other']``.
+    """
+
+    def fires() -> bool:
+        return True
+
+    def quiet() -> bool:
+        return False
+
+    other_host = describes_host(lambda: False)(quiet)
+    registry: EnvGapSkipRegistry = {"f.py": [(fires, "here", {"here"}), (other_host, "there", {"other"})]}
+    assert firing_skip_rows(registry) == ["f.py::here"]
+    assert stale_skip_rows(registry) == []
+
+
+def test_a_row_scoped_to_this_host_class_is_still_judged():
+    """POSITIVE CONTROL: the scope narrows the verdict, it does not switch it off."""
+
+    def quiet() -> bool:
+        return False
+
+    this_host = describes_host(lambda: True)(quiet)
+    assert stale_skip_rows({"f.py": [(this_host, "here", {"gone"})]}) == ["f.py::gone"]
+
+
+def test_the_shell_premise_probes_carry_their_host_class():
+    assert callable(getattr(bare_bash_is_not_posix, "host_check", None))
+    assert callable(getattr(resolved_bash_spells_posix_mount_paths, "host_check", None))

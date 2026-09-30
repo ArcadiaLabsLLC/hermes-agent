@@ -155,6 +155,48 @@ def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
     return _probe
 
 
+def describes_host(host_check: "Callable[[], bool]") -> "Callable[[Callable[[], bool]], Callable[[], bool]]":
+    """Scope a probe's rows to the HOST CLASS they were measured on.
+
+    A probe answering False means "no gap here", which on a host of a different
+    class is the probe working, not a row that rotted. ``host_check`` answers
+    "is this a host these rows describe at all" from a fact the gap does not
+    change (the System32 WSL launcher exists; a bash resolves), so
+    :func:`stale_skip_rows` judges the row only where it holds. Unscoped probes
+    keep the fleet-wide reading in ``tests/test_env_gap_registry.py``.
+    """
+
+    def _scope(probe: "Callable[[], bool]") -> "Callable[[], bool]":
+        probe.host_check = _memo(host_check)
+        return probe
+
+    return _scope
+
+
+def describes_this_host(probe: "Callable[[], bool]") -> bool:
+    """False only for a probe scoped to a host class this host is not."""
+
+    host_check = getattr(probe, "host_check", None)
+    return host_check is None or bool(host_check())
+
+
+def _wsl_launcher_present() -> bool:
+    import os
+
+    system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
+    return bool(system_root) and os.path.isfile(os.path.join(system_root, "System32", "bash.exe"))
+
+
+def _hermes_resolves_a_bash() -> bool:
+    try:
+        import pm.shell
+
+        return bool(pm.shell.bash())
+    except Exception:
+        return False
+
+
+@describes_host(_wsl_launcher_present)
 @_memo
 def bare_bash_is_not_posix() -> bool:
     """True where argv ``["bash", "-c", ...]`` does not reach a POSIX bash (the
@@ -186,6 +228,7 @@ def shell_true_is_not_posix() -> bool:
     return done.stdout.strip() != "2"
 
 
+@describes_host(_hermes_resolves_a_bash)
 @_memo
 def resolved_bash_spells_posix_mount_paths() -> bool:
     """True where the bash Hermes resolves (``pm.shell.bash()``) is an MSYS bash:
@@ -272,7 +315,7 @@ def stale_skip_rows(registry: EnvGapSkipRegistry) -> list[str]:
     stale: list[str] = []
     for file_name, groups in registry.items():
         for probe, _reason, node_ids in groups:
-            if probe():
+            if probe() or not describes_this_host(probe):
                 continue
             stale.extend(f"{file_name}::{node_id}" for node_id in sorted(node_ids))
     return stale
@@ -299,7 +342,10 @@ def firing_skip_rows(registry: EnvGapSkipRegistry) -> list[str]:
     Measured 2026-09-06 — all 52 rows across the four registries fire on the
     Windows dev box and none fires on the Linux runner (CI run 33969282189
     listed every one of the 52 as stale), so nothing is mixed today. Splitting
-    a registry that becomes mixed is the repair.
+    a registry that becomes mixed is the repair — or, per probe, scoping it
+    with :func:`describes_host`: a scoped row is judged only on its own host
+    class, so a mixed registry of scoped rows is judgeable (the U3 shell rows,
+    lane h13-test 2026-09-29).
     """
     firing: list[str] = []
     for file_name, groups in registry.items():
