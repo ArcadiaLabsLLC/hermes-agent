@@ -199,18 +199,27 @@ def _hermes_resolves_a_bash() -> bool:
 @describes_host(_wsl_launcher_present)
 @_memo
 def bare_bash_is_not_posix() -> bool:
-    """True where argv ``["bash", "-c", ...]`` does not reach a POSIX bash (the
-    System32 WSL launcher answers instead). False when no ``bash`` spawns at all:
-    that is a different gap, and those tests guard it themselves."""
+    """True where argv ``["bash", "-c", ...]`` does not reach a POSIX bash with
+    its argv intact (the System32 WSL launcher answers instead). False when no
+    ``bash`` spawns at all: that is a different gap, and those tests guard it
+    themselves.
+
+    Asks whether the ARGV survives, not whether a trivial command runs: with no
+    distro the launcher answers E_UNEXPECTED in UTF-16, but with one installed
+    (measured 2026-09-30, Ubuntu) ``printf ok`` prints ``ok`` while the launcher
+    re-parses the command line through the distro's shell — ``$HOME`` and
+    ``$x`` expand before bash sees them and the positional arguments are gone,
+    which is exactly what the fenced tests trip on."""
 
     import subprocess
 
+    probe = "a$HOME b"
     try:
-        done = subprocess.run(["bash", "-c", "printf ok"], capture_output=True, timeout=30,
-                              stdin=subprocess.DEVNULL)
+        done = subprocess.run(["bash", "-c", 'printf %s "$1"', "_", probe], capture_output=True,
+                              timeout=30, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         return False
-    return done.stdout != b"ok"
+    return done.stdout != probe.encode()
 
 
 @_memo
