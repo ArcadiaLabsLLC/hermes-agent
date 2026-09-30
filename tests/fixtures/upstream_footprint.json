@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-29",
   "base": "ee5f49b943",
-  "files": 182,
-  "deleted_lines": 954,
-  "heavy": 5,
+  "files": 175,
+  "deleted_lines": 742,
+  "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h12-fp: main.py profile bootstrap restored in place; the phone openai shim; distribution switches and auth PR-1 sit on prepared upstream PR branches",
+      "files": "182 -> 175: acp_openai_bridge, auxiliary_async_rebuild, auxiliary_wire, chat_completion_helpers, mem0/_openai_llm, transcription_cloud, tts_streaming back to upstream bytes (agent_runtime/provider_sdk_shim.py registers the phone's openai)",
+      "deleted_lines": "954 -> 742: hermes_cli/main.py 211 -> 8 (upstream's profile-bootstrap block restored, three fork deltas carried in place) and the seven SDK fallbacks; heavy 5 -> 4 (main.py)",
+      "reason": "Owner-delegated round 12 (fork-hygiene rows: phone SDK class, main.py, distribution switches; runtime-queue auth transport). up/config-switch-keys and up/auth-on-verification are prepared, not opened; the fork's hunks at those sites are byte-identical to them and leave at their merge."
+    },
     {
       "change": "2026-09-29 owner-approved chat-first groups and per-message comparison",
       "files": "186 -> 187: hosted_room_driver admits independent members of one Compare message within its existing atomic scheduler; no parallel group engine.",
