@@ -43,3 +43,13 @@ provider tests cover independent replies, continuation, reconstruction, compute-
 questions, lost/repeated answer acknowledgements and exact confirmed Stop. No live
 credentials or user profiles were used. Final fork landing suite remains in progress;
 this checkpoint is not desktop acceptance.
+
+## Lifecycle follow-up
+
+`DiscussionService.idle_drain` conservatively treats every open run as busy,
+including an empty or settled profile group. This preserves the existing
+between-round safety fence, but can defer automatic runtime maintenance until
+groups are ended. A later lifecycle pass should distinguish settled groups from
+pending work using the existing planner under the admission lock; never infer
+idleness from an empty task list. Source-confirmed; no maintenance behavior was
+changed in this slice.
