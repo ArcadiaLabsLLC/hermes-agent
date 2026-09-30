@@ -88,15 +88,38 @@ read by the serve loop, and `route_gate`), lazy sites 704 -> 706 into 113 module
 gate's `hermes_cli.web_routers.local_models` import — reached only when a dashboard app exists, which a
 phone never builds); findings unchanged at 164.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1687 first-party modules kept. Verdict: **REFUSED** (164 findings).
+**Re-taken at lane s2-g1 (2026-09-30): 162 -> 104 findings.** Phone-gate plan
+(`docs/downstream/phone-gate-to-zero-plan-2026-09-30.md`) lane G1, bucket D1: profile switch-offs
+only, no code. The baseline is this tree's own before-run (main `a2544d227a`: 162, 1698 kept — the
+plan's 164 counted `ruamel-yaml-clib` as unproven on both targets, and `uv.lock` no longer requires it
+for 3.14, so its placeholder row was not needed). Switched off: 34 spawning modules (57 sites) —
+`gateway.shutdown_forensics`, the package manager except the facade's live members, the whole
+`hermes_cli.kanban*` family (its modules import one another at module level) plus
+`tools.kanban_tools` and the `kanban` toolset, the git helpers (`worktree_ops`, `git_credentials`,
+`github_api`, `update_cmd_check`, `goal_command`, `quiet_single_query`), the desktop CLI pickers,
+Codex app-server, Iron proxy, the compute-host bridge, the env probe, delegation forensics, the file
+operations / checkpoint upkeep modules, three memory-plugin spawners and the skills hub's GitHub
+source with the hub modules that import it (which also drops `tools.skills_hub_clawhub` from the
+closure, so the `pinned` row is empty). Per bucket, before -> after: subprocess_call 149 -> 92 (85 ->
+51 modules); pinned 1 -> 0; native 6 -> 6 (`pillow-heif` stays: HEIC decode is owner decision D2);
+process 4 -> 4; unproven 2 -> 2. Kept 1698 -> 1619; lazy unguarded sites 813 into 141 modules.
+Twenty-two D1 modules (35 sites, in 16 of them) stay KEPT because the phone e2e's turn path imports them or a kept
+module imports them at module level — they move to lane G3 (function stand-ins), named in the
+profile's comments: `gateway.run` / `run_inbound` / `run_shutdown` / `slash_commands` / `status`,
+`pm.extras` (the `pm` facade's `install_hint`) / `pm.install` / `pm.package` / `pm.registry`,
+`hermes_cli.gitlock` (pinned by `tools.checkpoint_manager`, which the loop builds every session),
+`source_check` / `source_releases` (pinned by `banner`), `goals`, `tools_config` (+ `_cua`,
+`_post_setup`), `hermes_constants_scratch`, the `command` / `bitwarden` / `onepassword` secret
+sources, `tools.bot_mode_dm`, `tools.checkpoint_manager`.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1619 first-party modules kept. Verdict: **REFUSED** (104 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
-| pinned | 1 | `tools.skills_hub` |
 | process | 3 | `psutil`, `termios`, `tty` |
-| subprocess_call | 85 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.proxy_sources.iron_proxy`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.transports.codex_app_server`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.shutdown_forensics`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.commands_completion`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.git_credentials`, `hermes_cli.github_api`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.kanban_db`, `hermes_cli.kanban_db_dispatch`, `hermes_cli.kanban_db_workspace`, `hermes_cli.kanban_pr_acceptance`, `hermes_cli.mcp_catalog`, `hermes_cli.plugin_catalog`, `hermes_cli.profiles`, `hermes_cli.profiles_service_cleanup`, `hermes_cli.quiet_single_query`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.update_cmd_check`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_cli.worktree_ops`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.byterover`, `plugins.memory.honcho.client`, `plugins.memory.mem0._setup`, `plugins.memory.openviking`, `plugins.web.ddgs.provider`, `pm.client`, `pm.environment`, `pm.extras`, `pm.features`, `pm.package`, `pm.packages`, `pm.plugin_eviction`, `pm.progress`, `pm.recovery`, `pm.runtime`, `pm.runtime_stage`, `tools.agent_chat_dispatch.local`, `tools.async_delegation_recovery_hints`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.env_probe`, `tools.file_operations_lint`, `tools.file_operations_search`, `tools.skills_hub_github`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.host_supervisor`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
-| unproven | 2 | `psutil`, `ruamel-yaml-clib` |
+| subprocess_call | 51 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.profiles`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.honcho.client`, `plugins.web.ddgs.provider`, `pm.extras`, `pm.package`, `tools.agent_chat_dispatch.local`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
+| unproven | 1 | `psutil` |
 
 How each shipped distribution is first reached (first target):
 
@@ -104,8 +127,8 @@ How each shipped distribution is first reached (first target):
 |---|---|
 | cryptography | `model_tools → hermes_cli.plugins → agent.secret_sources.registry → agent.secret_sources.bitwarden` |
 | pillow-heif | `plugins.image_gen.openai_codex → agent.image_routing` |
-| psutil | `plugins.memory.openviking` |
+| psutil | `run_agent → hermes_cli.profiles` |
 
-Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`).
+Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`); `tools.tts_tool_local` (`_LOCAL_TTS_MODEL_CACHES`, `_generate_kittentts`, `_generate_neutts`, `_generate_piper_tts`, `_load_kittentts_model_for_config`, `_load_piper_voice_for_config`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 706 sites, into 113 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 813 sites, into 141 modules.
