@@ -36,6 +36,10 @@ def member_id(ref: ParticipantRef) -> str:
     return "m-" + digest(ref.to_dict())[:24]
 
 
+def discussion_run_id(scope: str, key: str) -> str:
+    return "discussion-" + digest({"workspace_id": scope, "key": key})[:24]
+
+
 def native_session_id(run_id: str, instance_id: str) -> str:
     # Native ownership parser uses the final twelve hex characters.
     suffix = digest({"run_id": run_id, "instance_id": instance_id})[:12]

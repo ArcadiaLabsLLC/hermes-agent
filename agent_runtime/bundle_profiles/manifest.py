@@ -211,8 +211,11 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
 
 def known_toolset_names() -> set[str]:
     """Static toolsets plus every toolset a builtin registers into (no registrar import)."""
+    from agent_runtime.harness_toolset import ensure_harness_core
     from toolsets import TOOLSETS
     from tools.toolset_manifest import builtin_toolset_names
+
+    ensure_harness_core()
 
     return set(TOOLSETS) | set(builtin_toolset_names())
 

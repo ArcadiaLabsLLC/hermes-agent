@@ -135,7 +135,8 @@ def test_the_loop_runs_a_turn_without_sdks_or_desktop_tool_lifecycles(tmp_path):
     assert tool["roles"] == ["system", "user", "assistant", "tool"]
     assert json.loads(tool["tool_results"][0])["todos"] == []  # the safe tool really ran
     assert report["placed"] == ["tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.delegate_tool",
-                                "tools.computer_use.tool", "tools.browser_tool_cloud"]  # blocked here; file_tools is not
+                                "tools.computer_use.tool", "tools.browser_tool_cloud",
+                                "tools.environments.local"]  # blocked here; file_tools is not
     assert report["loaded"] == []
 
 
@@ -146,3 +147,67 @@ def test_an_installation_that_ships_the_lifecycles_gets_no_placeholder():
 
     assert ensure_lifecycle_placeholders() == ()
     assert sys.modules["tools.terminal_tool_lifecycle"] is real and not is_lifecycle_placeholder(real)
+
+
+_UPSTREAM_IMPORTERS_CHILD = r'''
+import json, sys
+OFF = ("tools.environments", "tools.tts_tool_local", "hermes_cli.local_runtime")
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if name.startswith(OFF):
+            raise ModuleNotFoundError(f"switched off: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+out = {}
+if sys.argv[1] == "control":
+    try:
+        import agent.transports.codex_app_server  # noqa: F401
+        out["imported"] = True
+    except ModuleNotFoundError as exc:
+        out["imported"], out["missing"] = False, exc.name
+    print(json.dumps(out)); raise SystemExit
+from agent_runtime.loop_tool_lifecycles import LifecycleNotShipped, ensure_lifecycle_placeholders
+out["placed"] = sorted(m for m in ensure_lifecycle_placeholders() if m.startswith(OFF))
+import agent.copilot_acp_client as acp, agent.transports.codex_app_server as app_server
+import tools.tts_tool_lifecycle as tts_lifecycle, tools.tts_tool  # noqa: F401
+from agent.image_routing import _probe_managed_runtime
+out["managed_probe"] = _probe_managed_runtime("custom", "m", {})
+out["model_caches"] = dict(tts_lifecycle._LOCAL_TTS_MODEL_CACHES)
+for name, fn in (("acp", acp.hermes_subprocess_env), ("app_server", app_server.hermes_subprocess_env)):
+    try:
+        fn()
+        out[name] = "ran"
+    except LifecycleNotShipped:
+        out[name] = "refused"
+print(json.dumps(out))
+'''
+
+
+def _run_importers_child(mode: str, tmp_path) -> dict:
+    proc = subprocess.run(
+        [sys.executable, "-c", _UPSTREAM_IMPORTERS_CHILD, mode], cwd=REPO_ROOT, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=240,
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+    assert proc.returncode == 0, proc.stderr[-4000:]
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def test_upstream_importers_of_a_switched_off_module_load_on_its_stand_in_unedited(tmp_path):
+    """``agent.copilot_acp_client``, ``agent.transports.codex_app_server``, ``tools.tts_tool(_lifecycle)``
+    and ``agent.image_routing`` carry upstream's bytes: with the environments package, the local TTS
+    engines and the local runtime absent, they load on the stand-ins and answer as the absent feature
+    does — no managed local runtime, no model cache, and a loud refusal to start a child process.
+
+    Positive control: without the stand-ins the same child cannot import the app-server transport, so
+    the block is real and the stand-in is what carries the load.
+    Killing mutation (recorded in the commit): drop ``LOCAL_ENVIRONMENT`` from ``_LOOP_NAMES`` -> red."""
+    control = _run_importers_child("control", tmp_path)
+    assert control == {"imported": False, "missing": "tools.environments"}
+
+    out = _run_importers_child("seam", tmp_path)
+    assert out["placed"] == ["hermes_cli.local_runtime.capabilities", "tools.environments.local",
+                             "tools.tts_tool_local"]
+    assert out["managed_probe"] is None
+    assert out["model_caches"] == {}
+    assert out["acp"] == out["app_server"] == "refused"

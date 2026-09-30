@@ -8,7 +8,7 @@ from agent_runtime.discussions.room_definition import RoomSpec
 from agent_runtime.discussions.run_store import DiscussionError
 from agent_runtime.discussions.run_schema import initialize_runs
 from tests.agent_runtime.test_discussion_definitions import table_value
-from tests.agent_runtime.test_discussion_runtime import engine, wait_until, settled, command
+from tests.agent_runtime.test_discussion_runtime import engine as engine, wait_until, settled, command
 
 pytestmark = pytest.mark.timeout(90)
 
@@ -54,7 +54,7 @@ def test_nonspatial_limit_and_idempotency_conflicts_are_not_silent_edits(engine)
 
 
 def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
-    # Build the OLD schema, not the production v2 schema relabeled as v1.
+    # Build the old schema, including its non-null persona-owned members.
     db = sqlite3.connect(tmp_path / "old.sqlite")
     try:
         db.execute("CREATE TABLE mc_discussion_runs_schema (singleton INTEGER PRIMARY KEY,version INTEGER)")
@@ -67,6 +67,15 @@ def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
         db.execute("CREATE INDEX mc_discussion_runs_workspace ON mc_discussion_runs(workspace_id,created_at,run_id)")
         db.execute("CREATE TABLE mc_discussion_instance_claims(install_id TEXT,instance_id TEXT,run_id TEXT)")
         db.execute("INSERT INTO mc_discussion_instance_claims VALUES('install','personainst_a','old')")
+        db.execute("""CREATE TABLE mc_discussion_members (
+          run_id TEXT NOT NULL, member_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+          install_id TEXT NOT NULL, instance_id TEXT NOT NULL, persona_id TEXT NOT NULL,
+          profile TEXT NOT NULL, display_name TEXT NOT NULL, handle TEXT NOT NULL,
+          session_id TEXT NOT NULL, seat INTEGER NOT NULL, status TEXT NOT NULL,
+          PRIMARY KEY(run_id,member_id), UNIQUE(run_id,ordinal), UNIQUE(run_id,session_id))""")
+        member = ('old', 'member', 1, 'install', 'personainst_a', 'persona_a', 'a',
+                  'Amelia', 'amelia', 'session', 1, 'active')
+        db.execute("INSERT INTO mc_discussion_members VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", member)
         row = ('old', 'ws', 'table', 'key', 'digest', 7, 'paused', '{"table":{"name":"Original"}}',
                'Important topic', 'operator', 10.0, 20.0, None)
         db.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", row)
@@ -75,7 +84,8 @@ def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
             initialize_runs(db)
         assert db.execute("SELECT * FROM mc_discussion_runs").fetchone() == row
         assert db.execute("SELECT * FROM mc_discussion_instance_claims").fetchone() == ('install', 'personainst_a', 'old')
-        assert db.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 2
+        assert db.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 3
+        assert db.execute("SELECT * FROM mc_discussion_members").fetchone() == (*member, None)
         db.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", ('new', 'ws', None, 'new-key', *row[4:]))
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == 'ok'
     finally:

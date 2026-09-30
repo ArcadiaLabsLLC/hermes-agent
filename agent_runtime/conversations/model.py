@@ -63,6 +63,10 @@ class ConversationScope:
         return digest([self.actor, self.client, self.profile])
 
 
+def conversation_route_id(scope: ConversationScope, key: str) -> str:
+    return "conversation-" + digest([scope.key, key])
+
+
 @dataclass(frozen=True, slots=True)
 class ConversationRoute:
     id: str

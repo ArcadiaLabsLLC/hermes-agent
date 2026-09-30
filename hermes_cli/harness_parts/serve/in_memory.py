@@ -176,6 +176,9 @@ class EmbeddedServe:
 
     def _run(self) -> None:
         try:
+            from agent_runtime.bundle_profiles.phone_hint import install_phone_platform_hint
+
+            install_phone_platform_hint()  # the phone agent is told its limits (upstream's PLATFORM_HINTS)
             self._exit_code = serve_loop(self._pipe, self._sink, **self._options)
         except BaseException as exc:  # reported through wait(); the host decides
             self._error = exc

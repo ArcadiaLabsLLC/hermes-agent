@@ -450,9 +450,6 @@ def _string_list_arg(args: Dict[str, Any], key: str, *, dedupe: bool, max_items:
 def dispatch_tool_search(args: Dict[str, Any], *, current_tool_defs: List[Dict[str, Any]],
                          config: Optional[ToolSearchConfig] = None,
                          connector_search: Optional[Any] = None) -> str:
-    legacy_query = "query" in args and "queries" not in args
-    if legacy_query:
-        args = {**args, "queries": [args["query"]]}
     config = config or load_config()
     queries, err = _string_list_arg(args, "queries", dedupe=False, max_items=_MAX_QUERIES_PER_CALL,
                                     retry_hint="Retry with fewer, more targeted queries.")
@@ -486,9 +483,6 @@ def dispatch_tool_search(args: Dict[str, Any], *, current_tool_defs: List[Dict[s
                 "object before concluding the capability is unavailable.")
         results.append(group)
     remote_count = sum(1 for name in tools_map if is_connector_name(name))
-    if legacy_query:
-        return json.dumps({"query": queries[0], "total_available": len(catalog) + remote_count,
-                           "matches": [{"name": name, **tools_map[name]} for name in results[0]["matches"]]}, ensure_ascii=False)
     payload: Dict[str, Any] = {"queries": queries, "total_available": len(catalog) + remote_count,
                                "results": results, "tools": tools_map}
     if hosted_failure:
@@ -500,9 +494,6 @@ def dispatch_tool_describe(args: Dict[str, Any], *, current_tool_defs: List[Dict
                            config: Optional[ToolSearchConfig] = None,
                            connector_describe: Optional[Any] = None) -> str:
     config = config or load_config_readonly()
-    legacy_name = "name" in args and "names" not in args
-    if legacy_name:
-        args = {**args, "names": [args["name"]]}
     names, err = _string_list_arg(
         args, "names", dedupe=True, max_items=_MAX_DESCRIBE_NAMES_PER_CALL,
         retry_hint="Retry with fewer names per call.")
@@ -541,10 +532,6 @@ def dispatch_tool_describe(args: Dict[str, Any], *, current_tool_defs: List[Dict
         result["errors"] = errors
     if hosted_failure:
         result["connectors"] = connectors_unavailable(hosted_failure, verb="described", names=undescribed)
-    if legacy_name and names:
-        if names[0] in tools:
-            return json.dumps({"name": names[0], **tools[names[0]]}, ensure_ascii=False)
-        return tool_error(errors.get(names[0]) or f"Tool {names[0]!r} is not available in this session.")
     return json.dumps(result, ensure_ascii=False)
 
 

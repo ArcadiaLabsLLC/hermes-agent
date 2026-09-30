@@ -13,12 +13,19 @@ class RecoveryParams(SessionParams):
     execution_id: str | None = None
 
 
+class ExecutionResult(Result):
+    text: str
+    truncated: bool
+    error: str | None = None
+
+
 class ExecutionEvidence(Result):
     id: str
     session_key: str
     status: str
     cancel_requested: bool
     user_row_id: int | None = None
+    result: ExecutionResult | None = None
 
 
 class HistoryPosition(Result):

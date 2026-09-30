@@ -12,7 +12,6 @@ import sqlite3
 import time
 from collections.abc import Callable, Mapping
 from contextlib import closing
-from pathlib import Path
 from typing import Any
 
 from gateway.hosted_rooms_common import connect
@@ -20,11 +19,12 @@ from hermes_cli.sqlite_util import transaction
 
 from .definition_store import DefinitionStore, _encode
 from .definitions import DefinitionError, ParticipantRef, identifier, revision
-from .run_values import DiscussionError, text, digest, member_id, native_session_id
+from .run_values import DiscussionError, text as text, digest, member_id
 from .run_schema import run_schema_ready, initialize_runs
 from .run_records import read_run_record, _advance, _expect_run, _add_member
-from .run_admission import admit, table_admission, room_admission, MAX_OPEN_RUNS
+from .run_admission import admit, table_admission, room_admission
 from .room_definition import RoomSpec, execution_spec
+from .member_schema import member_record
 
 __layer__ = "stores"
 
@@ -86,7 +86,7 @@ class RunStore:
 
     def members(self, run_id: str) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM mc_discussion_members WHERE run_id=? ORDER BY ordinal", (run_id,))]
+            return [member_record(row) for row in conn.execute("SELECT * FROM mc_discussion_members WHERE run_id=? ORDER BY ordinal", (run_id,))]
 
     def request(self, run_id: str, workspace_id: str, *, key: str, operation: str,
                 expect_revision: int, body: Mapping[str, Any]) -> bool:

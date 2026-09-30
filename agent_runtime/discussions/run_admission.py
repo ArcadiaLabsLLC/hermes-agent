@@ -11,8 +11,8 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import DefinitionKind, _encode, _expect, _key, _required
 from .definitions import ParticipantRef, identifier, plan_seats
 from .room_definition import RoomSpec
-from .run_records import _add_member, read_run_record
-from .run_values import DiscussionError, digest, text
+from .run_records import _add_member, add_profile_member, read_run_record
+from .run_values import DiscussionError, digest, text, discussion_run_id
 
 __layer__ = "stores"
 
@@ -50,10 +50,10 @@ def room_admission(spec: RoomSpec) -> Admission:
 def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str, topic: str,
           actor_id: str, identity: Mapping[str, Any],
           load: Callable[[sqlite3.Connection], Admission],
-          resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
+          resolve: Callable[[ParticipantRef, str], Mapping[str, Any]], allow_empty_topic: bool = False) -> dict[str, Any]:
     identifier(workspace, "workspace_id")
     identifier(key, "idempotency_key")
-    topic = text(topic, field="topic")
+    topic = "" if allow_empty_topic and topic == "" else text(topic, field="topic")
     signature = digest({**identity, "topic": topic})
     with transaction(connect(), immediate=True) as conn:
         previous = conn.execute("SELECT run_id,request_digest FROM mc_discussion_runs WHERE workspace_id=? AND start_key=?",
@@ -66,7 +66,7 @@ def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str
         if conn.execute("SELECT COUNT(*) FROM mc_discussion_runs WHERE phase NOT IN ('ended','failed')").fetchone()[0] >= MAX_OPEN_RUNS:
             raise DiscussionError("too_many_open_discussions")
         catalog = [dict(resolve(ref, workspace)) for ref in admission.participants]
-        run_id = "discussion-" + digest({"workspace_id": workspace, "key": key})[:24]
+        run_id = discussion_run_id(workspace, key)
         now = time.time()
         conn.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,1,'initializing',?,?,?,?,?,NULL)",
                      (run_id, workspace, admission.table_id, key, signature,
@@ -74,5 +74,8 @@ def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str
         if admission.table_id is not None:
             conn.execute("INSERT INTO mc_discussion_table_claims VALUES(?,?,?)", (workspace, admission.table_id, run_id))
         for index, (ref, item) in enumerate(zip(admission.participants, catalog, strict=True)):
-            _add_member(conn, run_id, item, ordinal=index, seat=admission.positions[ref])
+            if "group" in admission.initial:
+                add_profile_member(conn, run_id, item, ordinal=index)
+            else:
+                _add_member(conn, run_id, item, ordinal=index, seat=admission.positions[ref])
         return read_run_record(conn, run_id)

@@ -98,19 +98,19 @@ class LiveConversation:
                                 "id": request_id, "result": result})
         return answer.get("status") == "ok"
 
-    def _checkpoint(self):
-        receipt = self.store.latest(self.route)
+    def _checkpoint(self, turn_id=None):
+        receipt = self.store.turn(self.route, turn_id) if turn_id else self.store.latest(self.route)
         native = self.peer.call("session.recover", {"session_id": self.native_id,
             **({"execution_id": receipt.execution_id} if receipt and receipt.execution_id else {})})
         self.reconcile(native.get("execution"))
         return native
 
-    def recover(self):
-        native = self._checkpoint()
+    def recover(self, turn_id=None):
+        native = self._checkpoint(turn_id)
         self.retry_stop()
         return {"recovery": native, "epoch": native["epoch"], "cursor": native["latest_seq"],
                 "offset": 0, "events": [], "more": False, "truncated": False,
-                "connected": self.peer.alive, **self.receipt()}
+                "connected": self.peer.alive, **self.receipt(turn_id)}
 
     def receipt(self, turn_id=None):
         receipt = self.store.turn(self.route, turn_id) if turn_id else self.store.latest(self.route)

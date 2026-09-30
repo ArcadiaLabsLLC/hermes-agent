@@ -8,13 +8,12 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 from types import SimpleNamespace
 
 import pytest
 
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
-from agent_runtime.discussions.native import NativeContext
+from agent_runtime.discussions.native_context import NativeContext
 from agent_runtime.discussions.run_store import DiscussionError
 from agent_runtime.discussions.service import DiscussionService
 from agent_runtime.discussions.definitions import DefinitionError, ParticipantRef
@@ -146,7 +145,7 @@ def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_his
     assert len(public) == 12
     assert len({e["payload"]["member_id"] for e in public}) == 12
     command(service, run, "end")
-    ended = wait_until(lambda: (v if (v := service.view("ws", run["run_id"]))["run"]["phase"] == "ended" else None))
+    wait_until(lambda: (v if (v := service.view("ws", run["run_id"]))["run"]["phase"] == "ended" else None))
     hosted_rooms.prune_disbanded_rooms(service.db_path, now=time.time() + 365 * 86400)
     assert len([e for e in service.view("ws", run["run_id"])["log"]["events"] if e["kind"] == "message.member"]) == 12
     # End released both definition edit and embodied-instance claims.

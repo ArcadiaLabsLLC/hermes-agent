@@ -20,6 +20,7 @@ from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms
 from gateway import hosted_rooms_common as common
 from gateway.hosted_rooms_common import compact_json
+from gateway.hosted_room_message_intent import ResponseMode, published_watermark, response_from_payload, response_guidance
 
 
 MAX_DISCUSSION_MEMBERS = 6
@@ -166,6 +167,7 @@ class DiscussionDecision:
     source_event_seq: int | None = None
     thread_id: str | None = None
     task: DiscussionTaskPlan | None = None
+    ready_tasks: tuple[DiscussionTaskPlan, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -237,9 +239,11 @@ def _all_failure_reasons() -> frozenset[str]:
 
 def validate_user_payload(value: Any) -> dict[str, Any]:
     """Validate and normalize the exact ``message.user`` Discussion payload."""
-    payload = _exact_fields(value, label="user payload", required=_USER_PAYLOAD_FIELDS)
+    payload = _exact_fields(value, label="user payload", required=_USER_PAYLOAD_FIELDS, optional={"response"})
+    response = response_from_payload(payload, error=DiscussionValidationError)
     return {
         "text": _text(payload["text"], label="user payload text", max_bytes=MAX_USER_TEXT_BYTES),
+        **({"response": response.to_dict()} if response is not None else {}),
         "thread_id": _identifier(payload["thread_id"], label="thread_id")}
 
 
@@ -403,6 +407,8 @@ def _validate_turn_coordinates(payload: Mapping[str, Any], room: DiscussionRoom)
 # Each takes (kind, payload, actor, room) and returns the payload to record.
 def _validate_user_event(kind: str, payload: Payload, actor: Payload, room: DiscussionRoom) -> Payload:
     payload = validate_user_payload(payload)
+    if (response := response_from_payload(payload)) is not None:
+        response.validate_audience((m.member_id for m in room.members), error=DiscussionValidationError)
     if actor.get("kind") != "user":
         raise DiscussionValidationError("message.user requires a user actor")
     return payload
@@ -509,6 +515,7 @@ def derive_member_watermarks(
 
 def _derive_member_watermarks(events: Sequence[_ValidatedEvent]) -> dict[tuple[str, str], int]:
     messages_by_id = {event.event_id: event for event in events if event.kind == "message.member"}
+    sources = {event.event_id: event.payload for event in events if event.kind == "message.user"}
     terminal_by_task: dict[str, _ValidatedEvent] = {}
     watermarks: dict[tuple[str, str], int] = {}
     for event in events:
@@ -529,7 +536,7 @@ def _derive_member_watermarks(events: Sequence[_ValidatedEvent]) -> dict[tuple[s
             if message is None or any(
                 message.payload.get(f) != event.payload.get(f) for f in ("task_id", "member_id", "thread_id")):
                 raise DiscussionValidationError("turn.settled references no matching member message")
-            watermark = max(watermark, message.seq)
+            watermark = published_watermark(watermark, message.seq, sources.get(event.payload["discussion_event_id"]))
         watermarks[key] = max(watermarks.get(key, 0), watermark)
     return watermarks
 
@@ -563,7 +570,7 @@ def _truncate_utf8_text(value: Any, *, max_bytes: int, suffix: str = "") -> str:
 def _build_prompt(
     *, room: DiscussionRoom, member: DiscussionMember, messages: Sequence[_ValidatedEvent], watermark: int,
     seen_through_seq: int, active_members: Sequence[DiscussionMember] | None = None,
-    conclusion: bool = False) -> str:
+    conclusion: bool = False, response=None) -> str:
     delta = [event for event in messages if watermark < event.seq <= seen_through_seq][- MAX_DISCUSSION_DELTA_LINES:]
     peers = ", ".join(f"@{candidate.handle}" for candidate in (room.members if active_members is None else active_members) if candidate.member_id != member.member_id)
     opening = [
@@ -574,7 +581,7 @@ def _build_prompt(
         "", "Rules for this Discussion:",
         "- Reply with one conversational message only when you have something new worth adding.",
         '- If you have nothing new to add, reply with exactly "(pass)".',
-        "- Mention a teammate by handle to pull them into the next round; do not repeat points already made.",
+        response_guidance(response) or "- Mention a teammate by handle to pull them into the next round; do not repeat points already made.",
         "- Never reveal content from private conversations. Your reply is published verbatim."]
     if room.limits.guidance:
         rules.append(room.limits.guidance)
@@ -619,6 +626,9 @@ def _make_task_plan(
     payload = {
         "target_member_id": member.member_id, "target_profile": member.profile, "prompt": prompt,
         "source_event_seq": discussion_event.seq}
+    response = response_from_payload(discussion_event.payload)
+    if response is not None and response.mode == ResponseMode.COMPARE:
+        payload["independent"] = True
     return DiscussionTaskPlan(
         identity, payload, discussion_event.event_id, member, member_index, round_index, seen_through_seq)
 
@@ -674,7 +684,7 @@ def plan_next_task(
     initial_watermarks: Mapping[tuple[str, str], int] | None = None,
     limits: DiscussionLimits = DEFAULT_LIMITS,
     active_member_ids: Iterable[str] | None = None) -> DiscussionDecision:
-    """Replay the complete room log and return at most one next member task."""
+    """Replay the room log into the next turn or independent comparison batch."""
     room = validate_room(room_value, local_profiles=local_profiles, limits=limits)
     validated = _validated_events(events, room=room)
     if (discussion := _pending_discussion(validated)) is None:
@@ -688,19 +698,26 @@ def plan_next_task(
         DiscussionDecision, discussion_event_id=discussion.event_id, source_event_seq=discussion.seq,
         thread_id=thread_id)
     thread_messages, discussion_messages, member_messages = _thread_messages(validated, discussion)
+    response = response_from_payload(discussion.payload)
+    single_round = response is not None and response.single_round
     finish = partial(_conclude, room, validated, discussion, active)
     if room.limits.conclusion_member_id and any(
             e.kind in _TERMINAL_EVENT_KINDS and e.payload.get("discussion_event_id") == discussion.event_id
             and e.payload["round_index"] == room.limits.max_rounds for e in validated):
         return finish(decide("settled", "conclusion_finished"))
-    if len(member_messages) >= room.limits.max_messages:
-        return finish(decide("bounded", "max_messages"))
     terminals = {
         (int(event.payload["round_index"]), str(event.payload["member_id"])) for event in validated
         if event.kind in _TERMINAL_EVENT_KINDS and event.payload.get("discussion_event_id") == discussion.event_id}
+    if single_round and all((0, member.member_id) in terminals for member in response.select(active)):
+        return decide("settled", "comparison_finished" if response.mode == ResponseMode.COMPARE else "reply_finished")
+    if len(member_messages) >= room.limits.max_messages:
+        return finish(decide("bounded", "max_messages"))
     watermarks = _effective_watermarks(validated, initial_watermarks)
-    seen_through_seq = max(event.seq for event in thread_messages)
-    for round_index in range(room.limits.max_rounds):
+    seen_through_seq = (discussion.seq if response is not None and response.mode == ResponseMode.COMPARE
+                        else max(event.seq for event in thread_messages))
+    independent = response is not None and response.mode == ResponseMode.COMPARE
+    ready_tasks = []
+    for round_index in range(1 if single_round else room.limits.max_rounds):
         # The user's message selects the first round, with no mention meaning
         # everyone. Later rounds are opt-in: only a peer explicitly cited by a
         # Bot and not heard from afterward gets another turn. Every member's
@@ -709,6 +726,8 @@ def plan_next_task(
         responders = (
             resolve_mentions((str(discussion.payload["text"]),), active) if round_index == 0
             else tuple(m for m in _unaddressed_member_mentions(discussion_messages, room) if m in active))
+        if response is not None and round_index == 0:
+            responders = response.select(active)
         for member_index, member in enumerate(_rotate(responders, round_index)):
             if (round_index, member.member_id) in terminals:
                 continue
@@ -717,10 +736,19 @@ def plan_next_task(
                 continue
             prompt = _build_prompt(
                 room=room, member=member, messages=thread_messages, watermark=watermark,
-                seen_through_seq=seen_through_seq, active_members=active)
-            return decide("task", "member_turn", task=_make_task_plan(
+                seen_through_seq=seen_through_seq, active_members=active, response=response)
+            task = _make_task_plan(
                 room=room, discussion_event=discussion, member=member, member_index=member_index,
-                round_index=round_index, seen_through_seq=seen_through_seq, prompt=prompt))
+                round_index=round_index, seen_through_seq=seen_through_seq, prompt=prompt)
+            if not independent:
+                return decide("task", "member_turn", task=task)
+            ready_tasks.append(task)
+            if len(ready_tasks) + len(member_messages) >= room.limits.max_messages:
+                break
+        if ready_tasks:
+            return decide("task", "comparison_turn", task=ready_tasks[0], ready_tasks=tuple(ready_tasks))
+        if single_round:
+            return decide("settled", "comparison_finished" if response.mode == ResponseMode.COMPARE else "reply_finished")
         if not any(int(event.payload["round_index"]) == round_index for event in member_messages):
             return finish(decide("settled", "silent_round"))
         if round_index == room.limits.max_rounds - 1:
@@ -730,6 +758,9 @@ def plan_next_task(
 
 def _conclude(room, events, discussion, active, decision) -> DiscussionDecision:
     """One optional ordinary driver turn; the same journal owns Stop and replay."""
+    response = response_from_payload(discussion.payload)
+    if response is not None and response.single_round:
+        return decision
     member_id = room.limits.conclusion_member_id
     if member_id is None:
         return decision

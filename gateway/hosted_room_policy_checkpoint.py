@@ -15,6 +15,7 @@ from typing import Any, Callable, Mapping
 
 from gateway import hosted_rooms
 from gateway.hosted_rooms_common import DbPath, compact_json, fenced_update
+from gateway.hosted_room_message_intent import published_watermark
 
 
 MAX_ACTIVE_POLICY_EVENTS = 64
@@ -230,7 +231,11 @@ class HostedRoomPolicyCheckpoint:
         if kind == "turn.settled" and payload.get("message_event_id"):
             committed = _settled_message(conn, room_id, discussion_event_id, payload["message_event_id"])
             if committed is not None:
-                seen_through_seq = max(seen_through_seq, int(committed["seq"]))
+                source = conn.execute(
+                    f"SELECT {_ROOM_EVENT_COLUMNS} FROM hosted_room_events WHERE room_id=? AND event_id=?",
+                    (room_id, discussion_event_id)).fetchone()
+                seen_through_seq = published_watermark(seen_through_seq, int(committed["seq"]),
+                    _event_from_room_row(source)["payload"] if source is not None else None)
                 self._store_transcript_event(conn, event=committed, thread_id=thread_id, settled_seq=seq)
         if member_id and seen_through_seq > 0:
             conn.execute("""INSERT INTO hosted_room_policy_watermarks(

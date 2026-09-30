@@ -3,52 +3,75 @@
 Same names, same bodies; the upstream file keeps only upstream's tests.
 """
 
+from agent_runtime.harness_toolset import ensure_harness_core
 from toolsets import (
     TOOLSETS,
     resolve_toolset,
 )
 
+# ``harness_core`` is the fork's, registered through upstream's ``create_custom_toolset`` (lane h11-fp);
+# every fork reader ensures it, and so does this file before it resolves the name.
+ensure_harness_core()
+
+
+def _session_tool_names(platform: str) -> set[str]:
+    """The tool names a default session on ``platform`` sends the model: upstream's per-platform
+    resolver (every production caller - CLI, gateway, cron, ACP, api_server - goes through it) and
+    the schema snapshot, with the eternia-harness plugin discovered as agent init does."""
+    from hermes_cli.plugins import discover_plugins
+    from hermes_cli.tools_config import _get_platform_tools
+    from model_tools import _clear_tool_defs_cache, get_tool_definitions
+
+    discover_plugins()
+    _clear_tool_defs_cache()
+    enabled = sorted(_get_platform_tools({}, platform))
+    return {t["function"]["name"] for t in get_tool_definitions(enabled_toolsets=enabled, quiet_mode=True)}
+
 
 class TestSkillSearchToolsetCoverage:
-    """``skill_search`` must resolve into every platform bundle that ships the
-    skill-discovery tools, so normal agents receive its schema by default.
+    """``skill_search`` must reach every default session that ships the skill-discovery tools,
+    and stay in its DIRECT tool list (never deferred behind ``tool_search``).
 
-    See the sibling ``get_tool_definitions(enabled_toolsets=["hermes-cli"])``
-    regression in ``tests/tools/test_skills_tool.py`` for the end-to-end
-    (schema-resolution + check_fn) proof on the default session path.
+    It is the plugin's tool, registered into ``skills``; a platform bundle reaches it because
+    upstream's resolver maps the bundle onto its member toolsets, and it stays eager through the
+    fork's never-defer set (``tools/tool_search_downstream.py``) - no longer by being named in
+    upstream's ``toolsets.py`` (lane h11-fp, 2026-09-29).
     """
 
-    def test_hermes_cli_toolset_includes_skill_search(self):
-        assert "skill_search" in resolve_toolset("hermes-cli")
+    def test_hermes_cli_session_carries_skill_search(self):
+        assert "skill_search" in _session_tool_names("cli")
 
-    def test_messaging_platforms_include_skill_search(self):
-        for platform in (
-            "hermes-cron",
-            "hermes-telegram",
-            "hermes-discord",
-            "hermes-whatsapp",
-            "hermes-slack",
-            "hermes-signal",
-            "hermes-api-server",
-            "hermes-acp",
-        ):
-            assert "skill_search" in resolve_toolset(platform), (
+    def test_messaging_platform_sessions_carry_skill_search(self):
+        for platform in ("cron", "telegram", "discord", "whatsapp", "slack", "signal", "api_server", "acp"):
+            assert "skill_search" in _session_tool_names(platform), (
                 f"{platform} exposes skill discovery but is missing skill_search"
             )
 
     def test_standalone_skills_toolset_includes_skill_search(self):
+        from hermes_cli.plugins import discover_plugins
+
+        discover_plugins()
         assert "skill_search" in resolve_toolset("skills")
 
-    def test_skill_search_travels_with_skills_list_across_all_toolsets(self):
-        """Parity invariant: no toolset may expose ``skills_list`` without also
-        exposing ``skill_search``. Guards against a future toolset (or a new
-        platform bundle) enumerating skills while leaving search unreachable."""
-        for name in TOOLSETS:
-            resolved = set(resolve_toolset(name))
-            if "skills_list" in resolved:
-                assert "skill_search" in resolved, (
-                    f"toolset '{name}' exposes skills_list without skill_search"
-                )
+    def test_skill_search_travels_with_skills_list_on_every_platform(self):
+        """Parity invariant: no default session may expose ``skills_list`` without also exposing
+        ``skill_search``. Guards against a platform enumerating skills while leaving search
+        unreachable (or deferred)."""
+        from hermes_cli.platforms import PLATFORMS
+
+        for platform in PLATFORMS:
+            names = _session_tool_names(platform)
+            if "skills_list" in names:
+                assert "skill_search" in names, f"platform '{platform}' exposes skills_list without skill_search"
+
+    def test_skill_search_leaves_the_direct_list_without_the_never_defer_entry(self, monkeypatch):
+        """Positive control for the eager guarantee: with ``skill_search`` out of the fork's
+        never-defer set, upstream defers it like any plugin tool and the session loses it."""
+        import tools.tool_search_downstream as downstream
+
+        monkeypatch.setattr(downstream, "_NEVER_DEFER_TOOLS", downstream._NEVER_DEFER_TOOLS - {"skill_search"})
+        names = _session_tool_names("cli")
+        assert "skills_list" in names and "skill_search" not in names
 
 
 class TestHarnessCoreToolset:
@@ -123,6 +146,27 @@ class TestHarnessCoreToolset:
         from agent_runtime.toolset_names import expand_toolset_names
 
         assert expand_toolset_names(["debugging"]) == ["debugging"]
+
+    def test_a_process_that_resolves_tools_has_harness_core_through_the_plugin(self, tmp_path):
+        """No fork module is imported first: ``model_tools`` discovers the eternia-harness plugin, whose
+        ``register`` defines the composite. Positive control: ``toolsets`` alone does not carry it."""
+
+        import os
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, toolsets\n"
+            "before = 'harness_core' in toolsets.TOOLSETS\n"
+            "import model_tools\n"
+            "print(before, 'harness_core' in toolsets.TOOLSETS, 'agent_runtime.toolset_names' in sys.modules)\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=240,
+            env={**os.environ, "HERMES_HOME": str(tmp_path)},
+        )
+        assert out.returncode == 0, out.stderr[-4000:]
+        assert out.stdout.strip().splitlines()[-1] == "False True False"
 
     def test_expand_toolset_names_reads_no_registry(self):
         """The A6a property, in-process: names without the registrars."""
