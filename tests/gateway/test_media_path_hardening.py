@@ -8,10 +8,19 @@ from gateway.platforms.base import MEDIA_TAG_CLEANUP_RE, BasePlatformAdapter
 BS = chr(92)
 
 
+def _isolate_hermes_root(tmp_path, monkeypatch):
+    """The credential roots are module constants resolved at import; point them at a temp home
+    so the denylist build never scans the machine's real Hermes profiles."""
+    hermes_home = tmp_path / "hermes-home"
+    monkeypatch.setattr(base, "_HERMES_HOME", hermes_home)
+    monkeypatch.setattr(base, "_HERMES_ROOT", hermes_home)
+
+
 def test_denylist_home_follows_home_env(tmp_path, monkeypatch):
     home = tmp_path / "operator-home"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "profile-home"))
+    _isolate_hermes_root(tmp_path, monkeypatch)
     denied = base._media_delivery_denied_paths()
     assert home / ".ssh" in denied
 
@@ -44,6 +53,7 @@ def test_denylist_keeps_the_native_home_when_home_differs(tmp_path, monkeypatch)
     monkeypatch.setattr(base.os.path, "expanduser",
                         lambda p: str(native) + p[1:] if p.startswith("~") else real_expand(p))
     monkeypatch.setenv("HOME", str(configured))
+    _isolate_hermes_root(tmp_path, monkeypatch)
     denied = base._media_delivery_denied_paths()
     assert native / ".ssh" in denied
     assert configured / ".ssh" in denied
