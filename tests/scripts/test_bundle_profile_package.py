@@ -349,3 +349,128 @@ def test_the_phone_wheel_ships_what_its_registries_and_plugin_loader_import():
     assert orphans == []
     assert "plugins/web/firecrawl/plugin.yaml" in files  # positive control: a shipped plugin's manifest
     assert (ROOT / "plugins/web/firecrawl/provider.py").is_file()
+
+
+# -- the forced tree (lane G6, owner ruling 2026-09-30 option (1)) ---------------------------------
+
+
+FORCED = {"tools.a", "tools.pkg", "tools.pkg.x", "tools.kept.inner", "plugins.ns.p", "plugins.ns.p.mod", "other.m"}
+KEPT = {"tools", "tools.kept", "plugins", "keep"}
+
+
+def test_the_forced_tree_takes_only_scanned_package_modules_with_no_kept_package_between():
+    """``tools.kept.inner`` stays in ``app/``: its package's ``__path__`` is app-only, and no scan imports
+    a non-entry file of a kept package. ``other.m`` is under no scanned package."""
+    from agent_runtime.bundle_profiles.forced_tree import sibling_modules
+
+    assert sibling_modules(FORCED, KEPT) == {"tools.a", "tools.pkg", "tools.pkg.x", "plugins.ns.p", "plugins.ns.p.mod"}
+
+
+def test_only_a_profile_that_asks_for_the_forced_tree_gets_one():
+    """The desktop profile does not set ``packaging.forced_sibling_tree``: its plan has no sibling tree,
+    so its bundle is laid out exactly as before. Positive control: the same inputs with the flag set."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_package import forced_tree_plan
+
+    assert load_profile("bundled-desktop", validate=False).packaging_forced_sibling_tree is False
+    assert load_profile("bundled-phone", validate=False).packaging_forced_sibling_tree is True
+    assert forced_tree_plan(SimpleNamespace(packaging_forced_sibling_tree=False), KEPT | FORCED, FORCED) == set()
+    assert forced_tree_plan(SimpleNamespace(packaging_forced_sibling_tree=True), KEPT | FORCED, FORCED) == {
+        "tools.a", "tools.pkg", "tools.pkg.x", "plugins.ns.p", "plugins.ns.p.mod"}
+
+
+def test_a_forced_package_s_data_and_manifest_go_to_the_forced_tree_with_its_code():
+    """A forced plugin's ``plugin.yaml`` left in ``app/plugins/`` is a manifest the loader scans with no
+    ``__init__.py`` beside it; it moves with its package. A kept module's file stays."""
+    from scripts.bundle_profile_closure import ROOT
+    from scripts.bundle_profile_package import split_forced_tree
+
+    index = {"plugins.ns.p": ROOT / "plugins/ns/p/__init__.py", "plugins.ns.p.mod": ROOT / "plugins/ns/p/mod.py",
+             "tools.a": ROOT / "tools/a.py"}
+    rels = ["plugins/__init__.py", "plugins/ns/README.md", "plugins/ns/p/__init__.py", "plugins/ns/p/mod.py",
+            "plugins/ns/p/plugin.yaml", "tools/a.py", "tools/b.py"]
+    app, tree = split_forced_tree(rels, set(index), index)
+    assert tree == ["plugins/ns/p/__init__.py", "plugins/ns/p/mod.py", "plugins/ns/p/plugin.yaml", "tools/a.py"]
+    assert app == ["plugins/__init__.py", "plugins/ns/README.md", "tools/b.py"]
+    assert split_forced_tree(rels, set(), index) == (rels, [])  # no tree: every file stays in app/
+
+
+def test_verify_names_a_forced_module_under_the_scanned_tree_and_a_stray_in_the_forced_tree():
+    plan = _plan({"a", "tools", "tools.a"}, {"x"})
+    plan.sibling = {"tools.a"}
+    assert compare(plan, {"a", "tools"}, SITE, {"x/__init__.py"}, {}, tree_modules={"tools.a"}) == []  # control
+    assert compare(plan, {"a", "tools", "tools.a"}, SITE, {"x/__init__.py"}, {}) == [
+        "forced module under the scanned app tree (the plan puts it in phone_forced/): tools.a"]
+    assert compare(plan, {"a", "tools"}, SITE, {"x/__init__.py"}, {}, tree_modules={"tools.a", "tools.b"}) == [
+        "module in phone_forced/ the plan does not put there: tools.b",
+        "extra first-party module (outside the closure): tools.b"]
+
+
+def test_the_mounted_forced_tree_resolves_imports_the_scanned_directory_does_not_hold(tmp_path: Path):
+    """The embedded entry's mount, in a child interpreter over a miniature bundle: before it the forced
+    module is not importable, after it it imports from ``phone_forced/``; the scanned ``tools/`` directory
+    never holds it; a second mount appends nothing; a bundle without the tree mounts nothing."""
+    import subprocess
+    import sys
+
+    from scripts.bundle_profile_closure import ROOT
+
+    _write(tmp_path, "app/tools/__init__.py", "")
+    _write(tmp_path, "app/plugins/__init__.py", "")
+    _write(tmp_path, "phone_forced/tools/forced.py", "WHERE = 'tree'\n")
+    _write(tmp_path, "phone_forced/plugins/off/__init__.py", "")
+    child = (
+        "import importlib.util, json, sys\n"
+        "sys.path[:0] = [sys.argv[1], sys.argv[2]]\n"
+        "from agent_runtime.bundle_profiles.forced_tree import mount_forced_tree\n"
+        "before = importlib.util.find_spec('tools.forced') is not None\n"
+        "first, second = mount_forced_tree(), mount_forced_tree()\n"
+        "import tools.forced, plugins.off\n"
+        "print(json.dumps({'before': before, 'first': first, 'second': second,\n"
+        "                  'origin': tools.forced.__file__, 'plugin': plugins.off.__file__}))\n")
+    def run(app):
+        return subprocess.run([sys.executable, "-I", "-c", child, str(app), str(ROOT)],
+                              capture_output=True, text=True, timeout=120)
+
+    done = run(tmp_path / "app")
+    assert done.returncode == 0, done.stderr[-2000:]
+    import json
+
+    out = json.loads(done.stdout.strip().splitlines()[-1])
+    assert out["before"] is False
+    assert out["first"] == [str(tmp_path / "phone_forced" / "tools"), str(tmp_path / "phone_forced" / "plugins")]
+    assert out["second"] == []
+    assert Path(out["origin"]) == tmp_path / "phone_forced" / "tools" / "forced.py"
+    assert Path(out["plugin"]) == tmp_path / "phone_forced" / "plugins" / "off" / "__init__.py"
+    assert sorted(p.name for p in (tmp_path / "app" / "tools").glob("*.py")) == ["__init__.py"]
+    # Negative control: no tree beside app/, nothing is mounted and the forced module does not import.
+    import shutil
+
+    shutil.rmtree(tmp_path / "phone_forced")
+    done = run(tmp_path / "app")
+    assert done.returncode != 0 and "No module named 'tools.forced'" in done.stderr, done.stderr[-2000:]
+
+
+def test_the_serve_import_probe_mounts_the_forced_tree(tmp_path: Path):
+    """A lazy import into a forced module resolves in the probe exactly when the bundle carries the
+    sibling tree — the probe mounts it as the embedded entry does."""
+    import shutil
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = "%d.%d.0" % sys.version_info[:2]
+    _serve_tree(tmp_path, with_sibling=True)
+    _write(tmp_path, "app/hermes_cli/harness_parts/serve/loop.py",
+           "def rpc():\n    import rpc.registry\n    import tools.forced\n")
+    _write(tmp_path, "app/tools/__init__.py", "")
+    _write(tmp_path, "phone_forced/tools/forced.py", "")
+    _write(tmp_path, "source/tools/forced.py", "")  # the checkout's copy the plan reads, outside the bundle
+    index = {**module_index(tmp_path / "app"), "tools.forced": tmp_path / "source/tools/forced.py"}
+    shipped = set(index)
+    assert serve_import_table(shipped, index)["lazy"]["hermes_cli.harness_parts.serve.loop"] == [
+        "rpc.registry", "tools.forced"]
+    assert serve_import_problems(tmp_path, shipped, index, version) == []
+    shutil.rmtree(tmp_path / "phone_forced")
+    problems = serve_import_problems(tmp_path, shipped, index, version)
+    assert len(problems) == 1 and "tools.forced" in problems[0], problems

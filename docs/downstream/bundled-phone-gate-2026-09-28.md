@@ -163,7 +163,26 @@ mutation: a module-level `subprocess.call` appended to `hermes_bootstrap` -> `RE
 NousResearch/hermes-agent#129413, pdf #129414; the two G2 guards `secret_prompt` #129411,
 `process_identity` #129412 — each merge retires its carry.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1615 first-party modules kept. Verdict: **REFUSED** (10 findings).
+**Re-taken at lane s2-g6 (2026-09-30): 10 -> 10 findings.** Phone-gate plan lane G6 (bucket C,
+M7, owner ruling 2026-09-30 option (1)), both counts from `~/.venvs/hermes-test` (CPython 3.14.5), the
+before-run on this lane's base `b719f05412`. The packager's forced set now ships its `tools` / `plugins`
+modules (121 of them, 126 files, with each forced package's `plugin.yaml` and data) under
+`<bundle>/phone_forced/`, beside `app/`, when the profile sets `packaging.forced_sibling_tree` (the
+phone does; desktop does not, so its plan, file list and `bundle-manifest.json` are unchanged); the
+embedded entry (`EmbeddedServe.start`) mounts it on `tools.__path__` / `plugins.__path__` first
+(`agent_runtime/bundle_profiles/forced_tree.py`). Upstream's directory scans (`tools/registry.py`
+`discover_builtin_tools`, the plugin loader) read directories, never `__path__`, so they no longer
+see a forced module; four forced modules inside KEPT sub-packages (`plugins.memory.mem0._setup`,
+`tools.agent_chat_dispatch.local_child`, `tools.connectors.gateway.{client,wire}`) stay in `app/`,
+where no scan imports a non-entry file. The gate answers a pin the plan puts in that tree
+(`forced_tree_seams`), but the count does not move: the `pinned` row the plan's "9 -> 8" counted was
+already empty at the base — every pin (`agent_runtime.git_cmd`, the terminal/browser lifecycles,
+`tools.tts_tool_local`) is answered by the loop's placeholders, which the gate asks first — so G6
+retires no gate finding. What it retires is the runtime defect the runtime-queue row recorded: the
+phone e2e stages the tree and its recorder sees no scan import of a forced module. Kept 1615 -> 1616
+(`forced_tree` itself).
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1616 first-party modules kept. Verdict: **REFUSED** (10 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|

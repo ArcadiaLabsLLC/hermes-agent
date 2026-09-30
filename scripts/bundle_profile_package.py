@@ -9,6 +9,9 @@ version, it writes::
       app/                 first-party modules the closure keeps, their package
                            data, the manifest's resources, and a PEP 621
                            dist-info (upstream's ``scripts/build/agent.write_metadata``)
+      phone_forced/        only with ``packaging.forced_sibling_tree``: the forced set's
+                           ``tools`` / ``plugins`` modules, out of reach of upstream's
+                           directory scans (``agent_runtime/bundle_profiles/forced_tree.py``)
       site-packages/       only the third-party distributions the closure needs
       bundle-manifest.json what was packaged, from which commit, for which target
       licenses.json        every shipped component's licence, licence files, wheel
@@ -70,6 +73,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
+from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
 TARGETS: dict[str, tuple[str, dict[str, str]]] = {
@@ -226,6 +230,9 @@ class Plan:
     distributions: set[str]  # normalized names: the closure's "needed" set
     missing: set[str] = field(default_factory=set)  # needed, but the site does not hold it
     refusals: list[str] = field(default_factory=list)  # the closure's own packaging refusals
+    #: the ``pinned`` modules shipped under ``<bundle>/phone_forced/`` instead of ``app/``
+    #: (``packaging.forced_sibling_tree``; :mod:`agent_runtime.bundle_profiles.forced_tree`)
+    sibling: set[str] = field(default_factory=set)
 
 
 def _eager_first_party_closure(start: set[str], index: dict[str, Path]) -> set[str]:
@@ -272,9 +279,35 @@ def first_party_plan(manifest, index: dict[str, Path] | None = None) -> tuple[se
     # ``tools/agent_chat/__init__`` (``from . import detached, schemas, send``) shipped while the
     # siblings it imports did not, and ``agent_runtime.serve_rpc`` failed to import in the bundle.
     result, index = profile_walk(manifest, index, parents=True)
-    forced = set(result.pinned) | {row["target"] for row in result.unguarded_into_pruned}
-    loaded = _eager_first_party_closure(forced, index) - result.kept
+    loaded = forced_modules(result, index)
     return _with_parents(result.kept | loaded, index), loaded, index
+
+
+def forced_modules(walk, index: dict[str, Path]) -> set[str]:
+    """The switched-off modules a walk's kept code forces into the bundle (see :func:`first_party_plan`)."""
+    forced = set(walk.pinned) | {row["target"] for row in walk.unguarded_into_pruned}
+    return _eager_first_party_closure(forced, index) - walk.kept
+
+
+def forced_tree_plan(manifest, first_party: set[str], pinned: set[str]) -> set[str]:
+    """The forced modules the profile ships in the sibling tree (empty unless it asks for one)."""
+    if not getattr(manifest, "packaging_forced_sibling_tree", False):
+        return set()
+    return sibling_modules(pinned, first_party - pinned)
+
+
+def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path],
+                      root: Path = ROOT) -> tuple[list[str], list[str]]:
+    """-> (files for ``app/``, files for the sibling tree): a sibling module's file, and every file
+    of a sibling PACKAGE's directory (its ``plugin.yaml`` and data go with its ``__init__``)."""
+    if not sibling:
+        return list(rels), []
+    files = {index[m].relative_to(root).as_posix() for m in sibling}
+    package_dirs = tuple(f.rsplit("/", 1)[0] + "/" for f in files if f.endswith("/__init__.py"))
+    app, tree = [], []
+    for rel in rels:
+        (tree if rel in files or rel.startswith(package_dirs) else app).append(rel)
+    return app, tree
 
 
 _DISTRIBUTION_DRIVER = r"""
@@ -316,7 +349,8 @@ def make_plan(manifest, site: Path, target: str, python_version: str,
     needed, refused = distribution_plan(manifest.profile, [site], target, python_version)
     return Plan(profile=manifest.profile, target=target, python_version=python_version,
                 first_party=first_party, pinned=loaded, distributions=needed,
-                missing=needed - set(read_site(site)), refusals=refused)
+                missing=needed - set(read_site(site)), refusals=refused,
+                sibling=forced_tree_plan(manifest, first_party, loaded))
 
 
 def pack_distributions(manifest, pack: str, sites: list[Path], target: str,
@@ -512,8 +546,11 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     tracked = tracked_files()
     rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
                              manifest.packaging_skill_platforms)
-    for rel in rels:
+    app_rels, tree_rels = split_forced_tree(rels, plan.sibling, index)
+    for rel in app_rels:
         _copy_file(ROOT / rel, app / rel)
+    for rel in tree_rels:
+        _copy_file(ROOT / rel, out / FORCED_TREE_DIR / rel)
     from scripts.build.agent import write_metadata
 
     write_metadata(ROOT / "pyproject.toml", app)
@@ -536,6 +573,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
         "third_party_files": third_party,
         "excluded_data": dict(manifest.excluded_data),
     }
+    if plan.sibling:  # only a profile with a sibling tree records one: the desktop record is unchanged
+        record["forced_tree"] = {"dir": FORCED_TREE_DIR, "modules": sorted(plan.sibling), "files": len(tree_rels)}
     (out / BUNDLE_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     write_licence_records(out, "core", plan.distributions, plan.target, commit, core=True)
     return record
@@ -545,9 +584,16 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
 
 
 def compare(plan: Plan, app_modules: set[str], site_dists: dict[str, Dist], site_files: set[str],
-            excluded: dict[str, str], baked: bool = False, app_files: set[str] = frozenset()) -> list[str]:
-    """Every way the bundle differs from its plan, one line each (empty = matches)."""
+            excluded: dict[str, str], baked: bool = False, app_files: set[str] = frozenset(),
+            tree_modules: set[str] = frozenset()) -> list[str]:
+    """Every way the bundle differs from its plan, one line each (empty = matches). ``app_modules``
+    are the modules under ``app/``, ``tree_modules`` those under the sibling tree."""
     problems = [f"closure refuses the profile's packaging: {line}" for line in plan.refusals]
+    for module in sorted(app_modules & plan.sibling):
+        problems.append(f"forced module under the scanned app tree (the plan puts it in {FORCED_TREE_DIR}/): {module}")
+    for module in sorted(tree_modules - plan.sibling):
+        problems.append(f"module in {FORCED_TREE_DIR}/ the plan does not put there: {module}")
+    app_modules = app_modules | tree_modules
     for module in sorted(app_modules - plan.first_party):
         problems.append(f"extra first-party module (outside the closure): {module}")
     for module in sorted(plan.first_party - app_modules):
@@ -604,8 +650,13 @@ SERVE_ARGV = ("harness", "serve", "--ndjson")
 
 _SERVE_IMPORT_PROBE = r"""
 import argparse, importlib, json, sys
-app, site, table_path, argv = sys.argv[1], sys.argv[2], sys.argv[3], json.loads(sys.argv[4])
+app, site, table_path, argv, tree = sys.argv[1], sys.argv[2], sys.argv[3], json.loads(sys.argv[4]), sys.argv[5]
 sys.path[:0] = [app, site]
+if tree:  # the sibling tree, mounted as the embedded entry mounts it (forced_tree.mount_forced_tree)
+    import os
+    for package in ("tools", "plugins"):
+        if os.path.isdir(os.path.join(tree, package)):
+            importlib.import_module(package).__path__.append(os.path.join(tree, package))
 with open(table_path, encoding="utf-8") as handle:
     table = json.load(handle)
 lazy, spawned, packages_known = table["lazy"], table["spawned"], set(table["packages"])
@@ -693,7 +744,8 @@ def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Pat
         env = {k: v for k, v in os.environ.items() if not k.startswith(("HERMES", "PYTHON"))}
         env["HERMES_HOME"] = str(Path(scratch) / "home")
         done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _SERVE_IMPORT_PROBE, str(out / "app"),
-                               str(out / "site-packages"), str(table), json.dumps(list(SERVE_ARGV))],
+                               str(out / "site-packages"), str(table), json.dumps(list(SERVE_ARGV)),
+                               str(out / FORCED_TREE_DIR) if (out / FORCED_TREE_DIR).is_dir() else ""],
                               capture_output=True, text=True, timeout=300, env=env, cwd=scratch,
                               stdin=subprocess.DEVNULL)
     lines = done.stdout.strip().splitlines()
@@ -721,8 +773,12 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
     app_files = {p.relative_to(app).as_posix() for p in app.rglob("*") if p.is_file()}
     app_modules = app_module_names(app, manifest.packaging_plugins, manifest.packaging_resources)
+    tree = out / FORCED_TREE_DIR
+    tree_modules = set(module_index(tree, plugins=manifest.packaging_plugins)) if tree.is_dir() else set()
+    tree_files = {p.relative_to(tree).as_posix() for p in tree.rglob("*") if p.is_file()} if tree.is_dir() else set()
     problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
-                       baked=(out / BAKED_MARKER).is_file(), app_files=app_files)
+                       baked=(out / BAKED_MARKER).is_file(), app_files=app_files | tree_files,
+                       tree_modules=tree_modules)
     problems += licence_problems(out, plan.distributions)
     problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
                                   manifest.excluded_data, manifest.packaging_skill_platforms)
@@ -740,8 +796,9 @@ def bake_dir(directory: Path, python: Path) -> None:
 
 
 def bake(out: Path, python: Path) -> int:
-    for sub in ("app", "site-packages"):
-        bake_dir(out / sub, python)
+    for sub in ("app", "site-packages", FORCED_TREE_DIR):
+        if (out / sub).is_dir():
+            bake_dir(out / sub, python)
     (out / BAKED_MARKER).write_text("unchecked-hash\n", encoding="utf-8")
     return sum(1 for _ in out.rglob("*.pyc"))
 

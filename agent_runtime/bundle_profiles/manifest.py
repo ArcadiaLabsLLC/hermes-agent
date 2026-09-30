@@ -115,6 +115,9 @@ class ProfileManifest:
     packaging_skill_platforms: tuple[str, ...] = ()
     #: compiled (non-pure-Python) distribution -> why the profile gate admits it
     admitted_native: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    #: ship the forced set's scanned-package modules under the sibling root the embedded entry mounts
+    #: (``agent_runtime/bundle_profiles/forced_tree.py``), never under the scanned ``tools/`` / ``plugins/``
+    packaging_forced_sibling_tree: bool = False
 
 
 def manifest_path(profile: str) -> Path:
@@ -160,6 +163,14 @@ def _omitted(row: Any) -> dict:
     if stand_in:
         out["stand_in"] = stand_in  # a first-party module whose stand_in_modules() the entry registers
     return out
+
+
+def _flag(value: Any, where: str) -> bool:
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ProfileManifestError(f"{where} must be true or false")
+    return value
 
 
 def _reasons(value: Any, where: str) -> dict[str, str]:
@@ -209,6 +220,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_targets=_strings(packaging.get("targets"), "packaging.targets"),
         packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
+        packaging_forced_sibling_tree=_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
     )
     if validate:
         validate_manifest(manifest)
