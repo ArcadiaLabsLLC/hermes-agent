@@ -189,7 +189,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
 
-- [ ] **W0-G6 keys a `from pkg import name` to `pkg/__init__`'s layer whatever submodule defines `name`, so a package door at the package's top layer manufactures an upward edge for every lower-layer consumer — 13 of the 66 undeclared modules were held by exactly this, and any future door re-creates the class** · `fork / gates` · fix: `layer_violations` resolves a door name to its defining submodule (the re-export follow `god_file_scope.visible_vocabularies` already does) · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §1 class A, §4 · filed by lane LAYERS-DESIGN 2026-09-25 **TAKEN 2026-09-29 h11-code**
 
 ## Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS, filed by the orchestrator)
 

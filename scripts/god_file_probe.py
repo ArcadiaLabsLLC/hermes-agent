@@ -817,10 +817,20 @@ def declared_modules(root: Path = ROOT) -> dict[str, str]:
 
 
 def module_imports(root: Path, path: str) -> list[str]:
+    """Dotted targets, a package door's name keyed to the submodule that defines it.
+
+    ``from pkg import name`` with ``name`` re-exported by ``pkg/__init__`` from ``pkg.sub``
+    reads as ``pkg.sub.name``, so a door declared at the package's top layer does not
+    manufacture an upward edge for a lower consumer (layers sheet 2026-09-25, class A).
+    """
     tree = _tree(root, path)
     if tree is None:
         return []
-    return [f"{m}.{n}" if n else m for m, n, _ in imports_of(path, tree)]
+    out = []
+    for m, n, _ in imports_of(path, tree):
+        origin = _scope.door_origin(root, m, n) if n and not _scope.module_path(root, f"{m}.{n}") else None
+        out.append(f"{origin or m}.{n}" if n else m)
+    return out
 
 
 # ── fixtures: read, compare, write ──────────────────────────────────────────
