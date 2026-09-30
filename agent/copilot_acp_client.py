@@ -31,12 +31,7 @@ from agent.acp_openai_bridge import (
 from agent.file_safety import (
     get_nt_namespace_error, get_read_block_error, get_write_denied_error, is_write_approval_required)
 from agent.redact import redact_sensitive_text
-try:
-    from tools.environments.local import hermes_subprocess_env
-except ImportError:  # fork seam: phone wheel — the local execution environment is not shipped
-    from agent_runtime.loop_tool_lifecycles import not_shipped
-
-    hermes_subprocess_env = not_shipped("tools.environments.local", "hermes_subprocess_env")
+from tools.environments.local import hermes_subprocess_env
 
 ACP_MARKER_BASE_URL = "acp://copilot"
 logger = logging.getLogger(__name__)

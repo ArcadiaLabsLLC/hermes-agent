@@ -10,11 +10,14 @@ from agent_runtime.bundle_profiles.manifest import known_toolset_names, load_pro
 from agent_runtime.bundle_profiles.phone_hint import CAPABILITIES, phone_platform_hint
 
 
-def test_the_phone_hint_upstream_serves_is_the_one_derived_from_the_phone_profile():
+def test_the_phone_hint_upstream_serves_is_the_one_derived_from_the_phone_profile(monkeypatch):
     from agent.prompt_builder import PLATFORM_HINTS
     from agent.system_prompt import _default_platform_hint
+    from agent_runtime.bundle_profiles.phone_hint import install_phone_platform_hint
 
+    monkeypatch.delitem(PLATFORM_HINTS, "phone", raising=False)
     derived = phone_platform_hint(load_profile("bundled-phone"))
+    assert install_phone_platform_hint() == derived  # what the phone's entry installs
     assert PLATFORM_HINTS["phone"] == derived
     assert _default_platform_hint("phone") == derived
     for phrase in ("no shell or terminal", "no background processes",

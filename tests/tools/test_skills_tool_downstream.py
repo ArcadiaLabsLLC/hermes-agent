@@ -164,23 +164,23 @@ class TestSkillSearch:
         assert "query" in entry.schema["parameters"]["required"]
 
     def test_skill_search_exposed_on_default_hermes_cli_session(self):
-        """Regression: registering ``skill_search`` under the ``skills`` toolset
-        is not enough — the default interactive session resolves its schema
-        footprint from the ``hermes-cli`` platform bundle. If ``skill_search``
-        isn't wired into that composition, ``get_tool_definitions`` never sends
-        the schema to the model and the tool is silently unreachable by default.
+        """Regression: the default interactive session resolves its tools through upstream's
+        per-platform resolver (``hermes-cli`` mapped onto its member toolsets, ``skills`` among
+        them) and defers plugin tools behind ``tool_search``. ``skill_search`` must still reach
+        the model's direct list - it stays eager through the fork's never-defer set.
         """
         from hermes_cli.plugins import discover_plugins
+        from hermes_cli.tools_config import _get_platform_tools
         from model_tools import get_tool_definitions, _clear_tool_defs_cache
 
         discover_plugins()  # agent init does this before the tool snapshot (skill_search is a plugin tool)
         _clear_tool_defs_cache()
-        tools = get_tool_definitions(enabled_toolsets=["hermes-cli"], quiet_mode=True)
+        tools = get_tool_definitions(enabled_toolsets=sorted(_get_platform_tools({}, "cli")), quiet_mode=True)
         names = {t.get("function", {}).get("name") for t in tools}
 
         assert "skill_search" in names, (
-            "skill_search must be exposed on the default hermes-cli session path "
-            "(wire it into _HERMES_CORE_TOOLS in toolsets.py)"
+            "skill_search must be exposed on the default cli session path "
+            "(its toolset is `skills`; it stays eager through tools/tool_search_downstream.py)"
         )
         # The exposed schema must be the real one the model can call.
         schema = next(
@@ -197,9 +197,11 @@ class TestSkillSearch:
         from hermes_cli.plugins import discover_plugins
         from model_tools import get_tool_definitions, _clear_tool_defs_cache
 
+        from hermes_cli.tools_config import _get_platform_tools
+
         discover_plugins()  # agent init does this before the tool snapshot (skill_search is a plugin tool)
         _clear_tool_defs_cache()
-        tools = get_tool_definitions(enabled_toolsets=["hermes-cli"], quiet_mode=True)
+        tools = get_tool_definitions(enabled_toolsets=sorted(_get_platform_tools({}, "cli")), quiet_mode=True)
         names = {t.get("function", {}).get("name") for t in tools}
 
         assert {"skills_list", "skill_view", "skill_search"} <= names
