@@ -13,9 +13,9 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Reject contradictory success receipts in the bundled runner.** · `members_to_rerun` trusts process exit 0 although the bundle recorder can report `rc: 2` with no test events; 19 CLI files were labelled green without execution evidence. Per-file confirmation is required, not a green count. Evidence: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` · filed 2026-09-29 chat-first-groups. UNCLAIMED
 
-- [ ] **Classify the live runtime socket lock correctly in full backups.** · A sole unreadable `agent-runtime/serve_socket.lock` marked a backup containing every profile database incomplete; [deployment evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#installed-update). Filed 2026-09-29 shared-provider-correction. UNCLAIMED
+- [ ] **Classify the live runtime socket lock correctly in full backups.** · A sole unreadable `agent-runtime/serve_socket.lock` marked a backup containing every profile database incomplete; [deployment evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#installed-update). Filed 2026-09-29 shared-provider-correction. UNCLAIMED **TAKEN 2026-09-29 h11-code**
 
-- [ ] **Repair two stale doc-citation anchors in boot/lifecycle and observability.** · Changed neither by the shared-provider slice nor since its base; [gate evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#evidence). Filed 2026-09-29 shared-provider-correction. UNCLAIMED
+- [ ] **Repair two stale doc-citation anchors in boot/lifecycle and observability.** · Changed neither by the shared-provider slice nor since its base; [gate evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#evidence). Filed 2026-09-29 shared-provider-correction. UNCLAIMED **TAKEN 2026-09-29 h11-code**
 
 
 - [ ] **Isolate wrapper-publication tests before resuming interrupted desktop qualification.** · Whole-PC freeze during the single-worker continuation; running-wrapper publication is the last surviving fixture, not a proven cause. Preserve evidence; use contained off-desktop reproduction, not an unbounded rerun. [Incident boundary](../../docs/downstream/discussion-qualification-2026-09-28.md#host-freeze--qualification-interrupted). Filed 2026-09-28 Discussion qualification. · VERDICT 2026-09-29 h10-fhrel: static read done — `tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself` runs the freshly published native `hermes.exe`/`.cmd` once (`subprocess.run`, 30 s timeout) and that child rewrites its own running launcher; nothing in the body is unbounded, so the test is a candidate trigger only through the OS/driver side of self-overwrite. Owed: one contained reproduction in a disposable Windows VM with commit/process limits and per-file diagnostics (a box this lane does not have); the updater-retarget half of the residual population is fenced by `319c6ff69d`, so the VM run no longer reaches the primary checkout · OWNER 2026-09-29: park, low priority; needs a disposable VM · VERDICT 2026-09-29 h11-back: parked per the owner decision; no disposable Windows VM on this box, so the one contained reproduction stays owed — (a) run it in a disposable VM with commit/process limits [recommended, when one exists]; (b) close as not-reproduced after the next clean desktop qualification · PARKED 2026-09-29 (released by orchestrator: waits on the owner's trigger in its OWNER line / the VERDICT's named precondition)
@@ -23,19 +23,24 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (h11-mcp landing)
 
-- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 · UNCLAIMED
+- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h10-fhrest)
 
-- [ ] **`tests/hermes_cli/test_update_fleet_restart_pending.py`: 4 tests red after 172 test_update_*/test_launchd_*/test_cmd_update* files in one process, green alone (53 passed)** · `fork / suite` · bisect pairwise (REDS2 method, `016a6cd71e`) · evidence: lane h10-fhrest `.lane-logs/r110b.log` · filed by lane h10-fhrest 2026-09-29
+- [ ] **`tests/hermes_cli/test_update_fleet_restart_pending.py`: 4 tests red after 172 test_update_*/test_launchd_*/test_cmd_update* files in one process, green alone (53 passed)** · `fork / suite` · bisect pairwise (REDS2 method, `016a6cd71e`) · evidence: lane h10-fhrest `.lane-logs/r110b.log` · filed by lane h10-fhrest 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
 
 ### Filed on arrival — 2026-09-28 (lane w5-hstt)
 
-### Filed on arrival — 2026-09-29 (lane h7-reds)
-- [ ] **With the directory conftests restored, `scripts/run_tests.sh tests/tools tests/agent tests/hermes_cli` on this box is 561 failed / 33244 passed in 237 files, all pre-existing (none new vs the old loader; `tests/tools/test_file_read_guards.py` flakes 4-5 reds on both) — triage by class, environment vs code** · fork-hygiene · evidence: h7-reds loader commit message · UNCLAIMED · VERDICT 2026-09-29 h10-fhrel: this lane retired 48 of the 561 by class in `43eee6f03f` (40 MCP OAuth e-TTY + 2 hangs + 2 singles as upstream_reds rows) and 7 orphaned env-gap rows in `10570a2b80`; the remainder needs the three-directory run itself (~40 min, a suite-size run a lane may not take). Owed: one triage lane that takes that run once, buckets the failures by exception class, and files each class as its own row · OWNER 2026-09-29: run the three-directory triage once, overnight **TAKEN 2026-09-29 h10b-triage**
+### Filed on arrival — 2026-09-29 (lane h10b-triage — the three-directory triage, one row per class)
+
+- [ ] **The suite venv `~/.venvs/hermes-test` is CPython 3.12.5 while `pyproject.toml` supports only `==3.14.*`: `uv sync` refuses every plugin-install fixture and the extras are stale (no `anthropic`, `mcp` 1.26.0 vs pinned 2.0.0, no `fal_client` / `parallel-web`) — 36 files, 149 ids (class E1); rebuild the venv on 3.14 with the test extras, or add `REQUIRES_DISTRIBUTION` probes** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class E1 **TAKEN 2026-09-29 h11-env**
+- [ ] **14 upstream model-flow files hang in `getaddrinfo` for a fixture host inside `agent.model_metadata._ollama_show` (class E2); `conftest_plugin._no_ollama_show_probe` is per-id and covers one test — make it the default for upstream tests, or stub DNS for `.test`/`.example` hosts** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class E2 **TAKEN 2026-09-29 h11-env**
+- [ ] **Stale fork tests and markers (class C2, 10 files): patch target moved by the adapter split, `hermes_cli.dep_ensure` removed, memo counters moved, a `fork_marks` strict xfail XPASSing (`test_config_read_guard`), an upstream test unwinding the shared monkeypatch under the fork guard (`test_serve_runtime_inventory`), `test_auth_noninteractive`, `test_backup` CRLF, `test_local_env_blocklist_downstream`** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C2 **TAKEN 2026-09-29 h11-code**
+- [ ] **Upstream Windows reds left unmarked (classes U2–U4, 30 files, 89 ids): timing-dependent or unsettled (U2), a shell premise that depends on which `bash` the box resolves — Git Bash vs WSL (U3), and byte-identical spawning files not run on pure upstream (U4); settle each cause before a strict row** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) classes U2–U4 **TAKEN 2026-09-29 h11-env**
+- [ ] **`tests/tools/test_process_registry.py` (fork-edited implementation) and `tests/tools/test_browser_real_profile.py` stay red solo and need a pure-upstream comparison on an isolated host (class X)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class X · UNCLAIMED
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
 
@@ -45,7 +50,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-26 (native Hermes qualification)
 
-- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. · VERDICT 2026-09-29 h10-fhrel: the classification needs the validated suite (~1 h) plus the fleet/gateway certificate fixtures on an isolated host; the two siblings this lane could settle from the tree are closed (doc-cite `dd153d6946`, frozen-home refuted `930b335b48`). Owed: the program-end validated-suite run classifies the fleet identity pair and `ServeCertificatePinMismatch` against a clean primary · OWNER 2026-09-29: classify in the same overnight run as the 561 triage **TAKEN 2026-09-29 h10b-triage**
+- [ ] **Finish classifying the validated-suite residuals, including the two worktree-only fleet identity assertions and baseline gateway certificate mismatch blocking registered mutations.** · [Native qualification evidence](../../docs/downstream/native-hermes-qualification-2026-09-26.md); [[Windows console signal safety]] adds an incomplete one-hour run and failures reproduced on primary in 33 of 35 files; no baseline expansion or unrelated runtime repair was made. · VERDICT 2026-09-29 h10-fhrel: the classification needs the validated suite (~1 h) plus the fleet/gateway certificate fixtures on an isolated host; the two siblings this lane could settle from the tree are closed (doc-cite `dd153d6946`, frozen-home refuted `930b335b48`). Owed: the program-end validated-suite run classifies the fleet identity pair and `ServeCertificatePinMismatch` against a clean primary · OWNER 2026-09-29: classify in the same overnight run as the 561 triage **TAKEN 2026-09-29 h10b-triage** · VERDICT 2026-09-29 h10b-triage: both named residuals are green in a worktree — `test_fleet_matrix_down_state.py` 7/7, `test_local_llama_adapter_gateway.py` 2/2 ([triage note](../../docs/downstream/triage-561-2026-09-29.md)); the rest of the validated-suite residual population is outside the three-directory run and still needs the validated suite, so the claim stays
 
 ### Filed on arrival — 2026-09-26 (lane FIX-TRIAGE, filed by the orchestrator)
 
@@ -65,8 +70,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-29 (lane h10-fhrel, filed by the orchestrator)
 
-- [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
-- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **UNCLAIMED**
+- [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
+- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 
@@ -181,14 +186,14 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (program-end suite on `7df3bee189`, filed by the orchestrator)
 
-- [ ] **ruff `F821` is ignored under `tests/**`, `tools/**`, `agent/**`, `gateway/**` by `pyproject.toml`'s per-file-ignores, so a merge-dropped name in those trees is invisible to the analyzer (the 2026-09-24 `heartbeat` NameError, `77cd9c6a6f`)** · `fork / hygiene` · evidence: `Harness_Brain/20 — Active Initiatives/upstream-release-2026-09-24.md`; the merge design's Q5 keeps F821 in `select` (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md`) · filed by lane MERGE-DESIGN 2026-09-25 **UNCLAIMED**
+- [ ] **ruff `F821` is ignored under `tests/**`, `tools/**`, `agent/**`, `gateway/**` by `pyproject.toml`'s per-file-ignores, so a merge-dropped name in those trees is invisible to the analyzer (the 2026-09-24 `heartbeat` NameError, `77cd9c6a6f`)** · `fork / hygiene` · evidence: `Harness_Brain/20 — Active Initiatives/upstream-release-2026-09-24.md`; the merge design's Q5 keeps F821 in `select` (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md`) · filed by lane MERGE-DESIGN 2026-09-25 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on arrival — 2026-09-25 (batch gates on `6bae3f2484`, filed by the orchestrator)
 
 
 ## Filed on arrival — 2026-09-25 (lane LAYERS-DESIGN, filed by the orchestrator)
 
-- [ ] **W0-G6 keys a `from pkg import name` to `pkg/__init__`'s layer whatever submodule defines `name`, so a package door at the package's top layer manufactures an upward edge for every lower-layer consumer — 13 of the 66 undeclared modules were held by exactly this, and any future door re-creates the class** · `fork / gates` · fix: `layer_violations` resolves a door name to its defining submodule (the re-export follow `god_file_scope.visible_vocabularies` already does) · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §1 class A, §4 · filed by lane LAYERS-DESIGN 2026-09-25 **UNCLAIMED**
+- [ ] **W0-G6 keys a `from pkg import name` to `pkg/__init__`'s layer whatever submodule defines `name`, so a package door at the package's top layer manufactures an upward edge for every lower-layer consumer — 13 of the 66 undeclared modules were held by exactly this, and any future door re-creates the class** · `fork / gates` · fix: `layer_violations` resolves a door name to its defining submodule (the re-export follow `god_file_scope.visible_vocabularies` already does) · evidence: `docs/agent-runtime-harness/planned/god-file-layout-sheets/layers-undeclared-2026-09-25.md` §1 class A, §4 · filed by lane LAYERS-DESIGN 2026-09-25 **TAKEN 2026-09-29 h11-code**
 
 ## Filed on arrival — 2026-09-25 (lane LLAMA-ALIAS, filed by the orchestrator)
 
