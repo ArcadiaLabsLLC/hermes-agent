@@ -28,7 +28,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-29 (lane h10b-triage)
 
-- [ ] **`harness_core` is missing from the shared-metrics `toolset` enum (class C3 remainder): the fork registers it in upstream's `toolsets.py` before `BUILTIN_TOOLSET_NAMES` is captured, so the contract exports a name upstream's v3 schema does not carry (`test_shared_metrics_efficiency.py::test_v3_schema_accepts_exactly_the_contract_values`)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · VERDICT 2026-09-29 h11-code: the other six C3 items DONE in this row's commit; this one waits on h11-fp's `toolsets.py` row — (a) register `harness_core` from a fork module after the capture, so metrics collapse it to `custom` (recommended: no upstream bytes, a fork toolset name never leaves the machine), (b) add it to the v3 schema enum (an upstream file) · OWNER-DELEGATED 2026-09-29: take the VERDICT's recommended option in round 12 (toolsets.py has since landed via h11-fp) — released **TAKEN 2026-09-29 h12-fix**
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
