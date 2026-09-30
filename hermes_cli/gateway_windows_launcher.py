@@ -1,6 +1,7 @@
 """Fork-owned half of ``hermes_cli/gateway_windows.py`` (class G11): the named-profile
-wrapper pin, reading the launcher's interpreter back, and detecting a Scheduled Task
-still bound to the legacy visible-console ``.cmd`` action.
+wrapper pin, and reading the launcher's interpreter back. The legacy visible-console ``.cmd``
+task warning is gone: upstream's Scheduled Task drift reconcile (#113670) names and
+repairs that action (lane h13-del).
 
 Moved out of the upstream module by lane FOOTPRINT-DROP (2026-09-27); it re-exports
 these names in one import line, so callers and patches keep spelling them
@@ -10,7 +11,6 @@ for the same reason. Retires with the G11 upstream PR.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 
@@ -96,60 +96,6 @@ def installed_launcher_interpreter() -> str | None:
         return None
 
 
-def _task_action_is_console_less(query_output: str, script_path: Path) -> bool | None:
-    """Classify a ``schtasks /Query`` dump by which launcher the action names.
-
-    Locale-independent on purpose: Windows translates the *field labels*
-    (``Task To Run``) but never the *path* inside them, so we look for the
-    launcher path itself rather than parsing key/value pairs.
-
-    Returns True for the console-less ``.vbs`` (run through ``wscript.exe``),
-    False for the legacy ``.cmd`` (run through ``cmd.exe``, which owns a
-    visible console window), and None when neither path appears — an action
-    we don't recognise, which we must not report as either.
-    """
-    text = query_output.lower()
-    if str(script_path.with_suffix(".vbs")).lower() in text:
-        return True
-    if str(script_path.with_suffix(".cmd")).lower() in text:
-        return False
-    return None
-
-
-def task_action_is_console_less() -> bool | None:
-    """Whether the REGISTERED Scheduled Task launches the console-less ``.vbs``.
-
-    ``_write_task_script`` regenerates the launcher *files*, but a task
-    registered before #45610 has its action bound to the ``.cmd``. Rewriting
-    the files cannot retarget that: cmd.exe owns a **visible console window**,
-    so the live gateway dies with ``STATUS_CONTROL_C_EXIT`` (0xC000013A) the
-    moment that window is closed or receives a stray console-control
-    broadcast — and, since the only trigger is ONLOGON, it stays down until
-    the next login. Re-registering the action needs ``schtasks /Create``
-    (elevation), which ``hermes update`` deliberately does not do, so the only
-    way a pre-#45610 install ever escapes this is if someone is *told*.
-
-    Returns True (console-less), False (legacy visible console), or None when
-    there is no task, its definition can't be read, or its action is
-    unrecognised.
-    """
-    if sys.platform != "win32":
-        return None
-    gw = _gw()
-    code, out, _err = gw._exec_schtasks(["/Query", "/TN", gw.get_task_name(), "/V", "/FO", "LIST"])
-    if code != 0:
-        return None
-    return gw._task_action_is_console_less(out, gw.get_task_script_path())
-
-
-def print_console_task_warning() -> None:
-    """``gateway status``: say so when the registered task still owns a visible console."""
-    if _gw().task_action_is_console_less() is False:
-        print("  ⚠ Task launches a VISIBLE console window (legacy .cmd action).")
-        print("    Closing that window kills the gateway; nothing restarts it")
-        print("    until the next login. Re-register with: hermes gateway install")
-
-
 def write_task_script_or_warn() -> bool:
     """``hermes update``'s launcher refresh: rewrite the task script, or say why not.
 
@@ -164,24 +110,3 @@ def write_task_script_or_warn() -> bool:
         print("    Re-run from the Hermes environment: hermes gateway install")
         return False
     return True
-
-
-def warn_legacy_console_task() -> None:
-    """Tell the operator when the registered task still runs a visible console.
-
-    Re-registering the action requires ``schtasks /Create`` (elevation), which
-    the update path deliberately avoids — so a pre-#45610 install cannot heal
-    itself here. What it *can* do is stop being silent: a gateway launched
-    through the ``.cmd`` dies with ``STATUS_CONTROL_C_EXIT`` (0xC000013A) the
-    moment its console window is closed, and the ONLOGON-only trigger means it
-    stays down until the next login.
-    """
-    gateway_windows = _gw()
-    if gateway_windows.task_action_is_console_less() is not False:
-        return
-    task_name = gateway_windows.get_task_name()
-    print(f"  ⚠ Scheduled Task {task_name!r} still launches the gateway in a VISIBLE console window.")
-    print("    Closing that window (or a stray console-control broadcast) kills the")
-    print("    gateway outright, and nothing restarts it until the next login.")
-    print("    Re-register it on the console-less launcher — approve the UAC prompt:")
-    print("      hermes gateway install")

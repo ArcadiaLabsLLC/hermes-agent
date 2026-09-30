@@ -203,5 +203,4 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
-- [ ] **The Windows gateway-task console-warning carry (`hermes_cli/gateway_windows_launcher.py` `task_action_is_console_less` / `print_console_task_warning`) is overtaken upstream by the Scheduled Task drift reconcile (`2097cc6b88`, the `launcher arguments` leaf; `reconcile_scheduled_task`, #113670) — delete that half; `_assert_named_profile_wrapper_is_pinned` stays fork-only (upstream it would refuse a custom-root profile home)** · `fork / hygiene` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix **TAKEN 2026-09-29 h13-del**
 - [ ] **`hermes_cli/kanban_crash_evidence.py` + its `kanban_db_dispatch.py` hook can move whole into the plugin: `on_kanban_worker_exited` carries `run_id`, `task_runs.claim_lock` survives the reclaim, `tasks.workspace_path` stays — no upstream kwarg is needed, so delete the upstream-file edit** · `fork / seams` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix **TAKEN 2026-09-29 h13-del**
