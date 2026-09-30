@@ -23,14 +23,23 @@ New positive controls exposed
 the unsupported response field, serialized Compare dispatch and incorrect post-
 Compare watermarks before their fixes. This does not prove real-provider acceptance.
 
-## Remaining integration
+## Profile groups
 
-Launcher needs a chat-first participant entry, not a workspace/persona wizard.
-Its discovered profile binding must reach the same Discussion authority without
-manufacturing persona instances or borrowing an existing operator conversation.
-Reuse the existing native conversation execution / recovery authority where profile
-sessions are needed. Keep account, installation and profile evidence explicit.
+`run.start_group` opens an idle group from exact installation/profile/home bindings.
+The authenticated caller and client account determine its conversation scope;
+it is not an office workspace. Native ConversationService supplies each member's
+independent session, model defaults, credentials, execution recovery and Stop.
+No persona copies, new worker manager or implicit first message.
 
-The current branch implements message intent, not the complete profile-group entry.
-Before landing: qualify upstream driver regressions, shared-client reconstruction,
-native approvals and Stop, then the full user journey and Mission Control isolation.
+ProfileTurns projects the exact native execution receipt into the existing task
+journal. Questions come from native pending requests. `run.respond` uses native
+answer acknowledgements, never a second plaintext answer store. Completed public
+outcomes are bounded native receipts; durable transcripts remain the history owner.
+Schema v3 preserves existing Mission Control member identities, rows and claims.
+
+The 26-file qualification passed 285 tests; only the old upstream footprint ceiling
+failed. The required held seams are now dispositioned in the ledger. Real local
+provider tests cover independent replies, continuation, reconstruction, compute-host
+questions, lost/repeated answer acknowledgements and exact confirmed Stop. No live
+credentials or user profiles were used. Final fork landing suite remains in progress;
+this checkpoint is not desktop acceptance.
