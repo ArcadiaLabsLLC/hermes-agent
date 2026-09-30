@@ -489,6 +489,12 @@ packaging:
     - agent_runtime.provider_signin_child
     - agent_runtime.gateway_endpoints.route_command
     - tools.agent_chat_dispatch.local_child
+    # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in
+    # venv_sync (hermes_bootstrap imports it guarded and only recovers without it: an app-store
+    # wheel is never re-launched), and PDF attach (pdftoppm) lives in tui_gateway.methods_pdf
+    # (tui_gateway/server.py imports it guarded; the phone serves no pdf.attach).
+    - hermes_cli.venv_sync
+    - tui_gateway.methods_pdf
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
     - tests

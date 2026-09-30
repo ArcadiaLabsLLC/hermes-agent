@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
-  "files": 170,
-  "deleted_lines": 743,
+  "files": 172,
+  "deleted_lines": 876,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) — phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)",
+      "files": "170 -> 172: hermes_cli/venv_sync.py (relaunch_if_needed), tests/fixtures/resolution_allowlist.json (the pdftoppm `which` entry follows the handler to methods_pdf.py)",
+      "deleted_lines": "743 -> 876: methods_prompt.py loses the pdf.attach handler and its two helpers (the moved lines), hermes_bootstrap.py the inline relaunch block, the allowlist one path; heavy unchanged at 4",
+      "reason": "The bundled phone profile refuses a subprocess call in any kept module. hermes_bootstrap runs its relaunch at module level and every embedder imports it, and pdf.attach sits inside methods_prompt, which the in-process gateway needs; neither can be answered by a function-level stand-in, so each spawn moves to a module the phone switches off. The upstream PRs carrying the same moves (NousResearch/hermes-agent #129413 relaunch, #129414 pdf) retire this carry on merge; the fork's guarded imports and the ABI step inside relaunch_if_needed stay fork seams."
+    },
     {
       "change": "lane s2-g2: the phone's kept psutil and tty import sites guarded — hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)",
       "files": "167 -> 170: hermes_cli/process_identity.py, hermes_constants_scratch.py, hermes_cli/secret_prompt.py",

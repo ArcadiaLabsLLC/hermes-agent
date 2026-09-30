@@ -3530,13 +3530,23 @@ except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic 
         server._CONNECTOR_RPC_METHODS = frozenset()
 
     _methods_connectors = _methods_connectors_account = SimpleNamespace(register=_no_connector_rpcs)
+try:
+    from . import methods_pdf as _methods_pdf  # noqa: E402
+except ImportError as _pdf_exc:  # a bundle that starts no process (the phone) serves no pdf.attach
+    # `from . import x` reports a missing submodule as ImportError(name=<package>); anything
+    # methods_pdf itself fails to import carries another name and still raises.
+    if _pdf_exc.name not in (__package__, f"{__package__}.methods_pdf"):
+        raise
+    from types import SimpleNamespace
+
+    _methods_pdf = SimpleNamespace(register=lambda server: None)
 
 for _m in (
     _session_transports, _session_reaper, _session_lifecycle, _session_workdir, _compute_host_bridge, _model_switch,
     _session_compression, _change_watcher, _tool_progress, _session_notifications,
     _prompt_attachments, _session_history, _agent_callbacks, _session_auto_continue, _plugin_inject, _rpc_dispatch,
     _methods_complete_helpers, _methods_slash, _methods_voice, _methods_browser,
-    _methods_browser_control, _methods_session, _methods_prompt, _methods_config,
+    _methods_browser_control, _methods_session, _methods_prompt, _methods_pdf, _methods_config,
     _methods_config_set, _methods_complete, _methods_tools, _methods_profiles, _methods_images,
     _methods_bot_relay, _prompt_turn, _billing_view, _methods_projects, _methods_session_foreign,
     _methods_session_control, _methods_subagents, _methods_vault, _methods_free_tier, _methods_connectors,
