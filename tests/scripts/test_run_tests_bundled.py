@@ -164,6 +164,51 @@ def test_a_killed_bundle_reruns_the_running_member_and_everything_behind_it():
     assert bundled.members_to_rerun(members, events, 124) == ["b.py", "c.py", "d.py"]
 
 
+def test_a_zero_exit_the_recorder_contradicts_reruns_every_member():
+    """Bundle 26 of the chat-first-groups landing: process exit 0, recorder ``rc: 2``, no test
+    events. Its members are confirmed per file, never labelled green off the exit code."""
+    members = ["a.py", "b.py", "c.py"]
+    events = bundled.tally_events(
+        _event_lines(
+            [{"k": "start", "t": 1.0}]
+            + [{"k": "collect", "f": m, "d": 0.1, "err": False} for m in members]
+            + [{"k": "end", "t": 2.0, "rc": 2}]
+        )
+    )
+
+    assert bundled.effective_bundle_rc(events, 0) == 2
+    assert bundled.members_to_rerun(members, events, 0) == members
+
+
+def test_a_zero_exit_with_no_session_end_is_not_a_success():
+    members = ["a.py", "b.py"]
+    events = bundled.tally_events(
+        _event_lines(
+            [{"k": "start", "t": 1.0}]
+            + [{"k": "collect", "f": m, "d": 0.1, "err": False} for m in members]
+            + [{"k": "test", "f": "a.py", "c": "passed", "d": 0.1}]
+        )
+    )
+
+    assert bundled.members_to_rerun(members, events, 0) == members
+
+
+def test_a_confirmed_zero_exit_reruns_only_a_member_that_recorded_nothing():
+    """Positive control for the two above: the recorder agrees, so a member with events is
+    trusted; the one member it never saw still gets its own confirmation."""
+    members = ["a.py", "b.py", "c.py"]
+    events = bundled.tally_events(
+        _event_lines(
+            [{"k": "start", "t": 1.0}]
+            + [{"k": "test", "f": m, "c": "passed", "d": 0.1} for m in ("a.py", "b.py")]
+            + [{"k": "end", "t": 2.0, "rc": 0}]
+        )
+    )
+
+    assert bundled.members_to_rerun(members, events, 0) == ["c.py"]
+    assert bundled.members_to_rerun(members[:2], events, 0) == []
+
+
 # ── the solo re-run ─────────────────────────────────────────────────────────
 
 
