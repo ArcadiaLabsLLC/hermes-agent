@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Repair shared provider resolution for native group participants and preserve failed-turn evidence.** · Owner manual acceptance 2026-09-30: launcher-dev failed provider resolution while Amelia answered; Launcher consumes the existing discussion projection. **TAKEN 2026-09-30 group-provider-repair**
+
 - [ ] **Distinguish settled profile groups from pending discussion work during automatic maintenance.** · `DiscussionService.idle_drain` currently counts every owned run, including an empty group; retain the between-round admission fence and Mission Control behavior. Source-confirmed follow-up: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` § Lifecycle follow-up · filed 2026-09-29 chat-first-groups.
 - [ ] **Repair realm history ordering and publish staging on Windows.** · Three failures reproduced on clean primary during [chat-first qualification](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison); no realm-sync implementation changed in that slice. Filed 2026-09-29 chat-first-groups. UNCLAIMED
 
@@ -321,4 +323,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
 - [ ] **The Copilot plain-client carry in `agent/process_bootstrap.py` (`api.githubcopilot.com` branch of `build_keepalive_http_client`) has no reproduced cause: the "second request stalls" did not reproduce on upstream `8d30c4eaab` (unauthenticated probe only — no Copilot credential on this box) — re-measure with a real Copilot login or drop the carry** · `seams / fork` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix
-
