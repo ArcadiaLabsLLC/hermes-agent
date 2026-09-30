@@ -310,3 +310,28 @@ def test_the_phones_kept_pty_and_psutil_import_sites_are_guarded():
         unguarded = [line for dotted, _eager, guarded, line in _imports(root / rel, module, False)
                      if dotted == "psutil" and not guarded]
         assert unguarded == [], (rel, unguarded)
+
+
+def test_a_pin_the_packager_ships_in_the_forced_tree_is_answered_from_its_plan(tmp_path):
+    """Lane G6: a module kept code imports at module level that the packager's plan ships in the sibling
+    tree (``phone_forced/``, mounted by the embedded entry) is present, so it is not pinned — read from the
+    plan, for a profile that asks for the tree. Negative controls: the same pin without the tree, a pin
+    outside a scanned package, and one a placeholder already answered, are not answered here."""
+    from types import SimpleNamespace
+
+    from scripts.bundle_profile_gate import forced_tree_seams, render_markdown
+
+    sources = {"keep": "from tools.skills_hub import GitHubAuth\nimport other.pinned\n"}
+    index = {"keep": tmp_path / "keep.py", "tools.skills_hub": tmp_path / "skills_hub.py",
+             "other.pinned": tmp_path / "pinned.py", "tools": tmp_path / "tools_init.py"}
+    index["keep"].write_text(sources["keep"], encoding="utf-8")
+    for name in ("tools.skills_hub", "other.pinned", "tools"):
+        index[name].write_text("", encoding="utf-8")
+    walk = SimpleNamespace(pinned={"tools.skills_hub", "other.pinned"}, kept={"keep", "tools"}, unguarded_into_pruned=[])
+    tree = SimpleNamespace(packaging_forced_sibling_tree=True)
+    assert forced_tree_seams(tree, walk, index) == ["tools.skills_hub"]
+    assert forced_tree_seams(SimpleNamespace(packaging_forced_sibling_tree=False), walk, index) == []
+    assert forced_tree_seams(tree, walk, index, answered={"tools.skills_hub": ["GitHubAuth"]}) == []
+    result = {"profile": "p", "targets": ["t"], "kept_modules": 2, "passed": False, "refusals": [],
+              "module_findings": [], "targets_detail": {"t": {}}, "forced_tree_seams": ["tools.skills_hub"]}
+    assert "sibling tree (`phone_forced/`" in render_markdown(result) and "`tools.skills_hub`" in render_markdown(result)

@@ -27,7 +27,10 @@ Refused (each a row with the evidence that convicts it):
   loop's lifecycle placeholders are such a seam: a module whose every imported
   name resolves on the placeholder the embedded entry registers — asked in a
   child interpreter with the switched-off modules absent — is reported as
-  answered, not pinned;
+  answered, not pinned. So is a module the packager's plan ships in the
+  profile's sibling tree (``packaging.forced_sibling_tree``: ``phone_forced/``,
+  which the embedded entry mounts on ``tools.__path__`` / ``plugins.__path__``),
+  read from the plan itself (:func:`forced_tree_seams`);
 * ``closure`` — the closure's own packaging refusals (an omitted distribution
   imported unguarded, …).
 
@@ -379,6 +382,18 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
     return kept, {m: sorted(v, key=lambda s: int(s.partition(":")[0])) for m, v in sorted(answered.items())}
 
 
+def forced_tree_seams(manifest, walk, index: dict[str, Path], answered=()) -> list[str]:
+    """The pinned modules (not already ``answered``) that the packager's plan ships in the sibling
+    tree: present on the phone, resolvable once the embedded entry mounts the tree, and out of the
+    directory scans' reach. Read from the plan (``scripts/bundle_profile_package.py``), never
+    restated here — a module the plan keeps in ``app/``, or a profile without the tree, stays pinned."""
+    from scripts.bundle_profile_package import _with_parents, forced_modules, forced_tree_plan
+
+    loaded = forced_modules(walk, index)
+    sibling = forced_tree_plan(manifest, _with_parents(set(walk.kept) | loaded, index), loaded)
+    return sorted(m for m in walk.pinned if m not in answered and m in sibling)
+
+
 def gate(profile: str) -> dict:
     """Judge ``profile``: the kept modules once, the shipped distributions per target."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -389,8 +404,9 @@ def gate(profile: str) -> dict:
         raise ValueError(f"packaging.targets names no known target: {unknown}")
     walk, index = profile_walk(manifest, parents=True)
     seams = placeholder_seams(manifest, walk, index)
+    in_tree = forced_tree_seams(manifest, walk, index, seams)
     findings: list[dict] = [{"kind": "pinned", "subject": m, "module": m}
-                            for m in sorted(walk.pinned) if m not in seams]
+                            for m in sorted(walk.pinned) if m not in seams and m not in in_tree]
     for module in sorted(walk.kept):
         if module.startswith(BROWSER_MODULE_PREFIXES):
             findings.append({"kind": "browser", "subject": module, "module": module})
@@ -412,7 +428,7 @@ def gate(profile: str) -> dict:
         }
     refused = findings + [dict(f, target=t) for t, row in per_target.items() for f in row["findings"]]
     return {"profile": manifest.profile, "targets": list(per_target), "kept_modules": len(walk.kept),
-            "placeholder_seams": seams, "spawn_seams": spawned, "module_findings": findings, "targets_detail": per_target, "refusals": refused,
+            "placeholder_seams": seams, "forced_tree_seams": in_tree, "spawn_seams": spawned, "module_findings": findings, "targets_detail": per_target, "refusals": refused,
             "passed": not refused}
 
 
@@ -450,6 +466,12 @@ def render_markdown(result: dict) -> str:
         lines += ["", "Switched-off modules kept code imports at module level that the loop's placeholders "
                   "(`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: "
                   + "; ".join(f"`{m}` ({', '.join(f'`{n}`' for n in names)})" for m, names in seams.items()) + "."]
+    in_tree = result.get("forced_tree_seams") or []
+    if in_tree:
+        lines += ["", "Switched-off modules kept code imports at module level that the packager's plan ships in the "
+                  "sibling tree (`phone_forced/`, mounted by the embedded entry; "
+                  "`agent_runtime/bundle_profiles/forced_tree.py`) — present, out of the directory scans' reach, "
+                  "not pinned: " + ", ".join(f"`{m}`" for m in in_tree) + "."]
     lazy = first.get("unguarded_switched_off_imports", [])
     lines += ["", f"Lazy, unguarded imports into switched-off modules (an ImportError if the line runs "
               f"on a phone; each must sit behind its feature's own switch or a seam): {len(lazy)} sites, "

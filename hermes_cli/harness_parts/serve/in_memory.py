@@ -29,7 +29,10 @@ Host contract (the Stage 3 C shim is its caller):
 4. :meth:`EmbeddedServe.send` per inbound line; :meth:`EmbeddedServe.close` is
    EOF, which ends the loop exactly as a closed stdin does.
 
-:meth:`EmbeddedServe.start` also registers the agent loop's lifecycle placeholders
+:meth:`EmbeddedServe.start` first mounts the wheel's forced tree (``phone_forced/`` beside
+``app/``, :mod:`agent_runtime.bundle_profiles.forced_tree`) on ``tools.__path__`` /
+``plugins.__path__``, so the switched-off code kept code imports resolves while upstream's
+directory scans never see it. It also registers the agent loop's lifecycle placeholders
 (``agent_runtime.loop_tool_lifecycles``) before anything can import the loop — the
 phone wheel does not ship the terminal and browser tool lifecycles it imports —
 and rebinds the upstream functions that would start a process to their phone
@@ -192,6 +195,9 @@ class EmbeddedServe:
     def start(self) -> None:
         if self._thread is not None:
             raise RuntimeError("an embedded serve starts once per app process")
+        from agent_runtime.bundle_profiles.forced_tree import mount_forced_tree
+
+        mount_forced_tree()  # the wheel's forced set resolves by import; the directory scans never see it
         require_bound_host_store()
         protect_history_folder()  # before anything writes history: the OS protection + no cloud backup
         from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders

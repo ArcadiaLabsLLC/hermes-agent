@@ -338,6 +338,19 @@ if wheel == "phone":
     except ModuleNotFoundError:
         pass
 
+scanned = []
+if wheel == "phone":  # what upstream's directory scan imported (model_tools calls it at its import)
+    import tools.registry as _registry
+
+    _real_discover = _registry.discover_builtin_tools
+
+    def _recording_discover(*args, **kwargs):
+        found = _real_discover(*args, **kwargs)
+        scanned.extend(found)
+        return found
+
+    _registry.discover_builtin_tools = _recording_discover
+
 if wheel == "full":  # a checkout carries .git; the wheel's version is its stamp, never `git describe`'s
     import hermes_cli.version_info as version_info
     version_info._cached_version_info = version_info.VersionInfo("0.0.0", "0.0.0", 0, "0" * 39 + "1", None, "build")
@@ -349,6 +362,14 @@ spec.loader.exec_module(scenario)
 result = scenario.phone_turn(app)
 result["attempted"] = attempts
 result["registry_loaded"] = "tools.process_registry" in sys.modules
+result["scanned"] = scanned
+if wheel == "phone":  # the forced tree resolves through the path the entry mounted (the recorder bypassed)
+    import importlib.machinery
+    import tools
+
+    result["tools_path"] = list(tools.__path__)
+    found = importlib.machinery.PathFinder.find_spec("tools.terminal_tool", tools.__path__)
+    result["forced_origin"] = found.origin if found else None
 print("RESULT " + json.dumps(result), flush=True)
 # The turn's daemon threads (auto-title, the token writer) outlive the serve; interpreter exit with
 # one of them holding the import lock hangs in SessionDB.__del__'s lazy import (a runtime-queue row).
@@ -362,24 +383,36 @@ os._exit(0)
 def _stage_phone_wheel(dest: Path) -> tuple[str, ...]:
     """Lay out the phone wheel's app tree at *dest*: the profile gate's kept modules (the closure walk,
     their enclosing packages) with the packager's own file list (package data, resources, the build
-    stamp). Not the packager's forced set — the switched-off modules kept code imports unguarded are
-    the gate's work list, and the turn must not reach them. Returns the switched-off prefixes."""
+    stamp), and beside it (``dest.parent / phone_forced``) the packager's sibling tree — the forced set's
+    ``tools`` / ``plugins`` modules, which the embedded entry mounts and upstream's directory scans must
+    never see. The rest of the forced set is not staged: the switched-off modules kept code imports
+    unguarded are the gate's work list, and the turn must not reach them (the recorder refuses every
+    switched-off name, staged or not). Returns the switched-off prefixes."""
     import shutil
 
+    from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
     from agent_runtime.bundle_profiles.manifest import load_profile
     from scripts.bundle_profile_closure import profile_walk
     from scripts.bundle_profile_package import (
-        BUILD_SHA_FILE, Plan, _with_parents, bake_dir, first_party_files, tracked_files,
+        BUILD_SHA_FILE, Plan, _with_parents, bake_dir, first_party_files, forced_modules, forced_tree_plan,
+        split_forced_tree, tracked_files,
     )
 
     manifest = load_profile("bundled-phone")
     walk, index = profile_walk(manifest, parents=True)
+    kept = _with_parents(set(walk.kept), index)
+    loaded = forced_modules(walk, index)
+    sibling = forced_tree_plan(manifest, _with_parents(kept | loaded, index), loaded)
     plan = Plan(profile=manifest.profile, target="android_arm64", python_version="3.14",
-                first_party=_with_parents(set(walk.kept), index), pinned=set(), distributions=set())
-    for rel in first_party_files(plan, index, tracked_files(), manifest.packaging_resources,
-                                 manifest.excluded_data, manifest.packaging_skill_platforms):
-        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(REPO_ROOT / rel, dest / rel)
+                first_party=kept | sibling, pinned=loaded, distributions=set(), sibling=sibling)
+    files = first_party_files(plan, index, tracked_files(), manifest.packaging_resources,
+                              manifest.excluded_data, manifest.packaging_skill_platforms)
+    app_files, tree_files = split_forced_tree(files, sibling, index)
+    tree = dest.parent / FORCED_TREE_DIR
+    for base, rels in ((dest, app_files), (tree, tree_files)):
+        for rel in rels:
+            (base / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(REPO_ROOT / rel, base / rel)
     (dest / BUILD_SHA_FILE).write_text("0" * 39 + "1\n", encoding="utf-8")
     # The host's secure store is the app's, not the wheel's: the CI fake stands in for it.
     shutil.copyfile(REPO_ROOT / "agent_runtime/host_store/fake.py", dest / "agent_runtime/host_store/fake.py")
@@ -387,6 +420,7 @@ def _stage_phone_wheel(dest: Path) -> tuple[str, ...]:
     # and a daemon thread still compiling at exit holds the import lock that ``SessionDB.__del__``'s
     # lazy import then waits on forever (a runtime-queue row).
     bake_dir(dest, Path(sys.executable))
+    bake_dir(tree, Path(sys.executable))
     return tuple(manifest.switched_off_modules)
 
 
@@ -449,6 +483,16 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     if wheel == "phone":
         assert (unseamed := _unseamed(result["attempted"])) == [], unseamed
         assert any(a["site"] == "tui_gateway/server.py" for a in result["attempted"]), result["attempted"]
+        # The forced tree (lane G6): no directory scan — the tool registry's, the plugin loader's —
+        # reached a forced module. Positive controls: the scan ran and imported the kept tools, and
+        # the forced tree was there to find, through the path the entry mounted.
+        scans = [a for a in result["attempted"]
+                 if a["site"] == "tools/registry.py" or a["site"].startswith("hermes_cli/plugins")]
+        assert scans == [], scans
+        assert "tools.todo_tool" in result["scanned"], result["scanned"]
+        forced = tmp_path / "phone_forced"
+        assert str(forced / "tools") in result["tools_path"], result["tools_path"]
+        assert Path(result["forced_origin"]) == forced / "tools" / "terminal_tool.py", result["forced_origin"]
     else:
         assert result["registry_loaded"]  # the full wheel really ran the recovery the seam routes
     assert result["spawned"] == []
