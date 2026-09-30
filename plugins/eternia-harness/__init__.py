@@ -321,7 +321,8 @@ def register(ctx) -> None:
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
-    # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets).
+    # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and
+    # stays in the direct tool list through the never-defer set in tools/tool_search_downstream.py.
     ctx.register_tool(
         "skill_search", toolset="skills", schema=SKILL_SEARCH_SCHEMA, handler=_handle_skill_search,
         check_fn=_check_skill_search, emoji="🔎",
