@@ -146,12 +146,29 @@ which G1 kept rather than switching off). Three upstream files carry these guard
 sites); process 4 -> 0; unproven 2 -> 0; native 6 -> 6 (G5). Kept 1619 -> 1617. The plan's 67 -> 50
 assumed G1 reached 67; the lane delta (-18) is the plan's (-17) plus the twelfth D3 site.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1619 first-party modules kept. Verdict: **REFUSED** (16 findings).
+**Re-taken at lane s2-g4 (2026-09-30): 16 -> 10 findings.** Phone-gate plan lane G4 (bucket D4,
+M6 with fork carry), both counts from `~/.venvs/hermes-test` (CPython 3.14.5), the before-run on main
+`6dad554dd1`. `hermes_bootstrap`'s module-level relaunch (source-update completion and the fork's ABI
+re-entry, two `subprocess.call` sites) is one `hermes_cli.venv_sync.relaunch_if_needed(root, recover=,
+exit_type=)` call — same order, same degrade and permission handling, `recover_if_needed` between the
+two relaunches as before — and `hermes_bootstrap` imports it guarded (`ModuleNotFoundError` naming
+`hermes_cli.venv_sync` only; without it the launch only recovers), so `hermes_cli.venv_sync` is
+switched off and takes its own sync site with it. `pdf.attach` (`pdftoppm`) moved from
+`tui_gateway.methods_prompt` to the new `tui_gateway/methods_pdf.py`, registered in
+`tui_gateway/server.py` behind a guarded import (absent, no `pdf.attach` is served) and switched off.
+Per bucket, before -> after: subprocess_call 6 -> 3 modules; native unchanged (G5). Kept 1619 ->
+1615 (`venv_sync`, `methods_pdf`, and what only they reached — `interpreter_abi` among them). The plan's 15 -> 9 counted from G3's 15; the lane delta (-6) is the plan's. Killing
+mutation: a module-level `subprocess.call` appended to `hermes_bootstrap` -> `REFUSED (11 findings)`,
+`hermes_bootstrap` back in the subprocess_call row, no `pinned` row. Upstream doors: relaunch
+NousResearch/hermes-agent#129413, pdf #129414; the two G2 guards `secret_prompt` #129411,
+`process_identity` #129412 — each merge retires its carry.
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1615 first-party modules kept. Verdict: **REFUSED** (10 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
-| subprocess_call | 6 modules | `agent.vault_backends.base`, `hermes_bootstrap`, `hermes_cli.venv_sync`, `plugins.web.ddgs.provider`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
+| subprocess_call | 3 modules | `agent.vault_backends.base`, `plugins.web.ddgs.provider`, `tui_gateway.server` |
 
 How each shipped distribution is first reached (first target):
 
@@ -162,4 +179,4 @@ How each shipped distribution is first reached (first target):
 
 Switched-off modules kept code imports at module level that the loop's placeholders (`agent_runtime/loop_tool_lifecycles.py`) answer — proven at run time, not pinned: `agent_runtime.git_cmd` (`run_git`); `tools.browser_tool_lifecycle` (`cleanup_browser`); `tools.terminal_tool_lifecycle` (`cleanup_vm`, `get_active_env`, `is_persistent_env`); `tools.tts_tool_local` (`_LOCAL_TTS_MODEL_CACHES`, `_generate_kittentts`, `_generate_neutts`, `_generate_piper_tts`, `_load_kittentts_model_for_config`, `_load_piper_voice_for_config`).
 
-Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 819 sites, into 144 modules.
+Lazy, unguarded imports into switched-off modules (an ImportError if the line runs on a phone; each must sit behind its feature's own switch or a seam): 806 sites, into 142 modules.

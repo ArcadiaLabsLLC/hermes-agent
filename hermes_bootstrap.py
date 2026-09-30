@@ -532,57 +532,20 @@ from hermes_cli._parser import command_argv
 # Repair needs only stdlib. Do not activate the damaged tree to reach it.
 _pm_repair = command_argv(sys.argv[1:])[:2] == ["pm", "repair"]
 if not _pm_repair:
-    from hermes_cli.venv_sync import prepare_launch, relaunch_command
-
+    # The relaunch (source-update completion, managed / ABI interpreter re-entry) lives in
+    # venv_sync so this module, which every embedder imports, starts no process itself. A
+    # bundle that ships no relaunch machinery (the phone profile switches venv_sync off)
+    # only recovers; any other import failure still raises.
     try:
-        _launch_python = prepare_launch(_root, sys.argv[1:])
-        if _launch_python is not None:
-            _main_spec = getattr(sys.modules.get("__main__"), "__spec__", None)
-            _command = relaunch_command(
-                _launch_python, _root, sys.argv, sys.orig_argv,
-                getattr(_main_spec, "name", None),
-            )
-            if os.name == "nt":
-                import subprocess
+        from hermes_cli.venv_sync import relaunch_if_needed
+    except ModuleNotFoundError as _sync_exc:
+        if _sync_exc.name != "hermes_cli.venv_sync":
+            raise
 
-                raise RelaunchExit(subprocess.call(_command))
-            os.execv(str(_launch_python), _command)
-    except Exception as exc:
-        if isinstance(exc, PermissionError) and (message := install_state_permission_message(_root, exc)):
-            print(f"hermes: {message}", file=sys.stderr)
-            raise SystemExit(1) from None
-        # Degrade, never brick the CLI: the previous dependency generation is still selected
-        # (a failed sync commits nothing), so an offline or half-finished update leaves a
-        # usable Hermes plus a warning. Activation below is the real gate — a tree whose
-        # dependencies cannot load still exits with the repair remedy.
-        print(f"hermes: source-update completion failed: {exc}; "
-              "running with the previous dependencies — run `hermes update` to finish it",
-              file=sys.stderr)
+        def relaunch_if_needed(root, *, recover, exit_type):
+            recover(root)
     try:
-        recover_if_needed(_root)
-        # Fork seam: a generation built for another Python loses its compiled modules on this
-        # interpreter (openai → pydantic_core); re-enter the generation's own. `pm` keeps its
-        # launch contract, as in prepare_launch. See hermes_cli/interpreter_abi.py.
-        # A tree without the fork's probe (upstream's boot fixtures copy only upstream's
-        # boot files) boots as upstream does; any other import failure still raises.
-        try:
-            from hermes_cli.interpreter_abi import generation_interpreter_for_mismatch
-        except ModuleNotFoundError as _abi_exc:
-            if _abi_exc.name != "hermes_cli.interpreter_abi":
-                raise
-            generation_interpreter_for_mismatch = None
-        if generation_interpreter_for_mismatch is not None and command_argv(sys.argv[1:])[:1] != ["pm"]:
-            _abi_python = generation_interpreter_for_mismatch(_root)
-            if _abi_python is not None:
-                _abi_spec = getattr(sys.modules.get("__main__"), "__spec__", None)
-                _abi_command = relaunch_command(
-                    _abi_python, _root, sys.argv, sys.orig_argv, getattr(_abi_spec, "name", None),
-                )
-                if os.name == "nt":
-                    import subprocess
-
-                    raise RelaunchExit(subprocess.call(_abi_command))
-                os.execv(str(_abi_python), _abi_command)
+        relaunch_if_needed(_root, recover=recover_if_needed, exit_type=RelaunchExit)
         activate_dependencies(_root)
     except (RuntimeError, OSError) as exc:
         if isinstance(exc, PermissionError) and (message := install_state_permission_message(_root, exc)):
