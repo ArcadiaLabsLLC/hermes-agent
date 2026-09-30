@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-30",
   "base": "ee5f49b943",
-  "files": 168,
+  "files": 167,
   "deleted_lines": 738,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h13-sweep: the three MC timing stamps in agent/turn_api_request.py dropped (owner-delegated 2026-09-29, runtime-queue DOORS-A row option 1)",
+      "files": "168 -> 167: agent/turn_api_request.py back to upstream bytes",
+      "deleted_lines": "738 -> 738 (the hunk only added lines); heavy unchanged at 4",
+      "reason": "request_build / pre_api_hook / request_dump had no upstream door short of pre_api_request, which sanitizes a full request copy per call; the rest of the turn's phases keep their receipts"
+    },
     {
       "change": "lane h13-phone: the phone's home-built history seal deleted (owner 2026-09-30: history relies on the OS's file protection + a no-cloud-backup mark the phone host sets through HostStoreCallbacks.protect_history_dir)",
       "files": "173 -> 168: agent/trajectory.py, agent/moa_trace.py, gateway/readiness.py, hermes_state_dbfile.py, hermes_logging.py back to upstream bytes; the history hunks also left hermes_state.py, agent/agent_runtime_helpers.py and tools/async_delegation.py, which keep other fork hunks",
