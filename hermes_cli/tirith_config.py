@@ -2,19 +2,23 @@
 ``TIRITH_ENABLED`` / ``TIRITH_FAIL_OPEN`` env overrides.
 
 Kept apart from ``tools.tirith_security`` because two callers run exactly when that module
-failed to import (``tools.approval``'s ImportError branches), and light on imports (only
-``os`` here; ``hermes_cli.config`` loads lazily) because tools load while config is still
-initializing.
+failed to import (``tools.approval``'s ImportError branches), and light on imports (``os``
+and ``utils`` here; ``hermes_cli.config`` loads lazily) because tools load while config is
+still initializing.
 """
 
 import os
 
-_TRUTHY = frozenset({"1", "true", "yes"})  # the set tirith_security has always used
+from utils import is_truthy_value
 
 
 def _as_bool(value) -> bool:
-    """One parse for both sources: a quoted config ``"false"`` reads like ``TIRITH_*=false``."""
-    return value if isinstance(value, bool) else str(value).lower() in _TRUTHY
+    """One parse for both sources: a quoted config ``"false"`` reads like ``TIRITH_*=false``.
+
+    Uses the project-wide truthy set (``1``/``true``/``yes``/``on``, case- and
+    whitespace-insensitive), so ``"on"`` or ``" true "`` keep the scanner on.
+    """
+    return is_truthy_value(value)
 
 
 def _env_bool(key: str, default: bool) -> bool:

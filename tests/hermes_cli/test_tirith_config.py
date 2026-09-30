@@ -58,3 +58,15 @@ def test_quoted_config_strings_parse_like_the_env_values():
     cfg = {"security": {"tirith_enabled": "true", "tirith_fail_open": "false"}}
     assert tirith_config.tirith_enabled(cfg) is True
     assert tirith_config.fail_open_when_scanner_unavailable(cfg) is False
+
+
+@pytest.mark.parametrize("raw", ["on", "ON", " yes ", " true ", "1"])
+def test_shared_truthy_spellings_keep_the_scanner_on(monkeypatch, raw):
+    """``on`` and padded values read True from config and env alike (``utils.is_truthy_value``)."""
+    monkeypatch.delenv("TIRITH_ENABLED", raising=False)
+    monkeypatch.delenv("TIRITH_FAIL_OPEN", raising=False)
+    cfg = {"security": {"tirith_enabled": raw, "tirith_fail_open": raw}}
+    assert tirith_config.tirith_enabled(cfg) is True
+    assert tirith_config.tirith_fail_open(cfg) is True
+    monkeypatch.setenv("TIRITH_ENABLED", raw)
+    assert tirith_config.tirith_enabled({"security": {"tirith_enabled": False}}) is True
