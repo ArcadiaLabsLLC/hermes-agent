@@ -183,7 +183,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-25 (program-end suite on `7df3bee189`, filed by the orchestrator)
 
-- [ ] **ruff `F821` is ignored under `tests/**`, `tools/**`, `agent/**`, `gateway/**` by `pyproject.toml`'s per-file-ignores, so a merge-dropped name in those trees is invisible to the analyzer (the 2026-09-24 `heartbeat` NameError, `77cd9c6a6f`)** · `fork / hygiene` · evidence: `Harness_Brain/20 — Active Initiatives/upstream-release-2026-09-24.md`; the merge design's Q5 keeps F821 in `select` (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md`) · filed by lane MERGE-DESIGN 2026-09-25 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on arrival — 2026-09-25 (batch gates on `6bae3f2484`, filed by the orchestrator)
 

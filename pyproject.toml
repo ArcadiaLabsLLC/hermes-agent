@@ -1038,4 +1038,12 @@ select = ["PLW1514", "F821", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251", "TI
 "plugins/model-providers/router/__init__.py" = ["F821"]
 "optional-skills/security/godmode/scripts/auto_jailbreak.py" = ["F821"]
 "tests/tools/test_delegate_fallback_matrix.py" = ["F821"]
+# Arrived with the 2026-09-25/29 upstream merges, byte-identical to upstream:
+# annotation-only `Path` under `from __future__ import annotations` (display,
+# test_local_runtime), `time` used without import in a netedge helper, and a
+# `MagicMock` without import (PR draft `up/test-local-env-magicmock-import`).
+"hermes_cli/web_routers/display.py" = ["F821"]
+"tests/e2e/core/upgrade/network/_netedge.py" = ["F821"]
+"tests/hermes_cli/test_local_runtime.py" = ["F821"]
+"tests/tools/test_local_env_blocklist.py" = ["F821"]
 "hermes_cli/cli_init_mixin.py" = ["F821"]
