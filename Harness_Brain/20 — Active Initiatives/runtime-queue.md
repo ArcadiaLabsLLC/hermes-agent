@@ -27,14 +27,14 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-29 (lane h10b-triage)
 
-- [ ] **Seven fork product changes red upstream or fork gates on Windows (class C3): `hermes_bootstrap` imports `hermes_cli.interpreter_abi` (`1655333833`), which upstream's source-launcher fixture does not copy (10 ids); `realm sync history` states no runtime root; `harness_core` missing from the metrics `toolset` enum; the fork's `tool_describe` leaks into upstream's web toolset assertion; skill bundles keyed by POSIX path; two skills-collision tests; `test_nt_namespace_guard` hangs in `Path.resolve()` only in the fork** · per-file list: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · UNCLAIMED
-- [ ] **The fork-edited `tools/file_tools_write_guards.py` refuses writes under load ("Refusing to overwrite") where upstream's does not: three tests red at 8 workers, green solo and green on pure upstream (class C1)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 · UNCLAIMED
+- [ ] **Seven fork product changes red upstream or fork gates on Windows (class C3): `hermes_bootstrap` imports `hermes_cli.interpreter_abi` (`1655333833`), which upstream's source-launcher fixture does not copy (10 ids); `realm sync history` states no runtime root; `harness_core` missing from the metrics `toolset` enum; the fork's `tool_describe` leaks into upstream's web toolset assertion; skill bundles keyed by POSIX path; two skills-collision tests; `test_nt_namespace_guard` hangs in `Path.resolve()` only in the fork** · per-file list: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 **TAKEN 2026-09-29 h11-code**
+- [ ] **The fork-edited `tools/file_tools_write_guards.py` refuses writes under load ("Refusing to overwrite") where upstream's does not: three tests red at 8 workers, green solo and green on pure upstream (class C1)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 **TAKEN 2026-09-29 h11-code**
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
-- [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **UNCLAIMED**
-- [ ] **`test_tool_blocks.py::test_a_blocked_tool_is_refused_through_the_tool_call_bridge` is red on origin/main (`{"error": "Unknown tool: tool_call"}`) — the tool_call bridge no longer resolves, so the blocked-call refusal through it is unproven** · `fork / plugin` · evidence: lane h10-rtfork, same failure on origin/main · filed 2026-09-29 **UNCLAIMED**
-- [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **UNCLAIMED**
+- [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
+- [ ] **`test_tool_blocks.py::test_a_blocked_tool_is_refused_through_the_tool_call_bridge` is red on origin/main (`{"error": "Unknown tool: tool_call"}`) — the tool_call bridge no longer resolves, so the blocked-call refusal through it is unproven** · `fork / plugin` · evidence: lane h10-rtfork, same failure on origin/main · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
+- [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
 
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
@@ -286,7 +286,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
-- [ ] **`test_execute_code_composition_strips_inherited_hermes_entries` reds on Windows (inherited `c:\python312\lib\site-packages` not stripped) once its F821 is fixed (draft `up/test-local-env-magicmock-import`)** · `upstream / suite` · evidence: h10-up `.lane-logs/up4-test.log` · filed 2026-09-29 **UNCLAIMED**
+- [ ] **`test_execute_code_composition_strips_inherited_hermes_entries` reds on Windows (inherited `c:\python312\lib\site-packages` not stripped) once its F821 is fixed (draft `up/test-local-env-magicmock-import`)** · `upstream / suite` · evidence: h10-up `.lane-logs/up4-test.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
