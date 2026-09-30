@@ -20,8 +20,9 @@ def _open(service, scope, params):
                         resume=params.get("resume"), expected_home=identifier(params["profile_home"]))
 
 
-def _send(service, scope, params):
-    return service.send(scope, identifier(params["session_id"]), identifier(params["turn_id"]), params["prompt"])
+def _send(service, scope, params, *, launcher_request=None):
+    return service.send(scope, identifier(params["session_id"]), identifier(params["turn_id"]),
+                        params["prompt"], launcher_request=launcher_request)
 
 
 def _read_conversation(service, scope, params):
@@ -75,7 +76,7 @@ OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": 
               **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")}}
 
 
-def execute(operation: str, params: dict, caller) -> dict:
+def execute(operation: str, params: dict, caller, launcher_request=None) -> dict:
     service = get_service()
     if operation == "capabilities":
         return service.capabilities()
@@ -83,7 +84,8 @@ def execute(operation: str, params: dict, caller) -> dict:
         raise ConversationError(Refusal.WRONG_OWNER)
     actor = digest({"kind": caller.kind, "device": caller.device_id})
     scope = ConversationScope(actor, identifier(params["client_scope"]), identifier(params["profile"]))
-    return OPERATIONS[operation](service, scope, params)
+    kwargs = {"launcher_request": launcher_request} if operation == "send" else {}
+    return OPERATIONS[operation](service, scope, params, **kwargs)
 
 
 def register(method, ok, err) -> None:
@@ -91,7 +93,7 @@ def register(method, ok, err) -> None:
         def handler(rid, params, context, operation=operation):
             def run():
                 try:
-                    return ok(rid, execute(operation, params, context.caller))
+                    return ok(rid, execute(operation, params, context.caller, context.launcher_request))
                 except ConversationError as exc:
                     return err(rid, 4090, "This conversation is unavailable.",
                                {"reason": exc.reason, "native_code": exc.native_code})

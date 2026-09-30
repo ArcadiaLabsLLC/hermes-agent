@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import threading
 
+from .app_functions import NativeAppFunctions
 from .model import UNSETTLED, ConversationError, Refusal, TurnState
 from .questions import SUPPORTED, validate_answer
 
@@ -13,12 +14,18 @@ _OUTCOMES = {"complete": TurnState.COMPLETED, "interrupted": TurnState.STOPPED,
 
 
 class LiveConversation:
-    def __init__(self, route, native_id, worker, store):
+    def __init__(self, route, native_id, worker, store, *, app_pool=None):
         self.route, self.native_id, self.worker, self.store = route, native_id, worker, store
         self.peer = worker.peer
         self.operations = threading.Lock()
         self._cancel_ack = None
         self.retirement_pending = False
+        self.app_functions = NativeAppFunctions(self.peer, app_pool, self._app_turn_current)
+
+    def _app_turn_current(self, execution):
+        receipt = self.store.latest(self.route)
+        return bool(receipt and receipt.execution_id == execution and receipt.state in UNSETTLED
+                    and not receipt.cancel_requested)
 
     def retire(self):
         receipt = self.store.latest(self.route)
@@ -63,6 +70,8 @@ class LiveConversation:
                 pass  # Intent remains durable; only native completion settles it.
 
     def receive(self, frame):
+        if self.app_functions.receive(frame):
+            return
         params = frame.get("params") or {}
         if frame.get("method") == "event":
             if params.get("type") == "message.complete":
