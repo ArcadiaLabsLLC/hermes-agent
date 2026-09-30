@@ -91,6 +91,8 @@ class NativeWorker:
             params["execution_id"] = execution["id"]
             if kind == "message.complete":
                 execution["status"] = payload["status"]
+                from tui_gateway.execution_result import public_result
+                execution["result"] = public_result(payload)
         events.append(params)
         self.receive({"method": "event", "params": params})
 

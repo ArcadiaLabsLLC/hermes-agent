@@ -33,8 +33,17 @@ def _start_room(service, params, actor_id):
         key=params["idempotency_key"], topic=params["topic"], actor_id=actor_id)}
 
 
+def _start_group(service, params, actor_id):
+    return {"run": service.begin_group(params["spec"], key=params["idempotency_key"],
+        actor_id=actor_id, client=params["client_scope"])}
+
+
+def _respond(service, params, _actor_id):
+    return service.respond(params)
+
+
 _READS_AND_STARTS = {"active": _active, "list": _list, "get": _get,
-                    "start": _start, "start_room": _start_room}
+                    "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond}
 
 
 def execute_run(service, action, params, actor_id):

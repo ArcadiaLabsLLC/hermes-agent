@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
-from agent_runtime.discussions.native import NativeContext
+from agent_runtime.discussions.native_context import NativeContext
 from agent_runtime.discussions.run_store import DiscussionError
 from agent_runtime.discussions.service import DiscussionService
 from agent_runtime.discussions.definitions import DefinitionError, ParticipantRef

@@ -7,7 +7,7 @@ from pathlib import Path
 from hermes_cli.sqlite_util import open_db, transaction
 
 from .model import (UNSETTLED, ConversationError, ConversationRoute,
-                    ConversationScope, Refusal, TurnReceipt, TurnState, digest)
+                    ConversationScope, Refusal, TurnReceipt, TurnState, digest, conversation_route_id)
 
 __layer__ = "stores"
 
@@ -44,7 +44,7 @@ class ConversationStore:
             db.execute("UPDATE conversation_turns SET state='unknown' WHERE state IN ('dispatching','running')")
 
     def reserve(self, scope: ConversationScope, key: str, cwd: str, home: str) -> tuple[ConversationRoute, bool]:
-        rid = "conversation-" + digest([scope.key, key])
+        rid = conversation_route_id(scope, key)
         with transaction(self.connect(), immediate=True) as db:
             row = db.execute("SELECT * FROM conversation_routes WHERE id=?", (rid,)).fetchone()
             if row is not None:
@@ -56,9 +56,17 @@ class ConversationStore:
         return ConversationRoute(rid, scope.key, scope.profile, cwd, home, ""), True
 
     def get(self, conversation_id: str, scope: ConversationScope) -> ConversationRoute:
+        route = self.find_route(conversation_id, scope)
+        if route is None:
+            raise ConversationError(Refusal.UNAVAILABLE)
+        return route
+
+    def find_route(self, conversation_id: str, scope: ConversationScope) -> ConversationRoute | None:
         with closing(self.connect()) as db:
             row = db.execute("SELECT * FROM conversation_routes WHERE id=?", (conversation_id,)).fetchone()
-        if row is None or row["owner"] != scope.key:
+        if row is None:
+            return None
+        if row["owner"] != scope.key:
             raise ConversationError(Refusal.UNAVAILABLE)
         return ConversationRoute(**dict(row))
 
@@ -81,12 +89,16 @@ class ConversationStore:
         return TurnReceipt(route.id, turn_id, signature, TurnState.DISPATCHING, execution_id), True
 
     def turn(self, route: ConversationRoute, turn_id: str) -> TurnReceipt:
+        receipt = self.find_turn(route, turn_id)
+        if receipt is None:
+            raise ConversationError(Refusal.UNAVAILABLE)
+        return receipt
+
+    def find_turn(self, route: ConversationRoute, turn_id: str) -> TurnReceipt | None:
         with closing(self.connect()) as db:
             row = db.execute("SELECT * FROM conversation_turns WHERE conversation_id=? AND turn_id=?",
                              (route.id, turn_id)).fetchone()
-        if row is None:
-            raise ConversationError(Refusal.UNAVAILABLE)
-        return _receipt(row)
+        return _receipt(row) if row is not None else None
 
     def settle(self, conversation_id: str, turn_id: str, state: TurnState, *, authoritative=False) -> None:
         with transaction(self.connect(), immediate=True) as db:

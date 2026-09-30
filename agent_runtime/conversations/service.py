@@ -134,6 +134,18 @@ class ConversationService:
         with self._session(scope, session_id) as live:
             return live.snapshot(cursor, turn_id, epoch=epoch, offset=offset)
 
+    def observe_execution(self, scope: ConversationScope, session_id: str, turn_id: str) -> dict:
+        """Read the exact native outcome and its outstanding questions; never dispatch."""
+        if self.store.find_route(session_id, scope) is None:
+            return {"admitted": False}
+        with self._session(scope, session_id) as live, live.operations:
+            if self.store.find_turn(live.route, turn_id) is None:
+                return {"admitted": False}
+            snapshot = live.recover(turn_id)
+            requests = live.peer.call("session.events.since", {
+                "session_id": live.native_id, "include_events": False})
+            return {**snapshot, "admitted": True, "requests": requests.get("open_requests", [])}
+
     def history(self, scope: ConversationScope, session_id: str, position: dict,
                 message_index: int, offset: int) -> dict:
         with self._session(scope, session_id) as live:

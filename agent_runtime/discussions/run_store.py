@@ -25,6 +25,7 @@ from .run_schema import run_schema_ready, initialize_runs
 from .run_records import read_run_record, _advance, _expect_run, _add_member
 from .run_admission import admit, table_admission, room_admission, MAX_OPEN_RUNS
 from .room_definition import RoomSpec, execution_spec
+from .member_schema import member_record
 
 __layer__ = "stores"
 
@@ -86,7 +87,7 @@ class RunStore:
 
     def members(self, run_id: str) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM mc_discussion_members WHERE run_id=? ORDER BY ordinal", (run_id,))]
+            return [member_record(row) for row in conn.execute("SELECT * FROM mc_discussion_members WHERE run_id=? ORDER BY ordinal", (run_id,))]
 
     def request(self, run_id: str, workspace_id: str, *, key: str, operation: str,
                 expect_revision: int, body: Mapping[str, Any]) -> bool:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import sqlite3
 
 from .run_values import DiscussionError
+from .member_schema import MEMBER_COLUMNS, upgrade_members
 
 __layer__ = "stores"
 
@@ -21,15 +22,18 @@ def run_schema_ready(conn: sqlite3.Connection) -> bool:
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone() is None:
         return False
     rows = conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchall()
-    if len(rows) != 1 or rows[0][0] not in (1, 2):
+    if len(rows) != 1 or rows[0][0] not in (1, 2, 3):
         raise DiscussionError("unsupported_run_schema")
-    return rows[0][0] == 2
+    return rows[0][0] == 3
 
 
 def initialize_runs(conn: sqlite3.Connection) -> None:
     if run_schema_ready(conn):
         return
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone():
+        if conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 2:
+            upgrade_members(conn)
+            return
         # Preserve every Mission Control row and claim. Only placement becomes
         # optional; IDs, revisions, snapshots and execution evidence are unchanged.
         conn.execute("CREATE TABLE mc_discussion_runs_v2 " + _RUN_COLUMNS)
@@ -38,6 +42,7 @@ def initialize_runs(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE mc_discussion_runs_v2 RENAME TO mc_discussion_runs")
         conn.execute(_INDEX)
         conn.execute("UPDATE mc_discussion_runs_schema SET version=2")
+        upgrade_members(conn)
         return
     statements = (
         "CREATE TABLE mc_discussion_runs_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL)",
@@ -49,13 +54,7 @@ def initialize_runs(conn: sqlite3.Connection) -> None:
         """CREATE TABLE mc_discussion_instance_claims (
             install_id TEXT NOT NULL, instance_id TEXT NOT NULL, run_id TEXT NOT NULL,
             PRIMARY KEY(install_id,instance_id))""",
-        """CREATE TABLE mc_discussion_members (
-            run_id TEXT NOT NULL, member_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
-            install_id TEXT NOT NULL, instance_id TEXT NOT NULL, persona_id TEXT NOT NULL,
-            profile TEXT NOT NULL, display_name TEXT NOT NULL, handle TEXT NOT NULL,
-            session_id TEXT NOT NULL, seat INTEGER NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('joining','active','removing','removed')),
-            PRIMARY KEY(run_id,member_id), UNIQUE(run_id,ordinal), UNIQUE(run_id,session_id))""",
+        "CREATE TABLE mc_discussion_members " + MEMBER_COLUMNS,
         """CREATE TABLE mc_discussion_commands (
             run_id TEXT NOT NULL, command_key TEXT NOT NULL, operation TEXT NOT NULL,
             digest TEXT NOT NULL, body TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
@@ -63,4 +62,4 @@ def initialize_runs(conn: sqlite3.Connection) -> None:
     )
     for statement in statements:
         conn.execute(statement)
-    conn.execute("INSERT INTO mc_discussion_runs_schema VALUES(1,2)")
+    conn.execute("INSERT INTO mc_discussion_runs_schema VALUES(1,3)")

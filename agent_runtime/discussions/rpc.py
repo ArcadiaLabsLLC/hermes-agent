@@ -14,6 +14,8 @@ from .definitions import DefinitionError
 from .run_rpc import execute_run
 from .run_store import DiscussionError, digest
 from .service import DiscussionService, get_service
+from .profile_groups import group_scope, is_group_scope
+from agent_runtime.conversations.model import ConversationError
 
 __layer__ = "lanes"
 
@@ -31,9 +33,18 @@ _CONTEXT_READS = {
 def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: str) -> dict[str, Any]:
     params = validate_params(operation, raw)
     if "workspace_id" in params:
-        service.context.workspace(params["workspace_id"])
+        scope = params["workspace_id"]
+        if is_group_scope(scope) or operation == "run.start_group":
+            if (not params.get("client_scope") or scope != group_scope(actor_id, params["client_scope"])
+                    or not operation.startswith("run.")):
+                raise DiscussionError("conversation_owner_changed")
+        else:
+            service.context.workspace(scope)
     if operation in _CONTEXT_READS:
-        return _CONTEXT_READS[operation](service, params)
+        result = _CONTEXT_READS[operation](service, params)
+        if operation == "capabilities" and params.get("client_scope"):
+            result["group_scope"] = group_scope(actor_id, params["client_scope"])
+        return result
     family, action = operation.split(".", 1)
     if family in {"table", "preset"}:
         return execute_definition(service, family, action, params)
@@ -54,6 +65,9 @@ def register(method, ok, err) -> None:
                 return err(rid, code, str(exc), {"reason": exc.reason, "field": exc.field, **exc.details})
             except DiscussionError as exc:
                 return err(rid, 4090, str(exc), {"reason": exc.reason, **exc.details})
+            except ConversationError as exc:
+                return err(rid, 4090, "The agent's response could not be confirmed. Check the pending request.",
+                           {"reason": str(exc.reason)})
             except (DiscussionValidationError, DiscussionReconstructionError) as exc:
                 # Room policy raises plain ValueError subclasses that reach reads
                 # (run.get / run.active / run.list) outside any command's own

@@ -13700,6 +13700,17 @@
             ],
             "default": null,
             "title": "User Row Id"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -13709,6 +13720,37 @@
           "cancel_requested"
         ],
         "title": "ExecutionEvidence",
+        "type": "object"
+      },
+      "ExecutionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          }
+        },
+        "required": [
+          "text",
+          "truncated"
+        ],
+        "title": "ExecutionResult",
         "type": "object"
       },
       "FailedDelegation": {

@@ -3570,6 +3570,12 @@ export interface ExecutionEvidence {
   status: string
   cancel_requested: boolean
   user_row_id?: number | null
+  result?: ExecutionResult | null
+}
+export interface ExecutionResult {
+  text: string
+  truncated: boolean
+  error?: string | null
 }
 export interface HistoryPosition {
   session_key: string
