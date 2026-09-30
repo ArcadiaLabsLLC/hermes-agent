@@ -10,6 +10,7 @@ from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.native_recovery_provider import until
 from tests.agent_runtime.test_native_conversation_roundtrip import Provider
 from tests.agent_runtime.test_discussion_profile_groups import create, act, idle
+from tests.agent_runtime.test_discussion_member_models import model_call
 
 pytestmark = pytest.mark.timeout(180)
 
@@ -28,7 +29,7 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
     (owner / ".env").write_text("PRIVATE_LLM_KEY=isolated-group\n", encoding="utf-8")
     for profile in ("a", "b"):
         (tmp_path / profile / "config.yaml").write_text(
-            "model:\n  default: test-model\n  provider: custom:local-test\n"
+            ("model:\n  default: test-model\n  provider: custom:local-test\n" if profile == "a" else "") +
             "dashboard:\n  turn_isolation: false\nmcp_servers: {}\n", encoding="utf-8")
     root = tmp_path / "runtime"
     conversations = ConversationService(root, "install", profile_home=lambda p: tmp_path / p, auth_home=owner)
@@ -37,6 +38,14 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
     service.start()
     try:
         run = create((service, conversations, None, tmp_path))
+        member_b = service.runs.members(run["run_id"])[1]
+        facts = model_call(service, run, member_b)
+        assert facts["model_selection_required"]
+        assert any(m["id"] == '["custom:local-test","test-model"]' for m in facts["models"])
+        selected = model_call(service, run, member_b, model_id='["custom:local-test","test-model"]')
+        assert not selected["model_selection_required"]
+        assert selected["session_id"] == member_b["session_id"]
+        assert not Provider.requests
         act(service, run, "send", "compare", message="Give an independent idea",
             response={"mode": "compare", "members": []})
         view = until(lambda: idle(service, run, 1), bool, timeout=60)
@@ -59,6 +68,7 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
         assert after["log"]["events"] == before["log"]["events"]
         assert len(Provider.requests) == requests
         assert all(auth == "Bearer isolated-group" for auth, _ in Provider.requests)
+        assert not (tmp_path / "b" / "auth.json").exists()
     finally:
         service.close()
         conversations.close()

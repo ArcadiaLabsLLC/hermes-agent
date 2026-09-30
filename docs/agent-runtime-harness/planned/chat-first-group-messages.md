@@ -55,6 +55,30 @@ green bundle labels were not counted as evidence. The remaining population also
 ran through the per-file authority. The parked wrapper self-publication
 test is upstream-inherited and was already outside this fork population.
 
+## Group model setup repair — 2026-09-30
+
+Manual acceptance found a shared sign-in without an inference model selected for
+one participant. This was not a private-credential requirement. The failed turn
+was durable, but Launcher hid it after task pruning.
+
+`run.member_models` and `run.member_model` resolve the exact profile-group member
+and delegate to native ConversationService. Its catalog, selection, saved-default,
+busy and identity checks remain authoritative. These console-tier methods may
+open that member's native session, never submit a message. Office bindings stay
+on their existing operator controls. No new catalog, credential store or scheduler.
+
+Profile dispatch now refuses missing model selection before submission, through
+the existing failed-turn receipt and error classification. Other members continue.
+Launcher must preserve the draft, show model setup, and require an explicit Send.
+
+The repair regression passed 143 tests across 17 files, serially: profile groups,
+real native/compute workers, recovery, exact Stop, wire producers, office-table
+behavior, shared credentials and drain admission. Removing the selection guard
+made the independent-member test fail; restoring it passed. Changed Python files
+pass Ruff F checks. Receipts: `qa-artifacts/group-provider-regression.log` and
+`group-provider-control.log` (local). These are isolated tests, not live-account
+desktop acceptance or a whole-repository green claim.
+
 ## Lifecycle follow-up
 
 `DiscussionService.idle_drain` conservatively treats every open run as busy,

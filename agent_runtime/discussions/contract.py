@@ -33,6 +33,8 @@ METHODS: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
     "run.list": ("read", ("workspace_id",), ("limit", "after")),
     "run.active": ("read", ("workspace_id",), ()),
     "run.get": ("read", ("workspace_id", "run_id"), ("since_seq", "limit")),
+    "run.member_models": ("console", ("workspace_id", "run_id", "member_id"), ()),
+    "run.member_model": ("console", ("workspace_id", "run_id", "member_id", "model_id"), ("save_default",)),
     "run.start": ("console", ("workspace_id", "table_id", "expect_revision", "idempotency_key", "topic"), ()),
     "run.start_room": ("console", ("workspace_id", "spec", "idempotency_key", "topic"), ()),
     "run.start_group": ("console", ("workspace_id", "client_scope", "spec", "idempotency_key"), ()),
@@ -82,6 +84,10 @@ def _identities(result):
 
 
 def _values(method, result):
+    if "model_id" in result:
+        result["model_id"] = text(result["model_id"], field="model_id", max_bytes=4096)
+    if "save_default" in result and type(result["save_default"]) is not bool:
+        raise DefinitionError("invalid_save_default", "save_default")
     if "limit" in result and (type(result["limit"]) is not int or not 1 <= result["limit"] <= (200 if method == "run.get" else 100)):
         raise DefinitionError("invalid_limit", "limit")
     if "confirm" in result and result["confirm"] is not True:
@@ -127,6 +133,7 @@ def contract_descriptor() -> dict[str, Any]:
         "features": {"local_instances": True, "same_profile_instances": True, "presets": True,
                      "message_response_policy": True,
                      "profile_groups": True,
+                     "group_models": True,
                      "scheduled_conclusion": True,
                      "non_spatial_discussions": True,
                      "exact_stop": True, "human_input": True, "instance_presence": True,

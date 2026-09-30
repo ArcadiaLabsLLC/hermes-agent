@@ -7,6 +7,7 @@ import threading
 from agent_runtime.conversations.model import ConversationError
 from .profile_groups import member_scope
 from .run_values import DiscussionError
+from .member_models import open_member
 
 __layer__ = "lanes"
 
@@ -19,7 +20,7 @@ class ProfileTurns:
         from gateway.status import get_process_start_time
 
         self.context, self.attempts, self.runs = context, attempts, runs
-        self._service = conversations or get_service
+        self.conversations = conversations or get_service
         self._admission = threading.RLock()
         self._closed = False
         self.pid, self.started = os.getpid(), get_process_start_time(os.getpid())
@@ -43,19 +44,23 @@ class ProfileTurns:
                 return
             dispatched = False
             try:
-                service, scope = self._service(), member_scope(run, member)
-                opened = service.open(scope, key=run["run_id"], cwd=run["initial"]["group"]["cwd"],
-                                      expected_home=member["binding"]["home"])
-                if opened["session_id"] != row["session_id"]:
+                service = self.conversations()
+                scope, facts = open_member(service, run, member)
+                if member["session_id"] != row["session_id"]:
                     raise DiscussionError("session_binding_mismatch")
+                if facts["model_selection_required"]:
+                    raise DiscussionError("model_selection_required")
                 dispatched = True
                 service.send(scope, row["session_id"], row["native_id"], {"text": row["prompt"], "images": []})
             except Exception as exc:
                 if dispatched:
                     self.attempts.update(row, stage="uncertain")
                 else:
+                    reason = str(getattr(exc, "reason", "profile_unavailable"))
+                    error = ("Missing configuration: choose a provider and model."
+                             if reason == "model_selection_required" else reason)
                     self.attempts.update(row, stage="terminal", receipt={"status": "failed", "text": "",
-                        "error": str(getattr(exc, "reason", "profile_unavailable")), "message_id": row["native_id"]})
+                        "error": error, "message_id": row["native_id"]})
             current = self.recover(row)
         if current["stage"] == "terminal" and on_terminal is not None:
             on_terminal(current["receipt"])
@@ -70,7 +75,7 @@ class ProfileTurns:
             return current
         try:
             _, _, scope = self._binding(current)
-            snapshot = self._service().observe_execution(scope, current["session_id"], current["native_id"])
+            snapshot = self.conversations().observe_execution(scope, current["session_id"], current["native_id"])
             self._project(current, snapshot)
         except (ConversationError, OSError, RuntimeError):
             self.attempts.update(current, stage="uncertain")
@@ -116,7 +121,7 @@ class ProfileTurns:
                 return True
             _, _, scope = self._binding(current)
             try:
-                self._service().stop(scope, current["session_id"], current["native_id"])
+                self.conversations().stop(scope, current["session_id"], current["native_id"])
             except ConversationError:
                 return False
             return self.recover(current)["stage"] == "terminal"
@@ -125,7 +130,7 @@ class ProfileTurns:
         if body["native_id"] != row["native_id"]:
             raise DiscussionError("stale_attempt")
         _, _, scope = self._binding(row)
-        accepted = self._service().respond(scope, row["session_id"], body["request_id"], body["result"])
+        accepted = self.conversations().respond(scope, row["session_id"], body["request_id"], body["result"])
         if not accepted.get("accepted"):
             raise DiscussionError("answer_not_acknowledged")
         self.recover(row)

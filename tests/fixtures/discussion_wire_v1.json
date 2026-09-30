@@ -184,6 +184,16 @@
           "client_scope"
         ]
       },
+      "runtime.discussion.run.member_model": {
+        "tier": "console",
+        "required": ["workspace_id", "run_id", "member_id", "model_id"],
+        "optional": ["save_default", "client_scope"]
+      },
+      "runtime.discussion.run.member_models": {
+        "tier": "console",
+        "required": ["workspace_id", "run_id", "member_id"],
+        "optional": ["client_scope"]
+      },
       "runtime.discussion.run.remove": {
         "tier": "console",
         "required": [
@@ -383,6 +393,7 @@
       "presets": true,
       "message_response_policy": true,
       "profile_groups": true,
+      "group_models": true,
       "scheduled_conclusion": true,
       "non_spatial_discussions": true,
       "exact_stop": true,

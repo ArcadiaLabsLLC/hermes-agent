@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .contract import command_body
+from .member_models import member_models
 
 __layer__ = "lanes"
 
@@ -43,6 +44,8 @@ def _respond(service, params, _actor_id):
 
 
 _READS_AND_STARTS = {"active": _active, "list": _list, "get": _get,
+                    "member_models": lambda s, p, a: member_models(s, p),
+                    "member_model": lambda s, p, a: member_models(s, p, select=True),
                     "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond}
 
 

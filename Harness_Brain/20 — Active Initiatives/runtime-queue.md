@@ -23,7 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Repair shared provider resolution for native group participants and preserve failed-turn evidence.** · Owner manual acceptance 2026-09-30: launcher-dev failed provider resolution while Amelia answered; Launcher consumes the existing discussion projection. **TAKEN 2026-09-30 group-provider-repair**
 
 - [ ] **Distinguish settled profile groups from pending discussion work during automatic maintenance.** · `DiscussionService.idle_drain` currently counts every owned run, including an empty group; retain the between-round admission fence and Mission Control behavior. Source-confirmed follow-up: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` § Lifecycle follow-up · filed 2026-09-29 chat-first-groups.
 - [ ] **Repair realm history ordering and publish staging on Windows.** · Three failures reproduced on clean primary during [chat-first qualification](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison); no realm-sync implementation changed in that slice. Filed 2026-09-29 chat-first-groups. UNCLAIMED
