@@ -24,6 +24,7 @@ from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __all__ = [
     "BUILD_SELF_PERTURBED_CLASSES",
+    "READ_ONLY_ALLOWLIST_PROFILE",
     "FingerprintHomeCapture",
     "RepoContextExcerpt",
     "RepoExecutionContext",
@@ -40,6 +41,12 @@ __all__ = [
     "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
 ]
+
+
+#: The launcher-allowlist PROFILE ROW a ``read_only`` admission's tool set was
+#: compiled from (``agent_runtime.mcp_admission.vocabulary.READ_ONLY_INCLUDED_TOOLS``).
+#: Production never read it; the parity tests look the row up by it.
+READ_ONLY_ALLOWLIST_PROFILE = "reviewer"
 
 
 def reset_unreadable_instance_rows() -> None:

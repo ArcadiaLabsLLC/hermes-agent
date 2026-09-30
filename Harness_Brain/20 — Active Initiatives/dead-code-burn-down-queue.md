@@ -17,13 +17,11 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## First instalment — filed 2026-09-24 by lane GOD-D (census over the 62 files; struck: 24 `@method`-registered `serve_rpc` handlers, false positives by construction)
 
-- [ ] **`READ_ONLY_ALLOWLIST_PROFILE`** · `agent_runtime/mcp_admission/vocabulary.py` · 1 · TEST SEAM · 09-21 §4.1 row, unchanged · R3 · VERDICT 2026-09-25 lane B4: TEST SEAM confirmed — `git grep -n READ_ONLY_ALLOWLIST_PROFILE -- agent_runtime hermes_cli tools plugins` = the def + the package re-export, 0 readers; 6 reads in `tests/agent_runtime/test_mcp_admission_r2.py`. Per sheet `mcp_admission.md` §5 the move to `tests/_downstream/_seams.py` (+ tombstone) lands under "Working a slice", not in B4's two commits; claim released **TAKEN 2026-09-29 h11-code**
 
 ## Second instalment — the reach census (W0-D), filed 2026-09-24 by lane W0
 
 106 rows, one per cold function or cold arm; evidence note `docs/agent-runtime-harness/planned/downstream-god-file-refactor-reach-census.md` (population, traced suite, the 4 unrelated reds). Class DECIDE until the owning lane rules it (§4.3 of the 09-21 plan); a DELETE ruling lands under "Working a slice".
 
-- [ ] **`_skill_realm_sync`** · `agent_runtime/prompt_observability/skills_context.py` 247-274 · 28 · DECIDE (delete / field-only / untested live) · census: `agent_runtime/prompt_observability.py:2917-2944 _skill_realm_sync function 28 lines, 0 hits` (re-anchored by lane R2's MOVE) · VERDICT 2026-09-25 (sheet prompt_observability.md §5): untested live — `_skill_row` calls it for every shared skill · R2 **TAKEN 2026-09-29 h11-code**
 
 ## Owed censuses (rows arrive when they run)
 

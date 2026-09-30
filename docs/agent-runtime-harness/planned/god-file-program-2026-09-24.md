@@ -382,6 +382,9 @@ The `[ds-size] after` column now carries the CODE counter (ruling Q1) — units,
 
 Fourteen lanes, ≤ 29 commits (plus ≤ 1 `style:` per lane), for 66 files.
 
+Dead-code queue, first instalment: **CLOSED 2026-09-29** (lane h11-code) — its last row, `READ_ONLY_ALLOWLIST_PROFILE` (TEST SEAM), moved to `tests/_downstream/_seams.py` with tombstone `s-h11`.
+Second instalment (the reach census): **CLOSED 2026-09-29** (lane h11-code) — its last row, `_skill_realm_sync` (DECIDE → untested live, kept), got its test (`tests/agent_runtime/test_skill_realm_sync_status.py`).
+
 ## 9. Owner questions — RULED 2026-09-24 (Tony)
 
 **Rulings:** Q1 **CODE lines** bind the ceiling (ADR 0007 stands unamended; the `[ds-size]` gate counts code lines only, so the program's ceiling population is the 34 files over by code, and the 28 over by raw alone are in scope for legibility work but not for the ceiling gate — Q3 is therefore moot for `patch_coverage.py`-class files: they are under the ceiling; relocate history where a sheet says so, never split them). Q2 yes. Q3 relocate history, no split. Q4 gate. Q5 one per package. Lanes apply these as facts.

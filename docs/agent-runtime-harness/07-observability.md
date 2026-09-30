@@ -201,7 +201,7 @@ what the fixture mirror below enforces.
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
-| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability/mission_chat.py:62`, persisted by `persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
+| `prompt_observability` rows + `trace_events` | `agent_runtime/prompt_observability/mission_chat.py:62`, persisted by `persist_prompt_observability_context` (`agent_runtime/prompt_observability/catalog_store.py:71`) | `harness prompt-context show --context-id` (`prompt_context_commands.py::_cmd_prompt_context_show`) and the slimmed `chat.final` echo |
 
 ### The snapshot build family
 
@@ -436,7 +436,7 @@ relative to `lib/features/mission_control/`.
 Per-turn prompt provenance, not timing: what the model was actually shown. Built
 by `mission_chat_prompt_observability` (`agent_runtime/prompt_observability/mission_chat.py:62`), turn
 results attached at `:649`, persisted through **one** chokepoint —
-`persist_prompt_observability_context` (`agent_runtime/prompt_observability/context_store.py:77`) — which ref-transforms the
+`persist_prompt_observability_context` (`agent_runtime/prompt_observability/catalog_store.py:71`) — which ref-transforms the
 skills catalogs, writes compactly, updates the latest-pointer index and applies
 retention. Layout: `<store>/prompt_observability/<context_id>.json`,
 `prompt_observability_catalogs/<hash>.json`, `prompt_observability_archive/`,

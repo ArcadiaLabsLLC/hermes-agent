@@ -563,9 +563,15 @@ if not _pm_repair:
         # Fork seam: a generation built for another Python loses its compiled modules on this
         # interpreter (openai → pydantic_core); re-enter the generation's own. `pm` keeps its
         # launch contract, as in prepare_launch. See hermes_cli/interpreter_abi.py.
-        if command_argv(sys.argv[1:])[:1] != ["pm"]:
+        # A tree without the fork's probe (upstream's boot fixtures copy only upstream's
+        # boot files) boots as upstream does; any other import failure still raises.
+        try:
             from hermes_cli.interpreter_abi import generation_interpreter_for_mismatch
-
+        except ModuleNotFoundError as _abi_exc:
+            if _abi_exc.name != "hermes_cli.interpreter_abi":
+                raise
+            generation_interpreter_for_mismatch = None
+        if generation_interpreter_for_mismatch is not None and command_argv(sys.argv[1:])[:1] != ["pm"]:
             _abi_python = generation_interpreter_for_mismatch(_root)
             if _abi_python is not None:
                 _abi_spec = getattr(sys.modules.get("__main__"), "__spec__", None)

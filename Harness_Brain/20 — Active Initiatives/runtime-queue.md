@@ -28,15 +28,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-09-29 (lane h10b-triage)
 
-- [ ] **Seven fork product changes red upstream or fork gates on Windows (class C3): `hermes_bootstrap` imports `hermes_cli.interpreter_abi` (`1655333833`), which upstream's source-launcher fixture does not copy (10 ids); `realm sync history` states no runtime root; `harness_core` missing from the metrics `toolset` enum; the fork's `tool_describe` leaks into upstream's web toolset assertion; skill bundles keyed by POSIX path; two skills-collision tests; `test_nt_namespace_guard` hangs in `Path.resolve()` only in the fork** · per-file list: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 **TAKEN 2026-09-29 h11-code**
-- [ ] **The fork-edited `tools/file_tools_write_guards.py` refuses writes under load ("Refusing to overwrite") where upstream's does not: three tests red at 8 workers, green solo and green on pure upstream (class C1)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 **TAKEN 2026-09-29 h11-code**
-
-### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
-
-- [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-- [ ] **`test_tool_blocks.py::test_a_blocked_tool_is_refused_through_the_tool_call_bridge` is red on origin/main (`{"error": "Unknown tool: tool_call"}`) — the tool_call bridge no longer resolves, so the blocked-call refusal through it is unproven** · `fork / plugin` · evidence: lane h10-rtfork, same failure on origin/main · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-- [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-
+- [ ] **`harness_core` is missing from the shared-metrics `toolset` enum (class C3 remainder): the fork registers it in upstream's `toolsets.py` before `BUILTIN_TOOLSET_NAMES` is captured, so the contract exports a name upstream's v3 schema does not carry (`test_shared_metrics_efficiency.py::test_v3_schema_accepts_exactly_the_contract_values`)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · VERDICT 2026-09-29 h11-code: the other six C3 items DONE in this row's commit; this one waits on h11-fp's `toolsets.py` row — (a) register `harness_core` from a fork module after the capture, so metrics collapse it to `custom` (recommended: no upstream bytes, a fork toolset name never leaves the machine), (b) add it to the v3 schema enum (an upstream file) · OWNER-DELEGATED 2026-09-29: take the VERDICT's recommended option in round 12 (toolsets.py has since landed via h11-fp) — released
 
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
@@ -285,6 +277,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-09-29 (lane h11-code)
+
+- [ ] **`tools/file_tools_read_tracking._file_version` compares an `fstat` of the open handle with a path `os.stat` taken after the digest; on Windows under load `st_ctime_ns` differs by ~1 ms, the version is `None`, the full read is recorded partial and `write_file` refuses ("last read with offset/limit pagination") — reproduces on pure upstream `ee5f49b943` (3 files, 16 reds in 12 parallel runs); compare `fstat` with `fstat` on the same handle** · `upstream` · evidence: [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C1 (re-classed U2 2026-09-29) · filed 2026-09-29 · 2026-09-29: this is the bug upstream PR #128647 / issue #128639 (ours, opened today) fixes — retires when it merges
+
 ### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
 
 - [ ] **`test_execute_code_composition_strips_inherited_hermes_entries` reds on Windows (inherited `c:\python312\lib\site-packages` not stripped) once its F821 is fixed (draft `up/test-local-env-magicmock-import`)** · `upstream / suite` · evidence: h10-up `.lane-logs/up4-test.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
@@ -324,3 +320,5 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **`fix/copilot-direct-http-client`: re-measure the "second request stalls" repro on current upstream before filing its issue + PR (the number is from the held PR body, never re-taken)** · `seams / upstream` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` (h10b-issues, 2026-09-29) · UNCLAIMED
 - [ ] **`fix/process-notification-redaction` (background-process output reaching the model unredacted) is a SECURITY report — upstream's contributing guide asks for private disclosure; file via private vulnerability reporting, not a public issue/PR — owner to confirm the channel** · `seams / upstream` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` (h10b-issues, 2026-09-29) · UNCLAIMED
 - [ ] **`up/process-dock-kill-close` is overtaken by open upstream PR #114597 (Windows-gated; ours is not) — decide whether to offer our test / the non-Windows case there as a review comment, then delete the branch** · `seams / upstream` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` (h10b-issues, 2026-09-29) · UNCLAIMED
+- [ ] **`b9c40fc467` runs plugin discovery on a tool-list cache miss, which bumps the registry generation after the cache key is computed, so the first tool list per home is built twice (one wasted rebuild per home)** · `fork / runtime` · evidence: h11-code report 2026-09-29 · UNCLAIMED
+- [ ] **FLAG for @Maximus Shaban: origin/main reds the W0-G5 ladder gate (`tests/tooling/test_no_ladder_routing.py`, 2 failed) since the chat-first groups push — 3 NEW ladders (`agent_runtime/discussions/profile_turns.py` `ProfileTurns._project` / `.is_live` on `running`; `room_commands.py` `RoomCommands._attempt` on `op`) and 1 STALE row (`service.py` `DiscussionService._process_commands`). Fix: make each vocabulary a dispatch table (rule 12) and delete the stale row. WHY flagged not fixed: the code is in flight in your lane** · `fork / runtime` · evidence: run on origin/main `bc871861b4`, 2026-09-29 · UNCLAIMED

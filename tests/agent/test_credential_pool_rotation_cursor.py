@@ -85,7 +85,7 @@ def home(tmp_path, monkeypatch) -> Path:
     # now redundant belt-and-braces, kept because it also documents WHY this
     # particular pool must be quiescent.
     monkeypatch.setattr(
-        "agent.anthropic_adapter.read_claude_code_credentials",
+        "agent.anthropic_credentials.read_claude_code_credentials",
         lambda *args, **kwargs: None,
     )
     return hermes_home

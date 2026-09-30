@@ -339,3 +339,36 @@ def _declaring_module(root: Path, module: str, name: str | None, declared: dict[
     source = module_path(root, module) if name else None
     binding = module_bindings(root, source).get(name) if source else None
     return binding[2] if binding else None
+
+
+def door_origin(root: Path, package: str, name: str, _seen: frozenset[str] = frozenset()) -> str | None:
+    """The submodule a package door re-exports ``name`` from, followed through nested doors.
+
+    ``from pkg import name`` names ``pkg/__init__``; when that ``__init__`` binds ``name`` last
+    by a top-level ``from .sub import name``, the definition lives in ``pkg.sub``. None when
+    ``package`` is not a package, the ``__init__`` defines ``name`` itself, or the binding is
+    conditional/dynamic — the caller then keeps the door, the conservative key.
+    """
+    source = module_path(root, package)
+    parsed = tree(root, source) if source and source.endswith("__init__.py") and package not in _seen else None
+    origin: str | None = None
+    for node in parsed.body if parsed is not None else ():
+        if isinstance(node, ast.ImportFrom):
+            base = resolve_from(source, node)
+            for alias in node.names:
+                if (alias.asname or alias.name) == name:
+                    sub = f"{base}.{alias.name}"
+                    origin = sub if module_path(root, sub) else (
+                        door_origin(root, base, alias.name, _seen | {package})
+                        or (base if module_path(root, base) else None))
+        elif name in _top_level_names(node):
+            origin = None
+    return origin
+
+
+def _top_level_names(node: ast.AST) -> set[str]:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(
+        node, (ast.AnnAssign, ast.AugAssign)) else []
+    return {t.id for t in targets if isinstance(t, ast.Name)}
