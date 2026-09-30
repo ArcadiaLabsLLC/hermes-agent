@@ -217,7 +217,9 @@ def _cmd_realm_sync_history(args) -> int:
         return emit_harness_error(exc, args=args, code="not_found")
     except RealmSyncError as exc:
         return emit_harness_error(exc, args=args)
-    _print_stage42(data, args=args, default_output="json")
+    # An empty history from the wrong root reads as "never published" — the
+    # envelope says which root answered.
+    _print_stage42(attach_root_observability(data), args=args, default_output="json")
     return 0
 
 

@@ -6,6 +6,12 @@
   "heavy": 4,
   "reasons": [
     {
+      "change": "lane h11-code, runtime-queue class C3: hermes_bootstrap.py's interpreter-ABI seam",
+      "files": "186 -> 186: hermes_bootstrap.py was already a footprint file (+17 -> +23)",
+      "deleted_lines": "981 -> 981",
+      "reason": "The fork's ABI re-entry imported hermes_cli.interpreter_abi unguarded, so upstream's source-launcher fixture (which copies only upstream's boot files) died at import (10 ids). A tree without the fork's probe now boots as upstream does; any other import failure still raises. No new file, no deleted upstream line."
+    },
+    {
       "change": "2026-09-29 owner-approved shared provider authority and confirmed native model selection",
       "files": "180 -> 186: provider readers bind the existing auth owner; native compute model changes reuse the existing control channel. Per-file hooks and retirement conditions are in upstream-footprint-ledger.md.",
       "deleted_lines": "955 -> 981: substitute provider-scoped readers, context-preserving thread starts and the existing session identity projection; idle compute selection replaces a deferred write with the child receipt. Heavy files remain 4.",

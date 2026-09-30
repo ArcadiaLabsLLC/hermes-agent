@@ -39,6 +39,19 @@ from tests._downstream.id_markers.reasons import (
 __layer__ = "models"
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # The fork's standalone tool_describe rides every non-empty tool list, so the web
+    # toolset serves three names once a web key lights it.
+    "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
+    "test_xai_only_env_end_to_end_toolset_gate": (
+        _fork_replaces(
+            "model_tools.get_tool_definitions via tools.tool_defs_observability.with_tool_describe",
+            "tests/tools/test_tool_search_downstream.py",
+        ),
+    ),
+    # A UNC path to an unresolvable host: Path.resolve() waits out the host's SMB name
+    # lookup (70.6 s measured 2026-09-29); the fork's --timeout=30 cannot hold it.
+    "tests/agent/test_nt_namespace_guard.py::TestNtNamespaceGuard::"
+    "test_predicate_and_both_chokepoint_classifiers": (pytest.mark.timeout(240),),
     # MCF-66: these classes exercise the real ~/.claude/.credentials.json
     # reader/writer; each redirects Path.home() at its tmp_path (enforced by
     # tests/test_claude_code_credentials_file_gate.py, which reads this table).
