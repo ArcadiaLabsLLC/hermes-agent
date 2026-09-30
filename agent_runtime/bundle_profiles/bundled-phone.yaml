@@ -375,7 +375,7 @@ packaging:
     # Spawning modules the phone never runs, reached lazily or only from one another (phone-gate
     # plan 2026-09-30, bucket D1). Each starts a process a phone cannot start. A D1 module the phone
     # turn path still imports, or a kept module imports at module level, stays kept and is named
-    # here: its spawn sites are lane G3's (function stand-ins).
+    # here: its spawn sites are answered by agent_runtime/spawn_stand_ins.py (lane G3).
     # The messaging gateway's shutdown forensics (service mode is "—" on phones). Kept: gateway.run
     # (the turn path imports it: tui_gateway.agent_callbacks, the pending-sentinel door) and the
     # run_inbound / run_shutdown / slash_commands it imports at module level; gateway.status (the

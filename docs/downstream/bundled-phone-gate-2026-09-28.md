@@ -112,13 +112,29 @@ profile's comments: `gateway.run` / `run_inbound` / `run_shutdown` / `slash_comm
 `_post_setup`), `hermes_constants_scratch`, the `command` / `bitwarden` / `onepassword` secret
 sources, `tools.bot_mode_dm`, `tools.checkpoint_manager`.
 
-Profile `bundled-phone`, targets android_arm64, ios_arm64; 1619 first-party modules kept. Verdict: **REFUSED** (104 findings).
+**Re-taken at lane s2-g3 (2026-09-30): 104 -> 34 findings.** Phone-gate plan lane G3 (M3, owner
+decision D1 delegated 2026-09-30): the new fork module `agent_runtime/spawn_stand_ins.py` rebinds 63
+named functions in 38 kept modules — bucket D2's 22 modules (35 sites) plus the 16 modules lane s2-g1
+carried over (35 sites) — to phone stand-ins, installed by `EmbeddedServe.start` only when the profile
+ships no provider SDK. Each stand-in raises `SpawnNotAvailable` (an `OSError`, `ENOTSUP`, the error
+iOS's `subprocess` raises; mixed with the function's own documented error where its callers catch
+that) or returns the function's documented no-process result (`None`, `False`, `[]`, the checkpoint
+store's `(False, "", reason)`, …). The gate's new `spawn_seams()` probe imports every row's module in
+a child interpreter with the phone's absences, placeholders and config in place, requires each row to
+be bound to its own stand-in (a stale name FAILS the gate), and answers a `subprocess_call` site only
+when its enclosing `def` is that stand-in; the answered sites are the result's `spawn_seams` key.
+Per bucket, before -> after: subprocess_call 92 -> 22 sites (51 -> 13 modules: the seven D3 fork
+modules for G2, D4's `hermes_bootstrap` / `venv_sync` / `methods_prompt` for G4, D5's ddgs and
+`_SlashWorker` plus `agent.vault_backends.base` for G5); native, process and unproven unchanged. Kept
+1619 -> 1620 (the new module).
+
+Profile `bundled-phone`, targets android_arm64, ios_arm64; 1620 first-party modules kept. Verdict: **REFUSED** (34 findings).
 
 | kind | distinct subjects | subjects |
 |---|---:|---|
 | native | 3 | `cffi`, `cryptography`, `pillow-heif` |
 | process | 3 | `psutil`, `termios`, `tty` |
-| subprocess_call | 51 modules | `agent.anthropic_adapter`, `agent.anthropic_credentials`, `agent.command_token_source`, `agent.context_references`, `agent.deadline`, `agent.secret_sources.base`, `agent.secret_sources.command`, `agent.shell_hooks`, `agent.skill_preprocessing`, `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `gateway.platforms.base`, `gateway.run`, `gateway.run_inbound`, `gateway.run_shutdown`, `gateway.slash_commands`, `gateway.status`, `hermes_bootstrap`, `hermes_cli._early_recovery`, `hermes_cli._subprocess_compat`, `hermes_cli.config`, `hermes_cli.copilot_auth`, `hermes_cli.gitlock`, `hermes_cli.goals`, `hermes_cli.profiles`, `hermes_cli.source_check`, `hermes_cli.source_releases`, `hermes_cli.sqlite_runtime`, `hermes_cli.stderr_timestamp`, `hermes_cli.tools_config_cua`, `hermes_cli.venv_sync`, `hermes_cli.version_info`, `hermes_constants`, `hermes_constants_scratch`, `plugins.memory.honcho.client`, `plugins.web.ddgs.provider`, `pm.extras`, `pm.package`, `tools.agent_chat_dispatch.local`, `tools.bot_mode_dm`, `tools.checkpoint_manager`, `tools.tts_command_provider`, `tools.tts_tool_delivery`, `tools.vision_tools_image_prep`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
+| subprocess_call | 13 modules | `agent.vault_backends.base`, `agent_runtime.build_identity`, `agent_runtime.gateway_endpoints.routes`, `agent_runtime.git_cmd`, `agent_runtime.provider_signin`, `agent_runtime.repo_context`, `agent_runtime.store_file_io`, `hermes_bootstrap`, `hermes_cli.venv_sync`, `plugins.web.ddgs.provider`, `tools.agent_chat_dispatch.local`, `tui_gateway.methods_prompt`, `tui_gateway.server` |
 | unproven | 1 | `psutil` |
 
 How each shipped distribution is first reached (first target):

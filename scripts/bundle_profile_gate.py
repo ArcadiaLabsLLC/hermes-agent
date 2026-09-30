@@ -267,6 +267,118 @@ def placeholder_seams(manifest, walk, index: dict[str, Path]) -> dict[str, list[
     return {m: wanted[m] for m in sorted(wanted) if answered.get(m)}
 
 
+#: Run in a child interpreter: the phone's absences, placeholders and SDK shim in place, a Hermes home
+#: holding the profile's config, then the phone entry's ``ensure_spawn_stand_ins``. Every table row's
+#: module is imported and its function must BE a stand-in for that exact row (a stale name raises and
+#: the probe fails); then each finding's enclosing ``def`` chain is asked of the live module.
+_SPAWN_PROBE = r"""
+import json, os, sys, tempfile
+root, off, config, sites, table_ref, out = (sys.argv[1], tuple(json.loads(sys.argv[2])), sys.argv[3],
+                                           json.loads(sys.argv[4]), sys.argv[5], sys.argv[6])
+sys.path.insert(0, root)
+home = tempfile.mkdtemp(prefix="spawn-seams-")
+with open(os.path.join(home, "config.yaml"), "w", encoding="utf-8") as fh:
+    fh.write(config)  # JSON is YAML
+os.environ["HERMES_HOME"] = home
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if any(name == m or name.startswith(m + ".") for m in off):
+            raise ModuleNotFoundError(f"switched off: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+import importlib
+from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
+from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
+from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins, spawn_stand_in_of
+
+ensure_lifecycle_placeholders()
+ensure_provider_sdk_shim()
+table_module, _, table_name = table_ref.partition(":")
+table = getattr(importlib.import_module(table_module), table_name) if table_name else None
+installed = ensure_spawn_stand_ins(table)
+if not installed:  # a profile with a provider SDK (desktop) is not the phone: nothing is answered
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump([], fh)
+    sys.exit(0)
+for row in (table if table is not None else importlib.import_module("agent_runtime.spawn_stand_ins").SPAWN_STAND_INS):
+    obj = importlib.import_module(row.module)
+    for part in row.qualname.split("."):
+        obj = obj.__dict__[part] if isinstance(obj, type) else getattr(obj, part)
+    if spawn_stand_in_of(obj) != (row.module, row.qualname):
+        sys.exit(f"table row {row.module}.{row.qualname} is not bound to its stand-in")
+answered = []
+for module, line, chain in sites:
+    obj, prefix = importlib.import_module(module), []
+    for part in chain:
+        obj = (obj.__dict__.get(part) if isinstance(obj, type) else getattr(obj, part, None))
+        prefix.append(part)
+        if spawn_stand_in_of(obj) == (module, ".".join(prefix)):
+            answered.append([module, line, ".".join(prefix)])
+            break
+        if obj is None:
+            break
+with open(out, "w", encoding="utf-8") as fh:  # a file, not stdout: imported modules may rebind sys.stdout
+    json.dump(answered, fh)
+"""
+
+
+def _enclosing_defs(tree: ast.AST, line: int) -> list[str]:
+    """The ``def`` / ``class`` names enclosing ``line``, outermost first."""
+    chain: list[str] = []
+    node = tree
+    while True:
+        inner = next((child for child in ast.iter_child_nodes(node)
+                      if hasattr(child, "lineno") and child.lineno <= line <= (child.end_lineno or child.lineno)), None)
+        if inner is None:
+            return chain
+        if isinstance(inner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            chain.append(inner.name)
+        node = inner
+
+
+def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
+                table: str = "") -> tuple[list[dict], dict[str, list[str]]]:
+    """``findings`` minus the ``subprocess_call`` rows whose enclosing function the phone entry rebinds
+    to a stand-in (``agent_runtime.spawn_stand_ins``), and module -> the answered ``line: function``.
+
+    Proven at run time in a child interpreter with the phone's absences in place: every table row
+    must resolve to a real function that the entry really rebound, or the probe FAILS (a stale row is
+    an error, never a silent skip); a site counts as answered only when a stand-in marked for exactly
+    that function encloses it. ``table`` (``module:NAME``) replaces the table, for the gate's tests."""
+    import subprocess
+
+    from agent_runtime.bundle_profiles.manifest import apply_to_config
+
+    sites = []
+    for row in findings:
+        if row["kind"] == "subprocess_call":
+            tree = _parse(index[row["module"]])
+            chain = _enclosing_defs(tree, row["line"]) if tree is not None else []
+            if chain:
+                sites.append([row["module"], row["line"], chain])
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="spawn-seams-") as scratch:
+        out = Path(scratch) / "answered.json"
+        done = subprocess.run(
+            [sys.executable, "-c", _SPAWN_PROBE, str(ROOT), json.dumps(list(manifest.switched_off_modules)),
+             json.dumps(apply_to_config(manifest, {})), json.dumps(sites), table, str(out)],
+            capture_output=True, text=True, timeout=600, cwd=ROOT)
+        if done.returncode != 0 or not out.is_file():
+            raise RuntimeError(f"spawn stand-in probe failed ({done.returncode}): "
+                               f"{(done.stderr or done.stdout)[-2000:]}")
+        rows = json.loads(out.read_text(encoding="utf-8"))
+    answered: dict[str, list[str]] = {}
+    hit = set()
+    for module, line, function in rows:
+        hit.add((module, line))
+        answered.setdefault(module, []).append(f"{line}: {function}")
+    kept = [row for row in findings if (row.get("module"), row.get("line")) not in hit
+            or row["kind"] != "subprocess_call"]
+    return kept, {m: sorted(v, key=lambda s: int(s.partition(":")[0])) for m, v in sorted(answered.items())}
+
+
 def gate(profile: str) -> dict:
     """Judge ``profile``: the kept modules once, the shipped distributions per target."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -283,6 +395,7 @@ def gate(profile: str) -> dict:
         if module.startswith(BROWSER_MODULE_PREFIXES):
             findings.append({"kind": "browser", "subject": module, "module": module})
         findings += module_findings(module, index[module])
+    findings, spawned = spawn_seams(manifest, findings, index)
     lock = _lock()
     targets = manifest.packaging_targets or (None,)
     per_target = {}
@@ -299,7 +412,7 @@ def gate(profile: str) -> dict:
         }
     refused = findings + [dict(f, target=t) for t, row in per_target.items() for f in row["findings"]]
     return {"profile": manifest.profile, "targets": list(per_target), "kept_modules": len(walk.kept),
-            "placeholder_seams": seams, "module_findings": findings, "targets_detail": per_target, "refusals": refused,
+            "placeholder_seams": seams, "spawn_seams": spawned, "module_findings": findings, "targets_detail": per_target, "refusals": refused,
             "passed": not refused}
 
 
