@@ -11,7 +11,9 @@ provide it, and the capability is listed as ABSENT exactly when the profile
 manifest disables every one of them. Turn a toolset back on in
 ``bundled-phone.yaml`` and its sentence leaves the hint with no edit here.
 Upstream's per-platform table (``agent.prompt_builder.PLATFORM_HINTS``) carries
-the result under the ``phone`` key.
+the result under the ``phone`` key, put there by :func:`install_phone_platform_hint` —
+which the phone's entry (the embedded serve) calls — so ``prompt_builder.py`` keeps
+upstream's bytes (lane h11-fp, 2026-09-29).
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from agent_runtime.bundle_profiles.manifest import ProfileManifest, load_profile
 
 __layer__ = "policy"
 
-__all__ = ["CAPABILITIES", "PHONE_PROFILE", "absent_capabilities", "phone_platform_hint"]
+__all__ = ["CAPABILITIES", "PHONE_PROFILE", "absent_capabilities", "install_phone_platform_hint", "phone_platform_hint"]
 
 PHONE_PROFILE = "bundled-phone"
 
@@ -55,3 +57,14 @@ def phone_platform_hint(manifest: ProfileManifest | None = None) -> str:
         "including commands or scripts for the user to run. When a task needs any of these, say plainly "
         "that it needs the desktop (Hermes on the user's computer) and stop there."
     )
+
+
+def install_phone_platform_hint() -> str:
+    """Serve the phone hint under upstream's ``PLATFORM_HINTS["phone"]``; returns it.
+
+    ``agent.system_prompt._default_platform_hint`` reads that table for a session whose platform
+    is ``phone``. Called by the phone's entry before any request is served."""
+    from agent.prompt_builder import PLATFORM_HINTS
+
+    PLATFORM_HINTS["phone"] = hint = phone_platform_hint()
+    return hint
