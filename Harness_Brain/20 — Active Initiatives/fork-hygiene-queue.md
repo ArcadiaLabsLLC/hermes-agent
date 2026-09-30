@@ -105,7 +105,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-21 (god-file refactor plan)
 
-- [ ] **12 production functions only tests call** · `fork / refactor` · plan §4.1 rows (`backfill_instance_profile_ids` 138 lines is the one real deletion; the rest are test seams to move under `tests/`); each lane applies its row · evidence: plan §4.1 **TAKEN 2026-09-24 FORK-CODE** · VERDICT 2026-09-24 (lane FORK-CODE): `backfill_instance_profile_ids` DELETED with its six tests (the one §4.1 **delete** row). The other rows stay: §4.1 names each a TEST SEAM to move under `tests/<pkg>/_seams.py` (or keep / NOT dead: `ORPHAN_ACTOR_REASONS`, `_runtime_office_get`), and a named seam is a move for the god-file refactor lane that owns its file, not a delete — per this lane's decision rule they are DESIGN, claim kept **TAKEN 2026-09-29 h11-sweep**
 
 ## Filed on arrival — 2026-09-21 (brain)
 
