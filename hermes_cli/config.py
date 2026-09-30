@@ -1935,10 +1935,10 @@ def cfg_get(cfg: Optional[Dict[str, Any]], *keys: str, default: Any = None) -> A
 def config_switch(*keys: str, default: bool = True) -> bool:
     """A boolean feature switch at ``keys`` in the cached merged config (``load_config_readonly``).
 
-    The one reader behind the switches a distribution profile turns off (``mcp.stdio_servers``,
-    ``terminal.external_backends``, ``gateway.platform_adapters``, ``updates.checkout_bound``,
-    ``voice.mode_enabled``, ...): absent, ``null`` or an unreadable config is ``default`` (today's
-    behaviour), a truthy word is on, anything else is off. Never raises."""
+    The one reader behind the switches a distribution turns off (``mcp.client``,
+    ``mcp.stdio_servers``, ``terminal.external_backends``, ``gateway.platform_adapters``,
+    ``voice.mode_enabled``, ``sessions.git_probe``): absent, ``null`` or an unreadable config is
+    ``default`` (today's behaviour), a truthy word is on, anything else is off. Never raises."""
     try:
         value = cfg_get(load_config_readonly(), *keys, default=default)
     except Exception:

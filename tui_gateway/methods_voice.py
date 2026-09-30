@@ -46,7 +46,7 @@ def _voice_mode_enabled() -> bool:
 
 def _voice_mode_available() -> bool:
     """Config ``voice.mode_enabled`` (default on): does this Hermes offer its own mic/speaker voice
-    mode and wake word at all? Off where a host owns the microphone (the bundled desktop profile)."""
+    mode and wake word at all? Off where a host owns the microphone (an embedded desktop host)."""
     from hermes_cli.config import config_switch
 
     return config_switch("voice", "mode_enabled")
