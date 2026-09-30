@@ -31,6 +31,7 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 )
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
+from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,

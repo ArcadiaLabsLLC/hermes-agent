@@ -748,13 +748,6 @@ if _WIN:
             _up_red("the sanitized env drops USERPROFILE, so Path.home() raises in the platform-"
                     "default home fallback (class X)"),
         ),
-        "tests/tools/test_browser_real_profile.py::TestRealProfileCdpLaunch::"
-        "test_snapshot_failure_fails_closed": (
-            _up_red_skip("hangs: _real_profile_cdp asks the REAL agent-browser (resolved outside the "
-                         "test home) for a session's cdp-url before the patched snapshot, and a live "
-                         "daemon holds the pipe past subprocess.run's timeout (class X; hung on pure "
-                         "upstream too)"),
-        ),
     })
 
 if _WIN and not sys.flags.utf8_mode:
