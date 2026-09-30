@@ -25,6 +25,11 @@ restored the gate's actual ownership input, without changing a baseline.
 The correction run passed all 177 tests across eight files, including the
 restored scope guard, method manifests, import boundary and footprint/legibility gates.
 
+After merging main `1a7513e895`, the 13-file regression passed all 70 tests:
+native and compute-backed groups, recovery, per-message intent, Mission Control
+callers, tool lifecycle and the reconciled upstream footprint. Ruff's `F` checks
+passed for every changed Python file. The run remained serial, with no retries.
+
 ## Baseline comparison
 
 The remaining 18 red files were rerun with the same Python 3.13.15 environment,
@@ -55,4 +60,5 @@ exact Stop, independent failure and reconstruction have separate native tests.
 
 Local logs under ignored `qa-artifacts/`: `chat-first-fork-landing.log`,
 `chat-first-isolated-landing.log`, `chat-first-primary-baseline.log`,
-`chat-first-scope-mutation.log`, and `chat-first-corrections.log`.
+`chat-first-scope-mutation.log`, `chat-first-corrections.log`, and
+`chat-first-post-sync.log`.
