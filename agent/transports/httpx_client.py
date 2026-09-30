@@ -45,12 +45,12 @@ from agent.transports import sdk_shapes
 
 __all__ = [
     "APIConnectionError",
+    "APIError",
     "APITimeoutError",
     "CHAT_COMPLETIONS_WIRE",
     "CODEX_RESPONSES_WIRE",
     "AsyncSdkFreeClient",
     "MalformedSSE",
-    "NoProviderSdk",
     "ProviderHTTPError",
     "ProviderStreamError",
     "SdkFreeClient",
@@ -80,7 +80,14 @@ class MalformedSSE(ValueError):
     """The provider's event stream broke the SSE or JSON framing."""
 
 
-class ProviderHTTPError(Exception):
+class APIError(Exception):
+    """The SDKs' ``APIError``: the base of every error the SDK-free clients raise for a request, as
+    the SDK's is the base of ``APIStatusError`` and ``APIConnectionError`` — so an upstream
+    ``isinstance(exc, openai.APIError)`` reads the same on the phone's ``openai`` shim
+    (:mod:`agent_runtime.provider_sdk_shim`)."""
+
+
+class ProviderHTTPError(APIError):
     """A non-2xx answer, shaped like the SDK's ``APIStatusError`` for the loop's
     error classifier: ``status_code``, ``response`` (headers, ``Retry-After``) and
     ``body`` (the parsed JSON error, shaped as that SDK shapes it)."""
@@ -93,7 +100,7 @@ class ProviderHTTPError(Exception):
         self.response = response
 
 
-class ProviderStreamError(Exception):
+class ProviderStreamError(APIError):
     """An ``error`` object delivered inside an HTTP-200 stream."""
 
     def __init__(self, message: str, *, body: Any) -> None:
@@ -103,7 +110,7 @@ class ProviderStreamError(Exception):
         self.status_code = None
 
 
-class APIConnectionError(Exception):
+class APIConnectionError(APIError):
     """The request got no HTTP answer: the SDKs' ``APIConnectionError``, raised from the transport
     error as they raise it (``raise APIConnectionError(request=request) from err``), so a caller's
     retry arm — ``codex_runtime.run_codex_stream`` retries a pre-stream failure once when its
@@ -126,12 +133,6 @@ class APITimeoutError(APIConnectionError):
 
 class SdkFreeWireUnavailable(RuntimeError):
     """The profile has no provider SDKs and this api_mode has no SDK-free client."""
-
-
-class NoProviderSdk(Exception):
-    """Stands in for an SDK class a profile does not ship: nothing is an instance of it and
-    nothing raises it, so ``isinstance`` / ``except`` against it is never true. The fallback of
-    an SDK import site guarded for the phone profile (``agent.provider_sdks: false``)."""
 
 
 def sdk_import_failure(package: str, exc: ImportError) -> SdkFreeWireUnavailable:
@@ -161,8 +162,9 @@ def missing_sdk(name: str) -> Callable[..., Any]:
 
 
 def chat_tool_call_factories() -> tuple[Callable[..., Any], Callable[..., Any]]:
-    """The fallback of a guarded ``ChatCompletionMessageToolCall, Function`` import: each builds the
-    record the SDK-free chat client builds for that model (``Model(**fields)``)."""
+    """``ChatCompletionMessageToolCall, Function`` for the phone's ``openai`` shim
+    (:mod:`agent_runtime.provider_sdk_shim`): each builds the record the SDK-free chat client builds
+    for that model (``Model(**fields)``)."""
     message = sdk_shapes.KINDS[sdk_shapes.KINDS[sdk_shapes.ROOTS["chat.completion"]]["choices"][0]]["message"][0]
     tool_call = _kind_for(sdk_shapes.KINDS[message]["tool_calls"][0], {"type": "function"})
     function = sdk_shapes.KINDS[tool_call]["function"][0]
@@ -538,6 +540,12 @@ class SdkFreeClient(HttpCore):
         from agent.transports.httpx_responses import ResponsesResource
 
         self.responses = ResponsesResource(self)
+
+    @property
+    def audio(self) -> Any:
+        """The SDK's audio surface (speech, transcriptions) has no SDK-free client."""
+        raise SdkFreeWireUnavailable("OpenAI audio (speech / transcription) needs a provider SDK, and this "
+                                     "profile ships none (agent.provider_sdks: false)")
 
     def post(self, path: str, *, stream: bool, targets: tuple[str, str], extra_headers: Mapping[str, Any] | None = None,
              extra_body: Mapping[str, Any] | None = None, extra_query: Mapping[str, Any] | None = None,

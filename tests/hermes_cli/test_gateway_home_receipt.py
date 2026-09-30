@@ -48,7 +48,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
-# Ladder instrumentation (hermes_cli._profile_bootstrap) — run out of process,
+# Ladder instrumentation (hermes_cli.main._apply_profile_override) — run out of process,
 # because the pre-parse
 # mutates os.environ and sys.argv of whatever interpreter runs it.
 # ---------------------------------------------------------------------------
@@ -58,13 +58,10 @@ _PROBE = textwrap.dedent(
     import json, os, sys
     sys.argv = json.loads(os.environ.pop("PROBE_ARGV"))
     sys.path.insert(0, os.environ["PROBE_ROOT"])
-    # Executing main.py end-to-end would start the CLI, and only the pre-parse
-    # is under test. It lives in its own import-safe module now
-    # (hermes_cli._profile_bootstrap), so this imports the real thing instead of
-    # exec'ing a slice of main.py's source between two spellings — a boundary
-    # any reformat of that file could move without reddening anything.
-    from hermes_cli._profile_bootstrap import apply_profile_override
-    apply_profile_override()
+    # Importing main under a ``hermes`` argv[0] runs the real pre-parse through the
+    # entrypoint gate (never main(), so the CLI does not start) - no slice of
+    # main.py's source is exec'd between two spellings.
+    import hermes_cli.main  # noqa: F401
     print(json.dumps({
         "resolution": os.environ.get("HERMES_PROFILE_RESOLUTION"),
         "hermes_home": os.environ.get("HERMES_HOME"),
@@ -402,9 +399,8 @@ def test_wrapper_generator_allows_a_non_profile_home(tmp_path):
 #
 # The pre-parse cannot simply import them: it runs before any hermes module is
 # importable, which is the entire point of the pre-parse. So the seam stays, and
-# this is the thing that holds it. It reads `_profile_bootstrap.py`, which is
-# where the pre-parse lives since the entrypoint gate landed — the producer
-# moved, the seam did not.
+# this is the thing that holds it. It reads `main.py`, where the pre-parse
+# lives (upstream's block, the receipt carried in place).
 # ---------------------------------------------------------------------------
 
 
@@ -413,9 +409,9 @@ def _preparse_source() -> str:
 
     import hermes_cli
 
-    path = pathlib.Path(hermes_cli.__file__).with_name("_profile_bootstrap.py")
+    path = pathlib.Path(hermes_cli.__file__).with_name("main.py")
     text = path.read_text(encoding="utf-8", errors="replace")
-    assert len(text) > 5_000, "_profile_bootstrap.py read came back too small - vacuous"
+    assert len(text) > 5_000, "main.py read came back too small - vacuous"
     return text
 
 

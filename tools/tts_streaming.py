@@ -265,11 +265,7 @@ class OpenAIStreamer(StreamingTTSProvider):
         return bool(_openai_config_api_key() or resolve_openai_audio_api_key())
 
     def stream(self, text: str) -> Iterator[bytes]:
-        try:
-            from openai import OpenAI
-        except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
-            from agent.transports.httpx_client import missing_sdk
-            OpenAI = missing_sdk("OpenAI streaming TTS")
+        from openai import OpenAI
         from hermes_cli.config import get_env_value
         client = OpenAI(
             api_key=(self.section.get("api_key") or resolve_openai_audio_api_key()),

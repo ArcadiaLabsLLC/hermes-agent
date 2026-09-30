@@ -13,6 +13,8 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
   -> ``test_an_import_under_type_checking_is_an_annotation_not_a_load`` red.
 * ``_is_type_checking`` answers True for any test
   -> the same test red (its ``if DEBUG:`` positive control).
+* the stand-in probe's ``answers`` returns True for any name
+  -> ``test_an_omitted_distributions_stand_in_answers_only_the_names_it_binds`` red.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from scripts.bundle_profile_closure import (
     refusals,
     requested_extras,
     shipped_distributions,
+    stand_in_answered,
 )
 
 
@@ -237,3 +240,28 @@ def test_a_nested_web_package_is_indexed_and_the_top_level_frontend_is_not(tmp_p
     index = module_index(tmp_path)
     assert "plugins.web.provider" in index
     assert "web.build" not in index
+
+
+def test_an_omitted_distributions_stand_in_answers_only_the_names_it_binds(tmp_path):
+    """The phone's ``openai`` shim answers upstream's unguarded ``from openai import OpenAI`` at run
+    time (a child interpreter with ``openai`` unfindable); a name it does not bind stays refused, and
+    the same site with no ``stand_in`` on the row is refused (positive control for the refusal)."""
+    index = _tree(tmp_path, use="""
+        from openai import OpenAI
+        from openai.types.chat.chat_completion_message_tool_call import Function
+
+        def later():
+            from openai import NotBoundByTheShim
+    """)
+    walk = Walk(("pkg",), (), index, {"pkg"})
+    row = {"distribution": "openai", "imports": ("openai",), "degrades": "x"}
+
+    def judged(row):
+        manifest = types.SimpleNamespace(omitted_distributions=(row,))
+        sites = {d: [s for s in ss if not s["guarded"]] for d, ss in omitted_import_sites(manifest, walk).items()}
+        answered = stand_in_answered(manifest, sites)
+        left = {d: [s for s in ss if s["dotted"] not in answered.get(d, ())] for d, ss in sites.items()}
+        return sorted(s["dotted"] for s in left["openai"])
+
+    assert "openai.OpenAI" in judged(row)  # no stand-in: every unguarded site is refused
+    assert judged({**row, "stand_in": "agent_runtime.provider_sdk_shim"}) == ["openai.NotBoundByTheShim"]

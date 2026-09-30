@@ -153,7 +153,13 @@ def _omitted(row: Any) -> dict:
     imports = _strings(row.get("imports"), "packaging.omitted_distributions[].imports")
     if not imports:
         raise ProfileManifestError(f"omitted distribution {name!r} must name its import names")
-    return {"distribution": name, "imports": imports, "degrades": degrades}
+    stand_in = row.get("stand_in")
+    if stand_in is not None and (not isinstance(stand_in, str) or not stand_in):
+        raise ProfileManifestError(f"omitted distribution {name!r}: stand_in names a module")
+    out = {"distribution": name, "imports": imports, "degrades": degrades}
+    if stand_in:
+        out["stand_in"] = stand_in  # a first-party module whose stand_in_modules() the entry registers
+    return out
 
 
 def _reasons(value: Any, where: str) -> dict[str, str]:

@@ -153,10 +153,10 @@ def mcp_server_enabled(cfg: dict) -> bool:
 def mcp_client_enabled() -> bool:
     """Config ``mcp.client`` (default on): does this Hermes run the MCP client at all — discover,
     connect to, authorise and run the configured ``mcp_servers``? A distribution that connects to
-    no MCP server (the bundled phone profile, which does not ship the client runtime) turns it off.
-    Callers on a kept path ask this BEFORE importing ``tools.mcp_tool`` or a client sibling of it.
-    The per-turn tool snapshot (``tools.mcp_tool_agent``) is not the client and is unaffected. An
-    unreadable config keeps today's behaviour (on). Fork seam: bundled-phone.yaml."""
+    no MCP server (one that does not package the client runtime) turns it off. Callers on a kept
+    path ask this BEFORE importing ``tools.mcp_tool`` or a client sibling of it. The per-turn tool
+    snapshot (``tools.mcp_tool_agent``) is not the client and is unaffected. An unreadable config
+    keeps today's behaviour (on)."""
     try:
         from hermes_cli.config import config_switch
     except ImportError:  # a config module without the reader (a stubbed one) is today's behaviour
@@ -166,7 +166,7 @@ def mcp_client_enabled() -> bool:
 
 def mcp_stdio_servers_allowed() -> bool:
     """Config ``mcp.stdio_servers`` (default on): may this Hermes start stdio MCP servers (local
-    processes)? A distribution that starts none (the bundled desktop profile) turns it off; HTTP
+    processes)? A distribution that starts none (an embedded desktop host) turns it off; HTTP
     servers are unaffected. An unreadable config keeps today's behaviour (on)."""
     from hermes_cli.config import config_switch
 
