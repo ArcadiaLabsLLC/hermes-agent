@@ -56,6 +56,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-30 (Stage 2 G4 landing, filed by the orchestrator)
 
+- [ ] **`tests/agent_runtime/test_native_app_functions.py::test_real_agent_discovers_and_calls_once_without_replaying_on_reopen[isolated-compute]` flakes under `run_tests.sh` -j8 load: `prompt.submit` answers a native error → `ConversationError: native_refusal` (`native_peer.py:78`), failed on both attempts in the G5 landing run, yet 4/4 green run alone on main `bb3fdf0677` and on the G5 merge; `tests/agent_runtime/test_native_conversation_in_process.py` flaked once in the same run** · `fork / suite` · log `X:/Eternia/worktrees/h10b-logs/g5_land.log` · UNCLAIMED
+
 - [ ] **`tests/test_managed_runtime_resolution.py::test_bare_which_and_known_path_tables_are_allowlisted` is red on main: three unlisted `bare_which` sites — `agent_runtime/local_llama_adapter/setup.py::SetupManager.detect` (`7c3a800eef`), `hermes_cli/_downstream_cli.py::cmd_postinstall` (`fc09929f15`), `hermes_cli/path_setup.py::_hermes_exe_dirs` (`5a411b1657`); each either resolves through the managed-runtime resolver or gets an allowlist row with its reason in `tests/fixtures/resolution_allowlist.json`** · `fork / suite` · measured 2026-09-30 on main `b719f05412` (7 passed, 1 failed), surfaced by lane s2-g4 · UNCLAIMED
 
 ## Filed on arrival — 2026-09-30 (launcher engine-build diagnosis, filed by the launcher orchestrator)
