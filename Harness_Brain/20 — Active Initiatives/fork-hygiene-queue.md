@@ -89,7 +89,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ### Filed on arrival — 2026-09-29 (lane h12-upnew)
 
-- [ ] **Fork process-notification sanitiser is a parallel: upstream redacts every enqueued notification (`_redact_process_result`, `6c7cfd6621`, 2026-07-07) and bounds output (`completion_output_chars`); only the command-line ANSI half is open upstream (PR #124217)** · `fork / upstream` · delete `tools/process_notification_safety.py` + its import and two calls in `tools/process_registry_notifications.py`, delete the stale origin branch `fix/process-notification-redaction`, and re-disposition the G6 ledger row · evidence: upstream `tools/process_registry.py` enqueue sites · filed by lane h12-upnew 2026-09-29 **TAKEN 2026-09-29 h13-del**
 
 ## Filed on arrival — 2026-09-24 (disposition wave)
 

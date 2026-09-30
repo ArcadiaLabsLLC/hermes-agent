@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-09-29",
   "base": "ee5f49b943",
-  "files": 175,
-  "deleted_lines": 742,
+  "files": 174,
+  "deleted_lines": 741,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h13-del: the fork process-notification sanitiser deleted (one authority: upstream's _redact_process_result at enqueue)",
+      "files": "175 -> 174: tools/process_registry_notifications.py back to upstream bytes",
+      "deleted_lines": "742 -> 741: tools/process_registry_notifications.py 1 -> 0; heavy unchanged at 4",
+      "reason": "Upstream redacts every enqueued notification (6c7cfd6621) and bounds output (completion_output_chars); the fork's format-time sanitiser was a parallel authority that masked a regression at the enqueue site. The ANSI command-line half stays with upstream PR #124217."
+    },
     {
       "change": "lane h12-fp: main.py profile bootstrap restored in place; the phone openai shim; distribution switches and auth PR-1 sit on prepared upstream PR branches",
       "files": "182 -> 175: acp_openai_bridge, auxiliary_async_rebuild, auxiliary_wire, chat_completion_helpers, mem0/_openai_llm, transcription_cloud, tts_streaming back to upstream bytes (agent_runtime/provider_sdk_shim.py registers the phone's openai)",
