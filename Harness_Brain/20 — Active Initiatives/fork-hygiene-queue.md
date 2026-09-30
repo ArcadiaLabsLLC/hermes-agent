@@ -69,7 +69,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 ## Filed on arrival — 2026-09-29 (lane h10-fhrel, filed by the orchestrator)
 
 - [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
-- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 
