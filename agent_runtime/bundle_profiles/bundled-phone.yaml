@@ -136,6 +136,9 @@ packaging:
       # names), so upstream's unguarded import sites resolve; the closure proves each at run time.
       stand_in: agent_runtime.provider_sdk_shim
       degrades: nothing on the provider wires — agent.provider_sdks false builds the SDK-free clients (agent/transports/httpx_client.py, httpx_responses.py, httpx_anthropic.py); OpenAI cloud STT (openai package check) and OpenAI streaming TTS are unavailable (the shim's client has no audio surface); mem0 OSS uses the SDK-free client
+    - distribution: psutil
+      imports: [psutil]
+      degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), and every kept import site is ImportError-guarded (discussions/native.py, conversations/native_peer.py, process_identity.py and hermes_constants_scratch.py since lane s2-g2)
   # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
   # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
   # hides an unmarked skill from a phone's skill index at run time.
@@ -475,6 +478,17 @@ packaging:
     - tools.skills_hub_official
     - tools.skills_hub_search
     - tools.skills_hub_skillssh
+    # Fork spawn seams (phone-gate plan 2026-09-30, bucket D3): the fork's one git chokepoint (every
+    # fork caller imports run_git from it; agent_runtime/loop_tool_lifecycles.py answers that import
+    # with a loud stand-in, so realm sync and the build stamp fail loudly — the `unswitched` gap
+    # above), and the switched-off siblings that now hold each fork module's own spawn: the store
+    # files' Windows ACL narrowing, the sign-in child (auth.subprocess_signin false), the gateway's
+    # routing-table command, the local dispatch child (conversations.subprocess_worker false).
+    - agent_runtime.git_cmd
+    - agent_runtime.store_file_io_windows
+    - agent_runtime.provider_signin_child
+    - agent_runtime.gateway_endpoints.route_command
+    - tools.agent_chat_dispatch.local_child
     # Dev and QA tooling.
     - agent_runtime.doctor_extensions
     - tests

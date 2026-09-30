@@ -87,8 +87,11 @@ def _masked_secret_prompt_windows(prompt: str, *, mask: str) -> str:
 
 
 def _masked_secret_prompt_posix(prompt: str, *, mask: str) -> str:
-    import termios
-    import tty
+    try:
+        import termios
+        import tty
+    except ImportError:  # fork: no terminal modules (a phone) — the getpass fallback, as on any raise here
+        return getpass.getpass(prompt)
     fd = sys.stdin.fileno()
     old_attrs = termios.tcgetattr(fd)
     try:

@@ -153,6 +153,9 @@ class NativeTurns:
             return observed != stamp  # PID reused, not the old turn.
         try:
             import psutil
+        except ImportError:  # no psutil (the phone profile omits it): no stamp to compare, liveness unproven
+            return False
+        try:
             psutil.Process(pid).status()
         except psutil.NoSuchProcess:
             return True

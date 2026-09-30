@@ -73,6 +73,8 @@ local       lanes   the supervisor pool (the supervised-id set, the executor,
                     ``dispatch_detached_turn``), the local leg
                     (``_run_dispatch`` -> ``_run_dispatch_guarded``) and
                     ``summarize_for_caller``
+local_      lanes   the local leg's spawn (``spawn_child``), imported by
+child               ``local._spawn_child`` behind ``conversations.subprocess_worker``
 ==========  ======  ===========================================================
 
 Entry points: ``agent_chat_send(wait=false)`` (``tools/agent_chat_tool``) ->

@@ -25,11 +25,8 @@ from __future__ import annotations
 
 import contextvars
 import json
-import os
 import queue
 import secrets
-import subprocess
-import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -115,40 +112,16 @@ class _Session:
         return row
 
 
-class _PopenChild:
-    """The default :class:`LoginChild`: ``hermes auth login`` in a hidden child."""
-
-    def __init__(self, argv: list[str], env: dict[str, str]) -> None:
-        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        self._proc = subprocess.Popen(
-            argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            env=env, text=True, encoding="utf-8", errors="replace", creationflags=flags,
-        )
-
-    def lines(self) -> Iterable[str]:
-        assert self._proc.stdout is not None
-        yield from self._proc.stdout
-        self._proc.wait()
-
-    def write_line(self, text: str) -> None:
-        assert self._proc.stdin is not None
-        self._proc.stdin.write(text + "\n")
-        self._proc.stdin.flush()
-
-    def terminate(self) -> None:
-        if self._proc.poll() is None:
-            self._proc.kill()
-
-
 def spawn_login_child(provider: str, flow: str, profile: str | None) -> LoginChild:
-    """Start ``hermes auth login <provider> --json --flow <flow>`` under this home."""
-    from hermes_constants import get_hermes_home
+    """Start ``hermes auth login <provider> --json --flow <flow>`` under this home.
 
-    argv = [sys.executable, "-m", "hermes_cli.main", "auth", "login", provider, "--json", "--flow", flow]
-    if profile:
-        argv += ["--profile", profile]
-    env = {**os.environ, "HERMES_HOME": str(get_hermes_home())}
-    return _PopenChild(argv, env)
+    The spawn lives in :mod:`agent_runtime.provider_signin_child`, imported only here: a
+    profile that starts no subprocess (``auth.subprocess_signin: false``, the phone) never
+    selects this runner (:func:`select_login_runner`) and leaves that module out.
+    """
+    from .provider_signin_child import spawn_login_child as spawn
+
+    return spawn(provider, flow, profile)
 
 
 class _ThreadChild:

@@ -266,3 +266,47 @@ def test_a_spawn_in_a_function_the_phone_entry_rebinds_is_answered_at_run_time(t
     kept, answered = spawn_seams(load_profile("bundled-desktop"), findings, {"spawny": path},
                                  table="spawny_table:TABLE")
     assert (len(kept), answered) == (4, {})
+
+
+def test_the_gate_runs_only_under_the_bundles_pinned_cpython_or_a_named_interpreter(tmp_path, capsys):
+    """The count depends on the interpreter (s2-g1: 104 under the lane's, 106 under system 3.12), so the
+    gate refuses to run anywhere but the pinned CPython's major.minor unless ``--interpreter`` names the
+    one running it — and it prints the interpreter either way."""
+    import json
+    import sys
+
+    from scripts.bundle_profile_gate import INTERPRETER_LOCK, interpreter_refusal, main, pinned_interpreter
+
+    pin, want = pinned_interpreter()
+    assert pin == json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8"))["version"]
+    assert interpreter_refusal(None, executable="py", implementation="cpython", version=want) is None
+    older = interpreter_refusal(None, executable="py", implementation="cpython", version=(want[0], want[1] - 2))
+    assert older and "pinned CPython" in older and pin in older
+    assert interpreter_refusal(None, executable="py", implementation="pypy", version=want)
+    # An explicit --interpreter is honoured only when it names the interpreter actually running.
+    assert interpreter_refusal(sys.executable, implementation="cpython", version=(want[0], want[1] - 2)) is None
+    assert interpreter_refusal(str(tmp_path / "other-python.exe"))
+
+    assert main(["--interpreter", str(tmp_path / "other-python.exe")]) == 2
+    out, err = capsys.readouterr()
+    assert out.startswith(f"interpreter: {sys.executable} (") and "GATE NOT RUN" in err
+
+
+def test_the_phones_kept_pty_and_psutil_import_sites_are_guarded():
+    """Phone-gate lane G2: the tty prompt's ``termios``/``tty`` and the kept psutil sites are
+    ImportError-guarded, so ``secret_prompt`` stays kept and ``psutil`` can be omitted.
+    Positive control: the same gate refuses an unguarded pty import (the test above)."""
+    from pathlib import Path
+
+    from scripts.bundle_profile_closure import _imports
+
+    root = Path(__file__).resolve().parents[2]
+    kinds = {kind for kind, _ in [(f["kind"], f["subject"]) for f in
+                                  module_findings("hermes_cli.secret_prompt", root / "hermes_cli/secret_prompt.py")]}
+    assert "process" not in kinds
+    for rel in ("hermes_cli/process_identity.py", "hermes_constants_scratch.py", "agent_runtime/discussions/native.py",
+                "agent_runtime/conversations/native_peer.py"):
+        module = rel[:-3].replace("/", ".")
+        unguarded = [line for dotted, _eager, guarded, line in _imports(root / rel, module, False)
+                     if dotted == "psutil" and not guarded]
+        assert unguarded == [], (rel, unguarded)

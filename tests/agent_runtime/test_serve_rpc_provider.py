@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from agent_runtime import provider_signin
+from agent_runtime import provider_signin, provider_signin_child
 from agent_runtime.serve_rpc import DEFERRED, RpcContext
 from agent_runtime.serve_rpc import provider as family
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND
@@ -341,12 +341,12 @@ def test_the_default_child_is_the_machine_sign_in_verb(monkeypatch, tmp_path):
             captured.update(argv=argv, **kwargs)
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(provider_signin.subprocess, "Popen", Popen)
+    monkeypatch.setattr(provider_signin_child.subprocess, "Popen", Popen)
     provider_signin.spawn_login_child("anthropic", "paste_code", "work")
     assert captured["argv"][1:] == ["-m", "hermes_cli.main", "auth", "login", "anthropic", "--json",
                                     "--flow", "paste_code", "--profile", "work"]
-    assert captured["stdin"] is provider_signin.subprocess.PIPE
-    assert captured["stderr"] is provider_signin.subprocess.DEVNULL
+    assert captured["stdin"] is provider_signin_child.subprocess.PIPE
+    assert captured["stderr"] is provider_signin_child.subprocess.DEVNULL
     assert captured["env"]["HERMES_HOME"] == str(tmp_path)
 
 

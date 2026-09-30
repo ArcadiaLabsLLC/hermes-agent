@@ -75,6 +75,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from .git_cmd import run_git
+
 __layer__ = "stores"
 
 __all__ = [
@@ -233,11 +235,9 @@ def code_tree_for(root: Path | str, head: str = "HEAD") -> CodeTree:
     """
 
     try:
-        completed = subprocess.run(
-            ["git", "ls-tree", "-r", "-z", head],
+        completed = run_git(
+            ["ls-tree", "-r", "-z", head],
             cwd=str(root),
-            capture_output=True,
-            text=True,
             encoding="utf-8",
             errors="replace",
             timeout=CODE_TREE_TIMEOUT_SECONDS,

@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import store_file_io
+from agent_runtime import store_file_io, store_file_io_windows
 from agent_runtime.store_file_io import (
     WINDOWS_STORE_GRANT,
     HarnessLockUnavailable,
@@ -89,7 +89,7 @@ def test_the_narrowing_grants_read_write_and_delete(monkeypatch, tmp_path):
     recorder = _Recorder()
     monkeypatch.setenv("USERNAME", "someone")
     monkeypatch.setattr(
-        store_file_io,
+        store_file_io_windows,
         "subprocess",
         types.SimpleNamespace(
             run=recorder.run, SubprocessError=subprocess.SubprocessError
@@ -123,7 +123,7 @@ def test_a_narrowing_that_fails_is_an_outcome_string_and_never_a_raise(
 
     monkeypatch.setenv("USERNAME", "someone")
     monkeypatch.setattr(
-        store_file_io,
+        store_file_io_windows,
         "subprocess",
         types.SimpleNamespace(
             run=_Recorder(returncode=5).run, SubprocessError=subprocess.SubprocessError

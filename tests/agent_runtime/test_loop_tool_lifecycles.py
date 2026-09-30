@@ -211,3 +211,64 @@ def test_upstream_importers_of_a_switched_off_module_load_on_its_stand_in_unedit
     assert out["managed_probe"] is None
     assert out["model_caches"] == {}
     assert out["acp"] == out["app_server"] == "refused"
+
+
+_FORK_SEAMS_CHILD = r'''
+import json, sys
+OFF = ("agent_runtime.git_cmd",)
+
+class Absent:
+    def find_spec(self, name, path=None, target=None):
+        if name in OFF or name.startswith(tuple(m + "." for m in OFF)):
+            raise ModuleNotFoundError(f"switched off: {name}", name=name)
+
+sys.meta_path.insert(0, Absent())
+out = {}
+if sys.argv[1] == "control":
+    for module in ("agent_runtime.build_stamp", "agent_runtime.repo_context"):
+        try:
+            __import__(module)
+            out[module] = "imported"
+        except ModuleNotFoundError as exc:
+            out[module] = exc.name
+    print(json.dumps(out)); raise SystemExit
+from agent_runtime.loop_tool_lifecycles import LifecycleNotShipped, ensure_lifecycle_placeholders
+out["placed"] = sorted(m for m in ensure_lifecycle_placeholders() if m in OFF)
+import agent_runtime.build_stamp, agent_runtime.repo_context  # noqa: F401,E401
+from agent_runtime.build_identity import code_tree_for
+out["code_tree"] = code_tree_for(sys.argv[2]).reason
+for name, call in (("run_git", lambda: agent_runtime.build_stamp.run_git(["status"])),
+                   ("repo_context", lambda: agent_runtime.repo_context._run_git_quiet(sys.argv[2], ["git", "status"]))):
+    try:
+        call()
+        out[name] = "ran"
+    except LifecycleNotShipped:
+        out[name] = "refused"
+print(json.dumps(out))
+'''
+
+
+def test_the_fork_git_chokepoint_loads_on_its_stand_in(tmp_path):
+    """Phone-gate lane G2: ``agent_runtime.git_cmd`` (the one fork git door) is switched off on the
+    phone; its module-level importers load on the stand-in, a git call refuses loudly, and the build
+    identity still never raises (it reads the refusal as ``git_error``).
+
+    Positive control: without the stand-in the same child cannot import the build stamp or repo context.
+    Killing mutation (recorded in the commit): drop ``GIT_COMMAND`` from ``_LOOP_NAMES`` -> red."""
+    control = _run_seams_child("control", tmp_path)
+    assert control == {"agent_runtime.build_stamp": "agent_runtime.git_cmd",
+                       "agent_runtime.repo_context": "agent_runtime.git_cmd"}
+
+    out = _run_seams_child("seam", tmp_path)
+    assert out["placed"] == ["agent_runtime.git_cmd"]
+    assert out["code_tree"] == "git_error"
+    assert out["run_git"] == out["repo_context"] == "refused"
+
+
+def _run_seams_child(mode: str, tmp_path) -> dict:
+    proc = subprocess.run(
+        [sys.executable, "-c", _FORK_SEAMS_CHILD, mode, str(REPO_ROOT)], cwd=REPO_ROOT, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", timeout=240,
+        env={**__import__("os").environ, "HERMES_HOME": str(tmp_path), "PYTHONPATH": str(REPO_ROOT)})
+    assert proc.returncode == 0, proc.stderr[-4000:]
+    return json.loads(proc.stdout.strip().splitlines()[-1])

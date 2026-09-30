@@ -59,7 +59,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import tempfile
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -133,27 +132,15 @@ def narrow_windows_acl(path: Path) -> str:
     owner always holds WRITE_DAC — it could grant itself DELETE in one icacls
     call. The narrowing exists to keep OTHER principals out, and it still does:
     inheritance is removed and this user is the only ACE.
+
+    The ``icacls`` spawn lives in :mod:`agent_runtime.store_file_io_windows`, imported
+    here and only when a Windows caller asks: a profile with no Windows (the phone)
+    leaves that module out, and every production caller sits behind ``os.name == "nt"``.
     """
 
-    user = os.environ.get("USERNAME") or ""
-    if not user:
-        return "skipped:no_username"
-    try:
-        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            [
-                "icacls",
-                str(path),
-                "/inheritance:r",
-                "/grant:r",
-                f"{user}:{WINDOWS_STORE_GRANT}",
-            ],
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return f"error:{type(exc).__name__}"
-    return "narrowed" if completed.returncode == 0 else f"error:rc{completed.returncode}"
+    from .store_file_io_windows import narrow_windows_acl as narrow
+
+    return narrow(path)
 
 
 def prepare_windows_replace(temp_path: Path, target: Path) -> tuple[str, str]:
