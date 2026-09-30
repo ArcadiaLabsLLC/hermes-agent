@@ -125,6 +125,94 @@ def is_owned(path, owner_dir) -> bool:
     return True
 
 
+# ── Shared shell-premise probes (class U3, triage-561; lane h12-fix 2026-09-29) ──
+#
+# Upstream's shell tests assume ONE POSIX shell. A Windows host has three answers
+# to "which shell runs this", and which one a test reaches depends on HOW it asks,
+# so the rows are keyed on the mechanism the test takes, never on the platform:
+#
+#   * argv ``["bash", ...]``   -> CreateProcess searches System32 BEFORE PATH, so
+#     a bare ``bash`` is the WSL launcher even where ``shutil.which`` finds Git
+#     Bash; with no distro it answers E_UNEXPECTED in UTF-16;
+#   * ``shell=True``           -> cmd.exe, which has no ``$(...)`` / ``$((...))``;
+#   * the resolved bash        -> Git Bash (MSYS): it reports a native directory in
+#     POSIX mount form (``/c/...``, ``/tmp/...``) and reads a backslash in a
+#     native path as an escape.
+#
+# Each probe performs the real spawn once per session.
+
+
+def _memo(fn: "Callable[[], bool]") -> "Callable[[], bool]":
+    cache: list[bool] = []
+
+    def _probe() -> bool:
+        if not cache:
+            cache.append(bool(fn()))
+        return cache[0]
+
+    _probe.__doc__ = fn.__doc__
+    _probe.__name__ = fn.__name__
+    return _probe
+
+
+@_memo
+def bare_bash_is_not_posix() -> bool:
+    """True where argv ``["bash", "-c", ...]`` does not reach a POSIX bash (the
+    System32 WSL launcher answers instead). False when no ``bash`` spawns at all:
+    that is a different gap, and those tests guard it themselves."""
+
+    import subprocess
+
+    try:
+        done = subprocess.run(["bash", "-c", "printf ok"], capture_output=True, timeout=30,
+                              stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.stdout != b"ok"
+
+
+@_memo
+def shell_true_is_not_posix() -> bool:
+    """True where ``subprocess.run(cmd, shell=True)`` runs a shell with no POSIX
+    arithmetic / command substitution (cmd.exe)."""
+
+    import subprocess
+
+    try:
+        done = subprocess.run("echo $((1+1))", shell=True, capture_output=True, text=True,
+                              timeout=30, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.stdout.strip() != "2"
+
+
+@_memo
+def resolved_bash_spells_posix_mount_paths() -> bool:
+    """True where the bash Hermes resolves (``pm.shell.bash()``) is an MSYS bash:
+    ``pwd -P`` in a native directory does not print that directory."""
+
+    import os
+    import subprocess
+    import tempfile
+
+    try:
+        import pm.shell
+
+        bash = pm.shell.bash()
+    except Exception:
+        return False
+    if not bash:
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            done = subprocess.run([bash, "-c", "pwd -P"], cwd=tmp, capture_output=True, text=True,
+                                  timeout=30, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError):
+            return False
+        native = os.path.normcase(os.path.realpath(tmp))
+        return os.path.normcase(os.path.normpath(done.stdout.strip() or "?")) != native
+
+
 def _owner_prefix(registry_location: str) -> str:
     """The node-id prefix a registry's reports must carry, from its location.
 

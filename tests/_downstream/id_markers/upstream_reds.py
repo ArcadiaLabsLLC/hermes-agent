@@ -673,6 +673,23 @@ if _WIN:
                 "test_support_markdown_does_not_collide_with_real_skill",
             )
         },
+        **{
+            f"tests/tools/test_local_env_blocklist.py::{test}": (
+                _up_red("the builder runs with an env holding neither USERPROFILE nor HOME, so "
+                        "Path.home() raises in the platform-default home fallback (class U3 "
+                        "remainder, red on pure upstream ee5f49b943)"),
+            )
+            for test in (
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[_make_run_env]",
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[_sanitize_subprocess_env]",
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[hermes_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[_make_run_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[_sanitize_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[hermes_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[build_subprocess_env]",
+                "TestSanePathIncludesHomebrew::test_make_run_env_appends_homebrew_on_minimal_path",
+            )
+        },
         # Class X (triage-561, lane h12-fix 2026-09-29): red identically on pure upstream
         # ee5f49b943 (fork-edited implementation, same failure text).
         "tests/tools/test_process_registry.py::TestStdinHelpers::"
