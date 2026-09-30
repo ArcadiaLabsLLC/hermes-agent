@@ -126,6 +126,21 @@ _EXCLUDED_SUFFIXES = (".pyc", ".pyo", *_SQLITE_SIDECAR_SUFFIXES)
 # File names to skip (runtime state that's meaningless on another machine)
 _EXCLUDED_NAMES = {".backup.lock", "gateway.pid", "cron.pid"}
 
+# ``*.lock`` files are live process locks (auth.lock, runtime/active_sessions.lock, gateway.lock,
+# scope locks). A Windows ``msvcrt.locking`` owner makes one unreadable, which marked an otherwise
+# complete backup incomplete; restored elsewhere it names a PID that does not exist. Dependency
+# lockfiles a skill or plugin ships are user data and stay.
+_RUNTIME_LOCK_SUFFIX = ".lock"
+_KEPT_LOCKFILE_NAMES = frozenset({
+    "uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock", "Cargo.lock", "yarn.lock", "bun.lock",
+    "flake.lock", "Gemfile.lock", "composer.lock", "deno.lock", "mix.lock", "pubspec.lock",
+    "Podfile.lock",
+})
+
+
+def _is_runtime_lock(name: str) -> bool:
+    return name.endswith(_RUNTIME_LOCK_SUFFIX) and name not in _KEPT_LOCKFILE_NAMES
+
 # The desktop updater's pre-flight drops ``state.db.pre-update-emergency-<ts>.bak`` at the root
 # — a backup artifact like ``backups/``. Prefix-matched because the name carries a timestamp;
 # a plain ``.bak`` suffix rule would drop user files.
@@ -281,7 +296,7 @@ def _iter_external_files(base: Path) -> List[Path]:
         dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_DIRS]
         files.extend(fp for fp in (Path(dirpath) / f for f in filenames)
                      if not (_is_non_regular_path(fp) or fp.name in _EXCLUDED_NAMES
-                             or fp.name.endswith(_EXCLUDED_SUFFIXES)))
+                             or fp.name.endswith(_EXCLUDED_SUFFIXES) or _is_runtime_lock(fp.name)))
     return files
 
 
@@ -319,7 +334,8 @@ def _should_exclude(rel_path: Path) -> bool:
     if any(p in _EXCLUDED_DIRS and (p != "hermes-agent" or p == parts[0]) for p in parts):
         return True
     name = rel_path.name
-    return name in _EXCLUDED_NAMES or name.startswith(_EXCLUDED_PREFIXES) or name.endswith(_EXCLUDED_SUFFIXES)
+    return (name in _EXCLUDED_NAMES or name.startswith(_EXCLUDED_PREFIXES) or name.endswith(_EXCLUDED_SUFFIXES)
+            or _is_runtime_lock(name))
 
 
 def _iter_backup_files(hermes_root: Path, out_path: Path, skipped_dirs: Optional[set] = None):

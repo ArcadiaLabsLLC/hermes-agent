@@ -207,6 +207,29 @@ class TestShouldExclude:
         assert not _should_exclude(Path("config.yaml.bak"))
 
 
+    def test_excludes_runtime_lock_files(self):
+        """A ``*.lock`` file is a live process's lock (auth.lock, runtime/active_sessions.lock,
+        gateway.lock, a scope lock). On Windows an ``msvcrt.locking`` owner makes it unreadable,
+        so archiving it marks an otherwise complete backup incomplete; on another machine it
+        names a PID that does not exist. It is never restored (``gateway.lock`` is already in
+        ``_IMPORT_SKIP_NAMES``), so it is not archived either."""
+        from hermes_cli.backup import _should_exclude
+        assert _should_exclude(Path("auth.lock"))
+        assert _should_exclude(Path("gateway.lock"))
+        assert _should_exclude(Path("runtime/active_sessions.lock"))
+        assert _should_exclude(Path("profiles/coder/auth.lock"))
+
+    def test_keeps_package_manager_lockfiles(self):
+        """A dependency lockfile in a skill or plugin is user data, not a process lock."""
+        from hermes_cli.backup import _should_exclude
+        assert not _should_exclude(Path("skills/x/uv.lock"))
+        assert not _should_exclude(Path("plugins/y/poetry.lock"))
+        assert not _should_exclude(Path("skills/z/Cargo.lock"))
+        assert not _should_exclude(Path("scratch/yarn.lock"))
+        assert not _should_exclude(Path("skills/w/pubspec.lock"))
+        assert not _should_exclude(Path("skills/v/mix.lock"))
+
+
 # ---------------------------------------------------------------------------
 # _iter_backup_files tests
 # ---------------------------------------------------------------------------
