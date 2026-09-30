@@ -2537,13 +2537,8 @@ def _anthropic_connection_error_types() -> tuple:
 
 
 def _is_sse_connection_error(exc: BaseException) -> bool:
-    try:
-        from openai import APIError as _APIError
-    except ImportError:  # fork seam: a profile without provider SDKs (agent.provider_sdks: false)
-        from agent.transports.httpx_client import NoProviderSdk as _APIError
-    # Fork seam: the SDK-free client raises its in-stream error as ProviderStreamError.
-    from agent.transports.httpx_client import ProviderStreamError
-    if not isinstance(exc, (_APIError, ProviderStreamError)) or getattr(exc, "status_code", None):
+    from openai import APIError as _APIError
+    if not isinstance(exc, _APIError) or getattr(exc, "status_code", None):
         return False
     err_lower = str(exc).lower()
     return any(phrase in err_lower for phrase in _SSE_CONN_PHRASES)
