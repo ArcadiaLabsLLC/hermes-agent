@@ -11,6 +11,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Repair stale chat-lane patch targets and classify the unrelated `_model` duplicate-helper collision.** · Six failures reproduced on clean primary; [chat-first qualification](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison). Filed 2026-09-29 chat-first-groups. UNCLAIMED
+
+- **Additional evidence for the claimed validated-suite residuals:** 68 gateway/TLS failures reproduce on clean primary with Python 3.13.15; this does not supersede the separate Python 3.12 green receipt. [Comparison](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison). Filed 2026-09-29 chat-first-groups.
+
 - [ ] **Reject contradictory success receipts in the bundled runner.** · `members_to_rerun` trusts process exit 0 although the bundle recorder can report `rc: 2` with no test events; 19 CLI files were labelled green without execution evidence. Per-file confirmation is required, not a green count. Evidence: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` · filed 2026-09-29 chat-first-groups. UNCLAIMED
 
 - [ ] **Classify the live runtime socket lock correctly in full backups.** · A sole unreadable `agent-runtime/serve_socket.lock` marked a backup containing every profile database incomplete; [deployment evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#installed-update). Filed 2026-09-29 shared-provider-correction. UNCLAIMED **TAKEN 2026-09-29 h11-code**

@@ -1,6 +1,6 @@
 # Chat-first group messages
 
-Owner-approved 2026-09-29. Implementation checkpoint, not release acceptance.
+Owner-approved 2026-09-29. Implemented; live-provider desktop acceptance remains separate.
 
 `runtime.discussion.run.send` accepts optional typed `response`: `discuss`,
 `compare` or `reply`, with an explicit member audience. Omission preserves the
@@ -41,14 +41,18 @@ The 26-file qualification passed 285 tests; only the old upstream footprint ceil
 failed. The required held seams are now dispositioned in the ledger. Real local
 provider tests cover independent replies, continuation, reconstruction, compute-host
 questions, lost/repeated answer acknowledgements and exact confirmed Stop. No live
-credentials or user profiles were used. Final fork landing suite remains in progress;
-this checkpoint is not desktop acceptance.
+credentials or user profiles were used. The completed fork-population run and
+baseline comparison are recorded in the
+[qualification](../../downstream/chat-first-group-qualification-2026-09-29.md).
+All nine slice-owned failures were corrected; the correction run passed 177 tests.
+The wider repository is not green: 79 failures and one collection error reproduced
+on unchanged primary. This is not desktop acceptance.
 
 The first landing run was stopped after 441 reported files. Only 422 carried
 test outcomes: bundle 26 reported process success although its recorder ended
-with `rc: 2` and no test events. Its 19 unproven files must run individually;
-green bundle labels are not evidence for them. The remaining population will
-also run through the per-file authority. The parked wrapper self-publication
+with `rc: 2` and no test events. Its 19 unproven files ran individually;
+green bundle labels were not counted as evidence. The remaining population also
+ran through the per-file authority. The parked wrapper self-publication
 test is upstream-inherited and was already outside this fork population.
 
 ## Lifecycle follow-up
