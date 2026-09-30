@@ -15,10 +15,15 @@ Host contract (the Stage 3 C shim is its caller):
 1. :func:`configure_app_folder` once, before anything reads ``HERMES_HOME`` —
    module-level constants resolve it at import;
 2. ``agent_runtime.host_store.binding.bind_host_store(...)`` with the OS secure
-   store's callbacks, over a store root that contains the app folder's Hermes home.
-   :meth:`EmbeddedServe.start` refuses (:class:`~agent_runtime.host_store.binding.
-   HostStoreNotBound` / ``OutsideStoreRoot``) without it: unbound, every credential
-   and history store would be a plaintext file;
+   store's callbacks, over a store root that contains the app folder's Hermes home,
+   INCLUDING ``protect_history_dir``: :meth:`EmbeddedServe.start` hands it the Hermes
+   home before the serve thread exists, and the host puts the OS's file protection
+   and a no-cloud-backup mark on it (the chat history is upstream's plain SQLite and
+   JSONL; the OS protection is its at-rest encryption). :meth:`EmbeddedServe.start`
+   refuses (:class:`~agent_runtime.host_store.binding.HostStoreNotBound` /
+   ``OutsideStoreRoot`` / ``HistoryProtectionMissing``) without them: unbound, every
+   credential would be a plaintext file, and unprotected, the history could reach a
+   cloud backup;
 3. :class:`EmbeddedServe` with an ``on_frame`` callback (called on the serve's
    threads, one complete line at a time, without the trailing newline);
 4. :meth:`EmbeddedServe.send` per inbound line; :meth:`EmbeddedServe.close` is
@@ -56,6 +61,7 @@ __all__ = [
     "InMemoryPipe",
     "app_folder_environment",
     "configure_app_folder",
+    "protect_history_folder",
     "require_bound_host_store",
 ]
 
@@ -149,6 +155,23 @@ def require_bound_host_store(home: Path | None = None) -> None:
         raise OutsideStoreRoot(f"Hermes home {home} is not under the host store root {bound.store_root}")
 
 
+def protect_history_folder(home: Path | None = None) -> Path:
+    """Have the host protect the Hermes home that holds the chat history; return it.
+
+    The phone boot's one call to the host contract's ``protect_history_dir`` (see
+    :mod:`agent_runtime.host_store.binding`). ``home`` defaults to the resolved root,
+    as in :func:`require_bound_host_store`. Raises ``HistoryProtectionMissing`` when the
+    host bound no such callback, and whatever the host raises when it cannot protect.
+    """
+
+    from agent_runtime.host_store.binding import require
+    from hermes_constants import get_hermes_home
+
+    home = Path(os.path.abspath(home if home is not None else get_hermes_home()))
+    home.mkdir(parents=True, exist_ok=True)
+    return require().protect_history_dir(home)
+
+
 class EmbeddedServe:
     """One embedded runtime: ``serve_loop`` on its own thread over an :class:`InMemoryPipe`.
 
@@ -168,6 +191,7 @@ class EmbeddedServe:
         if self._thread is not None:
             raise RuntimeError("an embedded serve starts once per app process")
         require_bound_host_store()
+        protect_history_folder()  # before anything writes history: the OS protection + no cloud backup
         from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
 
         ensure_lifecycle_placeholders()  # before any request can import the agent loop

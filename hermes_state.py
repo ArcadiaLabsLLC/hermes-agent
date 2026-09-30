@@ -427,10 +427,6 @@ def divert_session_transcript_jsonl(session_id: str, messages) -> "Optional[Path
     sessions_dir = get_hermes_home() / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     path = sessions_dir / f"{sid}.jsonl"
-    from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
-    if _host_history.bound():
-        return _host_history.append_json_records(
-            path, [m if isinstance(m, dict) else {"content": str(m)} for m in messages if m is not None])
     with path.open("a", encoding="utf-8") as handle:
         for msg in messages:
             if msg is not None:
@@ -459,12 +455,6 @@ class SessionDB(
     SessionMessagesMixin, SessionRewindMixin, SessionProfileRepairMixin,
 ):
     """SQLite-backed session storage with FTS5 search; many reader threads, one writer (WAL)."""
-
-    def __new__(cls, *args, **kwargs):
-        # Fork seam — phone history storage seam: bound to a host store, the one session store runs
-        # over an encrypted image (agent_runtime.host_store.session_db). Unbound: this exact class.
-        from agent_runtime.host_store import history as _host_history
-        return super().__new__(_host_history.session_db_class(cls) if cls is SessionDB else cls)
 
     # Only these state-owned producers join automatic stale-open reconciliation; messaging/UI
     # sources have their own lifecycle owners; unknown sources fail closed.

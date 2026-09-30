@@ -1,11 +1,15 @@
-"""The phone credentials seam and history storage seam (embedded-hermes Stage 2 steps 5 and 9).
+"""The phone credentials seam (embedded-hermes Stage 2 step 5).
 
 Against the fake host store (``agent_runtime.host_store.fake``): after a session with
-a signed-in provider and a chat, a byte scan of the app folder finds no secret and no
-chat text; a second profile or a second install reads neither the first's credentials
-nor its history; the machine-wide borrowed CLI logins are refused. Every scan runs
-with a POSITIVE CONTROL — the same scenario unbound must leak the same needles, so
-the scan is proven to look where the bytes would be.
+a signed-in provider and a chat, a byte scan of the app folder finds no secret; a second
+profile or a second install cannot read the first's credentials; the machine-wide
+borrowed CLI logins are refused. Every scan runs with a POSITIVE CONTROL — the same
+scenario unbound must leak the same needles, so the scan is proven to look where the
+bytes would be.
+
+Chat history is upstream's own files, bound or not (owner ruling 2026-09-30: no
+app-level seal; the phone host puts the OS's file protection on the history folder —
+``tests/agent_runtime/test_embedded_phone_session.py`` pins that the phone boot asks).
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime.host_store import binding, envelope, history, secret_files
+from agent_runtime.host_store import binding, secret_files
 from agent_runtime.host_store.fake import FakeHostSecureStore
 
 ACCESS = "hsec-access-token-5d1f"
@@ -28,7 +32,9 @@ HMAC = "hsec-webhook-hmac-6f1a"
 PAIRING = "hsec-pairing-code-3c9d"
 CHAT = "periwinkle-zeppelin-marmalade"
 DUMP = "tangerine-obelisk-quartet"
-NEEDLES = (ACCESS, REFRESH, API_KEY, PKCE, MCP, HMAC, PAIRING, CHAT, DUMP)
+SECRETS = (ACCESS, REFRESH, API_KEY, PKCE, MCP, HMAC, PAIRING)
+HISTORY = (CHAT, DUMP)
+NEEDLES = SECRETS + HISTORY
 
 
 @pytest.fixture(autouse=True)
@@ -71,7 +77,7 @@ def _session(home: Path) -> None:
     try:
         db.create_session("s1", source="cli")
         db.append_message("s1", role="user", content=f"remember the {CHAT} please")
-        assert db.search_messages(CHAT.split("-")[0])  # FTS5 answers inside the image
+        assert db.search_messages(CHAT.split("-")[0])
     finally:
         db.close()
     divert_session_transcript_jsonl("s1", [{"role": "assistant", "content": DUMP}])
@@ -93,7 +99,9 @@ def test_a_session_leaves_no_secret_and_no_chat_text_on_disk(app):
     store.bind(profile="phone-a", store_root=root)
     _session(home)
 
-    assert _leaks(root) == set()
+    # No secret on disk; the history is upstream's plain files (the OS protects the folder).
+    assert _leaks(root) == set(HISTORY)
+    assert (home / "state.db").read_bytes().startswith(b"SQLite format 3")
     # ...and every store still answers through the seam.
     from agent.anthropic_credentials import read_hermes_oauth_credentials
     from hermes_cli import auth, config
@@ -107,8 +115,7 @@ def test_a_session_leaves_no_secret_and_no_chat_text_on_disk(app):
         assert CHAT in db.get_messages("s1")[0]["content"]
     finally:
         db.close()
-    assert DUMP in history.read_records(home / "sessions" / "s1.jsonl")[0]
-    assert not list(home.glob("state.db-*")), "a journal sidecar reached the disk"
+    assert DUMP in (home / "sessions" / "s1.jsonl").read_text(encoding="utf-8")
 
 
 def test_positive_control_the_same_session_unbound_leaks_every_needle(app):
@@ -117,35 +124,25 @@ def test_positive_control_the_same_session_unbound_leaks_every_needle(app):
     assert _leaks(root) == set(NEEDLES)
 
 
-def test_a_second_profile_or_install_reads_neither_credentials_nor_history(app):
+def test_a_second_profile_or_install_cannot_read_the_credentials(app):
     root, home = app
     host = FakeHostSecureStore()
     host.bind(profile="phone-a", store_root=root)
     _session(home)
-    sealed = (home / "state.db").read_bytes()
     binding.unbind_host_store()
 
     from hermes_cli import auth, config
-    from hermes_state import SessionDB
 
     for other in (lambda: host.bind(profile="phone-b", store_root=root),  # second profile, same host
                   lambda: FakeHostSecureStore().bind(profile="phone-a", store_root=root)):  # second install
         other()
         assert auth._load_auth_store().get("providers") == {}
         assert config.load_env() == {}
-        with pytest.raises(history.HistoryUnreadable):
-            SessionDB(home / "state.db")
-        assert (home / "state.db").read_bytes() == sealed, "a key mismatch overwrote the other history"
         binding.unbind_host_store()
 
-    # Positive control: the first profile, rebound, reads both.
+    # Positive control: the first profile, rebound, reads them.
     host.bind(profile="phone-a", store_root=root)
     assert auth._load_auth_store()["providers"]["nous"]["access_token"] == ACCESS
-    db = SessionDB(home / "state.db")
-    try:
-        assert db.get_messages("s1")
-    finally:
-        db.close()
 
 
 def test_borrowed_machine_wide_logins_are_refused_when_bound(app, tmp_path, monkeypatch):
@@ -200,166 +197,9 @@ def test_slots_are_keyed_by_profile_and_exact_auth_home(app):
     assert current.slot(home / "profiles" / "coder" / "auth.json") != current.slot(home / "auth.json")
 
 
-def test_a_deleted_session_is_gone_from_the_sealed_image(app):
-    root, home = app
-    FakeHostSecureStore().bind(profile="phone-a", store_root=root)
-    from hermes_state import SessionDB
-
-    db = SessionDB(home / "state.db")
-    try:
-        db.create_session("gone", source="cli")
-        db.append_message("gone", role="user", content=f"forget the {CHAT}")
-        # Positive control: before the delete, the decrypted image carries the text.
-        assert CHAT.encode() in history.read_blob(home / "state.db")
-        db.delete_session("gone")
-    finally:
-        db.close()
-    assert CHAT.encode() not in history.read_blob(home / "state.db")
-
-
-def test_erase_history_removes_every_history_file(app):
-    root, home = app
-    FakeHostSecureStore().bind(profile="phone-a", store_root=root)
-    _session(home)
-    removed = history.erase_history(home)
-    assert home / "state.db" in removed and home / "sessions" / "s1.jsonl" in removed
-    assert not (home / "state.db").exists() and not list((home / "sessions").glob("*"))
-
-
-def test_the_envelope_refuses_a_wrong_key_a_wrong_slot_and_a_tampered_byte():
-    key = bytes(range(32))
-    blob = envelope.seal(key, b"hello history", aad=b"slot-a")
-    assert envelope.open_(key, blob, aad=b"slot-a") == b"hello history"
-    with pytest.raises(envelope.EnvelopeError):
-        envelope.open_(bytes(32), blob, aad=b"slot-a")
-    with pytest.raises(envelope.EnvelopeError):
-        envelope.open_(key, blob, aad=b"slot-b")
-    tampered = bytearray(blob)
-    tampered[len(envelope.MAGIC) + envelope.NONCE_BYTES] ^= 1
-    with pytest.raises(envelope.EnvelopeError):
-        envelope.open_(key, bytes(tampered), aad=b"slot-a")
-    assert b"hello history" not in blob
-
-
 def test_unbound_is_upstream():
-    from hermes_state import SessionDB
-
     probe = Path("x") / "auth.json"
     assert secret_files.view(probe) is probe
-    assert history.session_db_class(SessionDB) is SessionDB
-
-
-def _pending_delegation(home: Path) -> None:
-    """One abandoned delegation row, written through the ledger's own writer (bound or not)."""
-    from tools import async_delegation
-
-    async_delegation._persist_dispatch({"delegation_id": "d-1", "session_key": "s1", "dispatched_at": 1.0,
-                                        "goal": f"summarise {CHAT}"})
-    with async_delegation._DB_LOCK, async_delegation._transaction() as conn:  # its owner has since died
-        conn.execute("UPDATE async_delegations SET owner_pid=?, owner_started_at=? WHERE delegation_id='d-1'",
-                     (2 ** 22 + 7, 1.0))
-
-
-def test_the_delegation_ledger_writes_the_sealed_image_not_a_plaintext_database(app):
-    """``tools.process_registry``'s import-time recovery (``restore_undelivered_completions``) opens
-    ``state.db`` beside ``SessionDB``. Bound, it must write the sealed image: once it won the race
-    it wrote a plaintext database, which ``SessionDB`` then refused ("not a history envelope")."""
-    import queue
-
-    from hermes_state import SessionDB
-    from tools import async_delegation
-
-    import sqlite3
-
-    root, home = app
-    FakeHostSecureStore().bind(profile="p1", store_root=root)
-    _pending_delegation(home)  # before any SessionDB: the ledger alone creates the state DB
-    assert not (home / "state.db").read_bytes().startswith(b"SQLite format 3")
-    db = SessionDB(home / "state.db")  # the sealed store opens what the ledger wrote, and stays open
-    try:
-        db.create_session("s1", source="cli")
-        restored = queue.Queue()
-        async_delegation.restore_undelivered_completions(restored)
-        # The ledger's write reached the disk while SessionDB still holds the image: sealed, and
-        # it decrypts to the settled row.
-        blob = (home / "state.db").read_bytes()
-        assert not blob.startswith(b"SQLite format 3") and CHAT.encode() not in blob
-        image = sqlite3.connect(":memory:")
-        try:
-            image.deserialize(history.read_blob(home / "state.db"))
-            row = image.execute("SELECT state FROM async_delegations WHERE delegation_id='d-1'").fetchone()
-        finally:
-            image.close()
-        assert row == ("unknown",)
-    finally:
-        db.close()
-    # Positive control: the recovery really ran over the ledger row (it settled and re-queued it).
-    event = restored.get_nowait()
-    assert event["delegation_id"] == "d-1" and event["status"] == "unknown" and CHAT in event["goal"]
-
-
-def test_file_logs_are_sealed_records_when_bound(app):
-    import logging
-
-    import hermes_logging
-
-    root, home = app
-    FakeHostSecureStore().bind(profile="p1", store_root=root)
-    hermes_logging._reset_queued_handlers()
-    hermes_logging._logging_initialized = False
-    hermes_logging.setup_logging(hermes_home=home, log_level="INFO", force=True)
-    try:
-        logging.getLogger("agent.turn_context").info("turn opens with %s", CHAT)
-        logging.getLogger("agent.turn_context").warning("provider said %s", DUMP)
-        hermes_logging.flush_log_queue()
-        logs = sorted(p.name for p in (home / "logs").iterdir())
-        assert {"agent.log", "errors.log"} <= set(logs)
-        for name in ("agent.log", "errors.log"):
-            data = (home / "logs" / name).read_bytes()
-            assert CHAT.encode() not in data and DUMP.encode() not in data
-        # Positive control: the records decrypt, through the bound store, to the lines logged.
-        agent = history.read_records(home / "logs" / "agent.log")
-        assert any(CHAT in r for r in agent) and any(DUMP in r for r in agent)
-        assert any(DUMP in r for r in history.read_records(home / "logs" / "errors.log"))
-    finally:
-        hermes_logging._reset_queued_handlers()
-        hermes_logging._logging_initialized = False
-
-
-def test_the_state_db_readers_beside_session_db_read_the_sealed_image(app):
-    """The raw readers of ``state.db`` outside ``SessionDB`` — the running-work delegation lane, the
-    dispatch store (which also writes), the readiness probe and the doctor's stats — read the sealed
-    image when bound. Before the seam each opened the envelope as SQLite and got "file is not a
-    database" (the lane reported the store unreadable; the dispatch store wrote a plaintext DB)."""
-    import sqlite3
-    import time
-
-    from agent_runtime.dispatch_store import db as dispatch_db
-    from agent_runtime.dispatch_store import record_dispatch
-    from agent_runtime.running_work.lanes_chat import DelegationLane
-    from gateway.readiness import _probe_state_db
-    from hermes_state_dbfile import collect_state_db_stats
-
-    root, home = app
-    FakeHostSecureStore().bind(profile="p1", store_root=root)
-    _pending_delegation(home)
-    record_dispatch(dispatch_id="x-1", sender_session_id="s1", target_persona="helper", ask=f"find {CHAT}")
-    db_path = home / "state.db"
-    assert not db_path.read_bytes().startswith(b"SQLite format 3") and CHAT.encode() not in db_path.read_bytes()
-
-    rows, refusal = DelegationLane(now=time.time(), accountant=None).read_durable(db_path)
-    assert refusal is None and [row[0] for row in rows] == ["d-1"]
-    assert [row["dispatch_id"] for row in dispatch_db.running_dispatches()] == ["x-1"]
-    assert _probe_state_db(home) == {"status": "ok"}
-    assert collect_state_db_stats(db_path)["page_count"]
-
-    # Positive control: the file really is an envelope a raw sqlite3 reader cannot open.
-    with pytest.raises(sqlite3.DatabaseError):
-        conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
-        try:
-            conn.execute("SELECT name FROM sqlite_master").fetchall()
-        finally:
-            conn.close()
 
 
 def test_the_bound_pairing_store_lists_platforms_held_in_slots(app):

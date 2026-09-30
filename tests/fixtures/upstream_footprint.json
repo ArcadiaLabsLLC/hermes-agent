@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-09-29",
+  "measured_at": "2026-09-30",
   "base": "ee5f49b943",
-  "files": 173,
-  "deleted_lines": 741,
+  "files": 168,
+  "deleted_lines": 738,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h13-phone: the phone's home-built history seal deleted (owner 2026-09-30: history relies on the OS's file protection + a no-cloud-backup mark the phone host sets through HostStoreCallbacks.protect_history_dir)",
+      "files": "173 -> 168: agent/trajectory.py, agent/moa_trace.py, gateway/readiness.py, hermes_state_dbfile.py, hermes_logging.py back to upstream bytes; the history hunks also left hermes_state.py, agent/agent_runtime_helpers.py and tools/async_delegation.py, which keep other fork hunks",
+      "deleted_lines": "741 -> 738: gateway/readiness.py 1 -> 0, hermes_state_dbfile.py 2 -> 0; heavy unchanged at 4",
+      "reason": "The seal (agent_runtime/host_store/history, session_db, envelope, log_records) redirected I/O at six upstream primitives; the OS's per-app file protection covers state.db, sessions/ and logs/ without a seam. The credential class (secret_files, 13 files) stays: upstream has no single credential path helper to override (each ledger row names its primitive)."
+    },
     {
       "change": "lane h13-del: kanban crash evidence moved whole onto upstream's on_kanban_worker_exited observer (eternia-harness plugin)",
       "files": "174 -> 173: hermes_cli/kanban_db_dispatch.py back to upstream bytes",

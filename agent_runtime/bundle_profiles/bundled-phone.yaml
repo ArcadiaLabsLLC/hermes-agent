@@ -16,7 +16,8 @@ profile: bundled-phone
 
 # Credentials and chat history are not a config switch: the embedded entry
 # (hermes_cli/harness_parts/serve/in_memory.py, EmbeddedServe.start) refuses to serve until
-# the host has bound its secure store (agent_runtime/host_store, plan Stage 2 steps 5 and 9).
+# the host has bound its secure store for credentials and has protected the history folder
+# (agent_runtime/host_store/binding.py: protect_history_dir; owner ruling 2026-09-30).
 
 toolsets:
   disabled:
@@ -356,8 +357,8 @@ packaging:
     - hermes_cli.plugins_updates
     - hermes_cli.secrets_cli
     - hermes_cli.onepassword_secrets_cli
-    # File-level backup / restore / snapshot of the SQLite stores: bound, state.db is a sealed image
-    # a sqlite3 file copy cannot open, and the host backs up its own app container.
+    # File-level backup / restore / snapshot of the SQLite stores: the history folder is marked
+    # no-cloud-backup by the host, and a backup archive would carry it outside the OS's protection.
     - hermes_cli.backup
     - hermes_cli.backup_restore
     - hermes_cli.backup_sqlite

@@ -1470,10 +1470,6 @@ def dump_api_request_debug(
         from agent.redact import redact_sensitive_text
         _serialized = json.dumps(dump_payload, ensure_ascii=False, indent=2, default=str)
         _redacted_payload = json.loads(redact_sensitive_text(_serialized, force=True))
-        from agent_runtime.host_store import history as _host_history  # fork seam: phone history storage seam
-        if _host_history.bound():
-            _host_history.write_blob(dump_file, json.dumps(_redacted_payload, default=str).encode("utf-8"))
-            return dump_file
         atomic_json_write(dump_file, _redacted_payload, default=str)
         agent._vprint(f"{agent.log_prefix}🧾 Request debug dump written to: {dump_file}")
         if env_var_enabled("HERMES_DUMP_REQUEST_STDOUT"):

@@ -8,10 +8,9 @@ worker (``agent_runtime.conversations.worker_entry``). A store that is not avail
 typed refusal (:class:`~agent_runtime.host_store.desktop.SecureStoreUnavailable`): the
 process exits rather than writing a sign-in in plaintext.
 
-Chat history is NOT moved (``history=False``): the worker is a second process on the same
-``state.db`` and the encrypted image has one writer. The ruling covers sign-ins; desktop
-chat history stays a plain file by owner ruling 2026-09-29 (revisit only with a one-writer
-or multi-process sealed store). ``tests/agent_runtime/test_desktop_host_store.py`` pins it.
+Chat history is NOT moved: the ruling covers sign-ins; desktop chat history stays a plain
+file by owner ruling 2026-09-29, and the store passes no ``protect_history_dir``.
+``tests/agent_runtime/test_desktop_host_store.py`` pins it.
 
 Migration: a plaintext credential file left by an older bundled install (census:
 ``docs/downstream/credential-store-census-2026-09-28.md``) is written to its slot,
@@ -127,7 +126,7 @@ def bind_desktop_host_store(
     home = Path(os.path.abspath(get_hermes_home()))
     root = Path(os.path.abspath(get_default_hermes_root()))
     store = (store_factory or _desktop.os_secure_store)(root / BLOB_DIR_NAME)
-    current = _binding.bind_host_store(store.callbacks(), profile=_profile_name(home), store_root=root, history=False)
+    current = _binding.bind_host_store(store.callbacks(), profile=_profile_name(home), store_root=root)
     try:
         moved = migrate_plaintext_secrets(current, plaintext_secret_paths(home, root, shared_auth_dir(root)))
         _reload_dotenv(home)
