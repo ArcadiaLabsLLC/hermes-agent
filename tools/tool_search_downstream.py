@@ -85,15 +85,19 @@ def tool_describe_schema() -> Dict[str, Any]:
                 "name. Tool descriptions in this list are brief; call "
                 "tool_describe before the first use of an unfamiliar tool."
             ),
+            # Upstream's describe argument (the bridge's ``names``; a single string is one name), so
+            # ``dispatch_tool_describe`` answers it through upstream's own list door (RESOLVER 7c,
+            # recorded-parallels sheet; the fork's single ``name`` spelling is gone).
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Exact tool name to describe.",
+                    "names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Exact tool names to describe. A single string is accepted and treated as one name.",
                     },
                 },
-                "required": ["name"],
+                "required": ["names"],
             },
         },
     }

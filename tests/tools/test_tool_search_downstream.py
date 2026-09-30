@@ -136,35 +136,47 @@ class TestBridgeDispatch:
         from tools.tool_search import dispatch_tool_describe
         schema = registry.get_entry("session_search").schema
         result = json.loads(
-            dispatch_tool_describe({"name": "session_search"}, current_tool_defs=[{"type": "function", "function": schema}])
+            dispatch_tool_describe({"names": ["session_search"]}, current_tool_defs=[{"type": "function", "function": schema}])
         )
-        assert "error" not in result
+        assert "errors" not in result
+        described = result["tools"]["session_search"]
         # Full upstream text, not the wire brief.
-        assert result["description"] == SESSION_SEARCH_SCHEMA["description"]
-        assert result["description"] != BRIEF_DESCRIPTIONS["session_search"]
-        assert "inspect that first" in result["description"]
+        assert described["description"] == SESSION_SEARCH_SCHEMA["description"]
+        assert described["description"] != BRIEF_DESCRIPTIONS["session_search"]
+        assert "inspect that first" in described["description"]
         # Parameters are never trimmed — live schema is returned.
-        assert result["parameters"].get("properties")
+        assert described["parameters"].get("properties")
 
     def test_tool_describe_does_not_regrant_excluded_core_tool(self):
         from tools.tool_search import dispatch_tool_describe
-        result = json.loads(dispatch_tool_describe({"name": "session_search"}, current_tool_defs=[]))
-        assert "error" in result
+        result = json.loads(dispatch_tool_describe({"names": ["session_search"]}, current_tool_defs=[]))
+        assert "session_search" not in result.get("tools", {}) and result["not_found"] == ["session_search"]
 
     def test_tool_describe_unknown_tool_errors(self):
         from tools.tool_search import dispatch_tool_describe
         result = json.loads(
-            dispatch_tool_describe({"name": "zzz_not_a_tool"}, current_tool_defs=[])
+            dispatch_tool_describe({"names": "zzz_not_a_tool"}, current_tool_defs=[])  # a single string is one name
         )
-        assert "error" in result
+        assert result["not_found"] == ["zzz_not_a_tool"] and not result.get("tools")
+
+    def test_the_retired_single_name_spelling_describes_nothing(self):
+        """RESOLVER 7c: the fork's single ``name`` argument is gone; upstream's list door answers
+        with its own missing-argument error rather than a hit. Positive control: the same tool,
+        asked through ``names``, is described."""
+        from tools.tool_search import dispatch_tool_describe
+        defs = [_td("terminal", "Run shell", {"command": {"type": "string"}})]
+        retired = json.loads(dispatch_tool_describe({"name": "terminal"}, current_tool_defs=defs))
+        assert "error" in retired and "tools" not in retired
+        described = json.loads(dispatch_tool_describe({"names": ["terminal"]}, current_tool_defs=defs))
+        assert "terminal" in described["tools"]
 
     def test_tool_describe_schema_is_fixed_and_tiny(self):
         from tools.tool_search import tool_describe_schema, TOOL_DESCRIBE_NAME
         schema = tool_describe_schema()
         fn = schema["function"]
         assert fn["name"] == TOOL_DESCRIBE_NAME
-        assert list(fn["parameters"]["properties"]) == ["name"]
-        assert fn["parameters"]["required"] == ["name"]
+        assert list(fn["parameters"]["properties"]) == ["names"]
+        assert fn["parameters"]["required"] == ["names"]
 
     def test_ensure_tool_describe_present_is_idempotent(self):
         from tools.tool_search import (
@@ -201,11 +213,11 @@ class TestRegression_ToolsetScoping:
             defs.append(_td(name, "Inline schema probe tool.", props[name]))
 
         parsed = json.loads(dispatch_tool_search(
-            {"query": "inline schema probe", "limit": 6},
+            {"queries": ["inline schema probe"], "limit": 6},
             current_tool_defs=defs,
             config=ToolSearchConfig.from_raw({"enabled": "on"}),
         ))
-        matches = parsed["matches"]
+        matches = [{"name": name, **parsed["tools"][name]} for name in parsed["results"][0]["matches"]]
         assert len(matches) == 6, f"expected all 6 probes to match, got {len(matches)}"
 
         assert "parameters" in matches[0], (
@@ -233,11 +245,11 @@ class TestRegression_ToolsetScoping:
         defs = [_td(name, "Oversized schema probe.", big)]
 
         parsed = json.loads(dispatch_tool_search(
-            {"query": "oversized schema probe"},
+            {"queries": ["oversized schema probe"]},
             current_tool_defs=defs,
             config=ToolSearchConfig.from_raw({"enabled": "on"}),
         ))
-        match = parsed["matches"][0]
+        match = {"name": parsed["results"][0]["matches"][0], **parsed["tools"][parsed["results"][0]["matches"][0]]}
         assert match["name"] == name
         assert "parameters" not in match, (
             "an over-cap schema was inlined anyway — one pathological MCP tool "
@@ -314,9 +326,9 @@ class TestCatalogListing:
         )
 
         parsed = json.loads(dispatch_tool_search(
-            {"query": "agent chat send", "limit": 10},
+            {"queries": ["agent chat send"], "limit": 10},
             current_tool_defs=defs, config=cfg,
         ))
-        assert "agent_chat_send" not in {m["name"] for m in parsed["matches"]}, (
+        assert "agent_chat_send" not in set(parsed["results"][0]["matches"]), (
             "promoted tool is still searchable through the bridge catalog"
         )
