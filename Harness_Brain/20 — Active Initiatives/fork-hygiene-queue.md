@@ -120,7 +120,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-24 (lane TESTS)
 
-- [ ] **`tests/test_live_system_guard_self_test.py::test_os_kill_blocks_foreign_pid` / `::test_pty_spawn_systemctl_blocked` and `tests/test_live_system_guard_self_test_downstream.py::test_gateway_lookalike_marker_allows_only_gateway_shape` are red on `fa12c6c5a3`** · `fork / suite` · the fence that refuses killing foreign pids may not hold; red with and without lane TESTS' classifier change · evidence: lane TESTS `.lane-logs/r11_base.log` (DID NOT RAISE RuntimeError) · filed by lane TESTS 2026-09-24 **TAKEN 2026-09-25 lane Q-GATES** · VERDICT 2026-09-25 lane Q-GATES: DESIGN — the downstream half is DONE (the lookalike + pass-through tests spawned `python -c pass hermes …`, inert since 10aa344964; they now spawn an absent `hermes` and prove pass-through by FileNotFoundError, with a refusal control). The two upstream tests are Windows-premise reds, not a fence failure: FOREIGN_PID=1 does not exist on Windows so `_is_own_subtree` allows it as stale and real kill raises WinError 87; `import pty` needs `termios`. Remaining: id-mark both in `tests/_downstream/id_markers.py` as `_up_red` (POSIX premise). **TAKEN 2026-09-29 h11-sweep**
 
 ## Filed on arrival — 2026-09-24 (lane REDS3)
 
