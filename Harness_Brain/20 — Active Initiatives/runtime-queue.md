@@ -29,13 +29,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **`harness_core` is missing from the shared-metrics `toolset` enum (class C3 remainder): the fork registers it in upstream's `toolsets.py` before `BUILTIN_TOOLSET_NAMES` is captured, so the contract exports a name upstream's v3 schema does not carry (`test_shared_metrics_efficiency.py::test_v3_schema_accepts_exactly_the_contract_values`)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class C3 · VERDICT 2026-09-29 h11-code: the other six C3 items DONE in this row's commit; this one waits on h11-fp's `toolsets.py` row — (a) register `harness_core` from a fork module after the capture, so metrics collapse it to `custom` (recommended: no upstream bytes, a fork toolset name never leaves the machine), (b) add it to the v3 schema enum (an upstream file) **TAKEN 2026-09-29 h11-code**
 
-### Filed on arrival — 2026-09-29 (lane h10-rtseam, filed by the orchestrator)
-
-- [ ] **The phone e2e is red on origin/main: `test_embedded_phone_session.py[phone]` dies with `ModuleNotFoundError: not in the phone wheel: agent_runtime.serve_socket` — the embedded turn imports a module the phone wheel's closure does not keep** · `fork` · evidence: lane h10-rtfork, same failure before and after its changes · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-- [ ] **`test_tool_blocks.py::test_a_blocked_tool_is_refused_through_the_tool_call_bridge` is red on origin/main (`{"error": "Unknown tool: tool_call"}`) — the tool_call bridge no longer resolves, so the blocked-call refusal through it is unproven** · `fork / plugin` · evidence: lane h10-rtfork, same failure on origin/main · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-- [ ] **`tests/hermes_cli/test_gateway_spawn_fence.py::test_classifier_refuses_a_hermes_run_pointed_at_the_real_store` is red on main (Windows), independent of docstring edits** · `fork / suite` · evidence: h10-rtseam `.lane-logs/r328-fence-base.log` · filed 2026-09-29 **TAKEN 2026-09-29 h11-code**
-
-
 ### Embedded (bundled) Hermes — 2026-09-28 (filed by the launcher orchestrator)
 
 Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md` (stages named per row) and `ARCHITECTURE_2026-09-28.md` §4. Rule: one Python implementation, universal — enable existing Hermes code, never reimplement; bundle only what is needed.
