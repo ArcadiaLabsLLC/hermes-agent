@@ -78,11 +78,6 @@ _FORK_LIVE_SYSTEM_GUARD = (
     "`hermes dashboard` backend; the fork's in-process twin is the test's "
     "*_downstream.py sibling"
 )
-_FORK_PERSONA_CONFIG_SYNC = (
-    "the fork's agent_runtime/persona_config_sync.py reads a pulled realm "
-    "subtree's config.yaml raw (not this machine's user config); the fork-scope "
-    "guard is tests/hermes_cli/test_config_read_guard_downstream.py"
-)
 _FORK_MANAGED_PYTHON = (
     "the fork's hermes_cli.gateway.resolve_managed_python replaces get_python_path "
     "in _build_gateway_argv, so upstream's patch no longer steers it; the fork twin "

@@ -181,6 +181,9 @@ class TestToolSchemaMemoReceipt:
         and this is the receipt that says so.
         """
 
+        # This home's first plugin discovery registers tools, and a registration
+        # change rebuilds (the epoch test below): discover before measuring.
+        model_tools._ensure_plugin_tools_discovered()
         model_tools._clear_tool_defs_cache()
         computed: list[int] = []
 
@@ -214,6 +217,9 @@ class TestToolSchemaMemoReceipt:
         hit — refused.
         """
 
+        # This home's first plugin discovery registers tools, and a registration
+        # change rebuilds (the epoch test below): discover before measuring.
+        model_tools._ensure_plugin_tools_discovered()
         model_tools._clear_tool_defs_cache()
         computed: list[int] = []
 

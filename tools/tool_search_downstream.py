@@ -46,7 +46,10 @@ def attach_hit_parameters(record: Dict[str, Any], index: int, params) -> None:
         pass
 
 
-_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches"})
+#: Fork tools that stay in the direct tool list. ``skill_search`` is the eternia-harness plugin's tool
+#: (toolset ``skills``); upstream defers every plugin tool, and it used to stay eager only by being
+#: named in upstream's core list in ``toolsets.py`` (moved here, lane h11-fp 2026-09-29).
+_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"})
 
 
 def never_defer_tool_names(config=None) -> frozenset[str]:
@@ -82,15 +85,19 @@ def tool_describe_schema() -> Dict[str, Any]:
                 "name. Tool descriptions in this list are brief; call "
                 "tool_describe before the first use of an unfamiliar tool."
             ),
+            # Upstream's describe argument (the bridge's ``names``; a single string is one name), so
+            # ``dispatch_tool_describe`` answers it through upstream's own list door (RESOLVER 7c,
+            # recorded-parallels sheet; the fork's single ``name`` spelling is gone).
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Exact tool name to describe.",
+                    "names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Exact tool names to describe. A single string is accepted and treated as one name.",
                     },
                 },
-                "required": ["name"],
+                "required": ["names"],
             },
         },
     }

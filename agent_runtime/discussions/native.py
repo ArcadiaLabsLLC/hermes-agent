@@ -1,4 +1,4 @@
-"""Instance-bound adapter over the native chat lane and exact interrupt scopes."""
+"""Instance-bound turns over the native Mission Control execution lane."""
 from __future__ import annotations
 
 import contextvars
@@ -6,162 +6,19 @@ import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Mapping
 
 from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
 from agent_runtime.auxiliary_chat import auxiliary_chat
-from agent_runtime.resolution import resolve_runtime, runtime_resolution_scope
-from hermes_constants import (set_hermes_home_override, reset_hermes_home_override)
-from agent_runtime.profile_home import (
-    record_hermes_head_home_if_unset,
-    reset_hermes_head_home,
-    get_hermes_head_home,
-)
-
 from .attempt_store import AttemptStore
 from .definitions import ParticipantRef
-from .run_store import DiscussionError
-from agent_runtime.errors import NotFound
+from .native_context import NativeContext
+from .run_values import DiscussionError
 
 __layer__ = "stores"
 
 log = logging.getLogger(__name__)
-
-
-class NativeContext:
-    """Captured by the socket-owning serve, never from client parameters."""
-    def __init__(self, root: Path, home: Path, install_id: str,
-                 *, invoke: Callable[[Any], int] | None = None) -> None:
-        self.root, self.home, self.install_id = root.resolve(), home.resolve(), install_id
-        self.resolution = resolve_runtime({"HERMES_AGENT_RUNTIME_ROOT": str(self.root), "HERMES_HOME": str(self.home)})
-        self.invoke = invoke or _invoke_native
-
-    @contextmanager
-    def scope(self) -> Iterator[None]:
-        home_token = set_hermes_home_override(self.home)
-        head_token = record_hermes_head_home_if_unset(self.home)
-        try:
-            if get_hermes_head_home().resolve() != self.home:
-                raise DiscussionError("runtime_home_mismatch")
-            with runtime_resolution_scope(self.resolution):
-                yield
-        finally:
-            reset_hermes_head_home(head_token)
-            reset_hermes_home_override(home_token)
-
-    def workspaces(self) -> list[dict[str, str]]:
-        from agent_runtime.store import WorkspaceStore
-        with self.scope():
-            rows = WorkspaceStore().list_all()
-            if len(rows) > 10000:
-                raise DiscussionError("workspace_catalog_limit")
-            return [{"id": row.id, "name": row.name} for row in rows]
-
-    def workspace(self, workspace_id: str):
-        from agent_runtime.store import WorkspaceStore
-        with self.scope():
-            try:
-                workspace = WorkspaceStore().get(workspace_id)
-            except (KeyError, FileNotFoundError, NotFound) as exc:
-                raise DiscussionError("workspace_not_found") from exc
-            if workspace.archived:
-                raise DiscussionError("workspace_archived")
-            return workspace
-
-    def resolve(self, ref: ParticipantRef, workspace_id: str) -> dict[str, Any]:
-        from agent_runtime.persona_assignments import PersonaInstanceStore
-        from agent_runtime.config import load_agent_runtime_config, ensure_persisted_personas
-        from agent_runtime.profile_context import resolve_persona_profile, active_profile_name
-        from agent_runtime.workspace_scope import effective_workspace_id
-        from agent_runtime.persona_lifecycle import is_runtime_persona
-
-        if ref.install_id != self.install_id:
-            raise DiscussionError("remote_members_not_supported")
-        with self.scope():
-            self.workspace(workspace_id)
-            store = PersonaInstanceStore()
-            try:
-                instance = store.get(ref.instance_id)
-            except (KeyError, FileNotFoundError, NotFound) as exc:
-                raise DiscussionError("instance_not_found", instance_id=ref.instance_id) from exc
-            if store.retired_instance_archive_path(ref.instance_id, persona_id=instance.persona_id) is not None:
-                raise DiscussionError("instance_retired", instance_id=ref.instance_id)
-            if effective_workspace_id(instance, active_workspace_id=workspace_id) != workspace_id:
-                raise DiscussionError("foreign_workspace", instance_id=ref.instance_id)
-            personas = {p.id: p for p in ensure_persisted_personas(load_agent_runtime_config())}
-            persona = personas.get(instance.persona_id)
-            if persona is None or not is_runtime_persona(persona):
-                raise DiscussionError("persona_not_found", instance_id=ref.instance_id)
-            binding = resolve_persona_profile(persona)
-            if binding.readiness != "ready":
-                raise DiscussionError("profile_unavailable", instance_id=ref.instance_id)
-            return {**ref.to_dict(), "persona_id": instance.persona_id,
-                    "profile": binding.hermes_profile or active_profile_name(),
-                    "display_name": instance.display_name}
-
-    def roster(self, workspace_id: str) -> list[dict[str, Any]]:
-        from agent_runtime.persona_assignments import PersonaInstanceStore
-        with self.scope():
-            self.workspace(workspace_id)
-            result = []
-            scan = PersonaInstanceStore().scan_all()
-            if scan.unreadable:
-                raise DiscussionError("roster_unreadable", count=scan.unreadable)
-            if len(scan.instances) > 1024:
-                raise DiscussionError("roster_limit", count=len(scan.instances))
-            for instance in scan.instances:
-                ref = ParticipantRef(self.install_id, instance.id)
-                try:
-                    row = self.resolve(ref, workspace_id)
-                    row.update(available=True, reason=None)
-                except DiscussionError as exc:
-                    if exc.reason == "foreign_workspace":
-                        continue
-                    row = {**ref.to_dict(), "display_name": instance.display_name,
-                           "persona_id": instance.persona_id, "profile": instance.profile_id,
-                           "available": False, "reason": exc.reason}
-                result.append(row)
-            return result
-
-    def ensure_session(self, run: Mapping[str, Any], member: Mapping[str, Any]) -> None:
-        from hermes_state import SessionDB
-        from agent_runtime.persona_chat_durability import ensure_persona_chat_session
-        with self.scope():
-            db = SessionDB(db_path=self.home / "state.db")
-            try:
-                existing = db.get_session(member["session_id"])
-                if existing is not None:
-                    import json
-                    config = existing.get("model_config") or {}
-                    if isinstance(config, str):
-                        config = json.loads(config)
-                    if (config.get("persona_instance_id"), config.get("persona_id")) != (member["instance_id"], member["persona_id"]):
-                        raise DiscussionError("session_owner_conflict")
-                ensure_persona_chat_session(session_db=db, session_id=member["session_id"],
-                    persona_id=member["persona_id"], title=f"Discussion {run['run_id'][-8:]} · {member['handle']}", required=True)
-                db.set_session_hidden(member["session_id"], True)
-            finally:
-                db.close()
-
-    def journal(self, session_id: str, native_id: str) -> dict[str, Any] | None:
-        from agent_runtime.mission_chat_turns import mission_chat_turn_record
-        with self.scope():
-            return mission_chat_turn_record(session_id=session_id, client_message_id=native_id)
-
-
-def _invoke_native(args: Any) -> int:
-    """One turn through the mission-chat door (ruling Q10) — never the CLI
-    namespace. The door installs its own sink, so the last payload is handed
-    on to the worker's; an unbound door raises ``MissionChatDoorUnbound``."""
-    from agent_runtime.mission_chat_door import run_mission_chat_turn
-    sink = args.payload_sink
-    code, payload = run_mission_chat_turn(args)
-    if payload is not None:
-        sink(payload)
-    return code
 
 
 class NativeTurns:
@@ -246,15 +103,7 @@ class NativeTurns:
                     workspace_id=run["workspace_id"], relay_chain=[], relay_deadline_epoch=None,
                     payload_sink=payloads.append)
                 code = self.context.invoke(args)
-            current = self.recover(row)
-            if current["stage"] not in {"terminal", "waiting_input"}:
-                payload = payloads[-1] if payloads else {}
-                uncertain = payload.get("turn_resolution_required") or payload.get("execution_state") == "outcome_unknown"
-                if code and not uncertain:
-                    self.attempts.update(row, stage="terminal", receipt={"status": "failed", "text": "",
-                        "error": str(payload.get("error_kind") or "native_turn_refused"), "message_id": row["native_id"]})
-                else:
-                    self.attempts.update(row, stage="uncertain")
+            self._returned(row, scope, code, payloads[-1] if payloads else {})
         except DiscussionError as exc:
             self.attempts.update(row, stage="terminal", receipt={"status": "failed", "text": "", "error": exc.reason, "message_id": row["native_id"]})
         except Exception:
@@ -270,6 +119,20 @@ class NativeTurns:
             current = self.attempts.get(*self._key(row))
             if callback is not None and current is not None and current["stage"] == "terminal":
                 callback(current["receipt"])
+
+    def _returned(self, row, scope, code, payload):
+        if self.recover(row)["stage"] in {"terminal", "waiting_input"}:
+            return
+        uncertain = payload.get("turn_resolution_required") or payload.get("execution_state") == "outcome_unknown"
+        if not code or uncertain:
+            self.attempts.update(row, stage="uncertain")
+            return
+        # Returning from the exact interrupted worker confirms exit; requesting Stop did not.
+        stopped = scope.reason is not None
+        self.attempts.update(row, stage="terminal", receipt={
+            "status": "cancelled" if stopped else "failed", "text": "",
+            "error": None if stopped else str(payload.get("error_kind") or "native_turn_refused"),
+            "message_id": row["native_id"]})
 
     def execution_absent(self, row: Mapping[str, Any]) -> bool:
         """Positive process-exit proof. Unreadable owner identity is never idle."""
@@ -323,78 +186,3 @@ class NativeTurns:
         for scope in scopes:
             scope.cancel("Discussion runtime shutting down")
         self._pool.shutdown(wait=False, cancel_futures=False)
-
-
-class NativeSessionRPC:
-    def __init__(self, turns: NativeTurns, run: Mapping[str, Any], member: Mapping[str, Any], task: Mapping[str, Any]) -> None:
-        self.turns, self.run, self.member = turns, run, member
-        self.task_id = task["identity"].task_id
-        self.generation = int(task["execution_generation"])
-
-    def _validate(self, profile: str, source: str, session_id: str | None = None) -> None:
-        if profile != self.member["profile"] or source != "bot_room" or (session_id is not None and session_id != self.member["session_id"]):
-            raise DiscussionError("session_binding_mismatch")
-
-    def resolve_exact(self, *, profile, title, source):
-        self._validate(profile, source)
-        if title != "Group: " + self.run["run_id"]:
-            raise DiscussionError("room_binding_mismatch")
-        # Session creation is an initialization effect. Recovery never guesses a new root.
-        return {"session_id": self.member["session_id"]}
-
-    def create(self, **kwargs):
-        self._validate(kwargs["profile"], kwargs["source"])
-        self.turns.context.ensure_session(self.run, self.member)
-        return {"session_id": self.member["session_id"]}
-
-    def resume(self, *, profile, session_id, source):
-        self._validate(profile, source, session_id)
-        return {"session_id": session_id}
-
-    def submit(self, *, profile, session_id, source, prompt, task, execution_generation, on_terminal, member_id):
-        self._validate(profile, source, session_id)
-        if task.task_id != self.task_id or member_id != self.member["member_id"] or task.room_id != self.run["run_id"]:
-            raise DiscussionError("attempt_identity_conflict")
-        self.generation = execution_generation
-        row = self.turns.attempts.begin(self.run["run_id"], self.task_id, execution_generation, self.member, prompt)
-        row = self.turns.recover(row)
-        if row["stage"] == "terminal":
-            on_terminal(row["receipt"])
-        elif row["stage"] == "pending":
-            self.turns.launch(self.run, self.member, row, on_terminal)
-        return {"accepted": True}
-
-    def _row(self):
-        row = self.turns.attempts.get(self.run["run_id"], self.task_id, self.generation)
-        return self.turns.recover(row) if row is not None else None
-
-    def history(self, *, profile, session_id, source):
-        self._validate(profile, source, session_id)
-        row = self._row()
-        if row is None or row["stage"] != "terminal":
-            return []
-        receipt = row["receipt"]
-        return [{"task_id": self.task_id, "execution_generation": self.generation, "role": "assistant",
-                 "status": receipt["status"], "message_id": row["native_id"],
-                 "content": receipt.get("text", ""), "error": receipt.get("error")}]
-
-    def info(self, *, profile, session_id, source):
-        self._validate(profile, source, session_id)
-        row = self._row()
-        if row is None:
-            return {"active": False, "status": "not_started", "task_id": self.task_id, "execution_generation": self.generation}
-        live = self.turns.is_live(row)
-        status = row["receipt"]["status"] if row["stage"] == "terminal" else row["stage"]
-        # Unknown prior execution is conservatively active for cancellation: absence
-        # of a process-local future does not prove a turn on another process stopped.
-        return {"active": live or row["stage"] in {"pending", "waiting_input"} or not self.turns.execution_absent(row),
-                "status": status, "task_id": self.task_id, "execution_generation": self.generation,
-                "stop_unresolved": row["stage"] in {"running", "uncertain"}}
-
-    def interrupt(self, *, profile, session_id, source, expected_task_id):
-        self._validate(profile, source, session_id)
-        if expected_task_id != self.task_id:
-            raise DiscussionError("stale_stop")
-        row = self._row()
-        acknowledged = row is None or self.turns.interrupt(row)
-        return {"interrupted": acknowledged}

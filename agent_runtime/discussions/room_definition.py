@@ -41,6 +41,9 @@ class ExecutionSpec:
 def execution_spec(run: Mapping[str, Any]) -> ExecutionSpec:
     """Placement is optional; both admissions use the same native executor."""
     initial = run["initial"]
+    if "group" in initial:
+        spec = initial["group"]
+        return ExecutionSpec(spec["name"], spec["settings"], ROOM_MEMBER_LIMIT)
     if "discussion" in initial:
         spec = initial["discussion"]
         return ExecutionSpec(spec["name"], spec["settings"], ROOM_MEMBER_LIMIT)

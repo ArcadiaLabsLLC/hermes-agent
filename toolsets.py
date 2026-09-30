@@ -14,7 +14,7 @@ _HERMES_CORE_TOOLS = [
     "terminal", "process_manage",
     "read_file", "write_file", "patch", "search_files",
     "vision_analyze", "image_generate",
-    "skills_list", "skill_search", "skill_view", "skill_manage",
+    "skills_list", "skill_view", "skill_manage",
     "browser_navigate", "browser_snapshot", "browser_click",
     "browser_type", "browser_scroll", "browser_back",
     "browser_press", "browser_get_images",
@@ -106,7 +106,7 @@ TOOLSETS = {
     "skills": _ts(
         "Access, create, edit, and manage skill documents with specialized "
         "instructions and knowledge",
-        ["skills_list", "skill_search", "skill_view", "skill_manage"],
+        ["skills_list", "skill_view", "skill_manage"],
     ),
     # web_search belongs to `web`/`search` only. Listing it here too let
     # `disabled_toolsets: [browser]` (headless/Docker deployments) strip
@@ -255,28 +255,6 @@ TOOLSETS = {
     ),
 }
 
-# Downstream persona bundle; membership grants only these toolsets.
-TOOLSETS["harness_core"] = {'description': "Mission Control harness lane: the fork's agent-to-agent chat and board tools plus "
-                'the conversational core. The ONE toolset an Eternia persona profile declares; '
-                'integrations (spotify, discord, homeassistant, yuanbao, bfl, video_gen, '
-                'computer_use, cronjob, image_gen) are opt-in by name beside it. Membership is by '
-                'toolset so a tool registered into one of these later joins without an edit here.',
- 'includes': ['agent_chat',
-              'board',
-              'clarify',
-              'delegation',
-              'terminal',
-              'file',
-              'web',
-              'browser',
-              'browser-cdp',
-              'skills',
-              'memory',
-              'todo',
-              'session_search',
-              'vision',
-              'code_execution'],
- 'tools': []}
 # Captured before create_custom_toolset() can add user-named tools: shared metrics may export only
 # these names, so a plugin, MCP server or custom toolset name never leaves the machine.
 BUILTIN_TOOL_NAMES = frozenset(tool for spec in TOOLSETS.values() for tool in spec["tools"])

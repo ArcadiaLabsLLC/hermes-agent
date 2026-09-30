@@ -144,11 +144,6 @@ TRANSPORT_COLD = "cold"
 #: to the cold path exactly as before. Read at call time so a test can lower it.
 _PARKED_WAKE_TIMEOUT_SECONDS = 5.0
 
-#: The launcher-allowlist PROFILE ROW a ``read_only`` admission compiles from.
-#: ``read_only`` is "inspect what others captured", which is exactly what that
-#: row was written to express — see the parity fixture below.
-READ_ONLY_ALLOWLIST_PROFILE = "reviewer"
-
 #: **Positive** per-server tool allowlist for a ``read_only`` admission — the
 #: resolved ALLOW set of the ``reviewer`` row of the launcher's own per-profile
 #: allowlist, ``EterniaLauncher docs/stages/qa-reboot/launcher_qa_profile_allowlists.yaml``

@@ -105,6 +105,37 @@ def test_the_layer_check_reds_an_upward_import_read_at_runtime(tmp_path, monkeyp
             del sys.modules[name]
 
 
+def test_a_package_door_name_is_keyed_to_the_submodule_that_defines_it(tmp_path, monkeypatch):
+    """A door declared at the package's top layer re-exports a lower fact: a lower consumer of
+    that fact is no upward edge, a consumer of the door's higher fact still is, and a name the
+    ``__init__`` defines itself stays keyed to the door (the conservative key)."""
+    package = tmp_path / "w0g6door"
+    package.mkdir()
+    sources = {
+        "__init__": ['__layer__ = "lanes"', "from .vocab import NAME", "from .lane import RUN", "OWN = 1"],
+        "vocab": ['__layer__ = "models"', 'NAME = "n"'],
+        "lane": ['__layer__ = "lanes"', "RUN = 1"],
+        "uses_name": ['__layer__ = "models"', "from w0g6door import NAME"],
+        "uses_run": ['__layer__ = "models"', "from w0g6door import RUN"],
+        "uses_own": ['__layer__ = "models"', "from w0g6door import OWN"],
+    }
+    for name, lines in sources.items():
+        (package / f"{name}.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        paths = [f"w0g6door/{name}.py" for name in sources]
+        layers = {probe.module_name(p): probe.runtime_layer(tmp_path, p) for p in paths}
+        imports = {probe.module_name(p): probe.module_imports(tmp_path, p) for p in paths}
+        assert imports["w0g6door.uses_name"] == ["w0g6door.vocab.NAME"]
+        assert probe.layer_violations(layers, imports) == [
+            "w0g6door.uses_own (models) imports w0g6door (lanes) — an upward import",
+            "w0g6door.uses_run (models) imports w0g6door.lane (lanes) — an upward import",
+        ]
+    finally:
+        for name in [m for m in sys.modules if m.startswith("w0g6door")]:
+            del sys.modules[name]
+
+
 def test_a_fork_submodule_under_an_upstream_package_is_not_a_private_name(tmp_path):
     """Positive control both ways: ``from pkg import _mod`` of a real FILE is a
     module import; ``from pkg import _name`` of a name is the private reach."""

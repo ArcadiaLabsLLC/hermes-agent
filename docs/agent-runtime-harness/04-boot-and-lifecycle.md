@@ -323,7 +323,7 @@ inputs again. The read path, in order:
 1. `build_snapshot` calls `core_cache.consult(caller=...)` **before the coalescer**
    (`snapshot/build.py:105`) — a ~50 ms stat check with no shared state, which behind the build
    lock would serialize the cheap answer behind an expensive build.
-2. `consult` returns immediately unless `lane_armed()` (`core_cache/lane.py:296-298`). The riders
+2. `consult` returns immediately unless `lane_armed()` (`core_cache/decision.py:136-137`). The riders
    of one boot share ONE judgement and each still emits its own receipt.
 3. Match → `label_core(source="cache")` and
    `snapshot_core_cache core_source=cache caller=… inputs=… fingerprint=… offset=…`. It
@@ -348,7 +348,7 @@ cannot touch: two shipped incidents came from writers that mutate durable state 
 event at all, and an offset key cannot see them at any price.
 
 A mismatch does not mean a blank canvas: `take_stale_first_core` serves the last persisted core
-**labeled stale** while the build runs (`core_cache/lane.py:383`, `agent_runtime/stream/session.py::stream_frames`). The one-shot
+**labeled stale** while the build runs (`core_cache/lane.py:354`, `agent_runtime/stream/session.py::stream_frames`). The one-shot
 belongs to the SUBSCRIBER, not the process — derived at producer-build time by
 `serve.py::_room_wants_stale_first`  — because a boot starts two `stream_frames`
 generators and the module-global version handed the allowance to whichever raced first. A

@@ -20,7 +20,6 @@ from tests._downstream.id_markers.reasons import (
     _CREDENTIALS_FILE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
-    _FORK_PERSONA_CONFIG_SYNC,
     _fork_replaces,
     _FORK_SPAWN_DETACHED,
     _FORK_SYSTEM_PATH,
@@ -38,6 +37,19 @@ from tests._downstream.id_markers.reasons import (
 __layer__ = "models"
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # The fork's standalone tool_describe rides every non-empty tool list, so the web
+    # toolset serves three names once a web key lights it.
+    "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
+    "test_xai_only_env_end_to_end_toolset_gate": (
+        _fork_replaces(
+            "model_tools.get_tool_definitions via tools.tool_defs_observability.with_tool_describe",
+            "tests/tools/test_tool_search_downstream.py",
+        ),
+    ),
+    # A UNC path to an unresolvable host: Path.resolve() waits out the host's SMB name
+    # lookup (70.6 s measured 2026-09-29); the fork's --timeout=30 cannot hold it.
+    "tests/agent/test_nt_namespace_guard.py::TestNtNamespaceGuard::"
+    "test_predicate_and_both_chokepoint_classifiers": (pytest.mark.timeout(240),),
     # MCF-66: these classes exercise the real ~/.claude/.credentials.json
     # reader/writer; each redirects Path.home() at its tmp_path (enforced by
     # tests/test_claude_code_credentials_file_gate.py, which reads this table).
@@ -96,10 +108,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "_NON_MIRROR_DIRS cannot name them; fork half: "
             "tests/test_tests_tree_layout_downstream.py"
         )),
-    ),
-    "tests/hermes_cli/test_config_read_guard.py::"
-    "test_no_raw_config_yaml_reads_outside_owner_modules": (
-        pytest.mark.xfail(reason=_FORK_PERSONA_CONFIG_SYNC, strict=True),
     ),
     "tests/hermes_cli/test_dashboard_tui_backcompat.py::"
     "test_dashboard_tui_flag_is_accepted_not_rejected": (
@@ -162,6 +170,8 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     **{
         node: (_SCOPED_UNDO,)
         for node in (
+            "tests/hermes_cli/test_serve_runtime_inventory.py::"
+            "test_inventory_classifies_remote_desktop_ssh_serve_as_its_clients",
             "tests/agent/test_anthropic_credential_persist_failure.py::"
             "test_reauthentication_clears_the_persist_failure_quarantine",
             "tests/agent/test_canon_args_memo_parity.py::TestComplexityProof::"

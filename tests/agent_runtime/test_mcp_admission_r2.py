@@ -37,6 +37,7 @@ from pathlib import Path
 
 import pytest
 
+from tests._downstream._seams import READ_ONLY_ALLOWLIST_PROFILE
 from agent_runtime.mcp_admission import (
     LANE_MISSION_CHAT,
     MCP_ADMISSION_DISABLED,
@@ -46,7 +47,6 @@ from agent_runtime.mcp_admission import (
     MCP_NOT_REGISTERED_ON_LANE,
     MCP_SDK_UNAVAILABLE,
     MCP_SERVER_NOT_CONFIGURED,
-    READ_ONLY_ALLOWLIST_PROFILE,
     READ_ONLY_EXCLUDED_TOOLS,
     READ_ONLY_INCLUDED_TOOLS,
     McpAdmission,

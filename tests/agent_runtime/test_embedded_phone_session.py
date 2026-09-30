@@ -501,3 +501,22 @@ def test_the_loop_placeholders_are_registered_before_the_serve_thread(app, monke
     serve.close()
     assert serve.wait(60) is not None
     assert seen == [threads_before]
+
+
+def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
+    """The phone agent is told its limits through upstream's ``PLATFORM_HINTS["phone"]``, which the
+    embedded serve (the phone's entry) fills before it serves a request — ``agent/prompt_builder.py``
+    keeps upstream's bytes (lane h11-fp). Positive control: the key is absent until the entry runs.
+    Killing mutation (recorded in the commit): drop the install call from ``EmbeddedServe._run`` -> red."""
+    from agent.prompt_builder import PLATFORM_HINTS
+    from agent.system_prompt import _default_platform_hint
+    from agent_runtime.bundle_profiles.phone_hint import phone_platform_hint
+
+    monkeypatch.delitem(PLATFORM_HINTS, "phone", raising=False)
+    assert _default_platform_hint("phone") == ""
+    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    serve = EmbeddedServe(lambda _line: None)
+    serve.start()
+    serve.close()
+    assert serve.wait(60) is not None
+    assert _default_platform_hint("phone") == PLATFORM_HINTS["phone"] == phone_platform_hint()

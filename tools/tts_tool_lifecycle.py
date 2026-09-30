@@ -23,15 +23,8 @@ from tools.tts_command_provider import (
     _is_command_provider_config, command_env_passthrough as _command_provider_env_passthrough,
     render_command_template as _render_command_tts_template)
 from tools.tts_tool_delivery import _origin
-try:
-    from tools.tts_tool_local import (
-        _LOCAL_TTS_MODEL_CACHES, _load_kittentts_model_for_config, _load_piper_voice_for_config)
-except ImportError:  # fork seam: phone wheel — no local TTS engines, so no model to warm or release
-    from agent_runtime.loop_tool_lifecycles import not_shipped
-
-    _LOCAL_TTS_MODEL_CACHES = {}
-    _load_kittentts_model_for_config = not_shipped("tools.tts_tool_local", "_load_kittentts_model_for_config")
-    _load_piper_voice_for_config = not_shipped("tools.tts_tool_local", "_load_piper_voice_for_config")
+from tools.tts_tool_local import (
+    _LOCAL_TTS_MODEL_CACHES, _load_kittentts_model_for_config, _load_piper_voice_for_config)
 from tools.tts_tool_plugins import _lookup_plugin_provider
 
 logger = logging.getLogger("tools.tts_tool")

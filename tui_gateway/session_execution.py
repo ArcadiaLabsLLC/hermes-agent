@@ -38,6 +38,8 @@ def _store(session, record):
             value = {**prior, **record}
             if prior.get("status") in _TERMINAL:
                 value["status"] = prior["status"]
+                if "result" in prior:
+                    value["result"] = prior["result"]
             value["cancel_requested"] = bool(prior.get("cancel_requested") or record["cancel_requested"])
             return json.dumps(value, separators=(",", ":"))
         return json.loads(db.update_meta("native_execution:" + record["id"], merge))
@@ -103,7 +105,8 @@ def stamp(session: dict, frame: dict) -> None:
     record_inflight(session, params.get("type"), payload)
     status = payload.get("status")
     if params.get("type") == "message.complete" and status in _TERMINAL:
-        record = {**record, "status": status}
+        from tui_gateway.execution_result import public_result
+        record = {**record, "status": status, "result": public_result(payload)}
         session["native_execution"] = _store(session, record)
 
 

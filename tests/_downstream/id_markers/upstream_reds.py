@@ -241,8 +241,6 @@ if _WIN:
             'tests/hermes_cli/test_shared_profile_warning.py::test_warning_tracks_live_other_install_in_same_home',
             'tests/hermes_cli/test_source_build.py::test_installed_npm_does_not_authorize_missing_workspace_dependencies',
             'tests/hermes_cli/test_source_channel_integration.py::test_retirement_refuses_to_downgrade_newer_source[shallow]',
-            'tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself[native-with-maker]',
-            'tests/hermes_cli/test_source_launcher_publication.py::test_running_source_launcher_can_republish_itself[native]',
             'tests/hermes_cli/test_update_completion_process.py::test_bootstrap_does_not_initialize_old_site_packages',
             'tests/hermes_cli/test_update_completion_process.py::test_failed_build_preserves_exit_status_without_maintenance',
             'tests/hermes_cli/test_update_completion_process.py::test_old_process_new_git_tree_completes_in_fresh_python[None]',
@@ -299,6 +297,8 @@ if _WIN:
             'tests/hermes_cli/test_backup.py::TestSafeCopyDb::test_aborts_when_source_remains_busy_past_deadline',
         )},
         **{node: (_up_red('CRLF written where LF is asserted (class c-B, issue class #121221)'),) for node in (
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_automatic_backup_omits_crc_valid_partial_member',
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_incomplete_pre_update_backup_does_not_rotate_last_complete',
         )},
         **{node: (_up_red('HOME patched, USERPROFILE not, in a ~-expansion (class c-C, #121222)'),) for node in (
             'tests/hermes_cli/test_resume_latest_and_in_dir.py::test_in_dir_expands_user_home',
@@ -649,6 +649,30 @@ if _WIN:
                 "test_fetch_keys_binary_assets_by_posix_path"
             )),
         ),
+        # Same fork choice, three more upstream ids that look a POSIX-keyed path up with
+        # os.path.join (upstream's own test_skills_tool already expects "arxiv/SKILL.md").
+        "tests/tools/test_skill_bundle_provenance.py::"
+        "test_bundled_optional_source_still_includes_support_files": (
+            pytest.mark.xfail(strict=True, reason=(
+                "the fork's tools/skills_hub_official.py keys bundles by POSIX path (open PR "
+                "#121643); upstream expects os.path.join, a different string on win32; fork half: "
+                "tests/tools/test_skills_hub_downstream.py::test_fetch_keys_binary_assets_by_posix_path"
+            )),
+        ),
+        **{
+            f"tests/tools/test_skills_tool.py::TestSkillViewCollisionDetection::{test}": (
+                pytest.mark.xfail(strict=True, reason=(
+                    "the fork's tools/skills_tool.py spells skill paths and collision matches in "
+                    "POSIX form; upstream expects os.path.join, a different string on win32; fork "
+                    "half: tests/tools/test_skills_tool.py::TestSameRootDuplicationResolves::"
+                    "test_nested_copy_inside_same_root_does_not_block_bare_name"
+                )),
+            )
+            for test in (
+                "test_nested_local_collides_with_top_level_external",
+                "test_support_markdown_does_not_collide_with_real_skill",
+            )
+        },
     })
 
 if _WIN and not sys.flags.utf8_mode:
