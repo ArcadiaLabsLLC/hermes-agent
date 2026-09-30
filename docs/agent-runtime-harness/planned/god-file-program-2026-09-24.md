@@ -383,6 +383,7 @@ The `[ds-size] after` column now carries the CODE counter (ruling Q1) — units,
 Fourteen lanes, ≤ 29 commits (plus ≤ 1 `style:` per lane), for 66 files.
 
 Dead-code queue, first instalment: **CLOSED 2026-09-29** (lane h11-code) — its last row, `READ_ONLY_ALLOWLIST_PROFILE` (TEST SEAM), moved to `tests/_downstream/_seams.py` with tombstone `s-h11`.
+Second instalment (the reach census): **CLOSED 2026-09-29** (lane h11-code) — its last row, `_skill_realm_sync` (DECIDE → untested live, kept), got its test (`tests/agent_runtime/test_skill_realm_sync_status.py`).
 
 ## 9. Owner questions — RULED 2026-09-24 (Tony)
 
