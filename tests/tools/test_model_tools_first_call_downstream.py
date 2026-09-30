@@ -2,7 +2,7 @@
 
 The conftest gives every test a fresh HERMES_HOME and resets the per-home plugin managers, which is
 the shape of a process serving a second profile: ``model_tools``' import-time discovery ran for
-another home. ``skill_search`` is registered by the eternia-harness plugin.
+another home. ``skill_search`` is registered by the eternia-harness plugin into ``skills``.
 """
 
 from model_tools import get_tool_definitions
@@ -13,7 +13,7 @@ def _names(**kw):
 
 
 def test_first_tool_list_of_a_home_carries_plugin_tools():
-    assert "skill_search" in _names(enabled_toolsets=["hermes-telegram"])
+    assert "skill_search" in _names(enabled_toolsets=["skills"])
 
 
 def test_the_plugin_tool_is_in_the_toolset_once_discovered():
@@ -21,4 +21,4 @@ def test_the_plugin_tool_is_in_the_toolset_once_discovered():
     from hermes_cli.plugins import discover_plugins
 
     discover_plugins()
-    assert "skill_search" in _names(enabled_toolsets=["hermes-telegram"])
+    assert "skill_search" in _names(enabled_toolsets=["skills"])

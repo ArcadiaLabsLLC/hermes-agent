@@ -9,7 +9,11 @@ from typing import List, Set
 
 from toolsets import TOOLSETS
 
+from agent_runtime.harness_toolset import ensure_harness_core
+
 __layer__ = "models"
+
+ensure_harness_core()  # the fork's composite is expanded here without the plugin loaded
 
 
 def expand_toolset_names(names) -> List[str]:
