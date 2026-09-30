@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import textwrap
 
+import pytest
+
 from scripts.bundle_profile_gate import distribution_findings, is_pure, module_findings
 
 
@@ -206,3 +208,61 @@ def test_a_relative_import_is_resolved_against_the_kept_modules_package(tmp_path
     assert names["tools.lifecycle"] == {"from_init", "from_a"}
     assert names["tools"] == {"lifecycle_sibling"}
     assert names["other.pinned"] is None
+
+
+_SPAWNY = """
+import subprocess
+
+def rebound():
+    subprocess.run(["git"])
+
+def plain():
+    subprocess.run(["git"])
+
+class Owner:
+    @staticmethod
+    def meth():
+        subprocess.run(["x"])
+
+def outer():
+    def inner():
+        subprocess.run(["y"])
+    return inner
+"""
+
+_SPAWNY_TABLE = """
+from agent_runtime.spawn_stand_ins import StandIn
+
+TABLE = (StandIn("spawny", "rebound"), StandIn("spawny", "Owner.meth"), StandIn("spawny", "outer", returns=None))
+STALE = (*TABLE, StandIn("spawny", "renamed_upstream"))
+"""
+
+
+def test_a_spawn_in_a_function_the_phone_entry_rebinds_is_answered_at_run_time(tmp_path, monkeypatch):
+    """``spawn_seams`` asks a child interpreter (the phone's absences, placeholders and config in
+    place) whether each ``subprocess_call`` site's enclosing function IS the stand-in the phone entry
+    bound for it. Answered: a rebound function, a static method, the outer def of a nested spawner.
+    Not answered: a plain function. A row naming a missing function fails the probe (never a skip);
+    a profile that ships a provider SDK (desktop) has nothing answered."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_gate import spawn_seams
+
+    path = tmp_path / "spawny.py"
+    path.write_text(_SPAWNY, encoding="utf-8")
+    (tmp_path / "spawny_table.py").write_text(_SPAWNY_TABLE, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    findings = module_findings("spawny", path)
+    lines = {f["line"] for f in findings}
+    assert len(findings) == 4
+    phone = load_profile("bundled-phone")
+    kept, answered = spawn_seams(phone, findings, {"spawny": path}, table="spawny_table:TABLE")
+    assert [(f["module"], f["line"]) for f in kept] == [("spawny", 8)]  # plain()
+    assert answered == {"spawny": ["5: rebound", "13: Owner.meth", "17: outer"]}
+    assert lines == {5, 8, 13, 17}
+
+    with pytest.raises(RuntimeError, match="renamed_upstream"):
+        spawn_seams(phone, findings, {"spawny": path}, table="spawny_table:STALE")
+
+    kept, answered = spawn_seams(load_profile("bundled-desktop"), findings, {"spawny": path},
+                                 table="spawny_table:TABLE")
+    assert (len(kept), answered) == (4, {})

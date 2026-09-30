@@ -509,6 +509,23 @@ def test_the_loop_placeholders_are_registered_before_the_serve_thread(app, monke
     assert seen == [threads_before]
 
 
+def test_the_spawn_stand_ins_are_installed_before_the_serve_thread(app, monkeypatch):
+    """The phone entry rebinds upstream's process-starting functions (``agent_runtime.spawn_stand_ins``)
+    before any request can import the code that calls them — the same moment as the placeholders."""
+    from agent_runtime import spawn_stand_ins
+
+    seen: list = []
+    monkeypatch.setattr(spawn_stand_ins, "ensure_spawn_stand_ins",
+                        lambda: seen.append(threading.active_count()) or ())
+    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    threads_before = threading.active_count()
+    serve = EmbeddedServe(lambda _line: None)
+    serve.start()
+    serve.close()
+    assert serve.wait(60) is not None
+    assert seen == [threads_before]
+
+
 def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
     """The phone agent is told its limits through upstream's ``PLATFORM_HINTS["phone"]``, which the
     embedded serve (the phone's entry) fills before it serves a request — ``agent/prompt_builder.py``

@@ -31,7 +31,9 @@ Host contract (the Stage 3 C shim is its caller):
 
 :meth:`EmbeddedServe.start` also registers the agent loop's lifecycle placeholders
 (``agent_runtime.loop_tool_lifecycles``) before anything can import the loop — the
-phone wheel does not ship the terminal and browser tool lifecycles it imports.
+phone wheel does not ship the terminal and browser tool lifecycles it imports —
+and rebinds the upstream functions that would start a process to their phone
+stand-ins (``agent_runtime.spawn_stand_ins``; only under the phone's config).
 The profile's switches (``bundled-phone.yaml``: no provider SDK, no subprocess
 worker, no subprocess sign-in) are the host's config, written like any profile's.
 """
@@ -198,6 +200,9 @@ class EmbeddedServe:
         from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
 
         ensure_provider_sdk_shim()  # the phone's `openai`: upstream's SDK import sites get the SDK-free client
+        from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
+
+        ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 
