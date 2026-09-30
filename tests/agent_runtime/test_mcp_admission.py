@@ -1374,6 +1374,47 @@ def test_a_runtime_with_no_mcp_client_says_so_instead_of_blaming_the_server(
     assert MCP_NOT_REGISTERED_ON_LANE not in row["code"]
 
 
+def test_mcp_client_off_is_its_own_denial_asked_before_any_client_import(
+    qa_profile, monkeypatch
+):
+    """``mcp.client`` off (the bundled phone) is not "pip install the client".
+
+    The phone does not ship ``tools.mcp_tool`` or its discovery sibling, so the
+    switch must be asked before either is imported: both are made unimportable
+    here, and the admission still returns one typed row per server.
+    """
+
+    import sys
+
+    from agent_runtime.mcp_admission import MCP_CLIENT_DISABLED
+
+    monkeypatch.setattr("tools.mcp_tool_common.mcp_client_enabled", lambda: False)
+    monkeypatch.setitem(sys.modules, "tools.mcp_tool", None)
+    monkeypatch.setitem(sys.modules, "tools.mcp_tool_discovery", None)
+
+    outcome = admit_mcp_servers(_admission(qa_profile))
+
+    assert outcome.admitted == ()
+    assert [row["code"] for row in outcome.denial_rows()] == [MCP_CLIENT_DISABLED]
+    assert [d.code for d in outcome.execution_denied] == [MCP_CLIENT_DISABLED]
+    assert "pip install" not in outcome.denial_rows()[0]["fix_hint"]
+
+
+def test_mcp_client_on_keeps_the_sdk_denial(qa_profile, monkeypatch):
+    """Positive control for the test above: the same admission with the switch on
+    reaches the client and is labelled by the SDK flag, not by the switch."""
+
+    from agent_runtime.mcp_admission import MCP_SDK_UNAVAILABLE
+    from tools import mcp_tool
+
+    monkeypatch.setattr("tools.mcp_tool_common.mcp_client_enabled", lambda: True)
+    monkeypatch.setattr(mcp_tool, "_MCP_AVAILABLE", False)
+
+    outcome = admit_mcp_servers(_admission(qa_profile))
+
+    assert [row["code"] for row in outcome.denial_rows()] == [MCP_SDK_UNAVAILABLE]
+
+
 def test_the_server_denial_survives_when_the_sdk_is_present(
     qa_profile, monkeypatch
 ):

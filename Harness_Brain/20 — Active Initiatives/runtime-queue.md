@@ -42,7 +42,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 ### Filed on arrival — 2026-09-29 (lane h11-mcp)
 
-- [ ] **Persona MCP admission does not ask `mcp.client`: `agent_runtime/mcp_admission` (`admit_mcp_servers` -> `_default_registrar` / `classify_admission_transport` / `mcp_sdk_available`) imports `tools.mcp_tool` and `tools.mcp_tool_discovery`, which the phone does not ship, so a phone persona that declares MCP servers gets the ImportError-shaped "no MCP client installed — pip install" denial; give `mcp.client` off its own typed denial at `admit_mcp_servers` before any client import.** · `fork` · `docs/downstream/bundled-phone-gate-2026-09-28.md` (lazy sites) · filed 2026-09-29 **TAKEN 2026-09-29 h12-fix**
 
 ### Filed on arrival — 2026-09-29 (lane h9-bundle)
 
