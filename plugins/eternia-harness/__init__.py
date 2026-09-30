@@ -263,6 +263,13 @@ def route_blocked_kanban_cards(**kwargs):
     on_kanban_dispatch_tick(**kwargs)
 
 
+def record_kanban_crash_evidence(**kwargs):
+    """``on_kanban_worker_exited`` hook: a redacted crash artifact for the reclaimed run."""
+    from hermes_cli.kanban_crash_evidence import on_kanban_worker_exited
+
+    on_kanban_worker_exited(**kwargs)
+
+
 #: The harness's kanban claim lifetime. Long supervisor-style cards can spend more than
 #: upstream's 15 minutes inside one external call before they can `kanban_heartbeat`.
 KANBAN_CLAIM_TTL_SECONDS = 45 * 60
@@ -319,6 +326,7 @@ def register(ctx) -> None:
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
+    ctx.register_hook("on_kanban_worker_exited", record_kanban_crash_evidence)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and

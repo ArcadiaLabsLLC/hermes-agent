@@ -117,19 +117,15 @@ API server: setting it will not move port 8642.
 ## Kanban: crash artifacts
 
 Was: `website/docs/user-guide/features/kanban.md`. Implementation:
-`hermes_cli/kanban_crash_evidence.py`. The fork's `crashed` task event carries
-more than upstream's row lists:
-
-| Event | Payload | Meaning |
-|---|---|---|
-| `crashed` | `{pid, claimer, exit_kind?, exit_code?, worker_output?, classification, evidence_path, alive_sidecar_pids?}` | Worker PID no longer alive but TTL hadn't expired yet. `worker_output` is the tail of the worker's own log (its final response or the rendered provider error, chrome stripped, ≤ 400 chars) and is also appended to the task's `last_failure_error`, so the board shows *why* instead of only the exit code. `classification` is `supervisor_lost_child` when a detached sidecar (e.g. an encoder, training loop) is still running, else `process_failed`. `evidence_path` points to a redaction-safe JSON crash artifact under `<board logs>/crashes/<task>-<epoch>-<rand>.json` that captures the bounded worker-log tail, sidecar manifests, and per-sidecar log tails — see "Crash artifacts" below. |
+`hermes_cli/kanban_crash_evidence.py`, subscribed to upstream's `on_kanban_worker_exited`
+observer by the eternia-harness plugin (moved off `kanban_db_dispatch.py` by lane h13-del,
+2026-09-29). The `crashed` task event is upstream's own and does NOT name the artifact.
 
 #### Crash artifacts
 
-Every `crashed` event also writes a durable JSON artifact under
-`<board logs>/crashes/<task>-<epoch>-<rand>.json`. The path is referenced from
-both the `crashed` event payload's `evidence_path` field and the closed run's
-`task_runs.metadata.evidence_path`. The artifact is deterministic (sorted keys
+Every reclaimed dead worker (the observer fires after the reclaim commits) gets a
+durable JSON artifact under `<board logs>/crashes/<task>-<epoch>-<rand>.json`; find it
+by task id, and match `run_id` / `event_kind` inside it to the closed run. The artifact is deterministic (sorted keys
 + atomic temp-rename) and redacts Bearer/JWT/`Authorization`/cookie/`X-Amz-*`/
 `Signature`/`Expires`/`--token=`/`api_key`-style values from every captured
 log tail. Fields:
@@ -137,7 +133,7 @@ log tail. Fields:
 - `classification` — `supervisor_lost_child` (≥1 detached child still
   running, recovery can attach) or `process_failed` (everything is dead,
   clean failure).
-- `worker_pid`, `claimer`, `exit_kind`, `exit_code`, `error`.
+- `run_id`, `event_kind`, `worker_pid`, `claimer` (the run row's `claim_lock`), `exit_kind`, `exit_code`, `error`.
 - `workspace_path`, `worker_log_path`, `worker_log_tail` (bounded ≤8 KiB,
   redacted), `worker_log_growing` (true when the log was touched in the
   last 120 s — useful when a detached child is still writing through the
@@ -153,8 +149,7 @@ log tail. Fields:
 
 Sidecar discovery is bounded (8 entries, 32 KiB per manifest, 8 KiB per log
 tail) so a malformed workspace cannot stall the dispatcher tick. Artifact
-write failures degrade silently — the `crashed` event still records the
-pid + exit info, just without an `evidence_path`.
+write failures degrade silently — the observer never raises into the dispatcher.
 
 ## Tool search: `never_defer`
 

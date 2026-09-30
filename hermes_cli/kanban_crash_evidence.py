@@ -1,6 +1,13 @@
-"""Redacted worker-crash evidence and surviving-sidecar discovery."""
+"""Redacted worker-crash evidence and surviving-sidecar discovery.
+
+Rides upstream's ``on_kanban_worker_exited`` observer (registered by the eternia-harness
+plugin): after a dead worker's run is reclaimed, a redaction-safe JSON artifact lands under
+``<board logs>/crashes/<task>-<epoch>-<rand>.json``. No upstream file carries a line of it
+(moved out of ``kanban_db_dispatch._reclaim_dead_workers`` by lane h13-del, 2026-09-29).
+"""
 from __future__ import annotations
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -8,6 +15,8 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 from hermes_cli import kanban_db as _kb
+
+_log = logging.getLogger(__name__)
 
 _CRASH_TAIL_BYTES = 8 * 1024
 
@@ -423,63 +432,91 @@ def _capture_crash_artifact(
     conn: sqlite3.Connection,
     task_id: str,
     *,
+    run_id: int,
+    board: Optional[str],
     worker_pid: int,
-    claim_lock: Optional[str],
     exit_kind: str,
     exit_code: Optional[int],
-    error_text: str,
-    event_kind: str,
 ) -> Optional[dict]:
-    """Build + persist a crash artifact and return ``{path, classification,
-    sidecar_pids}`` (or None on failure).
+    """Build + persist a crash artifact for the CLOSED run ``run_id`` and return
+    ``{path, classification, alive_sidecar_pids, run_id}`` (or None on failure).
 
-    Reads task metadata via a short read query so it can be called from
-    inside the same write-txn that mutates the task row, but the file I/O
-    itself happens after the txn closes (caller responsibility — see
-    :func:`detect_crashed_workers`).
+    Runs after the reclaim committed: the run row keeps ``claim_lock`` and ``error``
+    (``_end_run`` clears neither), the task keeps ``workspace_path``, and the run's
+    last event names the transition (``crashed``, ``rate_limited``, …).
     """
     row = conn.execute(
-        "SELECT t.id, t.assignee, t.workspace_path, t.current_run_id "
-        "FROM tasks t WHERE t.id = ?",
-        (task_id,),
+        "SELECT r.claim_lock, r.error, t.assignee, t.workspace_path "
+        "FROM task_runs r JOIN tasks t ON t.id = r.task_id "
+        "WHERE r.id = ? AND r.task_id = ?",
+        (run_id, task_id),
     ).fetchone()
     if row is None:
         return None
-    profile = row["assignee"]
-    workspace_path = row["workspace_path"]
-    run_id = (
-        int(row["current_run_id"]) if row["current_run_id"] is not None else None
-    )
-    board_slug = os.environ.get("HERMES_KANBAN_BOARD", "").strip() or None
-    if board_slug:
-        try:
-            board_slug = _kb._normalize_board_slug(board_slug) or board_slug
-        except ValueError:
-            board_slug = None
+    event = conn.execute(
+        "SELECT kind FROM task_events WHERE task_id = ? AND run_id = ? ORDER BY id DESC LIMIT 1",
+        (task_id, run_id),
+    ).fetchone()
     try:
-        log_path = _kb.worker_log_path(task_id, board=board_slug)
+        log_path = _kb.worker_log_path(task_id, board=board)
     except Exception:
         log_path = None
     artifact = _build_crash_artifact(
         task_id=task_id,
-        profile=profile,
-        board=board_slug,
-        run_id=run_id,
+        profile=row["assignee"],
+        board=board,
+        run_id=int(run_id),
         worker_pid=worker_pid,
-        claim_lock=claim_lock,
-        workspace_path=workspace_path,
+        claim_lock=row["claim_lock"],
+        workspace_path=row["workspace_path"],
         exit_kind=exit_kind,
         exit_code=exit_code,
-        error_text=error_text,
-        event_kind=event_kind,
+        error_text=row["error"] or "",
+        event_kind=event["kind"] if event is not None else "crashed",
         worker_log_path=log_path,
     )
-    path = _write_crash_artifact(artifact, board=board_slug)
+    path = _write_crash_artifact(artifact, board=board)
     if path is None:
         return None
     return {
         "path": str(path),
         "classification": artifact["classification"],
         "alive_sidecar_pids": artifact["alive_sidecar_pids"],
-        "run_id": run_id,
+        "run_id": int(run_id),
     }
+
+
+def on_kanban_worker_exited(
+    *,
+    task_id: str,
+    board: Optional[str] = None,
+    run_id: Optional[int] = None,
+    worker_pid: Optional[int] = None,
+    exit_kind: str = "unknown",
+    exit_code: Optional[int] = None,
+    **_fields: Any,
+) -> Optional[dict]:
+    """``on_kanban_worker_exited`` observer (registered by the eternia-harness plugin).
+
+    Upstream fires it in the dispatcher after the dead-worker reclaim and breaker
+    accounting commit. Best-effort: never raises back into the dispatcher.
+    """
+    if run_id is None or worker_pid is None:
+        return None
+    try:
+        from hermes_cli.kanban_db_connect import connect
+
+        conn = connect(board=board)
+    except Exception:
+        _log.debug("crash evidence: cannot open board %r", board, exc_info=True)
+        return None
+    try:
+        return _capture_crash_artifact(
+            conn, task_id, run_id=run_id, board=board, worker_pid=int(worker_pid),
+            exit_kind=exit_kind, exit_code=exit_code,
+        )
+    except Exception:
+        _log.debug("crash evidence capture failed for %s", task_id, exc_info=True)
+        return None
+    finally:
+        conn.close()

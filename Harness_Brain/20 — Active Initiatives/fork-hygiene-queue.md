@@ -89,8 +89,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ### Filed on arrival — 2026-09-29 (lane h12-upnew)
 
-- [ ] **Fork `hermes mcp test --env` is inert: `cmd_mcp_test` sets `cfg["runtime_env"]` and prints "Applied N one-shot env override(s)", but nothing reads `runtime_env` since upstream folded the stdio spawn (the fork's transport carry is gone)** · `fork / upstream` · wire it through the stdio launch or revert the flag hunk in `hermes_cli/mcp_config.py` + `hermes_cli/subcommands/mcp.py` · evidence: `git grep runtime_env origin/main` (only the writer) · filed by lane h12-upnew 2026-09-29 **TAKEN 2026-09-29 h13-del**
-- [ ] **Fork process-notification sanitiser is a parallel: upstream redacts every enqueued notification (`_redact_process_result`, `6c7cfd6621`, 2026-07-07) and bounds output (`completion_output_chars`); only the command-line ANSI half is open upstream (PR #124217)** · `fork / upstream` · delete `tools/process_notification_safety.py` + its import and two calls in `tools/process_registry_notifications.py`, delete the stale origin branch `fix/process-notification-redaction`, and re-disposition the G6 ledger row · evidence: upstream `tools/process_registry.py` enqueue sites · filed by lane h12-upnew 2026-09-29 **TAKEN 2026-09-29 h13-del**
 
 ## Filed on arrival — 2026-09-24 (disposition wave)
 
@@ -205,5 +203,3 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
-- [ ] **The Windows gateway-task console-warning carry (`hermes_cli/gateway_windows_launcher.py` `task_action_is_console_less` / `print_console_task_warning`) is overtaken upstream by the Scheduled Task drift reconcile (`2097cc6b88`, the `launcher arguments` leaf; `reconcile_scheduled_task`, #113670) — delete that half; `_assert_named_profile_wrapper_is_pinned` stays fork-only (upstream it would refuse a custom-root profile home)** · `fork / hygiene` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix **TAKEN 2026-09-29 h13-del**
-- [ ] **`hermes_cli/kanban_crash_evidence.py` + its `kanban_db_dispatch.py` hook can move whole into the plugin: `on_kanban_worker_exited` carries `run_id`, `task_runs.claim_lock` survives the reclaim, `tasks.workspace_path` stays — no upstream kwarg is needed, so delete the upstream-file edit** · `fork / seams` · evidence: `X:/Eternia/worktrees/h10b-logs/issues/INDEX.md` § Filed — lane h12-upfix **TAKEN 2026-09-29 h13-del**

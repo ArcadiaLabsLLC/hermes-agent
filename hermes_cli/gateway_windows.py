@@ -1630,7 +1630,6 @@ def status(deep: bool = False) -> None:
         for key in ("status", "last run time", "last run result"):
             if key in info:
                 print(f"  {key.title()}: {info[key]}")
-        print_console_task_warning()  # fork: hermes_cli/gateway_windows_launcher.py
         _print_scheduled_task_drift(task_name)
     elif startup_installed:
         entry = get_startup_entry_path()
@@ -1860,4 +1859,4 @@ def restart() -> None:
             "Gateway restart did not produce a running gateway process. "
             "Check logs/gateway.log and run `hermes gateway status`."
         )
-from hermes_cli.gateway_windows_launcher import GatewayWrapperNotPinned, _assert_named_profile_wrapper_is_pinned, _task_action_is_console_less, installed_launcher_interpreter, launcher_interpreter, print_console_task_warning, task_action_is_console_less  # noqa: E402,F401 — fork
+from hermes_cli.gateway_windows_launcher import GatewayWrapperNotPinned, _assert_named_profile_wrapper_is_pinned, installed_launcher_interpreter, launcher_interpreter  # noqa: E402,F401 — fork

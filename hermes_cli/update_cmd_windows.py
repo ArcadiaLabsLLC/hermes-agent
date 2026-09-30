@@ -1101,7 +1101,7 @@ def _refresh_windows_gateway_launchers() -> None:
     with _best_effort('Could not refresh Windows gateway launchers after update: %s'):
         from hermes_cli import gateway_windows
         if gateway_windows.is_installed():
-            from hermes_cli.gateway_windows_launcher import warn_legacy_console_task, write_task_script_or_warn
+            from hermes_cli.gateway_windows_launcher import write_task_script_or_warn
             if not write_task_script_or_warn():
                 return
             print("  ✓ Refreshed Windows gateway launcher scripts")
@@ -1111,7 +1111,6 @@ def _refresh_windows_gateway_launchers() -> None:
                 print(f"  ✓ {message}")
             for message in warnings:
                 print(f"  ⚠ {message}")
-            warn_legacy_console_task()
             if gateway_windows.is_task_registered():
                 # A task registered by an older build never picks up template hardening otherwise (#113670).
                 gateway_windows.reconcile_scheduled_task(gateway_windows.get_task_name())

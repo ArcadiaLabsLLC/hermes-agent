@@ -6,7 +6,6 @@ TUI inject into the agent conversation."""
 import time
 from dataclasses import dataclass
 from contextlib import suppress
-from tools.process_notification_safety import redacted_command_line, sanitize_notification_event
 
 _DONE = ("completed", "success")
 _REASON_STATUS = {"lost": "marked lost because the process backend disappeared", "failed_start": "failed to start"}
@@ -329,7 +328,7 @@ PROCESS_COMPLETE_DISPLAY_KIND = "process_complete"
 
 
 def _short_command(command) -> str:
-    cmd = redacted_command_line(command)
+    cmd = " ".join(str(command or "").split())
     return cmd[:77] + "..." if len(cmd) > 80 else cmd
 
 
@@ -411,7 +410,6 @@ def _completion_status(evt: dict) -> str:
 
 def format_process_notification(evt: dict) -> "str | None":
     """Format a completion_queue event into an ``[IMPORTANT: ...]`` message."""
-    evt = sanitize_notification_event(evt)
     evt_type = evt.get("type", "completion")
     # watch_disabled and overflow events carry their own human-readable `message`;
     # otherwise overflow events would fall through to the completion formatter as a

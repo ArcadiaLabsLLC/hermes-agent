@@ -222,3 +222,27 @@ class TestBuildSafeEnvMergeOrder:
         assert result.get("Y") == "v"
         assert "X" not in result
         assert "HERMES_MCP_ENV_FOO_X" not in result
+
+
+# ---------------------------------------------------------------------------
+# The join: ``hermes mcp test --env`` sets cfg["runtime_env"]; the stdio spawn
+# must read it. Both halves above are pinned on their own — this pins the seam.
+# ---------------------------------------------------------------------------
+
+class TestStdioLaunchReadsRuntimeEnv:
+    def test_runtime_env_reaches_the_spawned_child_env(self):
+        from tools.mcp_tool_transport import _stdio_launch
+
+        config = {"command": "python", "env": {"DURABLE": "d"},
+                  "runtime_env": {"ONE_SHOT": "r"}}
+        with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
+            _command, env, _cwd = _stdio_launch(config, "foo")
+        assert env["ONE_SHOT"] == "r"
+        assert env["DURABLE"] == "d"
+
+    def test_positive_control_absent_runtime_env_adds_nothing(self):
+        from tools.mcp_tool_transport import _stdio_launch
+
+        with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
+            _command, env, _cwd = _stdio_launch({"command": "python"}, "foo")
+        assert "ONE_SHOT" not in env
