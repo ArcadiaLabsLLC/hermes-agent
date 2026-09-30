@@ -206,3 +206,27 @@ def test_a_relative_import_is_resolved_against_the_kept_modules_package(tmp_path
     assert names["tools.lifecycle"] == {"from_init", "from_a"}
     assert names["tools"] == {"lifecycle_sibling"}
     assert names["other.pinned"] is None
+
+
+def test_the_gate_runs_only_under_the_bundles_pinned_cpython_or_a_named_interpreter(tmp_path, capsys):
+    """The count depends on the interpreter (s2-g1: 104 under the lane's, 106 under system 3.12), so the
+    gate refuses to run anywhere but the pinned CPython's major.minor unless ``--interpreter`` names the
+    one running it — and it prints the interpreter either way."""
+    import json
+    import sys
+
+    from scripts.bundle_profile_gate import INTERPRETER_LOCK, interpreter_refusal, main, pinned_interpreter
+
+    pin, want = pinned_interpreter()
+    assert pin == json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8"))["version"]
+    assert interpreter_refusal(None, executable="py", implementation="cpython", version=want) is None
+    older = interpreter_refusal(None, executable="py", implementation="cpython", version=(want[0], want[1] - 2))
+    assert older and "pinned CPython" in older and pin in older
+    assert interpreter_refusal(None, executable="py", implementation="pypy", version=want)
+    # An explicit --interpreter is honoured only when it names the interpreter actually running.
+    assert interpreter_refusal(sys.executable, implementation="cpython", version=(want[0], want[1] - 2)) is None
+    assert interpreter_refusal(str(tmp_path / "other-python.exe"))
+
+    assert main(["--interpreter", str(tmp_path / "other-python.exe")]) == 2
+    out, err = capsys.readouterr()
+    assert out.startswith(f"interpreter: {sys.executable} (") and "GATE NOT RUN" in err

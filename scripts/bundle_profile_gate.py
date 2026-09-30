@@ -344,12 +344,60 @@ def render_markdown(result: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+#: The CPython the bundle ships (PM's pin, copied for the installer). The gate's count depends on the
+#: interpreter it runs under — the AST it parses with, the stdlib it resolves, the child probes it
+#: spawns — so one run is comparable with another only under the same one: this one's major.minor.
+INTERPRETER_LOCK = ROOT / "agent_runtime" / "bundle_profiles" / "interpreters.lock.json"
+
+
+def pinned_interpreter() -> tuple[str, tuple[int, int]]:
+    """``(full pin, (major, minor))`` from :data:`INTERPRETER_LOCK`, e.g. ``("3.14.7+20260901", (3, 14))``."""
+    version = json.loads(INTERPRETER_LOCK.read_text(encoding="utf-8"))["version"]
+    major, minor = version.split("+")[0].split(".")[:2]
+    return version, (int(major), int(minor))
+
+
+def _same_file(a: str | Path, b: str | Path) -> bool:
+    try:
+        return Path(a).resolve() == Path(b).resolve() or Path(a).samefile(b)
+    except OSError:
+        return False
+
+
+def interpreter_refusal(explicit: str | None, *, executable: str | None = None,
+                        implementation: str | None = None, version: tuple[int, int] | None = None) -> str | None:
+    """Why the gate must not run under this interpreter, or ``None``: it runs under the bundle's pinned
+    CPython (major.minor of :data:`INTERPRETER_LOCK`), or under the interpreter ``--interpreter`` names."""
+    executable = executable or sys.executable
+    implementation = implementation or sys.implementation.name
+    version = version or tuple(sys.version_info[:2])
+    if explicit is not None:
+        if _same_file(explicit, executable):
+            return None
+        return f"--interpreter names {explicit}, but the gate is running under {executable}"
+    pin, want = pinned_interpreter()
+    if implementation == "cpython" and version == want:
+        return None
+    return (f"the gate runs under the bundle's pinned CPython {want[0]}.{want[1]} ({pin}, "
+            f"{INTERPRETER_LOCK.relative_to(ROOT).as_posix()}) so counts compare like with like; this is "
+            f"{implementation} {version[0]}.{version[1]} at {executable}. Run it with a {want[0]}.{want[1]} "
+            f"interpreter that has the dev dependencies, or name this one with --interpreter to override")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--profile", default="bundled-phone")
     parser.add_argument("--json", type=Path, help="write the full result here")
     parser.add_argument("--markdown", type=Path, help="write the report table here")
+    parser.add_argument("--interpreter", help="run under this interpreter although it is not the pinned CPython "
+                        "(it must be the one running the gate; the count is then not comparable with pinned runs)")
     args = parser.parse_args(argv)
+    print(f"interpreter: {sys.executable} ({sys.implementation.name} {sys.version.split()[0]})"
+          + (" — explicit --interpreter override" if args.interpreter else ""), flush=True)
+    refusal = interpreter_refusal(args.interpreter)
+    if refusal:
+        print(f"GATE NOT RUN: {refusal}", file=sys.stderr)
+        return 2
     result = gate(args.profile)
     if args.json:
         args.json.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8", newline="")
