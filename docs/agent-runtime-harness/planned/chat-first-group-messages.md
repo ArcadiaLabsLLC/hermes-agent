@@ -44,6 +44,13 @@ questions, lost/repeated answer acknowledgements and exact confirmed Stop. No li
 credentials or user profiles were used. Final fork landing suite remains in progress;
 this checkpoint is not desktop acceptance.
 
+The first landing run was stopped after 441 reported files. Only 422 carried
+test outcomes: bundle 26 reported process success although its recorder ended
+with `rc: 2` and no test events. Its 19 unproven files must run individually;
+green bundle labels are not evidence for them. The remaining population will
+also run through the per-file authority. The parked wrapper self-publication
+test is upstream-inherited and was already outside this fork population.
+
 ## Lifecycle follow-up
 
 `DiscussionService.idle_drain` conservatively treats every open run as busy,

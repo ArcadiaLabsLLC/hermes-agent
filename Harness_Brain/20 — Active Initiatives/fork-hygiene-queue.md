@@ -11,6 +11,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Reject contradictory success receipts in the bundled runner.** · `members_to_rerun` trusts process exit 0 although the bundle recorder can report `rc: 2` with no test events; 19 CLI files were labelled green without execution evidence. Per-file confirmation is required, not a green count. Evidence: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` · filed 2026-09-29 chat-first-groups. UNCLAIMED
+
 - [ ] **Classify the live runtime socket lock correctly in full backups.** · A sole unreadable `agent-runtime/serve_socket.lock` marked a backup containing every profile database incomplete; [deployment evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#installed-update). Filed 2026-09-29 shared-provider-correction. UNCLAIMED
 
 - [ ] **Repair two stale doc-citation anchors in boot/lifecycle and observability.** · Changed neither by the shared-provider slice nor since its base; [gate evidence](../../docs/downstream/shared-provider-authority-2026-09-29.md#evidence). Filed 2026-09-29 shared-provider-correction. UNCLAIMED
