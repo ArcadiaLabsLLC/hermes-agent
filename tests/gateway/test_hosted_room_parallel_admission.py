@@ -1,7 +1,7 @@
 import pytest
 
 from gateway import hosted_room_driver as driver
-from tests.gateway.test_hosted_room_driver import FakeClock, _identity, _lease, _payload, db
+from tests.gateway.test_hosted_room_driver import FakeClock, _identity, _lease, _payload, db as db
 
 
 def admit(path, clock, key, member, *, source=1, independent=True):

@@ -1,6 +1,6 @@
 from tui_gateway import session_execution as execution
 from tui_gateway.execution_result import MAX_RESULT_BYTES, public_result
-from tests.tui_gateway.test_native_execution_fence import owner
+from tests.tui_gateway.test_native_execution_fence import owner as owner
 
 
 def finish(session, text, *, status="complete", identity=None):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Mapping
 
 from agent_runtime.resolution import resolve_runtime, runtime_resolution_scope
 from agent_runtime.errors import NotFound

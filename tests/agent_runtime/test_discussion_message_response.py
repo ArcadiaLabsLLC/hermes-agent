@@ -7,7 +7,7 @@ from agent_runtime.discussions.rpc import execute
 from agent_runtime.discussions.run_store import DiscussionError
 from agent_runtime.discussions.room_definition import RoomSpec
 from tests.agent_runtime.test_discussion_definitions import table_value
-from tests.agent_runtime.test_discussion_runtime import engine, begin, settled, wait_until, command
+from tests.agent_runtime.test_discussion_runtime import engine as engine, begin, settled, wait_until, command
 
 pytestmark = pytest.mark.timeout(90)
 

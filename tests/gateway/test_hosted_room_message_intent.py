@@ -8,7 +8,7 @@ from gateway import hosted_rooms
 from gateway.hosted_room_policy_checkpoint import HostedRoomPolicyCheckpoint
 from tests.gateway.test_hosted_room_discussion import (
     GATEWAY_ID, LOCAL_PROFILES, ROOM_ID, _append_activity, _append_publication,
-    _events, room_db,
+    _events, room_db as room_db,
 )
 
 

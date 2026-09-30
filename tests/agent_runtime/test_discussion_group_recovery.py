@@ -5,7 +5,7 @@ from agent_runtime.conversations.model import ConversationError, Refusal
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.profile_groups import ProfileGroupSpec
 from agent_runtime.discussions.service import DiscussionService
-from tests.agent_runtime.test_discussion_profile_groups import groups, create, act, sends, complete, idle
+from tests.agent_runtime.test_discussion_profile_groups import groups as groups, create, act, sends, complete, idle
 from tests.agent_runtime.test_discussion_runtime import wait_until
 
 pytestmark = pytest.mark.timeout(90)
