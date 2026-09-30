@@ -106,7 +106,6 @@ from __future__ import annotations
 #     instead of relying on `set -o pipefail`. That is a real change to the
 #     search execution path and is filed rather than smuggled into an audit.
 
-import importlib
 import pathlib
 import os
 import socket

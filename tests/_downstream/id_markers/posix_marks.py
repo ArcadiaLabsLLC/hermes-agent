@@ -241,6 +241,44 @@ if _WIN:
             _posix_xfail("the wrapper is mybot.bat on Windows; issue #83938"),
         ),
         "tests/hermes_cli/test_terminal_breadcrumbs.py": (_posix_xfail("os.ttyname"),),
+        # Triage-561 class U4, settled on the 3.14 suite venv (lane h11-env): the Bot
+        # Desktop (Xvnc + xfce, sudo install) and the freedesktop entry are Linux
+        # features; each id below dies on a POSIX-only API or premise, every run.
+        **{f"tests/tools/test_bot_desktop_install.py::{test}": (
+            _posix_xfail("fcntl / os.geteuid / os.killpg (Linux sudo install)"),) for test in (
+            "test_empty_password_cancels_without_spawning",
+            "test_second_install_for_same_profile_is_refused",
+            "test_claim_is_atomic_and_refuses_a_second_claim",
+            "test_passwordless_sudo_runs_the_install_without_asking_for_a_password",
+            "test_root_installs_without_sudo_and_without_asking",
+            "test_no_sudo_binary_returns_the_host_command_instead_of_a_password_card",
+            "test_timeout_finishes_the_group_when_only_the_leader_dies_on_term",
+            "test_install_slot_is_held_across_processes",
+        )},
+        **{f"tests/tools/test_bot_desktop_runtime.py::{test}": (_posix_xfail("fcntl"),) for test in (
+            "test_recorded_display_held_by_a_live_server_is_not_reused",
+            "test_a_running_desktop_is_never_refused_for_the_memory_it_is_using",
+            "test_a_tight_but_sufficient_start_is_logged",
+            "test_a_comfortable_start_is_not_logged",
+        )},
+        **{f"tests/tools/test_bot_desktop_browser.py::{test}": (_posix_xfail(detail),) for test, detail in (
+            ("test_pinned_profile_honours_tilde_and_resolves_relative_paths_against_hermes_home",
+             "`~` expands from USERPROFILE on Windows, not the HOME the test sets"),
+            ("test_unprivileged_user_under_apparmor_userns_restriction_gets_the_system_browser", "os.geteuid"),
+            ("test_root_dock_browser_starts_with_the_same_sandbox_args_as_the_agents_browser", "os.geteuid"),
+        )},
+        "tests/tools/test_bot_desktop_resources.py::test_start_refuses_and_status_explains_when_memory_is_short": (
+            _posix_xfail("the desktop is supported=False off Linux, so start never reaches the memory check"),
+        ),
+        **{f"tests/hermes_cli/test_linux_desktop_entry.py::{test}": (
+            _posix_xfail("freedesktop entry: Exec quoting and wrapper capability are POSIX"),) for test in (
+            "test_exec_skips_managed_environment_cli_without_desktop",
+            "test_capability_follows_wrapper_to_its_target",
+            "test_resolver_skips_incapable_primary_for_wrapper",
+            "test_install_skips_write_when_exec_provably_cannot_serve_desktop",
+            "test_install_leaves_existing_entry_untouched_when_exec_incapable",
+            "test_install_through_wrapper_when_primary_is_incapable",
+        )},
         **{node: (_posix_xfail('termios'),) for node in (
             'tests/hermes_cli/test_cli_light_mode.py::TestOsc11DrainGuard::test_late_reply_is_consumed_not_leaked',
             'tests/hermes_cli/test_cli_light_mode.py::TestOsc11DrainGuard::test_post_deadline_straggler_is_drained',

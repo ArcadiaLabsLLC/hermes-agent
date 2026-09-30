@@ -184,6 +184,11 @@ if _WIN:
         "tests/tools/test_code_execution_modes.py::test_selected_interpreter_environment_and_real_rpc": (
             _up_red("the child environment carries Windows-only keys the expected mapping omits"),
         ),
+        "tests/scripts/test_bundle_native.py::"
+        "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (
+            _up_red("the win32 launcher_wrapper imports hermes_bootstrap, which the fixture "
+                    "repo never copies; the POSIX launcher imports the entry directly"),
+        ),
         "tests/scripts/test_run_tests_parallel.py::test_scratch_root_is_per_user": (
             _up_red("calls os.getuid, which Windows does not have"),
         ),
@@ -372,7 +377,6 @@ if _WIN:
             _up_red_skip('polls 30 s for the spawned HTTP server port file, which never appears on this host; the 30 s per-test cap kills the whole process'),
         ),
         **{node: (_up_red('an open handle or read-only file blocks the delete, WinError 5 (class c-H)'),) for node in (
-            'tests/hermes_cli/test_plugin_install_ref.py::test_reinstall_after_manual_directory_removal_retains_pin',
             'tests/hermes_cli/test_shallow_boundary_repair.py::test_repair_does_not_mask_unrelated_object_loss',
         )},
         **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (

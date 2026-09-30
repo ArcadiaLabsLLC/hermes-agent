@@ -26,6 +26,15 @@ _TCC_ALIAS = (
     "test_alias_failure_leaves_anchor_unmarked"
 )
 
+#: A fork timeout raise (fork_marks: the payload build runs 72-245 s) AND an
+#: upstream Windows red (upstream_reds: the win32 launcher imports
+#: hermes_bootstrap, which the fixture never copies) — cross-class on purpose
+#: (lane h11-env): the xfail still runs the body, so it still needs the budget.
+_BUNDLE_NATIVE = (
+    "tests/scripts/test_bundle_native.py::"
+    "test_bundle_stages_git_tree_and_runs_native_children_before_manifest"
+)
+
 #: pytest's own marks and the plugins' — not the fork's to register.
 _BUILTIN_MARKS = frozenset({"xfail", "skip", "skipif", "timeout"})
 
@@ -36,7 +45,7 @@ _BUILTIN_MARKS = frozenset({"xfail", "skip", "skipif", "timeout"})
 _UPSTREAM_UNREGISTERED = frozenset({"spawns_gateway_lookalike"})
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="the one cross-class key is a win32 row")
+@pytest.mark.skipif(sys.platform != "win32", reason="the cross-class keys are win32 rows")
 def test_a_key_in_two_classes_carries_both_marks():
     """The TCC alias id is a scoped-undo row (fork) AND a POSIX-venv xfail
     (posix). The assembler CONCATENATES, in class order, so it carries both —
@@ -45,9 +54,10 @@ def test_a_key_in_two_classes_carries_both_marks():
     names = [mark.name for mark in hooks.ID_MARKS[_TCC_ALIAS]]
 
     assert names == ["scoped_monkeypatch_undo", "xfail"]
-    # The only such key today. This set moves only when a lane adds a
-    # cross-class row on purpose — and then says so here.
-    assert hooks.SHARED_KEYS == frozenset({_TCC_ALIAS})
+    assert [mark.name for mark in hooks.ID_MARKS[_BUNDLE_NATIVE]] == ["timeout", "xfail"]
+    # This set moves only when a lane adds a cross-class row on purpose — and
+    # then says so here (_BUNDLE_NATIVE: lane h11-env, 2026-09-29).
+    assert hooks.SHARED_KEYS == frozenset({_TCC_ALIAS, _BUNDLE_NATIVE})
 
 
 @pytest.mark.skipif(

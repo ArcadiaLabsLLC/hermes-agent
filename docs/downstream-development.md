@@ -127,6 +127,23 @@ canonical shared test venv on its own (`$HERMES_TEST_VENV`, else
 `~/.venvs/hermes-test`) — a worktree with no `.venv` of its own needs nothing
 set.
 
+That venv is built from the lock on CPython 3.14, with the CI test job's
+extras minus `daytona` (its `obstore` has no cp314 Windows wheel and needs
+Rust), without installing the project (the runner puts the worktree on the
+path), plus the fork's `requirements-fork-dev.txt`:
+
+```bash
+UV_PROJECT_ENVIRONMENT=X:/Eternia/.venvs/hermes-test-314 uv sync --locked --python 3.14 \
+  --no-install-project --extra all --group dev --group test --extra anthropic \
+  --extra mistral --extra fal --extra modal --extra parallel-web
+uv pip install --python X:/Eternia/.venvs/hermes-test-314/Scripts/python.exe -r requirements-fork-dev.txt
+```
+
+`~/.venvs/hermes-test` is a junction to that directory (repointed 2026-09-29;
+the CPython 3.12.5 venv it replaced stays at `X:/Eternia/.venvs/hermes-test`
+until nothing uses it). Build a replacement beside the live one and move the
+junction only once `tests/tooling` passes on it.
+
 ### The fork landing gate
 
 Weakness escalation per domain — what a lane records when work reveals architecture below the bar, and which queue the row goes to — is [`CLAUDE.md`](../CLAUDE.md) § "Weakness escalation"; the god-file program that applies it is `docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`.

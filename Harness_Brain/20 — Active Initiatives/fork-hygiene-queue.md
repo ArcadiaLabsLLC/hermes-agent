@@ -26,11 +26,9 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (h11-mcp landing)
 
-- [ ] **`tests/agent_runtime/test_serve_wedge_lifecycle.py` (`lost_the_lane`, `owner_still_runs`) flakes under the 8-worker runner and passes 8/8 alone: the tests check the delivery drain before the serve has finished booting — wait on the serve's ready signal instead of a fixed window.** · lane h11-mcp landing run, 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h10-fhrest)
 
-- [ ] **`tests/hermes_cli/test_update_fleet_restart_pending.py`: 4 tests red after 172 test_update_*/test_launchd_*/test_cmd_update* files in one process, green alone (53 passed)** · `fork / suite` · bisect pairwise (REDS2 method, `016a6cd71e`) · evidence: lane h10-fhrest `.lane-logs/r110b.log` · filed by lane h10-fhrest 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ### Filed on arrival — 2026-09-29 (lane h7-phone)
 
@@ -39,9 +37,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-09-29 (lane h10b-triage — the three-directory triage, one row per class)
 
-- [ ] **The suite venv `~/.venvs/hermes-test` is CPython 3.12.5 while `pyproject.toml` supports only `==3.14.*`: `uv sync` refuses every plugin-install fixture and the extras are stale (no `anthropic`, `mcp` 1.26.0 vs pinned 2.0.0, no `fal_client` / `parallel-web`) — 36 files, 149 ids (class E1); rebuild the venv on 3.14 with the test extras, or add `REQUIRES_DISTRIBUTION` probes** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class E1 **TAKEN 2026-09-29 h11-env**
-- [ ] **14 upstream model-flow files hang in `getaddrinfo` for a fixture host inside `agent.model_metadata._ollama_show` (class E2); `conftest_plugin._no_ollama_show_probe` is per-id and covers one test — make it the default for upstream tests, or stub DNS for `.test`/`.example` hosts** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class E2 **TAKEN 2026-09-29 h11-env**
-- [ ] **Upstream Windows reds left unmarked (classes U2–U4, 30 files, 89 ids): timing-dependent or unsettled (U2), a shell premise that depends on which `bash` the box resolves — Git Bash vs WSL (U3), and byte-identical spawning files not run on pure upstream (U4); settle each cause before a strict row** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) classes U2–U4 **TAKEN 2026-09-29 h11-env**
+- [ ] **Upstream Windows reds left unmarked (classes U2–U4, 30 files, 89 ids): timing-dependent or unsettled (U2), a shell premise that depends on which `bash` the box resolves — Git Bash vs WSL (U3), and byte-identical spawning files not run on pure upstream (U4); settle each cause before a strict row** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) classes U2–U4 · VERDICT 2026-09-29 h11-env: on the 3.14 venv 2 U2 files went green and 22 U4 ids are settled POSIX-premise strict xfails (`5e8523e569`); the other 23 files / 78 ids stay red at `-j 2`, so none is load (lane log `u-solo.log`). Options, recommended first: (1) split in three — U3 shell premise (8 files) as probe-backed rows in `tests/_env_gap_fence` keyed on which `bash` resolves (Git Bash vs `System32\bash.exe` WSL stub), not strict xfails; the "Refusing to overwrite" group (`test_file_staleness`, `test_known_file_write_baseline`, `test_file_read_guards`) re-run on a pure-upstream worktree at `ee5f49b943` on the 3.14 venv before it is called upstream, since it is the fork-edited write guard's refusal (C1 neighbourhood); the ~12 singletons (lsp exit-code-as-signal, `~/.hermes` copy, sandbox image switch, computer_use env, spawn/tts/stream/placement/startup-cost) one solo id each, then strict rows; (2) one strict `_up_red` row per id now — rejected, it would freeze the U3 host premise into the table · OWNER-DELEGATED 2026-09-29: take the VERDICT's three-way split (U3 → host-checked env-gap rows; the "Refusing to overwrite" group rides upstream PR #128647; the rest one solo run per id then strict rows) — round 12, released
 - [ ] **`tests/tools/test_process_registry.py` (fork-edited implementation) and `tests/tools/test_browser_real_profile.py` stay red solo and need a pure-upstream comparison on an isolated host (class X)** · [triage note](../../docs/downstream/triage-561-2026-09-29.md) class X · UNCLAIMED
 
 ### Filed on arrival — 2026-09-28 (lane w4-hfix2)
@@ -70,8 +66,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-29 (lane h10-fhrel, filed by the orchestrator)
 
-- [ ] **`tests/scripts/test_bundle_native.py::test_bundle_stages_git_tree_and_runs_native_children_before_manifest` red: `uv sync` rejects the suite's Python 3.12 interpreter against `requires-python ==3.14.*` in its fixture payload** · `fork / suite` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
-- [ ] **Unused imports (ruff F401): `tests/_downstream/hermes_cli_conftest/registry.py` (`TELEGRAM_PARITY_DEFECT_REASON`), `tests/_downstream/tools_conftest.py` (`importlib`)** · `fork / tests` · evidence: lane h10-fhrel · filed 2026-09-29 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on the move — 2026-09-22 (fork rows the launcher queue had carried since 2026-09-02)
 
@@ -180,13 +174,13 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-26 (lane TRIAGE)
 
 - [ ] **`tests/hermes_cli/test_process_dock.py` hangs to the 30 s timeout only under `scripts/run_tests.sh`: its `env -i` drops `SYSTEMDRIVE`, the Git-Bash `sleep.exe` grandchild then survives `kill_process`'s `taskkill /T /F`, the stdout pipe never reaches EOF, and `_release_finished_handles`' `stream.close()` (`tools/process_registry.py:1683`) blocks on the reader thread's buffer lock (`:1398`)** · `fork / suite` · passes run direct and with `SYSTEMDRIVE=C:` added to the same `env -i`; a process snapshot during the hang shows the orphaned `sleep.exe` · fix: forward `SYSTEMDRIVE` in `run_tests.sh`'s `WIN_ENV`; the product half (a `killed` receipt while a pipe holder lives, a close that can block forever) is upstream's — file it with the PR · evidence: `X:/wt/_holds/triage-0926/dock_ft.log`, `dock_ps.log` · filed 2026-09-26 · VERDICT 2026-09-29 h10-fhrest: runner half DONE at e0dafc4e27 (SYSTEMDRIVE forwarded additively; run_tests.sh and run_tests_bundled.sh 2 passed); owed: the product half (a killed receipt while a pipe holder lives, a stream.close() that can block forever) is an upstream PR — GitHub + owner, not lane work · OWNER 2026-09-29: draft the upstream PR for the product half after the branch pass **TAKEN 2026-09-29 h10b-up** · VERDICT 2026-09-29 h10b-up2: product half drafted: `up/process-dock-kill-close` 15874e30e1 (local, on upstream 77e2992020): `_release_finished_handles` leaves stdout to a live reader thread, which closes it on finish; new test red->green + positive control, test_process_registry 7 Windows reds identical both sides. The killed-receipt half is mostly upstream's 9a46df0a21 (#115490); orphaned-grandchild-after-root-death is left out. OPEN. Table: X:/Eternia/worktrees/h10b-logs/up-verdicts.md
+- [ ] **Upstream PR candidate: `_netedge.py` is missing `import time` (ruff F821) — a real runtime NameError in upstream's code, found by h11-env's ruff pass; ignored by name in `pyproject.toml` until upstream fixes it** · `fork / upstream` · evidence: h11-env `3cc9cd137b` · UNCLAIMED
 
 ## Filed on arrival — 2026-09-26 (lane ACP-DROP, filed by the orchestrator)
 
 
 ## Filed on arrival — 2026-09-25 (program-end suite on `7df3bee189`, filed by the orchestrator)
 
-- [ ] **ruff `F821` is ignored under `tests/**`, `tools/**`, `agent/**`, `gateway/**` by `pyproject.toml`'s per-file-ignores, so a merge-dropped name in those trees is invisible to the analyzer (the 2026-09-24 `heartbeat` NameError, `77cd9c6a6f`)** · `fork / hygiene` · evidence: `Harness_Brain/20 — Active Initiatives/upstream-release-2026-09-24.md`; the merge design's Q5 keeps F821 in `select` (`docs/agent-runtime-harness/planned/upstream-merge-2026-09-25-design.md`) · filed by lane MERGE-DESIGN 2026-09-25 **TAKEN 2026-09-29 h11-env**
 
 ## Filed on arrival — 2026-09-25 (batch gates on `6bae3f2484`, filed by the orchestrator)
 

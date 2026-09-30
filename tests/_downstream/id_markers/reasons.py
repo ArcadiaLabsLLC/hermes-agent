@@ -30,7 +30,6 @@ _WIN = sys.platform == "win32"
 ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
 CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
-NO_OLLAMA_SHOW_PROBE_MARK = "no_ollama_show_probe"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
@@ -93,7 +92,6 @@ _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK
 _REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
 _TIRITH_CONFIG_VALUE = getattr(pytest.mark, TIRITH_CONFIG_VALUE_UNDER_TEST_MARK)
 _NO_LIVE_GATEWAY = getattr(pytest.mark, NO_LIVE_GATEWAY_MARK)
-_NO_OLLAMA_SHOW_PROBE = getattr(pytest.mark, NO_OLLAMA_SHOW_PROBE_MARK)
 _NO_REAL_ORPHAN_REAP = getattr(pytest.mark, NO_REAL_ORPHAN_REAP_MARK)
 
 #: Prefix of every row that skips an upstream test because it is POSIX-only
