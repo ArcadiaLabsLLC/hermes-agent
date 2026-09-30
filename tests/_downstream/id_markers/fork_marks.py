@@ -27,7 +27,6 @@ from tests._downstream.id_markers.reasons import (
     __layer__,
     _LOOKALIKE,
     _NO_LIVE_GATEWAY,
-    _NO_OLLAMA_SHOW_PROBE,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
     _SCOPED_UNDO,
@@ -293,10 +292,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_oauth_status_pool_observation_downstream.py",
         ),
     ),
-    # An upstream custom-endpoint flow whose context probe resolves a fixture host
-    # over real DNS (fixture: conftest_plugin._no_ollama_show_probe).
-    "tests/hermes_cli/test_custom_provider_model_switch.py::TestCustomProviderModelSwitch::"
-    "test_custom_endpoint_switch_prunes_stale_model_config_pool_entry": (_NO_OLLAMA_SHOW_PROBE,),
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{

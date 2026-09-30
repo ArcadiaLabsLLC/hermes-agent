@@ -35,7 +35,6 @@ from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
     CONFIG_READS_THROUGH_LOAD_CONFIG_MARK as _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK,
-    NO_OLLAMA_SHOW_PROBE_MARK as _NO_OLLAMA_SHOW_PROBE_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
@@ -675,25 +674,6 @@ def _no_real_orphan_reap(request, monkeypatch):
 
 
 
-@pytest.fixture(autouse=True)
-def _no_ollama_show_probe(request, monkeypatch):
-    """Keep an upstream model-flow test off the network's DNS.
-
-    ``agent.model_metadata._ollama_show`` POSTs ``<base_url>/api/show`` with
-    httpx; its timeout bounds the connection, not the ``getaddrinfo`` in front
-    of it, so a slow resolver for a fixture host (``new.example.test``) hangs
-    the test past the fork's 30 s cap (measured in the program-end gate of
-    2026-09-24, stack ending in ``socket.getaddrinfo``). For the ids
-    ``tests/_downstream/id_markers/`` marks, the probe answers "no Ollama
-    metadata", which is what an unreachable fixture host answers anyway.
-    """
-    if request.node.get_closest_marker(_NO_OLLAMA_SHOW_PROBE_MARK) is None:
-        return
-    import agent.model_metadata as _metadata
-
-    monkeypatch.setattr(_metadata, "_ollama_show", lambda *_a, **_k: None)
-
-
 #: The fork's per-test cap (seconds) and how it fires. ``thread`` dumps every
 #: stack and KILLS the process, which is the only method Windows has (no
 #: SIGALRM). Applied below as defaults, so an explicit ``--timeout`` /
@@ -753,6 +733,9 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     pytest-timeout installed (``requirements-fork-dev.txt``) the options do not
     exist and nothing is set.
     """
+    from tests._downstream import reserved_dns
+
+    reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
@@ -799,12 +782,6 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{NO_LIVE_GATEWAY_MARK}: the test's premise is that no hermes gateway runs "
         "on this machine (it reads the real fleet process table); it skips, naming "
         "the live pids, where one does (applied by id from "
-        "tests/_downstream/id_markers/).",
-    )
-    config.addinivalue_line(
-        "markers",
-        f"{_NO_OLLAMA_SHOW_PROBE_MARK}: agent.model_metadata._ollama_show answers None, "
-        "so a fixture endpoint never reaches DNS (applied by id from "
         "tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
