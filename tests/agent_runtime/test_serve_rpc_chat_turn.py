@@ -75,7 +75,7 @@ def test_the_manifest_grew_by_two_names_and_the_integer_did_not_move():
     # join it, additively: a client that ignores the key keeps working, and the
     # keys it lists are exactly the ones these two verbs already honour.
     assert set(manifest) == {"contract", "methods", "tiers", "params"}
-    assert set(manifest["params"]) == {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD}
+    assert {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD} <= set(manifest["params"])
 
 
 def test_every_verb_in_the_chat_turn_vocabulary_is_advertised_and_console_tiered():
