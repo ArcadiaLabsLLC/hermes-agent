@@ -108,6 +108,8 @@ No live app, installation, sign-in or user profile was changed.
 Untouched main `29dfcf0dd5` reproduces the duplicate-name and both routing-ladder
 failures. Its newer Work commit also contributes `_answer` to that same existing
 duplicate-name assertion. These are not claimed fixed or masked by this change.
+After merging that main into this branch, the integrated boundary/shape run
+reports **49 passed, the same 3 failed**; no additional regression appeared.
 Full-suite and desktop acceptance were not rerun; the prior host-freeze boundary
 still excludes unsafe updater/publication testing on this PC.
 
@@ -122,5 +124,6 @@ Red controls, restored before final green runs:
 
 Logs: `C:/Users/Multi/.codex/tmp/provider-access-{regressions,native,gates,final-shape}.log`,
 `provider-access-{owner-red,mutation-registration,mutation-anthropic}.log`, and
-`provider-access-main-{baseline,shape-baseline}.log`. Test setup evidence is under
+`provider-access-main-{baseline,shape-baseline}.log`, plus
+`provider-access-integrated.log`. Test setup evidence is under
 `C:/Users/Multi/Documents/Codex/2026-09-27/continue/provider-boundary-qa/`.
