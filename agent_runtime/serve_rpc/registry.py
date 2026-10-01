@@ -23,6 +23,7 @@ __all__ = [
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
     "_ensure_conversation_methods",
+    "_ensure_work_methods",
     "manifest",
     "method",
     "method_names",
@@ -112,12 +113,21 @@ def _ensure_conversation_methods():
         register(method, ok, err)
 
 
+def _ensure_work_methods():
+    from ..loop_tool_lifecycles import shipped
+
+    if "runtime.work.capabilities" not in _METHODS and shipped("agent_runtime.work"):
+        from ..work.rpc import register
+        register(method)
+
+
 def method_names() -> list[str]:
     # Registration is lazy to keep imports one-directional and avoid eager
     # filesystem/process work on every client of the method manifest.
     _ensure_local_llama_methods()
     _ensure_discussion_methods()
     _ensure_conversation_methods()
+    _ensure_work_methods()
     return sorted(_METHODS)
 
 
