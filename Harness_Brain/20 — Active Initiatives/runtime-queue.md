@@ -26,6 +26,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
+### Filed on arrival — 2026-10-01 (launcher lane mc-a, filed by the orchestrator)
+
+- [ ] **Do not fingerprint the delivery flag `--stream` in `ChatTurnReservation.verify_payload`.** · A client that re-sends the same `turn_request_id` buffered after a streamed first send is refused `turn_payload_conflict` for the same message. The Launcher now keeps the flag consistent within one process (`eternia-launcher/lib/features/mission_control/data/mission_chat_turn_presentation.dart`), but a restarted launcher can still mismatch. Evidence: `eternia-launcher/docs/mission_control/SIX_SCREENSHOT_FINDINGS_2026-10-01.md` "F6 follow-up". · `fork / runtime` · UNCLAIMED
+- [ ] **Expose MCP admission time in the turn `timing` block (e.g. `mcp_admission_ms` beside `turn_context_ms`).** · First-chat startup costs 7–9 s over warm sends, but this can only be correlated with first-turn `snapshot` context/skill delivery; context assembly, MCP admission and provider first byte cannot be told apart. Evidence: `eternia-launcher/docs/mission_control/FIRST_CHAT_STARTUP_OWNER_REPORT.md` "Phase attribution — 2026-10-01". · `fork / runtime` · UNCLAIMED
+
 ### Filed on arrival — 2026-10-01 (lane hq-b)
 
 - [ ] **The harness parser binds every handler eagerly, so `import hermes_cli.harness` (~1.2 s, ~800 modules) runs for every `hermes harness` verb: `parser/machine.py` → `agent_runtime.harness_doctor` → `agent_runtime.snapshot`, and `runtime_commands` → `agent_runtime.status`; bind `func=` lazily (module:attr resolved at dispatch) so a verb imports only its own handler** · `fork / runtime` · evidence: the HQ3 commit message on lane/hq-b (`perf(cli): …`, profiles 2026-10-01)
