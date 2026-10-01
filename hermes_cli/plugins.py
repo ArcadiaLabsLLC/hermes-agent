@@ -1091,6 +1091,10 @@ class PluginContext:
 # the displaced entry. Rows: (method, kind, registry module, base-class module:attr, label, docstring,
 # options). ``normalize``: ``strip`` (default), ``lower`` (strip+lowercase) or ``None`` (raw name).
 _SCOPED_PROVIDER_REGISTRARS: Tuple[Tuple[str, str, str, str, str, str, Dict[str, Any]], ...] = (
+    ("register_provider_access", "provider_access", "agent.provider_access",
+     "agent.provider_access:ProviderAccess", "provider access",
+     "Register provider-only resource access. Exactly one bound authority may apply; "
+     "native credential persistence and profile tool secrets remain unchanged.", {}),
     ("register_image_gen_provider", "image_gen_provider", "agent.image_gen_registry",
      "agent.image_gen_provider:ImageGenProvider", "image_gen provider",
      "Register an :class:`agent.image_gen_provider.ImageGenProvider`; "

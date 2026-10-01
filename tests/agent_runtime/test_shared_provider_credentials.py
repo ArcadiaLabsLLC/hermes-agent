@@ -29,6 +29,7 @@ def test_shared_provider_keys_follow_owner_without_sharing_tools_or_copying(tmp_
     from hermes_cli.auth import _auth_file_path
     from hermes_cli.runtime_provider import resolve_runtime_provider
     from agent.auxiliary_client import _scoped_key_env
+    from agent.anthropic_credentials import _getenv
 
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     owners = [tmp_path / name for name in ("account-a", "account-b")]
@@ -37,7 +38,8 @@ def test_shared_provider_keys_follow_owner_without_sharing_tools_or_copying(tmp_
         folder.mkdir()
         (folder / "config.yaml").write_text("model:\n  provider: openrouter\n", encoding="utf-8")
         (folder / ".env").write_text(
-            f"OPENROUTER_API_KEY=test-{folder.name}\nGITHUB_TOKEN=tool-{folder.name}\n", encoding="utf-8")
+            f"OPENROUTER_API_KEY=test-{folder.name}\nANTHROPIC_API_KEY=test-{folder.name}\n"
+            f"GITHUB_TOKEN=tool-{folder.name}\n", encoding="utf-8")
     for owner in (owners[0], owners[1], owners[0]):
         for profile in profiles:
             with bound(profile, owner):
@@ -45,6 +47,7 @@ def test_shared_provider_keys_follow_owner_without_sharing_tools_or_copying(tmp_
                 assert _auth_file_path() == owner / "auth.json"
                 assert get_env_prefer_dotenv("OPENROUTER_API_KEY") == f"test-{owner.name}"
                 assert _scoped_key_env("OPENROUTER_API_KEY") == f"test-{owner.name}"
+                assert _getenv("ANTHROPIC_API_KEY") == f"test-{owner.name}"
                 assert get_secret("GITHUB_TOKEN") == f"tool-{profile.name}"
                 pool = load_pool("openrouter")
                 assert any(e.runtime_api_key == f"test-{owner.name}" for e in pool.entries())
@@ -57,6 +60,7 @@ def test_shared_provider_keys_follow_owner_without_sharing_tools_or_copying(tmp_
     with bound(profiles[0], owners[0]):
         assert get_env_prefer_dotenv("OPENROUTER_API_KEY") == ""
         assert _scoped_key_env("OPENROUTER_API_KEY") == ""
+        assert _getenv("ANTHROPIC_API_KEY") == ""
     with bound(profiles[0], None):
         assert get_env_prefer_dotenv("OPENROUTER_API_KEY") == "test-agent-a"
 
@@ -78,3 +82,28 @@ def test_oauth_singleton_and_pool_keep_one_owner_across_profile_switches(tmp_pat
             assert _auth_file_path() == owner / "auth.json"
     assert not (a / "auth.json").exists() and not (b / "auth.json").exists()
     assert json.loads((owner / "auth.json").read_text())["credential_pool"]
+
+
+def test_bound_owner_never_borrows_a_different_global_store(tmp_path, monkeypatch):
+    from agent.anthropic_credentials import _root_hermes_oauth_file
+    from hermes_cli.auth import _load_auth_store, _load_provider_state, read_credential_pool
+
+    root, owner, profile = [tmp_path / name for name in ("root", "owner", "agent")]
+    for home in (root, owner, profile):
+        home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    monkeypatch.delenv("HERMES_AUTH_HOME", raising=False)
+    (root / "auth.json").write_text(json.dumps({
+        "version": 1,
+        "providers": {"nous": {"access_token": "synthetic-other-account"}},
+        "credential_pool": {"openai-codex": [{"id": "other", "source": "device_code",
+            "access_token": "synthetic-other-account"}]},
+    }), encoding="utf-8")
+    with bound(profile, None):
+        assert read_credential_pool("openai-codex")[0]["id"] == "other"
+    with bound(profile, owner):
+        assert read_credential_pool("openai-codex") == []
+        assert _load_provider_state(_load_auth_store(), "nous") is None
+        assert _root_hermes_oauth_file() is None
+    with bound(profile, None):
+        assert read_credential_pool("openai-codex")[0]["id"] == "other"

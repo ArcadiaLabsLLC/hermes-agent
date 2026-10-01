@@ -303,6 +303,9 @@ def migrate_retired_local_llama_id() -> None:
 
 
 def register(ctx) -> None:
+    from agent_runtime.provider_access import SharedProviderAccess
+
+    ctx.register_provider_access(SharedProviderAccess())
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler

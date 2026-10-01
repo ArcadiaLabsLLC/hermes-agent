@@ -501,7 +501,7 @@ def _iter_custom_providers(config: Optional[dict] = None):
         return
     try:
         from hermes_cli.config import get_compatible_custom_providers
-        from agent_runtime.provider_configuration import provider_configuration
+        from agent.provider_access import provider_configuration
 
         custom_providers = get_compatible_custom_providers(provider_configuration(config))
     except Exception:
@@ -2822,8 +2822,8 @@ def get_env_prefer_dotenv(key: str) -> str:
     value from the active secret scope (set by apply_onepassword_secrets());
     otherwise every provider auth attempt would receive a URL instead of a key.
     """
-    from agent_runtime.provider_credentials import bound_provider_secret
-    bound = bound_provider_secret(key)
+    from agent.provider_access import provider_secret
+    bound = provider_secret(key)
     if bound is not None:
         return bound
     env_file = load_env()

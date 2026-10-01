@@ -5,6 +5,9 @@ provider/model per agent or conversation without copying credentials.
 
 ## Ownership
 
+- Native readers now use the [provider-access port](provider-access-boundary-2026-10-01.md).
+  Eternia supplies the selected-owner policy through its existing plugin lifecycle;
+  credential storage and model resolution remain native.
 - The service captures its existing `HERMES_AUTH_HOME` authority, or its own home.
   Conversation workers receive that exact owner. In-process workers bind the same
   ContextVar; they never change process-global environment.

@@ -12,6 +12,7 @@ import os
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from hermes_cli.providers import custom_provider_aliases, custom_provider_slug
+from agent.provider_access import provider_secret
 from agent.secret_scope import get_secret_str
 from utils import base_url_hostname
 
@@ -49,8 +50,8 @@ def _key_env_secret(entry: Dict[str, Any], label: str) -> str:
     key_env = _clean(entry.get("key_env") or entry.get("api_key_env"))
     if not key_env:
         return ""
-    from hermes_cli.model_switch import _scoped_key_env
-    value = _scoped_key_env(key_env)
+    bound = provider_secret(key_env)
+    value = get_secret_str(key_env, "").strip() if bound is None else bound
     if not value:
         logger.warning("%s: key_env %s is set but the variable is empty/unset — the request will carry the "
                        "placeholder no-key-required and the endpoint will reject it", label, key_env)
@@ -153,8 +154,7 @@ def _match_new_style_provider(requested_norm: str, providers: Dict[str, Any]) ->
         # Resolve credentials only after identity and endpoint validation. Merely scanning an
         # unrelated entry must not read its profile-scoped secret.
         key_env = _clean(entry.get("key_env") or entry.get("api_key_env"))
-        from hermes_cli.model_switch import _scoped_key_env
-        api_key = _scoped_key_env(key_env)
+        api_key = _key_env_secret(entry, f"providers.{ep_name}")
         result: Dict[str, Any] = {"name": entry.get("name", ep_name), "base_url": base_url.strip(),
                                   "api_key": api_key or _clean(entry.get("api_key", "")), "model": entry.get("default_model", "")}
         # Command that PRINTS a short-lived credential; wrapped in a per-request token provider.

@@ -41,7 +41,7 @@ def load_picker_context() -> ConfigContext:
     from hermes_cli.config import (
         coerce_provider_id, get_compatible_custom_providers, load_config, stringify_provider_map,
     )
-    from agent_runtime.provider_configuration import provider_configuration
+    from agent.provider_access import provider_configuration
     cfg = provider_configuration(load_config())
     model_cfg = cfg.get("model", {})
     if isinstance(model_cfg, dict):

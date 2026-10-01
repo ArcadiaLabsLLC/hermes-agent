@@ -226,7 +226,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
-- [ ] **Replace shared-provider readers' direct Harness imports with a neutral provider-access boundary; retain native credentials, model resolution and session ownership.** · [Shared-provider ownership](../../docs/downstream/shared-provider-authority-2026-09-29.md#ownership). **TAKEN 2026-09-30 provider-access-boundary**
 
 ### Filed on arrival — 2026-09-29 (lane fix-cron-openai)
 

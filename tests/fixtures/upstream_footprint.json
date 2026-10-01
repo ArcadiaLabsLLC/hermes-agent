@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-09-30",
+  "measured_at": "2026-10-01",
   "base": "ee5f49b943",
   "files": 173,
-  "deleted_lines": 881,
+  "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "Owner-approved provider-access cleanup: native readers use a neutral plugin contract; shared-sign-in policy stays in Eternia Harness.",
+      "files": "173 -> 173; no additional inherited file touched.",
+      "deleted_lines": "881 -> 883; heavy unchanged at 4.",
+      "reason": "Two native OAuth fallback return sites must respect the explicitly selected credential authority. Red evidence: an empty owner otherwise borrowed another global account. Existing standalone fallback is preserved. Registry, credentials and model resolution are reused, not duplicated. See docs/downstream/provider-access-boundary-2026-10-01.md; generic extension seams are upstream candidates, not a submitted PR."
+    },
     {
       "change": "lane s2-g5: agent/secret_sources/bitwarden.py's _derive_encrypted_cache_key imports cryptography ImportError-guarded (raises RuntimeError, which both callers' best-effort cache paths already absorb) — phone-gate plan 2026-09-30, lane G5, owner decision D3",
       "files": "172 -> 173 (after the unified-documents row): agent/secret_sources/bitwarden.py",

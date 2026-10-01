@@ -493,19 +493,8 @@ def _nonempty_str(value: Any) -> bool:
 # ── Auth Store — persistence layer for ~/.hermes/auth.json ──────────────────────────────────────────
 
 def _auth_file_path() -> Path:
-    # Fork seam — theme-7 ruling, 2026-09-17. Upstream `93889b770d` made profiles islands:
-    # no profile ever INHERITS another's auth.json, and its read-only global-root fallback
-    # (`_global_auth_file_path` / `_load_global_auth_store`) was deleted with this merge.
-    # What survives is store SELECTION, not inheritance: when the operator's runtime has
-    # explicitly BOUND this process's active auth store to the head's — `HERMES_AUTH_HOME`,
-    # ContextVar first and env second, written only by
-    # `agent_runtime/profile_context.py::persona_profile_context` — the head store IS the
-    # active store. One store, so a single-use refresh chain (Codex/ChatGPT) cannot fork and
-    # no write-through bookkeeping is needed. Unbound, this is byte-for-byte upstream's path.
-    # This is the ONE call site that resolves the auth store path.
-    from agent_runtime.profile_home import get_hermes_auth_home
-    auth_home = get_hermes_auth_home()
-    path = (Path(auth_home) if auth_home else get_hermes_home()) / "auth.json"
+    from agent.provider_access import provider_credential_file
+    path = provider_credential_file("auth.json", get_hermes_home())
     # Seat belt: under pytest, refuse to touch the real user's auth store (tests that forgot to
     # monkeypatch HERMES_HOME or escaped the hermetic conftest). In production: one dict lookup.
     if (os.environ.get("PYTEST_CURRENT_TEST")
@@ -526,7 +515,9 @@ def _global_auth_file_path() -> Optional[Path]:
         global_root = get_default_hermes_root()
     except Exception:
         return None
-    return None if _same_path(get_hermes_home(), global_root) else global_root / "auth.json"
+    from agent.provider_access import provider_credential_file
+    global_path = provider_credential_file("auth.json", global_root)
+    return None if _same_path(_auth_file_path(), global_path) else global_path
 
 
 def _load_global_auth_store() -> Dict[str, Any]:

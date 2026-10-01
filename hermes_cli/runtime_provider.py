@@ -39,7 +39,7 @@ from utils import base_url_host_matches, base_url_hostname, base_url_path, env_i
 # lazily, so its first import can happen while a test has ``hermes_cli.config.load_config`` patched
 # — a from-import would bind the MagicMock permanently and poison every later caller.
 def load_config():
-    from agent_runtime.provider_configuration import provider_configuration
+    from agent.provider_access import provider_configuration
     return provider_configuration(_config_mod.load_config())
 
 

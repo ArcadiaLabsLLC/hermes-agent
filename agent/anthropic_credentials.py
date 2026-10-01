@@ -51,6 +51,10 @@ _CLAUDE_CODE_KEYCHAIN_SERVICE = "Claude Code-credentials"
 
 def _getenv(name: str, default: str = "") -> str:
     """Profile-scoped os.getenv for credential reads (fail-closed on unscoped reads when multiplexing)."""
+    from agent.provider_access import provider_secret
+    bound = provider_secret(name)
+    if bound is not None:
+        return bound or default
     val = _get_secret(name, default)
     return val if val is not None else default
 
@@ -735,7 +739,7 @@ def run_oauth_setup_token() -> Optional[str]:
 
 
 def _get_hermes_oauth_file() -> Path:
-    from agent_runtime.provider_credentials import provider_credential_file
+    from agent.provider_access import provider_credential_file
     return provider_credential_file(".anthropic_oauth.json", get_hermes_home())
 
 
@@ -744,8 +748,10 @@ def _root_hermes_oauth_file() -> Optional[Path]:
     rotation of a grant the profile borrowed via the pool's root fallback."""
     try:
         from hermes_constants import get_default_hermes_root
+        from agent.provider_access import provider_credential_file
         root = get_default_hermes_root()
-        return None if root.resolve(strict=False) == get_hermes_home().resolve(strict=False) else root / ".anthropic_oauth.json"
+        target = provider_credential_file(".anthropic_oauth.json", root)
+        return None if target.resolve(strict=False) == _get_hermes_oauth_file().resolve(strict=False) else target
     except Exception:
         return None
 

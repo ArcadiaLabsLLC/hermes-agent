@@ -1856,8 +1856,8 @@ def _scoped_key_env(name: str) -> str:
     ``.env`` beats a stale value inherited from the parent shell."""
     if not name:
         return ""
-    from agent_runtime.provider_credentials import bound_provider_secret
-    bound = bound_provider_secret(name)
+    from agent.provider_access import provider_secret
+    bound = provider_secret(name)
     if bound is not None:
         return bound
     try:

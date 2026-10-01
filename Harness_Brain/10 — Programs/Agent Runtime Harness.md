@@ -20,6 +20,8 @@ records recovery, exact Stop, scope isolation and baseline repository failures.
 `provider_cursor::` 2026-09-29 — [shared provider authority](../../docs/downstream/shared-provider-authority-2026-09-29.md):
 native conversations reuse the selected service's credentials and catalog while
 retaining profile/tool isolation and independent, confirmed model choices.
+The [October 1 boundary cleanup](../../docs/downstream/provider-access-boundary-2026-10-01.md)
+replaces native readers' Harness imports with a scoped provider-access plugin port.
 
 `native_cursor::` 2026-09-26 — native conversation workers and non-spatial discussion
 admission; [wire contracts](../../docs/agent-runtime-harness/03-transport-and-wire.md#native-conversation-methods),
