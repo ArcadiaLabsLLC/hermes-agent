@@ -217,12 +217,18 @@ def perform_persona_instance_open_chat(
     from .serde import to_jsonable
     from .serve_rpc import ERR_INVALID_PARAMS
     from .conversation_owner import request_client_scope, ConversationOwnerError
+    from .instance_selection import verify_instance_install, opened_instance_identity, InstanceSelectionError
 
     if not isinstance(params, dict):
         params = {}
 
     try:
+        verify_instance_install(params)
         owner = request_client_scope(params)
+    except InstanceSelectionError as exc:
+        from .serve_rpc import ERR_CONFLICT
+        return PersonaOpenChatOutcome(refusal=PersonaOpenChatRefusal(
+            code=ERR_CONFLICT, message="The selected installation changed.", data={"reason": str(exc)}))
     except ConversationOwnerError as exc:
         return PersonaOpenChatOutcome(refusal=PersonaOpenChatRefusal(
             code=ERR_INVALID_PARAMS, message="Invalid conversation owner.", data={"reason": exc.reason}))
@@ -309,6 +315,8 @@ def perform_persona_instance_open_chat(
     correlation_id = _text(params, "correlation_id")
 
     if exit_code == 0 and row.get("ok") is True:
+        if "install_id" in params:
+            row.update(opened_instance_identity(row, params["install_id"]))
         if correlation_id is not None:
             row["correlation_id"] = correlation_id
         return PersonaOpenChatOutcome(result=row)

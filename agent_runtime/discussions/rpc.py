@@ -17,6 +17,7 @@ from .service import DiscussionService, get_service
 from .profile_groups import group_scope, is_group_scope
 from agent_runtime.conversations.model import ConversationError
 from .app_functions import requesting_launcher
+from agent_runtime.call_authorization import authorize_call, TIER_CONSOLE
 
 __layer__ = "lanes"
 
@@ -31,7 +32,8 @@ _CONTEXT_READS = {
 }
 
 
-def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: str) -> dict[str, Any]:
+def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: str,
+            account_access: bool = True) -> dict[str, Any]:
     params = validate_params(operation, raw)
     if "workspace_id" in params:
         scope = params["workspace_id"]
@@ -49,7 +51,7 @@ def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: s
     family, action = operation.split(".", 1)
     if family in {"table", "preset"}:
         return execute_definition(service, family, action, params)
-    return execute_run(service, action, params, actor_id)
+    return execute_run(service, action, params, actor_id, account_access=account_access)
 
 
 def register(method, ok, err) -> None:
@@ -60,7 +62,8 @@ def register(method, ok, err) -> None:
                 # accept a self-declared actor/user ID from request parameters.
                 actor_id = "console-" + digest({"kind": context.caller.kind, "device": context.caller.device_id})[:24]
                 with requesting_launcher(context.launcher_request):
-                    result = execute(get_service(), operation, params, actor_id=actor_id)
+                    result = execute(get_service(), operation, params, actor_id=actor_id,
+                        account_access=authorize_call(TIER_CONSOLE, context.caller, method=PREFIX + operation).ok)
                 return ok(rid, {"contract_version": CONTRACT_VERSION, **result})
             except DefinitionError as exc:
                 code = 4090 if exc.reason in {"stale_revision", "stale_preset_revision", "definition_deleted", "table_busy"} else -32602
