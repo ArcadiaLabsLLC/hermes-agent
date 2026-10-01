@@ -575,6 +575,19 @@ _TIMING_FROM_PROFILE: tuple[tuple[str, str], ...] = (
     # turn. Written by the runner WITHOUT the ``profile_`` prefix, so unlike
     # its three neighbours above the wire name and the source name coincide.
     ("runtime_resolve_ms", "runtime_resolve_ms"),
+    # The FIRST-TURN split (2026-10-01, launcher FIRST_CHAT_STARTUP_OWNER_REPORT
+    # "Phase attribution"): a first send costs 7-9 s over a warm one and the
+    # block could not say where. ``write_ahead -> agent_ready`` holds three
+    # runner spans, and these are the two the block lacked: the MCP admission
+    # and the agent construction, which is ABSENT on a warm turn that reused its
+    # resident actor -- the block's absent-never-zero rule is what makes that
+    # absence the cold/warm tell. Context assembly (``turn_context_ms``) and the
+    # provider's first byte (``provider_first_byte_ms``) were already here; with
+    # these, the three read apart. Same-named in the runner's namespace, like
+    # the line above. (The cold-server COUNT is not copied: the durable record
+    # does not keep it, and this block is a copy of the record.)
+    ("mcp_admission_ms", "mcp_admission_ms"),
+    ("agent_construct_ms", "agent_construct_ms"),
 )
 
 #: The runner's cold/warm receipt, copied as the BOOLEAN it means rather than
@@ -584,7 +597,9 @@ _TIMING_REUSED_KEY = "resident_actor_reused"
 
 #: Every key the block may carry: RO-7's original seven — what hermes did, when
 #: the request left, when the first byte came back, what the provider spent, and
-#: the two facts that explain an outlier — then chat-turn-prep Stage 6's six.
+#: the two facts that explain an outlier — then chat-turn-prep Stage 6's six,
+#: then the first-turn split's two (MCP admission, agent construction;
+#: 2026-10-01), appended the same way.
 #:
 #: The six are APPENDED rather than interleaved chronologically, and that is the
 #: whole of the "additive in the strict sense" rule taken literally: no existing
@@ -608,6 +623,8 @@ TURN_TIMING_ORDER: tuple[str, ...] = (
     "agent_ready_ms",
     "visibility_bundle_builds",
     "runtime_resolve_ms",
+    "mcp_admission_ms",
+    "agent_construct_ms",
 )
 
 
@@ -642,7 +659,10 @@ def turn_timing_block(
         if value is not None:
             collected[wire_key] = value
     for wire_key, source_key in _TIMING_FROM_PROFILE:
-        value = _timing_int(timing.get(source_key), ceiling=_MAX_ELAPSED_MS)
+        value = _timing_int(
+            timing.get(source_key),
+            ceiling=_MAX_COUNT if wire_key in _TIMING_COUNT_KEYS else _MAX_ELAPSED_MS,
+        )
         if value is not None:
             collected[wire_key] = value
     reused = timing.get(_TIMING_REUSED_KEY)
