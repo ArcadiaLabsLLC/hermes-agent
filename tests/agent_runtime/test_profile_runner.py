@@ -1054,6 +1054,9 @@ def test_progress_adapter_sanitizes_sensitive_tool_names_and_summaries():
             "step": "tool_started",
             "status": "started",
             "summary": "Started tool",
+            # The input existed and every line of it was sensitive: the start
+            # says so rather than carrying no input record (w3-turn).
+            "tool_input": "(arguments withheld — every line was redacted)",
         }
     ]
 
@@ -1858,14 +1861,18 @@ def test_dev_work_finished_payload_never_records_raw_tool_io():
     assert "tool_result" not in payload
 
 
-def test_tool_input_dropped_when_every_line_is_secret():
+def test_tool_input_withheld_when_every_line_is_secret():
     payload = _tool_started_payload(
         "run.tool.started",
         "web_fetch",
         invocation={"api_key": "sk-12345"},
     )
-    # A record of only redaction markers carries zero operator signal.
-    assert "tool_input" not in payload
+    # A record of only redaction markers carried zero signal and was dropped
+    # whole, which left the start with no input record at all. Every start now
+    # carries one (w3-turn, 2026-10-01): the fact that input existed, and
+    # nothing of it.
+    assert payload["tool_input"] == "(arguments withheld — every line was redacted)"
+    assert "sk-12345" not in json.dumps(payload)
 
 
 def test_tool_io_newline_in_key_cannot_split_a_secret_marker():

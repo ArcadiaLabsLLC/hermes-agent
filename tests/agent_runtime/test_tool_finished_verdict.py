@@ -236,3 +236,58 @@ def test_the_runner_binds_one_join_to_both_callbacks(monkeypatch):
     assert [event["type"] for event in finished] == ["run.tool.finished"]
     assert finished[0]["status"] == "failed"
     assert finished[0]["duration_ms"] == 4500
+
+
+# --------------------------------------------------------------------------- #
+# Every tool start carries its input preview (w3-turn, 2026-10-01)             #
+# --------------------------------------------------------------------------- #
+_MCP = "mcp__launcher_qa__mcp_launcher_qa_get_runtime_state"
+
+
+def _sunk_start(tool, invocation):
+    """The started payload AFTER the progress sink's redaction boundary -- the
+    record the stream frame, the trace row and the Launcher read."""
+
+    from agent_runtime.progress import _safe_progress_payload
+
+    return _safe_progress_payload("run.tool.started", _started(tool, invocation))
+
+
+def test_an_argument_less_mcp_start_says_so():
+    """events.81417412.jsonl 17586: ``get_runtime_state`` started with no input
+    field at all, indistinguishable from "input not reported".
+
+    *Killing mutation:* ``return TOOL_INPUT_NO_ARGUMENTS`` -> ``return None``.
+    *Positive control:* a start WITH arguments carries them.
+    """
+
+    from agent_runtime.profile_runner.operator_redaction import TOOL_INPUT_NO_ARGUMENTS
+
+    assert _sunk_start(_MCP, {})["tool_input"] == TOOL_INPUT_NO_ARGUMENTS
+    assert 'tab: "news"' in _sunk_start(_MCP, {"tab": "news", "screenshot": False})["tool_input"]
+
+
+def test_a_start_whose_every_argument_is_secret_still_says_it_had_input():
+    """*Killing mutation:* drop ``or TOOL_INPUT_ALL_REDACTED`` -> no field.
+    The secret itself never reaches the record."""
+
+    from agent_runtime.profile_runner.operator_redaction import TOOL_INPUT_ALL_REDACTED
+
+    started = _sunk_start(_MCP, {"api_key": "sk-live-1234567890abcdef"})
+    assert started["tool_input"] == TOOL_INPUT_ALL_REDACTED
+    assert "sk-live" not in json.dumps(started)
+
+
+def test_a_raw_json_argument_string_is_previewed():
+    """*Killing mutation:* drop the ``isinstance(invocation, str)`` decode ->
+    no field for a runtime that hands the raw arguments string."""
+
+    assert 'tab: "news"' in _sunk_start(_MCP, json.dumps({"tab": "news"}))["tool_input"]
+
+
+def test_a_terminal_start_keeps_its_command_as_the_input_record():
+    """Unchanged: ``command_full`` IS a terminal call's input, never doubled."""
+
+    started = _sunk_start("terminal", {"command": "flutter build windows"})
+    assert started["command_full"] == "flutter build windows"
+    assert "tool_input" not in started
