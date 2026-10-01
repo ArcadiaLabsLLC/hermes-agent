@@ -120,7 +120,8 @@ class ConversationService:
                     raise ConversationError(Refusal.WORKER_LOST)
                 receipt, admitted = self.store.admit(live.route, identifier(turn_id), prompt)
             if admitted:
-                live.app_functions.bind(receipt.execution_id, launcher_request)
+                live.app_functions.bind(receipt.execution_id, launcher_request,
+                                        session_id=session_id, turn_id=turn_id, client_scope=scope.client)
                 try:
                     submit(live.peer, live.native_id, prompt, receipt.execution_id)
                     live.dispatched(turn_id)

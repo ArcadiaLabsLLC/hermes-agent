@@ -10,6 +10,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from agent_runtime.launcher_app_functions import ClientRequestFailed
+from agent_runtime.launcher_invocation import launcher_invocation
 from .worker_app_functions import METHOD
 
 __layer__ = "lanes"
@@ -47,11 +48,15 @@ class NativeAppFunctions:
         self._lock = threading.Lock()
         self._execution = None
         self._request = None
+        self._invocation = (None, None)
+        self._client_scope = None
         self._seen = set()
 
-    def bind(self, execution, request):
+    def bind(self, execution, request, *, session_id=None, turn_id=None, client_scope=None):
         with self._lock:
             self._execution, self._request = execution, request
+            self._invocation = (session_id, turn_id)
+            self._client_scope = client_scope
             self._seen.clear()
 
     def receive(self, frame):
@@ -65,12 +70,14 @@ class NativeAppFunctions:
                 return True
             self._seen.add(rid)
             execution, request = self._execution, self._request
+            invocation = self._invocation
+            client_scope = self._client_scope
         if request is None or self.pool is None or not self.pool.submit(
-                lambda: self._forward(frame, execution, request)):
+                lambda: self._forward(frame, execution, request, invocation, client_scope)):
             self._reply(rid, {"error": {"code": -32000, "message": "Launcher unavailable or busy."}})
         return True
 
-    def _forward(self, frame, execution, request):
+    def _forward(self, frame, execution, request, invocation, client_scope):
         try:
             if not self.current(execution):
                 raise ValueError("The requesting turn is no longer active.")
@@ -80,7 +87,8 @@ class NativeAppFunctions:
                 raise ValueError("Invalid app-function request.")
             if len(json.dumps(payload, ensure_ascii=True)) > MAX_BYTES:
                 raise ValueError("App-function request exceeds the document limit.")
-            reply = {"result": request(method, params)}
+            with launcher_invocation("conversation", *invocation, client_scope=client_scope):
+                reply = {"result": request(method, params)}
         except ClientRequestFailed as error:
             reply = {"error": {"code": error.code, "message": error.message, "data": error.data}}
         except Exception:

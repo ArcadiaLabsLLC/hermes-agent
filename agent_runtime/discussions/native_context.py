@@ -13,6 +13,7 @@ from agent_runtime.profile_home import (
 )
 from .definitions import ParticipantRef
 from .run_values import DiscussionError
+from .app_functions import DiscussionAppFunctions
 
 __layer__ = "stores"
 
@@ -24,6 +25,7 @@ class NativeContext:
         self.root, self.home, self.install_id = root.resolve(), home.resolve(), install_id
         self.resolution = resolve_runtime({"HERMES_AGENT_RUNTIME_ROOT": str(self.root), "HERMES_HOME": str(self.home)})
         self.invoke = invoke or _invoke_native
+        self.launcher = DiscussionAppFunctions()
 
     @contextmanager
     def scope(self) -> Iterator[None]:

@@ -9,6 +9,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival � 2026-09-30 (GenUI invocation)
+
+- [ ] **Repair or classify the remaining canonical validation failures around office method manifests, strict XPASS markers and isolated-runner environment.** � [GenUI validation baseline](../../docs/downstream/genui-invocation-2026-09-30.md#validation-baseline); unchanged-main comparison reproduces office/anonymous-sign-in failures, while realm-sync and embedded-phone pass directly. Preserve their exact runner conditions; no product-policy changes or enlarged exemptions.
+
 ## Release validation — 2026-09-23
 
 - [ ] **Repair the stale Toolsets citation in the chat-turn canon.** · The citation-adjacency gate on `6c3fce3947` reports one unwaived failure in `docs/agent-runtime-harness/05-chat-turn-lane.md`, whose Toolsets paragraph points away from `clarify`, `delegation` and `terminal`; gate inputs are unchanged by the QA follow-up. [Check receipt](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#documentation-checks). Filed 2026-09-30 Projects QA. UNCLAIMED

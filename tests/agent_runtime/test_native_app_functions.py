@@ -79,8 +79,11 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
     service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home, **options)
     scope = ConversationScope("operator", "account", "native-proof")
     calls = []
+    placements = []
     entered, release = threading.Event(), threading.Event()
     def request(method, params):
+        from agent_runtime.launcher_invocation import current_invocation
+        placements.append(current_invocation())
         calls.append((method, params))
         if method == "launcher.generated.create":
             entered.set()
@@ -104,6 +107,8 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
         assert settled["turn"]["state"] == "completed", settled
         assert [method for method, _ in calls] == ["launcher.app_functions.list", "launcher.generated.create"], calls
         assert calls[-1][1]["title"] == "Native proof"
+        assert placements[-1] == {"channel": "conversation", "session_id": sid,
+                                  "turn_id": "turn", "client_scope": "account"}
         assert any("generated-proof" in json.dumps(b.get("messages", [])) for b in provider.requests)
         before = list(calls)
         service.open(scope, key="chat", cwd=str(tmp_path), expected_home=str(home), resume=sid)

@@ -80,6 +80,7 @@ class DiscussionService:
         with self._lock:
             self._closed = True
         self.executions.close()
+        self.context.launcher.close()
         self.runtime.stop(timeout=5.0)
 
     @property
@@ -115,6 +116,7 @@ class DiscussionService:
             run = self.runs.begin(workspace_id, table_id, expect_revision=expect_revision,
                 key=key, topic=topic, actor_id=actor_id, resolve=self.context.resolve)
             # Durable admission ACK; initialization runs on the existing worker.
+            self.context.launcher.bind(run["run_id"])
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
@@ -126,6 +128,7 @@ class DiscussionService:
                 raise DiscussionError("runtime_stopping")
             run = self.runs.begin_room(workspace_id, spec, key=key, topic=topic,
                 actor_id=actor_id, resolve=self.context.resolve)
+            self.context.launcher.bind(run["run_id"])
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
@@ -136,6 +139,7 @@ class DiscussionService:
                 raise DiscussionError("runtime_stopping")
             run = admit_group(self.runs, spec, key=key, actor=actor_id, client=client,
                               install_id=self.context.install_id)
+            self.context.launcher.bind(run["run_id"], client_scope=client)
             self.runtime.wakeup()
             return run
 
@@ -224,9 +228,13 @@ class DiscussionService:
             if operation == "send" and (response := response_from_payload(body)) is not None:
                 response.validate_audience((m["member_id"] for m in self.runs.members(run_id) if m["status"] == "active"),
                                            error=lambda _: DiscussionError("member_not_found"))
-            self.runs.request(run_id, workspace_id, key=key, operation=operation,
+            admitted = self.runs.request(run_id, workspace_id, key=key, operation=operation,
                 expect_revision=expect_revision, body={**body, "actor_id": actor_id})
-            self.commands.process(self.runs.get(run_id))
+            run = self.runs.get(run_id)
+            if admitted and operation == "send":
+                self.context.launcher.admit(run_id, key,
+                    client_scope=run["initial"].get("group", {}).get("client"))
+            self.commands.process(run)
             self.runtime.wakeup()
             return self.state.view(workspace_id, run_id)
 

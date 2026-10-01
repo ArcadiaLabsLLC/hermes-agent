@@ -16,6 +16,7 @@ from .run_store import DiscussionError, digest
 from .service import DiscussionService, get_service
 from .profile_groups import group_scope, is_group_scope
 from agent_runtime.conversations.model import ConversationError
+from .app_functions import requesting_launcher
 
 __layer__ = "lanes"
 
@@ -58,7 +59,8 @@ def register(method, ok, err) -> None:
                 # A device's stable credential identity survives reconnect. Never
                 # accept a self-declared actor/user ID from request parameters.
                 actor_id = "console-" + digest({"kind": context.caller.kind, "device": context.caller.device_id})[:24]
-                result = execute(get_service(), operation, params, actor_id=actor_id)
+                with requesting_launcher(context.launcher_request):
+                    result = execute(get_service(), operation, params, actor_id=actor_id)
                 return ok(rid, {"contract_version": CONTRACT_VERSION, **result})
             except DefinitionError as exc:
                 code = 4090 if exc.reason in {"stale_revision", "stale_preset_revision", "definition_deleted", "table_busy"} else -32602

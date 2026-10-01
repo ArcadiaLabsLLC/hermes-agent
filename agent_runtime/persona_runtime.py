@@ -209,101 +209,103 @@ class GPTPersonaRuntime:
             runtime_root=paths.store_root(),
             permission_mode=lane_bundle.permission_mode,
         )
-        result = self._runner.run(
-            AgentRunRequest(
-                profile=binding.hermes_profile,
-                provider=runtime_provider,
-                model=runtime_model,
-                api_mode=persona.api_mode,
-                reasoning_effort=reasoning_effort,
-                terminal_envelope_scope=envelope_scope,
-                mcp_admission=admission,
-                enabled_toolsets=list(lane_bundle.enabled_toolsets),
-                blocked_tool_names=list(lane_bundle.blocked_tool_names),
-                quiet_mode=True,
-                # Operator chat honors the persona's core-context-file opt-in like
-                # the mission-run (L143) and free-chat (L208) paths. Isolated
-                # personas (the default) must NOT auto-inject the process-cwd repo
-                # project docs (e.g. the 72KB hermes-agent AGENTS.md, truncated to
-                # ~65K chars = ~16K tokens) into every conversational turn — that
-                # is ~20K tokens of fixed overhead per turn regardless of persona.
-                # Repo doctrine an operator persona needs is carried by its skills
-                # or read on demand; developer repo docs are not chat-turn context.
-                skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
-                # Profile memory (MEMORY.md / USER.md) is identity-adjacent: it
-                # carries the bound profile's worldview into the turn. Honor the
-                # persona's include_profile_memory opt-in instead of loading it
-                # unconditionally, so a persona bound to a supervisor profile for
-                # *capabilities* does not also inherit that profile's memory-model
-                # (the Alice "goal->Neko->Dev" mental model that made Neko relay
-                # to itself). A persona keeps its own profile's memory when the
-                # binding is its own; it drops a borrowed profile's memory.
-                skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
-                platform=PERSONA_CHAT_SCRATCH_SOURCE,
-                skill_surface="mission_chat",
-                skill_root_node_mode=False,
-                session_id=session_id,
-                # session_id stays None on this lane (the transcript is already
-                # baked into the message), but the ChatGPT-Codex prompt cache is
-                # scoped by the session_id / x-client-request-id HTTP headers.
-                # Feed the STABLE chat session identity (perm_session_id — the id
-                # that names the turn store / observability session) as the
-                # header-only cache_scope_id so the warm prefix survives across
-                # turns. Header/routing value ONLY — never a transcript-load key
-                # (T10c). Worker/mission-run lanes leave this unset.
-                cache_scope_id=perm_session_id,
-                tool_execution_scope_id=root_chat_session_id or perm_session_id,
-                conversation_history=conversation_history,
-                reuse_current_user_message=reuse_current_user_message,
-                persona_chat_user_finish_reason=relay_sender_marker,
-                root_chat_session_id=root_chat_session_id or perm_session_id,
-                client_message_id=client_message_id,
-                turn_id=turn_id,
-                persona_instance_id=persona_instance_id,
-                persona_chat_runtime_registry=runtime_registry,
-                persona_chat_runtime_signature=runtime_signature,
-                persona_chat_runtime_signature_components=runtime_signature_components,
-                persona_chat_native_revision=native_revision,
-                compression_threshold_tokens_override=compression_threshold_tokens_override,
-                compression_protect_first_n_override=compression_protect_first_n_override,
-                compression_protect_last_n_override=compression_protect_last_n_override,
-                max_wall_seconds=max_wall_seconds,
-                max_api_calls=max_api_calls,
-                max_total_tokens=max_total_tokens,
-                # Byte-stable system prompt (T5 + T9a): the volatile Runtime
-                # Situation HUD *and* the queued-skill preload ride the operator's
-                # user turn, not the codex ``instructions``, so the cross-turn
-                # prompt cache prefix survives every follow-up turn — including a
-                # turn on which the operator loads a skill mid-conversation. See
-                # ``_mission_chat_user_message`` / ``_mission_chat_surface_message``.
-                user_message=_mission_chat_user_message(
-                    message,
-                    situational_hud_content,
-                    preloaded_skill_prompt=preloaded_skill_prompt,
-                ),
-                system_message=_mission_chat_surface_message(
-                    persona,
-                    surface_prompt,
-                    workspace_agents_content=workspace_agents_content,
-                ),
-                stream_callback=stream_callback,
-                agent_ready_callback=agent_ready_callback,
-                clarify_callback=clarify_capture.callback,
-                # Key chat trace on the real chat session: Mission Control passes
-                # session_id=None (the transcript is already baked into the
-                # message) but the permission/session lineage lives on
-                # perm_session_id, which is also the persona instance's session.
-                progress_callback=_chat_trace_callback(
-                    session_id=perm_session_id,
-                    persona=persona,
+        from .launcher_invocation import launcher_invocation
+        with launcher_invocation("operator", root_chat_session_id or perm_session_id, turn_id):
+            result = self._runner.run(
+                AgentRunRequest(
+                    profile=binding.hermes_profile,
+                    provider=runtime_provider,
+                    model=runtime_model,
+                    api_mode=persona.api_mode,
+                    reasoning_effort=reasoning_effort,
+                    terminal_envelope_scope=envelope_scope,
+                    mcp_admission=admission,
+                    enabled_toolsets=list(lane_bundle.enabled_toolsets),
+                    blocked_tool_names=list(lane_bundle.blocked_tool_names),
+                    quiet_mode=True,
+                    # Operator chat honors the persona's core-context-file opt-in like
+                    # the mission-run (L143) and free-chat (L208) paths. Isolated
+                    # personas (the default) must NOT auto-inject the process-cwd repo
+                    # project docs (e.g. the 72KB hermes-agent AGENTS.md, truncated to
+                    # ~65K chars = ~16K tokens) into every conversational turn — that
+                    # is ~20K tokens of fixed overhead per turn regardless of persona.
+                    # Repo doctrine an operator persona needs is carried by its skills
+                    # or read on demand; developer repo docs are not chat-turn context.
+                    skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
+                    # Profile memory (MEMORY.md / USER.md) is identity-adjacent: it
+                    # carries the bound profile's worldview into the turn. Honor the
+                    # persona's include_profile_memory opt-in instead of loading it
+                    # unconditionally, so a persona bound to a supervisor profile for
+                    # *capabilities* does not also inherit that profile's memory-model
+                    # (the Alice "goal->Neko->Dev" mental model that made Neko relay
+                    # to itself). A persona keeps its own profile's memory when the
+                    # binding is its own; it drops a borrowed profile's memory.
+                    skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
+                    platform=PERSONA_CHAT_SCRATCH_SOURCE,
+                    skill_surface="mission_chat",
+                    skill_root_node_mode=False,
+                    session_id=session_id,
+                    # session_id stays None on this lane (the transcript is already
+                    # baked into the message), but the ChatGPT-Codex prompt cache is
+                    # scoped by the session_id / x-client-request-id HTTP headers.
+                    # Feed the STABLE chat session identity (perm_session_id — the id
+                    # that names the turn store / observability session) as the
+                    # header-only cache_scope_id so the warm prefix survives across
+                    # turns. Header/routing value ONLY — never a transcript-load key
+                    # (T10c). Worker/mission-run lanes leave this unset.
+                    cache_scope_id=perm_session_id,
+                    tool_execution_scope_id=root_chat_session_id or perm_session_id,
+                    conversation_history=conversation_history,
+                    reuse_current_user_message=reuse_current_user_message,
+                    persona_chat_user_finish_reason=relay_sender_marker,
+                    root_chat_session_id=root_chat_session_id or perm_session_id,
+                    client_message_id=client_message_id,
                     turn_id=turn_id,
-                    before_first_trace=pre_trace_callback,
-                    on_trace=trace_callback,
-                ),
-                runtime_root=paths.store_root(),
-                workdir=Path(workdir.path) if workdir.grounded else None,
+                    persona_instance_id=persona_instance_id,
+                    persona_chat_runtime_registry=runtime_registry,
+                    persona_chat_runtime_signature=runtime_signature,
+                    persona_chat_runtime_signature_components=runtime_signature_components,
+                    persona_chat_native_revision=native_revision,
+                    compression_threshold_tokens_override=compression_threshold_tokens_override,
+                    compression_protect_first_n_override=compression_protect_first_n_override,
+                    compression_protect_last_n_override=compression_protect_last_n_override,
+                    max_wall_seconds=max_wall_seconds,
+                    max_api_calls=max_api_calls,
+                    max_total_tokens=max_total_tokens,
+                    # Byte-stable system prompt (T5 + T9a): the volatile Runtime
+                    # Situation HUD *and* the queued-skill preload ride the operator's
+                    # user turn, not the codex ``instructions``, so the cross-turn
+                    # prompt cache prefix survives every follow-up turn — including a
+                    # turn on which the operator loads a skill mid-conversation. See
+                    # ``_mission_chat_user_message`` / ``_mission_chat_surface_message``.
+                    user_message=_mission_chat_user_message(
+                        message,
+                        situational_hud_content,
+                        preloaded_skill_prompt=preloaded_skill_prompt,
+                    ),
+                    system_message=_mission_chat_surface_message(
+                        persona,
+                        surface_prompt,
+                        workspace_agents_content=workspace_agents_content,
+                    ),
+                    stream_callback=stream_callback,
+                    agent_ready_callback=agent_ready_callback,
+                    clarify_callback=clarify_capture.callback,
+                    # Key chat trace on the real chat session: Mission Control passes
+                    # session_id=None (the transcript is already baked into the
+                    # message) but the permission/session lineage lives on
+                    # perm_session_id, which is also the persona instance's session.
+                    progress_callback=_chat_trace_callback(
+                        session_id=perm_session_id,
+                        persona=persona,
+                        turn_id=turn_id,
+                        before_first_trace=pre_trace_callback,
+                        on_trace=trace_callback,
+                    ),
+                    runtime_root=paths.store_root(),
+                    workdir=Path(workdir.path) if workdir.grounded else None,
+                )
             )
-        )
         ChatToolPermissionStore().consume_turn(persona_id=persona.id, session_id=perm_session_id)
         if clarify_capture.requested and isinstance(result.raw, dict):
             result.raw["clarify_request"] = clarify_capture.request

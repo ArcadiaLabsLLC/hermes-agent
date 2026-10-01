@@ -24,7 +24,7 @@ from tests.agent_runtime.test_discussion_runtime import (  # noqa: F401 - pytest
 pytestmark = pytest.mark.timeout(180)
 
 
-CONTEXT = SimpleNamespace(caller=SimpleNamespace(kind="console", device_id="device-1"))
+CONTEXT = SimpleNamespace(caller=SimpleNamespace(kind="console", device_id="device-1"), launcher_request=None)
 
 
 def _handlers(service, monkeypatch) -> dict:
@@ -49,7 +49,6 @@ def _handlers(service, monkeypatch) -> dict:
     return registered
 
 
-CONTEXT = SimpleNamespace(caller=SimpleNamespace(kind="console", device_id="device-1"))
 
 
 def test_run_get_maps_a_hosted_room_refusal_to_a_typed_reason(engine, monkeypatch):
