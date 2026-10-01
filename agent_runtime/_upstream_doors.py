@@ -54,6 +54,7 @@ __all__ = [
     "skills_tool_inspection_doors",
     "skills_walker",
     "strip_quotes",
+    "terminal_foreground_timeouts",
     "terminate_host_pid",
     "whisper_confident_text",
 ]
@@ -140,6 +141,18 @@ def terminate_host_pid(pid: int, expected_start: int | None) -> None:
     from tools.process_registry import ProcessRegistry
 
     ProcessRegistry._terminate_host_pid(int(pid), expected_start)
+
+
+def terminal_foreground_timeouts(terminal: object) -> tuple[int, int]:
+    """``(default, cap)`` seconds of a FOREGROUND ``terminal`` call: the
+    resolved ``tools.terminal_tool._get_env_config()["timeout"]`` and the public
+    ``FOREGROUND_MAX_TIMEOUT`` — the two numbers ``_plan_execution`` decides a
+    call's deadline from. Read by ``getattr`` on the module the caller already
+    holds (never imported here). Raises when either is missing; the caller
+    degrades to "no timeout known".
+    Widening candidate: publish ``terminal_tool.effective_foreground_timeout()``."""
+    config = getattr(terminal, "_get_env_config")()
+    return int(config["timeout"]), int(getattr(terminal, "FOREGROUND_MAX_TIMEOUT"))
 
 
 def cron_pools_present(scheduler: object) -> bool:

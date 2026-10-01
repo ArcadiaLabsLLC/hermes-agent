@@ -4,10 +4,12 @@ fields, the todo-state payload, and the safe label/exit-code/summary coercions.
 
 from __future__ import annotations
 
+import importlib
 import json
 from typing import Any, Callable
 import re
 
+from agent_runtime._upstream_doors import terminal_foreground_timeouts
 from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels
 from agent_runtime.serde import strict_int
 from agent_runtime.profile_runner.dispatch_payloads import (
@@ -30,6 +32,7 @@ from agent_runtime.profile_runner.operator_redaction import (
 __layer__ = "stores"
 
 __all__ = [
+    "TOOL_OUTCOME_TIMED_OUT",
     "_PATCH_MODES",
     "_TODO_STATE_MAX_CONTENT",
     "_TODO_STATE_MAX_ID",
@@ -44,6 +47,7 @@ __all__ = [
     "_safe_command_label",
     "_safe_label",
     "_safe_reasoning_summary",
+    "_terminal_timeout_seconds",
     "_safe_skill_identifier_from_value",
     "_safe_skill_tool_name",
     "_todo_items_from",
@@ -77,6 +81,9 @@ def _tool_started_payload(event_type: str, tool_name: str | None, *, invocation:
     command_full = _safe_operator_command(invocation)
     if command_full:
         payload["command_full"] = command_full
+    timeout_seconds = _terminal_timeout_seconds(tool_name, invocation)
+    if timeout_seconds is not None:
+        payload["timeout_seconds"] = timeout_seconds
     target_label = _safe_operator_target(invocation)
     if target_label:
         payload["target_label"] = target_label
@@ -89,7 +96,15 @@ def _tool_started_payload(event_type: str, tool_name: str | None, *, invocation:
     return payload
 
 
-def _tool_finished_payload(event_type: str, tool_name: str | None, *, duration: Any, is_error: bool, result: Any, invocation: Any = None) -> dict[str, Any]:
+def _tool_finished_payload(
+    event_type: str, tool_name: str | None, *, duration: Any, is_error: bool, result: Any,
+    invocation: Any = None, verdict_result: Any = None,
+) -> dict[str, Any]:
+    """``verdict_result`` is the decoded envelope the exit code, output and
+    timeout are read from when ``result`` is the tool's raw result string (the
+    ``run.tool.finished`` lane); it defaults to ``result``."""
+
+    verdict = result if verdict_result is None else verdict_result
     status = "failed" if is_error else "passed"
     payload = {"type": event_type, "phase": "tool", "step": "tool_finished", "status": status}
     if tool_name:
@@ -97,9 +112,10 @@ def _tool_finished_payload(event_type: str, tool_name: str | None, *, duration: 
     duration_ms = _duration_ms(duration)
     if duration_ms is not None:
         payload["duration_ms"] = duration_ms
-    exit_code = strict_int((result or {}).get("exit_code") if isinstance(result, dict) else None)
+    exit_code = strict_int(verdict.get("exit_code") if isinstance(verdict, dict) else None)
     if exit_code is not None:
         payload["exit_code"] = exit_code
+    payload.update(_outcome_fields(status, verdict))
     skill_name = _safe_skill_tool_name(tool_name, invocation) or _safe_skill_tool_name(tool_name, result)
     if skill_name:
         payload["skill_name"] = skill_name
@@ -130,7 +146,7 @@ def _tool_finished_payload(event_type: str, tool_name: str | None, *, duration: 
     command_full = _safe_operator_command(invocation)
     if command_full:
         payload["command_full"] = command_full
-    output = _safe_operator_output(tool_name, result)
+    output = _safe_operator_output(tool_name, verdict)
     if output:
         payload["output"] = output
     todo_state = _todo_state_payload(tool_name, result, invocation)
@@ -152,6 +168,45 @@ def _tool_finished_payload(event_type: str, tool_name: str | None, *, duration: 
         result=result,
     )
     return payload
+
+
+#: The finished call's outcome words: the status pair plus ``timed_out``, which
+#: is Hermes' own deadline firing (the terminal result's ``timed_out: true``),
+#: never a command that chose to ``exit 124``.
+TOOL_OUTCOME_TIMED_OUT = "timed_out"
+
+
+def _outcome_fields(status: str, verdict: Any) -> dict[str, Any]:
+    """``outcome`` on every finished payload; ``timed_out: true`` only when it did."""
+
+    if isinstance(verdict, dict) and verdict.get("timed_out") is True:
+        return {"outcome": TOOL_OUTCOME_TIMED_OUT, "timed_out": True}
+    return {"outcome": status}
+
+
+def _terminal_timeout_seconds(tool_name: str | None, invocation: Any) -> int | None:
+    """The deadline a FOREGROUND ``terminal`` call will run under, else None.
+
+    Read off the terminal tool's own config and cap — the authority
+    ``_plan_execution`` reads. Imported, never sniffed off ``sys.modules``: a
+    ``terminal`` call means the tool module is loaded in any real turn, and an
+    answer that depended on what some earlier import happened to drag in would
+    make this payload's shape a function of hidden import order. ``None`` for a
+    background call, and for an over-cap request, which the tool promotes to a
+    background process (``promoted_from_foreground_timeout``) rather than
+    running in the foreground.
+    """
+
+    if (tool_name or "") != "terminal" or not isinstance(invocation, dict) or invocation.get("background"):
+        return None
+    requested = invocation.get("timeout")
+    try:
+        default, cap = terminal_foreground_timeouts(importlib.import_module("tools.terminal_tool"))
+    except Exception:
+        return None
+    if isinstance(requested, (int, float)) and not isinstance(requested, bool) and requested > 0:
+        return None if requested > cap else int(requested)
+    return default
 
 
 def _dev_work_payload(tool_name: str | None, *, status: str, result: Any, invocation: Any) -> dict[str, Any] | None:

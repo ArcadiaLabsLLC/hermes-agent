@@ -597,6 +597,12 @@ def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch,
     assert caught.value.provider_error == evidence
 
 
+def _terminal_default_timeout() -> int:
+    import tools.terminal_tool as terminal
+
+    return int(terminal._get_env_config()["timeout"])
+
+
 def test_progress_adapter_enriches_tool_progress_started_event():
     events = []
     cb = _progress_adapter(events.append, "run.progress")
@@ -613,6 +619,8 @@ def test_progress_adapter_enriches_tool_progress_started_event():
             "summary": "Started tool terminal: pytest",
             "command_label": "pytest",
             "command_full": "pytest",
+            # RW3: the foreground deadline, off the terminal tool's own config.
+            "timeout_seconds": _terminal_default_timeout(),
         }
     ]
 
@@ -633,6 +641,10 @@ def test_progress_adapter_enriches_tool_lifecycle_started_event():
             "summary": "Started tool terminal: pytest",
             "command_label": "pytest",
             "command_full": "pytest",
+            # RW3: the foreground deadline, off the terminal tool's own config.
+            "timeout_seconds": _terminal_default_timeout(),
+            # RW5: the runner's call id (args[0]) rides the run.tool.* lane.
+            "tool_call_id": "call_1",
         }
     ]
 
@@ -652,6 +664,7 @@ def test_progress_adapter_enriches_tool_completed_event_with_duration_and_status
             "status": "passed",
             "duration_ms": 1250,
             "exit_code": 0,
+            "outcome": "passed",
             "summary": "Finished tool terminal: passed in 1250ms",
         }
     ]
@@ -671,9 +684,11 @@ def test_progress_adapter_enriches_tool_lifecycle_finished_event():
             "tool_name": "terminal",
             "status": "passed",
             "exit_code": 0,
+            "outcome": "passed",
             "summary": "Finished tool terminal: passed",
             "command_label": "pytest",
             "command_full": "pytest",
+            "tool_call_id": "call_1",
         }
     ]
 
@@ -846,9 +861,11 @@ def test_progress_adapter_marks_string_error_lifecycle_result_failed():
             "summary": "Finished tool terminal: failed",
             "command_label": "pytest",
             "command_full": "pytest",
+            "outcome": "failed",
             # A string lifecycle result is the error itself — real signal for
             # the console's Result dropdown (scrubbed + bounded like all IO).
             "tool_result": "ERROR: command failed",
+            "tool_call_id": "call_1",
         }
     ]
 
@@ -885,6 +902,8 @@ def test_progress_adapter_summarizes_patch_tool_result_without_raw_diff():
         "step": "patch",
         "tool_name": "patch",
         "status": "passed",
+        "outcome": "passed",
+        "tool_call_id": "call_1",
         "summary": "Patched 2 files: mission_control_page.dart, mission_control_page_test.dart",
         "detail": "Changed files: mission_control_page.dart, mission_control_page_test.dart",
         "patch_summary": "Patched 2 files",
@@ -1010,11 +1029,13 @@ def test_progress_adapter_summarizes_write_file_as_dev_work_without_absolute_pat
             "step": "write_file",
             "tool_name": "write_file",
             "status": "passed",
+            "outcome": "passed",
             "summary": "Wrote code file: customize_order.dart",
             "detail": "Changed files: customize_order.dart",
             "file_summary": "Wrote code file",
             "changed_files": ["customize_order.dart"],
             "files_touched": 1,
+            "tool_call_id": "call_2",
         }
     ]
     encoded = repr(events)
@@ -1262,12 +1283,16 @@ def test_tool_lifecycle_finished_marks_timeout_exit_code_as_failed():
             "tool_name": "terminal",
             "status": "failed",
             "exit_code": 124,
+            # RW3: Hermes' own deadline is its own outcome, not a bare failure.
+            "outcome": "timed_out",
+            "timed_out": True,
             "summary": "Finished tool terminal: failed",
             "command_label": "pytest",
             "command_full": "pytest",
             # No output tail came back; the envelope remainder (minus the
             # exit_code echo) is the honest result record for the dropdown.
             "tool_result": "timed_out: true",
+            "tool_call_id": "call_1",
         }
     ]
 
