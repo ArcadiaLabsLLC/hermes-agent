@@ -46,8 +46,8 @@ def test_set_key_parser_has_no_value_bearing_secret_flag():
     """The secret cannot reach argv BY CONSTRUCTION — there is no flag to put
     it in.
 
-    MUTATION (kill): add `auth_set_key.add_argument("--api-key", ...)` back in
-    `hermes_cli/subcommands/auth.py` — red.
+    MUTATION (kill): add `key.add_argument("--api-key")` in
+    `hermes_cli/harness_parts/parser/auth.py` — red.
 
     Anti-vacuity note: the probed fact is the OPTION STRINGS of the `set-key`
     subparser specifically, read off the built parser rather than grepped. The

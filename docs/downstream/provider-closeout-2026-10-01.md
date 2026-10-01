@@ -33,6 +33,8 @@ One worker; synthetic credentials and temporary homes only.
   inline/compute execution, A→B→A isolation, model changes and reopening.
 - Contract, import-boundary and consumer-verdict checks: 118 passed.
 - File/function-size ceiling: 5 passed. Ruff F and whitespace checks pass.
+- Final auth/namespace checks: 17 passed. Adding a secret-valued CLI flag makes
+  the parser safety test fail; the mutation was restored before this green run.
 - The actual `python -m hermes_cli.main harness auth set-key` process saved a
   synthetic key to the isolated home, exited 0 and returned no secret.
 - CLI fixture: 208 command paths; only the three Harness auth paths are added.
