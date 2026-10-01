@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Owner asks — 2026-10-01 (instance conversations)
+
+- [ ] **Converge Launcher conversations on persona-instance identity; preserve rich conversation capabilities, opaque account ownership and independent non-spatial rooms.** · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md) · Launcher cutover follows parity · **TAKEN 2026-10-01 Codex**
+
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
 - [ ] **Build Eternia Lens as a fork-owned plugin (`plugins/eternia-lens/`, code under `agent_runtime/lens/`): a poll / push / pull ingest module whose rules raise Episodes that forge ONE chat turn of the selected persona (ADR 0008), on both the bundled profile and the Developer Edition; a Python port of Companion's Monitoring contracts, everything Lens-presentation / Work / repair cut. Stages L0–L4, four owner rulings owed before L0** · `fork / runtime` · plan [eternia-lens-in-hermes.md](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md) · launcher half: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` (the L1 fold row) · UNCLAIMED
