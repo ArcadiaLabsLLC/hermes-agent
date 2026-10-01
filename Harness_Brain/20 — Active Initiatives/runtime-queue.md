@@ -26,6 +26,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
+- [ ] **Agents answer harness-state questions ("is there a QA session?") by shelling out to `hermes harness snapshot --json` — 3 calls, 126 s of a 150.8 s turn (launcher `docs/mission_control/SIX_SCREENSHOT_FINDINGS_2026-10-01.md` F1/F2). Measured 2026-10-01 idle: `hermes --version` 5.6 s (imports ~3 s: `hermes_cli.config` 1.7 s, `hermes_bootstrap` 1.0 s), `persona list` 11.2 s, `persona-instance detail` 7.8 s, `snapshot` 7.7 s producing 907 KB of JSON. No in-process tool answers roster / instance / session state (only `agent_chat_*`, `board`). Fix candidates: an in-process read-only harness query tool served by the running serve; read-only CLI verbs answered by the serve instead of a cold rebuild; snapshot field selection; skill guidance naming the narrow verb per question** · `fork / runtime` · OWNER: pick scope · UNCLAIMED
+
 - [ ] **Restore the optional MCP client in the managed runtime serving the existing Launcher QA agent, then verify its live catalog and one read-only call.** · Owner-approved root admission and `launcher-qa` registration are applied; authentication works, but live turns register zero tools and the selected environment has no `mcp` package. Use the canonical managed installer and safe service refresh; no replacement agent/session. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#missing-runtime-dependency); unblocks `EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`. Filed 2026-09-30 Projects QA. UNCLAIMED
 
 
