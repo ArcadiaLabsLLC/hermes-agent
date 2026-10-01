@@ -56,7 +56,7 @@ from agent_runtime.profile_runner.status import (
     _emit_request_timing,
     _profile_status_callback,
 )
-from agent_runtime.profile_runner.progress import _progress_adapter
+from agent_runtime.profile_runner.progress import ToolFinishJoin, _progress_adapter
 from agent_runtime.profile_runner.model_input_observability import (
     _apply_chat_compaction_threshold,
     _attach_model_input_observability,
@@ -521,6 +521,10 @@ class AgentRunExecution:
         # these seven values from a freshly built agent, which is why one had
         # to be constructed (~1.4-1.8 s, tool setup dominated) even on the
         # warm serve lane where it was immediately discarded on reuse.
+        # One finished tool call, one published event: upstream's
+        # ``tool.completed`` progress half is held here and folded into the
+        # ``run.tool.finished`` event that claims it (``ToolFinishJoin``).
+        tool_finish_join = ToolFinishJoin()
         self.turn_state = {
             "status_callback": _profile_status_callback(request, self.timing),
             # Kept on ONE line each, exactly as in the construction call this
@@ -529,9 +533,9 @@ class AgentRunExecution:
             # rather than written at the sink, and it witnesses that by
             # matching the call's SOURCE TEXT — so a purely cosmetic wrap here
             # reads to that gate as "the runner stopped naming the label".
-            "tool_progress_callback": _progress_adapter(request.progress_callback, "run.progress", guard=budget_guard),
+            "tool_progress_callback": _progress_adapter(request.progress_callback, "run.progress", guard=budget_guard, join=tool_finish_join),
             "tool_start_callback": _progress_adapter(request.progress_callback, "run.tool.started", guard=budget_guard, observe=self.observe_tool_started),
-            "tool_complete_callback": _progress_adapter(request.progress_callback, "run.tool.finished", guard=budget_guard, observe=self.observe_tool_finished),
+            "tool_complete_callback": _progress_adapter(request.progress_callback, "run.tool.finished", guard=budget_guard, observe=self.observe_tool_finished, join=tool_finish_join),
             "clarify_callback": request.clarify_callback,
             # Header-only codex cache-scope hint; the default factory applies
             # it to the constructed agent (never to session/transcript load).

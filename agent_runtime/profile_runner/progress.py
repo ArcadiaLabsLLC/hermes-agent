@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from collections import deque
 from collections.abc import Mapping
 from typing import Any, Callable
 
@@ -22,11 +24,60 @@ __layer__ = "stores"
 
 __all__ = [
     "CALLBACK_EVENTS",
+    "JOINED_CALLBACK_EVENTS",
     "ProgressBuilder",
     "RUN_EVENTS",
+    "ToolFinishJoin",
     "_progress_adapter",
     "_progress_payload_from_callback",
 ]
+
+
+#: Upstream callback events that are NOT published on their own: each is one
+#: half of a fact whose other half arrives on a ``run.tool.*`` lane, and is
+#: folded into that lane's single event by :class:`ToolFinishJoin`.
+JOINED_CALLBACK_EVENTS = frozenset({"tool.completed"})
+
+
+class ToolFinishJoin:
+    """One finished tool call, ONE published event.
+
+    Upstream reports a finished call twice, back to back on the thread that
+    committed the result: the ``tool.completed`` progress callback (duration and
+    the executor's own failure verdict, no call id) and then
+    ``tool_complete_callback`` (call id, args, raw result). Both used to be
+    published -- ``run.progress`` step ``tool_finished`` and ``run.tool.finished``
+    -- and on 2026-10-01 they disagreed about one 160 s build ("failed in
+    160297ms" against "passed"). Now the first is HELD here and the second, the
+    one every reader folds, claims it: ``run.tool.finished`` is the only
+    finished event, carrying the call id, the duration and one verdict.
+
+    Keyed on (thread, tool name) because upstream fires the pair on one thread
+    with nothing between them; a FIFO per key so a held half is never claimed
+    by a call of another name or on another thread. A held half nobody claims
+    (a runtime that fires only ``tool.completed``) dies with the run -- it is
+    never published as a second verdict.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._held: dict[tuple[int, str], deque[dict[str, Any]]] = {}
+
+    def hold(self, tool_name: str | None, kwargs: dict[str, Any]) -> None:
+        half = {key: kwargs[key] for key in ("duration", "is_error") if key in kwargs}
+        with self._lock:
+            self._held.setdefault((threading.get_ident(), tool_name or ""), deque()).append(half)
+
+    def claim(self, tool_name: str | None) -> dict[str, Any]:
+        key = (threading.get_ident(), tool_name or "")
+        with self._lock:
+            held = self._held.get(key)
+            if not held:
+                return {}
+            half = held.popleft()
+            if not held:
+                del self._held[key]
+            return half
 
 
 def _progress_adapter(
@@ -35,6 +86,7 @@ def _progress_adapter(
     *,
     guard: _ToolBudgetGuard | None = None,
     observe: Callable[[tuple[Any, ...], dict[str, Any]], None] | None = None,
+    join: ToolFinishJoin | None = None,
 ):
     """The agent-callback adapter for one event label.
 
@@ -42,6 +94,10 @@ def _progress_adapter(
     args BEFORE the sink does — the runner's live-turn registry rides it (the
     ``run.tool.*`` args lead with the tool-call id, which no payload carried).
     An observer that raises is swallowed: it is bookkeeping, never the turn.
+
+    ``join`` is the run's :class:`ToolFinishJoin`, shared by the progress and
+    the completion adapter: a :data:`JOINED_CALLBACK_EVENTS` callback is held
+    there and never published, and ``run.tool.finished`` claims it.
     """
 
     if callback is None and guard is None:
@@ -51,6 +107,12 @@ def _progress_adapter(
 
     def emit(*args, **kwargs):
         try:
+            if event_type not in RUN_EVENTS and args and str(args[0]) in JOINED_CALLBACK_EVENTS:
+                if join is not None:
+                    join.hold(_safe_label(args[1]) if len(args) > 1 else None, kwargs)
+                return None
+            if join is not None and event_type == "run.tool.finished":
+                kwargs = {**join.claim(_safe_label(args[1]) if len(args) > 1 else None), **kwargs}
             payload = _progress_payload_from_callback(event_type, args, kwargs)
             if observe is not None:
                 try:
@@ -127,24 +189,29 @@ def _run_tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, 
 
 
 def _run_tool_finished(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
-    """The ``tool_complete_callback`` lane — the one the chat stream and the
-    conversation's ``tool_call`` rows fold.
+    """The ``tool_complete_callback`` lane — the ONLY finished-tool event, and
+    the one the chat stream and the conversation's ``tool_call`` rows fold.
 
     Upstream hands this callback the tool's RESULT STRING (``function_result``,
     the JSON the model reads), never a dict. Read raw, the verdict, exit code
     and output were all invisible: a 160 s ``flutter build`` that FAILED was
     recorded ``passed`` with no exit code, no output and no duration while its
     ``run.progress`` twin said ``failed in 160297ms`` (RW5, live receipts
-    2026-10-01). The verdict now reads the decoded envelope.
+    2026-10-01). The verdict now reads the decoded envelope, and that twin is
+    gone (:class:`ToolFinishJoin`): its ``duration`` and the executor's
+    ``is_error`` arrive here as kwargs, and the one verdict is ``failed`` when
+    EITHER the executor or the envelope says so -- no second event is left to
+    say otherwise.
     """
 
     tool_name = _safe_label(args[1]) if len(args) > 1 else None
     invocation = args[2] if len(args) > 2 else None
     result = args[3] if len(args) > 3 else None
     verdict = _decoded_envelope(result)
+    is_error = kwargs.get("is_error") is True or _is_error_result(verdict)
     return _with_call_id(
         _tool_finished_payload(
-            event_type, tool_name, duration=None, is_error=_is_error_result(verdict),
+            event_type, tool_name, duration=kwargs.get("duration"), is_error=is_error,
             result=result, invocation=invocation, verdict_result=verdict,
         ),
         args,
@@ -170,11 +237,6 @@ def _tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]
     return _tool_started_payload(event_type, tool_name, invocation=invocation)
 
 
-def _tool_completed(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
-    tool_name = _safe_label(args[1]) if len(args) > 1 else None
-    return _tool_finished_payload(event_type, tool_name, duration=kwargs.get("duration"), is_error=bool(kwargs.get("is_error")), result=kwargs.get("result"), invocation=kwargs.get("input") or kwargs.get("tool_input"))
-
-
 def _reasoning(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     payload = {
         "type": event_type,
@@ -197,14 +259,14 @@ def _progress_default(event_type: str, args: tuple[Any, ...], kwargs: dict[str, 
 #: TWO vocabularies ride one callback: the adapter's own event label (the
 #: ``run.tool.*`` labels the runner binds, checked FIRST) and the agent's
 #: callback event (``args[0]``). An event neither table names is the default
-#: progress payload — the boundary, not a third arm.
+#: progress payload — the boundary, not a third arm. ``tool.completed`` is in
+#: neither: it is :data:`JOINED_CALLBACK_EVENTS`, never published on its own.
 RUN_EVENTS: Mapping[str, ProgressBuilder] = {
     "run.tool.started": _run_tool_started,
     "run.tool.finished": _run_tool_finished,
 }
 CALLBACK_EVENTS: Mapping[str, ProgressBuilder] = {
     "tool.started": _tool_started,
-    "tool.completed": _tool_completed,
     "reasoning.available": _reasoning,
     "_thinking": _reasoning,
 }

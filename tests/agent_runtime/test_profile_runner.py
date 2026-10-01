@@ -649,25 +649,23 @@ def test_progress_adapter_enriches_tool_lifecycle_started_event():
     ]
 
 
-def test_progress_adapter_enriches_tool_completed_event_with_duration_and_status():
+def test_progress_adapter_never_publishes_tool_completed_on_its_own():
+    """``tool.completed`` is half of the ONE finished event ``run.tool.finished``
+    publishes (``ToolFinishJoin``); a second ``tool_finished`` on ``run.progress``
+    is the twin that said "failed" beside a "passed" on 2026-10-01.
+
+    *Positive control:* ``tool.started`` on the same adapter still publishes, so
+    the empty list is this event's absence, not a dead adapter.
+    """
+
     events = []
     cb = _progress_adapter(events.append, "run.progress")
 
     cb("tool.completed", "terminal", None, None, duration=1.25, is_error=False, result={"exit_code": 0})
+    assert events == []
 
-    assert events == [
-        {
-            "type": "run.progress",
-            "phase": "tool",
-            "step": "tool_finished",
-            "tool_name": "terminal",
-            "status": "passed",
-            "duration_ms": 1250,
-            "exit_code": 0,
-            "outcome": "passed",
-            "summary": "Finished tool terminal: passed in 1250ms",
-        }
-    ]
+    cb("tool.started", "terminal", "pytest", {"command": "pytest"})
+    assert [event["step"] for event in events] == ["tool_started"]
 
 
 def test_progress_adapter_enriches_tool_lifecycle_finished_event():
@@ -1889,27 +1887,53 @@ def test_tool_io_newline_in_key_cannot_split_a_secret_marker():
     assert "ok: true" in payload["tool_result"]
 
 
+class _Unrenderable:
+    """A value ``json.dumps(default=str)`` AND ``str()`` both raise on.
+
+    The fixture used to be a 4000-deep nested list, which raised RecursionError
+    on Python <= 3.13 and serializes fine on 3.14 (whose C recursion guard no
+    longer trips at that depth) — so on 3.14 the record attached and the test
+    went red over unchanged code. Raising from ``__str__`` is the failure the
+    guarantee is about, on every interpreter.
+    """
+
+    def __str__(self) -> str:
+        raise RecursionError("pathological result")
+
+    __repr__ = __str__
+
+
 def test_tool_io_pathological_result_never_kills_the_tool_event():
     # Review finding (2026-07-23): a result json.dumps AND str() both choke on
-    # (deeply nested containers → RecursionError) must lose only the IO
-    # record, never the whole run.tool.finished event.
-    deep: list = []
-    tail = deep
-    for _ in range(4000):
-        nested: list = []
-        tail.append(nested)
-        tail = nested
+    # must lose only the IO record, never the whole run.tool.finished event.
+    #
+    # *Killing mutation:* drop the inner try/except of
+    # ``operator_redaction._render_operator_kv_block``'s last-resort repr ->
+    # RecursionError escapes ``_tool_finished_payload``.
     payload = _tool_finished_payload(
         "run.tool.finished",
         "parser",
         duration=None,
         is_error=False,
-        result=deep,
+        result=[_Unrenderable()],
         invocation={"path": "x"},
     )
     assert payload["tool_name"] == "parser"
     assert payload["status"] == "passed"
     assert "tool_result" not in payload
+
+    # Positive control: the same call with a renderable result DOES attach the
+    # record, so the absence above is the guard working, not a lane that never
+    # attaches one.
+    control = _tool_finished_payload(
+        "run.tool.finished",
+        "parser",
+        duration=None,
+        is_error=False,
+        result=["renderable"],
+        invocation={"path": "x"},
+    )
+    assert "renderable" in control["tool_result"]
 
 
 def test_tool_result_bounded_head_with_marker():
