@@ -1,7 +1,6 @@
 """Select an execution adapter; both use the same room scheduler and command log."""
 from __future__ import annotations
 
-from .definitions import ParticipantRef
 from .native import NativeTurns
 from .session_rpc import NativeSessionRPC
 from .run_values import DiscussionError
@@ -40,9 +39,10 @@ class InstanceExecution(SessionExecution):
 
     def initialize(self, run, members):
         for member in members:
-            live = self.context.resolve(ParticipantRef(member["install_id"], member["instance_id"]), run["workspace_id"])
-            if any(live[k] != member[k] for k in ("persona_id", "profile")):
-                raise DiscussionError("profile_binding_changed")
+            if run["table_id"] is not None:
+                live = self.context.resolve_member(run, member)
+                if any(live[k] != member[k] for k in ("persona_id", "profile")):
+                    raise DiscussionError("profile_binding_changed")
             self.context.ensure_session(run, member)
 
     def answer(self, run, member, row, key, body, callback):

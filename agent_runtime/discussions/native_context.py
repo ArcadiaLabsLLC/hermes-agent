@@ -59,7 +59,8 @@ class NativeContext:
                 raise DiscussionError("workspace_archived")
             return workspace
 
-    def resolve(self, ref: ParticipantRef, workspace_id: str) -> dict[str, Any]:
+    def resolve(self, ref: ParticipantRef, workspace_id: str, *,
+                require_placement: bool = True, require_ready: bool = True) -> dict[str, Any]:
         from agent_runtime.persona_assignments import PersonaInstanceStore
         from agent_runtime.config import load_agent_runtime_config, ensure_persisted_personas
         from agent_runtime.profile_context import resolve_persona_profile, active_profile_name
@@ -77,18 +78,26 @@ class NativeContext:
                 raise DiscussionError("instance_not_found", instance_id=ref.instance_id) from exc
             if store.retired_instance_archive_path(ref.instance_id, persona_id=instance.persona_id) is not None:
                 raise DiscussionError("instance_retired", instance_id=ref.instance_id)
-            if effective_workspace_id(instance, active_workspace_id=workspace_id) != workspace_id:
+            if require_placement and effective_workspace_id(instance, active_workspace_id=workspace_id) != workspace_id:
                 raise DiscussionError("foreign_workspace", instance_id=ref.instance_id)
             personas = {p.id: p for p in ensure_persisted_personas(load_agent_runtime_config())}
             persona = personas.get(instance.persona_id)
             if persona is None or not is_runtime_persona(persona):
                 raise DiscussionError("persona_not_found", instance_id=ref.instance_id)
             binding = resolve_persona_profile(persona)
-            if binding.readiness != "ready":
+            if require_ready and binding.readiness != "ready":
                 raise DiscussionError("profile_unavailable", instance_id=ref.instance_id)
             return {**ref.to_dict(), "persona_id": instance.persona_id,
                     "profile": binding.hermes_profile or active_profile_name(),
                     "display_name": instance.display_name}
+
+    def resolve_room(self, ref: ParticipantRef, workspace_id: str) -> dict[str, Any]:
+        """Explicit room membership does not move an agent or require its profile online."""
+        return self.resolve(ref, workspace_id, require_placement=False, require_ready=False)
+
+    def resolve_member(self, run: Mapping[str, Any], member: Mapping[str, Any]) -> dict[str, Any]:
+        return self.resolve(ParticipantRef(member["install_id"], member["instance_id"]),
+                            run["workspace_id"], require_placement=run["table_id"] is not None)
 
     def roster(self, workspace_id: str) -> list[dict[str, Any]]:
         from agent_runtime.persona_assignments import PersonaInstanceStore

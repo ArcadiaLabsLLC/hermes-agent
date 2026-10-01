@@ -159,7 +159,7 @@ class DiscussionService:
             if not self.accepting:
                 raise DiscussionError("runtime_stopping")
             run = self.runs.begin_room(workspace_id, spec, key=key, topic=topic,
-                actor_id=actor_id, resolve=self.context.resolve)
+                actor_id=actor_id, resolve=self.context.resolve_room)
             self.context.launcher.bind(run["run_id"])
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
