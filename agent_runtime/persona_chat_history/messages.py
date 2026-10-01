@@ -12,6 +12,7 @@ from typing import Any
 
 from .. import chat_session_scope
 from ..persona_assignments import safe_assignment_text
+from ..conversation_owner import ConversationOwnerError, require_session_owner
 from .curation import (
     _decode_history_cursor,
     _encode_history_cursor,
@@ -32,7 +33,7 @@ __all__ = [
 
 
 def existing_persona_chat_messages(*, session_id: str, before: str | None = None,
-                                  check_only: bool = False) -> dict[str, Any]:
+                                  check_only: bool = False, client_scope: str | None = None) -> dict[str, Any]:
     """Attach to an existing transcript without creating a database or session."""
     bounded = _bounded_message_tail(40)
     scope, refusal = _resolve_scope(session_id, bounded)
@@ -45,12 +46,18 @@ def existing_persona_chat_messages(*, session_id: str, before: str | None = None
     if db is None:
         return {"ok": False, "error_kind": "session_db_unavailable"}
     with closing(db):
-        if db.get_session(session_id) is None:
+        row = db.get_session(session_id)
+        if row is None:
             return {"ok": False, "error_kind": "session_not_found"}
+        try:
+            owner = require_session_owner(row, client_scope)
+        except ConversationOwnerError as exc:
+            return {"ok": False, "error_kind": exc.reason}
+        evidence = {"client_scope": owner} if owner is not None else {}
         if check_only:
-            return {"ok": True, "session_id": session_id}
-        return _with_chat_scope(persona_chat_session_messages(
-            session_id=session_id, before=before, limit=bounded, session_db=db), scope)
+            return {"ok": True, "session_id": session_id, **evidence}
+        return {**_with_chat_scope(persona_chat_session_messages(
+            session_id=session_id, before=before, limit=bounded, session_db=db), scope), **evidence}
 
 
 def persona_chat_session_messages(

@@ -137,6 +137,7 @@
   "params": {
     "runtime.chat.message": [
       "clarify_token",
+      "client_scope",
       "correlation_id",
       "intent_hint",
       "max_seconds",
@@ -156,6 +157,7 @@
       "workspace_name"
     ],
     "runtime.chat.steer": [
+      "client_scope",
       "correlation_id",
       "message",
       "persona_id",
@@ -265,7 +267,7 @@
     "runtime.office.unsubscribe": "read",
     "runtime.office.upsert": "console",
     "runtime.operator.conversation.message": "console",
-    "runtime.operator.conversation.read": "read",
+    "runtime.operator.conversation.read": "console",
     "runtime.operator.conversation.stop": "console",
     "runtime.persona.instance.open_chat": "console",
     "runtime.persona.prewarm": "read",
