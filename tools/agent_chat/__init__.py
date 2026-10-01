@@ -1,5 +1,5 @@
 """The agent-chat tool's handlers — imported by ``tools/agent_chat_tool.py``, which
-holds the six ``registry.register`` calls and nothing else (upstream discovery
+holds the seven ``registry.register`` calls and nothing else (upstream discovery
 imports a ``tools/`` module only if its AST registers something, and a
 subdirectory only if it has an ``__init__.py``; nothing here registers, so
 discovery never imports these modules on their own).
@@ -20,6 +20,7 @@ LAYERED_ROOTS, so the constants are for the reader.
       detached.py    lanes    the wait=false half and agent_chat_dispatches
       threads.py     lanes    agent_chat_threads, agent_chat_open, agent_chat_log_path, the lane target resolver
       remote.py      lanes    the far-install reads and agent_chat_installs
+      query.py       lanes    harness_query: the in-turn door onto agent_runtime.harness_query (HQ1)
 
     entry point                                   opens
     agent_chat_send                               send -> detached (wait=false) -> lane
@@ -27,12 +28,13 @@ LAYERED_ROOTS, so the constants are for the reader.
     agent_chat_threads / agent_chat_open          threads -> remote (@install/) -> lane
     agent_chat_installs                           remote -> lane
     agent_chat_log_path                           threads -> lane
+    harness_query                                 query -> agent_runtime.harness_query
     peer_directory's target / membership reads    threads, lane
 """
 
 from __future__ import annotations
 
-from . import detached, lane, remote, schemas, send, threads
+from . import detached, lane, query, remote, schemas, send, threads
 from .detached import (
     DISPATCH_FILTERS,
     FILTER_DONE,

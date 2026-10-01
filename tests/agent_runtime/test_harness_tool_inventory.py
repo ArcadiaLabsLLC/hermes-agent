@@ -77,7 +77,9 @@ def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitte
     # 43 -> 44: S2b registered ``agent_chat_installs`` into the ``agent_chat``
     # toolset, which ``harness_core`` includes by NAME. Re-measured with the
     # ratchet in the same commit, never adjusted to make a red go green.
-    assert inventory["counts"]["tools"] == len(names) == 44
+    # 44 -> 45: HQ1 registered ``harness_query`` into ``agent_chat`` (2026-10-01),
+    # re-measured with the ratchet in the same commit.
+    assert inventory["counts"]["tools"] == len(names) == 45
     assert inventory["counts"]["toolsets"] == 15
     assert inventory["declared"] == ["harness_core"]
 

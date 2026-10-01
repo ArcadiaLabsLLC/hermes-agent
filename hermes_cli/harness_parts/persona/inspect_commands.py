@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+from agent_runtime.harness_query import resolve_instance
 from agent_runtime.mcp_admission import LANE_MISSION_CHAT, resolve_mcp_admission
 from agent_runtime.mcp_lane import HARNESS_LANE
 from agent_runtime.mission_chat_workdir import mission_chat_workdir_for_persona
@@ -18,7 +19,6 @@ from agent_runtime.persona_assignments import (
     migrate_retired_persona_assignment_task_ids,
     normalize_persona_id as _normalize_cli_persona_id,
     persona_assignment_summary,
-    persona_instance_id_for,
     persona_instance_summary,
 )
 from agent_runtime.chat_lane_bundle import chat_lane_capability_drops
@@ -85,10 +85,10 @@ def _cmd_persona_show(args) -> int:
     personas_by_id = {str(getattr(persona, "id", "") or ""): persona for persona in personas}
     store.ensure_for_personas(personas)
     value = str(args.persona_id_or_instance_id or "").strip()
-    instance_id = value if value.startswith("personainst_") else persona_instance_id_for(_normalize_cli_persona_id(value))
-    try:
-        instance = store.get(instance_id)
-    except Exception:
+    # ONE resolver for "which instance does this token name": the harness
+    # query core's, which the `harness query` verb and the in-turn tool use too.
+    instance = resolve_instance(value)
+    if instance is None:
         data = {"ok": False, "error": f"persona instance not found: {value}"}
         print(emit_json(data) if args.json else data["error"])
         return 2

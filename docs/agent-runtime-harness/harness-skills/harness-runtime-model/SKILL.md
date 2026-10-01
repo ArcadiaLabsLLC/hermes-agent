@@ -65,11 +65,17 @@ QA judges work, never patches code.
 - Do not trust an agent summary as proof, and never claim something works from code
   inspection. Run it, and cite the receipt (tool-trace row, artifact path,
   `client_message_id`/`turn_id`, `mcp_calls_spent`).
-- Check `.parity.runtime_root` and `.parity.profile` in `harness snapshot --json`
-  before believing anything. Roster/office/board/graph answers are home-independent;
+- Every `harness_query` answer names its `observer` (store root, home, serve pid or
+  `external_cli`): read it first. Roster/office/board/graph answers are home-independent;
   **admission, model, and profile answers are not** — the launcher's serve child runs
   under `profiles\base` or the persona's bound profile, not your CLI's `alice`. Say
   which home produced any receipt you report (`references/operations.md`, "Roots").
+- **A claim cites its receipt.** "I have MCP access" says which level it reached:
+  configured/admitted (`harness_query` `instance` → `mcp`, resolved now under its home) or
+  EXERCISED (a turn's `profile_timing.mcp_calls_spent` > 0, or the `mcp__*` call's trace
+  row) — without the last, say "admitted, not exercised". "There is a (live) QA session"
+  names the instance and session ids `live_qa` returned; a persona definition, a grep hit
+  or reusing the Launcher window is not a session.
 - Use first-class harness CLI verbs. Never inspect or mutate runtime state with raw
   DB access, ad-hoc Python, or hand-editing store files.
 - **Archive-never-delete**, including the verb named `delete` (a full alias of
@@ -93,21 +99,20 @@ QA judges work, never patches code.
 |---|---|
 | runtime health / diagnostics | `hermes harness status --json` · `hermes harness doctor --json` |
 | configured agent definitions | `hermes harness agent list --json` |
-| durable persona instances (the roster) | `hermes harness persona list --json` |
-| one instance in detail | `hermes harness persona show <persona_instance_id> --json` |
+| roster · one instance + its MCP resolution · an instance's chats with hot/busy/cold · is there a live QA session | tool `harness_query` (`question=roster\|instance\|sessions\|live_qa`) · CLI `hermes harness query <question> [id] --json` |
 | an instance's resolved tools and blocks | `hermes harness persona tool-diff <persona_id> --json` |
 | a chat session's transcript | `hermes harness persona chat history --session-id <root> --json` |
 | stored agent-graph documents | `hermes harness flow list --json` · `hermes harness flow show <graph_id> --json` |
 | planning boards and cards | `hermes harness board list --json` · `hermes harness board show <board_id> --json` |
 | realms / workspaces | `hermes harness realm list --json` · `hermes harness workspace list --json` |
-| aggregate read-model (what the Launcher renders) | `hermes harness snapshot --json` |
+| aggregate read-model (what the Launcher renders) | `hermes harness snapshot --json` — evidence capture only, **never a lookup** (~900 KB, tens of seconds a call) |
 | shared skills substrate | `hermes harness skills inventory --json` · `skills catalog --json` |
 | level agents shown in Mission Control | Stage C MCP `mcp_launcher_qa_get_buttons` with `scope=mission_control.agent` |
 | compact Mission Control graph probe | Stage C MCP `mcp_launcher_qa_get_widget_state` with `widget=mission_control.graph` |
 
 **Do not use for level agents:** `status.agents` and `hermes harness agent list --json`
 rosters show configured/installed Harness agents. They do not show which instances are
-placed on a Mission Control level. Use `persona list --json` for the live roster and
+placed on a Mission Control level. Use `harness_query` `roster` for the live roster and
 Stage C MCP `mission_control.agent` for the visible level-agent selection surface.
 
 ## Removed — unlearn these
@@ -126,11 +131,11 @@ sections — gone, not missing.
 
 <!-- BEGIN GENERATED: harness_core inventory -->
 
-44 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
+45 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
 
 | toolset | tools | use it for |
 |---|---|---|
-| `agent_chat` | `agent_chat_dispatches` · `agent_chat_installs` · `agent_chat_log_path` · `agent_chat_open` · `agent_chat_send` · `agent_chat_threads` | teammates: list, message, read, dispatches, transcript path |
+| `agent_chat` | `agent_chat_dispatches` · `agent_chat_installs` · `agent_chat_log_path` · `agent_chat_open` · `agent_chat_send` · `agent_chat_threads` · `harness_query` | teammates: list, message, read, dispatches, transcript path; `harness_query` for roster / instance / sessions / live QA lookups |
 | `board` | `board_card_add` · `board_cards` | record follow-up work — planning state only |
 | `clarify` | `clarify` | ask the operator a question mid-turn |
 | `delegation` | `delegate_task` | hand a bounded subtask to a helper with fresh context |
@@ -158,7 +163,7 @@ for rows where no tool exists.
 
 | Do | In-turn tool (first choice) | CLI (only where no tool exists) |
 |---|---|---|
-| see who your teammates are / which instances you can reach | `agent_chat_threads` (read-only, no mint; `@install/…` reaches a far install) | — |
+| see who your teammates are / which instances you can reach | `agent_chat_threads` (read-only, no mint; `@install/…` reaches a far install) · `harness_query` for the roster, a chat's state, live QA | — |
 | see which other installs (machines) you can reach, and who is on them | `agent_chat_installs` (read-only; `install=` fetches that install's roster) | the HUD's `Installs` line already names them — this is the fresh read |
 | message a teammate and get the reply in this turn | `agent_chat_send` (`wait=true`; `wait=false` to dispatch and continue) | `hermes harness mission-chat message …` is the OPERATOR's path, not yours |
 | read what a teammate said | `agent_chat_open` (tail; `@install/…` reads a far thread, `session_id` required there) · `agent_chat_log_path` (full transcript path, then `read_file` / `search_files`) | — |
@@ -189,7 +194,8 @@ Explanation: `references/model-notes.md`; triage: `references/operations.md`.
   with `open-chat --new-session --idempotency-key <key>` and message that. The wrong
   store ROOT gives an empty roster; the wrong HOME gives wrong profile answers.
 - `session_id` is the stable root; compression may rotate `active_session_id`. Only
-  the owning serve process reports `hot`/`busy`/`cold`/`failed`; CLI snapshots say `unknown`.
+  the serve observes `hot`/`busy`/`cold`/`failed` — `harness_query` in your turn, or
+  `hermes harness query` (routed to a live serve); anything else says `unknown`.
 - `chat_turn_outcome_unknown`: do not retry — `turn-resolve ... --action abandon` the
   exact `(root, client_message_id, turn_id)`, then send as a new turn with a fresh id.
 - `chat_turn_provider_refused`: definite "did not run"; `turn-resolve` refuses it.

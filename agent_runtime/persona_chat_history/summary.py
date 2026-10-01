@@ -48,6 +48,7 @@ def persona_chat_history_summary(
     accountant: ProjectionAccountant | None = None,
     persona_assignments: Iterable[Any] | None = None,
     omitted_session_ids: set[str] | None = None,
+    only_instance_ids: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe persona chat-history rows for Harness snapshots.
 
@@ -75,6 +76,12 @@ def persona_chat_history_summary(
     Built by :class:`HistorySummary`: index the instances, then the candidates
     from the session pools, the bound sessions and the live missions, then the
     creation-order bound.
+
+    ``only_instance_ids`` narrows the HYDRATED rows to those instances (the
+    harness query core's per-instance read). The FULL instance list still goes
+    in, because attribution needs it: a session is matched to its own instance
+    before the narrowing, so passing one instance alone would let its persona
+    fallback adopt a sibling instance's session.
     """
 
     summary = HistorySummary(
@@ -84,6 +91,7 @@ def persona_chat_history_summary(
         accountant=accountant,
         persona_assignments=persona_assignments,
         omitted_session_ids=omitted_session_ids,
+        only_instance_ids=only_instance_ids,
     )
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
@@ -114,6 +122,7 @@ class HistorySummary:
     accountant: ProjectionAccountant | None
     persona_assignments: Iterable[Any] | None
     omitted_session_ids: set[str] | None
+    only_instance_ids: frozenset[str] | None = None
     bound_by_session: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
@@ -332,6 +341,13 @@ class HistorySummary:
 
     def rows(self, db: Any) -> list[dict[str, Any]]:
         candidates = self.candidates
+        if self.only_instance_ids is not None:
+            candidates = [
+                candidate
+                for candidate in candidates
+                if safe_assignment_text(getattr(candidate[1], "id", None), limit=160)
+                in self.only_instance_ids
+            ]
         # The directory contract is creation order, not activity order. Opening or
         # continuing an older chat may advance ``updated_at`` but must never move it
         # above a conversation created later. Resolve every eligible row first, then

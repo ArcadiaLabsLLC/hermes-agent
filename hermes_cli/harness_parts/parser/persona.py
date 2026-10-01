@@ -1,4 +1,4 @@
-"""The persona families: ``persona``, ``mission-chat``, ``persona-instance`` and ``agent``.
+"""The persona families: ``persona``, ``mission-chat``, ``persona-instance``, ``query`` and ``agent``.
 
 One ``add_<family>(subs)`` per ``hermes harness`` family, in the order the
 contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
@@ -9,6 +9,7 @@ from __future__ import annotations
 from .common_args import _add_coordinator_permission_args, _add_stage42_global_args
 from hermes_cli.harness_parts import runtime_commands
 from hermes_cli.harness_parts.agent_commands import _cmd_agent_list, _cmd_agent_set_profile
+from hermes_cli.harness_parts.query_commands import _cmd_query
 from hermes_cli.harness_parts.persona import (
     chat_coordinator,
     chat_delete,
@@ -28,6 +29,7 @@ __all__ = [
     "add_mission_chat",
     "add_persona",
     "add_persona_instance",
+    "add_query",
 ]
 
 
@@ -558,6 +560,30 @@ def add_persona_instance(subs) -> None:
     )
     persona_instance_detail.add_argument("--json", action="store_true")
     persona_instance_detail.set_defaults(func=_cmd_persona_instance_detail)
+
+
+def add_query(subs) -> None:
+    """``hermes harness query`` — the narrow read-only lookups (HQ1).
+
+    The choices are the core's own question names, so the verb and the
+    in-turn ``harness_query`` tool cannot drift into two vocabularies.
+    """
+    from agent_runtime.harness_query.core import QUESTIONS
+
+    query = subs.add_parser(
+        "query",
+        help=(
+            "READ-ONLY narrow lookups: roster, one instance (with its MCP resolution), an "
+            "instance's chat sessions with hot/busy/cold state, and live QA sessions by id. "
+            "Answered by the running serve when one is up; use this, not `snapshot`, for lookups"
+        ),
+    )
+    query.add_argument("question", choices=QUESTIONS)
+    query.add_argument("target", nargs="?", default=None, help="Persona-instance id or persona id (instance, sessions)")
+    query.add_argument("--limit", type=int, default=None, help="Most sessions to return (default 10, max 50)")
+    query.add_argument("--direct", action="store_true", help="Read in this process; do not ask the running serve")
+    query.add_argument("--json", action="store_true")
+    query.set_defaults(func=_cmd_query)
 
 
 def add_agent(subs) -> None:

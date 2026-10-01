@@ -19,12 +19,15 @@ manufacture a heavier route; there isn't one.
 Three standing facts:
 
 - **The roster is data — read it, never quote a count.** 19 persona-instance rows live
-  2026-08-24; it was 15 on 2026-07-30. The authority is `persona list --json`, not this
-  file.
+  2026-08-24; it was 15 on 2026-07-30. The authority is `harness query roster --json`
+  (in-turn: the `harness_query` tool), not this file.
 - **`harness snapshot --json` is the parity anchor.** Contract **54** at
   `.parity.contract_version` (measured live 2026-08-28; it was 45 on 2026-07-30), snapshot
   envelope **schema 2** at top-level `.schema_version`. It carries no goal, stage, run,
   proof, or incident sections — if you are looking for one, it is **gone, not missing**.
+  It is evidence capture, **never a lookup**: on 2026-10-01 three snapshot calls cost a
+  lookup turn 126 s of its 150 s and ~2.7 MB, to answer a question `harness_query
+  live_qa` answers by id in one call.
 - **Realms and workspaces survive** as the scoping/publishing substrate, and their list
   verbs answer under `.items` (see the table below).
 
@@ -88,7 +91,7 @@ $env:HERMES_HOME = 'X:\Eternia\.hermes\profiles\alice'
 git -C "X:\Eternia\hermes-agent" status --short
 git -C "X:\Unreal Engine\Engine\Launcher\EterniaLauncher" status --short
 python -m hermes_cli.main harness status --json
-python -m hermes_cli.main harness snapshot --json
+python -m hermes_cli.main harness query roster --json
 ```
 
 `alice` here is the operator-CLI profile home, not the runtime's. The store these commands
@@ -122,7 +125,9 @@ that table does not carry, plus the payload-shape gotchas that have actually cos
 | See | Command |
 |---|---|
 | what tools YOU have this turn | the `## In-turn tools` table in this package's `SKILL.md` (full table with descriptions: `references/tool-inventory.md`). `persona tool-diff` is the OPERATOR's view of the same set — you do not need a subprocess to learn your own hands |
-| the live roster (durable persona instances) | `harness persona list --json` — the loop below starts here every time |
+| the live roster (durable persona instances) | `harness query roster --json` (in-turn: `harness_query`) — the loop below starts here every time |
+| an instance's chat sessions and their `hot`/`busy`/`cold` state | `harness query sessions <instance> --json` — answered by the running serve when one is up; `answered_by` and `observer` say who answered |
+| is there a live QA session | `harness query live_qa --json` — `live` = resident in the serve now, `resumable` = exists but not resident; quote the `session_id` you mean to use |
 | an instance's resolved/blocked tools, with the MCP lane | `harness persona-instance detail <instance_id> --json` · `harness persona tool-diff <persona_id> --explain-mcp --json` (the persona id is POSITIONAL and required; the text mode also prints which profile declared the toolsets) |
 | realms / workspaces | `harness realm list --json` · `harness workspace list --json` — **both answer under `.items`**, not `.realms`/`.workspaces` (verified live 2026-08-24) |
 | live hydrate + delta frames | `harness stream` (NDJSON; `--resync` re-baselines) |
@@ -131,7 +136,7 @@ that table does not carry, plus the payload-shape gotchas that have actually cos
 
 ## Operating the live chat lane
 
-1. **Find the target.** `harness persona list --json` → the chat-mode
+1. **Find the target.** `harness query roster --json` → the chat-mode
    `personainst_<role>_agent_<hash>` rows. Cross-check against the Stage C
    `mission_control.agent` buttons if the ask is about what the operator can see.
 2. **New task ⇒ NEW session (operator ruling, 2026-08-09).** Do not default to the
@@ -154,6 +159,9 @@ python -m hermes_cli.main harness mission-chat message `
    when `--session-id` is given, so the two lanes cannot conflict.
 
    **QA tasks go further: fresh INSTANCE per task (operator ruling, 2026-08-09).**
+   Reusing the Launcher WINDOW is not reusing a QA session: a fresh QA instance needs
+   no second Launcher process, and "I'll reuse the QA session" is only true of a root
+   `harness query live_qa` named for THIS task.
    A new session on a shared QA instance still collides with concurrent QA work
    (chat-root leases, operator UI threads on the same instance). Place a NEW QA
    agent on the level instead — verified live end to end 2026-08-09:
@@ -366,6 +374,12 @@ hermes harness office actor-upsert --workspace <ws_id> `
    placed in step 3, so the operator's canvas clears with it.
 
 ## MCP admission: read the receipt, never the agent's prose
+
+Three levels, never conflated: **configured** (declared in the profile's `mcp_servers:`),
+**admitted** (`harness query instance <id> --json` → `mcp.admitted`, resolved now under
+`observer.hermes_home` — a current resolution, not history), **exercised** (that turn's
+receipt below, or the `mcp__*` call's trace row). Zero calls does not disprove admission,
+and admission does not prove a call. A claim of MCP access names the level and its id.
 
 `profile_timing` on every turn carries the only trustworthy account of what the turn
 could call:

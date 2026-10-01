@@ -14,7 +14,7 @@ the handlers it binds as ``func=``):
 * ``scope`` — workspace, realm;
 * ``auth`` — non-interactive provider setup over native credential handlers;
 * ``surfaces`` — flow, checkpoint, skills, prompt-context, board, office, level, map;
-* ``persona`` — persona, mission-chat, persona-instance, agent;
+* ``persona`` — persona, mission-chat, persona-instance, query, agent;
 * ``characters`` — pets, characters;
 * ``common_args`` — the stage42 globals and the coordinator permission flags.
 
@@ -53,7 +53,7 @@ from .machine import (
     add_work,
     add_worktree,
 )
-from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance
+from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance, add_query
 from .scope import add_realm, add_workspace
 from .execution_identity import add_execution_identity
 from .surfaces import (
@@ -101,6 +101,7 @@ PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
     add_contracts,
     add_worktree,
     add_persona_instance,
+    add_query,
     add_agent,
     add_install_harness_skills,
     add_snapshot,

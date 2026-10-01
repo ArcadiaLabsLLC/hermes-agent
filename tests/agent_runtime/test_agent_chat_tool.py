@@ -1294,7 +1294,7 @@ def test_every_agent_chat_registration_reaches_its_handler():
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "register"
     )
-    assert len(names) == registered == 6, (names, registered)
+    assert len(names) == registered == 7, (names, registered)
     for name in names:
         result = registry.get_entry(name).handler({})
         payload = json.loads(result) if isinstance(result, str) else result
