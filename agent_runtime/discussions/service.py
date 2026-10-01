@@ -31,6 +31,7 @@ from .profile_groups import ProfileGroupSpec, is_group_scope
 from .group_admission import admit_group
 from .room_state import RoomState
 from .room_commands import RoomCommands
+from .room_owner import room_client_scope
 
 __layer__ = "lanes"
 
@@ -138,7 +139,7 @@ class DiscussionService:
             active_member_ids=active, **self.state.policy_args(run))
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int,
-              key: str, topic: str, actor_id: str) -> dict[str, Any]:
+              key: str, topic: str, actor_id: str, client_scope: str | None = None) -> dict[str, Any]:
         if not self.accepting:
             raise DiscussionError("runtime_stopping")
         self.context.workspace(workspace_id)
@@ -146,21 +147,21 @@ class DiscussionService:
             if not self.accepting:
                 raise DiscussionError("runtime_stopping")
             run = self.runs.begin(workspace_id, table_id, expect_revision=expect_revision,
-                key=key, topic=topic, actor_id=actor_id, resolve=self.context.resolve)
+                key=key, topic=topic, actor_id=actor_id, resolve=self.context.resolve, client_scope=client_scope)
             # Durable admission ACK; initialization runs on the existing worker.
-            self.context.launcher.bind(run["run_id"])
+            self.context.launcher.bind(run["run_id"], client_scope=client_scope)
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
     def begin_room(self, workspace_id: str, spec: RoomSpec, *, key: str,
-                   topic: str, actor_id: str) -> dict[str, Any]:
+                   topic: str, actor_id: str, client_scope: str | None = None) -> dict[str, Any]:
         self.context.workspace(workspace_id)
         with self._lock:
             if not self.accepting:
                 raise DiscussionError("runtime_stopping")
             run = self.runs.begin_room(workspace_id, spec, key=key, topic=topic,
-                actor_id=actor_id, resolve=self.context.resolve_room)
-            self.context.launcher.bind(run["run_id"])
+                actor_id=actor_id, resolve=self.context.resolve_room, client_scope=client_scope)
+            self.context.launcher.bind(run["run_id"], client_scope=client_scope)
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
@@ -262,7 +263,7 @@ class DiscussionService:
             run = self.runs.get(run_id)
             if admitted and operation == "send":
                 self.context.launcher.admit(run_id, key,
-                    client_scope=run["initial"].get("group", {}).get("client"))
+                    client_scope=room_client_scope(run))
             self.commands.process(run)
             self.runtime.wakeup()
             return self.state.view(workspace_id, run_id)
@@ -286,12 +287,15 @@ class DiscussionService:
             self.runtime.wakeup()
             return self.state.view(body["workspace_id"], body["run_id"])
 
-    def active(self, workspace_id: str) -> list[dict[str, Any]]:
+    def active(self, workspace_id: str, *, client_scope: str | None = None,
+               include_owned: bool = True) -> list[dict[str, Any]]:
         """Bounded scene/status projection; no transcript duplication per polling client."""
         self.validate_scope(workspace_id)
         return [{"run": run, "members": self.runs.members(run["run_id"]),
                  "tasks": self.state.task_rows(run["run_id"])}
-                for run in self.runs.owned() if run["workspace_id"] == workspace_id]
+                for run in self.runs.owned() if run["workspace_id"] == workspace_id
+                and (include_owned or room_client_scope(run) is None)
+                and (client_scope is None or room_client_scope(run) == client_scope)]
 
 _owner_lock = threading.RLock()
 _owner: DiscussionService | None = None
