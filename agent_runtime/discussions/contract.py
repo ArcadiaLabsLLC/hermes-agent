@@ -94,6 +94,8 @@ def _values(method, result):
         raise DefinitionError("confirmation_required", "confirm")
     for key in ("topic", "message", "answer"):
         if key in result:
+            if key == "topic" and method == "run.start_room" and result[key] == "":
+                continue
             result[key] = text(result[key], field=key, max_bytes=8000 if key == "answer" else 12000)
 
 
@@ -136,6 +138,7 @@ def contract_descriptor() -> dict[str, Any]:
                      "group_models": True,
                      "scheduled_conclusion": True,
                      "non_spatial_discussions": True,
+                     "account_owned_rooms": True, "empty_instance_rooms": True,
                      "exact_stop": True, "human_input": True, "instance_presence": True,
                      "history": True, "remote_members": False, "realm_replication": False,
                      "agent_invitations": False, "automatic_failover": False},
