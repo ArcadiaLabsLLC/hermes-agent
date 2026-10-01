@@ -6,7 +6,7 @@ import pytest
 from agent_runtime.discussions.definitions import DefinitionError
 from agent_runtime.discussions.room_definition import RoomSpec
 from agent_runtime.discussions.run_store import DiscussionError
-from agent_runtime.discussions.run_schema import initialize_runs
+from agent_runtime.discussions.run_schema import initialize_runs, run_schema_ready
 from tests.agent_runtime.test_discussion_definitions import table_value
 from tests.agent_runtime.test_discussion_runtime import engine as engine, wait_until, settled, command
 
@@ -18,7 +18,7 @@ def spec(count=2):
     return RoomSpec.parse({"name": "Review", "participants": config["participants"], "settings": config["settings"]})
 
 
-def test_nonspatial_room_uses_same_executor_and_claims_without_furniture(engine):
+def test_independent_rooms_share_instances_without_claiming_table_occupancy(engine):
     service, context = engine
     room = service.begin_room("ws", spec(), key="room", topic="Review", actor_id="operator")
     assert room["table_id"] is None
@@ -30,15 +30,23 @@ def test_nonspatial_room_uses_same_executor_and_claims_without_furniture(engine)
     assert service.begin_room("ws", spec(), key="room", topic="Review", actor_id="operator")["run_id"] == room["run_id"]
     with closing(service.runs.connect()) as db:
         assert db.execute("SELECT COUNT(*) FROM mc_discussion_table_claims").fetchone()[0] == 0
-        assert db.execute("SELECT COUNT(*) FROM mc_discussion_instance_claims").fetchone()[0] == 2
+        assert db.execute("SELECT COUNT(*) FROM mc_discussion_instance_claims").fetchone()[0] == 0
+    second = service.begin_room("ws", spec(), key="second", topic="Another review", actor_id="operator")
+    wait_until(lambda: settled(service, second))
     table = service.definitions.save_table("ws", "real-table", table_value(), expect_revision=0)
-    with pytest.raises(DiscussionError, match="instance busy"):
-        service.begin("ws", "real-table", expect_revision=table.revision, key="other", topic="Other", actor_id="operator")
+    table_run = service.begin("ws", "real-table", expect_revision=table.revision, key="table", topic="Other", actor_id="operator")
+    wait_until(lambda: settled(service, table_run))
+    assert len(context.calls) == 6
+    assert len({call.session_id for call in context.calls}) == 6
     command(service, room, "end")
     wait_until(lambda: service.view("ws", room["run_id"])["run"]["phase"] == "ended")
-    next_run = service.begin("ws", "real-table", expect_revision=table.revision, key="other", topic="Other", actor_id="operator")
-    wait_until(lambda: settled(service, next_run))
-    assert len(context.calls) == 4
+    assert service.runs.get(second["run_id"])["phase"] == "open"
+    with closing(service.runs.connect()) as db:
+        claims = db.execute("SELECT DISTINCT run_id FROM mc_discussion_instance_claims").fetchall()
+        assert [row[0] for row in claims] == [table_run["run_id"]]
+    service.definitions.save_table("ws", "another-table", table_value(), expect_revision=0)
+    with pytest.raises(DiscussionError, match="instance busy"):
+        service.begin("ws", "another-table", expect_revision=1, key="occupied", topic="Other", actor_id="operator")
 
 
 def test_nonspatial_limit_and_idempotency_conflicts_are_not_silent_edits(engine):
@@ -84,9 +92,29 @@ def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
             initialize_runs(db)
         assert db.execute("SELECT * FROM mc_discussion_runs").fetchone() == row
         assert db.execute("SELECT * FROM mc_discussion_instance_claims").fetchone() == ('install', 'personainst_a', 'old')
-        assert db.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 3
+        assert run_schema_ready(db)
         assert db.execute("SELECT * FROM mc_discussion_members").fetchone() == (*member, None)
         db.execute("INSERT INTO mc_discussion_runs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", ('new', 'ws', None, 'new-key', *row[4:]))
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == 'ok'
     finally:
         db.close()
+
+
+def test_upgrade_releases_only_nonspatial_claims_and_rejoin_does_not_reclaim(engine):
+    service, context = engine
+    room = service.begin_room("ws", spec(), key="room", topic="Review", actor_id="operator")
+    wait_until(lambda: settled(service, room))
+    member = service.runs.members(room["run_id"])[0]
+    service.runs.set_member_status(room["run_id"], member["member_id"], "removed")
+    service.runs.join(room["run_id"], member)
+    with closing(service.runs.connect()) as db, db:
+        assert db.execute("SELECT COUNT(*) FROM mc_discussion_instance_claims").fetchone()[0] == 0
+        # A v3 database could retain claims for rooms that are still open.
+        db.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)",
+                   (context.install_id, member["instance_id"], room["run_id"]))
+        db.execute("UPDATE mc_discussion_runs_schema SET version=3")
+        initialize_runs(db)
+        assert run_schema_ready(db)
+        assert db.execute("SELECT COUNT(*) FROM mc_discussion_instance_claims").fetchone()[0] == 0
+        assert db.execute("SELECT session_id FROM mc_discussion_members WHERE run_id=? AND member_id=?",
+                          (room["run_id"], member["member_id"])).fetchone()[0] == member["session_id"]

@@ -52,6 +52,7 @@ from .persona_assignments import (
     safe_assignment_token,
 )
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
+from .conversation_owner import client_scope as validate_client_scope, require_session_owner
 
 __layer__ = "stores"
 
@@ -140,6 +141,7 @@ def ensure_persona_chat_session(
     persona_id: str | None,
     title: str | None = None,
     required: bool = False,
+    client_scope: str | None = None,
 ) -> bool:
     if session_db is None or not session_id:
         return persona_chat_persistence_failed(
@@ -156,7 +158,11 @@ def ensure_persona_chat_session(
     }
     if owner_instance_id:
         ownership["persona_instance_id"] = owner_instance_id
+    if client_scope is not None:
+        ownership["client_scope"] = validate_client_scope(client_scope)
     try:
+        if client_scope is not None and (existing := session_db.get_session(session_id)) is not None:
+            require_session_owner(existing, client_scope)
         session_db.create_session(
             session_id=session_id,
             source=PERSONA_CHAT_SESSION_SOURCE,
@@ -164,6 +170,8 @@ def ensure_persona_chat_session(
             model_config=ownership,
             system_prompt=f"Mission Control persona chat for {normalized_persona}",
         )
+        if client_scope is not None:
+            require_session_owner(session_db.get_session(session_id), client_scope)
     except Exception as exc:
         return persona_chat_persistence_failed(
             "session_create", exc, required=required
