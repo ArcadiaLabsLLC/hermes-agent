@@ -97,3 +97,27 @@ def test_malformed_digest_cannot_mint_a_session(placed_agent, owner):
     reply = _call({**params, "client_scope": owner})
     assert reply["error"]["data"]["reason"] == "invalid_client_scope"
     assert PersonaInstanceStore().get(params["persona_instance_id"]).session_id == before
+
+
+def test_global_instance_opens_without_fabricated_workspace_and_checks_install(placed_agent):
+    store = PersonaInstanceStore()
+    instance = store.get(placed_agent["persona_instance_id"])
+    instance.workspace_id = None
+    store.update(instance)
+    install = ensure_install_identity(paths.store_root()).install_id
+    params = {**open_params(placed_agent), "install_id": install}
+    before = store.get(instance.id).session_id
+    refused = _call({**params, "install_id": "different-install"})
+    assert refused["error"]["data"]["reason"] == "installation_changed"
+    assert store.get(instance.id).session_id == before
+    opened = _call(params)["result"]
+    assert opened["install_id"] == install and opened["workspace_id"] is None
+    target = dict(install_id=install, persona_id=PERSONA, persona_instance_id=instance.id,
+                  session_id=opened["session_id"], client_scope=OWNER)
+    read = serve_rpc.handle_request(dict(jsonrpc="2.0", id="read", method="runtime.operator.conversation.read",
+                                        params=target), serve_rpc.RpcContext())
+    assert read["result"]["workspace_id"] is None and read["result"]["client_scope"] == OWNER
+    assert store.get(instance.id).workspace_id is None
+    wrong = serve_rpc.handle_request(dict(jsonrpc="2.0", id="wrong", method="runtime.operator.conversation.read",
+                                         params={**target, "workspace_id": WORKSPACE}), serve_rpc.RpcContext())
+    assert wrong["error"]["data"]["reason"] == "workspace_changed"

@@ -138,7 +138,8 @@ class NativeContext:
                     if (config.get("persona_instance_id"), config.get("persona_id")) != (member["instance_id"], member["persona_id"]):
                         raise DiscussionError("session_owner_conflict")
                 ensure_persona_chat_session(session_db=db, session_id=member["session_id"],
-                    persona_id=member["persona_id"], title=f"Discussion {run['run_id'][-8:]} · {member['handle']}", required=True)
+                    persona_id=member["persona_id"], title=f"Discussion {run['run_id'][-8:]} · {member['handle']}",
+                    required=True, client_scope=run["initial"].get("client_scope"))
                 db.set_session_hidden(member["session_id"], True)
             finally:
                 db.close()
