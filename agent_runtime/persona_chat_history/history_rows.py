@@ -121,14 +121,15 @@ def _mission_assignment_for(
 
 def _history_row(
     raw: dict[str, Any],
-    instance: PersonaInstance,
     *,
+    persona_id: str,
+    instance_id: str,
     session_id: str,
     session_db: Any | None = None,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
     kind: str = "chat",
 ) -> dict[str, Any]:
-    persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None)) or "unknown"
+    persona_id = canonical_chat_persona_id(persona_id) or "unknown"
     raw_title = safe_assignment_text(raw.get("title"), limit=120)
     title_fallback = "Untitled persona chat" if raw_title else _fallback_title(raw, persona_id=persona_id)
     title, title_status = _safe_display_text(raw.get("title"), fallback=title_fallback, limit=120)
@@ -202,7 +203,7 @@ def _history_row(
         **({"client_scope": owner} if (owner := session_client_scope(raw)) is not None else {}),
         "persona_id": persona_id,
         "persona_instance_id": safe_assignment_text(
-            getattr(instance, "id", None) or persona_instance_id_for(persona_id),
+            instance_id or persona_instance_id_for(persona_id),
             limit=160,
         ),
         "kind": "mission" if kind == "mission" or bool(raw.get("live_mission")) else "chat",

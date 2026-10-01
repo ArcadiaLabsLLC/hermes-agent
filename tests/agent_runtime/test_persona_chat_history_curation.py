@@ -2068,7 +2068,8 @@ def test_snapshot_chat_row_marks_an_unread_tail_instead_of_certifying_it_safe():
     )
     row = _history_row(
         {"title": "Dev chat", "preview": "hi"},
-        instance,
+        persona_id=instance.persona_id,
+        instance_id=instance.id,
         session_id="persona_chat_dev",
         session_db=ExplodingSessionDB(),
     )
@@ -2098,7 +2099,8 @@ def test_snapshot_chat_row_omits_the_marker_when_the_tail_was_read():
 
     row = _history_row(
         {"title": "Dev chat", "preview": "hi"},
-        instance,
+        persona_id=instance.persona_id,
+        instance_id=instance.id,
         session_id="persona_chat_dev",
         session_db=db,
     )
