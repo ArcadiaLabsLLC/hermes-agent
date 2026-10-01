@@ -74,6 +74,11 @@ __all__ = [
 #: ``runtime.chat.message`` (which can run an agent with tools) already sits at
 #: the same tier with the same reasoning written out.
 OPEN_CHAT_METHOD = "runtime.persona.instance.open_chat"
+OPEN_CHAT_METHOD_PARAMS = (
+    "persona_id", "persona_instance_id", "session_id", "new_session",
+    "kill_active", "idempotency_key", "client_message_id", "requested_by",
+    "correlation_id", "install_id", "client_scope",
+)
 
 
 @dataclass(frozen=True)

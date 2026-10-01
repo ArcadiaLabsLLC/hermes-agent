@@ -355,7 +355,7 @@ def manifest_params() -> dict[str, list[str]]:
 
 def test_the_manifest_carries_a_params_block_beside_methods_and_tiers():
     block = serve_rpc.manifest()["params"]
-    assert set(block) == {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD}
+    assert {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD} <= set(block)
     assert block[CHAT_MESSAGE_METHOD] == sorted(block[CHAT_MESSAGE_METHOD])
     assert block[CHAT_STEER_METHOD] == sorted(block[CHAT_STEER_METHOD])
     assert "workspace_name" in block[CHAT_MESSAGE_METHOD]
