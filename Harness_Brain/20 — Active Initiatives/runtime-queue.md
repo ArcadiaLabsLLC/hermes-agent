@@ -280,6 +280,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-02 (instance-conversations)
+
+- [ ] **Expose a public scoped SessionDB page query.** Native account history must filter metadata before keyset pagination; `list_sessions_rich` exposes neither predicate nor keyset cursor. The fork localizes the read through `_read_all` in `instance_history._page`, pending a public upstream seam. No upstream edit or parallel store. Evidence: [instance history checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#history-checkpoint). · instance-conversations 2026-10-01
+
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
 
 - [ ] **Retire the compute-host cold-start carry: `tui_gateway/host_supervisor.py` waits a fixed 10 s for the child's hello while the child imports `tui_gateway.server` first (5.6–6.2 s idle, 10.8–28.5 s loaded); the fork added `_HELLO_COLD_START_GRACE_SECS` (additions only). Upstream PR: a configurable hello budget, or the hello sent before the heavy import** · `upstream / tui_gateway` · ledger row `tui_gateway/host_supervisor.py` (cold-start hello grace, 2026-10-01) · **TAKEN 2026-10-02 w5-rt** · VERDICT 2026-10-02: upstream wait: opening the upstream PR is public posting the owner must approve. upstream/main (7239625ae1) still waits a fixed 10 s for hello. Recommend: owner OKs one small PR — a configurable hello budget (env/config, default 10 s) — the smaller of the two asks; the carry retires when it merges.
