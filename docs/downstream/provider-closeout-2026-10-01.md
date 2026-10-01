@@ -26,9 +26,29 @@ No upstream PR was submitted.
 
 ## Qualification
 
-In progress. One worker; synthetic credentials and temporary homes only.
+One worker; synthetic credentials and temporary homes only.
+
+- Focused provider/runner checks: 172 passed; one unchanged baseline failure below.
+- Native/profile regression checks: 196 passed, including private/shared access,
+  inline/compute execution, A→B→A isolation, model changes and reopening.
+- Contract, import-boundary and consumer-verdict checks: 118 passed.
+- File/function-size ceiling: 5 passed. Ruff F and whitespace checks pass.
+- The actual `python -m hermes_cli.main harness auth set-key` process saved a
+  synthetic key to the isolated home, exited 0 and returned no secret.
+- CLI fixture: 208 command paths; only the three Harness auth paths are added.
+  Launcher consumes identical bytes and tests its emitted arguments against them.
+
 Removing terminal-evidence attachment makes all four native regression cases fail.
 Restoring the RPC child's old argv makes its real-parser dispatch test fail.
+
+New production modules are 27 and 30 lines; longest new function is 20 lines.
+The runner error module shrank from 176 to 38 lines. Neither a second classifier
+nor a credential writer was added. Both native auth files match inspected upstream.
+The upstream footprint drops from 173 to 172 files; no ceiling was raised.
+
+Desktop verification is recorded in
+`EterniaLauncher/docs/companion/planned/PROVIDER_CLOSEOUT_2026-10-01.md`.
+No live OAuth grant, unsafe updater test or full-suite green is claimed.
 
 ### Existing baseline failure
 
