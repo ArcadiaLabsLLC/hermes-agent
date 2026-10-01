@@ -253,8 +253,23 @@ class ChatTurnRequest:
     #: is aimed at — because a send that mints its own thread has no root yet
     #: and "no scope" would let one key answer for two different targets.
     session_scope: str
+    #: The MESSAGE: every token that says what this turn is. It is what the
+    #: accept receipt fingerprints, so a re-send that changes any of it is
+    #: refused ``turn_payload_conflict``.
     argv: list[str]
     correlation_id: str | None = None
+    #: How the reply comes BACK (``--stream``), never what was sent. Kept out of
+    #: :attr:`argv` so it is out of the fingerprint: a client that re-sends the
+    #: same ``turn_request_id`` buffered after a streamed first send (a
+    #: restarted launcher) is presenting the same message, and is answered as a
+    #: replay rather than refused.
+    delivery_flags: tuple[str, ...] = ()
+
+    @property
+    def spawn_argv(self) -> list[str]:
+        """The argv the worker runs: the message plus its delivery flags."""
+
+        return [*self.argv, *self.delivery_flags]
 
 
 # ── param normalisation ──────────────────────────────────────────────────────
@@ -433,8 +448,6 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--title", title]
     if new_session:
         argv.append("--new-session")
-    if stream:
-        argv.append("--stream")
     if max_seconds is not None:
         argv += ["--max-seconds", repr(max_seconds)]
     # R-C8's seven, appended after the original set so an existing pin on a
@@ -464,6 +477,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         session_scope=session_id or persona_instance_id or f"persona:{persona_id}",
         argv=argv,
         correlation_id=correlation_id,
+        delivery_flags=("--stream",) if stream else (),
     )
 
 
@@ -737,7 +751,7 @@ def perform_chat_turn(
             ack["request_id"] = request_id
             reservation.mark_accepted(ack, request_id=request_id)
             try:
-                spawn(request_id, request.argv, request.turn_request_id)
+                spawn(request_id, request.spawn_argv, request.turn_request_id)
             except ChatTurnSpawnRefused as exc:
                 # The receipt is REMOVED, not left behind. A refusal is not an
                 # accept, and a receipt that outlived one would answer the

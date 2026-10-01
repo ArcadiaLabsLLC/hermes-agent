@@ -218,6 +218,12 @@ class ChatTurnReservation:
             _write(self.record)
 
     def verify_payload(self, argv: list[str]) -> None:
+        """Refuse a re-used turn id that names a different MESSAGE.
+
+        ``argv`` is the message only (``ChatTurnRequest.argv``) -- the delivery
+        flags ride beside it, so a re-send that differs only in how the reply
+        comes back fingerprints the same.
+        """
         fingerprint = hashlib.sha256(json.dumps(argv, ensure_ascii=False).encode("utf-8")).hexdigest()
         if self.record.is_new:
             self.record = replace(self.record, payload_fingerprint=fingerprint)

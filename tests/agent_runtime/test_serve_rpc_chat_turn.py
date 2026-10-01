@@ -323,6 +323,40 @@ def test_a_turn_request_id_reused_against_another_root_is_refused():
     assert len(spawned) == 1
 
 
+def test_a_resend_that_differs_only_in_stream_is_the_same_message():
+    """``--stream`` says how the reply comes BACK, not what was sent: a client
+    restarted between a streamed send and its buffered retry presents the same
+    turn, and is answered as a replay -- never ``turn_payload_conflict``. The
+    worker still runs with the flag the FIRST send asked for.
+
+    *Killing mutation:* append ``--stream`` to ``argv`` again in
+    ``normalize_chat_message`` -> the retry is refused ``turn_payload_conflict``.
+    *Positive control:* the same id with a changed message IS refused.
+    """
+
+    spawned: list[list[str]] = []
+
+    def _spawn(request_id, argv, turn_request_id):
+        spawned.append(argv)
+
+    base = {"turn_request_id": "stream-flip", "persona_id": "neko", "message": "hi"}
+    first = perform_chat_turn({**base, "stream": True}, verb=CHAT_MESSAGE_METHOD, spawn=_spawn)
+    assert first.result["accepted"] is True
+    assert spawned[0][-1] == "--stream"
+
+    retry = perform_chat_turn(base, verb=CHAT_MESSAGE_METHOD, spawn=_spawn)
+    assert retry.refusal is None, retry.refusal
+    assert retry.result["idempotent_replay"] is True
+    assert len(spawned) == 1
+
+    changed = perform_chat_turn(
+        {**base, "message": "something else"}, verb=CHAT_MESSAGE_METHOD, spawn=_spawn
+    )
+    assert changed.result is None
+    assert changed.refusal.data["reason"] == "turn_payload_conflict"
+    assert len(spawned) == 1
+
+
 def test_a_refused_spawn_leaves_no_receipt_behind():
     """A drain is a decision this process made after the durable write and can
     still undo. A receipt that outlived it would answer the client's honest
