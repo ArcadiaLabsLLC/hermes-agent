@@ -21,7 +21,7 @@ from .definition_store import DefinitionStore, _encode
 from .definitions import DefinitionError, ParticipantRef, identifier, revision
 from .run_values import DiscussionError, text as text, digest, member_id
 from .run_schema import run_schema_ready, initialize_runs
-from .run_records import read_run_record, _advance, _expect_run, _add_member
+from .run_records import read_run_record, _advance, _expect_run, _add_member, claim_table_member
 from .run_admission import admit, table_admission, room_admission
 from .room_definition import RoomSpec, execution_spec
 from .member_schema import member_record
@@ -150,10 +150,7 @@ class RunStore:
                 # A re-invitation keeps the room session and immutable member identity.
                 if any(existing[k] != item[k] for k in ("persona_id", "profile")):
                     raise DiscussionError("profile_binding_changed")
-                try:
-                    conn.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)", (ref.install_id, ref.instance_id, run_id))
-                except sqlite3.IntegrityError as exc:
-                    raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
+                claim_table_member(conn, run_id, ref)
                 used = {row[0] for row in conn.execute("SELECT seat FROM mc_discussion_members WHERE run_id=? AND status!='removed'", (run_id,))}
                 free = next((i for i in range(execution_spec(run).capacity) if i not in used), None)
                 if free is None:

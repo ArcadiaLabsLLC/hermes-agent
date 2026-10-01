@@ -1,5 +1,5 @@
 """Observation and continuation of an existing operator conversation."""
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD, perform_chat_turn
 from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
@@ -13,7 +13,7 @@ from .registry import method
 __layer__ = "lanes"
 
 
-@method("runtime.operator.conversation.read", tier=TIER_READ)
+@method("runtime.operator.conversation.read", tier=TIER_CONSOLE)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
     build = deferred_reply(rid, "runtime.operator.conversation.read", lambda: _read_reply(rid, params, context))
     if context is not None and context.spawn_reply is not None and context.spawn_reply(build):

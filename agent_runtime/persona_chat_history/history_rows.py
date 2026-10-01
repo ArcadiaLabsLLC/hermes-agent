@@ -17,6 +17,7 @@ from ..persona_assignments import (
     safe_assignment_token,
 )
 from ..serde import positive_int
+from ..conversation_owner import session_client_scope
 from .curation import _safe_curated_messages
 from .text import _INTERNAL_SCAFFOLDING_MARKERS, _safe_display_text
 from .trace_rows import _bounded_message_tail
@@ -198,6 +199,7 @@ def _history_row(
     }
     return {
         "session_id": session_id,
+        **({"client_scope": owner} if (owner := session_client_scope(raw)) is not None else {}),
         "persona_id": persona_id,
         "persona_instance_id": safe_assignment_text(
             getattr(instance, "id", None) or persona_instance_id_for(persona_id),

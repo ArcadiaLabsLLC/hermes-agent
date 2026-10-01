@@ -7,6 +7,8 @@ it never runs a turn.
 from __future__ import annotations
 
 from dataclasses import asdict
+from contextlib import closing
+from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
@@ -217,6 +219,12 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 getattr(args, "persona_instance_id", None)
             ) or None
             if is_canonical_session_persistence(session_db):
+                try:
+                    require_session_owner(session_db.get_session(args.session_id),
+                                          getattr(args, "client_scope", None))
+                except ConversationOwnerError as exc:
+                    return _emit_persona_open_chat_error(args, error_kind=exc.reason,
+                        error="This conversation belongs to another account.", persona_id=persona_id)
                 session_owner = _persona_chat_session_owner(session_db, args.session_id)
                 try:
                     owner_instance = (
@@ -347,6 +355,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         "mode": instance.mode,
         "default_chat_session_id": instance.default_chat_session_id,
         "session_id": instance.default_chat_session_id,
+        **({"client_scope": args.client_scope} if getattr(args, "client_scope", None) is not None else {}),
         "previous_session_id": previous_session_id,
         "binding_receipt": {
             "schema_version": 1,
@@ -444,9 +453,15 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
             persona_id=persona_id,
             persona_instance_id=target_instance_id,
             session_id=persona_chat_session_id_for(target_instance_id),
+            client_scope=getattr(args, "client_scope", None),
         ) as mint:
             receipt = mint.receipt
             if receipt.bound:
+                with closing(_default_persona_session_db()) as session_db:
+                    persisted = session_db.get_session(receipt.session_id)
+                    if persisted is None:
+                        raise ConversationOwnerError("session_not_found")
+                    require_session_owner(persisted, receipt.client_scope)
                 # A retry after a confirmed response loss must be observational:
                 # return the original root without moving the instance pointer
                 # back over a newer chat selected since this mint completed.
@@ -457,13 +472,15 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
                 # unavailable the reserved receipt survives and retry reuses the
                 # same root instead of creating a duplicate conversation.
                 try:
-                    _ensure_persona_chat_session(
-                        session_db=_default_persona_session_db(),
-                        session_id=receipt.session_id,
-                        persona_id=persona_id,
-                        title=f"{current.display_name} chat",
-                        required=True,
-                    )
+                    with closing(_default_persona_session_db()) as session_db:
+                        _ensure_persona_chat_session(
+                            session_db=session_db,
+                            session_id=receipt.session_id,
+                            persona_id=persona_id,
+                            title=f"{current.display_name} chat",
+                            required=True,
+                            client_scope=receipt.client_scope,
+                        )
                 except PersonaChatPersistenceError as exc:
                     data = {
                         "ok": False,
@@ -500,6 +517,10 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
                     _emit_persona_open_chat_payload(args, data)
                     return 2
                 receipt = mint.mark_bound()
+    except ConversationOwnerError as exc:
+        return _emit_persona_open_chat_error(
+            args, error_kind=exc.reason, error="This conversation could not be reopened.",
+            persona_id=persona_id, persona_instance_id=target_instance_id)
     except PersonaChatMintError as exc:
         return _emit_persona_open_chat_error(
             args,
@@ -530,6 +551,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         "superseded": not selected,
         "idempotent_replay": receipt.idempotent_replay,
         "mint_receipt_state": receipt.state,
+        **({"client_scope": receipt.client_scope} if receipt.client_scope is not None else {}),
         "coordinator_permission_scope": asdict(coordinator_scope)
         if coordinator_scope is not None
         else None,

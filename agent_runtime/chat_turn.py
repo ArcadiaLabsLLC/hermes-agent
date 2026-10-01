@@ -157,6 +157,7 @@ INTENT_HINT_DEFAULT = "chat"
 #: is what lets a client tell "ignored" from "honoured" BEFORE it sends.
 CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "clarify_token",
+    "client_scope",
     "correlation_id",
     "intent_hint",
     "max_seconds",
@@ -181,6 +182,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
 #: absent on purpose: the steer verb has no such flag and both lanes drop a
 #: defaulted one.
 CHAT_STEER_PARAMS: tuple[str, ...] = (
+    "client_scope",
     "correlation_id",
     "message",
     "persona_id",
@@ -258,6 +260,7 @@ class ChatTurnRequest:
     #: refused ``turn_payload_conflict``.
     argv: list[str]
     correlation_id: str | None = None
+    client_scope: str | None = None
     #: How the reply comes BACK (``--stream``), never what was sent. Kept out of
     #: :attr:`argv` so it is out of the fingerprint: a client that re-sends the
     #: same ``turn_request_id`` buffered after a streamed first send (a
@@ -358,6 +361,8 @@ def _correlation_id(params: dict) -> str | None:
 
 def normalize_chat_message(params: dict) -> ChatTurnRequest:
     """``runtime.chat.message`` params → the argv a local send would have used."""
+
+    from .conversation_owner import request_client_scope
 
     turn_request_id = _required_text(
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
@@ -478,6 +483,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv=argv,
         correlation_id=correlation_id,
         delivery_flags=("--stream",) if stream else (),
+        client_scope=request_client_scope(params),
     )
 
 
@@ -604,6 +610,8 @@ def normalize_peer_chat_execute(
 def normalize_chat_steer(params: dict) -> ChatTurnRequest:
     """``runtime.chat.steer`` params → ``harness mission-chat steer`` argv."""
 
+    from .conversation_owner import request_client_scope
+
     turn_request_id = _required_text(
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
     )
@@ -636,6 +644,7 @@ def normalize_chat_steer(params: dict) -> ChatTurnRequest:
         session_scope=session_id,
         argv=argv,
         correlation_id=correlation_id,
+        client_scope=request_client_scope(params),
     )
 
 
@@ -685,6 +694,8 @@ def perform_chat_turn(
     """
 
     from .serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS
+    from .conversation_access import require_scoped_conversation
+    from .conversation_owner import ConversationOwnerError
 
     try:
         if verb == CHAT_MESSAGE_METHOD:
@@ -700,6 +711,13 @@ def perform_chat_turn(
             )
         else:  # pragma: no cover - the registry is the only caller
             raise ChatTurnInvalid("unknown_chat_verb", f"unknown chat verb: {verb}")
+        if request.client_scope is not None:
+            require_scoped_conversation({"client_scope": request.client_scope,
+                                         "session_id": params.get("session_id")})
+    except ConversationOwnerError as exc:
+        return ChatTurnOutcome(refusal=ChatTurnRefusal(
+            code=ERR_CONFLICT, message="This conversation is unavailable for this account.",
+            data={"reason": exc.reason}))
     except ChatTurnInvalid as exc:
         return ChatTurnOutcome(
             refusal=ChatTurnRefusal(
