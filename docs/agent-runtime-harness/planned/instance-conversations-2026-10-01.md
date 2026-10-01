@@ -81,3 +81,21 @@ service was polling: upstream writer preflight reported a temporary WAL sidecar
 unwritable. The observer now uses the supported read-only connection; the final
 run passed. A sidecar race is suspected, not proven; no upstream workaround was
 added. The upstream-owned runtime queue records the investigation separately.
+
+## History checkpoint
+
+`runtime.operator.conversation.list` reads the existing SessionDB, scopes before
+pagination and uses an account/installation-bound keyset cursor. Console tier
+is required for both views; All accounts is explicit. Unowned history remains
+labelable, removed agents remain unavailable, and concurrent creation does not
+shift subsequent pages. Projection reuses native curation, lineage and usage.
+
+The public SessionDB list API lacks metadata predicates and keyset pagination.
+One fork-local query uses its pooled `_read_all` boundary; the seams queue records
+the public-door debt. No database, account directory or upstream edit was added.
+
+Verification: 64 history/curation tests passed; the later authorization, manifest
+and import-layer run passed 117 tests (overlapping counts). Disabling native
+owner filtering failed the scoped-page test; disabling adapter owner validation
+failed its wrong-owner test. Both controls were restored. Seven client adapter
+tests passed. These are feature-branch checks, not UI acceptance or completion.

@@ -238,6 +238,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+- [ ] **Expose a public scoped SessionDB page query.** Native account history must filter metadata before keyset pagination; `list_sessions_rich` exposes neither predicate nor keyset cursor. The fork localizes the read through `_read_all` in `instance_history._page`, pending a public upstream seam. No upstream edit or parallel store. Evidence: [instance history checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#history-checkpoint). · instance-conversations 2026-10-01
+
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
 
