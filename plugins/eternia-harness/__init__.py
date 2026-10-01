@@ -209,6 +209,20 @@ def refuse_blocked_tool(tool_name=None, session_id="", **_context):
     return None if message is None else {"action": "block", "message": message}
 
 
+def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_context):
+    """``pre_tool_call`` hook: a blocked tool, then a ``flutter build`` that collides with the live Launcher.
+
+    One callback for both refusals (``agent_runtime.flutter_build_guard`` for the second).
+    """
+    from agent_runtime.flutter_build_guard import flutter_build_refusal
+
+    blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
+    if blocked is not None:
+        return blocked
+    message = flutter_build_refusal(tool_name, args, task_id=task_id)
+    return None if message is None else {"action": "block", "message": message}
+
+
 def default_background_notify(tool_name=None, args=None, **_context):
     """``tool_request`` middleware: a background ``terminal`` spawn notifies on exit by default.
 
@@ -320,7 +334,7 @@ def register(ctx) -> None:
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_middleware("llm_execution", time_provider_dispatch)
-    ctx.register_hook("pre_tool_call", refuse_blocked_tool)
+    ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     # The on_stream_* receipt observers register only while a persona turn runs: any
     # registered one makes upstream treat EVERY agent in the process as a stream consumer.
