@@ -351,6 +351,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-02 (lane w5-fh, filed by the orchestrator)
 
 - [ ] **Upstream `hermes_cli/terminal_notify.write_tty` opens '/dev/tty' on Windows, which resolves under the cwd drive's root: where a \dev folder exists the BEL/OSC goes into a FILE (X:\dev\tty holds one now) instead of the terminal — gate the /dev/tty attempt on os.name != "nt" (upstream PR)** · `upstream / cli` · evidence: w5-fh commit 7d3e8a195d · X:\dev is test litter (X:\dev\null\nope from test_startup_watchdog) · UNCLAIMED
+### Filed on arrival — 2026-10-01 (instance conversations)
+
+- [ ] **Investigate writer preflight against a disappearing SQLite WAL sidecar.** One isolated room test reported `state.db-wal` unwritable while a background native reader was active; its observer incorrectly opened a writer. Using `SessionDB(read_only=True)` fixed that observer, but does not prove or repair the suspected preflight race. No upstream production change. Evidence: [instance checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#account-and-global-instance-checkpoint). UNCLAIMED
 
 ### Filed on arrival — 2026-10-01 (lane rw-h)
 

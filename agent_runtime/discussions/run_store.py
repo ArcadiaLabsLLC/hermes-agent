@@ -25,6 +25,7 @@ from .run_records import read_run_record, _advance, _expect_run, _add_member, cl
 from .run_admission import admit, table_admission, room_admission
 from .room_definition import RoomSpec, execution_spec
 from .member_schema import member_record
+from .room_owner import scoped_room_key
 
 __layer__ = "stores"
 
@@ -49,15 +50,20 @@ class RunStore:
         with closing(self.connect()) as conn:
             return read_run_record(conn, run_id, workspace_id)
 
-    def list(self, workspace_id: str, *, limit: int = 50, after: str = "") -> list[dict[str, Any]]:
+    def list(self, workspace_id: str, *, limit: int = 50, after: str = "",
+             client_scope: str | None = None, include_owned: bool = True) -> list[dict[str, Any]]:
         identifier(workspace_id, "workspace_id")
         if type(limit) is not int or not 1 <= limit <= 100:
             raise DefinitionError("invalid_limit", "limit")
         if after:
             identifier(after, "after")
         with closing(self.connect()) as conn:
-            ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE workspace_id=? AND run_id>? ORDER BY run_id LIMIT ?",
-                               (workspace_id, after, limit)).fetchall()
+            ids = conn.execute("""SELECT run_id FROM mc_discussion_runs WHERE workspace_id=? AND run_id>?
+                AND (? OR COALESCE(json_extract(initial_json,'$.client_scope'),
+                    json_extract(initial_json,'$.group.client')) IS NULL)
+                AND (? IS NULL OR COALESCE(json_extract(initial_json,'$.client_scope'),
+                    json_extract(initial_json,'$.group.client'))=?) ORDER BY run_id LIMIT ?""",
+                               (workspace_id, after, include_owned, client_scope, client_scope, limit)).fetchall()
             return [read_run_record(conn, row[0]) for row in ids]
 
     def owned(self) -> list[dict[str, Any]]:
@@ -66,16 +72,21 @@ class RunStore:
             return [read_run_record(conn, row[0]) for row in ids]
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int, key: str, topic: str,
-              actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
+              actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]],
+              client_scope: str | None = None) -> dict[str, Any]:
         expected = revision(expect_revision, minimum=1)
+        key = scoped_room_key(key, client_scope)
         return admit(self.connect, workspace_id, key=key, topic=topic, actor_id=actor_id,
             identity={"table_id": table_id, "expect_revision": expected},
-            load=lambda conn: table_admission(conn, workspace_id, table_id, expected), resolve=resolve)
+            load=lambda conn: table_admission(conn, workspace_id, table_id, expected, client_scope), resolve=resolve)
 
     def begin_room(self, workspace_id: str, spec: RoomSpec, *, key: str, topic: str,
-                   actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]]) -> dict[str, Any]:
+                   actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]],
+                   client_scope: str | None = None) -> dict[str, Any]:
+        key = scoped_room_key(key, client_scope)
+        admission = room_admission(spec, client_scope=client_scope)
         return admit(self.connect, workspace_id, key=key, topic=topic, actor_id=actor_id,
-            identity={"discussion": spec.to_dict()}, load=lambda _conn: room_admission(spec), resolve=resolve)
+            identity=admission.initial, load=lambda _conn: admission, resolve=resolve, allow_empty_topic=True)
 
     def activate(self, run_id: str) -> None:
         with transaction(self.connect(), immediate=True) as conn:

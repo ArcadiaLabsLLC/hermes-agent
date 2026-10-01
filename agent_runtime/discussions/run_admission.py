@@ -27,7 +27,8 @@ class Admission:
     table_id: str | None = None
 
 
-def table_admission(conn: sqlite3.Connection, workspace: str, table_id: str, expected: int) -> Admission:
+def table_admission(conn: sqlite3.Connection, workspace: str, table_id: str, expected: int,
+                    client_scope: str | None = None) -> Admission:
     table = _required(conn, _key(DefinitionKind.TABLE, workspace, table_id))
     _expect(table, expected)
     spec = table.spec
@@ -37,13 +38,17 @@ def table_admission(conn: sqlite3.Connection, workspace: str, table_id: str, exp
                     (workspace, table_id)).fetchone():
         raise DiscussionError("table_busy")
     plan = plan_seats(spec)
-    return Admission({"table": table.to_dict(), "seat_plan": {"capacity": spec.seat_count,
+    return Admission({**({"client_scope": client_scope} if client_scope is not None else {}),
+        "table": table.to_dict(), "seat_plan": {"capacity": spec.seat_count,
         "assignments": [p.to_dict() for p in plan.assignments]}},
         spec.configuration.participants, {p.participant: p.seat for p in plan.assignments}, table_id)
 
 
-def room_admission(spec: RoomSpec) -> Admission:
-    return Admission({"discussion": spec.to_dict()}, spec.participants,
+def room_admission(spec: RoomSpec, *, client_scope: str | None = None) -> Admission:
+    initial = {"discussion": spec.to_dict()}
+    if client_scope is not None:
+        initial["client_scope"] = client_scope
+    return Admission(initial, spec.participants,
                      {ref: index for index, ref in enumerate(spec.participants)})
 
 

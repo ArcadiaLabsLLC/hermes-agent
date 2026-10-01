@@ -56,10 +56,28 @@ five AST decision nodes (not a cyclomatic-complexity claim).
 Native instance conversations still need rich model/skills/context/attachment
 and recovery parity with the current Direct transport. Keep execution in the
 existing native owner; do not place profile workers behind a cosmetic instance ID.
-Account-owned room listing/control and member-model parity also remain.
+Member-model parity also remains.
 
 Then bind neutral Launcher contracts, replace profile-only creation and saved
 route identity, and add current-account history plus labelled operator All
 accounts. Global-instance handoff must not invent a workspace placement. Preserve
 New versus Continue, account/install switches, exact Stop and Mission Control.
 Qualify the complete path before retiring old Launcher glue or landing main.
+
+## Account and global-instance checkpoint
+
+Account-owned rooms reuse native admission records and session metadata. Listing
+filters before pagination; read-only devices cannot inspect owned runs. Console
+operators retain explicit cross-owner access. Scoped commands refuse mismatches.
+Empty rooms wait for a message. Global instances retain a null placement, and
+opening checks the selected installation before minting.
+
+Fourteen focused tests passed. Disabling the owner and installation guards made
+six tests fail; both guards were restored. The broader preceding focused run
+passed 30 tests. These are overlapping counts, not full qualification.
+
+One rerun failed when a test observer opened a writer SessionDB while the native
+service was polling: upstream writer preflight reported a temporary WAL sidecar
+unwritable. The observer now uses the supported read-only connection; the final
+run passed. A sidecar race is suspected, not proven; no upstream workaround was
+added. The upstream-owned runtime queue records the investigation separately.
