@@ -20,6 +20,7 @@ from agent_runtime.operator_execution import execution_status
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from tools.agent_chat.lane import session_belongs_to_chat_lane
 from agent_runtime.serde import safe_assignment_token
+from agent_runtime.conversation_owner import ConversationOwnerError, request_client_scope
 
 __layer__ = "lanes"
 
@@ -32,6 +33,10 @@ class OperatorConversationRefused(ValueError):
 
 def exact_operator_target(params: dict[str, Any]):
     """Resolve an explicit reference without selecting, minting or rebinding."""
+    try:
+        request_client_scope(params)
+    except ConversationOwnerError as exc:
+        raise OperatorConversationRefused(exc.reason) from exc
     keys = ("install_id", "workspace_id", "persona_id", "persona_instance_id", "session_id")
     if any(not isinstance(params.get(key), str) or not params[key].strip() for key in keys):
         raise OperatorConversationRefused("conversation_identity_required")
@@ -58,7 +63,8 @@ def exact_operator_target(params: dict[str, Any]):
 def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = False) -> dict[str, Any]:
     instance = exact_operator_target(params)
     session = params["session_id"]
-    history = existing_persona_chat_messages(session_id=session, before=params.get("before"))
+    history = existing_persona_chat_messages(session_id=session, before=params.get("before"),
+                                             client_scope=params.get("client_scope"))
     if not history.get("ok"):
         raise OperatorConversationRefused(str(history.get("error_kind") or "history_unavailable"))
     turns = mission_chat_turn_records(session_id=session)
@@ -95,6 +101,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
 def validate_operator_conversation(params: dict[str, Any]) -> None:
     """Control-path validation must not scan transcript or admission history."""
     exact_operator_target(params)
-    history = existing_persona_chat_messages(session_id=params["session_id"], check_only=True)
+    history = existing_persona_chat_messages(session_id=params["session_id"], check_only=True,
+                                             client_scope=params.get("client_scope"))
     if not history.get("ok"):
         raise OperatorConversationRefused(str(history.get("error_kind") or "history_unavailable"))
