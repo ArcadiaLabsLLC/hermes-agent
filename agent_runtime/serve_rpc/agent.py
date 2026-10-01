@@ -18,6 +18,19 @@ __all__ = [
 ]
 
 
+@method("runtime.agent.directory", tier=TIER_CONSOLE)
+def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    from agent_runtime.instance_catalog import prepare_instance_catalog, InstanceCatalogUnavailable
+    from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_HANDLER_FAILED
+
+    if params:
+        return err(rid, ERR_INVALID_PARAMS, "No parameters expected.")
+    try:
+        return ok(rid, prepare_instance_catalog())
+    except InstanceCatalogUnavailable as exc:
+        return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
+
+
 @method("runtime.agent.templates", tier=TIER_CONSOLE)
 def _runtime_agent_templates(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """The same persisted persona catalog that validates agent.create."""

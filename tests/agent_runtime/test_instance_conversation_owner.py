@@ -8,6 +8,7 @@ from agent_runtime.conversation_owner import session_client_scope
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
+from agent_runtime.persona_chat_history import persona_chat_history_summary
 from tests.agent_runtime.test_serve_rpc_open_chat import (
     PERSONA, WORKSPACE, _call, _device, qa_persona, placed_agent,
 )
@@ -39,6 +40,10 @@ def test_account_mints_are_distinct_retry_stable_and_cannot_rebind_another_owner
     with closing(default_persona_session_db()) as db:
         assert session_client_scope(db.get_session(first["session_id"])) == OWNER
         assert session_client_scope(db.get_session(second["session_id"])) == OTHER
+        history = persona_chat_history_summary(persona_instances=PersonaInstanceStore().list_all(), session_db=db)
+        owners = {row["session_id"]: row.get("client_scope") for row in history}
+        assert owners[first["session_id"]] == OWNER
+        assert owners[second["session_id"]] == OTHER
     refused = _call(dict(persona_id=PERSONA, persona_instance_id=params["persona_instance_id"],
                         session_id=first["session_id"], client_scope=OTHER))
     assert refused["error"]["data"]["reason"] == "conversation_owner_changed"
