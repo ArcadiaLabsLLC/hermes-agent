@@ -1385,7 +1385,8 @@ dependency. Phone bundles omit the Work adapter and never advertise its methods.
 | Method | Input beyond scope | Result |
 |---|---|---|
 | `runtime.work.capabilities` | none | version 1, installation, owners, limitations |
-| `runtime.work.list` | optional cursor `[created_at, id]` | tasks, next cursor |
+| `runtime.work.context` | client_scope, conversation | installation, scopes, agent_profile, can_start |
+| `runtime.work.list` | optional cursor `[created_at, id]`, view, conversation | tasks, next cursor |
 | `runtime.work.inspect` | task_id | task or null |
 | `runtime.work.start` | client_scope, request_id, title, body | accepted task |
 
@@ -1410,3 +1411,28 @@ success. Stop, redirect and retry are not advertised.
 
 Launcher presentation and verification record:
 `EterniaLauncher/docs/companion/planned/HERMES_WORK_VIEW_2026-09-30.md`.
+
+### Conversation-scoped Work
+
+`agent_runtime/work/context.py` resolves optional `conversation` references through
+existing conversation authorities. Every contextual request includes `client_scope`.
+A native reference is `{kind: native, profile, profile_home, session_id}`; the session
+ID is the existing client route, resolved under its caller/account/profile scope.
+A null session permits browsing but cannot start linked work. A route without turns
+also cannot start: its native session is not yet stable.
+
+An operator reference is `{kind: operator, workspace_id, persona_id, persona_instance_id,
+session_id}` and passes `validate_operator_conversation`. Its persona is not a
+native dispatcher profile: it offers conversation/all scopes and real destination
+choices, never an invented assignment to that persona.
+
+Capabilities advertise `chat_scopes: true`. Views are `conversation`, `agent`, `all`.
+Native `task.session_id` is the originating conversation; the harness creates no
+relationship table. Task creation stamps this origin, native agent-created tasks
+already carry it, and replay compares it. Projection adds `in_conversation`.
+Unknown or mismatched account, home, installation or session refuses without a
+global fallback. Pending clients retain the original reference when another surface
+retries. Native task transfer may deliberately clear origin under native policy.
+
+The shared presentation receipt is
+`EterniaLauncher/docs/companion/planned/SCOPED_CHAT_WORK_2026-10-01.md`.

@@ -11,7 +11,7 @@ def test_work_family_private_deferred_and_execution_guarded(monkeypatch):
         calls.append(operation)
         return {"version": 1}
     monkeypatch.setattr(work, "execute", execute)
-    for operation in ("capabilities", "list", "inspect", "start"):
+    for operation in ("capabilities", "context", "list", "inspect", "start"):
         name = "runtime.work." + operation
         request = {"jsonrpc": "2.0", "id": operation, "method": name, "params": {}}
         assert method_tier(name) == "console"
@@ -32,6 +32,6 @@ def test_work_failure_does_not_leak_native_diagnostics(monkeypatch):
     def fail(*args):
         raise RuntimeError("private prompt and token")
     monkeypatch.setattr(work, "execute", fail)
-    reply = work._answer("r", "start", {}, STDIO_OWNER)
+    reply = work._work_reply("r", "start", {}, STDIO_OWNER)
     assert reply["error"]["data"]["reason"] == "work_outcome_unknown"
     assert "private prompt" not in str(reply)
