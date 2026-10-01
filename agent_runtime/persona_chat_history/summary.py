@@ -368,7 +368,8 @@ class HistorySummary:
         for raw, instance, session_id, kind, task_id in visible_candidates:
             row = _history_row(
                 raw,
-                instance,
+                persona_id=instance.persona_id,
+                instance_id=instance.id,
                 session_id=session_id,
                 session_db=db,
                 message_tail=self.message_tail,
