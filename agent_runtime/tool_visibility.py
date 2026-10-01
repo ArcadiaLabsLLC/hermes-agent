@@ -252,11 +252,18 @@ class ToolVisibilityOptions:
     turns_remaining: int | None = None
 
 
+# ``include_readiness=False`` is for a caller that reads none of the profile readiness:
+# ``profile_readiness`` / ``profile_readiness_summary`` are then ABSENT from the answer,
+# never computed. Readiness is the expensive half of this resolve (provider credentials
+# per profile home, skill resolution) and nothing else here depends on it; the
+# persona-instance wire row keeps only the head scalars, so computing it there was paid
+# for and thrown away (w3-perf).
 def resolve_tool_visibility(
     persona: AgentPersona,
     options: ToolVisibilityOptions | None = None,
     *,
     profile_readiness: dict[str, Any] | None = None,
+    include_readiness: bool = True,
 ) -> dict[str, Any]:
     opts = options or ToolVisibilityOptions()
     role = role_from_persona(persona)
@@ -304,7 +311,7 @@ def resolve_tool_visibility(
         for name in configured_toolsets
         if name not in set(resolved_toolsets)
     ]
-    readiness = profile_readiness or _profile_readiness_for_visibility(persona)
+    readiness = (profile_readiness or _profile_readiness_for_visibility(persona)) if include_readiness else {}
     entry_point_lane = str(opts.entry_point_lane or "").strip() or current_entry_point_lane()
     requirement_failures, admitted_mcp_servers = _requirement_failures(
         persona,
@@ -322,7 +329,7 @@ def resolve_tool_visibility(
         blocked_entries=blocked_entries,
     )
     token_estimate = _estimate_model_tool_tokens(final_tools)
-    return {
+    resolution = {
         "schema_version": TOOL_VISIBILITY_SCHEMA_VERSION,
         "persona_id": persona.id,
         "display_name": persona.display_name,
@@ -393,6 +400,9 @@ def resolve_tool_visibility(
         "resolved_at": resolved_at,
         "resolution_id": resolution_id,
     }
+    if not include_readiness:
+        del resolution["profile_readiness"], resolution["profile_readiness_summary"]
+    return resolution
 
 
 def _requirement_failures(
