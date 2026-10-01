@@ -1231,12 +1231,34 @@ def test_cron_ownership_requires_more_than_module_residency():
         pass
 
     class _Owner:
-        _parallel_pool = object()
+        _parallel_pools = {"home": object()}
 
     assert running_work._cron_owned_here(_Bare(), set()) is False
     assert running_work._cron_owned_here(_Owner(), set()) is True
     # A live running id proves ownership even before any pool is inspected.
     assert running_work._cron_owned_here(_Bare(), {"job-1"}) is True
+
+
+def test_cron_ownership_reads_the_real_schedulers_pools(monkeypatch):
+    """The door against the REAL ``cron.scheduler``, not a stand-in shaped like
+    what the door expects: the stand-in above stayed green the whole time the
+    door read ``_parallel_pool``, a name the scheduler no longer has.
+
+    *Killing mutation:* the door reads ``_parallel_pool`` again -> the owner arm
+    answers False. *Positive control:* the same module with no pool is False.
+    """
+
+    from cron import scheduler
+
+    monkeypatch.setattr(scheduler, "_parallel_pools", {})
+    monkeypatch.setattr(scheduler, "_parallel_pool_max_workers", {})
+    monkeypatch.setattr(scheduler, "_inflight_home_paths", {})
+    assert running_work._cron_owned_here(scheduler, set()) is False
+    pool = scheduler._get_parallel_pool(1)
+    try:
+        assert running_work._cron_owned_here(scheduler, set()) is True
+    finally:
+        pool.shutdown(wait=False)
 
 
 def test_a_broken_scheduler_is_unreadable_not_someone_elses_process(home, monkeypatch):
