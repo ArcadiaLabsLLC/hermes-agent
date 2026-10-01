@@ -9,9 +9,9 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
-## Filed on arrival � 2026-09-30 (GenUI invocation)
+## Filed on arrival — 2026-09-30 (GenUI invocation)
 
-- [ ] **Repair or classify the remaining canonical validation failures around office method manifests, strict XPASS markers and isolated-runner environment.** � [GenUI validation baseline](../../docs/downstream/genui-invocation-2026-09-30.md#validation-baseline); unchanged-main comparison reproduces office/anonymous-sign-in failures, while realm-sync and embedded-phone pass directly. Preserve their exact runner conditions; no product-policy changes or enlarged exemptions.
+- [ ] **Repair or classify canonical-suite residuals: office manifests, strict XPASS, Windows/SQLite assumptions and isolated-runner/interpreter identity.** · [GenUI validation baseline](../../docs/downstream/genui-invocation-2026-09-30.md#validation-baseline); preserve primary-versus-worktree evidence and existing ownership, without product-policy changes or enlarged exemptions.
 
 ## Release validation — 2026-09-23
 
