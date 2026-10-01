@@ -209,14 +209,19 @@ def _is_type_checking(test: ast.expr) -> bool:
         isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING")
 
 
+#: Calls whose first literal argument is a module they import: importlib's, and the
+#: ``hermes harness`` parser's handlers bound by name (``hermes_cli/harness_parts/parser/lazy.py``).
+_LITERAL_IMPORT_CALLS = frozenset({"import_module", "lazy_module"})
+
+
 def _literal_import_module(node: ast.AST) -> str | None:
-    """``importlib.import_module("x")`` / ``import_module("x")`` with a literal name -> ``"x"``."""
+    """``import_module("x")`` / ``lazy_module("x")`` with a literal name -> ``"x"``."""
     if not isinstance(node, ast.Call) or not node.args:
         return None
     func = node.func
     name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
     arg = node.args[0]
-    if name == "import_module" and isinstance(arg, ast.Constant) and isinstance(arg.value, str) \
+    if name in _LITERAL_IMPORT_CALLS and isinstance(arg, ast.Constant) and isinstance(arg.value, str) \
             and not arg.value.startswith("."):
         return arg.value
     return None

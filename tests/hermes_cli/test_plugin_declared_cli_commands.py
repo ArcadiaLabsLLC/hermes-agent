@@ -174,3 +174,25 @@ def test_discovery_after_a_declared_stub_loads_the_plugin_once(two_bundled_plugi
     # The parser the stub built outlives the stub's load.
     args = parser.parse_args(["--alpha-flag"])
     assert args.alpha_flag is True and args.func(args) == 0
+
+
+def test_a_built_in_verb_skips_the_declared_scan(monkeypatch):
+    """A built-in first token cannot reach a declared command, so the parser build reads
+    no ``plugin.yaml`` for it (w3-perf: the scan parses every manifest, ~0.3-1.4 s, and
+    materialising ``harness`` loads its plugin). Upstream's own rule, applied to the
+    declared pass: plugin commands are already absent from a built-in invocation's tree."""
+
+    scans = []
+    real = plugins_mod.discover_declared_cli_commands
+
+    def counting():
+        scans.append(1)
+        return real()
+
+    monkeypatch.setattr(plugins_mod, "discover_declared_cli_commands", counting)
+    _calls, _parser, subparsers = _parse_under(["gateway", "status"], monkeypatch)
+    assert scans == [] and "harness" not in subparsers.choices
+
+    # Positive control: the same build for a declared verb does scan and attach it.
+    _calls, _parser, subparsers = _parse_under(["harness", "doctor"], monkeypatch)
+    assert scans == [1] and "harness" in subparsers.choices

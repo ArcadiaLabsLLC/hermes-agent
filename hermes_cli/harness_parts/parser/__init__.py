@@ -5,8 +5,8 @@ This file is the MAP of the tree. Entry points: ``hermes_cli.harness.build_cli_p
 subparsers action (the contract dump, the fixture generator, the serve argv lane,
 the tests).
 
-Modules (all wiring; each holds one ``add_<family>(subs)`` per family and imports
-the handlers it binds as ``func=``):
+Modules (all wiring; each holds one ``add_<family>(subs)`` per family and binds
+its ``func=`` handlers BY NAME through ``lazy`` — the tree imports no handler):
 
 * ``machine`` — init, roots, gateway, status/providers/usage/doctor/health/verify,
   config, migrate, observe, contracts, worktree, install-harness-skills, snapshot,
@@ -56,6 +56,7 @@ from .machine import (
 from .persona import add_agent, add_mission_chat, add_persona, add_persona_instance, add_query
 from .scope import add_realm, add_workspace
 from .execution_identity import add_execution_identity
+from .lazy import LazyHandlerParser
 from .surfaces import (
     add_board,
     add_checkpoint,
@@ -120,7 +121,9 @@ def build_parser(parent_subparsers) -> None:
 def populate_parser(parser) -> None:
     """Build the whole ``hermes harness`` tree onto an existing ``harness`` parser."""
     _add_stage42_global_args(parser)
-    subs = parser.add_subparsers(dest="harness_command")
+    # Every parser below ``harness`` resolves its own handler when argparse enters it
+    # (``lazy``): building the tree imports no handler module.
+    subs = parser.add_subparsers(dest="harness_command", parser_class=LazyHandlerParser)
     parser.set_defaults(func=harness_command)
     for add_family in PARSER_FAMILIES:
         add_family(subs)

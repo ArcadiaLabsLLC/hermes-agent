@@ -17,6 +17,11 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **`tests/agent_runtime/test_mcp_admission_parked_wake.py::test_a_server_that_will_not_wake_is_bounded_and_registers_nothing` asserts a 3.0 s wall bound that the call spends 2.6–3.0 s of when run ALONE (measured on main code and on w3-turn's, identical); it flaked at 3.22 s under `run_tests.sh` -j8. Bound the WAKE (the patched 0.3 s budget), not the whole cold registrar** · `fork / suite` · lane w3-turn focused run 2026-10-01
 
+## Filed on arrival — 2026-10-01 (lane w3-perf)
+
+- [ ] **Running the CLI from a worktree under the live `HERMES_HOME` rewrites the operator's `$HERMES_HOME/bin/hermes.exe` to point at that worktree, which has no committed dependency environment, so the operator's `hermes` then exits 1 (`no dependency environment is committed for this install`): boot bootstrap runs once per (install key, identity, profile) and its `expose_cli` step converges `$HERMES_HOME\bin` on whatever checkout ran last. Measured 2026-10-01: w3-perf's first `python -m hermes_cli.main` (15:15) and its baseline tree's (15:58) each did it, restored by hand; `installs/*/bootstrap/alice.json` shows two other trees bootstrapping at 09:59 and 10:37. `expose_cli` must refuse a checkout that is not the install's own root, or lanes need a run mode that never republishes** · `upstream / install` (`hermes_cli/post_update.py` HOME_STEPS, `hermes_cli/_launchers.py::expose_cli`) · evidence: w3-perf report; `X:/Eternia/.hermes/installs/*/bootstrap/`
+- [ ] **`test_every_harness_flag_has_a_reader` (auth `key.stdin` / `login.flow`) and `test_the_declared_dynamic_imports_are_the_registries_own_tables` are red on main (also at `69305cc48a`, before lane w3-perf); reproduce, classify test vs code, fix** · `fork / suite` · surfaced by lane w3-perf 2026-10-01 · UNCLAIMED
+
 ## Release validation — 2026-09-23
 
 
@@ -75,8 +80,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Cut the Windows console-signal upstream PR: upstream `tests/conftest.py`'s import-time stale-lock sweep and `tui_gateway/host_supervisor.py` probe liveness with `os.kill(pid, 0)` on win32 (CTRL_C_EVENT to the console group), which upstream CONTRIBUTING "Critical rules" 1 forbids; offer the `gateway.status._pid_exists` swaps together with the live-guard console-event refusal, after measuring which upstream Windows tests the refusal reds** · `fork / upstream` · evidence: ledger rows `tests/conftest.py`, `tests/_fixtures/live_system_guard.py`, `tui_gateway/host_supervisor.py` (HELD, lane up-offer 2026-09-30) · UNCLAIMED
 
-
-- [ ] **`tests/test_managed_runtime_resolution.py::test_bare_which_and_known_path_tables_are_allowlisted` is red on main: three unlisted `bare_which` sites — `agent_runtime/local_llama_adapter/setup.py::SetupManager.detect` (`7c3a800eef`), `hermes_cli/_downstream_cli.py::cmd_postinstall` (`fc09929f15`), `hermes_cli/path_setup.py::_hermes_exe_dirs` (`5a411b1657`); each either resolves through the managed-runtime resolver or gets an allowlist row with its reason in `tests/fixtures/resolution_allowlist.json`** · `fork / suite` · measured 2026-09-30 on main `b719f05412` (7 passed, 1 failed), surfaced by lane s2-g4 · **TAKEN 2026-10-01 w3-perf**
 
 ## Filed on arrival — 2026-09-30 (launcher engine-build diagnosis, filed by the launcher orchestrator)
 

@@ -7,27 +7,17 @@ contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
 from __future__ import annotations
 
 from .common_args import _add_stage42_global_args
-from hermes_cli.harness_parts import (
-    board as board_commands,
-    checkpoint_commands,
-    flow_commands,
-    level as level_commands,
-    map as map_commands,
-    office as office_commands,
-)
-from hermes_cli.harness_parts.prompt_context_commands import _cmd_prompt_context_show
-from hermes_cli.harness_parts.skills_commands import (
-    _cmd_skills_catalog,
-    _cmd_skills_inbox,
-    _cmd_skills_inventory,
-    _cmd_skills_link_external,
-    _cmd_skills_publishable,
-)
-from hermes_cli.harness_parts.skills_promotion_commands import (
-    _cmd_skills_delete,
-    _cmd_skills_promote,
-    _cmd_skills_restore,
-)
+from .lazy import lazy_module
+
+board_commands = lazy_module("hermes_cli.harness_parts.board")
+checkpoint_commands = lazy_module("hermes_cli.harness_parts.checkpoint_commands")
+flow_commands = lazy_module("hermes_cli.harness_parts.flow_commands")
+level_commands = lazy_module("hermes_cli.harness_parts.level")
+map_commands = lazy_module("hermes_cli.harness_parts.map")
+office_commands = lazy_module("hermes_cli.harness_parts.office")
+prompt_context_commands = lazy_module("hermes_cli.harness_parts.prompt_context_commands")
+skills_commands = lazy_module("hermes_cli.harness_parts.skills_commands")
+skills_promotion_commands = lazy_module("hermes_cli.harness_parts.skills_promotion_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -102,20 +92,20 @@ def add_skills(subs) -> None:
         help="Typed snapshot of the shared skill catalog, per-persona grants, and per-realm publish/drift state",
     )
     skills_inventory_cmd.add_argument("--json", action="store_true", help="Emit the skills_inventory/v1 contract as JSON")
-    skills_inventory_cmd.set_defaults(func=_cmd_skills_inventory)
+    skills_inventory_cmd.set_defaults(func=skills_commands._cmd_skills_inventory)
     # Rehomed from `hermes skills link-external` (seam Stage 2): the verb is the harness's, not core's.
     skills_link_cmd = skills_subs.add_parser(
         "link-external", help="Link the shared skills root into external harnesses (~/.claude, ~/.codex)",
     )
     skills_link_cmd.add_argument("--json", action="store_true", help="Emit the link report as JSON")
-    skills_link_cmd.set_defaults(func=_cmd_skills_link_external)
+    skills_link_cmd.set_defaults(func=skills_commands._cmd_skills_link_external)
     skills_catalog_cmd = skills_subs.add_parser(
         "catalog",
         help="S8: resolve ONE content-addressed skills catalog by its hash (the frame ships only *_ref hashes; bodies are fetched once and cached forever)",
     )
     skills_catalog_cmd.add_argument("--hash", dest="content_hash", required=True, help="The content hash carried by a chat_contexts row's available_skills_ref / accessible_skills_ref")
     skills_catalog_cmd.add_argument("--json", action="store_true")
-    skills_catalog_cmd.set_defaults(func=_cmd_skills_catalog)
+    skills_catalog_cmd.set_defaults(func=skills_commands._cmd_skills_catalog)
 
     skills_publishable_cmd = skills_subs.add_parser(
         "publishable",
@@ -135,7 +125,7 @@ def add_skills(subs) -> None:
         help="Show only packages that cannot reach a realm as they stand",
     )
     _add_stage42_global_args(skills_publishable_cmd)
-    skills_publishable_cmd.set_defaults(func=_cmd_skills_publishable)
+    skills_publishable_cmd.set_defaults(func=skills_commands._cmd_skills_publishable)
 
     skills_inbox_cmd = skills_subs.add_parser(
         "inbox",
@@ -143,7 +133,7 @@ def add_skills(subs) -> None:
     )
     skills_inbox_cmd.add_argument("--realm", default=None, help="Restrict to one realm id (default: all realms)")
     _add_stage42_global_args(skills_inbox_cmd)
-    skills_inbox_cmd.set_defaults(func=_cmd_skills_inbox)
+    skills_inbox_cmd.set_defaults(func=skills_commands._cmd_skills_inbox)
 
     skills_promote_cmd = skills_subs.add_parser(
         "promote",
@@ -158,7 +148,7 @@ def add_skills(subs) -> None:
     _add_stage42_global_args(
         skills_promote_cmd, controls=frozenset({"dry_run"})
     )
-    skills_promote_cmd.set_defaults(func=_cmd_skills_promote)
+    skills_promote_cmd.set_defaults(func=skills_promotion_commands._cmd_skills_promote)
 
     skills_delete_cmd = skills_subs.add_parser(
         "delete",
@@ -173,7 +163,7 @@ def add_skills(subs) -> None:
         help="Narrow the delete to this realm id (repeatable). Default (R-E): every non-archived realm that currently publishes the slug — one canonical root serves all realms, so leaving one un-tombstoned resurrects the copy on that realm's next pull",
     )
     _add_stage42_global_args(skills_delete_cmd, controls=frozenset({"dry_run"}))
-    skills_delete_cmd.set_defaults(func=_cmd_skills_delete)
+    skills_delete_cmd.set_defaults(func=skills_promotion_commands._cmd_skills_delete)
 
     skills_restore_cmd = skills_subs.add_parser(
         "restore",
@@ -182,7 +172,7 @@ def add_skills(subs) -> None:
     skills_restore_cmd.add_argument("skill", help="Canonical skill slug named by the ledger entry to lift")
     skills_restore_cmd.add_argument("--realm", dest="realm", required=True, help="Realm id whose ledger entry is lifted (a tombstone is per-realm truth; there is no all-realms restore)")
     _add_stage42_global_args(skills_restore_cmd)
-    skills_restore_cmd.set_defaults(func=_cmd_skills_restore)
+    skills_restore_cmd.set_defaults(func=skills_promotion_commands._cmd_skills_restore)
 
 
 def add_prompt_context(subs) -> None:
@@ -198,7 +188,7 @@ def add_prompt_context(subs) -> None:
     )
     prompt_context_show.add_argument("--context-id", dest="context_id", required=True)
     prompt_context_show.add_argument("--json", action="store_true")
-    prompt_context_show.set_defaults(func=_cmd_prompt_context_show)
+    prompt_context_show.set_defaults(func=prompt_context_commands._cmd_prompt_context_show)
 
 
 def add_board(subs) -> None:

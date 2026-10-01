@@ -7,21 +7,20 @@ contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
 from __future__ import annotations
 
 from .common_args import _add_coordinator_permission_args, _add_stage42_global_args
-from hermes_cli.harness_parts import runtime_commands
-from hermes_cli.harness_parts.agent_commands import _cmd_agent_list, _cmd_agent_set_profile
-from hermes_cli.harness_parts.query_commands import _cmd_query
-from hermes_cli.harness_parts.persona import (
-    chat_coordinator,
-    chat_delete,
-    chat_open,
-    chat_tickets_commands,
-    chat_turn_message,
-    inspect_commands,
-    instance_commands,
-    lifecycle_commands,
-    model_and_skills_commands,
-)
-from hermes_cli.harness_parts.persona.inspect_commands import _cmd_persona_instance_detail
+from .lazy import lazy_module
+
+agent_commands = lazy_module("hermes_cli.harness_parts.agent_commands")
+chat_coordinator = lazy_module("hermes_cli.harness_parts.persona.chat_coordinator")
+chat_delete = lazy_module("hermes_cli.harness_parts.persona.chat_delete")
+chat_open = lazy_module("hermes_cli.harness_parts.persona.chat_open")
+chat_tickets_commands = lazy_module("hermes_cli.harness_parts.persona.chat_tickets_commands")
+chat_turn_message = lazy_module("hermes_cli.harness_parts.persona.chat_turn_message")
+inspect_commands = lazy_module("hermes_cli.harness_parts.persona.inspect_commands")
+instance_commands = lazy_module("hermes_cli.harness_parts.persona.instance_commands")
+lifecycle_commands = lazy_module("hermes_cli.harness_parts.persona.lifecycle_commands")
+model_and_skills_commands = lazy_module("hermes_cli.harness_parts.persona.model_and_skills_commands")
+query_commands = lazy_module("hermes_cli.harness_parts.query_commands")
+runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -559,7 +558,7 @@ def add_persona_instance(subs) -> None:
         "instance_id", help="Persona-instance id (or persona id) whose tool detail to fetch"
     )
     persona_instance_detail.add_argument("--json", action="store_true")
-    persona_instance_detail.set_defaults(func=_cmd_persona_instance_detail)
+    persona_instance_detail.set_defaults(func=inspect_commands._cmd_persona_instance_detail)
 
 
 def add_query(subs) -> None:
@@ -583,7 +582,7 @@ def add_query(subs) -> None:
     query.add_argument("--limit", type=int, default=None, help="Most sessions to return (default 10, max 50)")
     query.add_argument("--direct", action="store_true", help="Read in this process; do not ask the running serve")
     query.add_argument("--json", action="store_true")
-    query.set_defaults(func=_cmd_query)
+    query.set_defaults(func=query_commands._cmd_query)
 
 
 def add_agent(subs) -> None:
@@ -593,7 +592,7 @@ def add_agent(subs) -> None:
     agent_list = agent_subs.add_parser("list", help="List persisted/configured agent definitions")
     agent_list.add_argument("--all-profiles", action="store_true")
     _add_stage42_global_args(agent_list, controls=frozenset({"sort"}))
-    agent_list.set_defaults(func=_cmd_agent_list)
+    agent_list.set_defaults(func=agent_commands._cmd_agent_list)
 
     # UC-H3: the ONE unified create door for scripts, cron and operators. It
     # calls `agent_create.perform_agent_create` — the exact function
@@ -660,4 +659,4 @@ def add_agent(subs) -> None:
     agent_set_profile.add_argument("--profile", required=True, help="Target Hermes profile name; must exist and resolve ready")
     agent_set_profile.add_argument("--requested-by", default="operator")
     _add_stage42_global_args(agent_set_profile, controls=frozenset({"dry_run"}))
-    agent_set_profile.set_defaults(func=_cmd_agent_set_profile)
+    agent_set_profile.set_defaults(func=agent_commands._cmd_agent_set_profile)

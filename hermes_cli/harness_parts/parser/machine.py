@@ -9,23 +9,20 @@ from __future__ import annotations
 import argparse
 
 from .common_args import _add_stage42_global_args
-from agent_runtime.harness_doctor import DEFAULT_WORKTREE_MIN_AGE_SECONDS
-from hermes_cli.harness_parts import gateway_commands, runtime_commands, verify_commands, work_commands
-from hermes_cli.harness_parts.doctor_commands import _cmd_doctor
-from hermes_cli.harness_parts.gateway_identity_commands import (
-    _cmd_gateway_id,
-    _cmd_gateway_rename,
-)
-from hermes_cli.harness_parts.init_commands import _cmd_init, _cmd_install_harness_skills
-from hermes_cli.harness_parts.provider_visibility import _cmd_providers
-from hermes_cli.harness_parts.roots_commands import (
-    _cmd_roots_list,
-    _cmd_roots_migrate,
-    _cmd_roots_set,
-    _cmd_roots_unset,
-)
-from hermes_cli.harness_parts.usage.commands import _cmd_usage
+from agent_runtime.worktree_age import DEFAULT_WORKTREE_MIN_AGE_SECONDS
 from hermes_cli.harness_parts.usage.detect import DEFAULT_USAGE_TIMEOUT
+from .lazy import lazy_module
+
+doctor_commands = lazy_module("hermes_cli.harness_parts.doctor_commands")
+gateway_commands = lazy_module("hermes_cli.harness_parts.gateway_commands")
+gateway_identity_commands = lazy_module("hermes_cli.harness_parts.gateway_identity_commands")
+init_commands = lazy_module("hermes_cli.harness_parts.init_commands")
+provider_visibility = lazy_module("hermes_cli.harness_parts.provider_visibility")
+roots_commands = lazy_module("hermes_cli.harness_parts.roots_commands")
+runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
+usage_commands = lazy_module("hermes_cli.harness_parts.usage.commands")
+verify_commands = lazy_module("hermes_cli.harness_parts.verify_commands")
+work_commands = lazy_module("hermes_cli.harness_parts.work_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -57,7 +54,7 @@ def add_init(subs) -> None:
     """``hermes harness init``."""
     init = subs.add_parser("init", help="Initialize the harness store")
     init.add_argument("--json", action="store_true")
-    init.set_defaults(func=_cmd_init)
+    init.set_defaults(func=init_commands._cmd_init)
 
 
 def add_roots(subs) -> None:
@@ -69,17 +66,17 @@ def add_roots(subs) -> None:
     roots_subs = roots.add_subparsers(dest="roots_command", required=True)
     roots_list = roots_subs.add_parser("list", help="Show this machine's logical-root bindings (read-only)")
     _add_stage42_global_args(roots_list)
-    roots_list.set_defaults(func=_cmd_roots_list)
+    roots_list.set_defaults(func=roots_commands._cmd_roots_list)
     roots_set = roots_subs.add_parser("set", help="Bind a logical root to an absolute local path")
     roots_set.add_argument("name", help="Logical root name, e.g. eternia_launcher")
     roots_set.add_argument("path", help="Absolute path to the checkout on THIS machine")
     roots_set.add_argument("--allow-missing", action="store_true", help="Bind even when the path does not exist yet")
     _add_stage42_global_args(roots_set, controls=frozenset({"dry_run"}))
-    roots_set.set_defaults(func=_cmd_roots_set)
+    roots_set.set_defaults(func=roots_commands._cmd_roots_set)
     roots_unset = roots_subs.add_parser("unset", help="Remove a logical-root binding")
     roots_unset.add_argument("name")
     _add_stage42_global_args(roots_unset, controls=frozenset({"dry_run"}))
-    roots_unset.set_defaults(func=_cmd_roots_unset)
+    roots_unset.set_defaults(func=roots_commands._cmd_roots_unset)
     roots_migrate = roots_subs.add_parser(
         "migrate",
         help="Rewrite machine-local absolute paths in profile configs into ${roots.<name>} token form",
@@ -90,7 +87,7 @@ def add_roots(subs) -> None:
     _add_stage42_global_args(
         roots_migrate, controls=frozenset({"dry_run", "yes"})
     )
-    roots_migrate.set_defaults(func=_cmd_roots_migrate)
+    roots_migrate.set_defaults(func=roots_commands._cmd_roots_migrate)
 
 
 def add_gateway(subs) -> None:
@@ -123,14 +120,14 @@ def _add_gateway_identity_verbs(gateway_subs) -> None:
         help="Show this root's install identity (read-only — never mints; a root that has never served has none)",
     )
     _add_stage42_global_args(gateway_id)
-    gateway_id.set_defaults(func=_cmd_gateway_id)
+    gateway_id.set_defaults(func=gateway_identity_commands._cmd_gateway_id)
     gateway_rename = gateway_subs.add_parser(
         "rename",
         help="Set the operator-facing display name for this root's install (the install_id never changes)",
     )
     gateway_rename.add_argument("name", help="What a human should call this install, e.g. workstation")
     _add_stage42_global_args(gateway_rename, controls=frozenset({"dry_run"}))
-    gateway_rename.set_defaults(func=_cmd_gateway_rename)
+    gateway_rename.set_defaults(func=gateway_identity_commands._cmd_gateway_rename)
 
 
 def _add_gateway_pairing_verbs(gateway_subs) -> None:
@@ -316,7 +313,7 @@ def add_providers(subs) -> None:
         help="List credential pools with typed auth health (machine-readable via --json)",
     )
     providers.add_argument("--json", action="store_true")
-    providers.set_defaults(func=_cmd_providers)
+    providers.set_defaults(func=provider_visibility._cmd_providers)
 
 
 def add_usage(subs) -> None:
@@ -337,7 +334,7 @@ def add_usage(subs) -> None:
         default=DEFAULT_USAGE_TIMEOUT,
         help="Overall wall-clock bound (seconds) for the concurrent lane fetches",
     )
-    usage.set_defaults(func=_cmd_usage)
+    usage.set_defaults(func=usage_commands._cmd_usage)
 
 
 def add_doctor(subs) -> None:
@@ -351,7 +348,7 @@ def add_doctor(subs) -> None:
     # The six stale-threshold / --compact-events knobs were removed: they fed
     # task, run, worker and incident sweeps that died with the mission lane, so
     # the CLI accepted them and silently ignored them.
-    doctor.set_defaults(func=_cmd_doctor)
+    doctor.set_defaults(func=doctor_commands._cmd_doctor)
 
 
 def add_health(subs) -> None:
@@ -431,7 +428,7 @@ def add_install_harness_skills(subs) -> None:
     skills = subs.add_parser("install-harness-skills", help="Install versioned Harness skills into configured persona profiles")
     skills.add_argument("--active-profile-only", action="store_true", help="Install all Harness skills only into the active Hermes profile")
     skills.add_argument("--json", action="store_true")
-    skills.set_defaults(func=_cmd_install_harness_skills)
+    skills.set_defaults(func=init_commands._cmd_install_harness_skills)
 
 
 def add_snapshot(subs) -> None:

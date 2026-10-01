@@ -219,7 +219,6 @@ class SnapshotFrameBuild:
             *active_persona_instance_agent_summaries(
                 self.persona_instances,
                 self.personas_by_id,
-                self.readiness_by_persona_id,
                 roster=ensure_persisted_personas,
             ),
         ]
@@ -347,9 +346,6 @@ class SnapshotFrameBuild:
             persona_instance_summary(
                 instance,
                 self.personas_by_id.get(str(getattr(instance, "persona_id", "") or "")),
-                profile_readiness=self.readiness_by_persona_id.get(
-                    str(getattr(instance, "persona_id", "") or "")
-                ),
                 roster=ensure_persisted_personas,
             )
             for instance in self.persona_instances

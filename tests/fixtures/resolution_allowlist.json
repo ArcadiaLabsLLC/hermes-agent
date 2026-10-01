@@ -678,5 +678,23 @@
     "path": "tools/file_operations_lint.py",
     "symbol": "LintMixin._run_managed_node_linter",
     "kind": "bare_which"
+  },
+  {
+    "path": "agent_runtime/local_llama_adapter/setup.py",
+    "symbol": "SetupManager.detect",
+    "kind": "bare_which",
+    "reason": "fork: llama-server is not a Hermes-managed runtime; PATH is one of the three scopes detect() reports it checked (configured, managed inventory, PATH)"
+  },
+  {
+    "path": "hermes_cli/_downstream_cli.py",
+    "symbol": "cmd_postinstall",
+    "kind": "bare_which",
+    "reason": "fork: the postinstall summary reports whether ANY git is reachable, PATH or the PM package (_pm_has('git') beside it); it resolves nothing it then runs"
+  },
+  {
+    "path": "hermes_cli/path_setup.py",
+    "symbol": "_hermes_exe_dirs",
+    "kind": "bare_which",
+    "reason": "fork: finding the hermes console-script on PATH is the question (the last rung, after sys.executable and argv[0]); answers are kept only when absolute"
   }
 ]
