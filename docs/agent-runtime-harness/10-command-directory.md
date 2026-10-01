@@ -42,6 +42,9 @@ hermes harness office show --workspace WORKSPACE_ID --full --json
 - `workspace list`: discover workspace IDs and realm membership.
 - `snapshot`: `active_workspace_id` / `active_realm_id` identify runtime selection;
   they are not a direct read of a particular window's current UI selection.
+- `snapshot --only agents,boards --json`: print only those top-level keys instead of
+  the whole frame (~900 KB). An unknown key is refused (exit 2) with the frame's key
+  list; without `--only` the full frame is unchanged.
 - `office show --full`: placed actors, unlike `agent list` (definitions) or
   `persona list` (instances). Read `actor_defs[].persona_instance_id` and
   `actor_defs[].item_defs[]`; agent items have `kind: agent`, `display_name`, and

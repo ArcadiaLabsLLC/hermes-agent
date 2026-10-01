@@ -14143,6 +14143,14 @@
           "required": false,
           "type": null
         },
+        "--only": {
+          "action": "store",
+          "canonical": "--only",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": "parse_snapshot_sections"
+        },
         "-h": {
           "action": "help",
           "canonical": "--help",

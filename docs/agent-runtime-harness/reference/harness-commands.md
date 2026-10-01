@@ -3509,11 +3509,14 @@ options:
 ## hermes harness snapshot
 
 ```text
-usage: hermes harness snapshot [-h] [--json]
+usage: hermes harness snapshot [-h] [--json] [--only SECTION[,SECTION...]]
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
   --json
+  --only SECTION[,SECTION...]
+                        Print only these top-level frame keys (e.g. agents,boards); an unknown key
+                        is refused with the list of the frame's keys
 ```
 
 ## hermes harness stream
