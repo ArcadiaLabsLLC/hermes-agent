@@ -1,8 +1,9 @@
 """Unified ``running_work`` projection — what background work is running RIGHT NOW.
 
 One aggregator, five lanes (terminal background processes, background subagent
-delegations, in-flight mission-chat turns, detached agent-to-agent dispatches,
-and cron jobs), producing ONE row vocabulary so an operator surface never has
+delegations, in-flight mission-chat turns — with, live, the foreground
+``tool_call`` each is blocked on — detached agent-to-agent dispatches, and cron
+jobs), producing ONE row vocabulary so an operator surface never has
 to know which subsystem spawned a piece of work.
 
 Connected MCP transports are deliberately NOT a lane. A warm connection is
@@ -207,6 +208,7 @@ from . import lanes_chat, lanes_process, ownership, rows, surface, vocabulary
 from .lanes_chat import (
     DELEGATION_RECORD_RUNNING,
     DELEGATION_STATUS_BY_RECORD,
+    ChatTurnLane,
     DelegationLane,
     DispatchLane,
     _collect_chat_turns,
@@ -248,6 +250,7 @@ from .vocabulary import (
     KIND_DELEGATION,
     KIND_DISPATCH,
     KIND_TERMINAL,
+    KIND_TOOL_CALL,
     LANE_DURABLE,
     LANE_LIVE,
     PEEK_TAIL_LIMIT,
@@ -285,6 +288,7 @@ __all__ = [
     "KIND_DELEGATION",
     "KIND_DISPATCH",
     "KIND_TERMINAL",
+    "KIND_TOOL_CALL",
     "PEEK_TAIL_LIMIT",
     "PROJECTION",
     "RUNNING_WORK_KINDS",

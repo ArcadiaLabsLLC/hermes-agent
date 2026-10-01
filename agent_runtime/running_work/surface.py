@@ -12,7 +12,7 @@ from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_disp
 from .lanes_process import _collect_cron, _collect_terminal
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
-from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_TERMINAL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
+from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
 
 __layer__ = "lanes"
 
@@ -168,9 +168,47 @@ def peek_work(work_id: str) -> dict[str, Any]:
         payload["truncated"] = len(buffered) > PEEK_TAIL_LIMIT
         return payload
 
+    if kind == KIND_TOOL_CALL:
+        return _peek_tool_call(payload, row)
+
     # Every other kind reports progress, not output: the row already carries the
     # whole readable truth (status, elapsed, in_tool, seconds_since_progress).
     payload["tail_reason"] = "no_output_stream"
+    return payload
+
+
+def _live_tool_call(row: dict[str, Any]) -> Any:
+    """The ``LiveToolCall`` a ``tool_call`` row names, or None when not live here."""
+
+    from ..live_turns import live_turn_view
+
+    parent = str(row.get("parent_work_id") or "")
+    turn_id = parent.partition(":")[2]
+    view = live_turn_view(turn_id)
+    if view is None:
+        return None
+    call_id = str(row.get("tool_call_id") or "")
+    return next((call for call in view.tools if call.call_id == call_id), None)
+
+
+def _peek_tool_call(payload: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    """RW2: the foreground command's own output tail, read-only, bounded."""
+
+    try:
+        call = _live_tool_call(row)
+    except Exception as exc:
+        payload["tail_reason"] = f"live_turn_unreadable:{type(exc).__name__}"
+        return payload
+    command = getattr(call, "foreground", None)
+    if command is None:
+        # Ended between the row and the peek, or executing in another process.
+        payload["tail_reason"] = "command_not_live"
+        return payload
+    buffered = _strip_ansi(command.tail or "")
+    payload["tail_available"] = True
+    payload["tail"] = bounded_operator_text(buffered[-PEEK_TAIL_LIMIT:], limit=PEEK_TAIL_LIMIT)
+    payload["truncated"] = command.output_chars > PEEK_TAIL_LIMIT
+    payload["seconds_since_output"] = command.seconds_since_output
     return payload
 
 
@@ -301,10 +339,42 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
             "interrupted": int(interrupted),
         }
 
+    if kind == KIND_TOOL_CALL:
+        return _cancel_tool_call(work_id, row, reason=reason)
+
     return {
         "status": "error",
         "code": "cancel_unsupported",
         "work_id": work_id,
         "kind": kind,
         "detail": f"{kind} work has no interrupt seam in v1",
+    }
+
+
+def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """RW2: stop a foreground command through its TURN's interrupt seam.
+
+    Never a pid kill. ``agent.interrupt()`` is the soft stop ``/stop`` sends:
+    the tool thread's interrupt bit kills the command (rc 130,
+    ``[Command interrupted]``) and the turn ends interrupted. So the cancel is a
+    cancel of the turn, and the reply names the turn it stopped.
+    """
+
+    from ..live_turns import interrupt_turn
+
+    parent = str(row.get("parent_work_id") or "")
+    if not interrupt_turn(parent.partition(":")[2], reason=reason):
+        return {
+            "status": "error",
+            "code": "cancel_unavailable",
+            "work_id": work_id,
+            "detail": REASON_NOT_IN_PROCESS,
+            "owning_lane": "serve",
+        }
+    return {
+        "status": "cancelled",
+        "code": "",
+        "work_id": work_id,
+        "kind": KIND_TOOL_CALL,
+        "interrupted_turn": parent,
     }

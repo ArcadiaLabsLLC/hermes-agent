@@ -15,7 +15,7 @@ from typing import Any, Callable
 
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
-from agent_runtime import turn_budget
+from agent_runtime import live_turns, turn_budget
 from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
 from agent_runtime.run_budget import (
@@ -353,6 +353,14 @@ class AgentRunExecution:
                 session_ids=(getattr(self.agent, "session_id", None), self.request.session_id),
             ))
             _steer_mcp_admission_notice(self.agent, self.request, self.admission_outcome)
+            # RW1-RW3: what this turn is doing, readable by this process's
+            # running-work projection and chat heartbeat while it runs.
+            mcp_scope.enter_context(live_turns.live_turn(
+                turn_id=self.request.turn_id or "",
+                session_id=self.request.root_chat_session_id or self.request.session_id or "",
+                persona_instance_id=self.request.persona_instance_id or "",
+                agent=self.agent,
+            ))
             agent_ready_cleanup = _notify_agent_ready(self.request, self.agent)
             max_wall_seconds = positive_float(self.request.max_wall_seconds)
             if max_wall_seconds is None:
@@ -522,14 +530,29 @@ class AgentRunExecution:
             # matching the call's SOURCE TEXT — so a purely cosmetic wrap here
             # reads to that gate as "the runner stopped naming the label".
             "tool_progress_callback": _progress_adapter(request.progress_callback, "run.progress", guard=budget_guard),
-            "tool_start_callback": _progress_adapter(request.progress_callback, "run.tool.started", guard=budget_guard),
-            "tool_complete_callback": _progress_adapter(request.progress_callback, "run.tool.finished", guard=budget_guard),
+            "tool_start_callback": _progress_adapter(request.progress_callback, "run.tool.started", guard=budget_guard, observe=self.observe_tool_started),
+            "tool_complete_callback": _progress_adapter(request.progress_callback, "run.tool.finished", guard=budget_guard, observe=self.observe_tool_finished),
             "clarify_callback": request.clarify_callback,
             # Header-only codex cache-scope hint; the default factory applies
             # it to the constructed agent (never to session/transcript load).
             "cache_scope_id": request.cache_scope_id,
             "max_iterations": request.max_iterations,
         }
+
+    def observe_tool_started(self, args: tuple[Any, ...], payload: dict[str, Any]) -> None:
+        """Feed a ``run.tool.started`` call into the live-turn registry (worker thread)."""
+
+        live_turns.tool_started(
+            self.request.turn_id,
+            payload.get("tool_call_id"),
+            payload.get("tool_name"),
+            preview=str(payload.get("command_full") or payload.get("summary") or ""),
+            command=str(payload.get("command_full") or ""),
+            timeout_seconds=payload.get("timeout_seconds"),
+        )
+
+    def observe_tool_finished(self, args: tuple[Any, ...], payload: dict[str, Any]) -> None:
+        live_turns.tool_finished(self.request.turn_id, payload.get("tool_call_id"))
 
     def construct_agent(self) -> Any:
         """Build this run's agent and time it. Called at most once."""

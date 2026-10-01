@@ -1,5 +1,6 @@
 """The three lanes keyed on a chat session's durable store: background
-delegations, in-flight mission-chat turns and detached dispatches."""
+delegations, in-flight mission-chat turns (live: with their foreground
+``tool_call`` children) and detached dispatches."""
 
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from .vocabulary import (
     KIND_CHAT_TURN,
     KIND_DELEGATION,
     KIND_DISPATCH,
+    KIND_TOOL_CALL,
     LANE_DURABLE,
     LANE_LIVE,
     PID_DEAD,
@@ -44,6 +46,7 @@ from .vocabulary import (
     STATUS_STALLED,
     STATUS_STALLING,
     STATUS_UNKNOWN,
+    STALLING_FRACTION,
     _MAX_ROWS_PER_SOURCE,
     _STATE_DB_FILENAME,
     _UNDELIVERABLE_WINDOW_SECONDS,
@@ -357,51 +360,82 @@ def _collect_delegations(
     return DelegationLane(now=now, accountant=accountant).collect()
 
 
-def _collect_chat_turns(
-    *, now: float, accountant: ProjectionAccountant | None
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """In-flight turn-journal records — the durable "an agent is thinking" fact.
+class ChatTurnLane(LanePass):
+    """In-flight turn-journal records — the durable "an agent is thinking" fact —
+    enriched LIVE where this process is the one executing the turn.
 
     The journal is written from whichever process executes the turn and read
-    from anywhere, so this lane needs no live enrichment to be honest. A record
+    from anywhere, so the durable row needs no enrichment to be honest. A record
     stuck in an in-flight state after its executor died is a corpse the
     serve-boot sweep and the next-send repair flip to ``interrupted``; until one
     of them runs it is reported ``unknown`` rather than ``running`` when its
     start stamp is missing, because with no anchor there is nothing to age.
+
+    RW1/RW2. The durable row used to be the whole answer: ``label`` was the
+    instance id, ``progress`` was ``unavailable`` on every turn, and a turn
+    blocked for minutes on a silent foreground ``flutter build`` read exactly
+    like a hung one. Now ``label`` is the agent's display name (the instance id
+    stays ``owner.persona_instance_id``), ``title`` is the conversation's, and
+    when :mod:`agent_runtime.live_turns` holds the turn — i.e. this projection
+    is running inside the executing serve — the row carries ``current_tool``,
+    real ``progress`` (api calls, the tool in flight, seconds since progress)
+    and a ``running`` / ``stalling`` / ``stalled`` verdict from it, and each
+    foreground command the turn is blocked on becomes a ``tool_call`` child row.
+
+    Phases: :meth:`collect` → :meth:`turn_row` per record (→ :meth:`enrich_live`)
+    → :meth:`attach_titles` → :meth:`LanePass.finish`.
     """
 
-    try:
-        from ..mission_chat_turns.reads import inflight_turn_rows
-        from ..mission_chat_turns.states import (
-            INFLIGHT_TURN_STATES,
-            TURN_STATE_OUTCOME_UNKNOWN,
-        )
+    kind = KIND_CHAT_TURN
 
-        records = inflight_turn_rows()
-    except Exception as exc:
-        return [], _source(
-            SOURCE_UNAVAILABLE,
-            lane=LANE_DURABLE,
-            reason="journal_unreadable",
-            detail=type(exc).__name__,
-        )
+    def __init__(self, *, now: float, accountant: ProjectionAccountant | None) -> None:
+        super().__init__(now=now, accountant=accountant)
+        self.rows: list[dict[str, Any]] = []
+        # instance handle -> display name, resolved at most once per pass (the
+        # same memo and the same fail-safe reader as DispatchLane.named).
+        self.names: dict[str, str] = {}
+        self.lane = LANE_DURABLE
+        self.idle_stale, self.in_tool_stale = _stale_thresholds()
+        self.running_states: frozenset[str] = frozenset()
 
-    running_states = INFLIGHT_TURN_STATES - {TURN_STATE_OUTCOME_UNKNOWN}
-    rows: list[dict[str, Any]] = []
-    # Build-scoped, like every other lane's: a burst of turns on one root asks
-    # the same ownership question once. See ``_owner_of`` for why it is never
-    # cached module-side.
-    owners: dict[str, tuple[str, str]] = {}
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        if accountant is not None:
-            accountant.consider()
+    def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        try:
+            from ..mission_chat_turns.reads import inflight_turn_rows
+            from ..mission_chat_turns.states import (
+                INFLIGHT_TURN_STATES,
+                TURN_STATE_OUTCOME_UNKNOWN,
+            )
+
+            records = inflight_turn_rows()
+        except Exception as exc:
+            return [], _source(
+                SOURCE_UNAVAILABLE,
+                lane=LANE_DURABLE,
+                reason="journal_unreadable",
+                detail=type(exc).__name__,
+            )
+        self.running_states = frozenset(INFLIGHT_TURN_STATES - {TURN_STATE_OUTCOME_UNKNOWN})
+        for record in records:
+            if isinstance(record, dict):
+                self.turn_row(record)
+        self.attach_titles()
+        return self.finish(self.rows), _source(SOURCE_OK, lane=self.lane)
+
+    def named(self, instance_id: str) -> str:
+        if not instance_id:
+            return ""
+        if instance_id not in self.names:
+            from ..persona_assignments import persona_instance_display_name
+
+            self.names[instance_id] = persona_instance_display_name(instance_id)
+        return self.names[instance_id]
+
+    def turn_row(self, record: dict[str, Any]) -> None:
+        self.consider()
         turn_id = bounded_operator_text(record.get("turn_id") or record.get("client_message_id"), limit=200)
         if not turn_id:
-            if accountant is not None:
-                accountant.drop("unidentified_turn", detail="record carries no turn id")
-            continue
+            self.drop("unidentified_turn", detail="record carries no turn id")
+            return
         started_at = bounded_operator_text(record.get("started_at"), limit=80)
         started = parse_iso_utc(started_at)
         state = str(record.get("state") or "")
@@ -412,54 +446,208 @@ def _collect_chat_turns(
             or record.get("active_session_id"),
             limit=240,
         )
-        # C1h-bis. This lane shipped ``owner.persona_id: null`` on every row
-        # while the two OTHER owner fields were populated — measured on a real
-        # serve in C1h — so a console rendering "who is talking" off the field
-        # every other lane fills got nothing from the one lane that is literally
-        # an agent talking. The persona comes from the shared authority
-        # (``_owner_of`` → ``chat_session_owner_persona``), never derived here,
-        # per honesty rule 5.
-        #
-        # The record's OWN ``persona_instance_id`` stays the row's instance: the
-        # journal recorded which instance ran this turn, and that is a stronger
-        # fact than a re-derivation from the root's current binding. When the two
-        # disagree — a root rebound to another instance while an older turn is
-        # still in flight — the persona is left BLANK rather than pairing this
-        # turn's instance with another instance's persona. A blank is renderable
-        # as "no owning agent"; a mismatched pair is a confident falsehood.
-        owner_persona, owner_instance = _owner_of(session_id, memo=owners)
+        # C1h-bis: the persona comes from the shared authority (``_owner_of`` →
+        # ``chat_session_owner_persona``), never derived here, per honesty rule
+        # 5. The record's OWN ``persona_instance_id`` stays the row's instance —
+        # the journal recorded which instance ran this turn, a stronger fact
+        # than a re-derivation from the root's current binding — and when the
+        # two disagree the persona is left BLANK rather than pairing this turn's
+        # instance with another instance's persona.
+        owner_persona, owner_instance = _owner_of(session_id, memo=self.owners)
         if instance_id and owner_instance and owner_instance != instance_id:
             owner_persona = ""
-        rows.append(
+        instance = instance_id or owner_instance
+        row = work_row(
+            kind=KIND_CHAT_TURN,
+            stable_id=turn_id,
+            label=self.named(instance) or instance or turn_id,
+            # The journal state IS the status: the journal's own in-flight set
+            # means a turn is running, EXCEPT ``outcome_unknown`` — the provider
+            # outcome was never observed, which is exactly the shared
+            # ``unknown`` and must not be dressed up as running.
+            status=STATUS_RUNNING if state in self.running_states else STATUS_UNKNOWN,
+            source_lane=LANE_DURABLE,
+            persona_id=owner_persona,
+            persona_instance_id=instance,
+            session_id=session_id,
+            started_at=started_at,
+            elapsed_seconds=elapsed_seconds(
+                started.timestamp() if started is not None else None, now=self.now
+            ),
+            progress=_progress(available=False),
+            # Chat turns are interrupted through the chat lane's own authority
+            # (turn-resolve / the steer marker), never by this verb — see
+            # ``cancel_work``. Their foreground ``tool_call`` children are.
+            cancellable=False,
+            extra={"title": "", "current_tool": None},
+        )
+        self.rows.append(row)
+        if state in self.running_states:
+            self.enrich_live(row, turn_id)
+
+    def enrich_live(self, row: dict[str, Any], turn_id: str) -> None:
+        """The executing process's view of the turn; nothing when it runs elsewhere."""
+
+        try:
+            from ..live_turns import live_turn_view
+
+            live = live_turn_view(turn_id)
+        except Exception:
+            live = None
+        if live is None:
+            return
+        self.lane = LANE_LIVE
+        row["source_lane"] = LANE_LIVE
+        current = live.tools[-1] if live.tools else None
+        quiet, in_tool = _turn_quiet(live, current)
+        row["status"] = self.verdict(quiet, in_tool=bool(in_tool))
+        row["progress"] = _progress(
+            api_calls=live.api_calls, in_tool=in_tool, seconds_since_progress=quiet, available=True
+        )
+        if current is not None:
+            row["current_tool"] = {
+                "call_id": current.call_id,
+                "name": current.tool_name,
+                "preview": bounded_operator_text(current.preview, limit=240),
+                "elapsed_seconds": int(current.elapsed_seconds),
+                "timeout_seconds": current.timeout_seconds,
+            }
+        for call in live.tools:
+            if call.foreground is not None:
+                self.foreground_row(row, turn_id, call)
+
+    def verdict(self, quiet: float | None, *, in_tool: bool) -> str:
+        """``running`` / ``stalling`` / ``stalled`` from quiet seconds, on the
+        delegation monitor's own thresholds (one authority)."""
+
+        if quiet is None:
+            return STATUS_RUNNING
+        threshold = self.in_tool_stale if in_tool else self.idle_stale
+        if quiet >= threshold:
+            return STATUS_STALLED
+        if quiet >= threshold * STALLING_FRACTION:
+            return STATUS_STALLING
+        return STATUS_RUNNING
+
+    def foreground_row(self, turn: dict[str, Any], turn_id: str, call: Any) -> None:
+        """RW2: the foreground command a live turn is blocked on, as its child."""
+
+        self.consider()
+        command = call.foreground
+        owner = turn.get("owner") or {}
+        timeout = int(command.timeout_seconds) if command.timeout_seconds is not None else call.timeout_seconds
+        self.rows.append(
             work_row(
-                kind=KIND_CHAT_TURN,
-                stable_id=turn_id,
-                label=instance_id or turn_id,
-                # The journal state IS the status: the journal's own in-flight
-                # set means a turn is running, EXCEPT ``outcome_unknown`` — the
-                # provider outcome was never observed, which is exactly the
-                # shared ``unknown`` and must not be dressed up as running.
-                status=STATUS_RUNNING if state in running_states else STATUS_UNKNOWN,
-                source_lane=LANE_DURABLE,
-                persona_id=owner_persona,
-                persona_instance_id=instance_id or owner_instance,
-                session_id=session_id,
-                started_at=started_at,
-                elapsed_seconds=elapsed_seconds(
-                    started.timestamp() if started is not None else None, now=now
+                kind=KIND_TOOL_CALL,
+                stable_id=f"{turn_id}:{call.call_id}",
+                label=bounded_operator_text(call.command or command.command or call.tool_name, limit=120),
+                command=bounded_operator_text(command.command or call.command, limit=400),
+                status=self.verdict(command.seconds_since_output, in_tool=True),
+                source_lane=LANE_LIVE,
+                pid=command.pid,
+                # In-process ownership is the identity proof, as for a live
+                # terminal-registry row: this process spawned and waits on it.
+                pid_verified=command.pid is not None,
+                persona_id=owner.get("persona_id") or "",
+                persona_instance_id=owner.get("persona_instance_id") or "",
+                session_id=owner.get("session_id") or "",
+                started_at=_iso(command.started_at),
+                elapsed_seconds=int(command.elapsed_seconds),
+                progress=_progress(
+                    in_tool=call.tool_name,
+                    seconds_since_progress=command.seconds_since_output,
+                    available=True,
                 ),
-                progress=_progress(available=False),
-                # Chat turns are interrupted through the chat lane's own
-                # authority (turn-resolve / the steer marker), never by this
-                # verb — see ``cancel_work``.
-                cancellable=False,
+                tail_preview=_preview(command.tail, self.accountant),
+                # Through the turn's interrupt seam — see ``cancel_work``.
+                cancellable=True,
+                extra={
+                    "parent_work_id": turn["work_id"],
+                    "tool_name": call.tool_name,
+                    "tool_call_id": call.call_id,
+                    "timeout_seconds": timeout,
+                    "seconds_since_output": command.seconds_since_output,
+                    "output_chars": command.output_chars,
+                },
             )
         )
 
-    return (
-        LanePass(now=now, accountant=accountant, kind=KIND_CHAT_TURN).finish(rows),
-        _source(SOURCE_OK, lane=LANE_DURABLE),
-    )
+    def attach_titles(self) -> None:
+        turns = [row for row in self.rows if row.get("kind") == KIND_CHAT_TURN]
+        sessions = {(row.get("owner") or {}).get("session_id") or "" for row in turns}
+        titles = _chat_titles(sessions - {""})
+        for row in turns:
+            row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _turn_quiet(live: Any, current: Any) -> tuple[float | None, str | None]:
+    """``(seconds since progress, tool in flight)`` for a live turn.
+
+    Inside a foreground command the agent's own activity stamp is useless: the
+    terminal wait touches it every 10 s whether or not the command prints
+    anything, so a silent build would read as busy forever. There the quiet
+    time is the COMMAND's — seconds since its output last grew.
+    """
+
+    if current is not None and current.foreground is not None:
+        return current.foreground.seconds_since_output, current.tool_name
+    return live.seconds_since_activity, (current.tool_name if current is not None else None)
+
+
+def _chat_titles(session_ids: set[str]) -> dict[str, str]:
+    """``session id -> conversation title`` from each chat's own SessionDB, read-only.
+
+    Cosmetic and fail-safe: a session whose scope or database cannot be read
+    simply has no title. Same discipline as the delegation read — an existing
+    ``state.db`` opened ``mode=ro``, never created, never migrated — and one
+    query per chat home, not per row.
+    """
+
+    if not session_ids:
+        return {}
+    try:
+        from ..chat_session_scope import resolve_chat_session_scope
+    except Exception:
+        return {}
+    by_home: dict[Path, list[str]] = {}
+    for session_id in sorted(session_ids):
+        try:
+            home = Path(resolve_chat_session_scope(session_id=session_id).head_home)
+        except Exception:
+            continue
+        by_home.setdefault(home, []).append(session_id)
+    titles: dict[str, str] = {}
+    for home, ids in by_home.items():
+        titles.update(_titles_in(home / _STATE_DB_FILENAME, ids))
+    return titles
+
+
+def _titles_in(db_path: Path, session_ids: list[str]) -> dict[str, str]:
+    if not db_path.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2)
+    except Exception:
+        return {}
+    try:
+        marks = ",".join("?" for _ in session_ids)
+        rows = conn.execute(f"SELECT id, title FROM sessions WHERE id IN ({marks})", session_ids).fetchall()
+    except Exception:
+        return {}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return {str(sid): bounded_operator_text(title, limit=160) for sid, title in rows if title}
+
+
+def _collect_chat_turns(
+    *, now: float, accountant: ProjectionAccountant | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The chat-turn lane's collector: one :class:`ChatTurnLane` pass."""
+
+    return ChatTurnLane(now=now, accountant=accountant).collect()
 
 
 class DispatchLane(LanePass):
