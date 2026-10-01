@@ -7,6 +7,19 @@ from agent_runtime.workspace_create import create_workspace, WorkspaceCreationRe
 __layer__ = "lanes"
 
 
+@method("runtime.workspace.conversations", tier=TIER_CONSOLE)
+def runtime_conversations_workspace(rid, params, context=None):
+    from agent_runtime.workspace_create import conversations_workspace
+
+    if params:
+        return err(rid, ERR_INVALID_PARAMS, "No parameters expected.")
+    try:
+        workspace = conversations_workspace()
+    except WorkspaceCreationRefused as exc:
+        return err(rid, ERR_CONFLICT, "The conversations workspace needs attention.", {"reason": exc.reason.value})
+    return ok(rid, {"id": workspace.id, "name": workspace.name})
+
+
 @method("runtime.workspace.create", tier=TIER_CONSOLE)
 def runtime_workspace_create(rid, params, context=None):
     if set(params) != {"name", "idempotency_key"}:
