@@ -267,6 +267,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-02 (launcher lane w8-mcp, filed by the orchestrator)
 
 - [ ] **hermes' MCP client sends no `_meta.progressToken` and relays no `notifications/progress`, so the launcher QA server's rebuild progress (phase/commit/elapsed/expected, launcher `87c550098`) never reaches the Agent Console card's `tool.progress` — pass a progress callback to `call_tool` in `tools/mcp_tool*.py` and forward each report to `tool.progress` (seam first; upstream PR if it cannot move)** · `seam / tools` · launcher half landed in `87c550098` · UNCLAIMED
+- [ ] **Expose a public scoped SessionDB page query.** Native account history must filter metadata before keyset pagination; `list_sessions_rich` exposes neither predicate nor keyset cursor. The fork localizes the read through `_read_all` in `instance_history._page`, pending a public upstream seam. No upstream edit or parallel store. Evidence: [instance history checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#history-checkpoint). · instance-conversations 2026-10-01
 
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
