@@ -3454,7 +3454,8 @@ def _register_plugin_cli_commands(subparsers) -> None:
     """
     # fork: hook-pending (seam Stage 1) — manifest-declared commands attach BEFORE the discovery
     # gate and materialise only their own plugin, so invoking one never pays discover_plugins().
-    declared = _attach_declared_plugin_cli_commands(subparsers)
+    # A built-in invocation cannot reach one either, so it skips the manifest scan (w3-perf).
+    declared = set() if _first_positional_argv() in _BUILTIN_SUBCOMMANDS else _attach_declared_plugin_cli_commands(subparsers)
     if _first_positional_argv() in declared:
         return
     if not _plugin_cli_discovery_needed():
