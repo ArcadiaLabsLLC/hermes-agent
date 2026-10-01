@@ -36,6 +36,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **Seven argv handlers are no longer lowered by the launcher (`agent create`, `agent retire`, `level clear`, `level set`, `map clear`, `map list`, `map set` — method-only there): one DELETE row per handler once the operator/script-use ruling is made** · fork · evidence: `EterniaLauncher/docs/mission_control/planned/argv-census-launcher-half-2026-10-02.md` · UNCLAIMED
 - [ ] **Pin that exactly one stored thinking row is persisted per emitted `reasoning.summary` frame, in emitted order — the launcher's positional live↔stored Thinking pairing (owner decision pending) is admissible only on that 1:1 contract** · fork · evidence: launcher mission-control-queue Live Thinking row VERDICT 2026-10-02 · UNCLAIMED
+### Owner asks — 2026-10-01 (instance conversations)
+
+- [ ] **Converge Launcher conversations on persona-instance identity; preserve rich conversation capabilities, opaque account ownership and independent non-spatial rooms.** · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md) · Launcher cutover follows parity · **TAKEN 2026-10-01 Codex**
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
