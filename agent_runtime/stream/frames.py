@@ -14,6 +14,7 @@ from ..chat_turn_presence import EVENT_TURN_ENDED
 from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import normalize_fold_entities
+from ..running_work import build_running_work
 from ..serde import optional_text, section_rows, to_jsonable
 from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
@@ -151,7 +152,7 @@ def heartbeat_frame(
 def batch_ends_a_chat_turn(batch: list[tuple[int, Event]]) -> bool:
     """Whether ``batch`` carries a ``persona_chat.turn_ended`` publish."""
 
-    return any(event.type == EVENT_TURN_ENDED for _, event in batch)
+    return any(getattr(event, "type", None) == EVENT_TURN_ENDED for _, event in batch)
 
 
 def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
@@ -175,8 +176,6 @@ def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
     """
 
     try:
-        from ..running_work import build_running_work
-
         section = build_running_work()
     except Exception:
         logger.debug("running_work_frame: section read failed", exc_info=True)

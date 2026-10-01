@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 import pytest
 
 import agent_runtime.stream as stream_mod
+import agent_runtime.stream.frames as stream_frames_module
 from agent_runtime import running_work
 from agent_runtime.chat_turn_presence import EVENT_TURN_ENDED, ChatTurnPresence
 from agent_runtime.events import EventLog
@@ -214,7 +215,8 @@ def test_an_unreadable_section_ships_nothing_and_the_core_still_follows(
 
     frames = _stream(max_frames=2)
     assert next(frames)["type"] == "hydrate"
-    monkeypatch.setattr(running_work, "build_running_work", _boom)
+    # Patched where the section frame looks it up; the core build binds its own.
+    monkeypatch.setattr(stream_frames_module, "build_running_work", _boom)
     turn.end()
     assert next(frames)["type"] == "delta"
 
