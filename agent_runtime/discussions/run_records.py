@@ -36,16 +36,24 @@ def _expect_run(run: Mapping[str, Any], expected: int) -> None:
 
 def _add_member(conn: sqlite3.Connection, run_id: str, item: Mapping[str, Any], *, ordinal: int, seat: int) -> None:
     ref = ParticipantRef.parse({k: item[k] for k in ("install_id", "instance_id")})
-    try:
-        conn.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)", (ref.install_id, ref.instance_id, run_id))
-    except sqlite3.IntegrityError as exc:
-        raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
+    claim_table_member(conn, run_id, ref)
     mid = member_id(ref)
     conn.execute("""INSERT INTO mc_discussion_members
         (run_id,member_id,ordinal,install_id,instance_id,persona_id,profile,display_name,handle,session_id,seat,status)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                  (run_id, mid, ordinal, ref.install_id, ref.instance_id, item["persona_id"], item["profile"],
                   item["display_name"], "agent-" + mid[2:14], native_session_id(run_id, ref.instance_id), seat, "joining"))
+
+
+def claim_table_member(conn: sqlite3.Connection, run_id: str, ref: ParticipantRef) -> None:
+    """Placement exclusivity belongs to tables, not independent room sessions."""
+    run = read_run_record(conn, run_id)
+    if run["table_id"] is None:
+        return
+    try:
+        conn.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)", (ref.install_id, ref.instance_id, run_id))
+    except sqlite3.IntegrityError as exc:
+        raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
 
 
 def add_profile_member(conn: sqlite3.Connection, run_id: str, item: Mapping[str, Any], *, ordinal: int) -> None:
