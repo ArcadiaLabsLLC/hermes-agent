@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Implement the owner-approved Hermes-backed Work view contract through the Eternia harness, with shared Launcher presentation and neutral ports; Hermes remains the only executor, no Companion engine/daemon or legacy-history bridge.** · Owner approval 2026-09-30; source `EterniaLauncher/docs/companion/planned/SOURCE_AUDIT_RENDERING_WORKFLOWS_2026-09-23.md` §6; Launcher integration follows this runtime seam. **TAKEN 2026-09-30 hermes-work-view**
+
 - [ ] **Carry runtime-owned conversation/turn identity on Launcher app-function requests for unified GenUI placement.** · `EterniaLauncher/docs/companion/planned/ARTIFACT_PRESENTATION_REVIEW_2026-09-30.md` (Cross-placement scope correction); companion Launcher integration follows. **TAKEN 2026-09-30 genui-invocation**
 
 - [ ] **Restore the optional MCP client in the managed runtime serving the existing Launcher QA agent, then verify its live catalog and one read-only call.** · Owner-approved root admission and `launcher-qa` registration are applied; authentication works, but live turns register zero tools and the selected environment has no `mcp` package. Use the canonical managed installer and safe service refresh; no replacement agent/session. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#missing-runtime-dependency); unblocks `EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`. Filed 2026-09-30 Projects QA. UNCLAIMED
