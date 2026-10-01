@@ -65,6 +65,16 @@ The acceptance-matrix PS1 scripts under `docs/stages/qa-reboot/scripts/` (e.g.
 (`flutter build windows --debug --target lib/main_marionette.dart`) are human/CI operator
 lanes — an agent does not shell them as a substitute for the MCP path.
 
+**When `launcher_qa` answers a typed blocker, the blocker IS the answer.** Measured
+2026-10-01: asked for a News screenshot, an agent got `launch_stale_stagec_copy` from
+`open_app_tab`, then ran the marionette build as a FOREGROUND `terminal` call in the
+operator's primary checkout. It sat 160 s with no output on screen, then failed on
+`WebView2Loader.dll` held by the operator's running Launcher — and the screenshot never
+existed. Reply with the `failure_class`, its `message_safe`, and what would clear it (an
+operator rebuild of the Stage C copy). If a rebuild truly is yours to run, it goes to the
+background with `notify=true` from a worktree (`harness-dev-delivery`,
+"Launcher Commands"), never the foreground and never the primary checkout.
+
 Fullscreen screenshots must be at least desktop-sized, redaction-clean, nonblank, and tied
 to the intended Launcher debug build/profile — otherwise the visual proof is not complete.
 
