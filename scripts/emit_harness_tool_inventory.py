@@ -70,7 +70,7 @@ END_MARKER = "<!-- END GENERATED: harness_core inventory -->"
 #: generated table can carry a "use it for" column without the emitter having to
 #: invent prose from a tool description.
 TOOLSET_PURPOSE = {
-    "agent_chat": "teammates: list, message, read, dispatches, transcript path",
+    "agent_chat": "teammates: list, message, read, dispatches, transcript path; `harness_query` for roster / instance / sessions / live QA lookups",
     "board": "record follow-up work — planning state only",
     "clarify": "ask the operator a question mid-turn",
     "delegation": "hand a bounded subtask to a helper with fresh context",

@@ -62,6 +62,10 @@ from tools.agent_chat.detached import (
 from tools.agent_chat.lane import (
     session_belongs_to_chat_lane,
 )
+from tools.agent_chat.query import (
+    HARNESS_QUERY_SCHEMA,
+    harness_query,
+)
 from tools.agent_chat.remote import (
     agent_chat_installs,
 )
@@ -89,7 +93,7 @@ from tools.registry import registry
 __layer__ = "wiring"
 
 #: What this entry re-exports: every name a caller or test spelled on the old
-#: module. The handlers live in ``tools/agent_chat/``; this file is the six
+#: module. The handlers live in ``tools/agent_chat/``; this file is the seven
 #: registrations upstream discovery scans for (``tools/registry.py``).
 __all__ = [
     "AGENT_CHAT_DISPATCHES_SCHEMA",
@@ -98,6 +102,7 @@ __all__ = [
     "AGENT_CHAT_OPEN_SCHEMA",
     "AGENT_CHAT_SEND_SCHEMA",
     "AGENT_CHAT_THREADS_SCHEMA",
+    "HARNESS_QUERY_SCHEMA",
     "_MESSAGE_LIMIT",
     "_REPLY_LIMIT",
     "_async_delivery_available",
@@ -109,6 +114,7 @@ __all__ = [
     "agent_chat_open",
     "agent_chat_send",
     "agent_chat_threads",
+    "harness_query",
 ]
 
 
@@ -201,4 +207,17 @@ registry.register(
     ),
     description="Get the file path of a teammate thread's live transcript log to grep/tail the full history (read-only, no mint).",
     emoji="🗂️",
+)
+
+registry.register(
+    name="harness_query",
+    toolset="agent_chat",
+    schema=HARNESS_QUERY_SCHEMA,
+    handler=lambda args, **kw: harness_query(
+        args.get("question"),
+        instance=args.get("instance"),
+        limit=args.get("limit"),
+    ),
+    description="Read-only harness lookup: roster, one instance, its chat sessions' runtime state, live QA sessions.",
+    emoji="🔎",
 )

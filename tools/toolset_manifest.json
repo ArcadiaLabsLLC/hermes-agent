@@ -51,6 +51,7 @@
     "ha_get_state": "homeassistant",
     "ha_list_entities": "homeassistant",
     "ha_list_services": "homeassistant",
+    "harness_query": "agent_chat",
     "image_generate": "image_gen",
     "kanban_attach": "kanban",
     "kanban_attach_url": "kanban",
@@ -106,7 +107,8 @@
       "agent_chat_log_path",
       "agent_chat_open",
       "agent_chat_send",
-      "agent_chat_threads"
+      "agent_chat_threads",
+      "harness_query"
     ],
     "annotate_preview_tool": [
       "annotate_preview"

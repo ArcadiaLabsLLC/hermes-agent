@@ -12,7 +12,8 @@
         "agent_chat_log_path",
         "agent_chat_open",
         "agent_chat_send",
-        "agent_chat_threads"
+        "agent_chat_threads",
+        "harness_query"
       ]
     },
     {
@@ -322,6 +323,13 @@
       "description": "Run Python that calls Hermes tools programmatically. Use when you need 3+ tool calls with logic between them: filtering/reducing large outputs before they en..."
     },
     {
+      "name": "harness_query",
+      "toolset": "agent_chat",
+      "mutating": false,
+      "gated": false,
+      "description": "Read-only harness lookup: roster, one instance, its chat sessions' runtime state, live QA sessions."
+    },
+    {
       "name": "memory",
       "toolset": "memory",
       "mutating": false,
@@ -435,9 +443,9 @@
     }
   ],
   "counts": {
-    "tools": 44,
+    "tools": 45,
     "toolsets": 15,
-    "token_estimate": 1190
+    "token_estimate": 1217
   },
   "cli_only_verbs": [
     "persona instance open-chat",

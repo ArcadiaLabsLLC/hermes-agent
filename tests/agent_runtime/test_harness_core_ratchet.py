@@ -43,11 +43,14 @@ HARNESS_CORE_MEMBERS = [
 # ``harness_core`` includes by NAME — so the count moved without an edit to the
 # member list, which is exactly what that ratchet is for. Both numbers are
 # RE-MEASURED and not adjusted: 44 tools, and the token estimate the live
-# resolver reports for the declared set on this build.
-DECLARED_TOOL_COUNT = 44
+# resolver reports for the declared set on this build. HQ1 moved it to 45.
+DECLARED_TOOL_COUNT = 45
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
-DECLARED_TOKEN_ESTIMATE = 1190
+# HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
+# re-measured 1190 -> 1217 (+27), the price of retiring a 907 KB snapshot
+# call from every lookup turn.
+DECLARED_TOKEN_ESTIMATE = 1217
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 
