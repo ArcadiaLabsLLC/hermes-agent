@@ -1371,3 +1371,42 @@ All others under `archive/2026-08-22-pre-consolidation/`:
 | [`17-upstream-boundary-ledger.md`](archive/2026-08-22-pre-consolidation/17-upstream-boundary-ledger.md) · [`18-upstream-merge-rehearsal-20260730.md`](archive/2026-08-22-pre-consolidation/18-upstream-merge-rehearsal-20260730.md) | summarised in §7; still the authority for their own detail |
 | [`SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md) | landed stages → §2/§5; open half → `planned/single-transport-collapse.md` |
 | [`CORRELATION_ID_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/CORRELATION_ID_PLAN_2026-08-16.md) | landed stages → §8; open half → `planned/correlation-id-coverage.md` |
+
+## Native Work methods
+
+`agent_runtime/work/` adapts Hermes's public Kanban APIs. Tasks, task IDs,
+dispatch, runs and outcomes remain native. There is no second task store or
+Companion engine. `agent_runtime/work/rpc.py` registers console-private
+methods on the existing authenticated lane; all database work is deferred.
+The former blanket import gate now admits exactly two public imports in
+`work/native.py`. Mission Control's advisory board still has no task-execution
+dependency. Phone bundles omit the Work adapter and never advertise its methods.
+
+| Method | Input beyond scope | Result |
+|---|---|---|
+| `runtime.work.capabilities` | none | version 1, installation, owners, limitations |
+| `runtime.work.list` | optional cursor `[created_at, id]` | tasks, next cursor |
+| `runtime.work.inspect` | task_id | task or null |
+| `runtime.work.start` | client_scope, request_id, title, body | accepted task |
+
+Scope is `install_id` plus an opaque `owner` returned by capabilities. Its
+fingerprint binds installation, native database, board, profile and profile home.
+Every call resolves those facts again. Missing or changed owners refuse; no call
+falls back to the active board. The dispatcher must already be configured by the
+operator; acceptance means queued in Hermes, never proof of execution.
+
+The outer native write transaction serializes replay lookup and create. A request
+key binds the installation owner (or paired device), client scope, owner and request ID. Changed payloads
+refuse. Archived records reconcile without recreation; deleting the native task
+also deletes replay evidence. Clients persist the exact pending command before
+send and retry that identity after uncertain replies.
+
+List uses native task ordering and keyset slicing, 40 rows per frame. Native
+`list_tasks` currently materializes the matching profile's records before slicing;
+the adapter does not own a parallel query schema. Inspect bounds result text at
+64,000 characters and marks truncation. No result is independently verified by
+this projection. Unknown and archived lifecycle states are never flattened to
+success. Stop, redirect and retry are not advertised.
+
+Launcher presentation and verification record:
+`EterniaLauncher/docs/companion/planned/HERMES_WORK_VIEW_2026-09-30.md`.
