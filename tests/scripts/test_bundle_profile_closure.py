@@ -265,3 +265,19 @@ def test_an_omitted_distributions_stand_in_answers_only_the_names_it_binds(tmp_p
 
     assert "openai.OpenAI" in judged(row)  # no stand-in: every unguarded site is refused
     assert judged({**row, "stand_in": "agent_runtime.provider_sdk_shim"}) == ["openai.NotBoundByTheShim"]
+
+
+def test_a_handler_the_harness_parser_binds_by_name_is_an_import(tmp_path):
+    """``hermes harness`` binds its handlers through ``lazy_module("…")`` (w3-perf), so
+    the parser no longer imports them; the walk must still reach them, or a bundle
+    could omit a distribution only a handler needs."""
+    from scripts.bundle_profile_closure import _imports
+
+    path = tmp_path / "wiring.py"
+    path.write_text(
+        'doctor = lazy_module("pkg.doctor_commands")\n'
+        'other = lazy_widget("pkg.not_an_import")\n',  # positive control: another call is not an import
+        encoding="utf-8",
+    )
+    reached = {(dotted, eager) for dotted, eager, _guarded, _line in _imports(path, "pkg.wiring", False)}
+    assert reached == {("pkg.doctor_commands", False)}

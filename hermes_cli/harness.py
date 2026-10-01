@@ -20,7 +20,8 @@ the module that LOOKS IT UP (W0-G4, ``tests/tooling/test_harness_namespace_is_th
 
 This module defines the plugin door and binds no other module's callable except
 ``build_parser`` (the contract dump and the fixture generator import it from
-here) and ``emit_harness_error`` (the entry wrapper's envelope) — W0-G4's
+here) and ``emit_harness_error`` (the entry wrapper's envelope, resolved on first
+use by the module ``__getattr__`` so no invocation pays for it up front) — W0-G4's
 allowlist. The tree is reached through its MODULE (``harness_tree``), so a test
 patches ``harness_parts.parser``, where the name is looked up.
 """
@@ -32,7 +33,7 @@ import sys
 
 from hermes_cli.harness_parts import parser as harness_tree
 from hermes_cli.harness_parts.parser import build_parser
-from hermes_cli.harness_support import emit_harness_error
+from hermes_cli.harness_parts.parser import lazy as harness_lazy
 
 __all__ = ["build_cli_parser", "build_parser", "emit_harness_error"]
 
@@ -47,6 +48,8 @@ def _harness_entry(fn):
 
     import functools
 
+    if isinstance(fn, harness_lazy.LazyHandler):
+        return fn.wrapped(_harness_entry)  # wrapped when its verb resolves it, imported then
     if getattr(fn, "__harness_entry__", False):
         return fn
 
@@ -60,10 +63,22 @@ def _harness_entry(fn):
         try:
             return fn(args, *rest, **kwargs)
         except Exception as exc:
+            from hermes_cli.harness_support import emit_harness_error
+
             sys.exit(emit_harness_error(exc, args=args))
 
     entry.__harness_entry__ = True
     return entry
+
+
+def __getattr__(name: str):
+    # ``hermes_cli.harness.emit_harness_error`` keeps resolving (W0-G4's allowlist)
+    # without every ``hermes`` invocation importing the envelope (~290 modules).
+    if name == "emit_harness_error":
+        from hermes_cli.harness_support import emit_harness_error
+
+        return emit_harness_error
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _install_harness_entries(parser) -> None:

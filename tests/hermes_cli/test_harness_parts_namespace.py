@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 from hermes_cli.harness_parts import parser as harness_parser
+from hermes_cli.harness_parts.parser import lazy
 
 PARTS_DIR = Path(__file__).resolve().parents[2] / "hermes_cli" / "harness_parts"
 PART_MODULES = tuple(
@@ -56,7 +57,46 @@ def test_every_parser_handler_from_a_part_is_that_modules_own_function() -> None
         for action in current._actions:
             if isinstance(action, argparse._SubParsersAction):
                 stack.extend(action.choices.values())
-    from_parts = [f for f in handlers if getattr(f, "__module__", "").startswith("hermes_cli.harness_parts.")]
+            elif isinstance(action.type, lazy.LazyHandler):
+                handlers.append(action.type)
+    # The tree binds handlers BY NAME (``parser/lazy.py``), so a misspelled one no
+    # longer fails at import: resolving every binding is what proves each names a
+    # real function of a real module.
+    assert sum(isinstance(f, lazy.LazyHandler) for f in handlers) > 100, "the tree stopped binding by name"
+    bound = [lazy.resolve_lazy(f) for f in handlers]
+    from_parts = [f for f in bound if getattr(f, "__module__", "").startswith("hermes_cli.harness_parts.")]
     assert from_parts, "no parser handler comes from a part module — the wiring moved"
     for func in from_parts:
         assert getattr(sys.modules[func.__module__], func.__name__) is func, func
+
+
+def test_building_the_tree_imports_no_handler_and_parsing_imports_only_the_chosen_one() -> None:
+    """The lazy binding's point, asked of the RUNTIME in a fresh interpreter: building
+    the tree imports no handler module, and parsing ``persona list`` imports that
+    verb's module and not another verb's, and hands back the module's own function."""
+
+    import subprocess
+
+    probe = (
+        "import argparse, sys\n"
+        "from hermes_cli.harness_parts import parser as tree\n"
+        "root = argparse.ArgumentParser(prog='hermes')\n"
+        "tree.build_parser(root.add_subparsers(dest='command'))\n"
+        "built = set(sys.modules)\n"
+        "args = root.parse_args(['harness', 'persona', 'list', '--json'])\n"
+        "watch = ('hermes_cli.harness_parts.persona.inspect_commands',"
+        " 'hermes_cli.harness_parts.runtime_commands', 'agent_runtime.harness_doctor')\n"
+        "print(sorted(m for m in watch if m in built), sorted(m for m in watch if m in sys.modules),"
+        " args.func.__module__)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert out == (
+        "[] ['hermes_cli.harness_parts.persona.inspect_commands'] "
+        "hermes_cli.harness_parts.persona.inspect_commands"
+    ), out

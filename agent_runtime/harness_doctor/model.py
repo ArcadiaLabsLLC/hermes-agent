@@ -9,11 +9,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..events import EventLog
+from ..worktree_age import DEFAULT_WORKTREE_MIN_AGE_SECONDS  # noqa: F401 — a leaf, so the parser reads it cheaply
 
 __layer__ = "stores"
 
-
-DEFAULT_WORKTREE_MIN_AGE_SECONDS = 3600
 
 # The health vocabulary every doctor section reports itself in. The verdict is
 # DERIVED from these — no section may be examined without contributing one.
