@@ -87,7 +87,9 @@ class RoomCommands:
     def _invite(self, run, key, body, _op):
         if not execution_spec(run).settings["allow_invitations"]:
             raise DiscussionError("invitations_disabled")
-        live = self.context.resolve(ParticipantRef.parse(body["participant"]), run["workspace_id"])
+        participant = ParticipantRef.parse(body["participant"])
+        resolve = self.context.resolve if run["table_id"] is not None else self.context.resolve_room
+        live = resolve(participant, run["workspace_id"])
         member = self.runs.join(run["run_id"], live)
         self.context.ensure_session(run, member)
         self.runs.set_member_status(run["run_id"], member["member_id"], "active")

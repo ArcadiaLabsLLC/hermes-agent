@@ -43,7 +43,7 @@ class ExecutionContext(NativeContext):
             raise DiscussionError("workspace_not_found")
         return SimpleNamespace(id="ws", archived=False)
 
-    def resolve(self, ref, workspace_id):
+    def resolve(self, ref, workspace_id, *, require_placement=True, require_ready=True):
         self.workspace(workspace_id)
         if ref.instance_id in self.missing:
             raise DiscussionError("instance_retired")

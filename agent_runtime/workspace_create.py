@@ -27,6 +27,11 @@ class WorkspaceCreationRefused(ValueError):
         super().__init__(reason.value)
 
 
+def conversations_workspace():
+    """One native home for non-spatial conversations; never moves an agent."""
+    return create_workspace("Conversations", "harness:conversations-workspace:v1")
+
+
 def create_workspace(name: str, key: str):
     """A receipt fences replay; the workspace record remains the sole authority."""
     if (not isinstance(name, str) or not name.strip() or len(name) > 120 or
