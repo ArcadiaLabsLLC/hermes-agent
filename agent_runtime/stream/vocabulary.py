@@ -146,6 +146,11 @@ FRAME_HYDRATE = "hydrate"
 FRAME_HEARTBEAT = "heartbeat"
 FRAME_DELTA = "delta"
 FRAME_PATCH = "patch"
+#: The ``running_work`` section ALONE, published the moment a chat turn ends
+#: rather than with the next core (which costs a full build — ~10 s measured
+#: live 2026-10-01 — and may queue behind another one). Not a core and not a
+#: position: it carries ``as_of_offset``, never a ``watermark``.
+FRAME_RUNNING_WORK = "running_work"
 #: The two EventLog types this package reads or writes by name: the watchdog's
 #: synthetic reconcile and the run-progress trace.
 EVENT_STATE_RECONCILED = "state.reconciled"

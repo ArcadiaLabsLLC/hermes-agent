@@ -998,6 +998,7 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `delta` | `delta_frame` (`:376`) / `delta_batch_frame` (`:393`) | 1 | yes — ONE core per batch |
 | `patch` | `patch_batch_frame` (`:456`) | 2 | **no** |
 | `heartbeat` | `heartbeat_frame` (`:328`) | 1 | no |
+| `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
 
 `hydrate` carries `core`, `identity_map`, `watermark`, and the parity envelope's
 `completeness` / `drops` / `parity_warnings`. With the patch lane on it also
@@ -1031,6 +1032,19 @@ watermark-gated reader would take as a real cursor at the head of the log
 (`:337-341`). A heartbeat whose offset is AHEAD of the consumer's last applied
 state-bearing frame proves a frame was missed: keep the applied watermark and
 rehydrate.
+
+`running_work` (2026-10-01) is shipped by `StreamSession.flush` BEFORE the
+batch's own frames whenever the batch carries a `persona_chat.turn_ended` —
+one per batch, never per event, and not counted toward `max_frames`. Its
+fields: `as_of_offset` (the drained offset the section was read after; `null`
+is "unknown", never 0) and `running_work` (the same shape as the core's
+`running_work` section). It carries NO `watermark` on purpose: it is an
+overlay of one section on the held core, applied only when `as_of_offset` is
+past the held core's offset and replaced by the next core, and it must never
+move a consumer's sequence. Why: a turn-end batch can never promote (the event
+is uncovered), so the finished turn left `running_work` only with the next
+full core — 16.6 s after `turn_ended` measured live, a 10.2 s build queued
+behind another. The office sink skips it (`_NON_OFFICE_STATE_FRAME_TYPES`).
 
 `_delta_op` (`:1375`) is a four-arm table — `run.tool.*` / `run.progress` →
 `chat.trace.appended`, `incident.*` → the source type verbatim,

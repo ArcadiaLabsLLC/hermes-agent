@@ -1,6 +1,7 @@
-"""One frame each: hydrate, heartbeat, delta, delta batch, patch batch and the
-fold-variants envelope (with its per-subscriber resolution), plus the
-watchdog's ``state.reconciled`` append, the delta op and the identity map."""
+"""One frame each: hydrate, heartbeat, delta, delta batch, patch batch, the
+``running_work`` section frame and the fold-variants envelope (with its
+per-subscriber resolution), plus the watchdog's ``state.reconciled`` append,
+the delta op and the identity map."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from hermes_time import now
+from ..chat_turn_presence import EVENT_TURN_ENDED
 from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import normalize_fold_entities
@@ -17,7 +19,7 @@ from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
 
 from .build_policy import _log_snapshot_build
-from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
+from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, FRAME_RUNNING_WORK, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
 
 __layer__ = "lanes"
 
@@ -144,6 +146,48 @@ def heartbeat_frame(
     if activity:
         frame["activity"] = activity
     return frame
+
+
+def batch_ends_a_chat_turn(batch: list[tuple[int, Event]]) -> bool:
+    """Whether ``batch`` carries a ``persona_chat.turn_ended`` publish."""
+
+    return any(event.type == EVENT_TURN_ENDED for _, event in batch)
+
+
+def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
+    """The ``running_work`` section alone, read NOW; ``None`` if it cannot be read.
+
+    Why it exists: a turn's ``persona_chat.turn_ended`` batch can never ride the
+    patch lane (the event is uncovered), so the only frame that said the turn
+    left ``running_work`` was the next full core — measured 2026-10-01 at
+    16.6 s after the event (a 10.2 s build queued behind another caller's), and
+    every console showed the finished turn as running for all of it. The
+    section is cheap on its own; the core around it is not.
+
+    ``as_of_offset`` is the log position the read was taken AFTER, and it is
+    deliberately not a ``watermark``: this frame is an overlay of one section on
+    the held core, superseded by the next core at or past that offset, and must
+    never move a consumer's sequence. ``None`` is "position unknown", not 0.
+
+    A read that raises answers ``None`` and the caller ships nothing: the core
+    that follows still carries the section, so the cost of a miss is the old
+    lag, never a wrong row.
+    """
+
+    try:
+        from ..running_work import build_running_work
+
+        section = build_running_work()
+    except Exception:
+        logger.debug("running_work_frame: section read failed", exc_info=True)
+        return None
+    return {
+        "type": FRAME_RUNNING_WORK,
+        "schema_version": STREAM_SCHEMA_VERSION,
+        "generated_at": now(),
+        "as_of_offset": None if as_of_offset is None else int(as_of_offset),
+        "running_work": _redaction_safe_json(section),
+    }
 
 
 def _delta_entity(event: Event) -> dict[str, Any]:

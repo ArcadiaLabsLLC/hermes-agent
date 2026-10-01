@@ -23,7 +23,8 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                Stage 5/7 deferral, _log_snapshot_build, log_stream_attach /
                                log_stream_denied
       frames.py        lanes   one frame each: hydrate, heartbeat, delta, delta batch,
-                               patch batch, fold variants (+ resolve_fold_variant); the
+                               patch batch, running_work (the section alone, on a turn's
+                               end), fold variants (+ resolve_fold_variant); the
                                watchdog append, _delta_op, _identity_map
       build.py         lanes   one core build with liveness: _is_one_shot,
                                _SnapshotBuildJob, _build_with_liveness, the batch frames

@@ -381,6 +381,11 @@ def _delta_touches_workspace(frame: dict[str, Any], workspace_id: str) -> bool |
 
 #: Carries no state, so it is neither a patch nor a resync.
 _LIVENESS_FRAME_TYPES = frozenset({"heartbeat"})
+#: Carries state, but none an office canvas folds: the ``running_work`` section
+#: alone, shipped when a chat turn ends. Taught here rather than left to the
+#: unknown-type branch, which would resync every office subscriber (and restart
+#: the shared producer) once per finished turn.
+_NON_OFFICE_STATE_FRAME_TYPES = frozenset({"running_work"})
 
 
 def office_subscription_key(connection_key: str | None, workspace_id: str) -> str:
@@ -444,7 +449,7 @@ def office_patch_sink(
         if not isinstance(frame, dict):
             return
         frame_type = frame.get("type")
-        if frame_type in _LIVENESS_FRAME_TYPES:
+        if frame_type in _LIVENESS_FRAME_TYPES or frame_type in _NON_OFFICE_STATE_FRAME_TYPES:
             return
         watermark = frame.get("watermark") or {}
         event_offset = event_offset_of(watermark)

@@ -18,7 +18,7 @@ from ..state_patches.emit import delta_patches_enabled
 from .build import _SnapshotBuildJob, _batch_frames_with_liveness, _bounded_sleep, _build_with_liveness, _is_one_shot
 from .build_policy import _log_snapshot_build
 from .fingerprint import _scope_fingerprint
-from .frames import _append_state_reconciled, _resume_offset, heartbeat_frame, hydrate_frame
+from .frames import _append_state_reconciled, _resume_offset, batch_ends_a_chat_turn, heartbeat_frame, hydrate_frame, running_work_frame
 from .vocabulary import DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _DELTA_BATCH_CAP
 
 __layer__ = "lanes"
@@ -495,8 +495,20 @@ class StreamSession:
         return (yield from self.drain())
 
     def flush(self):
-        """Ship the pending batch (with liveness while its core builds)."""
+        """Ship the pending batch (with liveness while its core builds).
 
+        A batch that ends a chat turn first ships the ``running_work`` section
+        on its own (:func:`running_work_frame`): the core below can take ten
+        seconds or more, and the finished turn must leave ``running_work``
+        now. ONE per batch however many turns it ends, so a burst costs one
+        cheap read, never one per event. Not counted toward ``max_frames`` and
+        not a delta: the budget counts cores, and this frame moves no position.
+        """
+
+        if batch_ends_a_chat_turn(self.pending):
+            section_frame = running_work_frame(as_of_offset=self.offset)
+            if section_frame is not None:
+                yield section_frame
         for frame in _batch_frames_with_liveness(
             self.pending,
             base_offset=self.batch_base,
