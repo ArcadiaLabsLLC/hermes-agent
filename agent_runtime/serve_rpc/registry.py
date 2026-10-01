@@ -178,26 +178,29 @@ def manifest() -> dict[str, Any]:
     "honoured" must assume the worst about every key it is not certain of. This
     lane ignores unknown params by contract — a client cannot be refused for a
     key a runtime has never heard of — so the only way to make that safe is to
-    publish what is heard. It covers the chat verbs and only those: they are the
+    publish what is heard. It covers opening and sending chats: they are the
     ones whose surface an operator types into, and a block that claimed to be
     exhaustive over twenty-six methods would be a promise this function cannot
     keep. A client reading a manifest with NO ``params`` block reads it as "the
     runtime that predates R-C8", not as "no params" — the same way a runtime
     with no ``rpc`` block at all reads as "argv only".
 
-    The lists are derived from ``chat_turn``'s own tuples, which its normalisers
-    read, so the advertisement cannot drift from the code that honours it; a
-    test walks a recording mapping through each normaliser and asserts the two
-    agree.
+    Send parameters come from ``chat_turn``'s normalizer tuples; open parameters
+    come from ``persona_open_chat``. Scoped opens never fall back to an older,
+    account-blind lane.
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
         "methods": method_names(),
         "tiers": method_tiers(),
         "params": {
-            name: list(keys) for name, keys in sorted(CHAT_TURN_METHOD_PARAMS.items())
+            name: list(keys) for name, keys in sorted({
+                **CHAT_TURN_METHOD_PARAMS,
+                OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+            }.items())
         },
     }
