@@ -26,7 +26,8 @@ probes reach that interpreter's primary checkout before their mocked hooks.
 The 14 collection/teardown failure files reproduce on primary. A browser-port
 probe failed once and passed the runner's retry; it is not counted among the 38.
 
-Tooling reports **1,311 passed, three failures**. The Work routing ladder and
+After rebasing onto `734c4537aa`, tooling and the private RPC checks report
+**1,313 passed, three existing failures**. The Work routing ladder and
 unrelated private `_answer` name collision were repaired without waivers. The
 remaining helper-name and discussion-ladder failures reproduce on primary.
 Citation adjacency retains the already-queued Toolsets citation failure.

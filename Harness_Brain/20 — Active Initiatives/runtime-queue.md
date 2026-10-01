@@ -23,7 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Scoped chat Work** — owner approved 2026-10-01: harness-owned conversation links over native tasks; Launcher shared Companion viewer, compact references and optional task briefs. Extend `agent_runtime/work/`; presentation in `EterniaLauncher/packages/work/`. **TAKEN 2026-10-01 scoped-chat-work**
 
 
 
