@@ -99,3 +99,10 @@ and import-layer run passed 117 tests (overlapping counts). Disabling native
 owner filtering failed the scoped-page test; disabling adapter owner validation
 failed its wrong-owner test. Both controls were restored. Seven client adapter
 tests passed. These are feature-branch checks, not UI acceptance or completion.
+
+The RPC manifest now advertises the open-chat parameters, including ownership
+and installation checks. Clients can refuse an older account-blind runtime
+before minting. The existing send-parameter tests now permit additive method
+entries rather than freezing the method set. Owner/open-chat tests passed 29
+cases; send/manifest tests passed 48. Launcher production scope binding remains
+part of the account-view cutover, not this checkpoint.
