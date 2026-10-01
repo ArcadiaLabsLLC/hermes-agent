@@ -29,7 +29,7 @@ def prepare_instance_catalog() -> dict:
     for persona in personas.values():
         # The bulk snapshot helper also resets work state; discovery must not.
         store.ensure_for_persona(persona)
-    return {"install_id": install_id, "agents": [
+    return {"install_id": install_id, "instance_conversations": 1, "agents": [
         _project(instance, personas.get(instance.persona_id), install_id)
         for instance in _read_instances(store)
     ]}
