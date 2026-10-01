@@ -22,27 +22,29 @@ def run_schema_ready(conn: sqlite3.Connection) -> bool:
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone() is None:
         return False
     rows = conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchall()
-    if len(rows) != 1 or rows[0][0] not in (1, 2, 3):
+    if len(rows) != 1 or rows[0][0] not in (1, 2, 3, 4):
         raise DiscussionError("unsupported_run_schema")
-    return rows[0][0] == 3
+    return rows[0][0] == 4
 
 
 def initialize_runs(conn: sqlite3.Connection) -> None:
     if run_schema_ready(conn):
         return
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_runs_schema'").fetchone():
-        if conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0] == 2:
+        version = conn.execute("SELECT version FROM mc_discussion_runs_schema").fetchone()[0]
+        if version == 1:
+            # IDs, revisions, snapshots and execution evidence are unchanged.
+            conn.execute("CREATE TABLE mc_discussion_runs_v2 " + _RUN_COLUMNS)
+            conn.execute("INSERT INTO mc_discussion_runs_v2 SELECT * FROM mc_discussion_runs")
+            conn.execute("DROP TABLE mc_discussion_runs")
+            conn.execute("ALTER TABLE mc_discussion_runs_v2 RENAME TO mc_discussion_runs")
+            conn.execute(_INDEX)
+            conn.execute("UPDATE mc_discussion_runs_schema SET version=2")
+        if version in (1, 2):
             upgrade_members(conn)
-            return
-        # Preserve every Mission Control row and claim. Only placement becomes
-        # optional; IDs, revisions, snapshots and execution evidence are unchanged.
-        conn.execute("CREATE TABLE mc_discussion_runs_v2 " + _RUN_COLUMNS)
-        conn.execute("INSERT INTO mc_discussion_runs_v2 SELECT * FROM mc_discussion_runs")
-        conn.execute("DROP TABLE mc_discussion_runs")
-        conn.execute("ALTER TABLE mc_discussion_runs_v2 RENAME TO mc_discussion_runs")
-        conn.execute(_INDEX)
-        conn.execute("UPDATE mc_discussion_runs_schema SET version=2")
-        upgrade_members(conn)
+        conn.execute("""DELETE FROM mc_discussion_instance_claims WHERE run_id IN
+            (SELECT run_id FROM mc_discussion_runs WHERE table_id IS NULL)""")
+        conn.execute("UPDATE mc_discussion_runs_schema SET version=4")
         return
     statements = (
         "CREATE TABLE mc_discussion_runs_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL)",
@@ -62,4 +64,4 @@ def initialize_runs(conn: sqlite3.Connection) -> None:
     )
     for statement in statements:
         conn.execute(statement)
-    conn.execute("INSERT INTO mc_discussion_runs_schema VALUES(1,3)")
+    conn.execute("INSERT INTO mc_discussion_runs_schema VALUES(1,4)")

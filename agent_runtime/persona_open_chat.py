@@ -122,14 +122,19 @@ def refusal_codes_by_kind() -> dict[str, int]:
         # ``error_kind=exc.code``.
         "idempotency_key_required": ERR_INVALID_PARAMS,
         "idempotency_key_invalid": ERR_INVALID_PARAMS,
+        "invalid_client_scope": ERR_INVALID_PARAMS,
         # -- the thing asked for is not there --------------------------------
         ChatErrorKind.PERSONA_INSTANCE_NOT_FOUND: ERR_NOT_FOUND,
         ChatErrorKind.UNKNOWN_CHAT_SESSION: ERR_NOT_FOUND,
+        "session_not_found": ERR_NOT_FOUND,
+        "session_db_unavailable": ERR_HANDLER_FAILED,
         # -- it is there and it is somebody else's ---------------------------
         ChatErrorKind.PERSONA_INSTANCE_MISMATCH: ERR_CONFLICT,
         ChatErrorKind.FOREIGN_CHAT_SESSION: ERR_CONFLICT,
         ChatErrorKind.RETIRED_PERSONA_INSTANCE: ERR_CONFLICT,
         "mint_lock_unavailable": ERR_CONFLICT,
+        "conversation_owner_changed": ERR_CONFLICT,
+        "conversation_owner_unreadable": ERR_HANDLER_FAILED,
         # -- the runtime could not do it -------------------------------------
         ChatErrorKind.CHAT_SESSION_PERSIST_FAILED: ERR_HANDLER_FAILED,
         ChatErrorKind.CHAT_SESSION_DB_UNAVAILABLE: ERR_HANDLER_FAILED,
@@ -211,9 +216,16 @@ def perform_persona_instance_open_chat(
 
     from .serde import to_jsonable
     from .serve_rpc import ERR_INVALID_PARAMS
+    from .conversation_owner import request_client_scope, ConversationOwnerError
 
     if not isinstance(params, dict):
         params = {}
+
+    try:
+        owner = request_client_scope(params)
+    except ConversationOwnerError as exc:
+        return PersonaOpenChatOutcome(refusal=PersonaOpenChatRefusal(
+            code=ERR_INVALID_PARAMS, message="Invalid conversation owner.", data={"reason": exc.reason}))
 
     persona_id = _text(params, "persona_id")
     if not persona_id:
@@ -230,6 +242,7 @@ def perform_persona_instance_open_chat(
         persona_instance_id=_text(params, "persona_instance_id"),
         session_id=_text(params, "session_id"),
         new_session=bool(params.get("new_session")),
+        client_scope=owner,
         kill_active=bool(params.get("kill_active")),
         # The launcher spells the replay key ``idempotency_key`` (its
         # ``ArgRef.idempotencyKey`` rides ``--idempotency-key`` on this verb),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Iterator
@@ -9,6 +10,7 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from . import paths
+from .conversation_owner import client_scope as validate_client_scope
 from .serde import read_versioned_receipt
 from .locks import (
     HarnessLockUnavailable,
@@ -40,6 +42,7 @@ class PersonaChatMintReceipt:
     state: str
     created_at: str
     updated_at: str
+    client_scope: str | None = None
     idempotent_replay: bool = False
 
     @property
@@ -69,6 +72,7 @@ def reserve_persona_chat_mint(
     persona_id: str,
     persona_instance_id: str,
     session_id: str,
+    client_scope: str | None = None,
 ) -> Iterator[PersonaChatMintTransaction]:
     """Reserve or replay one server-minted chat root.
 
@@ -78,7 +82,9 @@ def reserve_persona_chat_mint(
     instead of creating a duplicate conversation.
     """
     key = _validated_key(idempotency_key)
-    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    owner = validate_client_scope(client_scope)
+    scoped_key = key if owner is None else json.dumps([owner, key], separators=(",", ":"))
+    digest = hashlib.sha256(scoped_key.encode("utf-8")).hexdigest()
     try:
         # Instance first, key second is the global lock order. The instance
         # lock makes distinct-key concurrent creates deterministic instead of
@@ -93,6 +99,7 @@ def reserve_persona_chat_mint(
                         receipt,
                         persona_id=persona_id,
                         persona_instance_id=persona_instance_id,
+                        client_scope=owner,
                     )
                     receipt = replace(receipt, idempotent_replay=True)
                 else:
@@ -105,6 +112,7 @@ def reserve_persona_chat_mint(
                         state="reserved",
                         created_at=timestamp,
                         updated_at=timestamp,
+                        client_scope=owner,
                     )
                     _write_receipt(receipt)
                 yield PersonaChatMintTransaction(receipt)
@@ -143,6 +151,7 @@ def _read_receipt(path, *, digest: str) -> PersonaChatMintReceipt:
             state=state,
             created_at=str(raw["created_at"]),
             updated_at=str(raw["updated_at"]),
+            client_scope=validate_client_scope(raw.get("client_scope")),
         )
         if not all(
             (
@@ -172,10 +181,12 @@ def _validate_scope(
     *,
     persona_id: str,
     persona_instance_id: str,
+    client_scope: str | None,
 ) -> None:
     if (
         receipt.persona_id == persona_id
         and receipt.persona_instance_id == persona_instance_id
+        and receipt.client_scope == client_scope
     ):
         return
     raise PersonaChatMintError(
@@ -196,6 +207,7 @@ def _write_receipt(receipt: PersonaChatMintReceipt) -> None:
             "state": receipt.state,
             "created_at": receipt.created_at,
             "updated_at": receipt.updated_at,
+            **({"client_scope": receipt.client_scope} if receipt.client_scope is not None else {}),
         },
         indent=2,
         sort_keys=True,
