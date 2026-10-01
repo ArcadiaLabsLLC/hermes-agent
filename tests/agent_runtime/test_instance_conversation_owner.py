@@ -29,6 +29,8 @@ def open_params(instance):
 
 
 def test_account_mints_are_distinct_retry_stable_and_cannot_rebind_another_owner(placed_agent):
+    supported = serve_rpc.manifest()["params"]["runtime.persona.instance.open_chat"]
+    assert {"client_scope", "install_id"} <= set(supported)
     params = open_params(placed_agent)
     first = _call(params)["result"]
     second = _call({**params, "client_scope": OTHER})["result"]
