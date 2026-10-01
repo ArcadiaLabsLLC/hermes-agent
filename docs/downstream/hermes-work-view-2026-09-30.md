@@ -39,6 +39,14 @@ does not auto-start it, expose Stop/redirect/retry, or create another scheduler.
 - Tooling initially found the missing package layer declaration (fixed), plus two
   existing discussion ladder failures (also reproduced on primary). Citation
   adjacency retains its already-queued Toolsets citation failure. No waiver added.
+- After rebasing onto `a6001fb44e`, tooling reports **1,273 passed, three existing
+  failures** (the duplicate-helper assertion and two discussion ladder assertions).
+  Frozen-home, package layers, size ceiling, thin namespace, tombstones and docket
+  checks pass. The test child writes TLS diagnostic keys to a regular temporary
+  file to avoid the already-queued inherited device-path stall; certificate
+  validation and diagnostic logging remain enabled. No persistent environment
+  setting was changed. The changed-line mutation inventory selects zero registered
+  claims; the new boundary's explicit killing control is recorded below.
 
 Positive controls, restored before validation:
 
