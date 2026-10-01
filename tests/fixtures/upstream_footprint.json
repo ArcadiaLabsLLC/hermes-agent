@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-01",
   "base": "ee5f49b943",
-  "files": 172,
+  "files": 173,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane rw-h RW2/RW3: a foreground terminal command is observable while it runs (pid, deadline, output tail) and a Hermes deadline survives into the result as timed_out.",
+      "files": "172 -> 173: tools/environments/base.py (5 added, 0 deleted: one import, a publish after the output collector exists, a retract in the wait's finally); tools/terminal_tool_result.py was already counted (+1 line).",
+      "deleted_lines": "883 -> 883; heavy unchanged at 4.",
+      "reason": "No fork seam exists: the output collector is a local of BaseEnvironment.execute, so the running-work projection and the chat heartbeat could not tell a silent build from a hung one (owner screenshot 2026-10-01). The registry itself is the fork-only tools/environments/foreground_watch.py, read-only. Both edits are generic upstream candidates; no PR submitted."
+    },
     {
       "change": "Provider closeout: move GUI auth commands to the Harness parser; carry native terminal error evidence.",
       "files": "173 -> 172: restore both native auth files; add one four-line native result seam.",
