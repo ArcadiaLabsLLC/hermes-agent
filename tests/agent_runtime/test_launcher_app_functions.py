@@ -118,6 +118,28 @@ def test_a_model_supplied_meta_cannot_restate_the_origin():
     assert launcher.sent[-1]["params"]["_meta"] == {"origin": laf.ORIGIN_PAIRED_DEVICE}
 
 
+def test_runtime_invocation_survives_nested_calls_and_cannot_be_forged():
+    from agent_runtime.launcher_invocation import current_invocation, launcher_invocation
+    launcher = _Launcher()
+    link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+    forged = {"_meta": {"invocation": {"session_id": "wrong-chat"}}}
+    with launcher_invocation("conversation", "chat-a", "turn-a", client_scope="account-a"):
+        _call("launcher_library_list", forged, link)
+        first = launcher.sent[-1]["params"]["_meta"]["invocation"]
+        with launcher_invocation("discussion", "run-b", "task-b"):
+            _call("launcher_library_list", forged, link)
+            assert launcher.sent[-1]["params"]["_meta"]["invocation"] == {
+                "channel": "discussion", "session_id": "run-b", "turn_id": "task-b"}
+        _call("launcher_library_list", {}, link)
+        assert launcher.sent[-1]["params"]["_meta"]["invocation"] == first
+    assert first == {"channel": "conversation", "session_id": "chat-a",
+                     "turn_id": "turn-a", "client_scope": "account-a"}
+    assert current_invocation() is None
+    _call("launcher_library_list", forged, link)
+    assert "invocation" not in launcher.sent[-1]["params"]["_meta"]
+
+
 def test_a_refusal_reaches_the_model_as_the_tool_result():
     launcher = _Launcher(refuse={"launcher.navigation.open"})
     link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)

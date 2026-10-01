@@ -51,7 +51,9 @@ class ProfileTurns:
                 if facts["model_selection_required"]:
                     raise DiscussionError("model_selection_required")
                 dispatched = True
-                service.send(scope, row["session_id"], row["native_id"], {"text": row["prompt"], "images": []})
+                request = self.context.launcher.request_for(run["run_id"], row["task_id"])
+                service.send(scope, row["session_id"], row["native_id"], {"text": row["prompt"], "images": []},
+                             launcher_request=request)
             except Exception as exc:
                 if dispatched:
                     self.attempts.update(row, stage="uncertain")

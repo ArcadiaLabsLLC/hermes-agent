@@ -208,6 +208,10 @@ class LauncherLink:
             raise ValueError("Not an app function")
         params = {key: value for key, value in args.items() if key != "_meta"}
         params["_meta"] = {"origin": self.origin}
+        from .launcher_invocation import current_invocation
+        invocation = current_invocation()
+        if invocation is not None:
+            params["_meta"]["invocation"] = dict(invocation)
         return CLIENT_REQUESTS.request(self.sink, method, params,
             timeout=LIST_TIMEOUT_SECONDS if method == LIST_METHOD else CALL_TIMEOUT_SECONDS)
 

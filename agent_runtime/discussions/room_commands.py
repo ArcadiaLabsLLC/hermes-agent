@@ -71,6 +71,7 @@ class RoomCommands:
         refusal = self.state.finalize_room(run) if op == "end" else None
         if op == "end":
             self.runs.end(rid)
+            self.context.launcher.forget(rid)
         self.runs.finish_command(rid, key, phase="paused" if op == "stop" else None)
         if refusal is not None:
             self.runs.report_error(rid, refusal)
@@ -78,6 +79,7 @@ class RoomCommands:
     def _send(self, run, key, body, _op):
         if self.state.unresolved(run["run_id"]):
             return
+        self.context.launcher.activate(run["run_id"], key)
         self.state.append_user(run, key, body["message"], actor_id=body["actor_id"],
                                response=body.get("response"))
         self.runs.finish_command(run["run_id"], key, phase="open")

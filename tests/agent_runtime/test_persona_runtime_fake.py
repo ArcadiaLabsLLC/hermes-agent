@@ -1246,6 +1246,8 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
 
     class CapturingRunner:
         def run(self, request):
+            from agent_runtime.launcher_invocation import current_invocation
+            captured["invocation"] = current_invocation()
             captured["request"] = request
             return AgentRunResult(
                 final_response="ok",
@@ -1265,6 +1267,7 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
         "status?",
         session_id=None,
         permission_session_id="chat-neko-stable-1",
+        turn_id="runtime-turn-1",
     )
 
     request = captured["request"]
@@ -1272,6 +1275,7 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
     assert request.cache_scope_id == "chat-neko-stable-1"
     # …and the transcript/session-load key is left None (no re-bake).
     assert request.session_id is None
+    assert captured["invocation"] == {"channel": "operator", "session_id": "chat-neko-stable-1", "turn_id": "runtime-turn-1"}
 
 
 def test_mission_chat_reply_cache_scope_falls_back_to_session_when_no_perm(tmp_path, monkeypatch):

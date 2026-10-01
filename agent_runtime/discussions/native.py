@@ -86,7 +86,9 @@ class NativeTurns:
             if not self.attempts.claim(row, pid=self.pid, started=self.started):
                 return  # Another owner already accepted this exact native identity.
             payloads: list[dict[str, Any]] = []
-            with self.context.scope(), auxiliary_chat(member["instance_id"], member["session_id"]), bind_interrupt_scope(scope):
+            from .app_functions import discussion_launcher
+            request = self.context.launcher.request_for(run["run_id"], row["task_id"])
+            with self.context.scope(), auxiliary_chat(member["instance_id"], member["session_id"]), bind_interrupt_scope(scope), discussion_launcher(request):
                 live = self.context.resolve(ParticipantRef(member["install_id"], member["instance_id"]), run["workspace_id"])
                 if any(live[k] != member[k] for k in ("persona_id", "profile")):
                     raise DiscussionError("profile_binding_changed")

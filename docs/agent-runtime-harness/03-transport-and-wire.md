@@ -34,6 +34,31 @@ compute owners perform the write. [Shared-provider evidence](../downstream/share
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
 
+## Launcher generated-output invocation identity
+
+`agent_runtime/launcher_invocation.py` binds runtime-owned placement coordinates;
+`LauncherLink.request` in `agent_runtime/launcher_app_functions.py` stamps them
+as `params._meta.invocation`, after stripping model-supplied metadata. Fields are
+`channel`, `session_id`, `turn_id` and optional `client_scope`.
+
+- `conversation`: `conversations/service.py` supplies the admitted native route,
+  turn and account scope; `conversations/app_functions.py` carries them across
+  the worker relay without changing execution, deduplication or tool ownership.
+- `operator`: `GPTPersonaRuntime.mission_chat_reply` binds the root chat session
+  and runtime turn, never the caller's request ID.
+- `discussion`: `discussions/app_functions.py` binds the admitted Launcher
+  connection; `room_commands.py` activates a queued message's connection only
+  after preceding work settles. `profile_turns.py` and `native.py` stamp the run
+  and logical public task ID. Read/replay cannot retarget pending work. End and
+  shutdown release connection references; source restarts do not replay effects.
+
+The optional metadata is a reference, not generated content or another history.
+Launcher persists it beside its existing document record and mounts its one
+GenUI editor. Calls outside a bound invocation remain valid library operations.
+`test_launcher_app_functions`, `test_native_app_functions`,
+`test_discussion_app_functions` and `test_persona_runtime_fake` prove wire
+provenance, native relay, logical task identity and operator context.
+
 ## Existing operator conversation attachment
 
 `agent_runtime/serve_rpc/operator_conversation.py` registers three exact-target
