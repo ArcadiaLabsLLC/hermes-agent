@@ -23,6 +23,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Scoped chat Work** — owner approved 2026-10-01: harness-owned conversation links over native tasks; Launcher shared Companion viewer, compact references and optional task briefs. Extend `agent_runtime/work/`; presentation in `EterniaLauncher/packages/work/`. **TAKEN 2026-10-01 scoped-chat-work**
+
 
 
 - [ ] **Restore the optional MCP client in the managed runtime serving the existing Launcher QA agent, then verify its live catalog and one read-only call.** · Owner-approved root admission and `launcher-qa` registration are applied; authentication works, but live turns register zero tools and the selected environment has no `mcp` package. Use the canonical managed installer and safe service refresh; no replacement agent/session. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#missing-runtime-dependency); unblocks `EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`. Filed 2026-09-30 Projects QA. UNCLAIMED
