@@ -1,4 +1,9 @@
-"""``agent_runtime`` must not import the kanban lane.
+"""Only the approved native Work adapter may import public task APIs.
+
+Owner-approved 2026-09-30: runtime.work projects native tasks without importing
+their executor into Mission Control. Two public imports live in work/native.py;
+every other runtime module retains the original prohibition. See the Native
+Work methods contract in docs/agent-runtime-harness/03-transport-and-wire.md.
 
 RE-AIMED 2026-08-19 (MCF-53 sweep). The gate had four independent ways to scan
 nothing or to miss the live form, and it asserted an EMPTY list, so every one of
@@ -56,13 +61,22 @@ def test_agent_runtime_imports_no_kanban_modules():
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
         for node in ast.walk(tree):
             names = _imported_names(node)
-            if any("kanban" in name for name in names):
+            if any("kanban" in name for name in names) and not _native_work_import(path, node):
                 offenders.append((str(path.relative_to(_ROOT)), names))
     assert scanned >= _MIN_SCANNED, (
         f"the walk visited {scanned} files under {_ROOT}; an absence gate over "
         "an empty scan passes forever"
     )
     assert offenders == []
+
+
+def _native_work_import(path, node):
+    if path.relative_to(_ROOT).as_posix() != "work/native.py" or not isinstance(node, ast.ImportFrom):
+        return False
+    return (node.level, node.module, tuple(alias.name for alias in node.names)) in {
+        (0, "hermes_cli", ("kanban_db",)),
+        (0, "hermes_cli.kanban_db_connect", ("connect_closing",)),
+    }
 
 
 def test_the_import_reader_sees_both_spellings():
@@ -86,3 +100,16 @@ def test_the_import_reader_sees_both_spellings():
         "kanban_stop",
     ]
     assert "board_store" in named, "a live sibling import is unread"
+
+
+def test_native_adapter_admits_only_the_two_public_doors():
+    adapter = _ROOT / "work/native.py"
+    public = ast.parse("from hermes_cli import kanban_db as tasks").body[0]
+    connection = ast.parse("from hermes_cli.kanban_db_connect import connect_closing").body[0]
+    private = ast.parse("from hermes_cli.kanban_db import _append_event").body[0]
+    executor = ast.parse("from hermes_cli import kanban_db_dispatch").body[0]
+    assert _native_work_import(adapter, public)
+    assert _native_work_import(adapter, connection)
+    assert not _native_work_import(_ROOT / "work/service.py", public)
+    assert not _native_work_import(adapter, private)
+    assert not _native_work_import(adapter, executor)
