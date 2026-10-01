@@ -14,6 +14,10 @@ before changing state. Alias paths share the canonical command's flags.
 ## Command index
 
 - [hermes harness](#hermes-harness)
+- [hermes harness execution-identity](#hermes-harness-execution-identity)
+- [hermes harness auth](#hermes-harness-auth)
+- [hermes harness auth set-key](#hermes-harness-auth-set-key)
+- [hermes harness auth login](#hermes-harness-auth-login)
 - [hermes harness init](#hermes-harness-init)
 - [hermes harness roots](#hermes-harness-roots)
 - [hermes harness roots list](#hermes-harness-roots-list)
@@ -53,6 +57,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness realm default-scope](#hermes-harness-realm-default-scope)
 - [hermes harness realm sync](#hermes-harness-realm-sync)
 - [hermes harness realm sync status](#hermes-harness-realm-sync-status)
+- [hermes harness realm sync history](#hermes-harness-realm-sync-history)
 - [hermes harness realm sync pull](#hermes-harness-realm-sync-pull)
 - [hermes harness realm sync publish](#hermes-harness-realm-sync-publish)
 - [hermes harness realm sync held](#hermes-harness-realm-sync-held)
@@ -204,11 +209,12 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
-                      ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
 
 positional arguments:
-  {init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+    execution-identity  Identify this Hermes installation without starting a service
+    auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
     roots               Machine-local logical roots that make ${roots.<name>} config paths portable
     gateway             This runtime root's remote-gateway install identity — the name and id a
@@ -259,11 +265,67 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
   --fields FIELDS
+```
+
+## hermes harness execution-identity
+
+```text
+usage: hermes harness execution-identity [-h] [--json]
+
+options:
+  -h, --help  show this help message and exit
+  --json      Print machine-readable identity
+```
+
+## hermes harness auth
+
+```text
+usage: hermes harness auth [-h] {set-key,login} ...
+
+positional arguments:
+  {set-key,login}
+    set-key        Save an API key from stdin
+    login          Stream provider sign-in events
+
+options:
+  -h, --help       show this help message and exit
+```
+
+## hermes harness auth set-key
+
+```text
+usage: hermes harness auth set-key [-h] [--label LABEL] [--stdin] [--profile PROFILE] provider
+
+positional arguments:
+  provider           Provider id
+
+options:
+  -h, --help         show this help message and exit
+  --label LABEL      Display label
+  --stdin            Read the key from stdin (required)
+  --profile PROFILE  Target profile (default: current)
+```
+
+## hermes harness auth login
+
+```text
+usage: hermes harness auth login [-h] [--flow {browser,device_code,paste_code}] [--json]
+                                 [--profile PROFILE]
+                                 provider
+
+positional arguments:
+  provider              Provider id
+
+options:
+  -h, --help            show this help message and exit
+  --flow {browser,device_code,paste_code}
+  --json                Emit NDJSON events (required)
+  --profile PROFILE     Target profile (default: current)
 ```
 
 ## hermes harness init
@@ -301,7 +363,7 @@ usage: hermes harness roots list [-h] [-o {json,table,yaml,wide}] [--json] [-q] 
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -322,7 +384,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --allow-missing       Bind even when the path does not exist yet
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -342,7 +404,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -365,7 +427,7 @@ options:
   -h, --help            show this help message and exit
   --root NAME=PATH      Explicit root binding; repeatable. Omit to auto-derive from .git ancestors.
   --no-platform-gates   Do not add platforms:[windows] to PowerShell/.ps1-only MCP entries
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -405,7 +467,7 @@ usage: hermes harness gateway id [-h] [-o {json,table,yaml,wide}] [--json] [-q] 
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -424,7 +486,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -445,7 +507,7 @@ options:
   --tier {console,read}
                         What the paired device may do. console: run console verbs (create/retire
                         agents). read: view only.
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -473,7 +535,7 @@ options:
                         three parties name one errand
   --note NOTE           What this introduction is for, e.g. "the laptop" — shown while the codes are
                         pending
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -504,7 +566,7 @@ usage: hermes harness gateway devices list [-h] [-o {json,table,yaml,wide}] [--j
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -523,7 +585,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -560,7 +622,7 @@ usage: hermes harness gateway peers pair [-h] [--note NOTE] [-o {json,table,yaml
 options:
   -h, --help            show this help message and exit
   --note NOTE           What this edge is for, e.g. "laptop" — shown while the code is pending
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -597,7 +659,7 @@ options:
                         The backend grant id this join fulfils; echoed on the receipt so all three
                         parties name one errand
   --timeout TIMEOUT     Seconds to wait for the other install's handshake
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -612,7 +674,7 @@ usage: hermes harness gateway peers list [-h] [-o {json,table,yaml,wide}] [--jso
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -633,7 +695,7 @@ options:
   -h, --help            show this help message and exit
   --no-announce         Skip telling the other install it was revoked (offline, or when it must not
                         be contacted); it learns at its next call
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -645,8 +707,7 @@ options:
 
 ```text
 usage: hermes harness workspace [-h]
-                                {list,show,create,use,add-agent,remove-agent,rename,archive,delete}
-                                ...
+                                {list,show,create,use,add-agent,remove-agent,rename,archive,delete} ...
 
 positional arguments:
   {list,show,create,use,add-agent,remove-agent,rename,archive,delete}
@@ -673,7 +734,7 @@ usage: hermes harness workspace list [-h] [-o {json,table,yaml,wide}] [--json] [
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -693,7 +754,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -724,7 +785,7 @@ options:
   --copy {office,board,agents,settings}
                         Template scope to copy (repeatable). Default with --from-workspace: every
                         scope. Requires --from-workspace.
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -748,7 +809,7 @@ options:
                         ISO-8601 UTC instant the operator issued this switch; a pointer already
                         owned by a strictly newer intent rejects this one as superseded (transport
                         replay guard)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -768,7 +829,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -789,7 +850,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -811,7 +872,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -831,7 +892,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -852,7 +913,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -865,8 +926,7 @@ options:
 
 ```text
 usage: hermes harness realm [-h]
-                            {list,show,create,adopt,bind-server,use,default-scope,sync,skills,agents}
-                            ...
+                            {list,show,create,adopt,bind-server,use,default-scope,sync,skills,agents} ...
 
 positional arguments:
   {list,show,create,adopt,bind-server,use,default-scope,sync,skills,agents}
@@ -894,7 +954,7 @@ usage: hermes harness realm list [-h] [-o {json,table,yaml,wide}] [--json] [-q] 
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -914,7 +974,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -931,7 +991,7 @@ options:
   -h, --help            show this help message and exit
   --name NAME
   --server SERVER
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -952,7 +1012,7 @@ options:
   --credential-file CREDENTIAL_FILE
                         Launcher-brokered realm sync credential JSON (fallback:
                         HERMES_REALM_SYNC_CREDENTIAL)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -974,7 +1034,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -998,7 +1058,7 @@ options:
                         ISO-8601 UTC instant the operator issued this switch; a pointer already
                         owned by a strictly newer intent rejects this one as superseded (transport
                         replay guard)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1019,7 +1079,7 @@ options:
   --winner-realm WINNER_REALM
   --winner-workspace WINNER_WORKSPACE
   --yes, -y             Apply the explicitly selected recoverable reconciliation
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1029,11 +1089,13 @@ options:
 ## hermes harness realm sync
 
 ```text
-usage: hermes harness realm sync [-h] {status,pull,publish,held,resolve,revert} ...
+usage: hermes harness realm sync [-h] {status,history,pull,publish,held,resolve,revert} ...
 
 positional arguments:
-  {status,pull,publish,held,resolve,revert}
+  {status,history,pull,publish,held,resolve,revert}
     status              Show realm sync state
+    history             List the realm's published versions from the local sync clone (read-only, no
+                        fetch)
     pull                Pull and materialize realm sync artifacts
     publish             Publish allowlisted realm sync artifacts
     held                List what a pull HELD because BOTH sides changed: profile files (MEMORY.md /
@@ -1064,7 +1126,27 @@ options:
   --credential-file CREDENTIAL_FILE
                         Launcher-brokered realm sync credential JSON (fallback:
                         HERMES_REALM_SYNC_CREDENTIAL)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness realm sync history
+
+```text
+usage: hermes harness realm sync history [-h] [--limit LIMIT] [-o {json,table,yaml,wide}] [--json]
+                                         [-q] [--no-color] [--fields FIELDS]
+                                         realm_id
+
+positional arguments:
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
+  --limit LIMIT         Newest N versions (1-500, default 50)
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1087,7 +1169,7 @@ options:
   --credential-file CREDENTIAL_FILE
                         Launcher-brokered realm sync credential JSON (fallback:
                         HERMES_REALM_SYNC_CREDENTIAL)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1111,7 +1193,7 @@ options:
   --credential-file CREDENTIAL_FILE
                         Launcher-brokered realm sync credential JSON (fallback:
                         HERMES_REALM_SYNC_CREDENTIAL)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1132,7 +1214,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1156,7 +1238,7 @@ options:
                         (alice:memories/MEMORY.md) or a skill package (skill::launcher-mcp-
                         operations)
   --take {local,remote}
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1168,9 +1250,9 @@ options:
 ## hermes harness realm sync revert
 
 ```text
-usage: hermes harness realm sync revert [-h] [--item ITEMS] [--all] [-o {json,table,yaml,wide}]
-                                        [--json] [-q] [--no-color] [--fields FIELDS] [--dry-run]
-                                        [--yes]
+usage: hermes harness realm sync revert [-h] [--item ITEMS] [--all] [--to SHA]
+                                        [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                        [--fields FIELDS] [--dry-run] [--yes]
                                         realm_id
 
 positional arguments:
@@ -1185,7 +1267,10 @@ options:
                         that way (skill::launcher-mcp-operations), since a skill package has no
                         realm-scoped container; repeatable
   --all                 Revert every drifted item in this realm
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  --to SHA              Restore to this published version (a sha from `realm sync history`) instead
+                        of the last pull; writes no baseline, so restored rows read as local edits,
+                        and rows created after that version are kept for you to keep or delete
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1221,7 +1306,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1244,7 +1329,7 @@ options:
   --all                 Publish all shared skills (mode=all; the stored selection list is preserved)
   --skills SKILLS       Comma-separated skill slugs to publish (mode=selected)
   --none                Publish no skills (mode=selected, empty selection)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1279,7 +1364,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1302,7 +1387,7 @@ options:
   --workspace           Publish only definitions required by workspace rosters and Office placements
   --agents AGENTS       Comma-separated persona ids to publish in addition to required references
   --none                Clear the explicit selection; required references remain pinned
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1408,8 +1493,7 @@ options:
 
 ```text
 usage: hermes harness skills [-h]
-                             {inventory,link-external,catalog,publishable,inbox,promote,delete,restore}
-                             ...
+                             {inventory,link-external,catalog,publishable,inbox,promote,delete,restore} ...
 
 positional arguments:
   {inventory,link-external,catalog,publishable,inbox,promote,delete,restore}
@@ -1477,7 +1561,7 @@ options:
   --source-kind {profile_local,shared_core,external}
                         Restrict to one resolver tier (default: all three)
   --unpublishable-only  Show only packages that cannot reach a realm as they stand
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1493,7 +1577,7 @@ usage: hermes harness skills inbox [-h] [--realm REALM] [-o {json,table,yaml,wid
 options:
   -h, --help            show this help message and exit
   --realm REALM         Restrict to one realm id (default: all realms)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1523,7 +1607,7 @@ options:
   --adopt-divergent     Adopt over a divergent canonical (archives the previous copy)
   --move-source         Archive the source package after a successful promotion (retire the
                         duplicate)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1547,7 +1631,7 @@ options:
                         archived realm that currently publishes the slug — one canonical root serves
                         all realms, so leaving one un-tombstoned resurrects the copy on that realm's
                         next pull
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1569,7 +1653,7 @@ options:
   -h, --help            show this help message and exit
   --realm REALM         Realm id whose ledger entry is lifted (a tombstone is per-realm truth; there
                         is no all-realms restore)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1627,8 +1711,8 @@ usage: hermes harness board list [-h] [--workspace WORKSPACE] [-o {json,table,ya
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  --workspace, --workspace-id WORKSPACE
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1649,7 +1733,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --full                Include card bodies
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1665,9 +1749,9 @@ usage: hermes harness board create [-h] --workspace WORKSPACE [--title TITLE]
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --title TITLE
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1692,7 +1776,7 @@ options:
   --columns-json COLUMNS_JSON
                         JSON array of {column_id,title,kind,wip_limit}
   --expect-revision EXPECT_REVISION
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1730,7 +1814,7 @@ usage: hermes harness board card add [-h] [--board BOARD] [--workspace WORKSPACE
 options:
   -h, --help            show this help message and exit
   --board BOARD         Board id (default: active workspace's default board)
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --title TITLE
   --description DESCRIPTION
   --column COLUMN       Column id or kind (default: first queued column)
@@ -1739,7 +1823,7 @@ options:
   --assignee ASSIGNEE
   --created-by CREATED_BY
                         operator (default) or a persona id
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1771,7 +1855,7 @@ options:
   --assignee ASSIGNEE
   --clear-assignee
   --expect-revision EXPECT_REVISION
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1797,7 +1881,7 @@ options:
   --before BEFORE       Place before this card id
   --after AFTER         Place after this card id
   --expect-revision EXPECT_REVISION
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1817,7 +1901,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1836,7 +1920,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1856,7 +1940,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --take {local,remote}
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1867,8 +1951,7 @@ options:
 
 ```text
 usage: hermes harness office [-h]
-                             {show,actor-upsert,actor-remove,actor-restore,set-folders,resolve-conflict,archive-surface}
-                             ...
+                             {show,actor-upsert,actor-remove,actor-restore,set-folders,resolve-conflict,archive-surface} ...
 
 positional arguments:
   {show,actor-upsert,actor-remove,actor-restore,set-folders,resolve-conflict,archive-surface}
@@ -1894,9 +1977,9 @@ usage: hermes harness office show [-h] [--workspace WORKSPACE] [--full] [-o {jso
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --full                Include actor item bodies
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1915,7 +1998,7 @@ usage: hermes harness office actor-upsert [-h] [--workspace WORKSPACE] --actor-j
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --actor-json ACTOR_JSON
                         Actor object (path or inline JSON): {persona_id, persona_instance_id?,
                         backing_profile?, items:[...]}
@@ -1928,7 +2011,7 @@ options:
                         (default: such a write is refused)
   --expect-revision EXPECT_REVISION
   --updated-by UPDATED_BY
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1947,7 +2030,7 @@ usage: hermes harness office actor-remove [-h] [--workspace WORKSPACE] --actor A
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --actor ACTOR         Actor key
   --reason REASON
   --local-only          Diagnostic repair: archive on THIS install only — no tombstone, nothing
@@ -1955,7 +2038,7 @@ options:
                         doctor/dispatch/census repairs of local projection; omit when the operator
                         means to delete the placement everywhere
   --expect-revision EXPECT_REVISION
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1972,9 +2055,9 @@ usage: hermes harness office actor-restore [-h] [--workspace WORKSPACE] --actor 
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --actor ACTOR         Actor key
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -1992,10 +2075,10 @@ usage: hermes harness office set-folders [-h] [--workspace WORKSPACE] --folders 
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --folders FOLDERS     Comma-separated folder names (structural defaults always kept)
   --expect-revision EXPECT_REVISION
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2006,20 +2089,20 @@ options:
 ## hermes harness office resolve-conflict
 
 ```text
-usage: hermes harness office resolve-conflict [-h] [--workspace WORKSPACE] --actor ACTOR --take
-                                              {local,remote} [--allow-class-key]
+usage: hermes harness office resolve-conflict [-h] [--workspace WORKSPACE] --actor ACTOR
+                                              --take {local,remote} [--allow-class-key]
                                               [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
                                               [--fields FIELDS] [--dry-run]
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --actor ACTOR         Actor key
   --take {local,remote}
   --allow-class-key     Escape hatch: adopt a remote actor on a persona CLASS key the re-key
                         migration archived (re-creates the class-keyed placement beside its
                         instance-keyed sibling)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2036,8 +2119,8 @@ usage: hermes harness office archive-surface [-h] [--workspace WORKSPACE]
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  --workspace, --workspace-id WORKSPACE
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2070,9 +2153,9 @@ usage: hermes harness level show [-h] [--workspace WORKSPACE] [--full] [-o {json
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --full                Include the level document itself, byte for byte as stored
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2088,13 +2171,13 @@ usage: hermes harness level set [-h] [--workspace WORKSPACE] --document DOCUMENT
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --document DOCUMENT   Level document: a PATH to a JSON file (use this — a level can be 1 MB and a
                         Windows command line caps at ~32 KB), or inline JSON
   --expect-sha256 EXPECT_SHA256
                         Compare-and-set: the sha256 of the stored bytes this write is based on, or
                         'none' if the workspace must have no level yet
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2111,11 +2194,11 @@ usage: hermes harness level clear [-h] [--workspace WORKSPACE] [--expect-sha256 
 
 options:
   -h, --help            show this help message and exit
-  --workspace WORKSPACE, --workspace-id WORKSPACE
+  --workspace, --workspace-id WORKSPACE
   --expect-sha256 EXPECT_SHA256
                         Compare-and-set: the sha256 of the stored bytes this clear is based on, or
                         'none' if the workspace must have no level
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2149,7 +2232,7 @@ usage: hermes harness map list [-h] [-o {json,table,yaml,wide}] [--json] [-q] [-
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2164,9 +2247,9 @@ usage: hermes harness map show [-h] [--map MAP] [--full] [-o {json,table,yaml,wi
 
 options:
   -h, --help            show this help message and exit
-  --map MAP, --map-id MAP
+  --map, --map-id MAP
   --full                Include the map document itself, byte for byte as stored
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2182,13 +2265,13 @@ usage: hermes harness map set [-h] [--map MAP] --document DOCUMENT [--expect-sha
 
 options:
   -h, --help            show this help message and exit
-  --map MAP, --map-id MAP
+  --map, --map-id MAP
   --document DOCUMENT   Map document: a PATH to a JSON file (use this — a map carries a scene and a
                         Windows command line caps at ~32 KB), or inline JSON
   --expect-sha256 EXPECT_SHA256
                         Compare-and-set: the sha256 of the stored bytes this write is based on, or
                         'none' if the catalogue must not hold this map yet
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2205,11 +2288,11 @@ usage: hermes harness map clear [-h] [--map MAP] [--expect-sha256 EXPECT_SHA256]
 
 options:
   -h, --help            show this help message and exit
-  --map MAP, --map-id MAP
+  --map, --map-id MAP
   --expect-sha256 EXPECT_SHA256
                         Compare-and-set: the sha256 of the stored bytes this clear is based on, or
                         'none' if the catalogue must not hold this map
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -2221,8 +2304,7 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance}
-                              ...
+                              {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance} ...
 
 positional arguments:
   {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance}
@@ -2320,10 +2402,11 @@ options:
 ## hermes harness persona permission set
 
 ```text
-usage: hermes harness persona permission set [-h] --session-id SESSION_ID --mode
-                                             {profile_default,bounded,read_only,unbounded} --reason
-                                             REASON [--turns TURNS] [--ttl-seconds TTL_SECONDS]
-                                             [--expires-at EXPIRES_AT] [--json]
+usage: hermes harness persona permission set [-h] --session-id SESSION_ID
+                                             --mode {profile_default,bounded,read_only,unbounded}
+                                             --reason REASON [--turns TURNS]
+                                             [--ttl-seconds TTL_SECONDS] [--expires-at EXPIRES_AT]
+                                             [--json]
                                              persona_id
 
 positional arguments:
@@ -2461,8 +2544,7 @@ options:
 
 ```text
 usage: hermes harness persona instance [-h]
-                                       {create,open-chat,close,archive,retire,delete,steer,repair-steering,return-summary,update-profile,set-model}
-                                       ...
+                                       {create,open-chat,close,archive,retire,delete,steer,repair-steering,return-summary,update-profile,set-model} ...
 
 positional arguments:
   {create,open-chat,close,archive,retire,delete,steer,repair-steering,return-summary,update-profile,set-model}
@@ -2534,7 +2616,7 @@ options:
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
                         deliberate-placement shape <persona-token>_agent_<hex8>
-  --workspace-id WORKSPACE_ID, --workspace WORKSPACE_ID
+  --workspace-id, --workspace WORKSPACE_ID
                         Mission Control workspace the placement belongs to (scope-provenance
                         pointer; only meaningful with --add-instance)
   --realm-id REALM_ID   Mission Control realm the placement belongs to (scope-provenance pointer;
@@ -2574,7 +2656,7 @@ options:
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
                         deliberate-placement shape <persona-token>_agent_<hex8>
-  --workspace-id WORKSPACE_ID, --workspace WORKSPACE_ID
+  --workspace-id, --workspace WORKSPACE_ID
                         Mission Control workspace the placement belongs to (scope-provenance
                         pointer; only meaningful with --add-instance)
   --realm-id REALM_ID   Mission Control realm the placement belongs to (scope-provenance pointer;
@@ -2874,8 +2956,7 @@ options:
 
 ```text
 usage: hermes harness mission-chat [-h]
-                                   {message,queue-skill,steer,turn-resolve,clarify-tickets,dispatch}
-                                   ...
+                                   {message,queue-skill,steer,turn-resolve,clarify-tickets,dispatch} ...
 
 positional arguments:
   {message,queue-skill,steer,turn-resolve,clarify-tickets,dispatch}
@@ -2897,8 +2978,8 @@ options:
 usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--persona-instance-id PERSONA_INSTANCE_ID]
                                            [--session-id SESSION_ID] [--new-session]
-                                           [--clarify-token CLARIFY_TOKEN] [--title TITLE] --message
-                                           MESSAGE [--provider PROVIDER] [--model MODEL]
+                                           [--clarify-token CLARIFY_TOKEN] [--title TITLE]
+                                           --message MESSAGE [--provider PROVIDER] [--model MODEL]
                                            [--use-agent-default] [--surface-prompt SURFACE_PROMPT]
                                            [--agents-file AGENTS_FILE] [--workspace-id WORKSPACE_ID]
                                            [--workspace-name WORKSPACE_NAME]
@@ -2936,7 +3017,7 @@ options:
   --agents-file AGENTS_FILE
                         Absolute path to one operator-selected workspace AGENTS.md to inject for
                         this turn
-  --workspace-id WORKSPACE_ID, --workspace WORKSPACE_ID
+  --workspace-id, --workspace WORKSPACE_ID
   --workspace-name WORKSPACE_NAME
   --intent-hint INTENT_HINT
   --requested-by REQUESTED_BY
@@ -3010,10 +3091,11 @@ options:
 ## hermes harness mission-chat turn-resolve
 
 ```text
-usage: hermes harness mission-chat turn-resolve [-h] --session-id SESSION_ID --client-message-id
-                                                CLIENT_MESSAGE_ID --turn-id TURN_ID
-                                                [--persona-instance-id PERSONA_INSTANCE_ID] --action
-                                                {abandon} [--json]
+usage: hermes harness mission-chat turn-resolve [-h] --session-id SESSION_ID
+                                                --client-message-id CLIENT_MESSAGE_ID
+                                                --turn-id TURN_ID
+                                                [--persona-instance-id PERSONA_INSTANCE_ID]
+                                                --action {abandon} [--json]
 
 options:
   -h, --help            show this help message and exit
@@ -3035,7 +3117,7 @@ usage: hermes harness mission-chat clarify-tickets [-h] [-o {json,table,yaml,wid
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3329,7 +3411,7 @@ usage: hermes harness agent list [-h] [--all-profiles] [-o {json,table,yaml,wide
 options:
   -h, --help            show this help message and exit
   --all-profiles
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3350,7 +3432,7 @@ options:
   -h, --help            show this help message and exit
   --persona PERSONA_ID  Roster persona id (or profile:<token>); an unknown id is refused before any
                         write
-  --workspace WORKSPACE_ID, --workspace-id WORKSPACE_ID
+  --workspace, --workspace-id WORKSPACE_ID
                         Mission Control workspace the placement lands in; must already exist
   --pos X Y             Canvas position for the placement; omitted, the layout policy picks the
                         first free slot in the folder
@@ -3404,7 +3486,7 @@ options:
   -h, --help            show this help message and exit
   --profile PROFILE     Target Hermes profile name; must exist and resolve ready
   --requested-by REQUESTED_BY
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3462,23 +3544,28 @@ options:
 ## hermes harness serve
 
 ```text
-usage: hermes harness serve [-h] [--ndjson] [--no-socket] [--service] {connect} ...
+usage: hermes harness serve [-h] [--ndjson] [--no-socket] [--service] [--parent-pid PID]
+                            {connect} ...
 
 positional arguments:
   {connect}
-    connect    Connect to this root's live serve socket, perform the hello handshake, and print the
-               reply as JSON
+    connect         Connect to this root's live serve socket, perform the hello handshake, and print
+                    the reply as JSON
 
 options:
-  -h, --help   show this help message and exit
-  --ndjson     NDJSON frame transport over stdio (the only v1 transport)
-  --no-socket  Run stdio-only: do not race for the per-root socket ownership lock and do not listen
-               (the ready frame reports socket.outcome=disabled)
-  --service    Run as a durable service: stdin EOF means the starter DETACHED, not stop. The runtime
-               keeps serving both socket lanes and ends only on `serve connect --drain`, SIGTERM, or
-               a stdio `shutdown` sent before EOF. A starter that loses the per-root ownership lock
-               exits 0 naming the winner instead of becoming a second executor. Incompatible with
-               --no-socket (a drain would have no lane to arrive on).
+  -h, --help        show this help message and exit
+  --ndjson          NDJSON frame transport over stdio (the only v1 transport)
+  --no-socket       Run stdio-only: do not race for the per-root socket ownership lock and do not
+                    listen (the ready frame reports socket.outcome=disabled)
+  --service         Run as a durable service: stdin EOF means the starter DETACHED, not stop. The
+                    runtime keeps serving both socket lanes and ends only on `serve connect
+                    --drain`, SIGTERM, or a stdio `shutdown` sent before EOF. A starter that loses
+                    the per-root ownership lock exits 0 naming the winner instead of becoming a
+                    second executor. Incompatible with --no-socket (a drain would have no lane to
+                    arrive on).
+  --parent-pid PID  The process that owns this runtime (a bundled Launcher passes its own pid). When
+                    it exits — a crash included — the runtime drains itself and exits; the sidecar
+                    reads `parent_exited`. Omitted: nothing is watched.
 ```
 
 ## hermes harness serve connect
@@ -3525,7 +3612,7 @@ options:
   -h, --help            show this help message and exit
   --kind KIND           Only rows of this kind (terminal, delegation, chat_turn, mcp_server,
                         cron_job, dispatch)
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3546,7 +3633,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3570,7 +3657,7 @@ options:
   --issued-at ISSUED_AT
                         ISO-8601 issue timestamp; a cancel issued before the work started is
                         superseded instead of applied
-  -o {json,table,yaml,wide}, --output {json,table,yaml,wide}
+  -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
   --no-color
@@ -3656,8 +3743,7 @@ options:
 
 ```text
 usage: hermes harness characters [-h]
-                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,add-state,sprite,payload-contract}
-                                 ...
+                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,add-state,sprite,payload-contract} ...
 
 positional arguments:
   {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,add-state,sprite,payload-contract}
@@ -3871,9 +3957,8 @@ options:
 ## hermes harness characters approve-direction
 
 ```text
-usage: hermes harness characters approve-direction [-h] --draft DRAFT
-                                                   (--direction DIRECTION | --all)
-                                                   [--attempt ATTEMPT] [--json]
+usage: hermes harness characters approve-direction [-h] --draft DRAFT (--direction DIRECTION |
+                                                   --all) [--attempt ATTEMPT] [--json]
 
 options:
   -h, --help            show this help message and exit

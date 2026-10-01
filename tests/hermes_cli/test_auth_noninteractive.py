@@ -1,4 +1,4 @@
-"""`hermes auth set-key` / `auth login` — the non-interactive credential verbs.
+"""`hermes harness auth set-key|login` — non-interactive credential setup.
 
 No network, no real provider, no live root: every test runs against a tmp
 HERMES_HOME with a fake secret. The three properties under test are the three
@@ -59,10 +59,11 @@ def test_set_key_parser_has_no_value_bearing_secret_flag():
     import argparse
 
     from hermes_cli.subcommands.auth import build_auth_parser
+    from hermes_cli.harness_parts.parser.auth import add_auth
 
     root = argparse.ArgumentParser()
     subparsers = root.add_subparsers(dest="command")
-    build_auth_parser(subparsers, cmd_auth=lambda args: None)
+    add_auth(subparsers)
 
     auth_parser = subparsers.choices["auth"]
     auth_sub = next(
@@ -80,9 +81,16 @@ def test_set_key_parser_has_no_value_bearing_secret_flag():
 
     # The sibling verb keeps its operator-facing flag — this asserts the check
     # above is scoped, not accidentally global.
+    native_root = argparse.ArgumentParser()
+    native_subs = native_root.add_subparsers(dest="command")
+    build_auth_parser(native_subs, cmd_auth=lambda args: None)
+    native_auth = next(action for action in native_subs.choices["auth"]._actions
+                       if isinstance(action, argparse._SubParsersAction))
+    assert "set-key" not in native_auth.choices
+    assert "login" not in native_auth.choices
     assert "--api-key" in {
         option
-        for action in auth_sub.choices["add"]._actions
+        for action in native_auth.choices["add"]._actions
         for option in action.option_strings
     }
 

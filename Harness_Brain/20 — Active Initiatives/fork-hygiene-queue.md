@@ -15,6 +15,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Release validation — 2026-09-23
 
+- [ ] **Resolve the pathological tool-result fixture's Python 3.14 behavior.** · `test_profile_runner.py::test_tool_io_pathological_result_never_kills_the_tool_event` fails on unchanged main; [provider closeout baseline](../../docs/downstream/provider-closeout-2026-10-01.md#existing-baseline-failure). Filed 2026-10-01 provider closeout. UNCLAIMED
+
 - **Provider-boundary qualification, October 1:** the existing TLS setup stall and duplicate-name/routing-ladder gate failures were reproduced, not waived; [evidence](../../docs/downstream/provider-access-boundary-2026-10-01.md#qualification). Native provider, plugin and execution checks pass; this does not certify a whole-repository green run.
 
 - [ ] **Repair the stale Toolsets citation in the chat-turn canon.** · The citation-adjacency gate on `6c3fce3947` reports one unwaived failure in `docs/agent-runtime-harness/05-chat-turn-lane.md`, whose Toolsets paragraph points away from `clarify`, `delegation` and `terminal`; gate inputs are unchanged by the QA follow-up. [Check receipt](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#documentation-checks). Filed 2026-09-30 Projects QA. UNCLAIMED

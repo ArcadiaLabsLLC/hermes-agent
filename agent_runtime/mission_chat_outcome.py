@@ -418,13 +418,8 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
 def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
     """The provider's verdict carried on ``exc``, or ``None`` when it has none.
 
-    Pure, and deliberately narrow. It reads ONE typed attribute —
-    ``provider_error``, attached by ``profile_runner`` at the only place a
-    provider failure becomes an exception — and never the exception's prose.
-    The live 2026-09-11 429 is why that attribute exists at all: the transport
-    collapses the SDK error into ``_summarize_api_error`` text several frames
-    below, so by the time the chat lane catches anything, the status code and
-    the quota body are gone unless something carried them deliberately.
+    Reads ``provider_error`` from the native terminal result, passed through
+    by ``profile_runner``. Never classifies the exception's prose.
 
     ``None`` means "not a refusal", and that is the answer for every genuinely
     ambiguous failure: a 5xx, a timeout, a connection reset, a stream that died

@@ -32,8 +32,6 @@ from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
-    _ProviderErrorCapture,
-    _capture_provider_errors,
 )
 from agent_runtime.profile_runner.models import (
     AgentRunRequest,
@@ -307,13 +305,11 @@ class AgentRunExecution:
         request: AgentRunRequest,
         *,
         ledger: RunBudgetLedger | None = None,
-        provider_errors: "_ProviderErrorCapture | None" = None,
     ) -> None:
         self.runner = runner
         self.binding = binding
         self.request = request
         self.ledger = ledger if ledger is not None else RunBudgetLedger()
-        self.provider_errors = provider_errors
         self.timing: dict[str, Any] = {}
         self.runtime: dict[str, Any] = {}
         self.budget_guard: _ToolBudgetGuard | None = None
@@ -357,10 +353,6 @@ class AgentRunExecution:
                 session_ids=(getattr(self.agent, "session_id", None), self.request.session_id),
             ))
             _steer_mcp_admission_notice(self.agent, self.request, self.admission_outcome)
-            # Entered on the run's own ExitStack so it unwinds on BOTH
-            # conversation lanes below and on the raised path, before the
-            # resident registry can hand this agent to another turn.
-            mcp_scope.enter_context(_capture_provider_errors(self.agent, self.provider_errors))
             agent_ready_cleanup = _notify_agent_ready(self.request, self.agent)
             max_wall_seconds = positive_float(self.request.max_wall_seconds)
             if max_wall_seconds is None:

@@ -12,6 +12,7 @@ the handlers it binds as ``func=``):
   config, migrate, observe, contracts, worktree, install-harness-skills, snapshot,
   stream, serve (with its two lazy ``_cmd_serve*`` trampolines), work;
 * ``scope`` — workspace, realm;
+* ``auth`` — non-interactive provider setup over native credential handlers;
 * ``surfaces`` — flow, checkpoint, skills, prompt-context, board, office, level, map;
 * ``persona`` — persona, mission-chat, persona-instance, agent;
 * ``characters`` — pets, characters;
@@ -28,6 +29,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Final
 
+from .auth import add_auth
 from .characters import add_characters, add_pets
 from .common_args import _add_stage42_global_args
 from .machine import (
@@ -71,6 +73,7 @@ __all__ = ["PARSER_FAMILIES", "build_parser", "harness_command", "populate_parse
 #: Every ``hermes harness`` family, in the order the tree lists them.
 PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
     add_execution_identity,
+    add_auth,
     add_init,
     add_roots,
     add_gateway,

@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-01",
   "base": "ee5f49b943",
-  "files": 173,
+  "files": 172,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "Provider closeout: move GUI auth commands to the Harness parser; carry native terminal error evidence.",
+      "files": "173 -> 172: restore both native auth files; add one four-line native result seam.",
+      "deleted_lines": "883 -> 883; heavy unchanged at 4.",
+      "reason": "Native classification stays authoritative. Removes the Harness error-capture wrapper and prose equality. The additive result field is a generic upstream candidate; no PR submitted. See docs/downstream/provider-closeout-2026-10-01.md."
+    },
     {
       "change": "Owner-approved provider-access cleanup: native readers use a neutral plugin contract; shared-sign-in policy stays in Eternia Harness.",
       "files": "173 -> 173; no additional inherited file touched.",

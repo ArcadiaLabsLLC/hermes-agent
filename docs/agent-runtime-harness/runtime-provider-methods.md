@@ -16,7 +16,7 @@ moving `RPC_CONTRACT_VERSION`.
 |---|---|---|---|
 | `runtime.provider.list` | read | — | `build_provider_visibility()` (`hermes harness providers --json`) |
 | `runtime.provider.usage` | read | `provider` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
-| `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
+| `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
 | `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
 | `runtime.provider.signin.complete` | console | `login_id`, `code` | writes `code` as one line to the child's stdin |
 | `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
@@ -142,7 +142,7 @@ not auto-opened; the client opens `verification_uri`.
 ## Profiles
 
 `signin.begin`'s `profile` becomes the child's `--profile` (the same resolution
-as `hermes auth login --profile`); the child otherwise runs under the serve's
+as `hermes harness auth login --profile`); the child otherwise runs under the serve's
 `HERMES_HOME`. The other methods act on the serve's own home.
 
 The sign-in child is a subprocess; a profile that cannot spawn one binds a

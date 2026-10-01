@@ -577,7 +577,8 @@ def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
     assert constructed is False
 
 
-def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch):
+@pytest.mark.parametrize("evidence", [None, {"status_code": 401, "failure_reason": "auth_permanent"}])
+def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch, evidence):
     monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     FakeAgent.response = {
         "final_response": None,
@@ -588,10 +589,12 @@ def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch)
         "completed": False,
         "failed": True,
         "error": "HTTP 401: Provided authentication token is expired. Please try signing in again.",
+        "provider_error": evidence,
     }
 
-    with pytest.raises(ProfileRunnerError, match="HTTP 401"):
+    with pytest.raises(ProfileRunnerError, match="HTTP 401") as caught:
         ProfileAgentRunner(agent_factory=FakeAgent).run(AgentRunRequest(profile=None, provider="openai-codex", user_message="hi"))
+    assert caught.value.provider_error == evidence
 
 
 def test_progress_adapter_enriches_tool_progress_started_event():

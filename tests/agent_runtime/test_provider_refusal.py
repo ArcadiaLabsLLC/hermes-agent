@@ -1,32 +1,4 @@
-"""A provider refusal is a VERDICT, and it has to survive four frames to be one.
-
-The 2026-09-11 incident: the operator's OpenAI Codex plan ran out, the provider
-answered ``HTTP 429`` with ``error.type = usage_limit_reached``, and Mission
-Control showed *"Hermes cannot prove whether turn … completed"* with an
-**Abandon & resend** button — so the operator resent into the same wall. The
-harness had every fact needed to say "your plan is out of usage, it resets in
-about 3 h" and threw all of them away at a frame boundary.
-
-The measurement that decided the fix, recorded here because the rest of this
-file is meaningless without it: what reaches the chat lane's
-``except Exception as exc`` is a ``ProfileRunnerError`` whose ``str()`` is
-``AIAgent._summarize_api_error`` TEXT. The SDK exception — with ``status_code``,
-``body`` and the ``response.headers`` that ``extract_api_error_context`` reads —
-never leaves ``agent/conversation_loop.py``: it is summarized into a result
-dict there and re-raised as a fresh ``RuntimeError`` subclass at
-``profile_runner._run``'s tail. So the only honest fix is to CARRY the typed
-context on the raised object, from fork-owned code, and never to regex the prose
-(a "wire contract" no provider signed and any of them may change).
-
-Three layers, three test groups below:
-
-1. the capture (``profile_runner``) — does the block get built, and is it the
-   RIGHT error's block?
-2. the reader (``mission_chat_outcome.provider_refusal``) — which statuses are a
-   refusal, and does a 5xx stay ambiguous?
-3. the seam — an exception built exactly as the runner builds it, classified
-   exactly as the chat lane classifies it.
-"""
+"""Native provider evidence survives the Harness outcome and journal boundaries."""
 
 from __future__ import annotations
 
@@ -35,120 +7,21 @@ import time
 import pytest
 
 from agent_runtime.mission_chat_outcome import (
-    AMBIGUOUS_400_FAILURE_REASONS,
-    ChatErrorKind,
-    ExecutionState,
-    PROVIDER_REFUSAL_STATUS_CODES,
-    ProviderRefusal,
-    classify_turn_failure,
-    provider_refusal,
+    AMBIGUOUS_400_FAILURE_REASONS, ChatErrorKind, ExecutionState,
+    PROVIDER_REFUSAL_STATUS_CODES, ProviderRefusal, classify_turn_failure, provider_refusal,
 )
 from agent_runtime.mission_chat_turns import safe_provider_refusal
-from agent_runtime.profile_runner import (
-    ProfileRunnerError,
-    _capture_provider_errors,
-    _ProviderErrorCapture,
-)
+from agent_runtime.profile_runner import ProfileRunnerError
 
-#: The exact text the live incident's ``blocker`` carried, which is what
-#: ``_summarize_api_error`` makes of a Codex plan-quota 429.
 LIVE_SUMMARY = "HTTP 429: The usage limit has been reached"
 LIVE_CONTEXT = {
+    "status_code": 429,
     "reason": "usage_limit_reached",
     "message": "The usage limit has been reached",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "failure_reason": "rate_limit",
 }
-
-
-class _FakeSdkError(Exception):
-    """Shaped like an OpenAI SDK error: a status code and a parsed body."""
-
-    def __init__(self, status_code, body=None):
-        super().__init__(f"HTTP {status_code}")
-        self.status_code = status_code
-        self.body = body
-
-
-class _FakeAgent:
-    """The two methods the capture touches, plus the two fields it reads."""
-
-    provider = "openai-codex"
-    model = "gpt-5.6-luna"
-
-    def __init__(self, summary=LIVE_SUMMARY):
-        self._summary = summary
-        self.context_calls = 0
-
-    def _summarize_api_error(self, error):
-        return self._summary
-
-    def _extract_api_error_context(self, error):
-        self.context_calls += 1
-        return dict(LIVE_CONTEXT)
-
-
-# ---------------------------------------------------------------------------
-# 1. the capture
-# ---------------------------------------------------------------------------
-def test_the_capture_wraps_the_context_reader_and_removes_itself():
-    """A RESIDENT actor is reused across turns, so a wrapper left installed
-    would let one turn's 429 land in the next turn's verdict."""
-
-    agent = _FakeAgent()
-    original = agent._extract_api_error_context
-    capture = _ProviderErrorCapture()
-    with _capture_provider_errors(agent, capture):
-        assert agent._extract_api_error_context is not original
-        agent._extract_api_error_context(_FakeSdkError(429))
-    assert "_extract_api_error_context" not in agent.__dict__
-    assert agent._extract_api_error_context.__func__ is original.__func__
-    # ...and the inner reader still ran exactly once: the wrapper DELEGATES,
-    # it does not replace. A wrapper that swallowed the call would break
-    # credential rotation, which reads the same context.
-    assert agent.context_calls == 1
-    assert capture.status_code == 429
-
-
-def test_the_capture_builds_the_typed_block_from_the_live_shape():
-    agent = _FakeAgent()
-    capture = _ProviderErrorCapture()
-    with _capture_provider_errors(agent, capture):
-        agent._extract_api_error_context(_FakeSdkError(429))
-    block = capture.block_for(LIVE_SUMMARY, {"failure_reason": "rate_limit"})
-    assert block == {
-        "status_code": 429,
-        "reason": "usage_limit_reached",
-        "message": "The usage limit has been reached",
-        "provider": "openai-codex",
-        "model": "gpt-5.6-luna",
-        "failure_reason": "rate_limit",
-    }
-
-
-def test_a_recovered_error_is_not_attached_to_a_later_unrelated_failure():
-    """THE stale-attachment control.
-
-    A 429 that a retry or a credential rotation recovered is still the last
-    thing the capture saw. If the run then dies of something else, attaching
-    that 429 would tell the operator their plan is out of usage when it is not
-    — the same class of lie, pointed the other way, as the bug being fixed.
-    """
-
-    agent = _FakeAgent()
-    capture = _ProviderErrorCapture()
-    with _capture_provider_errors(agent, capture):
-        agent._extract_api_error_context(_FakeSdkError(429))
-    assert capture.block_for("Connection reset by peer", {}) is None
-    # ...and the positive half: the SAME summary still matches, so the control
-    # is testing identity rather than just always answering None.
-    assert capture.block_for(LIVE_SUMMARY, {}) is not None
-
-
-def test_an_error_with_no_status_code_carries_no_block():
-    agent = _FakeAgent(summary="Connection reset by peer")
-    capture = _ProviderErrorCapture()
-    with _capture_provider_errors(agent, capture):
-        agent._extract_api_error_context(Exception("boom"))
-    assert capture.block_for("Connection reset by peer", {}) is None
 
 
 def test_profile_runner_error_defaults_to_no_verdict():
@@ -269,20 +142,14 @@ def test_absent_stays_absent_in_the_wire_block():
 def test_the_live_429_settles_terminal_instead_of_outcome_unknown():
     """The incident, end to end through the two seams it crossed.
 
-    Built the way ``ProfileAgentRunner._run`` builds it (summary + block from
-    the capture), classified the way ``_mission_chat_commit_turn`` classifies
+    Built the way ``ProfileAgentRunner._run`` builds it (summary + native result evidence), classified the way ``_mission_chat_commit_turn`` classifies
     it. Before this lane the same object produced ``blocked`` /
     ``chat_turn_outcome_unknown``, which the launcher renders as the
     abandon-and-resend banner.
     """
 
     now = time.time()
-    agent = _FakeAgent()
-    capture = _ProviderErrorCapture()
-    with _capture_provider_errors(agent, capture):
-        agent._extract_api_error_context(_FakeSdkError(429))
-    block = capture.block_for(LIVE_SUMMARY, {"failure_reason": "rate_limit"})
-    exc = ProfileRunnerError(LIVE_SUMMARY, provider_error=dict(block, reset_at=now + 10_800))
+    exc = ProfileRunnerError("Reworded failure", provider_error=dict(LIVE_CONTEXT, reset_at=now + 10_800))
 
     outcome = classify_turn_failure(exc, provider_submitted=True)
 

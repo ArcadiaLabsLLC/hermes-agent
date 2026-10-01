@@ -1,4 +1,4 @@
-"""The sign-in CHILD of :mod:`agent_runtime.provider_signin`: ``hermes auth login --json`` as a process.
+"""The sign-in child: ``hermes harness auth login --json`` as a process.
 
 A sibling module so the sign-in sessions carry no process spawn where none may start:
 ``provider_signin.spawn_login_child`` imports this only when ``auth.subprocess_signin``
@@ -18,7 +18,7 @@ __all__ = ["spawn_login_child"]
 
 
 class _PopenChild:
-    """The default :class:`LoginChild`: ``hermes auth login`` in a hidden child."""
+    """The default :class:`LoginChild`: native sign-in in a hidden child."""
 
     def __init__(self, argv: list[str], env: dict[str, str]) -> None:
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -43,10 +43,10 @@ class _PopenChild:
 
 
 def spawn_login_child(provider: str, flow: str, profile: str | None) -> _PopenChild:
-    """Start ``hermes auth login <provider> --json --flow <flow>`` under this home."""
+    """Start ``hermes harness auth login <provider> --json --flow <flow>`` under this home."""
     from hermes_constants import get_hermes_home
 
-    argv = [sys.executable, "-m", "hermes_cli.main", "auth", "login", provider, "--json", "--flow", flow]
+    argv = [sys.executable, "-m", "hermes_cli.main", "harness", "auth", "login", provider, "--json", "--flow", flow]
     if profile:
         argv += ["--profile", profile]
     env = {**os.environ, "HERMES_HOME": str(get_hermes_home())}

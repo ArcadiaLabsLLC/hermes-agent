@@ -14,7 +14,6 @@ from agent_runtime.run_budget import (
 
 from agent_runtime.profile_runner.errors import (
     ProfileRunnerError,
-    _ProviderErrorCapture,
 )
 from agent_runtime.profile_runner.models import (
     AgentRunRequest,
@@ -118,11 +117,10 @@ class ProfileAgentRunner:
         # land in the same accounting block as the in-run ones. Every mechanism
         # keeps its own enforcement; only the bookkeeping is shared.
         ledger = RunBudgetLedger()
-        provider_errors = _ProviderErrorCapture()
         try:
             raw_result, agent, profile_timing = AgentRunExecution(
                 self,
-                binding, request, ledger=ledger, provider_errors=provider_errors
+                binding, request, ledger=ledger
             ).run()
         except Exception:
             if resident:
@@ -158,7 +156,7 @@ class ProfileAgentRunner:
             detail = str(result.raw.get("error"))
             raise ProfileRunnerError(
                 detail,
-                provider_error=provider_errors.block_for(detail, result.raw),
+                provider_error=result.raw.get("provider_error"),
             )
         return result
 

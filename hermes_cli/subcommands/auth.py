@@ -36,8 +36,6 @@ def build_auth_parser(subparsers, *, cmd_auth: Callable) -> None:
     auth_add.add_argument(
         "--insecure", action="store_true", help="Disable TLS verification for OAuth login")
     auth_add.add_argument("--ca-bundle", help="Custom CA bundle for OAuth login")
-    from hermes_cli.subcommands.auth_downstream import add_noninteractive_auth_parsers
-    add_noninteractive_auth_parsers(auth_subparsers)
     auth_list = auth_subparsers.add_parser("list", help="List pooled credentials")
     auth_list.add_argument("provider", nargs="?", help="Optional provider filter")
     auth_remove = auth_subparsers.add_parser(

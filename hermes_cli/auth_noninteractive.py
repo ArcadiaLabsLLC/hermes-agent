@@ -222,7 +222,7 @@ def set_key(
 
 
 def auth_set_key_command(args) -> int:
-    """``hermes auth set-key <provider> --stdin [--label L] [--profile P]``."""
+    """``hermes harness auth set-key <provider> --stdin [--label L] [--profile P]``."""
     if not getattr(args, "stdin", False):
         # The ONLY way in. Refusing to fall back to a prompt keeps the verb
         # non-interactive by construction: there is no path where this command

@@ -92,6 +92,7 @@
       "positionals": [],
       "subcommands": [
         "agent",
+        "auth",
         "board",
         "characters",
         "checkpoint",
@@ -584,6 +585,162 @@
           "action": "store",
           "choices": null,
           "name": "persona_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness auth": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "auth"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "login",
+        "set-key"
+      ]
+    },
+    "harness auth login": {
+      "exclusive_groups": [],
+      "options": {
+        "--flow": {
+          "action": "store",
+          "canonical": "--flow",
+          "choices": [
+            "browser",
+            "device_code",
+            "paste_code"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--profile": {
+          "action": "store",
+          "canonical": "--profile",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "auth",
+        "login"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "provider",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness auth set-key": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--label": {
+          "action": "store",
+          "canonical": "--label",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--profile": {
+          "action": "store",
+          "canonical": "--profile",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--stdin": {
+          "action": "store_true",
+          "canonical": "--stdin",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "auth",
+        "set-key"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "provider",
           "nargs": 1,
           "required": true,
           "type": null

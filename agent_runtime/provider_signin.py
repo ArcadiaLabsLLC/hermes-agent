@@ -1,7 +1,7 @@
 """Provider sign-in as a pollable session over the one machine sign-in child.
 
 ``runtime.provider.signin.*`` never runs OAuth itself. Each session is one
-``hermes auth login <provider> --json`` child — ``hermes_cli.provider_browser_login``,
+``hermes harness auth login <provider> --json`` child — ``hermes_cli.provider_browser_login``,
 whose driver table wraps upstream's flows and whose NDJSON wire already
 discards helper output, disables logging and never serializes an exception.
 This module turns that stream into state a client can poll:
@@ -113,7 +113,7 @@ class _Session:
 
 
 def spawn_login_child(provider: str, flow: str, profile: str | None) -> LoginChild:
-    """Start ``hermes auth login <provider> --json --flow <flow>`` under this home.
+    """Start ``hermes harness auth login <provider> --json --flow <flow>`` under this home.
 
     The spawn lives in :mod:`agent_runtime.provider_signin_child`, imported only here: a
     profile that starts no subprocess (``auth.subprocess_signin: false``, the phone) never
@@ -129,7 +129,7 @@ class _ThreadChild:
 
     A profile that may start no subprocess (the phone) runs
     ``hermes_cli.provider_browser_login.run_browser_login`` — what
-    ``hermes auth login --json`` runs — on a daemon thread in the caller's context,
+    ``hermes harness auth login --json`` runs — on a daemon thread in the caller's context,
     its NDJSON events on one queue and the pasted code on another. The child's
     isolation is kept by ``quiet_current_thread``: the driver's prints and log
     records are dropped for that thread only, and the queue carries nothing but

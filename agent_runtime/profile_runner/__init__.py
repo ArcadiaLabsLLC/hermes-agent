@@ -61,8 +61,6 @@ from agent_runtime.profile_runner import (  # noqa: F401 — every family, in th
 from agent_runtime.profile_runner.errors import (
     ProfileRunnerError,
     RunBudgetExceeded,
-    _ProviderErrorCapture,
-    _capture_provider_errors,
 )
 from agent_runtime.profile_runner.models import AgentRunRequest, AgentRunResult
 from agent_runtime.profile_runner.budget import WallBudgetCheckpoint, _ToolBudgetGuard
@@ -118,7 +116,6 @@ __all__ = [
     "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
     "RunBudgetExceeded",
     "WallBudgetCheckpoint",
-    "_ProviderErrorCapture",
     "_TODO_STATE_MAX_CONTENT",
     "_TODO_STATE_MAX_ITEMS",
     "_ToolBudgetGuard",
@@ -127,7 +124,6 @@ __all__ = [
     "_agent_workdir",
     "_apply_chat_compaction_threshold",
     "_binding_for_profile",
-    "_capture_provider_errors",
     "_counted_agent_run",
     "_default_agent_factory",
     "_finish_resident_persona_chat_agent",
