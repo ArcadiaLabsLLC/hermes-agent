@@ -29,6 +29,7 @@ from tools.environments.base_session_env import (
     _wrap_command_script,
 )
 from tools.environments.base_wait import _WaitTrace
+from tools.environments import foreground_watch
 from utils import env_var_enabled
 
 logger = logging.getLogger(__name__)
@@ -667,12 +668,16 @@ class BaseEnvironment(ABC):
                 self._force_kill_process(spawned)
             output = _new_output_collector(spawned, bounded_capture)
             output_holder.append(output)
+            if bounded_capture:  # the terminal tool's own command: observable, read-only (foreground_watch)
+                foreground_watch.publish(id(spawned), pid=getattr(spawned, "pid", None), command=command,
+                                         timeout=effective_timeout, owner_tid=parent_tid, output=output)
             try:
                 return self._wait_for_process(
                     spawned, timeout=effective_timeout, bounded_capture=bounded_capture,
                     watch_interrupt_tid=parent_tid, output=output,
                     **({"yield_handler": yield_handler} if yield_handler is not None else {}))
             finally:
+                foreground_watch.retract(id(spawned))
                 with _live_foreground_cond:
                     _live_foreground.pop(id(spawned), None)
 

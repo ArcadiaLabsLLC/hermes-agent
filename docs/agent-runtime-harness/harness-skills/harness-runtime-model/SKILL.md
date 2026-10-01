@@ -84,6 +84,13 @@ QA judges work, never patches code.
 - Visual claims need Stage C proof captured through the MCP path in
   `launcher-mcp-operations` — the only sanctioned one. If it is blocked, record the
   exact blocker and still attach command/code proof. Never kill Tony's live Launcher.
+- **A screenshot request is a `launcher_qa` call, never a build.** Capture with
+  `screenshot_window` (or `launch_or_attach` for driven proof). If that answers a typed
+  blocker (`app_not_attached`, `launch_stale_stagec_copy`, …), REPORT it — do not run
+  `flutter build windows` to clear it. Any build or other multi-minute command runs as
+  `terminal(background=true, notify=true)` in your own worktree — never in
+  the operator's primary checkout (a live Launcher locks its DLLs), never as a
+  foreground call (that blocks the turn up to its 180 s default with nothing on screen).
 - Image lines pass through UNTOUCHED — reproduce every `MEDIA:<absolute image path>`
   line, and every bare absolute screenshot path, VERBATIM on a line of its own, in
   your own reports and in every relay, quote, and summary. Canonical rule:

@@ -419,6 +419,17 @@ def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
     patch_mode = safe_assignment_token(raw.get("patch_mode"))
     if patch_mode:
         fields["patch_mode"] = patch_mode
+    # RW3: how the call ENDED (`passed` / `failed` / `timed_out`) and the
+    # foreground deadline it ran under, so a reloaded turn says "timed out at
+    # 180 s" exactly as the live stream did. Absent-when-absent.
+    outcome = safe_assignment_token(raw.get("outcome"))
+    if outcome:
+        fields["outcome"] = outcome
+    if raw.get("timed_out") is True:
+        fields["timed_out"] = True
+    timeout_seconds = non_negative_int(raw.get("timeout_seconds"))
+    if timeout_seconds is not None:
+        fields["timeout_seconds"] = timeout_seconds
     for count_key in ("patch_adds", "patch_dels"):
         count = non_negative_int(raw.get(count_key))
         if count is not None:

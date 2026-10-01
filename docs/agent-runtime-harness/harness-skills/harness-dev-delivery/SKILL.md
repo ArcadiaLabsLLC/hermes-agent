@@ -86,6 +86,16 @@ in the stage/docs/deep-audit loop and never replaces them.
   build / Stage C visual preflight, not a blanket excuse for `flutter test` failures.
 - See the `harness-qa-verdict` skill (which absorbed `launcher-analyze-proof` 2026-08-28)
   for choosing the narrowest analyze/test command and for the Stage C screenshot call shape.
+- **Builds and every other multi-minute command run in the background.**
+  `terminal(command=..., background=true, notify=true)`, then end the step and
+  let the completion notification bring the result back — never a foreground call (it
+  blocks the whole turn until the command or its timeout ends: 180 s by default, 600 s
+  max, and the operator sees a card frozen on "running"). Run it in your own worktree,
+  never the operator's primary checkout: a live `eternia_launcher.exe` locks
+  `build/windows/.../Debug/*.dll`, so a rebuild there fails after minutes (measured
+  2026-10-01: 160 s, `WebView2Loader.dll` held by the running Launcher). A screenshot
+  request never needs a build — see `harness-runtime-model` ("A screenshot request is a
+  `launcher_qa` call").
 
 ## Cross-stack contract handoff
 

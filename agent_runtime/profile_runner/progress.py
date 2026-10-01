@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any, Callable
 
@@ -33,7 +34,16 @@ def _progress_adapter(
     event_type: str,
     *,
     guard: _ToolBudgetGuard | None = None,
+    observe: Callable[[tuple[Any, ...], dict[str, Any]], None] | None = None,
 ):
+    """The agent-callback adapter for one event label.
+
+    ``observe(args, payload)`` sees every built payload with the raw callback
+    args BEFORE the sink does — the runner's live-turn registry rides it (the
+    ``run.tool.*`` args lead with the tool-call id, which no payload carried).
+    An observer that raises is swallowed: it is bookkeeping, never the turn.
+    """
+
     if callback is None and guard is None:
         return None
     callback = callback or (lambda _payload: None)
@@ -42,6 +52,11 @@ def _progress_adapter(
     def emit(*args, **kwargs):
         try:
             payload = _progress_payload_from_callback(event_type, args, kwargs)
+            if observe is not None:
+                try:
+                    observe(args, payload)
+                except Exception:
+                    pass
             callback(payload)
             tool_name = str(payload.get("tool_name") or "")
             step = str(payload.get("step") or payload.get("type") or "")
@@ -96,17 +111,57 @@ def _progress_adapter(
 ProgressBuilder = Callable[[str, tuple[Any, ...], dict[str, Any]], dict[str, Any]]
 
 
+def _with_call_id(payload: dict[str, Any], args: tuple[Any, ...]) -> dict[str, Any]:
+    """Stamp the tool-call id the ``run.tool.*`` callbacks lead with (``args[0]``)."""
+
+    call_id = _safe_label(args[0]) if args else None
+    if call_id:
+        payload["tool_call_id"] = call_id
+    return payload
+
+
 def _run_tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     tool_name = _safe_label(args[1]) if len(args) > 1 else None
     invocation = args[2] if len(args) > 2 else kwargs.get("input") or kwargs.get("tool_input")
-    return _tool_started_payload(event_type, tool_name, invocation=invocation)
+    return _with_call_id(_tool_started_payload(event_type, tool_name, invocation=invocation), args)
 
 
 def _run_tool_finished(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    """The ``tool_complete_callback`` lane — the one the chat stream and the
+    conversation's ``tool_call`` rows fold.
+
+    Upstream hands this callback the tool's RESULT STRING (``function_result``,
+    the JSON the model reads), never a dict. Read raw, the verdict, exit code
+    and output were all invisible: a 160 s ``flutter build`` that FAILED was
+    recorded ``passed`` with no exit code, no output and no duration while its
+    ``run.progress`` twin said ``failed in 160297ms`` (RW5, live receipts
+    2026-10-01). The verdict now reads the decoded envelope.
+    """
+
     tool_name = _safe_label(args[1]) if len(args) > 1 else None
     invocation = args[2] if len(args) > 2 else None
     result = args[3] if len(args) > 3 else None
-    return _tool_finished_payload(event_type, tool_name, duration=None, is_error=_is_error_result(result), result=result, invocation=invocation)
+    verdict = _decoded_envelope(result)
+    return _with_call_id(
+        _tool_finished_payload(
+            event_type, tool_name, duration=None, is_error=_is_error_result(verdict),
+            result=result, invocation=invocation, verdict_result=verdict,
+        ),
+        args,
+    )
+
+
+def _decoded_envelope(result: Any) -> Any:
+    """A JSON-object result string as its dict; anything else unchanged."""
+
+    if isinstance(result, str) and result.lstrip().startswith("{"):
+        try:
+            decoded = json.loads(result)
+        except (TypeError, ValueError):
+            return result
+        if isinstance(decoded, dict):
+            return decoded
+    return result
 
 
 def _tool_started(event_type: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:

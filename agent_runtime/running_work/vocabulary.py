@@ -27,6 +27,12 @@ KIND_CRON_JOB = "cron_job"
 #: BEFORE its producer existed, so the wire vocabulary was complete from the
 #: first landing and no consumer had to re-derive it when the lane arrived.
 KIND_DISPATCH = "dispatch"
+#: A tool call in flight INSIDE a live chat turn — today the foreground
+#: ``terminal`` command the turn is blocked on (RW2). A child row: it carries
+#: ``parent_work_id`` (``chat_turn:<turn_id>``) and is produced by the chat-turn
+#: lane from the executing process's live-turn registry, so it has no
+#: ``sources`` entry of its own and exists only where that process answers.
+KIND_TOOL_CALL = "tool_call"
 
 #: How far back an UNDELIVERABLE dispatch keeps surfacing on the Activity
 #: projection. A day, because "your agent's answer was thrown away" is worth
@@ -48,6 +54,7 @@ RUNNING_WORK_KINDS = (
     KIND_CHAT_TURN,
     KIND_CRON_JOB,
     KIND_DISPATCH,
+    KIND_TOOL_CALL,
 )
 
 #: The lanes that report a ``sources`` entry on every build. ``dispatch`` joined
@@ -96,6 +103,11 @@ REASON_NOT_IN_PROCESS = "not_in_process"
 #: are read directly so this file never becomes a second authority for them.
 _FALLBACK_STALE_IDLE_SECONDS = 450.0
 _FALLBACK_STALE_IN_TOOL_SECONDS = 1200.0
+#: A live chat turn is ``stalling`` once its quiet time reaches this share of
+#: the stale threshold that applies to it, and ``stalled`` at the threshold.
+#: The thresholds stay the delegation monitor's (one authority); this is the
+#: early-warning step the delegation record words carry and a turn did not.
+STALLING_FRACTION = 0.5
 
 #: Per-lane row cap. A runaway subsystem must not be able to inflate the
 #: snapshot; overflow is accounted (``lane_capped``, by design) rather than

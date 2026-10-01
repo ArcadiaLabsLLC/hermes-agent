@@ -173,8 +173,13 @@ def work_row(
     progress: dict[str, Any] | None = None,
     tail_preview: str = "",
     cancellable: bool = False,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    """One row. ``extra`` is a lane's own ADDITIVE keys (RW1/RW2: a chat turn's
+    ``title`` / ``current_tool``, a tool call's ``parent_work_id`` …); it can
+    never replace a shared key, so every row keeps the one shape consumers read."""
+
+    row = {
         "work_id": f"{kind}:{stable_id}",
         "kind": kind,
         "label": label,
@@ -194,6 +199,11 @@ def work_row(
         "source_lane": source_lane,
         "cancellable": bool(cancellable),
     }
+    for key, value in (extra or {}).items():
+        if key in row:
+            raise ValueError(f"extra key {key!r} would replace a shared row key")
+        row[key] = value
+    return row
 
 
 def _preview(text: Any, accountant: ProjectionAccountant | None) -> str:

@@ -24,6 +24,7 @@ from agent_runtime.mission_chat_turns.states import (
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.serde import safe_block, safe_int, safe_text
+from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
 from hermes_time import now
 
 __layer__ = "stores"
@@ -339,6 +340,8 @@ class _ChatProtocolV2Emitter:
         self._tool_count = 0
         self._active_tools: dict[str, list[dict[str, object]]] = {}
         self.elements: list[dict[str, object]] = []
+        # RW3: `tool.progress` beats while a tool runs — streamed turns only.
+        self._heartbeat = ToolHeartbeat(self) if self._emit_frames else None
         self._emit_chat_frame(
             {
                 "type": "turn.start",
@@ -422,6 +425,8 @@ class _ChatProtocolV2Emitter:
             return
         self._finished = True
         self._finishing = True
+        if self._heartbeat is not None:
+            self._heartbeat.stop()
         try:
             self.end_segment(state="settled" if state == "completed" else state)
             self._emit_chat_frame(
@@ -497,6 +502,16 @@ class _ChatProtocolV2Emitter:
         tool_input = safe_block(payload.get("tool_input"), limit=1200)
         if tool_input:
             tool["tool_input"] = tool_input
+        # The runner's call id (the identity `_match_started_tool` prefers) and
+        # the foreground deadline the call runs under; `started_mono` is this
+        # process's clock for elapsed/duration and never leaves it.
+        call_id = safe_assignment_token(payload.get("tool_call_id"))
+        if call_id:
+            tool["tool_call_id"] = call_id
+        timeout_seconds = safe_int(payload.get("timeout_seconds"))
+        if timeout_seconds is not None:
+            tool["timeout_seconds"] = timeout_seconds
+        tool["started_mono"] = time.monotonic()
         self.elements.append(tool)
         self._active_tools.setdefault(name, []).append(tool)
         self._emit_chat_frame(
@@ -510,8 +525,12 @@ class _ChatProtocolV2Emitter:
                 "args": safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT),
                 "command": command,
                 "tool_input": tool.get("tool_input"),
+                "tool_call_id": tool.get("tool_call_id"),
+                "timeout_seconds": tool.get("timeout_seconds"),
             }
         )
+        if self._heartbeat is not None:
+            self._heartbeat.ensure_running()
 
     def _match_started_tool(self, name: str, payload: dict[str, object]) -> dict[str, object] | None:
         """Which STARTED element this finished event belongs to.
@@ -543,6 +562,11 @@ class _ChatProtocolV2Emitter:
         pending = self._active_tools.get(name) or []
         if not pending:
             return None
+        call_id = safe_assignment_token(payload.get("tool_call_id"))
+        if call_id:
+            for index, candidate in enumerate(pending):
+                if candidate.get("tool_call_id") == call_id:
+                    return pending.pop(index)
         finished_command = safe_text(payload.get("command_full"), limit=_STREAM_TEXT_LIMIT) or safe_text(
             payload.get("command_label"), limit=_STREAM_TEXT_LIMIT
         )
@@ -575,6 +599,16 @@ class _ChatProtocolV2Emitter:
         tool["state"] = "finished"
         tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
         tool["duration_ms"] = payload.get("duration_ms")
+        started = tool.get("started_mono")
+        if tool["duration_ms"] is None and isinstance(started, float):
+            # The `run.tool.finished` lane carries no duration (upstream's
+            # completion callback has none to give); this process timed the call.
+            tool["duration_ms"] = int(max(0.0, time.monotonic() - started) * 1000)
+        outcome = safe_assignment_token(payload.get("outcome"))
+        if outcome:
+            tool["outcome"] = outcome
+        if payload.get("timed_out") is True:
+            tool["timed_out"] = True
         files = payload.get("changed_files") or payload.get("files_touched") or []
         if isinstance(files, list):
             tool["files"] = [safe_assignment_text(item, limit=240) for item in files if safe_assignment_text(item, limit=240)]
@@ -636,6 +670,9 @@ class _ChatProtocolV2Emitter:
                 "id": tool["id"],
                 "name": name,
                 "status": tool["status"],
+                "outcome": tool.get("outcome"),
+                "timed_out": bool(tool.get("timed_out")),
+                "tool_call_id": tool.get("tool_call_id"),
                 "duration_ms": tool.get("duration_ms"),
                 "files": tool.get("files") or [],
                 "command": tool.get("command"),
