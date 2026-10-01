@@ -11,6 +11,7 @@
     "runtime.admission.reserve",
     "runtime.admission.status",
     "runtime.agent.create",
+    "runtime.agent.directory",
     "runtime.agent.retire",
     "runtime.agent.templates",
     "runtime.chat.message",
@@ -131,6 +132,7 @@
     "runtime.work.inspect",
     "runtime.work.list",
     "runtime.work.start",
+    "runtime.workspace.conversations",
     "runtime.workspace.create",
     "runtime.workspace.use"
   ],
@@ -177,6 +179,7 @@
     "runtime.admission.reserve": "console",
     "runtime.admission.status": "read",
     "runtime.agent.create": "console",
+    "runtime.agent.directory": "console",
     "runtime.agent.retire": "console",
     "runtime.agent.templates": "console",
     "runtime.chat.message": "console",
@@ -297,6 +300,7 @@
     "runtime.work.inspect": "console",
     "runtime.work.list": "console",
     "runtime.work.start": "console",
+    "runtime.workspace.conversations": "console",
     "runtime.workspace.create": "console",
     "runtime.workspace.use": "console"
   }

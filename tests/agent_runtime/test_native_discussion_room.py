@@ -61,6 +61,26 @@ def test_nonspatial_limit_and_idempotency_conflicts_are_not_silent_edits(engine)
     assert len(view["members"]) == 9
 
 
+def test_unavailable_room_member_does_not_block_other_members(engine, monkeypatch):
+    service, context = engine
+    resolve = context.resolve
+
+    def unavailable(ref, workspace_id, *, require_placement=True, require_ready=True):
+        if ref.instance_id == "personainst_0" and require_ready:
+            raise DiscussionError("profile_unavailable")
+        return resolve(ref, workspace_id)
+
+    monkeypatch.setattr(context, "resolve", unavailable)
+    room = service.begin_room("ws", spec(), key="partial", topic="Review", actor_id="operator")
+    view = wait_until(lambda: settled(service, room))
+    assert view["run"]["phase"] == "open"
+    assert len(context.calls) == 1
+    assert context.calls[0].persona_instance_id == "personainst_1"
+    assert len([event for event in view["log"]["events"] if event["kind"] == "message.member"]) == 1
+    attempts = service.attempts.rows(room["run_id"])
+    assert {row["receipt"]["status"] for row in attempts} == {"settled", "failed"}
+
+
 def test_schema_one_upgrade_preserves_every_run_and_claim(tmp_path):
     # Build the old schema, including its non-null persona-owned members.
     db = sqlite3.connect(tmp_path / "old.sqlite")

@@ -12,7 +12,6 @@ from typing import Any, Mapping
 from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
 from agent_runtime.auxiliary_chat import auxiliary_chat
 from .attempt_store import AttemptStore
-from .definitions import ParticipantRef
 from .native_context import NativeContext
 from .run_values import DiscussionError
 
@@ -89,7 +88,7 @@ class NativeTurns:
             from .app_functions import discussion_launcher
             request = self.context.launcher.request_for(run["run_id"], row["task_id"])
             with self.context.scope(), auxiliary_chat(member["instance_id"], member["session_id"]), bind_interrupt_scope(scope), discussion_launcher(request):
-                live = self.context.resolve(ParticipantRef(member["install_id"], member["instance_id"]), run["workspace_id"])
+                live = self.context.resolve_member(run, member)
                 if any(live[k] != member[k] for k in ("persona_id", "profile")):
                     raise DiscussionError("profile_binding_changed")
                 if scope.reason is not None:
