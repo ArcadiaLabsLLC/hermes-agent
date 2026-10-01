@@ -338,6 +338,7 @@ class _ChatProtocolV2Emitter:
         self._current_segment: dict[str, object] | None = None
         self._segment_count = 0
         self._tool_count = 0
+        self._reasoning_count = 0
         self._active_tools: dict[str, list[dict[str, object]]] = {}
         self.elements: list[dict[str, object]] = []
         # RW3: `tool.progress` beats while a tool runs — streamed turns only.
@@ -381,12 +382,56 @@ class _ChatProtocolV2Emitter:
     def progress(self, payload: dict[str, object] | None) -> None:
         if not isinstance(payload, dict):
             return
-        handler = _PROGRESS_EVENTS.get(str(payload.get("type") or "run.progress"))
+        event_type = str(payload.get("type") or "run.progress")
+        if event_type == "run.progress" and payload.get("step") == "reasoning_summary":
+            # Not a tool element and not a segment boundary: the thinking
+            # callback can fire while answer text streams, and ending the
+            # segment here would split one reply into two.
+            self._reasoning_summary(payload)
+            return
+        handler = _PROGRESS_EVENTS.get(event_type)
         if handler is None:
             return
         self.end_segment(state="settled")
         handler(self, payload)
         self._notify_update()
+
+    def _reasoning_summary(self, payload: dict[str, object]) -> None:
+        """One ``reasoning.summary`` v2 frame, the moment the thinking callback fires.
+
+        Before this the summaries reached the console only through the stored
+        trace read at turn end, so every "Thinking" row burst in at once.
+
+        Presentation-only, like ``turn.ack``: not an element, no turn-store
+        flush. The durable copy is the trace row
+        (``persona_chat_history.trace_rows``, ``reasoning_summary``), bounded at
+        the same 500 so the live and the reloaded row say the same thing. It
+        takes NO element ``seq`` — that is the element ordering key and a frame
+        that is not an element must not punch holes in it. ``after_seq`` is the
+        newest element seq issued when the frame was written, so the console
+        places it exactly: after that element, before the next.
+        """
+
+        text = payload.get("reasoning_summary")
+        if text == "_thinking":
+            # The thinking channel's placeholder, never content (trace_rows
+            # drops it for the same reason).
+            return
+        text = safe_text(text, limit=500)
+        if not text:
+            return
+        self._reasoning_count += 1
+        self._emit_chat_frame(
+            {
+                "type": "reasoning.summary",
+                "protocol_version": 2,
+                "turn_id": self.turn_id,
+                "id": f"{self.turn_id}_reasoning_{self._reasoning_count}",
+                "index": self._reasoning_count,
+                "after_seq": self._seq,
+                "text": text,
+            }
+        )
 
     def end_segment(self, *, state: str = "settled") -> None:
         segment = self._current_segment
@@ -646,6 +691,15 @@ class _ChatProtocolV2Emitter:
         tool_input = safe_block(payload.get("tool_input"), limit=1200) or tool.get("tool_input")
         if tool_input:
             tool["tool_input"] = tool_input
+        # The result half of that record. Only the FINISHED payload carries it,
+        # so there is nothing to carry through. Same grade as the turn store's
+        # `_tool_fields` (1800 sits above the progress sink's ceiling plus its
+        # truncation marker, so this never re-cuts what the sink kept). The
+        # frame below always NAMED `tool_result`; nothing set it, so every MCP
+        # card read null (events.81417412 line 17588 carries one).
+        tool_result = safe_block(payload.get("tool_result"), limit=1800)
+        if tool_result:
+            tool["tool_result"] = tool_result
         # Patch observability: the local diff artifact's path (same
         # `safe_text` grade `command` rides — paths survive it) plus the
         # +/− counts and the grammar. Scrubbed and bounded at the progress sink;
