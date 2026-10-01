@@ -6,6 +6,7 @@ from typing import Callable
 from . import paths
 from .chat_lane_bundle import chat_lane_bundle
 from .mcp_admission import LANE_MISSION_CHAT
+from .launcher_invocation import launcher_invocation
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_prompts import (
@@ -209,7 +210,6 @@ class GPTPersonaRuntime:
             runtime_root=paths.store_root(),
             permission_mode=lane_bundle.permission_mode,
         )
-        from .launcher_invocation import launcher_invocation
         with launcher_invocation("operator", root_chat_session_id or perm_session_id, turn_id):
             result = self._runner.run(
                 AgentRunRequest(
@@ -223,23 +223,11 @@ class GPTPersonaRuntime:
                     enabled_toolsets=list(lane_bundle.enabled_toolsets),
                     blocked_tool_names=list(lane_bundle.blocked_tool_names),
                     quiet_mode=True,
-                    # Operator chat honors the persona's core-context-file opt-in like
-                    # the mission-run (L143) and free-chat (L208) paths. Isolated
-                    # personas (the default) must NOT auto-inject the process-cwd repo
-                    # project docs (e.g. the 72KB hermes-agent AGENTS.md, truncated to
-                    # ~65K chars = ~16K tokens) into every conversational turn — that
-                    # is ~20K tokens of fixed overhead per turn regardless of persona.
-                    # Repo doctrine an operator persona needs is carried by its skills
-                    # or read on demand; developer repo docs are not chat-turn context.
+                    # Respect the persona's workspace-context opt-in. Isolated
+                    # personas get repo context through skills or explicit reads.
                     skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
-                    # Profile memory (MEMORY.md / USER.md) is identity-adjacent: it
-                    # carries the bound profile's worldview into the turn. Honor the
-                    # persona's include_profile_memory opt-in instead of loading it
-                    # unconditionally, so a persona bound to a supervisor profile for
-                    # *capabilities* does not also inherit that profile's memory-model
-                    # (the Alice "goal->Neko->Dev" mental model that made Neko relay
-                    # to itself). A persona keeps its own profile's memory when the
-                    # binding is its own; it drops a borrowed profile's memory.
+                    # Profile memory carries identity; borrowing a profile's
+                    # capabilities must not implicitly borrow its worldview.
                     skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
                     platform=PERSONA_CHAT_SCRATCH_SOURCE,
                     skill_surface="mission_chat",
