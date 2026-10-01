@@ -158,7 +158,7 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
             "surface_prompt": "be brief",
             "intent_hint": "plan",
         }
-    ).argv
+    ).spawn_argv
     assert argv == [
         "harness",
         "mission-chat",
@@ -181,7 +181,6 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
         "--title",
         "Field run",
         "--new-session",
-        "--stream",
         "--max-seconds",
         "90.0",
         "--workspace-name",
@@ -196,6 +195,9 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
         "be brief",
         "--intent-hint",
         "plan",
+        # The delivery flag rides LAST, outside the fingerprinted message
+        # (``ChatTurnRequest.delivery_flags``).
+        "--stream",
     ]
     from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 

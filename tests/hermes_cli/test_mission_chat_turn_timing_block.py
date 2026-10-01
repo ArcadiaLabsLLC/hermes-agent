@@ -51,8 +51,9 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
 
 #: A runner's dict as the codex lane fills it: the three durations RO-7 names,
 #: chat-turn-prep Stage 6's fourth (``runtime_resolve_ms``, the memo Stage 10
-#: is about), plus the cold/warm receipt and a neighbour that must NOT reach the
-#: block.
+#: is about), plus the cold/warm receipt, the first-turn split's two (MCP
+#: admission, agent construction; 2026-10-01) and neighbours that must NOT
+#: reach the block.
 _RUNNER_TIMING = {
     "profile_conversation_turn_context_ms": 1_233,
     "profile_conversation_provider_dispatch_ms": 889,
@@ -60,6 +61,9 @@ _RUNNER_TIMING = {
     "runtime_resolve_ms": 512,
     "resident_actor_reused": 1,
     "agent_construct_ms": 4_012,
+    "mcp_admission_ms": 3_207,
+    "mcp_admission_cold_servers": 1,
+    "mcp_call_budget": 40,
 }
 
 #: chat-turn-prep Stage 6 item 1: the four PRE-ADMIT marks the operator's
@@ -149,6 +153,12 @@ def test_the_terminal_payload_carries_the_whole_timing_block(timed_payload):
     assert block["stream_consume_ms"] == 1_630
     assert block["runtime_resolve_ms"] == 512
     assert block["resident_actor_reused"] is True
+    # The first-turn split: MCP admission beside context assembly and the
+    # provider's first byte, which is what the 2026-10-01 first-chat report
+    # could not tell apart. *Killing mutation:* drop the ``mcp_admission_ms``
+    # pair from ``_TIMING_FROM_PROFILE`` -> KeyError here and the set above.
+    assert block["mcp_admission_ms"] == 3_207
+    assert block["agent_construct_ms"] == 4_012
     # The two that come from the record's own marks rather than the runner's
     # namespace: elapsed ms off the turn's anchor, and the Stage-4 count.
     assert isinstance(block["request_assembled_ms"], int)
@@ -228,12 +238,18 @@ def test_the_block_is_a_copy_of_the_ledger_record_and_not_a_second_reading(
 
 
 def test_the_block_carries_nothing_but_the_seven(timed_payload):
-    """The runner's dict is an open namespace — ``agent_construct_ms`` and the
-    admission receipts live in it. The block is a CLOSED set, so nothing new on
-    that side can arrive on the wire without a decision."""
+    """The runner's dict is an open namespace — the admission receipts live in
+    it. The block is a CLOSED set, so nothing new on that side can arrive on
+    the wire without a decision. (``agent_construct_ms`` was this row's subject
+    until the 2026-10-01 first-turn split DECIDED it in; ``mcp_call_budget`` is
+    a neighbour nobody has.)
+
+    *Positive control:* the decided neighbours from the same dict DO arrive.
+    """
 
     payload, _record = timed_payload
-    assert "agent_construct_ms" not in payload[TURN_TIMING_KEY]
+    assert "mcp_call_budget" not in payload[TURN_TIMING_KEY]
+    assert "mcp_admission_ms" in payload[TURN_TIMING_KEY]
 
 
 def test_no_existing_key_moved_to_make_room_for_it(timed_payload):
@@ -465,7 +481,7 @@ def test_the_new_keys_did_not_displace_the_old_ones():
         "builds_overlapped",
         "resident_actor_reused",
     )
-    assert set(TURN_TIMING_ORDER[7:]) == {
+    assert set(TURN_TIMING_ORDER[7:13]) == {
         "context_built_ms",
         "observability_built_ms",
         "write_ahead_ms",
@@ -473,6 +489,8 @@ def test_the_new_keys_did_not_displace_the_old_ones():
         "visibility_bundle_builds",
         "runtime_resolve_ms",
     }
+    # The first-turn split (2026-10-01), appended after Stage 6 the same way.
+    assert TURN_TIMING_ORDER[13:] == ("mcp_admission_ms", "agent_construct_ms")
 
 
 # --------------------------------------------------------------------------- #

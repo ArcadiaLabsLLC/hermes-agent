@@ -272,8 +272,9 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
     """
 
     from hermes_cli.profiles import read_profile_meta
+    from hermes_constants import PROFILE_ID_RE
 
-    from ._upstream_doors import iter_named_profile_dirs, profile_id_pattern
+    from ._upstream_doors import iter_named_profile_dirs
 
     profiles: list[ProfileTemplateInfo] = []
     try:
@@ -288,7 +289,7 @@ def available_profile_template_summaries() -> List[ProfileTemplateInfo]:
             if not _hc.named_profile_has_servable_identity(entry):
                 continue
             name = entry.name
-            if name == "default" or not profile_id_pattern().match(name):
+            if name == "default" or not PROFILE_ID_RE.match(name):
                 continue
             meta = read_profile_meta(entry)
             profiles.append(

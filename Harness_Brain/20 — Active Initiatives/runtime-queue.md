@@ -24,18 +24,13 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 
 
+### Filed on arrival — 2026-10-01 (lane w3-turn)
 
-
-### Filed on arrival — 2026-10-01 (lane rw-h)
-
-- [ ] **One finished tool call is published TWICE with two verdicts: `run.progress` (step `tool_finished`, built from upstream's `tool.completed` progress callback, which carries `duration`/`is_error`) and `run.tool.finished` (from `tool_complete_callback`, which carries the call id and the raw result string). The chat stream and the conversation `tool_call` rows fold only the second, which said `passed`/blank for a failed 160 s build while the first said `failed in 160297ms`; rw-h made the second read the decoded envelope and time itself, but two producers of one fact remain free to disagree again. Retire the duplicate: one finished event per call, carrying call id, duration, verdict, exit code and output** · `fork / runtime` · Evidence: rw-h RW5 commit message (`events.81417412.jsonl` lines 17529-17530); `agent_runtime/profile_runner/progress.py` (`RUN_EVENTS` / `CALLBACK_EVENTS`) · **TAKEN 2026-10-01 w3-turn**
+- [ ] **The progress sink's allowlist (`agent_runtime/progress.py::_SAFE_PROGRESS_KEYS`) lacks `tool_call_id`, `outcome`, `timed_out` and `timeout_seconds`: they reach the event log and the stream only under redaction observe mode (`would_redact: unsupported_progress_key` on every `run.tool.*` event), so turning observe mode off strips the call id and the verdict the single finished event carries. Admit them with typed checks** · `fork / runtime` · events `X:/Eternia/.hermes/agent-runtime/events_archive/events.81417412.jsonl` 17586, 17609; lane w3-turn report
 
 ### Filed on arrival — 2026-10-01 (launcher lane mc-a, filed by the orchestrator)
 
-- [ ] **`run.tool.started` for MCP tools carries no input (keys: phase, status, step, summary, tool_call_id, tool_name, type — no args/preview), so the console can show no Input for an MCP call; terminal starts carry `command_full`/`command_label`. Every tool start carries a bounded, redacted args preview** · `fork / runtime` · events `X:/Eternia/.hermes/agent-runtime/events_archive/events.81417412.jsonl` lines 17586, 17609 (2026-10-01, serve restarted 15:24 with wave 2 + RW4 skill installed) · **TAKEN 2026-10-01 w3-turn**
 - [ ] **`tool_call` refuses a batch for local tools — "tool_call takes exactly one entry for local tools; you sent 3" — after `tool_describe` handed the agent three launcher_qa tool names, costing a wasted round trip (owner screenshot 2026-10-01 19:04:12Z, `events.81417412.jsonl` line 17549). Either run a batch of independent read-only calls, or state the one-entry rule in `tool_describe`'s result and the tool schema so an agent never sends one** · `fork / runtime` · launcher `docs/mission_control/evidence/queued-then-burst/burst-at-end.png` · UNCLAIMED
-- [ ] **Do not fingerprint the delivery flag `--stream` in `ChatTurnReservation.verify_payload`.** · A client that re-sends the same `turn_request_id` buffered after a streamed first send is refused `turn_payload_conflict` for the same message. The Launcher now keeps the flag consistent within one process (`eternia-launcher/lib/features/mission_control/data/mission_chat_turn_presentation.dart`), but a restarted launcher can still mismatch. Evidence: `eternia-launcher/docs/mission_control/SIX_SCREENSHOT_FINDINGS_2026-10-01.md` "F6 follow-up". · `fork / runtime` · **TAKEN 2026-10-01 w3-turn**
-- [ ] **Expose MCP admission time in the turn `timing` block (e.g. `mcp_admission_ms` beside `turn_context_ms`).** · First-chat startup costs 7–9 s over warm sends, but this can only be correlated with first-turn `snapshot` context/skill delivery; context assembly, MCP admission and provider first byte cannot be told apart. Evidence: `eternia-launcher/docs/mission_control/FIRST_CHAT_STARTUP_OWNER_REPORT.md` "Phase attribution — 2026-10-01". · `fork / runtime` · **TAKEN 2026-10-01 w3-turn**
 
 ### Filed on arrival — 2026-10-01 (lane hq-b)
 
@@ -47,11 +42,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **Distinguish settled profile groups from pending discussion work during automatic maintenance.** · `DiscussionService.idle_drain` currently counts every owned run, including an empty group; retain the between-round admission fence and Mission Control behavior. Source-confirmed follow-up: `docs/agent-runtime-harness/planned/chat-first-group-messages.md` § Lifecycle follow-up · filed 2026-09-29 chat-first-groups.
 - [ ] **Repair realm history ordering and publish staging on Windows.** · Three failures reproduced on clean primary during [chat-first qualification](../../docs/downstream/chat-first-group-qualification-2026-09-29.md#baseline-comparison); no realm-sync implementation changed in that slice. Filed 2026-09-29 chat-first-groups. UNCLAIMED
-
-### Filed on arrival — 2026-09-30 (lane up-widen)
-
-- [ ] **`_upstream_doors.cron_pools_present` reads `cron.scheduler._parallel_pool` / `._sequential_pool`, which exist neither upstream nor in the fork (the scheduler now keeps `_parallel_pools`, a per-home dict), so it always returns False and `running_work.lanes_process._cron_owned_here` reports `not_in_process` whenever no job is running** · `agent_runtime` · evidence: ledger row `cron/scheduler.py` (STATUS 2026-09-30 up-widen). Read `_parallel_pools` non-empty (or propose `owns_running_jobs()` upstream against the new shape) and add a positive control. **TAKEN 2026-10-01 w3-turn**
-- [ ] **Swap three doors onto upstream's existing public names: `mcp_signal_reconnect` → `tools.mcp_tool_loop.reconnect_mcp_server(name)`, the `_get_disabled_skill_names` slot of `skills_tool_inspection_doors` → `agent.skill_utils.get_disabled_skill_names`, `profile_id_pattern` → `hermes_constants.PROFILE_ID_RE`; drop the three `private_upstream_imports` grandfather entries** · `agent_runtime` · evidence: ledger rows `tools/mcp_tool_loop.py`, `tools/skills_tool.py`, `hermes_cli/profiles.py` (DROPPED, up-widen 2026-09-30). **TAKEN 2026-10-01 w3-turn**
 
 ### Filed on arrival — 2026-09-30 (moved from the launcher spatial queue, owner rulings)
 
@@ -242,6 +232,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+
+### Filed on arrival — 2026-10-01 (lane w3-turn)
+
+- [ ] **Retire the compute-host cold-start carry: `tui_gateway/host_supervisor.py` waits a fixed 10 s for the child's hello while the child imports `tui_gateway.server` first (5.6–6.2 s idle, 10.8–28.5 s loaded); the fork added `_HELLO_COLD_START_GRACE_SECS` (additions only). Upstream PR: a configurable hello budget, or the hello sent before the heavy import** · `upstream / tui_gateway` · ledger row `tui_gateway/host_supervisor.py` (cold-start hello grace, 2026-10-01)
 
 ### Filed on arrival — 2026-09-29 (lane fix-cron-openai)
 

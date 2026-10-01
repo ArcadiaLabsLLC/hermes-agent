@@ -27,6 +27,8 @@ __all__ = [
     "_OPERATOR_TOOL_RESULT_MAX",
     "_PATCH_HEADER_RE",
     "_TOOL_RESULT_ECHO_KEYS",
+    "TOOL_INPUT_ALL_REDACTED",
+    "TOOL_INPUT_NO_ARGUMENTS",
     "_attach_tool_io",
     "_is_error_result",
     "_line_has_secret",
@@ -225,13 +227,47 @@ def _scrub_operator_block_head(text: str, *, limit: int) -> str | None:
     return out
 
 
+#: ``tool_input`` for a call made with NO arguments. Every call whose input is
+#: known carries an input record (2026-10-01: an argument-less MCP start such as
+#: ``get_runtime_state`` carried none, so the console could not tell "no
+#: arguments" from "input not reported").
+TOOL_INPUT_NO_ARGUMENTS = "(no arguments)"
+#: ``tool_input`` for arguments whose EVERY line held a secret: the call had
+#: input, and that is the one fact about it that can be shown. Worded so that
+#: neither scrubber (this module's nor the progress sink's) reads the marker
+#: itself as sensitive -- both drop a block with no clean line.
+TOOL_INPUT_ALL_REDACTED = "(arguments withheld — every line was redacted)"
+
+
 def _safe_operator_tool_input(invocation: Any) -> str | None:
-    if not isinstance(invocation, dict) or not invocation:
+    """The bounded, per-line-scrubbed input record; ``None`` only when the input
+    is not known at all (no invocation, or one that cannot be rendered)."""
+
+    if isinstance(invocation, str):
+        invocation = _decoded_object(invocation)
+    if not isinstance(invocation, dict):
         return None
+    if not invocation:
+        return TOOL_INPUT_NO_ARGUMENTS
     rendered = _render_operator_kv_block(invocation)
     if rendered is None:
         return None
-    return _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
+    return (
+        _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
+        or TOOL_INPUT_ALL_REDACTED
+    )
+
+
+def _decoded_object(text: str) -> Any:
+    """A JSON-object argument string as its dict (some runtimes hand the raw
+    arguments string); anything else unchanged, and so not previewed."""
+
+    if text.lstrip().startswith("{"):
+        try:
+            return json.loads(text)
+        except (TypeError, ValueError):
+            return text
+    return text
 
 
 def _safe_operator_tool_result(result: Any) -> str | None:

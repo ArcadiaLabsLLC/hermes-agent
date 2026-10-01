@@ -76,9 +76,8 @@ class SkillInspection:
 
 def skill_inspection_reader():
     """Bind human inspection to the same discovery and collision/trust gates as tools."""
-    from agent_runtime._upstream_doors import skills_tool_inspection_doors
-    _get_disabled_skill_names = skills_tool_inspection_doors()[2]
-    return SkillInspection(_inspection_entries, _inspection_location, _get_disabled_skill_names)
+    from agent.skill_utils import get_disabled_skill_names
+    return SkillInspection(_inspection_entries, _inspection_location, get_disabled_skill_names)
 
 
 def _inspection_entries():
@@ -98,7 +97,7 @@ def _inspection_location(identifier):
     from agent_runtime._upstream_doors import skills_tool_inspection_doors
     from agent_runtime.skill_resolution import skill_source_kind
     from hermes_cli.plugins import get_plugin_manager
-    _skill_lookup_path_error, _skill_search_dirs, _locate_skill = skills_tool_inspection_doors()[3:]
+    _skill_lookup_path_error, _skill_search_dirs, _locate_skill = skills_tool_inspection_doors()[2:]
     if _skill_lookup_path_error(identifier):
         raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
     plugin = get_plugin_manager().find_plugin_skill(identifier) if ":" in identifier else None

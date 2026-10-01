@@ -13,7 +13,6 @@ from .._upstream_doors import (
     mcp_resolve_server_key,
     mcp_sdk_available_flag,
     mcp_server_map,
-    mcp_signal_reconnect,
     mcp_wait_for_session,
 )
 
@@ -198,16 +197,20 @@ def _wake_parked_servers(names: Sequence[str]) -> frozenset[str]:
     wanted = [str(name) for name in names if str(name)]
     if not wanted:
         return frozenset()
-    # The two reconnect seams are read through their doors at CALL time: a seam
-    # upstream drift has moved raises inside the per-server guards below, and
-    # the name routes cold — the same fail-closed answer as before.
+    # The two reconnect seams are read at CALL time: a seam upstream drift has
+    # moved raises inside the per-server guards below, and the name routes
+    # cold — the same fail-closed answer as before. The nudge is upstream's
+    # PUBLIC by-name ``reconnect_mcp_server``, which resolves the name in the
+    # current profile's scope exactly as ``_current_mcp_servers`` does.
 
     cache = _current_mcp_servers()
     parked = {name: cache[name] for name in wanted if name in cache}
     nudged: dict[str, Any] = {}
     for name, server in parked.items():
         try:
-            if mcp_signal_reconnect(server):
+            from tools.mcp_tool_loop import reconnect_mcp_server
+
+            if reconnect_mcp_server(name):
                 nudged[name] = server
         except Exception:  # pragma: no cover - defensive
             logger.debug("MCP admission could not nudge %r", name, exc_info=True)

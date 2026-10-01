@@ -33,7 +33,6 @@ __all__ = [
     "mcp_resolve_server_key",
     "mcp_sdk_available_flag",
     "mcp_server_map",
-    "mcp_signal_reconnect",
     "mcp_wait_for_session",
     "non_continuation_child_filter",
     "piper_engine_importable",
@@ -45,7 +44,6 @@ __all__ = [
     "iter_named_profile_dirs",
     "looks_like_help_or_version_command",
     "pid_exists",
-    "profile_id_pattern",
     "sanitize_surrogates",
     "profiles_root",
     "session_async_delivery_unset",
@@ -105,19 +103,21 @@ def skills_walker():
 
 
 def skills_tool_inspection_doors():
-    """``tools.skills_tool``'s ``_find_all_skills``, ``_sort_skills``, ``_get_disabled_skill_names``,
+    """``tools.skills_tool``'s ``_find_all_skills``, ``_sort_skills``,
     ``_skill_lookup_path_error``, ``_skill_search_dirs`` and ``_locate_skill`` ITSELF, in that
     order — read by ``skill_inspection.skill_inspection_reader`` (lane PF-3 moved the reader out
     of ``skills_tool.py``; it binds human inspection to the tool's own discovery and
     collision/trust gates, so a copy would be a second resolver). Held widening row: publish a
-    read-only inspection port (catalog rows + locate) on upstream's skills tool."""
+    read-only inspection port (catalog rows + locate) on upstream's skills tool. The disabled
+    set is not here: the reader takes upstream's public ``agent.skill_utils.
+    get_disabled_skill_names``, which ``tools.skills_tool._get_disabled_skill_names`` only
+    delegates to (w3-turn, 2026-10-01)."""
     from tools.skills_tool import (
-        _find_all_skills, _get_disabled_skill_names, _locate_skill, _skill_lookup_path_error,
-        _skill_search_dirs, _sort_skills,
+        _find_all_skills, _locate_skill, _skill_lookup_path_error, _skill_search_dirs, _sort_skills,
     )
 
-    return (_find_all_skills, _sort_skills, _get_disabled_skill_names, _skill_lookup_path_error,
-            _skill_search_dirs, _locate_skill)
+    return (_find_all_skills, _sort_skills, _skill_lookup_path_error, _skill_search_dirs,
+            _locate_skill)
 
 
 def sanitize_surrogates(text: str) -> str:
@@ -156,25 +156,25 @@ def terminal_foreground_timeouts(terminal: object) -> tuple[int, int]:
 
 
 def cron_pools_present(scheduler: object) -> bool:
-    """``cron.scheduler._parallel_pool`` / ``._sequential_pool`` — the dispatch
-    pools the ticker creates lazily on its first tick and keeps, read by
+    """``cron.scheduler._parallel_pools`` non-empty — the per-home dispatch pools
+    the ticker creates lazily on a home's first parallel tick and keeps until the
+    home departs (``discard_parallel_pools``), read by
     ``running_work.lanes_process._cron_owned_here`` as durable proof the
-    scheduler runs in THIS process. Private ATTRIBUTES read by ``getattr`` on
+    scheduler runs in THIS process. A private ATTRIBUTE read by ``getattr`` on
     the module the caller already holds (never imported here), so W0-G6's
-    private-import arm cannot see the reach. Held widening row (ruling Q7,
+    private-import arm cannot see the reach. Until 2026-10-01 this read
+    ``_parallel_pool`` / ``_sequential_pool``, names the scheduler no longer has,
+    and so answered False for every process. Held widening row (ruling Q7,
     ``upstream-footprint-ledger.md``): publish ``scheduler.owns_running_jobs()``."""
-    return any(
-        getattr(scheduler, attr, None) is not None
-        for attr in ("_parallel_pool", "_sequential_pool")
-    )
+    return bool(getattr(scheduler, "_parallel_pools", None))
 
 
 # ── tools.mcp_* — the MCP admission's warm-transport reads (lane B4) ────────
 #
-# ``agent_runtime.mcp_admission.transport`` reads eight private names across
+# ``agent_runtime.mcp_admission.transport`` reads seven private names across
 # four upstream modules; each is read here, at CALL time, so a stub on the
 # upstream module (``tools.mcp_tool._servers``, ``tools.mcp_tool_loop.
-# _signal_reconnect``, …) still reaches it and a missing seam raises at the call
+# _wait_for_server_session_ready``, …) still reaches it and a missing seam raises at the call
 # the caller already guards (fail CLOSED). One held widening row per name
 # (ruling Q7, ``upstream-footprint-ledger.md``).
 
@@ -210,14 +210,6 @@ def mcp_resolve_server_key(name: str) -> object:
     from tools.mcp_tool_scope import _resolve_server_key
 
     return _resolve_server_key(name)
-
-
-def mcp_signal_reconnect(server: object) -> object:
-    """``tools.mcp_tool_loop._signal_reconnect`` — nudge a parked server. Held
-    widening row: publish ``signal_reconnect``."""
-    from tools.mcp_tool_loop import _signal_reconnect
-
-    return _signal_reconnect(server)
 
 
 def mcp_wait_for_session(server: object, timeout: float) -> object:
@@ -296,13 +288,6 @@ def gateway_agent_pending_sentinel():
     from gateway.run import _AGENT_PENDING_SENTINEL
 
     return _AGENT_PENDING_SENTINEL
-
-
-def profile_id_pattern():
-    """``hermes_cli.profiles._PROFILE_ID_RE`` — read by ``profile_home``."""
-    from hermes_cli.profiles import _PROFILE_ID_RE
-
-    return _PROFILE_ID_RE
 
 
 def iter_named_profile_dirs():

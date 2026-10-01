@@ -42,6 +42,13 @@ MUTATOR_ROUTE_TABLE: dict[str, str] = {
 _REGISTRY_NAME = "dashboard-compute-host.json"
 _RESPAWN_WINDOW_SECS = 300.0
 _SHUTDOWN_TIMEOUT_SECS = 10.0
+# fork seam (w3-turn, 2026-10-01): extra hello wait for a cold child that is
+# still alive. The child imports ``tui_gateway.server`` before it says hello:
+# 5.6-6.2 s idle on the measuring box and 10.8-28.5 s with its cores saturated,
+# so the fixed 10 s wait in ``_spawn`` refused the first isolated turn of a
+# loaded machine (``5019 compute host did not send hello``, 3/3 under load).
+# Additive: the fixed wait is untouched and still runs after this one.
+_HELLO_COLD_START_GRACE_SECS = 50.0
 # Late control-ack handlers: a compress that outlives its RPC waiter can run for the full
 # compression ceiling plus a stall-fallback retry, so keep registrations past that — bounded.
 # See #97948.
@@ -386,6 +393,10 @@ class HostSupervisor:
                              (self._drain_stderr, "compute-host-stderr"),
                              (self._wait_for_exit, "compute-host-wait")):
             threading.Thread(target=target, args=(proc,), name=name, daemon=True).start()
+        grace_deadline = time.monotonic() + _HELLO_COLD_START_GRACE_SECS
+        while proc.poll() is None and time.monotonic() < grace_deadline:
+            if self._hello_event.wait(timeout=0.25):
+                break
         if not self._hello_event.wait(timeout=10.0):
             self._terminate_process(proc)
             raise RuntimeError(f"compute host did not send hello; stderr={self._stderr_tail[-5:]}")
