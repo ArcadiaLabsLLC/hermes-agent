@@ -13,9 +13,12 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Repair or classify canonical-suite residuals: office manifests, strict XPASS, Windows/SQLite assumptions and isolated-runner/interpreter identity.** · [GenUI validation baseline](../../docs/downstream/genui-invocation-2026-09-30.md#validation-baseline); preserve primary-versus-worktree evidence and existing ownership, without product-policy changes or enlarged exemptions.
 
+## Filed on arrival — 2026-10-01 (lane w3-turn)
+
+- [ ] **`tests/agent_runtime/test_mcp_admission_parked_wake.py::test_a_server_that_will_not_wake_is_bounded_and_registers_nothing` asserts a 3.0 s wall bound that the call spends 2.6–3.0 s of when run ALONE (measured on main code and on w3-turn's, identical); it flaked at 3.22 s under `run_tests.sh` -j8. Bound the WAKE (the patched 0.3 s budget), not the whole cold registrar** · `fork / suite` · lane w3-turn focused run 2026-10-01
+
 ## Release validation — 2026-09-23
 
-- [ ] **Resolve the pathological tool-result fixture's Python 3.14 behavior.** · `test_profile_runner.py::test_tool_io_pathological_result_never_kills_the_tool_event` fails on unchanged main; [provider closeout baseline](../../docs/downstream/provider-closeout-2026-10-01.md#existing-baseline-failure). Filed 2026-10-01 provider closeout. **TAKEN 2026-10-01 w3-turn**
 
 - **Provider-boundary qualification, October 1:** the existing TLS setup stall and duplicate-name/routing-ladder gate failures were reproduced, not waived; [evidence](../../docs/downstream/provider-access-boundary-2026-10-01.md#qualification). Native provider, plugin and execution checks pass; this does not certify a whole-repository green run.
 
@@ -72,7 +75,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **Cut the Windows console-signal upstream PR: upstream `tests/conftest.py`'s import-time stale-lock sweep and `tui_gateway/host_supervisor.py` probe liveness with `os.kill(pid, 0)` on win32 (CTRL_C_EVENT to the console group), which upstream CONTRIBUTING "Critical rules" 1 forbids; offer the `gateway.status._pid_exists` swaps together with the live-guard console-event refusal, after measuring which upstream Windows tests the refusal reds** · `fork / upstream` · evidence: ledger rows `tests/conftest.py`, `tests/_fixtures/live_system_guard.py`, `tui_gateway/host_supervisor.py` (HELD, lane up-offer 2026-09-30) · UNCLAIMED
 
-- [ ] **`tests/agent_runtime/test_native_app_functions.py::test_real_agent_discovers_and_calls_once_without_replaying_on_reopen[isolated-compute]` flakes under `run_tests.sh` -j8 load: `prompt.submit` answers a native error → `ConversationError: native_refusal` (`native_peer.py:78`), failed on both attempts in the G5 landing run, yet 4/4 green run alone on main `bb3fdf0677` and on the G5 merge; `tests/agent_runtime/test_native_conversation_in_process.py` flaked once in the same run** · `fork / suite` · log `X:/Eternia/worktrees/h10b-logs/g5_land.log` · **TAKEN 2026-10-01 w3-turn**
 
 - [ ] **`tests/test_managed_runtime_resolution.py::test_bare_which_and_known_path_tables_are_allowlisted` is red on main: three unlisted `bare_which` sites — `agent_runtime/local_llama_adapter/setup.py::SetupManager.detect` (`7c3a800eef`), `hermes_cli/_downstream_cli.py::cmd_postinstall` (`fc09929f15`), `hermes_cli/path_setup.py::_hermes_exe_dirs` (`5a411b1657`); each either resolves through the managed-runtime resolver or gets an allowlist row with its reason in `tests/fixtures/resolution_allowlist.json`** · `fork / suite` · measured 2026-09-30 on main `b719f05412` (7 passed, 1 failed), surfaced by lane s2-g4 · **TAKEN 2026-10-01 w3-perf**
 
