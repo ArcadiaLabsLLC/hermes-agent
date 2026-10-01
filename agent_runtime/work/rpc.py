@@ -7,7 +7,7 @@ from agent_runtime.serve_rpc.protocol import DEFERRED, err, ok
 __layer__ = "lanes"
 
 
-def _answer(rid, operation, params, caller):
+def _work_reply(rid, operation, params, caller):
     try:
         return ok(rid, execute(operation, params, caller))
     except WorkRefused as refusal:
@@ -20,7 +20,7 @@ def _answer(rid, operation, params, caller):
 
 def _handler(operation):
     def handle(rid, params, context):
-        reply = lambda: _answer(rid, operation, params, context.caller)
+        reply = lambda: _work_reply(rid, operation, params, context.caller)
         if context.spawn_reply is None or not context.spawn_reply(reply):
             return err(rid, 4090, "The runtime is unavailable.", {"reason": "runtime_stopping"})
         return DEFERRED
@@ -28,5 +28,5 @@ def _handler(operation):
 
 
 def register(method):
-    for operation in ("capabilities", "list", "inspect", "start"):
+    for operation in ("capabilities", "context", "list", "inspect", "start"):
         method("runtime.work." + operation, tier=TIER_CONSOLE)(_handler(operation))

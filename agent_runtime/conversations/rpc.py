@@ -8,7 +8,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import DEFERRED
 
 from .binding import get_service
-from .model import ConversationError, ConversationScope, Refusal, digest, identifier
+from .model import ConversationError, Refusal, caller_scope, identifier
 
 __layer__ = "lanes"
 PREFIX = "runtime.conversation."
@@ -82,8 +82,7 @@ def execute(operation: str, params: dict, caller, launcher_request=None) -> dict
         return service.capabilities()
     if params["install_id"] != service.install_id:
         raise ConversationError(Refusal.WRONG_OWNER)
-    actor = digest({"kind": caller.kind, "device": caller.device_id})
-    scope = ConversationScope(actor, identifier(params["client_scope"]), identifier(params["profile"]))
+    scope = caller_scope(caller, params["client_scope"], params["profile"])
     kwargs = {"launcher_request": launcher_request} if operation == "send" else {}
     return OPERATIONS[operation](service, scope, params, **kwargs)
 

@@ -13,7 +13,7 @@ The Hermes-native runtime serving Mission Control and Intelligence: operator roo
 independent conversations, discussions, personas, workspaces, office and board.
 Shared service authority does not mean a shared conversation identity.
 
-`work_cursor::` 2026-09-30 — [Hermes-backed Work view](../../docs/downstream/hermes-work-view-2026-09-30.md)
+`work_cursor::` 2026-10-01 — [Scoped chat Work](../../docs/downstream/scoped-chat-work-2026-10-01.md)
 exposes native task submission and observations through the console-private
 harness. Hermes owns execution; Launcher reuses Companion presentation through
 neutral ports. Dispatcher and qualification limits are recorded in the evidence.
