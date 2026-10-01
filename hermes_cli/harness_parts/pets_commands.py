@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent.charsheet.draft.installed import sheet_revision as _pet_sheet_revision
 from agent_runtime.cli_format import emit_json
 
 __layer__ = "lanes"
@@ -24,6 +23,20 @@ __all__ = [
     "_pet_sprite_payload_for_launcher",
     "_pet_state_rows",
 ]
+
+
+def _pet_sheet_revision(path: Path) -> str:
+    """``agent.charsheet.draft.installed.sheet_revision``, imported when a pet verb runs.
+
+    Function-local on purpose (HQ3, 2026-10-01): the parser binds this module for
+    EVERY ``hermes harness`` verb, and a module-scope import here pulled the whole
+    charsheet draft pipeline and PIL into ``harness snapshot`` / ``persona list`` /
+    every other verb that never touches a pet. Pinned by
+    ``tests/hermes_cli/test_harness_startup_deferrals.py``.
+    """
+    from agent.charsheet.draft.installed import sheet_revision
+
+    return sheet_revision(path)
 
 
 def _cmd_pets_gallery(args) -> int:

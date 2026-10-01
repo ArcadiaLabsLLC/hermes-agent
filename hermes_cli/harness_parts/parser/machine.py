@@ -439,11 +439,21 @@ def add_snapshot(subs) -> None:
     # STAGE 6 (2026-08-22): the help text read "Write redaction-safe
     # snapshot.json" until the boot-cache writer it named (``snapshot.write_snapshot``)
     # was deleted with the read-model lane. This verb BUILDS a frame and prints
-    # it; it writes no store state. `--json` is the only flag it has ever had —
-    # the cache preference was resolved from config, never from argv, so there
-    # was no cache-lane flag to retire with the lane.
+    # it; it writes no store state. The cache preference was resolved from
+    # config, never from argv, so there was no cache-lane flag to retire with
+    # the lane.
     snap = subs.add_parser("snapshot", help="Build and print a redaction-safe runtime snapshot frame")
     snap.add_argument("--json", action="store_true")
+    # HQ4 (2026-10-01): one slice instead of the whole ~900 KB frame. Absent, the
+    # full dump is printed exactly as before — Mission Control reads that.
+    snap.add_argument(
+        "--only",
+        type=runtime_commands.parse_snapshot_sections,
+        default=None,
+        metavar="SECTION[,SECTION...]",
+        help="Print only these top-level frame keys (e.g. agents,boards); an unknown key is refused "
+        "with the list of the frame's keys",
+    )
     snap.set_defaults(func=runtime_commands._cmd_snapshot)
 
 

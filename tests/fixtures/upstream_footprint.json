@@ -468,6 +468,12 @@
       "files": "151 -> 117: 34 files back at 2f14d5e6e4 bytes — 32 upstream test files (5 linux marks moved to id_markers; 6 doc pointers / an unused import; 16 Windows respellings upstream's own platforms marks already skip; 2 respellings moved to *_downstream.py siblings with win32 strict xfails; the local-runtime stub, now a timeout mark by id; the redundant test_hermes_constants pin; the bypass self-test, now a win32 skip by id plus a sibling), the CRLF contributor file (a -text keeper), and hermes_cli/provider_catalog.py (its block is hermes_cli/provider_login_catalog.py)",
       "deleted_lines": "834 -> 766: the reverted files' deletions; heavy 4 -> 3 (agent/pet/generate/atlas.py 199 -> 109). Twelve kept files shrank into fork modules (each move's red is in its commit message): gateway.py 169 -> 20, gateway_windows.py 123 -> 5, tool_search.py 117 -> 37, terminal_tool.py 86 -> 30, plugins/memory 69 -> 2, subcommands/auth.py 37 -> 2, model_tools.py 31 -> 4, update_cmd_windows.py 30 -> 4, process_registry_notifications.py 29 -> 3, plugins_manifest.py 20 -> 5, live_system_guard.py 169 -> 39",
       "reason": "footprint moves to fork-owned modules, id marks and siblings; no behaviour change (bucket b found no load-time-safe wrap)"
+    },
+    {
+      "change": "lane hq-b (HQ3, 2026-10-01): two added lines in hermes_cli/main.py main() install hermes_cli.gettext_find_memo (fork-owned, stdlib-only) before the parser tree is built",
+      "files": "172 -> 172: hermes_cli/main.py was already in the footprint",
+      "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
+      "reason": "no fork-side cut reaches upstream's ~430 parsers: argparse re-runs gettext.find per parser and, with LANG set (Git Bash, WSL), that is ~7,450 locale-dir probes, ~2.5 s of every non---version command on Windows (measured 2026-10-01). Upstream PR candidate (the memo + its two lines), or rides the ledger's planned main() pre_command hook"
     }
   ]
 }

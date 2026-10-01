@@ -3650,6 +3650,8 @@ def _default_to_chat(args) -> None:
 def main():
     """Main entry point for hermes CLI."""
     _boot_clock.mark_main_entered()
+    from hermes_cli.gettext_find_memo import install_gettext_find_memo  # fork: HQ3 — argparse's gettext probes once, not per parser
+    install_gettext_find_memo()
     _set_process_title()
     _warn_if_unsupervised_pid1()
     _advertise_agent_env()

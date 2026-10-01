@@ -37,6 +37,7 @@ __all__ = [
     "_cmd_status",
     "_cmd_stream",
     "_cmd_worktree_reap",
+    "parse_snapshot_sections",
 ]
 
 
@@ -507,12 +508,49 @@ def _cmd_snapshot(args) -> int:
         parity = {}
         frame["parity"] = parity
     parity["frame_source"] = _SNAPSHOT_FRAME_SOURCE
+    sections = getattr(args, "only", None)
+    if sections is not None:
+        # Checked against the BUILT frame's own keys, not a list typed here: the
+        # builder adds keys in several passes, and a copy of that set would be
+        # free to disagree with it. The price is one build per refused request.
+        unknown = [name for name in sections if name not in frame]
+        if unknown:
+            from hermes_cli.harness_support import emit_harness_error
+
+            # ``message=`` passes the text whole: the default path cuts at 300
+            # characters, which drops most of the section list — the one part
+            # the caller needs to correct the request. Frame keys are code
+            # identifiers, never user data or paths.
+            refusal = (
+                f"unknown snapshot section(s): {', '.join(unknown)}; "
+                f"the frame's sections are: {', '.join(sorted(frame))}"
+            )
+            return emit_harness_error(
+                ValueError(refusal), args=args, message=refusal, reason="unknown_snapshot_section"
+            )
+        frame = {name: frame[name] for name in frame if name in sections}
     print(
         emit_json(frame)
         if args.json
         else f"snapshot built (frame_source={_SNAPSHOT_FRAME_SOURCE})"
     )
     return 0
+
+
+def parse_snapshot_sections(raw: str) -> tuple[str, ...]:
+    """``--only`` value → the requested top-level frame keys, deduplicated, in the order given.
+
+    An empty selection (``--only ""`` / ``--only ,``) is refused at parse time: an
+    empty frame is never what a caller meant. Whether each name EXISTS is decided
+    against the built frame in :func:`_cmd_snapshot`.
+    """
+
+    import argparse
+
+    names = tuple(dict.fromkeys(part.strip() for part in str(raw).split(",") if part.strip()))
+    if not names:
+        raise argparse.ArgumentTypeError("--only needs at least one section name")
+    return names
 
 
 def _cmd_stream(args) -> int:
