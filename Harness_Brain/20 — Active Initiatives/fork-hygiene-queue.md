@@ -196,7 +196,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h13-test)
 
-- [ ] **`bare_bash_is_not_posix` now cold-starts a WSL distro (Ubuntu appeared on the dev box 2026-09-30); under `run_tests.sh -j 8` the first `test_env_gap_registry` probe exceeded the 30 s per-test cap (RETRY PASS at 1 worker) — give the registry test a `pytest.mark.timeout` above the probe's 30 s, or bound the probe below it** · `fork / suite` · evidence: lane h13-test `h13-logs/tooling.log`, `bd9ed2faf9` · filed 2026-09-30 · **TAKEN 2026-10-02 w5-fh**
 
 ## Filed on arrival — 2026-09-26 (lane TRIAGE)
 
