@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Owner asks — 2026-10-02 (Stage 7 hermes half; filed by the launcher orchestrator)
+
+- [ ] **The hermes toolset for launcher app functions: read `launcher.app_functions.list` over the serve session's server→client request lane, expose each entry as an agent tool, and send `launcher.<name>` requests with `params._meta.origin` set (absent reads unknown and the launcher fails reach closed); respect the launcher's typed refusal and confirmation answers; the Studio set stays behind its own gate** · `fork-owned / agent_runtime` · launcher half landed 2026-09-28 (`EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md`, "Stage 7 launcher half as landed": entries, `AppFunctionDispatcher`, `hermesServeRequestResponderProvider`, the MCP projection behind `ETERNIA_APP_MCP`); what hermes already holds under `agent_runtime/conversations/app_functions.py` is the starting point, never a second registry · **TAKEN 2026-10-02 w10-s7h**
+
 ### Owner asks — 2026-10-02 (agent chat is ONE surface; filed by the launcher orchestrator)
 
 - [ ] **Instance conversations, the hermes half (`feat/instance-conversations`, 2026-10-01): account-scoped chat mints on existing receipts, `runtime.agent.directory`, `runtime.workspace.conversations`, independent non-spatial rooms, `runtime.operator.conversation.list`; remaining before cutover is model, skills, context, attachment and recovery parity for instance sessions, then the launcher transport cutover; the profile worker (the `tui_gateway` subprocess behind `runtime.conversation.*`) retires only after a matched LIVE first-turn comparison, never on the controlled test alone** · `fork-owned / agent_runtime` · launcher rulings `OR-2026-10-01-instance-conversations` and `OR-2026-10-02-console-is-the-chat-surface` in `EterniaLauncher/docs/rulings/owner_rulings.json`; plan, checkpoints and the latency report are branch-only until it lands (`docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md`, `instance-conversation-latency-2026-10-02.md` on that branch) · **TAKEN 2026-10-01 Codex**
