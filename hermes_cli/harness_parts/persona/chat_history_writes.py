@@ -102,6 +102,19 @@ def _persona_chat_existing_turn(
     session_id: str | None,
     client_message_id: str | None,
 ) -> dict[str, object]:
+    """This id's operator row and its REPLY row, as SessionDB holds them.
+
+    ``assistant`` is the turn's final answer only: an assistant row that asks
+    for tools (``tool_calls``, ``finish_reason: tool_calls``) is a step of the
+    turn, not its reply. Counting one made every reader of this answer treat a
+    turn whose executor died between a tool result and the next model call as
+    answered -- the resend recovery settled it ``projected`` with an empty reply
+    and the operator got silence (2026-10-02, three QA turns that each ended in
+    a serve restart after a launcher_qa launch tool). With no final row the
+    journal keeps its in-flight state and the resend gets the typed
+    outcome-unknown refusal instead.
+    """
+
     if session_db is None or not session_id or not client_message_id:
         return {}
     try:
@@ -124,9 +137,17 @@ def _persona_chat_existing_turn(
         role = str(item.get("role") or "").strip().lower()
         if role == "user" and "operator" not in result:
             result["operator"] = item
-        elif role == "assistant":
+        elif role == "assistant" and not _is_tool_step(item):
             result["assistant"] = item
     return result
+
+
+def _is_tool_step(message: dict) -> bool:
+    """Does this assistant row ask for tools (a step of the turn, not its reply)?"""
+
+    return bool(message.get("tool_calls")) or (
+        str(message.get("finish_reason") or "").strip().lower() == "tool_calls"
+    )
 
 
 def _resolve_relay_sender_marker(
