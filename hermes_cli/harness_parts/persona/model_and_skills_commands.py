@@ -24,7 +24,7 @@ from .chat_coordinator import (
     _coordinator_confirm_payload,
     _coordinator_scope_from_args,
 )
-from .chat_session import _safe_chat_model_override_value
+from agent_runtime.persona_chat_session import _safe_chat_model_override_value
 from .chat_target import _persona_by_id
 
 __layer__ = "lanes"

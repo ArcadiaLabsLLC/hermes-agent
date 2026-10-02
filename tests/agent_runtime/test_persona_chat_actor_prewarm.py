@@ -352,7 +352,7 @@ def test_the_assembled_request_carries_the_signature_the_turn_would_ship(
     from agent_runtime.config import load_agent_runtime_config
     from agent_runtime.mission_chat_turn_context import build_mission_chat_turn_context
     from agent_runtime.models import apply_instance_model_overrides
-    from hermes_cli.harness_parts.persona.chat_session import (
+    from agent_runtime.persona_chat_session import (
         _chat_effective_model_payload,
         _chat_model_override_from_config,
         _persona_chat_native_history,
@@ -426,7 +426,7 @@ def test_prewarm_then_two_turns_REUSE_across_an_ambient_config_reresolve(
     from agent_runtime.mission_chat_turn_context import build_mission_chat_turn_context
     from agent_runtime.models import apply_instance_model_overrides
     from agent_runtime.persona_chat_continuity import PersonaChatRuntimeRegistry
-    from hermes_cli.harness_parts.persona.chat_session import (
+    from agent_runtime.persona_chat_session import (
         _chat_effective_model_payload,
         _chat_model_override_from_config,
         _persona_chat_native_history,
@@ -554,7 +554,7 @@ def test_a_workspace_bound_chats_first_turn_NAMES_the_workspace_as_the_cause(
 
     from agent_runtime.config import load_agent_runtime_config
     from agent_runtime.models import apply_instance_model_overrides
-    from hermes_cli.harness_parts.persona.chat_session import (
+    from agent_runtime.persona_chat_session import (
         _chat_effective_model_payload,
         _chat_model_override_from_config,
         _session_model_config,
@@ -600,7 +600,7 @@ def test_the_assembled_request_keys_acquire_on_the_root_the_tip_and_the_revision
     or ``revision`` is a REBUILD, so all three must come from the send path's own
     helpers."""
 
-    from hermes_cli.harness_parts.persona.chat_session import (
+    from agent_runtime.persona_chat_session import (
         _persona_chat_native_revision,
         _persona_chat_native_tip,
     )
