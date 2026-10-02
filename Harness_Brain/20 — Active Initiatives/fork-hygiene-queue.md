@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **The w5-fh registry fence leaks: after it landed, a test run wrote `<TEMP>/p-l-longrun-b4428b5b/home/bin` into the operator's HKCU Path again (found 2026-10-02, folder already gone). The fence is an audit hook in the pytest process only; a test that spawns a child Python (installer, `hermes` launcher, `python -I`) writes from the child, which the hook never sees. Make every test-spawned child inherit the refusal (an env marker the fork's PATH-registration seam honors, or run children against a redirected HKCU), then prove it with a child-process write that must be refused** · `tests/_downstream/registry_write_fence.py` · `tests/hermes_cli/test_container_boot.py` (the `longrun` fixtures) · **TAKEN 2026-10-02 w12-fence**
+
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
 ## Filed on arrival — 2026-10-02 (lane w10-s7h)
