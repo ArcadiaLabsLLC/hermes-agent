@@ -11,6 +11,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-02 (lane h-rows)
+
+- [ ] **`tests/tooling/test_refactor_stays_downstream.py::test_no_refactor_commit_touches_an_upstream_file` times out (30 s, twice incl. the 1-worker retry) in a worktree of this `tree:0` partial clone: `scripts/god_file_fences.py::fence_crossings` runs one `git diff-tree` per first-parent commit and each lazily fetches trees; the gate skips a SHALLOW clone but not a partial one — skip or batch (one `git log --name-only` walk) for `remote.origin.partialclonefilter`** · `scripts/god_file_fences.py` · evidence: lane h-rows gate log, 2026-10-02
+
 ## Filed on arrival — 2026-10-02 (lane w13-hm, filed by the orchestrator)
 
 - [ ] **Mutation claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` no longer anchors: its search text appears twice in `_ChatProtocolV2Emitter._match_started_tool`, so `test_mutation_claims_still_anchor` is red on main (same red on base `3aec8e37ca0`)** · `agent_runtime/chat_events.py` · **TAKEN 2026-10-02 h-rows**
