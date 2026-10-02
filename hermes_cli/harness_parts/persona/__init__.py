@@ -12,8 +12,8 @@ module they need.
 
 Modules, by layer (lowest first; a module imports only its own layer or lower):
 
-* stores — ``chat_session`` (session rows, chat model override, native history
-  tip), ``chat_events`` (event-log publishes and the protocol-v2 chat frame emitter),
+* stores — ``agent_runtime.persona_chat_session`` (session rows, chat model override,
+  native history tip), ``chat_events`` (event-log publishes and the protocol-v2 chat frame emitter),
   ``chat_request`` (mission-chat request validation and refusal payloads; reads
   the clarify-ticket store), ``chat_target`` (persona resolution and the
   mission-chat target decision), ``chat_reply_stamps`` (visibility and media

@@ -106,3 +106,27 @@ before minting. The existing send-parameter tests now permit additive method
 entries rather than freezing the method set. Owner/open-chat tests passed 29
 cases; send/manifest tests passed 48. Launcher production scope binding remains
 part of the account-view cutover, not this checkpoint.
+
+## Native session inspection, October 2
+
+Shared session helpers now live below the CLI in `agent_runtime.persona_chat_session`.
+The existing transcript reader and inspection share one read-only, owner-checked
+SessionDB boundary. Native settings expose the existing model cascade and lineage
+usage; skills expose the existing catalog, full documents and recorded loads.
+Skill inspection uses the native session's recorded working directory and the
+existing project-trust gate. Neither inspection starts an actor, changes selection
+nor creates another store.
+
+The Launcher mounts its existing Skills browser for the exact attached session,
+only when advertised. Live skill-load events and model-write/client parity remain
+open, alongside context/attachment/recovery parity and console account isolation.
+The profile worker is not retired; this branch is not a completed cutover.
+
+Verification: 1,356 tests passed across eight focused files and boundary gates;
+four affected tests passed after the type/documentation cleanup, and both new
+invariants passed with recorded-workspace coverage added. Removing
+owner validation and profile binding failed both new invariant tests; restored
+checks passed. The earlier tombstone failure was our helper-name collision,
+corrected without weakening the gate. No live runtime or provider was used.
+New production modules are 124 and 45 lines; the largest new function is 27 lines
+with six AST decision nodes, not a cyclomatic-complexity measurement.
