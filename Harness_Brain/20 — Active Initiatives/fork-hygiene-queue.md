@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **`tests/tools/test_mcp_progress_relay.py::test_a_call_reporting_progress_outlives_its_base_timeout` flakes under machine load: its 0.3 s base timeout let a progressing call die once in the 2026-10-02 landing gate ("TimeoutError object has no attribute content"), then passed on retry and 5/5 alone. Widen the timing margins (or drive the clock) so the reset is proved without racing the scheduler** · lane w14-prog `78413597a03` · UNCLAIMED
+
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
 ## Filed on arrival — 2026-10-02 (lane w10-s7h)
