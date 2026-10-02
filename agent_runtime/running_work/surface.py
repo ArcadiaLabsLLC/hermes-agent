@@ -248,99 +248,9 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
     if row is None:
         return {"status": "error", "code": "not_found", "work_id": work_id}
 
-    if kind == KIND_TERMINAL:
-        registry = _module("tools.process_registry")
-        session = None
-        if registry is not None:
-            try:
-                session = registry.process_registry.get(stable)
-            except Exception:
-                session = None
-        if session is None:
-            # The row exists — it came from the durable checkpoint — but the
-            # handle lives in another process, so there is nothing here to kill.
-            # The same positive-ownership rule the read lanes apply: falling
-            # through to `kill_process` would return `not_found` and report
-            # "no such work" about work that is demonstrably running.
-            return {
-                "status": "error",
-                "code": "cancel_unavailable",
-                "work_id": work_id,
-                "detail": REASON_NOT_IN_PROCESS,
-                "owning_lane": "serve",
-            }
-        try:
-            # consume_output=False: a cancel is not the agent reading its
-            # output, so it must not suppress the completion notification.
-            result = registry.process_registry.kill_process(
-                stable, source="harness.work_cancel", consume_output=False
-            )
-        except Exception as exc:
-            return {
-                "status": "error",
-                "code": "cancel_failed",
-                "work_id": work_id,
-                "detail": type(exc).__name__,
-            }
-        killed = str(result.get("status")) != KILL_NOT_FOUND
-        return {
-            "status": "cancelled" if killed else "error",
-            "code": "" if killed else "not_found",
-            "work_id": work_id,
-            "kind": kind,
-            "result": bounded_operator_text(result.get("status"), limit=80),
-        }
-
-    if kind == KIND_DELEGATION:
-        mod = _module("tools.async_delegation")
-        if mod is None or not _delegation_owned_here(mod, stable):
-            # The interrupt callable lives in the record map of the process that
-            # dispatched the child. From anywhere else `interrupt_for_session`
-            # matches nothing and returns 0, which the caller would otherwise
-            # read as "the cancel failed" rather than "ask the owning lane".
-            return {
-                "status": "error",
-                "code": "cancel_unavailable",
-                "work_id": work_id,
-                "detail": REASON_NOT_IN_PROCESS,
-                "owning_lane": "serve",
-            }
-        session_id = (row.get("owner") or {}).get("session_id") or ""
-        if not session_id:
-            return {
-                "status": "error",
-                "code": "cancel_unavailable",
-                "work_id": work_id,
-                "detail": "delegation row carries no owning session",
-            }
-        try:
-            interrupted = mod.interrupt_for_session(
-                parent_session_id=str(session_id), reason=reason
-            )
-        except Exception as exc:
-            return {
-                "status": "error",
-                "code": "cancel_failed",
-                "work_id": work_id,
-                "detail": type(exc).__name__,
-            }
-        if not interrupted:
-            return {
-                "status": "error",
-                "code": "cancel_failed",
-                "work_id": work_id,
-                "detail": "no running delegation matched the owning session",
-            }
-        return {
-            "status": "cancelled",
-            "code": "",
-            "work_id": work_id,
-            "kind": kind,
-            "interrupted": int(interrupted),
-        }
-
-    if kind == KIND_TOOL_CALL:
-        return _cancel_tool_call(work_id, row, reason=reason)
+    canceller = _CANCELLERS.get(kind)
+    if canceller is not None:
+        return canceller(work_id, kind, stable, row, reason=reason)
 
     return {
         "status": "error",
@@ -349,6 +259,105 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
         "kind": kind,
         "detail": f"{kind} work has no interrupt seam in v1",
     }
+
+
+def _cancel_terminal(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """Terminal work: ``process_registry.kill_process``, identity-guarded, in the owning process only."""
+    registry = _module("tools.process_registry")
+    session = None
+    if registry is not None:
+        try:
+            session = registry.process_registry.get(stable)
+        except Exception:
+            session = None
+    if session is None:
+        # The row exists — it came from the durable checkpoint — but the
+        # handle lives in another process, so there is nothing here to kill.
+        # The same positive-ownership rule the read lanes apply: falling
+        # through to `kill_process` would return `not_found` and report
+        # "no such work" about work that is demonstrably running.
+        return {
+            "status": "error",
+            "code": "cancel_unavailable",
+            "work_id": work_id,
+            "detail": REASON_NOT_IN_PROCESS,
+            "owning_lane": "serve",
+        }
+    try:
+        # consume_output=False: a cancel is not the agent reading its
+        # output, so it must not suppress the completion notification.
+        result = registry.process_registry.kill_process(
+            stable, source="harness.work_cancel", consume_output=False
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "code": "cancel_failed",
+            "work_id": work_id,
+            "detail": type(exc).__name__,
+        }
+    killed = str(result.get("status")) != KILL_NOT_FOUND
+    return {
+        "status": "cancelled" if killed else "error",
+        "code": "" if killed else "not_found",
+        "work_id": work_id,
+        "kind": kind,
+        "result": bounded_operator_text(result.get("status"), limit=80),
+    }
+
+
+def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """A delegation: ``interrupt_for_session`` from the process that dispatched it."""
+    mod = _module("tools.async_delegation")
+    if mod is None or not _delegation_owned_here(mod, stable):
+        # The interrupt callable lives in the record map of the process that
+        # dispatched the child. From anywhere else `interrupt_for_session`
+        # matches nothing and returns 0, which the caller would otherwise
+        # read as "the cancel failed" rather than "ask the owning lane".
+        return {
+            "status": "error",
+            "code": "cancel_unavailable",
+            "work_id": work_id,
+            "detail": REASON_NOT_IN_PROCESS,
+            "owning_lane": "serve",
+        }
+    session_id = (row.get("owner") or {}).get("session_id") or ""
+    if not session_id:
+        return {
+            "status": "error",
+            "code": "cancel_unavailable",
+            "work_id": work_id,
+            "detail": "delegation row carries no owning session",
+        }
+    try:
+        interrupted = mod.interrupt_for_session(
+            parent_session_id=str(session_id), reason=reason
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "code": "cancel_failed",
+            "work_id": work_id,
+            "detail": type(exc).__name__,
+        }
+    if not interrupted:
+        return {
+            "status": "error",
+            "code": "cancel_failed",
+            "work_id": work_id,
+            "detail": "no running delegation matched the owning session",
+        }
+    return {
+        "status": "cancelled",
+        "code": "",
+        "work_id": work_id,
+        "kind": kind,
+        "interrupted": int(interrupted),
+    }
+
+
+def _cancel_tool_call_arm(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    return _cancel_tool_call(work_id, row, reason=reason)
 
 
 def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
@@ -378,3 +387,11 @@ def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict
         "kind": KIND_TOOL_CALL,
         "interrupted_turn": parent,
     }
+
+
+#: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.
+_CANCELLERS = {
+    KIND_TERMINAL: _cancel_terminal,
+    KIND_DELEGATION: _cancel_delegation,
+    KIND_TOOL_CALL: _cancel_tool_call_arm,
+}

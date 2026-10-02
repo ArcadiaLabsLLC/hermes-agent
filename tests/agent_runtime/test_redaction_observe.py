@@ -29,3 +29,40 @@ def test_observe_mode_still_masks_secret_lines(monkeypatch):
     assert "safe line" in payload["raw_model_output"]
     assert "[redacted line" in payload["raw_model_output"]
     assert "abcdef1234567890" not in payload["raw_model_output"]
+
+
+def test_strict_mode_admits_the_tool_call_record_fields(monkeypatch):
+    """The finished-call record survives with observe mode OFF (runtime-queue row, w5-rt)."""
+    monkeypatch.setenv("HERMES_REDACTION_MODE", "strict")
+
+    payload = _safe_progress_payload(
+        "run.tool.finished",
+        {
+            "tool_call_id": "call_abc-123",
+            "outcome": "timed_out",
+            "timed_out": True,
+            "timeout_seconds": 180,
+        },
+    )
+
+    assert payload["tool_call_id"] == "call_abc-123"
+    assert payload["outcome"] == "timed_out"
+    assert payload["timed_out"] is True
+    assert payload["timeout_seconds"] == 180
+    assert "would_redact" not in payload
+
+
+def test_the_tool_call_record_fields_are_type_checked_not_coerced(monkeypatch):
+    monkeypatch.setenv("HERMES_REDACTION_MODE", "strict")
+    bad = {
+        "tool_call_id": "../etc/passwd",
+        "outcome": "exploded",
+        "timed_out": "yes",
+        "timeout_seconds": True,
+    }
+
+    assert _safe_progress_payload("run.tool.finished", bad) == {"type": "run.tool.finished"}
+
+    monkeypatch.setenv("HERMES_REDACTION_MODE", "observe")
+    observed = _safe_progress_payload("run.tool.finished", bad)
+    assert observed["would_redact"] == {key: "tool_call_field" for key in bad}

@@ -218,6 +218,35 @@ def test_the_declared_dynamic_imports_are_the_registries_own_tables():
     assert set(DYNAMIC_IMPORTS) == {"hermes_cli.plugins", "agent.secret_sources.registry"}
 
 
+def test_the_pm_facade_is_read_from_its_own_table():
+    """Held at run time: the walk follows exactly the names ``pm.__getattr__`` resolves."""
+    import pm
+    from scripts.bundle_profile_closure import facade_exports
+
+    assert facade_exports() == {"pm": pm._HOME}
+    assert facade_exports()["pm"]["install_hint"] == "pm.extras"
+
+
+def test_a_name_imported_through_a_facade_reaches_its_defining_module(tmp_path, monkeypatch):
+    """Runtime-queue row (w5-rt): switching ``pm.extras`` off passed the gate while every
+    ``from pm import install_hint`` then failed on the phone. A facade name now walks to the
+    module that defines it, so an eager import of it pins the switched-off module."""
+    import scripts.bundle_profile_closure as closure
+
+    files = {"fac/__init__.py": "", "fac/extras.py": "", "fac/heavy.py": "",
+             "user.py": "from fac import hint\n"}
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    index = module_index(tmp_path)
+    tops = {"fac", "user"}
+    monkeypatch.setattr(closure, "facade_exports", lambda: {"fac": {"hint": "fac.extras", "big": "fac.heavy"}})
+    walk = Walk(("user",), ("fac.extras", "fac.heavy"), index, tops)
+    assert walk.pinned == {"fac.extras"}  # the name's own module, and not the facade's others
+    monkeypatch.setattr(closure, "facade_exports", lambda: {})  # positive control: the old blind spot
+    assert Walk(("user",), ("fac.extras", "fac.heavy"), index, tops).pinned == set()
+
+
 def test_a_kept_registry_keeps_what_it_imports_by_name(tmp_path, monkeypatch):
     import scripts.bundle_profile_closure as closure
 

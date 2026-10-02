@@ -406,7 +406,8 @@ packaging:
     - gateway.shutdown_forensics
     # The package manager (security.allow_lazy_installs is false). pm/__init__ stays (a lazy PEP 562
     # facade), and so does pm.extras: `from pm import install_hint` at module level (hermes_cli.auth
-    # and others) resolves through the facade to pm.extras, which the closure walk cannot see.
+    # and others) resolves through the facade to pm.extras; the closure walk follows the facade's
+    # own table (`scripts/bundle_profile_closure.py::facade_exports`), so pruning it is a pinned finding.
     # Kept too: pm.install (the TTS tool asks it on the turn path) and the pm.package / pm.registry
     # it imports at module level.
     - pm.client

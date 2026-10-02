@@ -78,6 +78,9 @@ GENERATED_FRAME_FILES = (
     "heartbeat.json",
     "delta_batch.json",
     "hydrate_running_work_owner.json",
+    # w4-stream's section frame: ``running_work`` ALONE, read at the owner
+    # hydrate's offset. See :func:`_build_running_work_section_frame`.
+    "running_work.json",
     # BO-1's convergence pair. See :func:`_build_stale_first_convergence_pair`
     # for what produces them and why they must be read as a PAIR: their whole
     # contract is a relation between the two frames, not a property of either.
@@ -727,6 +730,29 @@ def _seed_running_work_owner() -> None:
         conn.execute("UPDATE async_delegations SET owner_started_at=NULL")
 
 
+def _build_running_work_section_frame(owner_hydrate: dict) -> dict:
+    """The ``running_work`` section frame, read right after ``owner_hydrate``.
+
+    The frame ``StreamSession.flush`` ships alone when a batch ends a chat turn
+    (``stream.frames.running_work_frame``): ``type``, ``schema_version``,
+    ``generated_at``, ``as_of_offset`` and the section, and NO ``watermark`` —
+    it is an overlay on the held core and must never move a consumer's
+    sequence. Read against the same seeded root as ``owner_hydrate`` and at its
+    offset, so the section is the owner hydrate's section and the two goldens
+    pin "same shape as ``core.running_work``" in bytes. Paired with
+    ``hydrate.json`` (an earlier offset, no rows) it is the overlay that
+    applies; paired with ``hydrate_running_work_owner.json`` (the same offset)
+    it is the one that must change nothing.
+    """
+
+    from agent_runtime.stream.frames import running_work_frame
+
+    frame = running_work_frame(as_of_offset=owner_hydrate["watermark"]["event_offset"])
+    assert frame is not None, "running_work_frame could not read the section"
+    assert "watermark" not in frame, frame
+    return frame
+
+
 def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[Any, Any]]:
     """Point ``persona_chat_session_id_for`` at ``mint`` wherever it is READ.
 
@@ -1058,6 +1084,7 @@ def main() -> int:
         unowned_owner = by_id["delegation:deleg_fixture_unowned"]["owner"]
         assert unowned_owner["persona_id"] is None, unowned_owner
         assert unowned_owner["persona_instance_id"] is None, unowned_owner
+        running_work_section = _build_running_work_section_frame(owner_hydrate)
 
         # LAST of all, and after every frame above is closed: this one builds
         # real cores of its own (a convergence loop, then a gated rebuild) and
@@ -1078,6 +1105,7 @@ def main() -> int:
             "heartbeat.json": heartbeat_frame(offset=7),
             "delta_batch.json": delta_batch_frame(batch, snapshot=core),
             "hydrate_running_work_owner.json": owner_hydrate,
+            "running_work.json": running_work_section,
             "hydrate_stale_first.json": stale_first,
             "hydrate_authoritative_same_offset.json": authoritative_same_offset,
             "patch_agent_create.json": agent_create_patch,
