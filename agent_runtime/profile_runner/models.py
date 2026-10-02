@@ -83,7 +83,8 @@ class AgentRunRequest:
     max_api_calls: int | None = None
     max_total_tokens: int | None = None
     system_message: str | None = None
-    user_message: str = ""
+    user_message: str | list[dict[str, Any]] = ""
+    user_display_kind: str | None = None
     task_id: str | None = None
     progress_callback: Callable[[dict[str, Any]], None] | None = None
     stream_callback: Callable[[str | None], None] | None = None

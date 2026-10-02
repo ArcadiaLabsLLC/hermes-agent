@@ -476,6 +476,7 @@ class _RunPhases:
                 # provider_override/model_override args below.
                 self.persona,
                 self.chat_message,
+                submitted_input=self.submitted_input,
                 session_id=self.active_session_id,
                 permission_session_id=self.session_id,
                 persona_instance_id=self.instance.id,

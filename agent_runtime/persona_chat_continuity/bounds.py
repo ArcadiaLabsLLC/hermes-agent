@@ -235,7 +235,10 @@ def _bound_envelope(
     )
 
 
-def bound_composed_user_content(value: Any) -> BoundedUserContent:
+def bound_composed_user_content(
+    value: Any, *, message_limit: int = _MAX_CONTENT,
+    row_limit: int = _MAX_USER_ROW_CONTENT,
+) -> BoundedUserContent:
     """Bound one operator user row PER PART, in priority order.
 
     Order of service is the contract, not an implementation detail:
@@ -264,7 +267,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     text = _redacted(value)
     parts = split_composed_user_row(text)
     if not parts.has_envelope:
-        bounded = _truncate(text, _MAX_CONTENT)
+        bounded = _truncate(text, message_limit)
         if bounded == text:
             return BoundedUserContent(text=text, source_chars=len(text))
         return BoundedUserContent(
@@ -275,14 +278,14 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
                     action=BOUND_ACTION_TRUNCATED,
                     original_chars=len(text),
                     bounded_chars=len(bounded),
-                    limit=_MAX_CONTENT,
+                    limit=message_limit,
                 ),
             ),
             source_chars=len(text),
         )
 
     notes: list[ContentBoundNote] = []
-    remaining = _MAX_USER_ROW_CONTENT
+    remaining = row_limit
 
     hud, note = _bound_envelope(
         parts.runtime_context,
@@ -294,7 +297,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
         notes.append(note)
     remaining -= len(hud)
 
-    message = _truncate(parts.message, min(_MAX_CONTENT, remaining))
+    message = _truncate(parts.message, min(message_limit, remaining))
     if len(message) != len(parts.message):
         notes.append(
             ContentBoundNote(
@@ -302,7 +305,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
                 action=BOUND_ACTION_TRUNCATED,
                 original_chars=len(parts.message),
                 bounded_chars=len(message),
-                limit=min(_MAX_CONTENT, remaining),
+                limit=min(message_limit, remaining),
             )
         )
     remaining -= len(message)

@@ -9,6 +9,8 @@ import json
 import re
 from typing import Any
 
+from agent.message_content import flatten_message_text
+
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
@@ -123,10 +125,9 @@ def _mask_secret_lines(value: str, *, limit: int) -> str:
 
 
 def _safe_chat_body_text(value: Any, *, limit: int) -> str:
-    text = str(value or "").replace("\x00", " ")
+    text = flatten_message_text(value).replace("\x00", " ")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = [" ".join(line.split()) for line in text.split("\n")]
     normalized = "\n".join(lines).strip()
     normalized = re.sub(r"\n{4,}", "\n\n\n", normalized)
     return normalized[:limit].rstrip()
-

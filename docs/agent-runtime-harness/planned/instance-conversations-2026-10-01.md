@@ -174,3 +174,18 @@ runner-to-read regression; restoring it passed with the import-layer gate.
 Nine Launcher tests and one bounded Dart/native reconstruction test passed;
 touched-source analysis is clean. This closes live skill evidence, not the
 remaining rich-input, account-selection and transport-cutover requirements.
+
+## Reviewed native input, October 2
+
+Instance messages now reuse the reviewed-prompt validator and upstream multimodal
+input. Native wire/history preserve admitted text and image blocks across restart;
+curated previews exclude encoded image bytes. No upload service or image engine
+was added. Plain CLI input retains its existing limit.
+
+Both real-agent round trips passed: native vision and configured upstream vision
+fallback. Removing the reviewed marker failed both tests by truncating context;
+restoring it passed. The related native run passed 156 tests. Its one failure,
+the duplicate-body gate, also fails on clean main `667f7521c8`: the unchanged
+`ProviderRefused` and `DefaultModelRefused` constructors collide. It is queued,
+not waived. Launcher focused input/conformance tests and the bounded native-client
+reconstruction test passed. This is not full transport parity or desktop acceptance.
