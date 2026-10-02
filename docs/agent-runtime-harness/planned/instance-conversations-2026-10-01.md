@@ -202,3 +202,8 @@ The native directory, workdir, runtime, tool visibility and layer group passed
 88 tests. Disabling the pinned execution path fails the regression. Eleven
 Launcher projection/review/widget tests passed. Rich input and context are now
 covered; full instance cutover and account-safe console wiring remain open.
+
+Clarification choices now persist on the existing native ticket and reopen with
+its exact identity. Settled tickets disappear; history never recreates questions.
+The native group passed 94 tests. Removing ticket payload persistence failed
+the new recovery regression. Three client/controller/widget tests passed.
