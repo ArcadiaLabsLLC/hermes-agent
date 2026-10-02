@@ -220,3 +220,17 @@ The operator-only All accounts directory includes native persona-chat rows with
 null metadata. Current-account queries still exclude unowned sessions; no owner
 is inferred or assigned. Three native directory tests and the isolated Launcher
 creation/continuation test pass. Account-safe console wiring remains open.
+
+## Final native boundary checks, October 2
+
+Execution reads expose the existing admission's frame request identity so clients
+can observe streaming without a second event/history owner. Eighteen room/drain
+tests pass: an empty or settled non-spatial instance room permits maintenance;
+queued, running and uncertain work still blocks it. Restoring the old
+profile-group-only predicate fails the empty-instance-room regression.
+
+The isolated Launcher/native room test opens an empty owned room, retries its
+mint, runs Compare/Discuss/Reply on the same member sessions, rejects a different
+owner and preserves the existing console room. No live profile or provider.
+The October 2 owner direction keeps workers until console promotion, parity and
+matched live latency qualification; this lane does not retire them.
