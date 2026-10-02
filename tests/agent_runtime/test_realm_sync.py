@@ -601,10 +601,11 @@ def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tm
     header = "http.extraHeader=Authorization: Bearer sekret_value_1234567890"
 
     _git(repo, "status", "--porcelain", extra_config=[header])
-    assert calls[-1][:3] == ["git", "-c", header]
+    assert calls[-1][:5] == ["git", "-c", "core.longpaths=true", "-c", header]
 
     _git(repo, "status", "--porcelain")
-    assert "-c" not in calls[-1]
+    assert calls[-1][:3] == ["git", "-c", "core.longpaths=true"]  # every realm-sync call: MAX_PATH
+    assert not any("extraHeader" in part for part in calls[-1])
 
     with pytest.raises(RealmSyncError) as excinfo:
         _git(repo, "definitely-not-a-git-subcommand", extra_config=[header])
@@ -632,11 +633,12 @@ def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
     header = "http.extraHeader=Authorization: Bearer sekret_value_1234567890"
 
     _git_clone("https://git.test.invalid/x.git", tmp_path / "clone-target", extra_config=[header])
-    assert calls[-1][:3] == ["git", "-c", header]
+    assert calls[-1][:5] == ["git", "-c", "core.longpaths=true", "-c", header]
     assert "clone" in calls[-1]
 
     _git_clone("https://git.test.invalid/x.git", tmp_path / "clone-target")
-    assert "-c" not in calls[-1]
+    assert calls[-1][:3] == ["git", "-c", "core.longpaths=true"]
+    assert not any("extraHeader" in part for part in calls[-1])
 
 
 def test_pull_threads_credential_header_per_invocation_only(isolate_agent_runtime_root, tmp_path, monkeypatch):
