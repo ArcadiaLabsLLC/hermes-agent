@@ -207,3 +207,11 @@ Clarification choices now persist on the existing native ticket and reopen with
 its exact identity. Settled tickets disappear; history never recreates questions.
 The native group passed 94 tests. Removing ticket payload persistence failed
 the new recovery regression. Three client/controller/widget tests passed.
+
+## Instance-room model parity, October 2
+
+Account-owned room sessions now initialize the same native workspace field as
+direct sessions. Model reads and changes reuse operator-session services with
+the member's exact instance, session and owner; placement stays unchanged.
+Uncertain execution blocks changes. The native room/model/import group passed
+22 tests; the binding recheck passed separately. Full cutover remains open.

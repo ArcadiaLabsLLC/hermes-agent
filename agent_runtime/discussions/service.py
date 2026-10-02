@@ -180,6 +180,11 @@ class DiscussionService:
         if not is_group_scope(scope):
             self.context.workspace(scope)
 
+    def models(self, params, *, select=False):
+        from .member_models import member_models
+        with self._lock:
+            return member_models(self, params, select=select)
+
     def bindings(self) -> list[HostedRoomBinding]:
         with self._lock:
             if self._closed:
