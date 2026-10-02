@@ -12,6 +12,10 @@ from .member_models import open_member
 __layer__ = "lanes"
 
 _OUTCOMES = {"complete": "settled", "interrupted": "cancelled", "error": "failed"}
+#: Non-terminal native execution statuses -> attempt stage; any other is ``uncertain``.
+_IN_FLIGHT = {"running": "running"}
+#: Attempt stages in which the member's native turn is still live.
+_LIVE_STAGES = frozenset({"running", "waiting_input"})
 
 
 class ProfileTurns:
@@ -104,11 +108,11 @@ class ProfileTurns:
             return
         requests = snapshot.get("requests") or []
         question = {"request": requests[0]} if requests else None
-        stage = "waiting_input" if question else ("running" if status == "running" else "uncertain")
+        stage = "waiting_input" if question else _IN_FLIGHT.get(status, "uncertain")
         self.attempts.update(row, stage=stage, question=question)
 
     def is_live(self, row):
-        return self.recover(row)["stage"] in {"running", "waiting_input"}
+        return self.recover(row)["stage"] in _LIVE_STAGES
 
     def execution_absent(self, row):
         return self.recover(row)["stage"] in {"pending", "terminal"}

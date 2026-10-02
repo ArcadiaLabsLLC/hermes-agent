@@ -22,7 +22,7 @@ class RoomCommands:
         self._handlers = {
             "stop": self._stop, "end": self._stop, "send": self._send,
             "invite": self._invite, "remove": self._remove,
-            "answer": self._attempt, "retry": self._attempt, "abandon": self._attempt,
+            "answer": self._answer, "retry": self._retry, "abandon": self._abandon,
         }
 
     def process(self, run):
@@ -106,23 +106,32 @@ class RoomCommands:
             self.runs.set_member_status(rid, mid, "removed")
         self.runs.finish_command(rid, key)
 
-    def _attempt(self, run, key, body, op):
+    def _attempt(self, run, body):
+        """The command's task, its attempt row and the run's execution lane."""
         rid = run["run_id"]
         task = self.state.task(rid, body["task_id"], body["generation"])
         row = self.attempts.get(rid, body["task_id"], body["generation"])
         if row is None:
             raise DiscussionError("attempt_not_found")
-        execution = self.state.executions.for_run(run)
-        if op == "answer":
-            if "group" in run["initial"]:
-                raise DiscussionError("unsupported_answer")
-            member = next(m for m in self.runs.members(rid) if m["member_id"] == row["member_id"])
-            execution.answer(run, member, row, key, body,
-                lambda _receipt: self.runtime.request_reconciliation(task["identity"]))
-        elif op == "retry":
-            execution.retry(row)
-            self.runtime.retry_indeterminate(task["identity"])
-        elif op == "abandon":
-            execution.abandon(row, body)
-            self.runtime.request_reconciliation(task["identity"])
-        self.runs.finish_command(rid, key)
+        return task, row, self.state.executions.for_run(run)
+
+    def _answer(self, run, key, body, _op):
+        task, row, execution = self._attempt(run, body)
+        if "group" in run["initial"]:
+            raise DiscussionError("unsupported_answer")
+        member = next(m for m in self.runs.members(run["run_id"]) if m["member_id"] == row["member_id"])
+        execution.answer(run, member, row, key, body,
+            lambda _receipt: self.runtime.request_reconciliation(task["identity"]))
+        self.runs.finish_command(run["run_id"], key)
+
+    def _retry(self, run, key, body, _op):
+        task, row, execution = self._attempt(run, body)
+        execution.retry(row)
+        self.runtime.retry_indeterminate(task["identity"])
+        self.runs.finish_command(run["run_id"], key)
+
+    def _abandon(self, run, key, body, _op):
+        task, row, execution = self._attempt(run, body)
+        execution.abandon(row, body)
+        self.runtime.request_reconciliation(task["identity"])
+        self.runs.finish_command(run["run_id"], key)

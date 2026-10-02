@@ -18,10 +18,6 @@
    "site": "agent_runtime/discussions/run_store.py|RunStore.request|ladder|operation"
   },
   {
-   "arms": 4,
-   "site": "agent_runtime/discussions/service.py|DiscussionService._process_commands|ladder|op"
-  },
-  {
    "arms": 6,
    "site": "agent_runtime/local_llama_adapter/manager.py|LocalLlamaManager._execute|ladder|kind"
   },

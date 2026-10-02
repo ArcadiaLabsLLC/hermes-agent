@@ -161,15 +161,16 @@ def is_primary_checkout(project_dir: Path, primary: Path | None) -> bool:
 def build_output_dirs(build: FlutterBuild) -> list[Path]:
     """The directories this build overwrites that a running Launcher executes from."""
 
-    root = build.project_dir / "build"
-    mode = build.mode
-    if build.target == "windows":
-        return [arch / "runner" / mode.capitalize() for arch in _children(root / "windows")]
-    if build.target == "linux":
-        return [arch / mode / "bundle" for arch in _children(root / "linux")]
-    if build.target == "macos":
-        return [root / "macos" / "Build" / "Products" / mode.capitalize()]
-    return []
+    layout = _OUTPUT_LAYOUTS.get(build.target)
+    return [] if layout is None else layout(build.project_dir / "build", build.mode)
+
+
+#: Per target: ``(build root, mode) -> the directories a running Launcher executes from``.
+_OUTPUT_LAYOUTS = {
+    "windows": lambda root, mode: [arch / "runner" / mode.capitalize() for arch in _children(root / "windows")],
+    "linux": lambda root, mode: [arch / mode / "bundle" for arch in _children(root / "linux")],
+    "macos": lambda root, mode: [root / "macos" / "Build" / "Products" / mode.capitalize()],
+}
 
 
 def _children(path: Path) -> list[Path]:
