@@ -140,6 +140,9 @@ class NativeContext:
                 ensure_persona_chat_session(session_db=db, session_id=member["session_id"],
                     persona_id=member["persona_id"], title=f"Discussion {run['run_id'][-8:]} · {member['handle']}",
                     required=True, client_scope=run["initial"].get("client_scope"))
+                if run["initial"].get("client_scope") is not None:
+                    from .session_workspace import initialize_member_workspace
+                    initialize_member_workspace(db, member)
                 db.set_session_hidden(member["session_id"], True)
             finally:
                 db.close()
