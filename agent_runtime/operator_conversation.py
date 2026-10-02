@@ -21,6 +21,7 @@ from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from tools.agent_chat.lane import session_belongs_to_chat_lane
 from agent_runtime.serde import safe_assignment_token
 from agent_runtime.conversation_owner import ConversationOwnerError, request_client_scope
+from agent_runtime.skill_activity import journal_skill_loads
 
 __layer__ = "lanes"
 
@@ -91,6 +92,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         "persona_instance_id": instance.id,
         "display_name": instance.display_name,
         "active_turns": active,
+        "skill_loads": journal_skill_loads(turns),
         "clarify_token": ticket.get("clarify_token") if ticket else None,
         "delivery_observed": recorded or receipt == "settled",
         "delivery_pending": receipt == "accepted" and not recorded,

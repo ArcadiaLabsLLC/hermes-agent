@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, safe_turn_phases
+from agent_runtime.skill_activity import safe_skill_load
 from agent_runtime.run_budget import (
     ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY,
     safe_accounting_block as safe_run_budget_accounting,
@@ -398,6 +399,9 @@ def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
         "tool_input": safe_block(raw.get("tool_input"), limit=1200),
         "tool_result": safe_block(raw.get("tool_result"), limit=1800),
     }
+    evidence = safe_skill_load(raw.get("skill_load"))
+    if evidence:
+        fields["skill_load"] = evidence
     # T7: preserve the todo tool's structured checklist (id/content/status)
     # so the operator console can render it after the turn persists. Bounded
     # again here (defence in depth over the producer cap).

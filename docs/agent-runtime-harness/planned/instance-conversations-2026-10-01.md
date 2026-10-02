@@ -162,3 +162,15 @@ implying completion. Curation and response tests passed 63 cases. Forcing the
 outcome to `completed` failed the new regression; restoration passed. The Launcher
 uses these facts in its shared Activity/response presentation, including native
 reconstruction coverage. No execution or transcript authority moved.
+
+## Live skill evidence, October 2
+
+The native runner now carries canonical skill-load receipts through its existing
+journal. Conversation reads expose those receipts; no catalog, event buffer or
+poller was added. Unknown/interrupted loads never imply successful loading.
+
+Seventeen focused tests passed. Dropping the journal field failed the new
+runner-to-read regression; restoring it passed with the import-layer gate.
+Nine Launcher tests and one bounded Dart/native reconstruction test passed;
+touched-source analysis is clean. This closes live skill evidence, not the
+remaining rich-input, account-selection and transport-cutover requirements.
