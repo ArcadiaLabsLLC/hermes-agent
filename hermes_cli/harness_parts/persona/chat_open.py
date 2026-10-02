@@ -38,7 +38,7 @@ from .chat_coordinator import (
     _maybe_stamp_spawned_by,
 )
 from .chat_request import _retired_persona_instance_payload
-from .chat_session import _persona_chat_session_owner
+from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
 from .lifecycle_commands import _placement_discriminability_refusal
 

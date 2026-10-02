@@ -17,10 +17,10 @@ from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from agent_runtime import persona_chat_session as chat_session
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
-    chat_session,
     chat_target,
     chat_turn_message,
     inspect_commands,
