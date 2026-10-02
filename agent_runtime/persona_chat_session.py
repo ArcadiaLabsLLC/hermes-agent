@@ -35,14 +35,7 @@ __all__ = [
 ]
 
 
-# ``PersonaChatPersistenceError``, ``_persona_chat_persistence_failed``,
-# ``_default_persona_session_db`` and ``_ensure_persona_chat_session`` used to be
-# defined HERE. They moved to ``agent_runtime.persona_chat_durability`` (imported
-# at the top of this part under the same private names) because chat-root
-# durability was a CLI-lane-only concern for as long as it lived in this file:
-# every call site was an argv handler, so ``agent_runtime``'s one-call create
-# lane — the one the launcher's drag-drop reaches over RPC — structurally could
-# not reach it and minted phantom roots. See that module's docstring.
+# Session creation and durability belong to ``persona_chat_durability``.
 
 
 _CHAT_MODEL_OVERRIDE_CONFIG_KEY = "mission_control_chat_model_override"

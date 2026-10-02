@@ -7,7 +7,9 @@ log backfill, the peer directory) — one conversation, not the roster.
 from __future__ import annotations
 
 import logging
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
+from dataclasses import dataclass
 from typing import Any
 
 from .. import chat_session_scope
@@ -29,35 +31,62 @@ __layer__ = "lanes"
 __all__ = [
     "persona_chat_session_messages",
     "existing_persona_chat_messages",
+    "existing_chat_session",
+    "ChatSessionReadRefused",
+    "ExistingChatSession",
 ]
+
+
+class ChatSessionReadRefused(ValueError):
+    def __init__(self, envelope: dict[str, Any]):
+        self.envelope = envelope
+        super().__init__(envelope["error_kind"])
+
+
+@dataclass(frozen=True)
+class ExistingChatSession:
+    db: Any
+    scope: Any
+    row: dict[str, Any]
+    owner: str | None
+
+
+@contextmanager
+def existing_chat_session(*, session_id: str, client_scope: str | None = None) -> Iterator[ExistingChatSession]:
+    """One read-only, scope-checked door for transcript and session inspection."""
+    scope, refusal = _resolve_scope(session_id, _bounded_message_tail(40))
+    if refusal is not None:
+        raise ChatSessionReadRefused(refusal)
+    if not scope.db_path.is_file():
+        raise ChatSessionReadRefused({"ok": False, "error_kind": "session_not_found"})
+    db = chat_session_scope.open_chat_session_db(
+        scope, access=chat_session_scope.SessionDbAccess.READ)
+    if db is None:
+        raise ChatSessionReadRefused({"ok": False, "error_kind": "session_db_unavailable"})
+    with closing(db):
+        row = db.get_session(session_id)
+        if row is None:
+            raise ChatSessionReadRefused({"ok": False, "error_kind": "session_not_found"})
+        try:
+            owner = require_session_owner(row, client_scope)
+        except ConversationOwnerError as exc:
+            raise ChatSessionReadRefused({"ok": False, "error_kind": exc.reason}) from exc
+        yield ExistingChatSession(db, scope, row, owner)
 
 
 def existing_persona_chat_messages(*, session_id: str, before: str | None = None,
                                   check_only: bool = False, client_scope: str | None = None) -> dict[str, Any]:
     """Attach to an existing transcript without creating a database or session."""
-    bounded = _bounded_message_tail(40)
-    scope, refusal = _resolve_scope(session_id, bounded)
-    if refusal is not None:
-        return refusal
-    if not scope.db_path.is_file():
-        return {"ok": False, "error_kind": "session_not_found"}
-    db = chat_session_scope.open_chat_session_db(
-        scope, access=chat_session_scope.SessionDbAccess.READ)
-    if db is None:
-        return {"ok": False, "error_kind": "session_db_unavailable"}
-    with closing(db):
-        row = db.get_session(session_id)
-        if row is None:
-            return {"ok": False, "error_kind": "session_not_found"}
-        try:
-            owner = require_session_owner(row, client_scope)
-        except ConversationOwnerError as exc:
-            return {"ok": False, "error_kind": exc.reason}
-        evidence = {"client_scope": owner} if owner is not None else {}
-        if check_only:
-            return {"ok": True, "session_id": session_id, **evidence}
-        return {**_with_chat_scope(persona_chat_session_messages(
-            session_id=session_id, before=before, limit=bounded, session_db=db), scope), **evidence}
+    try:
+        with existing_chat_session(session_id=session_id, client_scope=client_scope) as session:
+            evidence = {"client_scope": session.owner} if session.owner is not None else {}
+            if check_only:
+                return {"ok": True, "session_id": session_id, **evidence}
+            return {**_with_chat_scope(persona_chat_session_messages(
+                session_id=session_id, before=before, limit=_bounded_message_tail(40),
+                session_db=session.db), session.scope), **evidence}
+    except ChatSessionReadRefused as exc:
+        return exc.envelope
 
 
 def persona_chat_session_messages(
