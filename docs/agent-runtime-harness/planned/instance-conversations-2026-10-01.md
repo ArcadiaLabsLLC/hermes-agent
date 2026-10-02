@@ -3,6 +3,33 @@
 Status: native foundation implemented; rebased landing qualification in progress.
 Worker retirement still requires Launcher parity and matched live latency.
 
+## October 2 model-boundary qualification
+
+Model controls now omit absent account scope for native operator rooms; owned
+rooms still carry and validate their digest. The new unowned regression first
+failed with `invalid_client_scope`. Both ownership cases now preserve the peer,
+instance defaults and busy-work refusal. Unowned native sessions keep their
+existing workspace policy rather than acquiring an account-owned pinned directory.
+
+Model reads also no longer call session initialization. Admission already creates
+those sessions; the operator read port must refuse missing history, not recreate
+it. A regression that rejects any later initialization failed for both ownership
+cases before removal and passes afterward. Three model files pass **14 tests**.
+This removes a redundant writer open that exposed the already-queued SQLite WAL
+preflight race; it does not claim that upstream race is repaired.
+
+The broader run found a stale Discussion capability fixture. Only the three
+admitted instance flags changed in both repository copies. The native producer
+passes all three tests; the Launcher codec passes five, including explicit checks
+for owned rooms, instance models and retained profile models.
+
+The first full-scope attempt completed 405 files / 5,813 passing tests before the
+12-GiB host free-memory guard stopped its contained processes. It reported the
+fixture failure (now repaired), the known duplicate-helper failure, and one realm
+history ordering failure. Clean main `d19a19f597` reproduces the duplicate helper;
+its realm-history test passes, so the ordering failure remains unresolved, not
+classified as a proven baseline failure. No production profile or provider used.
+
 Reuse persona instances and their existing profile binding, chat mint receipts,
 SessionDB, turn admission and discussion scheduler. Do not add another identity,
 credential, session or execution authority.
