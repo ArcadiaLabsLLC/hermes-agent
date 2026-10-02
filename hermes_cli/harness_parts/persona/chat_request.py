@@ -164,7 +164,12 @@ def _mission_chat_caller_refusal(
     ``args``, so evaluating them here AND at their original sites is free and
     keeps those sites intact for the explicit-session lane."""
 
-    if not safe_assignment_text(getattr(args, "message", None), limit=12000):
+    from agent_runtime.operator_input import input_from_args
+    from agent_runtime.reviewed_prompt import ReviewedPromptError
+
+    try:
+        input_from_args(args)
+    except ReviewedPromptError:
         return _missing_chat_message_payload()
     try:
         _requested_chat_model_override(args)

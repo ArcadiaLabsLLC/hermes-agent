@@ -392,7 +392,9 @@ def add_mission_chat(subs) -> None:
     # when this send mints one, otherwise the durable "<persona> chat" title
     # stands. A literal default would name every freshly minted thread after it.
     mission_chat_message.add_argument("--title", default=None, help="Title for a chat session this send MINTS (a fresh --new-session thread, or a dispatch under the new_per_dispatch policy); ignored when continuing an existing thread")
-    mission_chat_message.add_argument("--message", required=True)
+    message_input = mission_chat_message.add_mutually_exclusive_group(required=True)
+    message_input.add_argument("--message")
+    message_input.add_argument("--reviewed-prompt-json", help="Reviewed text and image bytes; never client file paths")
     mission_chat_message.add_argument("--provider", default=None, help="Provider override for this persona chat session only")
     mission_chat_message.add_argument("--model", default=None, help="Model override for this persona chat session only")
     mission_chat_message.add_argument("--use-agent-default", action="store_true", help="Clear the chat-scoped provider/model override before sending")

@@ -239,5 +239,9 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
+## Filed on arrival — 2026-10-02 (instance conversations)
+
+- The duplicate-body gate fails on unchanged main `667f7521c8`: `ProviderRefused.__init__` and `DefaultModelRefused.__init__` are identical. Reproduced in an independent clean worktree; do not attribute this baseline failure to reviewed conversation input. Evidence: [instance checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#reviewed-native-input-october-2).
+
 
 - `test_duplicate_helper_bodies::test_no_new_duplicate_anywhere_in_the_fork` fails on main `3c885f1232`: `_model` is shared by conversations RPC and phonemizer; `_owner` by spawn stand-ins and bundle closure. Rename the unrelated private helpers to state their responsibility. Reproduced on unchanged main `d244451a5d`, also naming `_flag` in bundle manifest/chat turn; [group repair evidence](../../docs/agent-runtime-harness/planned/chat-first-group-messages.md#group-model-setup-repair--2026-09-30). Clean base `204789cabb` also reports `_read_reply`, `_strip_ansi` and `_tail`; the instance-conversation branch has the same six collisions ([checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#native-foundation-checkpoint)). No duplicate authority was added by these repairs.

@@ -8,6 +8,7 @@ from .chat_lane_bundle import chat_lane_bundle
 from .mcp_admission import LANE_MISSION_CHAT
 from .launcher_invocation import launcher_invocation
 from .models import AgentPersona
+from .operator_input import OperatorInput, REVIEWED_INPUT_KIND
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_prompts import (
     MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE,
@@ -110,6 +111,7 @@ class GPTPersonaRuntime:
         compression_threshold_tokens_override: int | None = None,
         compression_protect_first_n_override: int | None = None,
         compression_protect_last_n_override: int | None = None,
+        submitted_input: OperatorInput | None = None,
     ) -> AgentRunResult:
         """Run the canonical Mission Control chat path.
 
@@ -268,11 +270,9 @@ class GPTPersonaRuntime:
                     # prompt cache prefix survives every follow-up turn — including a
                     # turn on which the operator loads a skill mid-conversation. See
                     # ``_mission_chat_user_message`` / ``_mission_chat_surface_message``.
-                    user_message=_mission_chat_user_message(
-                        message,
-                        situational_hud_content,
-                        preloaded_skill_prompt=preloaded_skill_prompt,
-                    ),
+                    user_message=_conversation_user_content(message,
+                        situational_hud_content, preloaded_skill_prompt, submitted_input),
+                    user_display_kind=REVIEWED_INPUT_KIND if submitted_input and submitted_input.reviewed else None,
                     system_message=_mission_chat_surface_message(
                         persona,
                         surface_prompt,
@@ -366,6 +366,11 @@ def _mission_chat_surface_message(
     if operator_surface:
         parts.append(operator_surface)
     return "\n\n".join(part for part in parts if part)
+
+
+def _conversation_user_content(message, hud, skills, submitted):
+    text = _mission_chat_user_message(message, hud, preloaded_skill_prompt=skills)
+    return submitted.content(text) if submitted else text
 
 
 def _mission_chat_user_message(
