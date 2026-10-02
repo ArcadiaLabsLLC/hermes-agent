@@ -46,6 +46,37 @@ def skill_load_history(messages: list[dict]) -> list[dict]:
     return list(loaded.values())
 
 
+def safe_skill_load(value) -> dict | None:
+    """Bound structured evidence without deriving success from presentation text."""
+    if not isinstance(value, dict):
+        return None
+    name, status = value.get("id"), value.get("status")
+    if not isinstance(name, str) or not name or len(name) > 512:
+        return None
+    if status not in ("loading", "loaded", "failed"):
+        return None
+    return {"id": name, "status": status}
+
+
+def journal_skill_loads(turns: list[dict]) -> list[dict]:
+    """Disposable projection of the native journal, not a second load history."""
+    from .mission_chat_turns.states import INFLIGHT_TURN_STATES
+
+    loads = []
+    for turn in turns:
+        for element in turn.get("elements", ()):
+            evidence = safe_skill_load(element.get("skill_load"))
+            if element.get("kind") != "tool" or element.get("redacted") or not evidence:
+                continue
+            state = turn.get("state")
+            if evidence["status"] == "loading" and (
+                state == "outcome_unknown" or state not in INFLIGHT_TURN_STATES
+            ):
+                evidence["status"] = "unknown"
+            loads.append({**evidence, "call_id": f'{turn["turn_id"]}:{element["id"]}'})
+    return loads
+
+
 def with_skill_evidence(update, tool: str, arguments, *, result=None, finished=False):
     """ACP's metadata envelope carries the same client-neutral load evidence."""
     evidence = skill_load_evidence(tool, arguments, result=result, finished=finished)
