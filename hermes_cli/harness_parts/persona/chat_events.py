@@ -24,6 +24,7 @@ from agent_runtime.mission_chat_turns.states import (
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.serde import safe_block, safe_int, safe_text
+from agent_runtime.skill_activity import safe_skill_load
 from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
 from hermes_time import now
 
@@ -542,6 +543,9 @@ class _ChatProtocolV2Emitter:
             "status": safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT),
             "summary": safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT),
         }
+        evidence = safe_skill_load(payload.get("skill_load"))
+        if evidence:
+            tool["skill_load"] = evidence
         # Generic input record (already scrubbed/bounded at the progress sink).
         # Block-preserving: key-per-line structure is the rendering contract.
         tool_input = safe_block(payload.get("tool_input"), limit=1200)
@@ -643,6 +647,9 @@ class _ChatProtocolV2Emitter:
             self.elements.append(tool)
         tool["state"] = "finished"
         tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
+        evidence = safe_skill_load(payload.get("skill_load"))
+        if evidence:
+            tool["skill_load"] = evidence
         tool["duration_ms"] = payload.get("duration_ms")
         started = tool.get("started_mono")
         if tool["duration_ms"] is None and isinstance(started, float):

@@ -12,6 +12,7 @@ import re
 from agent_runtime._upstream_doors import terminal_foreground_timeouts
 from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels
 from agent_runtime.serde import strict_int
+from agent_runtime.skill_activity import skill_load_evidence
 from agent_runtime.profile_runner.dispatch_payloads import (
     _agent_chat_dispatch_fields,
     _agent_chat_dispatch_reply_fields,
@@ -92,6 +93,9 @@ def _tool_started_payload(event_type: str, tool_name: str | None, *, invocation:
     skill_name = _safe_skill_tool_name(tool_name, invocation)
     if skill_name:
         payload["skill_name"] = skill_name
+    evidence = skill_load_evidence(tool_name, invocation)
+    if evidence:
+        payload["skill_load"] = evidence
     _attach_tool_io(payload, invocation=invocation)
     return payload
 
@@ -119,6 +123,9 @@ def _tool_finished_payload(
     skill_name = _safe_skill_tool_name(tool_name, invocation) or _safe_skill_tool_name(tool_name, result)
     if skill_name:
         payload["skill_name"] = skill_name
+    evidence = skill_load_evidence(tool_name, invocation, result=result, finished=True)
+    if evidence:
+        payload["skill_load"] = evidence
     dev_work_payload = _dev_work_payload(tool_name, status=status, result=result, invocation=invocation)
     if dev_work_payload:
         # No target echo and NO generic tool_input/tool_result for dev-work
