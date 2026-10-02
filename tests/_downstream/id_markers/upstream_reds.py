@@ -503,6 +503,11 @@ if _WIN:
                 "test_manifest_matches_what_the_prompt_actually_loads",
                 "tests/agent/lsp/test_manager_locking.py::"
                 "test_delta_baseline_is_capped_by_write_recency",
+                # Lane h-rows (2026-10-02): agent/tool_executor.py::_ensure_file_checkpoint
+                # checkpoints the path resolved the way file tools resolve it (drive-
+                # qualified here); the test expects the unresolved str(Path("/approved/path")).
+                "tests/agent/test_tool_call_guardrail_runtime.py::"
+                "test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch",
                 "tests/tools/test_bot_mode_dm.py::"
                 "test_delivery_pins_the_hermes_entrypoint_beside_this_interpreter",
                 "tests/tools/test_bot_relay.py::"
