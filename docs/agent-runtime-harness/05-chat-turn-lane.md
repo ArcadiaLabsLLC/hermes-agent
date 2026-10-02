@@ -438,6 +438,33 @@ own kill switch, and folding them would give one fact two voices. `MCP_OPERATING
 (`:292-294`) also preloads the surface's operating manual; admitting a tool surface without its
 manual burned the live 2026-07-29 QA turn.
 
+### 5a. MCP progress on the `tool.progress` beat (2026-10-02)
+
+An MCP call asks its server for progress: `tools/call` carries `_meta.progressToken`, and each
+`notifications/progress` naming that token is folded into the call's live record and rides the
+chat stream's `tool.progress` beat (every `TOOL_HEARTBEAT_SECONDS`) as the `progress_*` fields —
+`progress_state`, `progress`, `progress_total`, `progress_message`, `progress_phase`, `expected_ms`,
+`seconds_since_progress`, `progress_updates`. The frame contract, field by field, is the docstring of
+`hermes_cli/harness_parts/persona/tool_heartbeat.py`; the relay is `tools/mcp_progress_relay.py`.
+The join is by IDENTITY, never by name: `registry.dispatch` opens a record on the tool's worker
+thread keyed by the `args` dict it hands the handler, the instrumented `session.call_tool` finds it
+by that same object, and `live_turns.live_turn_view` joins it on the thread id the foreground
+command already joins on. A server that reports nothing still beats, as
+`progress_state: "none_reported"`; a non-MCP tool's beat carries `progress_state: null`.
+`expected_ms` and `progress_phase` are what a server STATES in the notification's `_meta` (top
+level, or under one vendor key — the launcher QA server's `stagec_qa_build`); the relay never
+estimates one. The upstream MCP client keeps three additive one-line seams for it (the session
+instrument and the `message_handler` tee in `tools/mcp_tool_transport.py`, the dispatch bracket in
+`tools/registry.py`).
+
+**Reset-on-progress.** A call that keeps reporting is not killed by the MCP call timeout: the
+configured per-server timeout (`mcp_servers.<name>.timeout` > `timeouts.mcp.tool_call` > 300 s) is
+an IDLE bound that each progress report restarts, and the call's absolute cap is
+`mcp_servers.<name>.max_total_timeout` > `timeouts.mcp.tool_call_max_total` > 1800 s
+(`DEFAULT_MAX_TOTAL_TIMEOUT_S`; `0` turns it off). A silent call still times out at the base, with
+an error naming both numbers. The agent's own per-call deadline (`timeouts.tools.sequential_call`,
+420 s default) is separate and still applies.
+
 ## 6. Terminal envelope grants
 
 `agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on

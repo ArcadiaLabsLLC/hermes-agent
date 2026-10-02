@@ -11,6 +11,9 @@ running-work projection, the chat stream's heartbeat) asks it. A reader in any
 other process finds nothing here and must keep saying "no live progress", which
 is the honest durable answer (hermes ``runtime-queue.md`` RW1-RW3).
 
+An MCP tool's server-reported progress joins the same way, on the same
+thread id, through :mod:`tools.mcp_progress_relay`.
+
 Writers: ``profile_runner.execute`` registers a turn around its conversation and
 feeds the runner's ``run.tool.started`` / ``run.tool.finished`` callbacks in.
 Those callbacks fire on the tool's worker thread, so the thread id recorded at
@@ -44,6 +47,7 @@ __all__ = [
 ]
 
 _FOREGROUND_WATCH = "tools.environments.foreground_watch"
+_MCP_PROGRESS_RELAY = "tools.mcp_progress_relay"
 
 
 @dataclass(frozen=True)
@@ -60,6 +64,9 @@ class LiveToolCall:
     #: The foreground command this call is blocked on (``ForegroundCommand``), or
     #: None — a non-terminal tool, a command not yet spawned, or one already gone.
     foreground: Any = None
+    #: The MCP call this tool is dispatching (``McpProgress``: what its server has
+    #: reported, or that it has reported nothing), or None — not an MCP tool.
+    mcp_progress: Any = None
 
 
 @dataclass(frozen=True)
@@ -196,6 +203,16 @@ def _foreground_by_tid() -> dict[int, Any]:
     return by_tid
 
 
+def _mcp_progress_by_tid() -> dict[int, Any]:
+    relay = sys.modules.get(_MCP_PROGRESS_RELAY)
+    if relay is None:
+        return {}
+    try:
+        return dict(relay.snapshot_by_tid())
+    except Exception:
+        return {}
+
+
 def live_turn_view(turn_id: str | None) -> LiveTurn | None:
     """The live view of ``turn_id``, or None when this process is not executing it."""
 
@@ -207,6 +224,7 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
         calls = sorted(turn.calls.values(), key=lambda item: item.started_mono)
     now = time.monotonic()
     foreground = _foreground_by_tid() if calls else {}
+    mcp_progress = _mcp_progress_by_tid() if calls else {}
     api_calls, quiet = _activity(turn.agent)
     return LiveTurn(
         turn_id=turn.turn_id,
@@ -225,6 +243,7 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
                 elapsed_seconds=round(max(0.0, now - call.started_mono), 1),
                 timeout_seconds=call.timeout_seconds,
                 foreground=foreground.get(call.tid),
+                mcp_progress=mcp_progress.get(call.tid),
             )
             for call in calls
         ),
