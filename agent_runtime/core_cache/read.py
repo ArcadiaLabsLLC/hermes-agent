@@ -311,6 +311,14 @@ def label_core(core: dict, *, source: str, stale: bool) -> dict:
         parity = {}
         core["parity"] = parity
     parity["core_source"] = str(source)
+    # The CLI's sticky profile is not a build input (no fingerprint covers the
+    # marker), so a persisted core would otherwise serve the answer of the build
+    # that wrote it. Re-stamped here, on every served core.
+    profile = parity.get("profile")
+    if isinstance(profile, dict):
+        from ..snapshot.envelope import _runtime_profile_identity
+
+        profile.update(_runtime_profile_identity())
     if stale:
         parity["core_stale"] = True
         freshness = parity.get("freshness")

@@ -321,6 +321,17 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "office.actor.restored": EventContract("office.actor.restored", "Office actor placement restored", ("workspace_id", "actor_key"), ()),
     "office.actor.conflict_resolved": EventContract("office.actor.conflict_resolved", "Office actor sync conflict resolved", ("workspace_id", "actor_key", "take"), ("revision",)),
     "persona.updated": EventContract("persona.updated", "Persona updated", ("persona_id",), ("display_name",)),
+    # ``runtime.default_model.set`` (``agent_runtime.runtime_default_model``): the
+    # serve profile's ``model.default``/``model.provider`` moved through the
+    # serve op of the same name. Deliberately NOT patch-covered: the runtime
+    # default feeds every derived ``effective_model``, so its batch degrades to
+    # a full core.
+    "runtime.default_model.set": EventContract(
+        "runtime.default_model.set",
+        "Runtime default model set on the serve profile",
+        ("provider", "model", "profile"),
+        ("previous_provider", "previous_model", "requested_by"),
+    ),
     # The persona ⇄ Hermes-profile rebind chokepoint
     # (``persona_profile_binding.rebind_persona_profile``). ONE event per
     # operation: it moves the persona authority through ``AgentStore.save`` AND
