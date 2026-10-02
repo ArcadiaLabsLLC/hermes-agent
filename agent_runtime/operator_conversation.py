@@ -94,6 +94,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         "active_turns": active,
         "skill_loads": journal_skill_loads(turns),
         "clarify_token": ticket.get("clarify_token") if ticket else None,
+        "question": ticket.get("question") if ticket else None,
         "delivery_observed": recorded or receipt == "settled",
         "delivery_pending": receipt == "accepted" and not recorded,
         "executions": [execution_status(session, key) for key in execution_ids],
