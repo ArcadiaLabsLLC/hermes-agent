@@ -66,7 +66,6 @@ Plan and rulings: `EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2
 
 
 ### Filed on arrival — 2026-09-30 (lane s2-plan — phone gate → zero, one row per lane; work them in the plan's order)
-- [ ] **The closure walk cannot see `pm`'s PEP 562 facade: `from pm import install_hint` reads as a package-only import, so the gate accepts switching `pm.extras` off while every phone import of `hermes_cli.auth` then fails ("not in the phone wheel: pm.extras") — declare the facade's `_EXPORTS` in `scripts/bundle_profile_closure.py::DYNAMIC_IMPORTS`, held to the table at run time like the two registries** · `seams / gate` · found by s2-g1 (the phone e2e caught it, the gate did not) · **TAKEN 2026-10-02 w5-rt**
 
 ### Filed on arrival — 2026-09-28 (lane p2-hphone)
 
