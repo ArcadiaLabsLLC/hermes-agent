@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-02 (instance qualification)
+
+- [ ] **Investigate realm-history order across equal-time local and upstream heads.** `test_realm_sync_history.py::test_history_lists_local_and_upstream_versions_with_their_items` returned the local version before the upstream version during the bounded instance suite; the unchanged test passes alone on clean main `d19a19f597`. `agent_runtime/realm_sync/history.py::realm_sync_history` reads both refs without an explicit topology order. Cause remains unproven; pin the ordering contract before changing it. · fork / runtime · instance qualification receipt `native-validated-suite.log` · UNCLAIMED
+
 ### Filed on arrival — 2026-10-02 (launcher lane w10-pkg, bundled Hermes on macOS/Linux; moved here by the orchestrator)
 
 - [ ] **the bundle packager's serve import probe is host-only and has no skip: a cross-target `bundle_profile_package.py --target linux-x64` run on Windows writes complete outputs, then reds on `serve import probe needs a CPython 3.14 interpreter (--python)` (measured 2026-10-02 at pin `0b6560d1a4`), so the Launcher's cross-target signing lists are taken with `stage --reuse-core` after a red packager run; needs `--no-serve-probe` (or probe only when `--python` is given).** · `scripts/ci/bundled_hermes/layout.py` (`--reuse-core`); fix is in hermes (`scripts/bundle_profile_package.py`, `serve_import_problems`). · filed launcher-side by lane w10-pkg 2026-10-02 and moved here by the orchestrator (a row lives where its fix lives); its evidence stays in the launcher's `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/companion-queue.md` history at `237082d23`

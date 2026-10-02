@@ -25,7 +25,8 @@ from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agen
 pytestmark = pytest.mark.timeout(60)
 
 
-def test_room_models_preserve_instance_owner_peer_and_busy_work(placed_agent, catalog):
+@pytest.mark.parametrize("owner", [OWNER, None], ids=["account", "native_operator"])
+def test_room_models_preserve_instance_owner_peer_and_busy_work(placed_agent, catalog, owner, monkeypatch):
     store = PersonaInstanceStore()
     first = store.get(placed_agent["persona_instance_id"])
     second = replace(first, id=first.id + "_two")
@@ -36,17 +37,19 @@ def test_room_models_preserve_instance_owner_peer_and_busy_work(placed_agent, ca
     service = DiscussionService(context, active_poll_interval=.01)
     service.start()
     try:
+        ownership = {} if owner is None else {"client_scope": owner}
         spec = {"name": "Pair", "participants": [
             {"install_id": install, "instance_id": p.id} for p in (first, second)],
             "settings": {"rounds": 3, "allow_invitations": True,
                          "user_participates": True, "moderator": None}}
         run = execute(service, "run.start_room", {
             "workspace_id": workspace, "spec": spec, "idempotency_key": "new",
-            "topic": "", "client_scope": OWNER}, actor_id="operator")["run"]
+            "topic": "", **ownership}, actor_id="operator")["run"]
         wait_until(lambda: service.runs.get(run["run_id"])["phase"] == "open")
+        monkeypatch.setattr(context, "ensure_session", _refuse_session_creation)
         a, b = service.runs.members(run["run_id"])
         params = {"workspace_id": workspace, "run_id": run["run_id"],
-                  "member_id": a["member_id"], "client_scope": OWNER}
+                  "member_id": a["member_id"], **ownership}
         facts = execute(service, "run.member_models", params, actor_id="operator")["facts"]
         assert facts["session_id"] == a["session_id"]
         selected = execute(service, "run.member_model", {
@@ -55,7 +58,7 @@ def test_room_models_preserve_instance_owner_peer_and_busy_work(placed_agent, ca
         with closing(SessionDB(db_path=context.home / "state.db", read_only=True)) as db:
             assert _chat_model_override_from_config(_session_model_config(db, a["session_id"]))["model"] == "first"
             assert _chat_model_override_from_config(_session_model_config(db, b["session_id"])) is None
-            assert db.get_session(a["session_id"])["cwd"]
+            assert bool(db.get_session(a["session_id"])["cwd"]) == (owner is not None)
         assert store.get(first.id) == first and store.get(second.id) == second
         with pytest.raises(DiscussionError, match="conversation owner changed"):
             execute(service, "run.member_models", {**params, "client_scope": OTHER}, actor_id="operator")
@@ -66,3 +69,7 @@ def test_room_models_preserve_instance_owner_peer_and_busy_work(placed_agent, ca
                 **params, "model_id": model_key(PROVIDER, "second")}, actor_id="operator")
     finally:
         service.close()
+
+
+def _refuse_session_creation(*_):
+    pytest.fail("Model controls must use the existing session, never create it")
