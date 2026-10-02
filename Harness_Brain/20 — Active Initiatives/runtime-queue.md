@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-02 (launcher lane w5-mc, filed by the orchestrator)
+
+- [ ] **Seven argv handlers are no longer lowered by the launcher (`agent create`, `agent retire`, `level clear`, `level set`, `map clear`, `map list`, `map set` — method-only there): one DELETE row per handler once the operator/script-use ruling is made** · fork · evidence: `EterniaLauncher/docs/mission_control/planned/argv-census-launcher-half-2026-10-02.md` · UNCLAIMED
+- [ ] **Pin that exactly one stored thinking row is persisted per emitted `reasoning.summary` frame, in emitted order — the launcher's positional live↔stored Thinking pairing (owner decision pending) is admissible only on that 1:1 contract** · fork · evidence: launcher mission-control-queue Live Thinking row VERDICT 2026-10-02 · UNCLAIMED
+
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
 - [ ] **Build Eternia Lens as a fork-owned plugin (`plugins/eternia-lens/`, code under `agent_runtime/lens/`): a poll / push / pull ingest module whose rules raise Episodes that forge ONE chat turn of the selected persona (ADR 0008), on both the bundled profile and the Developer Edition; a Python port of Companion's Monitoring contracts, everything Lens-presentation / Work / repair cut. Stages L0–L4, four owner rulings owed before L0** · `fork / runtime` · plan [eternia-lens-in-hermes.md](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md) · launcher half: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` (the L1 fold row) · **TAKEN 2026-10-02 w5-rt**
@@ -304,6 +309,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED** · VERDICT 2026-09-29 h10-rtseam: still true on upstream/main 5bb2be179d. Not one line: `invoke_middleware` fans out once, so the chain needs a manager entry point. Drafted `up/middleware-request-chain` (940ab495bc, pushed to origin, NOT opened): `PluginManager.invoke_middleware_chain` + `_apply_request_chain` on it, red→green test in `tests/hermes_cli/test_plugins.py`. Owed: the owner opens it when PRs resume; then the eternia-harness plugin may split its composed callback · OWNER 2026-09-29: open the PR (after the branch pass) · VERDICT 2026-09-29 h10b-up2: branch pass: `up/middleware-request-chain` OPEN (clean on 77e2992020; new test red->green, the 1 other red is identical on upstream). Table: X:/Eternia/worktrees/h10b-logs/up-verdicts.md · 2026-09-30: waits on upstream PR #128643 (`up/middleware-request-chain`); then the eternia-harness plugin may split its composed callback
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-10-02 (lane w5-fh, filed by the orchestrator)
+
+- [ ] **Upstream `hermes_cli/terminal_notify.write_tty` opens '/dev/tty' on Windows, which resolves under the cwd drive's root: where a \dev folder exists the BEL/OSC goes into a FILE (X:\dev\tty holds one now) instead of the terminal — gate the /dev/tty attempt on os.name != "nt" (upstream PR)** · `upstream / cli` · evidence: w5-fh commit 7d3e8a195d · X:\dev is test litter (X:\dev\null\nope from test_startup_watchdog) · UNCLAIMED
 
 ### Filed on arrival — 2026-10-01 (lane rw-h)
 
