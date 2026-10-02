@@ -25,7 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane w12-qa, filed by the orchestrator)
 
-- [ ] **`_expose_windows_user_bin` registers `<root>\bin` in the user PATH for ANY `HERMES_HOME` root, including custom roots outside the native home (QA seeded homes, test sandboxes); reserve the PATH write to the installer-owned native root, not only behind `HERMES_REGISTRY_WRITE_FENCE`** · `hermes_cli/_launchers.py` · launcher side: eternia-launcher `d547ec0f3` (bin fence), `3081282cb` · cross-repo, hermes moves first
+- [ ] **`_expose_windows_user_bin` registers `<root>\bin` in the user PATH for ANY `HERMES_HOME` root, including custom roots outside the native home (QA seeded homes, test sandboxes); reserve the PATH write to the installer-owned native root, not only behind `HERMES_REGISTRY_WRITE_FENCE`** · `hermes_cli/_launchers.py` · launcher side: eternia-launcher `d547ec0f3` (bin fence), `3081282cb` · cross-repo, hermes moves first · **TAKEN 2026-10-02 h-rows**
 
 ### Owner asks — 2026-10-02 (long tool calls)
 

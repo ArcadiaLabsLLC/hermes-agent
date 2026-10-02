@@ -13,8 +13,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-02 (lane w13-hm, filed by the orchestrator)
 
-- [ ] **Mutation claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` no longer anchors: its search text appears twice in `_ChatProtocolV2Emitter._match_started_tool`, so `test_mutation_claims_still_anchor` is red on main (same red on base `3aec8e37ca0`)** · `agent_runtime/chat_events.py`
-- [ ] **`test_tool_call_guardrail_runtime::test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch` expects `\approved\path` but gets a drive-qualified path on Windows; red on main (same on base `3aec8e37ca0`)** · `tests/`
+- [ ] **Mutation claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` no longer anchors: its search text appears twice in `_ChatProtocolV2Emitter._match_started_tool`, so `test_mutation_claims_still_anchor` is red on main (same red on base `3aec8e37ca0`)** · `agent_runtime/chat_events.py` · **TAKEN 2026-10-02 h-rows**
+- [ ] **`test_tool_call_guardrail_runtime::test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch` expects `\approved\path` but gets a drive-qualified path on Windows; red on main (same on base `3aec8e37ca0`)** · `tests/` · **TAKEN 2026-10-02 h-rows**
 
 ## Filed on arrival — 2026-10-02 (lane w10-s7h)
 
