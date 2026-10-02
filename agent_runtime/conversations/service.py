@@ -111,7 +111,8 @@ class ConversationService:
             yield live
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
-        from .prompt import submit, validate
+        from .prompt import submit
+        from ..reviewed_prompt import validate
 
         validate(prompt)
         with self._session(scope, session_id) as live, live.operations:
