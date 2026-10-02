@@ -15,7 +15,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-01 (lane w3-turn)
 
-- [ ] **`tests/agent_runtime/test_mcp_admission_parked_wake.py::test_a_server_that_will_not_wake_is_bounded_and_registers_nothing` asserts a 3.0 s wall bound that the call spends 2.6–3.0 s of when run ALONE (measured on main code and on w3-turn's, identical); it flaked at 3.22 s under `run_tests.sh` -j8. Bound the WAKE (the patched 0.3 s budget), not the whole cold registrar** · `fork / suite` · lane w3-turn focused run 2026-10-01 · **TAKEN 2026-10-02 w5-fh**
 
 ## Filed on arrival — 2026-10-01 (lane w3-perf)
 
