@@ -129,7 +129,7 @@ def worker_observation(state, turn):
 
 def instance_send(probe, target, turn):
     result = probe.call("runtime.operator.conversation.message", **target,
-                        turn_request_id=turn, message=PROMPT)
+                        turn_request_id=turn, message=PROMPT, stream=True)
     assert result["accepted"], result
     return result
 
@@ -167,13 +167,25 @@ def measure_turn(probe, target, turn, send, read):
     raise AssertionError("Probe turn did not settle")
 
 
-def measure_lane(record_property, monkeypatch, open_target, send, read):
+def instance_timing(target, turn):
+    from agent_runtime.mission_chat_turns import mission_chat_turn_record
+
+    record = mission_chat_turn_record(
+        session_id=target["session_id"], client_message_id=turn)
+    timing = record["profile_timing"]
+    assert timing["resident_actor_reused"] in (0, 1)
+    return timing
+
+
+def measure_lane(record_property, monkeypatch, open_target, send, read, details=None):
     with local_profile(monkeypatch) as home, runtime_probe() as probe:
         started = time.monotonic()
         target = open_target(probe, home)
         record_property("open_ms", round((time.monotonic() - started) * 1000))
         for turn in ("cold", "warm-1", "warm-2"):
             timings = measure_turn(probe, target, turn, send, read)
+            if details is not None:
+                timings["profile_timing"] = details(target, turn)
             record_property(turn, json.dumps(timings, sort_keys=True))
     chats = [(auth, body) for auth, body in Provider.requests if body.get("stream")
              and "latency-marker" in json.dumps(body.get("messages", []))]

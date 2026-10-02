@@ -72,12 +72,14 @@ def test_restart_cannot_turn_uncertain_execution_into_confirmed_stop(tmp_path, m
     target = fixture(tmp_path / "home", monkeypatch, "Amelia")
     params = {**target, "turn_request_id": "uncertain", "message": "Work"}
     original = OperatorLane(tmp_path / "home", lambda _: 0)
-    assert original.rpc(SEND, params)["result"]["accepted"]
+    ack = original.rpc(SEND, params)["result"]
+    assert ack["accepted"]
     for state in ("pending", "executing", "outcome_unknown"):
         assert transition_mission_chat_turn(session_id=target["session_id"], client_message_id="uncertain",
             turn_id="uncertain", elements=[], state=state) is MissionChatTurnPersistOutcome.PERSISTED
     restarted = OperatorLane(tmp_path / "home", lambda _: 0)
     result = restarted.rpc(STOP, params)["result"]
+    assert result["request_id"] == ack["request_id"]
     assert result["outcome"] == "stop_requested" and result["owner_observed"] is False
     assert read_chat_turn_receipt("uncertain").stop_requested
     assert restarted.rpc(SEND, params)["result"]["idempotent_replay"]

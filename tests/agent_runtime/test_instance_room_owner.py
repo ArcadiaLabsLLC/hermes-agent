@@ -84,6 +84,28 @@ def test_read_only_device_cannot_use_digest_as_a_credential(room_rpc):
     assert call("get", run_id=legacy["run_id"], caller=_device("read"))["result"]["run"]["run_id"] == legacy["run_id"]
 
 
+def test_settled_instance_room_releases_maintenance_not_history(room_rpc):
+    service, context, call = room_rpc
+    run = create(call, OWNER)["result"]["run"]
+    wait_until(lambda: service.runs.get(run["run_id"])["phase"] == "open")
+    assert service.pending_count() == 0
+    context.hold.set()
+    current = service.runs.get(run["run_id"])
+    sent = call("send", run_id=run["run_id"], client_scope=OWNER,
+        expect_revision=current["revision"], idempotency_key="compare", message="Compare",
+        response={"mode": "compare", "members": []})
+    assert "result" in sent, sent
+    wait_until(context.entered.is_set)
+    assert service.pending_count() == 1
+    context.hold.clear()
+    wait_until(lambda: service.pending_count() == 0)
+    assert service.runs.get(run["run_id"])["phase"] == "open"
+    with service.idle_drain():
+        pass
+    assert not service.accepting
+    assert call("get", run_id=run["run_id"], client_scope=OWNER)["result"]["log"]["events"]
+
+
 @pytest.mark.parametrize("operation,body", [("send", {"message": "hello"}), ("stop", {}), ("end", {})])
 def test_wrong_owner_commands_cannot_mutate_or_start_work(room_rpc, operation, body):
     service, context, call = room_rpc
