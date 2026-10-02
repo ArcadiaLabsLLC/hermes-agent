@@ -1,8 +1,8 @@
 """Where a placement goes when nobody pointed at the floor.
 
 A drag on the Mission Office canvas carries a drop point — the operator aimed
-at a spot. Every other door does not: ``harness agent create`` with no
-``--pos``, ``runtime.agent.create`` with no ``position``, the launcher's
+at a spot. Every other door does not: ``runtime.agent.create`` with no
+``position``, the launcher's
 palette click-add, the agent browser's "Place in workspace". Those need a
 position derived from the layout itself, and the two obvious answers are both
 wrong: a fixed point stacks every placement onto the last one until the floor

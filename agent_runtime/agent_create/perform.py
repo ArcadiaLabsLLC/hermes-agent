@@ -1,5 +1,5 @@
-"""``perform_agent_create`` — the ONE create sequence both lanes call
-(``runtime.agent.create`` and ``harness agent create``, UC-H1), as
+"""``perform_agent_create`` — the ONE create sequence (``runtime.agent.create``,
+UC-H1; the argv ``harness agent create`` was deleted 2026-10-02), as
 :class:`AgentCreate`'s phases and the :data:`RESUME_ACTIONS` table.
 """
 

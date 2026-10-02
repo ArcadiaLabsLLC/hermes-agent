@@ -14,7 +14,7 @@ without pretending to restore bytes (R-C).
 Every case drives the REAL argparse tree and dispatches through ``args.func``,
 never by poking a handler: a handler nothing routes to is a verb no operator can
 run, and this program has been bitten by exactly that before (the precedent is
-``test_agent_retire_verb.py``).
+``test_persona_instance_retire_verb.py``).
 """
 
 from __future__ import annotations

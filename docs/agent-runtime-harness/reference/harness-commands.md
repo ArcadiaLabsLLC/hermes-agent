@@ -166,10 +166,9 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona-instance reconcile](#hermes-harness-persona-instance-reconcile)
 - [hermes harness persona-instance chat-bindings](#hermes-harness-persona-instance-chat-bindings)
 - [hermes harness persona-instance detail](#hermes-harness-persona-instance-detail)
+- [hermes harness query](#hermes-harness-query)
 - [hermes harness agent](#hermes-harness-agent)
 - [hermes harness agent list](#hermes-harness-agent-list)
-- [hermes harness agent create](#hermes-harness-agent-create)
-- [hermes harness agent retire](#hermes-harness-agent-retire)
 - [hermes harness agent set-profile](#hermes-harness-agent-set-profile)
 - [hermes harness install-harness-skills](#hermes-harness-install-harness-skills)
 - [hermes harness snapshot](#hermes-harness-snapshot)
@@ -209,10 +208,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -252,6 +251,10 @@ positional arguments:
     contracts           Inspect canonical Mission Control event contracts
     worktree            Manage harness-managed git worktrees
     persona-instance    Manage durable persona-instance store rows
+    query               READ-ONLY narrow lookups: roster, one instance (with its MCP resolution), an
+                        instance's chat sessions with hot/busy/cold state, and live QA sessions by
+                        id. Answered by the running serve when one is up; use this, not `snapshot`,
+                        for lookups
     agent               Inspect and rebind harness agent definitions
     install-harness-skills
                         Install versioned Harness skills into configured persona profiles
@@ -3383,23 +3386,36 @@ options:
   --json
 ```
 
-## hermes harness agent
+## hermes harness query
 
 ```text
-usage: hermes harness agent [-h] {list,create,retire,set-profile} ...
+usage: hermes harness query [-h] [--limit LIMIT] [--direct] [--json]
+                            {roster,instance,sessions,live_qa} [target]
 
 positional arguments:
-  {list,create,retire,set-profile}
-    list                List persisted/configured agent definitions
-    create              Place an agent: roster row, chat root and office placement in ONE atomic
-                        call
-    retire              Retire a placed agent: archive its roster row AND every office actor bound
-                        to it in ONE call
-    set-profile         Rebind an agent to a different Hermes profile (the ONE door; cascades every
-                        instance projection)
+  {roster,instance,sessions,live_qa}
+  target                Persona-instance id or persona id (instance, sessions)
 
 options:
   -h, --help            show this help message and exit
+  --limit LIMIT         Most sessions to return (default 10, max 50)
+  --direct              Read in this process; do not ask the running serve
+  --json
+```
+
+## hermes harness agent
+
+```text
+usage: hermes harness agent [-h] {list,set-profile} ...
+
+positional arguments:
+  {list,set-profile}
+    list              List persisted/configured agent definitions
+    set-profile       Rebind an agent to a different Hermes profile (the ONE door; cascades every
+                      instance projection)
+
+options:
+  -h, --help          show this help message and exit
 ```
 
 ## hermes harness agent list
@@ -3417,58 +3433,6 @@ options:
   --no-color
   --fields FIELDS
   --sort SORT
-```
-
-## hermes harness agent create
-
-```text
-usage: hermes harness agent create [-h] --persona PERSONA_ID --workspace WORKSPACE_ID [--pos X Y]
-                                   [--skill SKILLS] [--display-name DISPLAY_NAME]
-                                   [--placement-id PLACEMENT_ID] [--realm-id REALM_ID]
-                                   [--folder FOLDER] [--idempotency-key IDEMPOTENCY_KEY]
-                                   [--correlation-id CORRELATION_ID] [--json]
-
-options:
-  -h, --help            show this help message and exit
-  --persona PERSONA_ID  Roster persona id (or profile:<token>); an unknown id is refused before any
-                        write
-  --workspace, --workspace-id WORKSPACE_ID
-                        Mission Control workspace the placement lands in; must already exist
-  --pos X Y             Canvas position for the placement; omitted, the layout policy picks the
-                        first free slot in the folder
-  --skill SKILLS        Assign a skill to the new instance (repeatable); a canonical harness skill
-                        is installed and hash-verified first
-  --display-name DISPLAY_NAME
-                        Authoritative name; omitted falls back to the persona's configured display
-                        name
-  --placement-id PLACEMENT_ID
-                        Scene itemId to predict the actor key from; must end in <persona-
-                        token>_agent_<hex8>, and omitted mints one server-side
-  --realm-id REALM_ID
-  --folder FOLDER       Office folder for the placement (default: Agents)
-  --idempotency-key IDEMPOTENCY_KEY
-                        Stable retry key; omitted mints a fresh cli-<uuid4> so a re-run is a new
-                        gesture
-  --correlation-id CORRELATION_ID
-  --json
-```
-
-## hermes harness agent retire
-
-```text
-usage: hermes harness agent retire [-h] [--reason REASON] [--requested-by REQUESTED_BY]
-                                   [--correlation-id CORRELATION_ID] [--json]
-                                   persona_instance_id
-
-positional arguments:
-  persona_instance_id   Persona-instance id of the placement to retire
-
-options:
-  -h, --help            show this help message and exit
-  --reason REASON
-  --requested-by REQUESTED_BY
-  --correlation-id CORRELATION_ID
-  --json
 ```
 
 ## hermes harness agent set-profile

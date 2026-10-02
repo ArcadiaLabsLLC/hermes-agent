@@ -43,10 +43,10 @@ sequence — reserve → mint → place → compensate/resume — welded inline 
 ``serve_rpc._runtime_agent_create``, and therefore welded to JSON-RPC
 ``rid``/``ok``/``err`` envelopes. That made the atomic create reachable from
 exactly one door: a live ``harness serve``. :func:`perform_agent_create` is
-that sequence with the envelope peeled off; ``serve_rpc`` is now a translation
-shim over it, ``harness agent create`` (UC-H3) calls it directly, and any
-future MCP tool wraps whichever of the two it prefers. One sequence, zero
-copies — a lane switch cannot become a behaviour change.
+that sequence with the envelope peeled off; ``serve_rpc`` is a translation
+shim over it, and any future MCP tool wraps it the same way. (``harness agent
+create`` called it directly until 2026-10-02, when the argv verb was deleted —
+owner ruling, method-only.) One sequence, zero copies.
 
 The refusal codes are still the JSON-RPC vocabulary (:data:`ERR_CONFLICT` and
 friends) because the RPC lane is the fielded consumer and its ``data.reason``
@@ -82,8 +82,7 @@ lanes) — perform, request, phases (a table module, ``placement_faults``, is
 read like ``outcome`` and not counted); ``normalize_agent_create`` /
 ``require_known_persona`` / the roster spellings — request;
 ``run_skills_phase`` (the resume lane) — phases, request;
-``placement_slot_for`` (``serve_rpc/agent.py``) — phases;
-``roster_unavailable_outcome`` — outcome.
+``placement_slot_for`` (``serve_rpc/agent.py``) — phases.
 
 Stores written (through their own doors, never here): the persona-instance
 roster, the office actor, the agent-create reservation receipt, and the
@@ -126,7 +125,6 @@ from .outcome import (  # noqa: F401
     refused,
     _skills_refusal,
     persona_roster_unavailable_message,
-    roster_unavailable_outcome,
 )
 from .request import (  # noqa: F401
     AgentCreateRequest,

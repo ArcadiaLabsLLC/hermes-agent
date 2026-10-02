@@ -2,7 +2,7 @@
 the per-root remote-gateway install identity (gateway plan Stage 0b).
 
 Every test drives the REAL argparse tree and dispatches through ``args.func``,
-the same rule the agent create/retire verb suites carry: a handler nothing routes
+the same rule the persona-instance retire verb suite carries: a handler nothing routes
 to is a verb no operator can run, and registration is precisely the half Stage 0a
 deferred.
 

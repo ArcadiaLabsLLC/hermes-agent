@@ -193,47 +193,6 @@ def refused(code: int, message: Any, data: dict[str, Any]) -> AgentCreateOutcome
     )
 
 
-def roster_unavailable_outcome(cause: Any = None) -> AgentCreateOutcome:
-    """The roster fault as a REFUSAL, for a lane that met it before the service.
-
-    RD-H6 item 2. A roster fault answered the two create lanes differently:
-    ``runtime.agent.create`` refused typed ``persona_roster_unavailable``
-    (:func:`normalize_agent_create`'s arm, reached because the RPC lane passes
-    no pre-resolved persona), while ``harness agent create`` read the roster
-    ITSELF first — ``_persona_by_id`` -> ``ensure_persisted_personas``, the same
-    call :func:`persona_roster` wraps, but unwrapped — so a config that process
-    could not read tracebacked out of the CLI. One fault, two renderings, and
-    the argv one was a stack trace.
-
-    This is the shape the CLI needs and the service cannot give it: the fault
-    happens BEFORE ``perform_agent_create`` is entered, so there is no outcome
-    to carry it. Returning the outcome (rather than letting the CLI hand-roll an
-    envelope) is what keeps the code — and therefore the exit code, via
-    ``_AGENT_CREATE_EXIT_CODES`` — from being re-guessed at the call site.
-
-    ``ERR_INVALID_PARAMS`` matches the service's arm exactly: the roster fault
-    arrives there through :class:`AgentCreateInvalid`, which the generic
-    normaliser arm answers with that code. The two constructions are compared
-    for EQUALITY by test rather than trusted to agree — see
-    ``tests/hermes_cli/test_agent_create_verb.py``'s parity witness, which
-    drives a corrupt-roster fixture down both lanes and asserts the reason and
-    the message match.
-    """
-
-    return refused(
-        ERR_INVALID_PARAMS,
-        persona_roster_unavailable_message(cause),
-        # Carries the same stamp as the service's own arm, and must: the whole
-        # point of this constructor is that the two lanes render ONE refusal,
-        # and a ``data`` block that differed by a key would put the parity
-        # witness in ``tests/hermes_cli/test_agent_create_verb.py`` back to
-        # comparing two blocks that agree on the fields it happens to check.
-        # The fault is met BEFORE ``perform_agent_create`` is entered, so
-        # "nothing was written" is if anything more literally true here.
-        {"reason": PERSONA_ROSTER_UNAVAILABLE_REASON, "rolled_back": True},
-    )
-
-
 # ── the skills phase (plan S4 / D5) ──────────────────────────────────────────
 
 

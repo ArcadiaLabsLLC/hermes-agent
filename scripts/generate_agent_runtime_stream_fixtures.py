@@ -808,8 +808,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     =========================================================================
 
     The create is the production service — ``agent_create.perform_agent_create``,
-    the same function ``runtime.agent.create`` and ``harness agent create`` both
-    call — against a real seeded workspace. The frames come out of
+    the same function ``runtime.agent.create`` calls — against a real seeded workspace. The frames come out of
     ``stream._batch_frames_with_liveness``, which IS the promotion decision:
     this generator does not choose ``patch`` or ``delta``, it asks, and it
     asserts what came back. A demote on the wide arm fails generation rather

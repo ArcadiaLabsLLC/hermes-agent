@@ -317,11 +317,11 @@ wrong prioritisation followed from it.
 
 ### The placement verb — where an unaimed create lands, and what it hands back
 
-`runtime.agent.create` and `harness agent create` are two doors onto
-`agent_create.perform_agent_create`, the one function that writes the roster row,
-the durable chat root and the office actor together. Since plan S2 its
-`position` is **optional on both doors** (`--pos` is no longer `required`), and
-its ack returns what was written.
+`runtime.agent.create` is the door onto `agent_create.perform_agent_create`, the
+one function that writes the roster row, the durable chat root and the office
+actor together (the argv `harness agent create` was a second door until its
+deletion 2026-10-02). Since plan S2 its `position` is **optional**, and its ack
+returns what was written.
 
 **Absent means "I did not aim", and hermes answers it.** With no `position`, the
 service resolves the slot through `agent_runtime/office_layout_policy.py` — a
@@ -669,10 +669,10 @@ all when the row does not say.
 
 ### The inverse — one call takes an agent off the level, and says what left
 
-`runtime.agent.retire` / `harness agent retire <persona_instance_id>` are two
-doors onto `agent_retire.perform_agent_retire`, and `harness persona instance
-retire` is a third onto the SAME function (its own envelope preserved, its ack
-now identical). All of them wrap `PersonaInstanceStore.retire`, which has always
+`runtime.agent.retire` and `harness persona instance retire` are two doors onto
+`agent_retire.perform_agent_retire` (the persona-instance verb keeps its own
+envelope; its ack is identical). The argv `harness agent retire` was a third
+until its deletion 2026-10-02. All of them wrap `PersonaInstanceStore.retire`, which has always
 archived both halves: the roster row into `persona_instances_archive/<ts>_retire/`,
 and every office actor bound to the instance through
 `OfficeStore.archive_actors_for_instance`.
@@ -704,9 +704,9 @@ remove row carry it — then echoed on the ack (present only when sent, so a cal
 without one is byte-identical to before the key existed). Until S8b this was the
 ONLY level-mutating verb with no token, which meant one operator gesture's
 create half and delete half lived in two correlation spaces that no single grep
-joined. **Both argv doors publish the flag**: `harness agent retire
---correlation-id <token>` since S8b, and `harness persona instance retire
---correlation-id <token>` since S8b-b (2026-08-27). S8b withheld it from the
+joined. **The argv door publishes the flag**: `harness persona instance retire
+--correlation-id <token>` since S8b-b (2026-08-27; `harness agent retire` carried
+it from S8b until that verb's deletion 2026-10-02). S8b withheld it from the
 second on the reasoning that "no gesture behind it" was the truth for that door.
 It was not: the launcher's `persona.instance.retire` argv capability IS that
 door, fired from `MissionOfficeLayoutController.retireAgent`'s `Unavailable` arm,
@@ -813,8 +813,8 @@ proved before any handler runs — the stdio owner, or a socket peer that passed
 the HMAC. Both are allowed every tier today, so nothing an existing caller
 observes moved; a caller kind nothing yet mints is refused with a typed
 `data.reason: "scope_denied"`. The CLI mirrors it with a `local_console`
-identity minted in `_agent_retire_outcome`, which is the one retire both CLI
-doors reach.
+identity minted in `_agent_retire_outcome`, which is the one retire the CLI
+reaches.
 
 **What that fixed, and what it deliberately did not.** The asymmetry this
 section used to record — `harness persona instance retire` consults a gate and

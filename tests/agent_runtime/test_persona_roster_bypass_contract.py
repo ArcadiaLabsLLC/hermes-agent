@@ -65,14 +65,10 @@ PERSONA_TAKING_ENTRY_POINTS = {
 #: through ``config.ensure_persisted_personas`` and answers ``None`` — never a
 #: synthesised stand-in — for a persona the roster does not hold, EXCEPT for the
 #: sanctioned ``profile:`` synthesis D-U1 carves out by id shape rather than by
-#: object.
-#:
-#: ``_cli_create_persona`` is ``_persona_by_id`` plus RD-H6 item 2's typed
-#: roster-fault refusal; it resolves identically and refuses rather than
-#: degrading, so it is strictly stronger than the bare call.
+#: object. (``_cli_create_persona`` left with the argv ``agent create``,
+#: deleted 2026-10-02.)
 STRICT_RESOLVERS = {
     "_persona_by_id(cfg, persona_id)",
-    "_cli_create_persona(persona_id)",
 }
 
 #: The caller set, as of RD-H6. ``(file, enclosing function, resolver)``.
@@ -87,11 +83,6 @@ PERSONA_ARGUMENT_CONTRACT = {
     ("agent_runtime/agent_create/perform.py", "normalize", "param:persona"),
     ("agent_runtime/agent_create/request.py", "require_known_persona", "param:persona"),
     ("agent_runtime/serve_rpc/agent.py", "_runtime_agent_create", "absent"),
-    (
-        "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-        "_cmd_agent_create",
-        "_cli_create_persona(persona_id)",
-    ),
     (
         "hermes_cli/harness_parts/persona/lifecycle_commands.py",
         "_cmd_persona_instance_create",
@@ -299,7 +290,7 @@ def test_each_declared_resolver_is_a_strict_one(site):
 def test_the_forwards_terminate_at_a_real_caller():
     """A ``param:`` row is only honest if something eventually resolves.
 
-    Three of the seven rows are forwards inside ``agent_create`` itself. If the
+    Three of the six rows are forwards inside ``agent_create`` itself. If the
     table were ALL forwards, the second leg above would pass vacuously — every
     row exempt, nothing checked. Assert the table contains at least one real
     resolver and at least one ``absent``, so the exemption can never be the

@@ -1,51 +1,6 @@
 {
   "claims": [
     {
-      "id": "rdh6-cli-roster-read-unwrapped",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_cli_create_persona",
-      "operator": "remove-typed-fault-wrap",
-      "find": "    try:\n        return _persona_by_id(load_agent_runtime_config(), persona_id)\n    except Exception as exc:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
-      "replace": "    return _persona_by_id(load_agent_runtime_config(), persona_id)",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_an_unreadable_roster_is_a_typed_refusal_not_a_traceback"
-      ]
-    },
-    {
-      "id": "rdh6-cli-roster-fault-degrades-to-no-persona",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_cli_create_persona",
-      "operator": "degrade-fault-to-absence",
-      "find": "    except Exception as exc:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        raise PersonaRosterUnavailable(str(exc)) from exc",
-      "replace": "    except Exception:  # noqa: BLE001 \u2014 re-raised as the typed fault\n        return None",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_a_roster_read_that_faults_once_refuses_instead_of_renaming_the_agent"
-      ]
-    },
-    {
-      "id": "rdh6-roster-fault-wears-a-bad-ids-costume",
-      "path": "agent_runtime/agent_create/outcome.py",
-      "symbol": "roster_unavailable_outcome",
-      "operator": "collapse-refusal-reason",
-      "find": "        {\"reason\": PERSONA_ROSTER_UNAVAILABLE_REASON, \"rolled_back\": True},",
-      "replace": "        {\"reason\": PERSONA_NOT_FOUND_REASON, \"rolled_back\": True},",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_both_create_lanes_name_the_same_roster_fault"
-      ]
-    },
-    {
       "id": "rdh6-rpc-create-hands-over-a-synthesised-persona",
       "path": "agent_runtime/serve_rpc/agent.py",
       "symbol": "_runtime_agent_create",
@@ -362,21 +317,6 @@
       ]
     },
     {
-      "id": "s4-the-cli-create-door-drops-its-skill-flag",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_cmd_agent_create",
-      "operator": "drop-argv-param-passthrough",
-      "find": "    requested_skills = list_flag_or_absent(args, \"skills\")\n    if requested_skills is not None:\n        params[\"skills\"] = requested_skills",
-      "replace": "    requested_skills = list_flag_or_absent(args, \"skills\")",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_the_skill_flag_and_the_rpc_param_render_the_same_request"
-      ]
-    },
-    {
       "id": "s4-the-rpc-create-door-drops-its-skills-param",
       "path": "agent_runtime/agent_create/request.py",
       "symbol": "normalize_agent_create",
@@ -388,7 +328,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_the_skill_flag_and_the_rpc_param_render_the_same_request"
+        "tests/agent_runtime/test_serve_rpc_agent_create.py::test_the_skills_param_is_assigned_to_the_new_instance"
       ]
     },
     {
@@ -628,7 +568,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_agent_retire_verb.py::test_the_correlation_flag_reaches_the_office_removal_and_the_ack"
+        "tests/hermes_cli/test_persona_instance_retire_verb.py::test_the_persona_instance_door_carries_the_token_too"
       ]
     },
     {
@@ -643,7 +583,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_agent_retire_verb.py::test_the_persona_instance_door_carries_the_token_too"
+        "tests/hermes_cli/test_persona_instance_retire_verb.py::test_the_persona_instance_door_carries_the_token_too"
       ]
     },
     {
@@ -3775,7 +3715,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_the_unknown_persona_refusal_spells_out_what_is_placeable"
+        "tests/agent_runtime/test_serve_rpc_agent_create.py::test_the_unknown_persona_refusal_spells_out_what_is_placeable"
       ]
     },
     {
@@ -3790,7 +3730,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/hermes_cli/test_agent_create_verb.py::test_a_profile_two_personas_share_is_not_offered_as_a_spelling"
+        "tests/agent_runtime/test_serve_rpc_agent_create.py::test_a_profile_two_personas_share_is_not_offered_as_a_spelling"
       ]
     },
     {

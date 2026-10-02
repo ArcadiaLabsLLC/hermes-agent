@@ -111,11 +111,6 @@
    "unit": "hermes_cli/harness_parts/persona/chat_turn_message.py|_cmd_mission_chat_message"
   },
   {
-   "depth": 2,
-   "lines": 155,
-   "unit": "hermes_cli/harness_parts/persona/lifecycle_commands.py|_cmd_agent_create"
-  },
-  {
    "depth": 4,
    "lines": 155,
    "unit": "hermes_cli/harness_parts/persona/lifecycle_commands.py|_cmd_persona_instance_create"

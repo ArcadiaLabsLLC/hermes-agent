@@ -21,7 +21,7 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
 * lanes — ``chat_history_writes`` (the ONE write path for a persona chat row;
   a lane because it drives the live-log mirror's write lane),
   ``inspect_commands`` (persona list/show/tool-diff/permission/assignments),
-  ``lifecycle_commands`` (agent create/retire, instance create),
+  ``lifecycle_commands`` (instance create, the shared retire outcome),
   ``instance_commands`` (instance close/retire/steer/return/update-profile),
   ``model_and_skills_commands`` (set-model and set-skills),
   ``chat_open`` / ``chat_delete`` (open, open-new and delete a persona chat),

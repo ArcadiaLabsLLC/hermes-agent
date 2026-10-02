@@ -97,8 +97,8 @@ def _runtime_agent_create(
     UC-H1 — this is a TRANSLATION SHIM and nothing else
     ---------------------------------------------------
     The sequence (reserve → mint → place → compensate/resume) lives in
-    ``agent_create.perform_agent_create``, which is the same function
-    ``harness agent create`` calls with no serve in the picture. Everything
+    ``agent_create.perform_agent_create``, which runs with no serve in the
+    picture (the argv ``harness agent create`` was deleted 2026-10-02). Everything
     below is JSON-RPC envelope work: the reply dict and every ``data.reason``
     string come out of the service unchanged, because the launcher's
     ``missionAgentCreateReasonFrom`` decoder is the fielded consumer that pins
@@ -180,8 +180,8 @@ def _runtime_agent_retire(
 
     A TRANSLATION SHIM and nothing else, exactly like ``_runtime_agent_create``:
     the sequence lives in ``agent_retire.perform_agent_retire``, which is the
-    same function ``harness agent retire`` and ``harness persona instance
-    retire`` call with no serve in the picture. Adding this name to the manifest
+    same function ``harness persona instance retire`` calls with no serve in
+    the picture. Adding this name to the manifest
     GROWS the set without moving ``RPC_CONTRACT_VERSION`` — a manifest is a set
     plus an integer, and the integer moves only when an existing method's shape
     changes incompatibly.

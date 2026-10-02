@@ -173,7 +173,7 @@ def announce_in_background(
 
     For the callers whose work must not wait on a peer: a rename, a create, a
     retire, the serve's own post-boot announce. A slow install on the far side
-    of a LAN must never be the reason ``harness agent create`` takes five
+    of a LAN must never be the reason ``runtime.agent.create`` takes five
     seconds — the whole point of pushing is that it costs the pusher nothing.
 
     Daemon so it can never hold a process open, and swallowing so a broken edge
@@ -213,7 +213,7 @@ def announce_roster_changed() -> None:
     definitions of one courtesy that drift the first time either is tuned.
 
     Off-thread and swallowed, because a slow install on the far side of a LAN
-    must never be the reason ``harness agent create`` takes five seconds — the
+    must never be the reason ``runtime.agent.create`` takes five seconds — the
     whole point of pushing is that it costs the pusher nothing. It resolves its
     own store root through ``peer_store_root`` for that function's own reason:
     ``HERMES_HOME`` is flipped process-globally for the length of every persona

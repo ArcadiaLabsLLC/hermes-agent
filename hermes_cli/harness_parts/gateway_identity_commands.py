@@ -33,8 +33,8 @@ __all__ = [
 # **No authorization gate, and that is a decision rather than an omission.**
 # The A4 mirror (`lifecycle_commands._console_denial`) exists so the CLI and
 # `serve_rpc.handle_request` cannot answer differently about ONE service
-# function — `perform_agent_create` / `perform_agent_retire` each have two
-# doors. Stage 0b adds no RPC method, so there is one door and nothing to
+# function — `perform_agent_retire` has two doors (`persona instance retire`
+# and `runtime.agent.retire`). Stage 0b adds no RPC method, so there is one door and nothing to
 # disagree with; a `CLI_CONSOLE` check here would gate a door against a
 # predicate that allows every caller that exists, with no wire twin to stay
 # honest against. The record is also not a level and not a secret. The day a

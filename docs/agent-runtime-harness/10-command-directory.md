@@ -60,22 +60,18 @@ own actor/item shapes and the `runtime.office.*` RPC family.
 
 ```bash
 hermes harness agent list --json
-hermes harness agent create --persona PERSONA_ID --workspace WORKSPACE_ID --display-name "Launcher Dev Agent" --idempotency-key UNIQUE_REQUEST_ID --json
 hermes harness office show --workspace WORKSPACE_ID --full --json
 ```
 
 Choose the persona from `agent list` (the configured Launcher Dev persona is
-commonly `dev`; the display name does not select the persona). `agent create`
-creates the instance, chat root and office placement together. Omit `--pos` for
-a runtime-selected free slot, or pass `--pos 3 -2` for an intentional XY position.
-Use the same idempotency key only for a retry of the same request, a fresh one for
-a new placement. Omitted `--skill` inherits the persona's skills; repeat
-`--skill SKILL_ID` only to supply an explicit assignment.
-
-The response names `persona_instance_id`, `default_chat_session_id`, `actor_key`
-and `position`. Verify that exact instance in the office readback. **Placing does
-not send it work.** `persona instance create` is a lower-level roster/recovery
-surface, not a substitute for this complete placement command.
+commonly `dev`; the display name does not select the persona). **Placing is
+method-only:** the instance, chat root and office placement are created together
+by `runtime.agent.create`, which Mission Control calls; the argv `agent create`
+was deleted 2026-10-02 (owner ruling). Omit `position` for a runtime-selected
+free slot. The response names `persona_instance_id`, `default_chat_session_id`,
+`actor_key` and `position`; verify that exact instance in the office readback.
+**Placing does not send it work.** `persona instance create` is a lower-level
+roster/recovery surface that mints no placement.
 
 **Launcher counterpart:** agent drop / Add new instance to level.
 **RPC:** `runtime.agent.create`. See [unified create](06-office-and-board.md) and
@@ -118,12 +114,13 @@ The actor payload and concurrency contract live in [Office and board](06-office-
 ### Retire a placed agent
 
 ```bash
-hermes harness agent retire INSTANCE_ID --reason "Operator removed placement" --json
+hermes harness persona instance retire INSTANCE_ID --reason "Operator removed placement" --json
 hermes harness office show --workspace WORKSPACE_ID --full --json
 ```
 
 Archive operation, not permanent history deletion: it retires the instance and
-archives its bound office actors. Confirm the intended instance is absent from
+archives its bound office actors (`delete` is an alias; the RPC twin is
+`runtime.agent.retire`). Confirm the intended instance is absent from
 the active placements and inspect any reported per-actor failures.
 **Launcher counterpart:** remove placed agent. See [retirement](06-office-and-board.md).
 
@@ -165,7 +162,6 @@ Inspect (**READ**):
 
 ```bash
 hermes harness level show --workspace WORKSPACE_ID --json
-hermes harness map list --json
 hermes harness map show --map MAP_ID --full --json
 ```
 
@@ -176,16 +172,15 @@ the map catalogue contains named scene documents. They are not interchangeable.
 Preview changes (**WRITE recipes, dry-run only as shown**):
 
 ```bash
-hermes harness level set --workspace WORKSPACE_ID --document level.json --dry-run --json
 hermes harness office set-folders --workspace WORKSPACE_ID --folders "Agents,Desks,Review" --dry-run --json
 ```
 
-Use a valid document exported/read from the level contract, not an invented
-payload. Inspect the preview, then apply intentionally by removing `--dry-run`.
-For a level replacement, use `--expect-sha256` with the stored-byte hash (or
-`none` when creating only if absent). For folders, use `--expect-revision` with
-the current surface revision. These replace state, not append patches; preserve
-unrelated contents. Read back with `level show` / `office show --full`.
+Inspect the preview, then apply intentionally by removing `--dry-run`. For
+folders, use `--expect-revision` with the current surface revision. It replaces
+state, not append patches; preserve unrelated contents. Read back with
+`office show --full`. Level and map WRITES (and the map catalogue listing) are
+method-only since 2026-10-02 — `runtime.level.set` / `.clear`, `runtime.map.set`
+/ `.clear` / `.list`, called by the launcher's level/map authoring.
 
 ## Diagnose the connection and runtime — READ
 

@@ -145,8 +145,9 @@ the placement consequence is
 (`agent_runtime/agent_retire.py`) is the inverse, over the store method that
 always did both halves (`PersonaInstanceStore.retire` archives the row AND, through
 `OfficeStore.archive_actors_for_instance`, every actor bound to the instance).
-What it adds is a DOOR (`runtime.agent.retire`, `harness agent retire`, and
-`persona instance retire` delegating to the same function — with `persona
+What it adds is a DOOR (`runtime.agent.retire` and `persona instance retire`
+delegating to the same function — the argv `harness agent retire` was a third
+until its deletion 2026-10-02 — with `persona
 instance delete` as a full argparse alias since 2026-08-27, because the
 operator's verb is delete) and a RECEIPT: the ack
 NAMES every actor it archived (`archived_actor_keys`) beside every one it could
