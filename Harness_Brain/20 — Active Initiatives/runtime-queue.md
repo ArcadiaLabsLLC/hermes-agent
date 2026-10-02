@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-02 (orchestrator, live MCP check)
+
+- [ ] **`hermes -p <profile> <cmd>` / `--profile` fails from the installed launcher: `X:/Eternia/.hermes/bin/hermes.cmd -p alice mcp list` (and `-p base …`) answers "'alice' is not a `hermes` command", although `hermes --help` documents the flag. The launcher script calls `hermes_cli.main.main()` directly, so the profile pre-parse never runs. Make the flag work on every launch path and pin it with a test that runs the published launcher's bootstrap** · `hermes_cli/main.py` (profile override) · `hermes_cli/_launchers.py` · UNCLAIMED
+
 ### Filed on arrival — 2026-10-02 (launcher lane w5-mc, filed by the orchestrator)
 
 - [ ] **Seven argv handlers are no longer lowered by the launcher (`agent create`, `agent retire`, `level clear`, `level set`, `map clear`, `map list`, `map set` — method-only there): one DELETE row per handler once the operator/script-use ruling is made** · fork · evidence: `EterniaLauncher/docs/mission_control/planned/argv-census-launcher-half-2026-10-02.md` · UNCLAIMED
@@ -41,7 +45,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-01 (lane hq-b)
 
-- [ ] **Restore the optional MCP client in the managed runtime serving the existing Launcher QA agent, then verify its live catalog and one read-only call.** · Owner-approved root admission and `launcher-qa` registration are applied; authentication works, but live turns register zero tools and the selected environment has no `mcp` package. Use the canonical managed installer and safe service refresh; no replacement agent/session. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#missing-runtime-dependency); unblocks `EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`. Filed 2026-09-30 Projects QA. **TAKEN 2026-10-02 w5-rt** · VERDICT 2026-10-02: operator action, not lane work — it repairs the operator's managed runtime and refreshes its serve, which a lane may not touch. Read-only finding: X:/Eternia/.hermes/venvs/hermes-agent already holds mcp 2.0.0 (dist-info dated 2026-09-15, before the 09-30 preflight), so the 'selected environment' the preflight probed is a different interpreter. Recommend: name the interpreter the Launcher QA agent's serve actually runs (its process command line), run 'hermes pm install --extra mcp' against THAT one, safe-refresh, then the live catalog + one read-only call.
 
 
 
