@@ -91,6 +91,29 @@ def _harness_tree() -> ast.Module:
     return ast.Module(body=body, type_ignores=[])
 
 
+def _handler_modules_outside_the_lane() -> list[pathlib.Path]:
+    """``hermes_cli`` modules the parser package imports that ``_LANE`` does not hold.
+
+    A verb's handler may delegate to a module outside ``harness_parts/`` —
+    ``harness auth``'s ``_set_key`` / ``_login`` hand ``args`` to
+    ``hermes_cli.auth_noninteractive``, which reads ``stdin`` and ``flow`` there.
+    Enumerated from the parser's own ``from hermes_cli.<module> import`` lines,
+    so a delegate added tomorrow is inside the census when it is written.
+    """
+
+    lane = {path.resolve() for path in _LANE}
+    found: set[pathlib.Path] = set()
+    for node in ast.walk(_harness_tree()):
+        if not (isinstance(node, ast.ImportFrom) and (node.module or "").startswith("hermes_cli.")):
+            continue
+        parts = node.module.split(".")[1:]
+        for path in (HARNESS_ROOT.joinpath(*parts).with_suffix(".py"),
+                     HARNESS_ROOT.joinpath(*parts, "__init__.py")):
+            if path.is_file() and path.resolve() not in lane:
+                found.add(path)
+    return sorted(found)
+
+
 def _registrations() -> list[tuple[str, str, int]]:
     """`(subparser var, dest, lineno)` for every `add_argument` in the parser package."""
 
@@ -161,7 +184,7 @@ def _dests_read_on_the_lane() -> tuple[set[str], list[str]]:
 
     reads: set[str] = set()
     unresolved: list[str] = []
-    for path in _LANE:
+    for path in [*_LANE, *_handler_modules_outside_the_lane()]:
         found, blind = _reads_in_source(path.read_text(encoding="utf-8", errors="replace"))
         reads |= found
         unresolved += [f"{path.name}:{row}" for row in blind]
