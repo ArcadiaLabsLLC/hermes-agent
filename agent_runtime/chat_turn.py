@@ -694,7 +694,7 @@ def perform_chat_turn(
     """
 
     from .serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS
-    from .conversation_access import require_scoped_conversation
+    from .conversation_access import validate_conversation_access
     from .conversation_owner import ConversationOwnerError
 
     try:
@@ -712,7 +712,7 @@ def perform_chat_turn(
         else:  # pragma: no cover - the registry is the only caller
             raise ChatTurnInvalid("unknown_chat_verb", f"unknown chat verb: {verb}")
         if request.client_scope is not None:
-            require_scoped_conversation({"client_scope": request.client_scope,
+            validate_conversation_access({"client_scope": request.client_scope,
                                          "session_id": params.get("session_id")})
     except ConversationOwnerError as exc:
         return ChatTurnOutcome(refusal=ChatTurnRefusal(
