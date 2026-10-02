@@ -404,27 +404,53 @@ def scrub_secret_value_tree(value: Any) -> Any:
     a secret-named field (a boolean or ``None`` there is a fact, not a secret,
     and is kept), and every string through :func:`scrub_secret_values`. A string
     that is itself a JSON object or array is decoded and walked, so a tool that
-    answers ``{"error": "<json>"}`` is read field by field, not as one line."""
+    answers ``{"error": "<json>"}`` is read field by field, not as one line.
+    Dispatch is the type table (``functools.singledispatch``), as in
+    :func:`scrub_tree`."""
 
-    if isinstance(value, dict):
-        return {
-            str(key): (
-                REDACTED_VALUE
-                if is_secret_field_name(key) and item is not None and not isinstance(item, bool)
-                else scrub_secret_value_tree(item)
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, (list, tuple)):
-        return [scrub_secret_value_tree(item) for item in value]
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped[:1] in ("{", "["):
-            try:
-                decoded = json.loads(stripped)
-            except ValueError:
-                decoded = None
-            if isinstance(decoded, (dict, list)):
-                return scrub_secret_value_tree(decoded)
-        return scrub_secret_values(value)
+    return _value_tree(value)
+
+
+@singledispatch
+def _value_tree(value: Any) -> Any:
     return value
+
+
+@_value_tree.register(dict)
+def _value_tree_mapping(value: dict) -> Any:
+    return {
+        str(key): REDACTED_VALUE if _holds_secret(key, item) else _value_tree(item)
+        for key, item in value.items()
+    }
+
+
+@_value_tree.register(list)
+@_value_tree.register(tuple)
+def _value_tree_sequence(value: Any) -> Any:
+    return [_value_tree(item) for item in value]
+
+
+@_value_tree.register(str)
+def _value_tree_text(value: str) -> Any:
+    decoded = _decoded_json_container(value)
+    return scrub_secret_values(value) if decoded is None else _value_tree(decoded)
+
+
+def _holds_secret(key: Any, item: Any) -> bool:
+    """A secret-named field holds a secret unless its value is a bare fact
+    (a boolean or ``None``)."""
+
+    return is_secret_field_name(key) and item is not None and not isinstance(item, bool)
+
+
+def _decoded_json_container(text: str) -> dict | list | None:
+    """``text`` as the JSON object or array it spells, else ``None``."""
+
+    stripped = text.strip()
+    if stripped[:1] not in ("{", "["):
+        return None
+    try:
+        decoded = json.loads(stripped)
+    except ValueError:
+        return None
+    return decoded if isinstance(decoded, (dict, list)) else None

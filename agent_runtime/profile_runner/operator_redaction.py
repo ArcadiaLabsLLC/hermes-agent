@@ -27,7 +27,6 @@ __all__ = [
     "_OPERATOR_TOOL_RESULT_MAX",
     "_PATCH_HEADER_RE",
     "_TOOL_RESULT_ECHO_KEYS",
-    "TOOL_INPUT_ALL_REDACTED",
     "TOOL_INPUT_NO_ARGUMENTS",
     "_attach_tool_io",
     "_is_error_result",
@@ -249,9 +248,6 @@ def _unwrapped_error_envelope(value: Any) -> Any:
 #: ``get_runtime_state`` carried none, so the console could not tell "no
 #: arguments" from "input not reported").
 TOOL_INPUT_NO_ARGUMENTS = "(no arguments)"
-#: ``tool_input`` for arguments that rendered to nothing printable: the call had
-#: input, and that is the one fact about it that can be shown.
-TOOL_INPUT_ALL_REDACTED = "(arguments withheld — every line was redacted)"
 
 
 def _safe_operator_tool_input(invocation: Any) -> str | None:
@@ -267,10 +263,7 @@ def _safe_operator_tool_input(invocation: Any) -> str | None:
     rendered = _render_operator_kv_block(scrub_secret_value_tree(invocation))
     if rendered is None:
         return None
-    return (
-        _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
-        or TOOL_INPUT_ALL_REDACTED
-    )
+    return _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
 
 
 def _decoded_object(text: str) -> Any:

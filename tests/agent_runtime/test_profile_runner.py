@@ -1054,9 +1054,10 @@ def test_progress_adapter_sanitizes_sensitive_tool_names_and_summaries():
             "step": "tool_started",
             "status": "started",
             "summary": "Started tool",
-            # The input existed and every line of it was sensitive: the start
-            # says so rather than carrying no input record (w3-turn).
-            "tool_input": "(arguments withheld — every line was redacted)",
+            # The tool NAME and summary are still withheld. The input record
+            # scrubs secret VALUES only (2026-10-02): a file NAMED for a secret
+            # is a path, not a secret, and the operator sees it.
+            "tool_input": 'path: "C:/Users/example/secret_token.txt"',
         }
     ]
 
@@ -1531,6 +1532,7 @@ def test_tool_io_defers_to_dedicated_terminal_fields():
 
 
 def test_tool_input_redacts_secret_pairs_line_by_line():
+    # The VALUE goes, the field name stays (2026-10-02: a line is never blanked).
     payload = _tool_started_payload(
         "run.tool.started",
         "web_fetch",
@@ -1538,7 +1540,7 @@ def test_tool_input_redacts_secret_pairs_line_by_line():
     )
     lines = payload["tool_input"].split("\n")
     assert lines[0] == 'url: "https://example.com"'
-    assert lines[1] == "[redacted line — contained a secret]"
+    assert lines[1] == 'api_key: "[REDACTED]"'
     assert "sk-12345" not in payload["tool_input"]
 
 
@@ -1867,11 +1869,9 @@ def test_tool_input_withheld_when_every_line_is_secret():
         "web_fetch",
         invocation={"api_key": "sk-12345"},
     )
-    # A record of only redaction markers carried zero signal and was dropped
-    # whole, which left the start with no input record at all. Every start now
-    # carries one (w3-turn, 2026-10-01): the fact that input existed, and
-    # nothing of it.
-    assert payload["tool_input"] == "(arguments withheld — every line was redacted)"
+    # Every start carries an input record (w3-turn, 2026-10-01). Since the lane
+    # scrubs VALUES (2026-10-02), an all-secret input still names its fields.
+    assert payload["tool_input"] == 'api_key: "[REDACTED]"'
     assert "sk-12345" not in json.dumps(payload)
 
 
@@ -1880,7 +1880,8 @@ def test_tool_io_newline_in_key_cannot_split_a_secret_marker():
     # newline used to split the marker word across two rendered lines
     # ("pass" / "word: <secret>"), defeating every per-line scrub layer.
     # Keys are now newline-STRIPPED (removed, not spaced) so the marker
-    # reconstitutes on one line and the pair redacts.
+    # reconstitutes on one line, and the field rule reads the key with its
+    # control characters removed, so the VALUE redacts.
     payload = _tool_finished_payload(
         "run.tool.finished",
         "mcp__srv__do_thing",
@@ -1890,7 +1891,7 @@ def test_tool_io_newline_in_key_cannot_split_a_secret_marker():
         invocation={"limit": 1},
     )
     assert "hunter2-Xy9" not in payload.get("tool_result", "")
-    assert "[redacted line — contained a secret]" in payload["tool_result"]
+    assert 'password: "[REDACTED]"' in payload["tool_result"]
     assert "ok: true" in payload["tool_result"]
 
 
