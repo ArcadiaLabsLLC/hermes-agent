@@ -69,21 +69,24 @@ __all__ = [
 ]
 
 
-def _adopt_operator_channel_target(
-    args,
-    *,
-    session_id: str,
-    persona_instance_id: str | None,
-    normalized_persona: str,
-) -> tuple[str, str | None]:
-    """``(session_id, persona_instance_id)`` with an operator channel id resolved to its target.
+def _session_target(args, persona_instance_id: str | None, normalized_persona: str) -> tuple[str, str | None]:
+    """``(session_id, persona_instance_id)`` this send targets, as the caller wrote it — or adopted.
 
-    See the call site. Writes the adopted values back onto ``args`` so every
-    later reader of the request agrees with this turn's locals.
+    An operator CHANNEL id handed back as the session (``<persona>::<tail>``,
+    the conversation's own thread id) is adopted. A fresh seeded instance has
+    no chat, so its channel's tail is its INSTANCE id, and the first send
+    before "new chat" arrived as ``profile:base::personainst_profile_base`` and
+    was refused ``unknown_chat_session`` (2026-10-02). It names a thread hermes
+    minted: a session tail becomes the session; an instance tail becomes the
+    instance pin with the session omitted, so resolve-or-mint opens the root.
+    A channel of another persona, or one disagreeing with an explicit pin, is
+    left as written and refused by the guards downstream. Adopted values are
+    written back onto ``args`` so every later reader agrees with the turn.
     """
 
     from agent_runtime.operator_channels.instances import split_operator_channel_id
 
+    session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
     channel = split_operator_channel_id(session_id)
     if channel is None:
         return session_id, persona_instance_id
@@ -274,22 +277,7 @@ def _cmd_mission_chat_message(args) -> int:
     persona_instance_id = canonical_persona_instance_id(
         requested_instance_id, persona_id=normalized_persona
     )
-    session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
-    # An operator CHANNEL id handed back as the session (``<persona>::<tail>``,
-    # the conversation's own thread id). A fresh seeded instance has no chat, so
-    # its channel's tail is its INSTANCE id, and the first send before "new
-    # chat" arrived as `profile:base::personainst_profile_base` and was refused
-    # `unknown_chat_session` (2026-10-02). It names a thread hermes minted, so it
-    # is adopted here: a session tail becomes the session, an instance tail
-    # becomes the instance pin with the session omitted (resolve-or-mint opens
-    # the root). A channel of another persona, or one disagreeing with an
-    # explicit pin, is left as written and refused by the guards below.
-    session_id, persona_instance_id = _adopt_operator_channel_target(
-        args,
-        session_id=session_id,
-        persona_instance_id=persona_instance_id,
-        normalized_persona=normalized_persona,
-    )
+    session_id, persona_instance_id = _session_target(args, persona_instance_id, normalized_persona)
     # What the CALLER named, before anything on this turn overwrites it. Kept so
     # the settlement can tell "they answered in the right thread because they
     # named it" from "they inherited it" — the adoption signal this whole
