@@ -8,6 +8,7 @@ from hermes_time import now
 from .errors import EventPayloadTooLarge
 from .events import EventLog
 from .models import Event
+from .redaction import scrub_secret_values
 from .redaction_mode import redaction_observe_enabled
 
 __layer__ = "lanes"
@@ -614,25 +615,16 @@ def _safe_operator_output_tail(value: str) -> str | None:
 
 def _safe_operator_block_head(value: str, *, limit: int) -> str | None:
     """Bounded HEAD of a key-per-line tool input/result block, line structure
-    kept and secret-bearing lines redacted. Head-biased (unlike the output
-    tail): the leading keys are what the operator reads first. A block whose
-    EVERY line was redacted carries zero signal — dropped whole."""
+    kept and every line value-scrubbed (``redaction.scrub_secret_values``).
+    Head-biased (unlike the output tail): the leading keys are what the operator
+    reads first. A secret VALUE is replaced where it stands; a line is never
+    blanked for a word in it (2026-10-02: "no access token" in an auth refusal's
+    prose blanked the whole result at this boundary)."""
 
     text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return None
-    kept_any = False
-    lines: list[str] = []
-    for line in text.split("\n"):
-        if _looks_sensitive(line):
-            lines.append("[redacted line — contained a secret]")
-        else:
-            lines.append(line)
-            if line.strip():
-                kept_any = True
-    if not kept_any:
-        return None
-    text = "\n".join(lines).strip()
+    text = "\n".join(scrub_secret_values(line) for line in text.split("\n")).strip()
     if not text:
         return None
     if len(text) > limit:
