@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-02 (instance qualification)
+
+- [ ] **Investigate realm-history order across equal-time local and upstream heads.** `test_realm_sync_history.py::test_history_lists_local_and_upstream_versions_with_their_items` returned the local version before the upstream version during the bounded instance suite; the unchanged test passes alone on clean main `d19a19f597`. `agent_runtime/realm_sync/history.py::realm_sync_history` reads both refs without an explicit topology order. Cause remains unproven; pin the ordering contract before changing it. · fork / runtime · instance qualification receipt `native-validated-suite.log` · UNCLAIMED
+
 ### Owner asks — 2026-10-02 (Stage 7 hermes half; filed by the launcher orchestrator)
 
 - [ ] **The hermes toolset for launcher app functions: read `launcher.app_functions.list` over the serve session's server→client request lane, expose each entry as an agent tool, and send `launcher.<name>` requests with `params._meta.origin` set (absent reads unknown and the launcher fails reach closed); respect the launcher's typed refusal and confirmation answers; the Studio set stays behind its own gate** · `fork-owned / agent_runtime` · launcher half landed 2026-09-28 (`EterniaLauncher/docs/embedded_hermes/planned/IMPLEMENTATION_2026-09-28.md`, "Stage 7 launcher half as landed": entries, `AppFunctionDispatcher`, `hermesServeRequestResponderProvider`, the MCP projection behind `ETERNIA_APP_MCP`); what hermes already holds under `agent_runtime/conversations/app_functions.py` is the starting point, never a second registry · **TAKEN 2026-10-02 w10-s7h**

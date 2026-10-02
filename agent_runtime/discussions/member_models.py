@@ -46,14 +46,15 @@ def _instance_models(service, run, member, params, *, select):
         live = service.context.resolve_member(run, member)
         if any(live[key] != member[key] for key in ("persona_id", "profile")):
             raise DiscussionError("profile_binding_changed")
-        service.context.ensure_session(run, member)
         instance = PersonaInstanceStore().get(member["instance_id"])
         identity = {
             "install_id": member["install_id"], "persona_id": member["persona_id"],
             "persona_instance_id": member["instance_id"], "session_id": member["session_id"],
             "workspace_id": effective_workspace_id(instance, active_workspace_id=None),
-            "client_scope": run["initial"].get("client_scope"),
         }
+        owner = run["initial"].get("client_scope")
+        if owner is not None:
+            identity["client_scope"] = owner
         try:
             result = select_operator_model({**identity, "model_id": params["model_id"],
                 "scope": "agent_default" if params.get("save_default") else "conversation"
