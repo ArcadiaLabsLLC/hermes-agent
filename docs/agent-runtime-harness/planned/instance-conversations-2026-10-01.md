@@ -3,6 +3,17 @@
 Status: native foundation implemented; rebased landing qualification in progress.
 Worker retirement still requires Launcher parity and matched live latency.
 
+## Integrated checkpoint — October 2
+
+Rebased on `175bfb88e3`, preserving Stage 7's shared app-function invocation and
+permission ownership. The full three-directory suite restarted because incoming
+changes touched the execution path; the earlier partial remainder is not a final
+qualification. Launcher passes its 324 touched tests against this combined code.
+
+Import layers, size, thin namespace and docket gates pass. The frozen-home probe
+exceeded an initial 1-GiB test-job cap, then passed at 3 GiB with the same host
+reserve. These are contained test processes, not production runtime changes.
+
 ## October 2 model-boundary qualification
 
 Model controls now omit absent account scope for native operator rooms; owned
