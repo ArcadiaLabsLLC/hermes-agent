@@ -109,19 +109,19 @@ class DiscussionService:
     def _pending_runs(self) -> list[dict[str, Any]]:
         """Owned runs that may still schedule work; caller holds ``_lock``.
 
-        Every owned run counts except a SETTLED profile group. A discussion room
+        Every owned run counts except a SETTLED non-spatial room. A discussion room
         between rounds stays pending — that is the admission fence.
         """
-        return [run for run in self.runs.owned() if not self._settled_group(run)]
+        return [run for run in self.runs.owned() if not self._settled_room(run)]
 
-    def _settled_group(self, run: Mapping[str, Any]) -> bool:
-        """An open profile group with nothing to do, decided by the planner itself.
+    def _settled_room(self, run: Mapping[str, Any]) -> bool:
+        """An open non-spatial room with nothing to do, decided by its planner.
 
         Never inferred from an empty task list: a queued command, a live or
         unresolved task, or a planner decision of ``task`` keeps the group
         pending; an unreadable room cannot prove idle.
         """
-        if "group" not in (run.get("initial") or {}) or run["phase"] != "open":
+        if run.get("table_id") is not None or run["phase"] != "open":
             return False
         if self.runs.pending(run["run_id"]) or self.state.unresolved(run["run_id"]):
             return False
