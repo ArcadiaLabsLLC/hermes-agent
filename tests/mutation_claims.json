@@ -2040,8 +2040,8 @@
       "path": "hermes_cli/harness_parts/persona/chat_events.py",
       "symbol": "_ChatProtocolV2Emitter._match_started_tool",
       "operator": "read-the-match-without-removing-it",
-      "find": "                    return pending.pop(index)\n",
-      "replace": "                    return pending[index]\n",
+      "find": "                if candidate.get(field) == value:\n                    return pending.pop(index)\n",
+      "replace": "                if candidate.get(field) == value:\n                    return pending[index]\n",
       "test": [
         "{python}",
         "-m",
