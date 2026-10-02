@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Owner asks — 2026-10-02 (long tool calls)
+
+- [ ] **DESIGN — long tool calls move to the background (owner ask 2026-10-02: "what would be good agent UX"). Proposed: a call that passes a threshold (~30–60 s, or a tool that declares itself long-running) is promoted to running_work / Background Work; the agent gets an immediate "running in background" result with a handle and may keep talking; the operator may keep chatting; on completion the final result is delivered to the agent as a new event that wakes the turn; running cards offer Send to background and Cancel. Write the design (turn/await semantics, how the result re-enters the conversation, upstream vs fork seams, what the console renders) for the owner to approve before any build** · `fork / runtime` · launcher Background Work panel · UNCLAIMED
+
 ### Filed on arrival — 2026-10-02 (lane w10-hr, filed by the orchestrator)
 
 - [ ] **The terminal output, command, target and path lanes still blank a whole line for a secret WORD (`_line_has_secret` / `_looks_sensitive`, bare `token`), the same defect `f0d390459a` retired for tool input/result. Move them to `redaction.scrub_secret_values`** · `agent_runtime/profile_runner/operator_redaction.py` · `agent_runtime/progress.py` · `agent_runtime/persona_chat_history/trace_rows.py` · UNCLAIMED
