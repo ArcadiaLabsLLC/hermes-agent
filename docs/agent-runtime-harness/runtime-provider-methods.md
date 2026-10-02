@@ -147,3 +147,29 @@ as `hermes harness auth login --profile`); the child otherwise runs under the se
 
 The sign-in child is a subprocess; a profile that cannot spawn one binds a
 different runner through `ProviderSignIns(spawn=…)`.
+
+## `runtime.default_model.set` — the runtime default pair
+
+Tier `console`. Params: `provider`, `model` (required), `requested_by`
+(optional label). Writes the SERVE profile's `model.default` / `model.provider`
+— the bottom tier of the model cascade every agent without a persona default or
+instance override resolves. The pick is validated by upstream `switch_model`
+(`is_global=True`, the `/model … --global` pipeline), shaped by
+`apply_model_selection` and written by `save_config`; nothing is re-derived.
+Owner: `agent_runtime/runtime_default_model.py`.
+
+Result: `{contract: 1, ok, changed, profile, provider, model, api_mode,
+previous: {provider, model}, warning}`. A pick equal to the stored pair answers
+`changed: false` and appends nothing; a moving write appends
+`runtime.default_model.set` (an uncovered event: its batch ships a full core).
+
+Refusals (`data.reason`): `provider_required`, `model_required`,
+`model_rejected` (upstream's text in `message`) → invalid params;
+`config_managed`, `config_unreadable`, `shadowed_by_runtime_override` (with
+`pins`: an `agent_runtime.default_*` pin would keep the write from taking
+effect) → conflict; `config_write_failed` (class name only) → handler failed.
+
+The snapshot's `parity.profile` names both profiles: `name` (the one serve runs,
+which this method writes) and `cli_active_profile` (the CLI's sticky profile,
+which a bare `hermes model` in a terminal writes), with
+`cli_active_profile_differs` when they are not the same profile.

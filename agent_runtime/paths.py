@@ -373,6 +373,24 @@ def map_path(map_id: str) -> Path:
     return maps_root() / f"{safe_path_token(map_id)}.json"
 
 
+#: A profile's USER PREFAB shelf -- saved group fragments, beside the map
+#: catalogue (owner ruling 2026-09-30, ``EterniaLauncher/docs/spatial/planned/
+#: SPATIAL_QUEUE_RULINGS_2026-09-30.md``). One directory per launcher profile key,
+#: because the launcher's shelf is per signed-in profile and two accounts on one
+#: machine keep separate shelves.
+PREFABS_DIRNAME = "prefabs"
+
+
+def prefabs_root(profile: str) -> Path:
+    return store_root() / PREFABS_DIRNAME / safe_path_token(profile)
+
+
+def prefab_path(profile: str, prefab_id: str) -> Path:
+    """One user prefab's document, keyed by the launcher-minted id's path token."""
+
+    return prefabs_root(profile) / f"{safe_path_token(prefab_id)}.json"
+
+
 def map_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar for the MAP CATALOGUE family; NEVER synced,
     # NEVER published — under the realm-sync root rather than beside the maps it

@@ -172,6 +172,7 @@ def _live_generated_frames() -> dict[str, dict]:
     # the seed lands, so only the last frame carries running work.
     _generator_module()._seed_running_work_owner()
     owner_hydrate = hydrate_frame()
+    running_work_section = _generator_module()._build_running_work_section_frame(owner_hydrate)
     # LAST, and again through the generator's own function: this one converges a
     # persisted core and pays for a gated rebuild, so running it earlier would
     # rebuild every frame above against a store it had moved.
@@ -187,6 +188,7 @@ def _live_generated_frames() -> dict[str, dict]:
         "heartbeat.json": heartbeat_frame(offset=7),
         "delta_batch.json": delta_batch_frame(batch, snapshot=core),
         "hydrate_running_work_owner.json": owner_hydrate,
+        "running_work.json": running_work_section,
         "hydrate_stale_first.json": stale_first,
         "hydrate_authoritative_same_offset.json": authoritative,
         "patch_agent_create.json": create_patch,
@@ -297,6 +299,9 @@ def test_manifest_pins_fixture_bytes():
         "heartbeat.json",
         "delta_batch.json",
         "hydrate_running_work_owner.json",
+        # w4-stream's section frame (2026-10-02): ``running_work`` alone, at
+        # the owner hydrate's offset, no watermark.
+        "running_work.json",
         # BO-1's same-offset convergence pair (2026-08-21): the boot's stale
         # paint and its authoritative replacement, both at the idle store's one
         # offset. Read as a PAIR — the relation between them is the contract.
@@ -482,6 +487,28 @@ def test_every_frame_bearing_golden_carries_the_generated_core(
         assert golden_core["parity"]["capabilities"] == live_core["parity"][
             "capabilities"
         ], f"{name} core.parity.capabilities drifted"
+
+
+def test_the_running_work_section_golden_is_the_owner_hydrates_section():
+    """w4-stream's section frame: the section alone, at the owner hydrate's offset.
+
+    Value-level, because shape cannot say it: the frame carries the SAME section
+    the owner hydrate's core carries (two rows, both owners), its position is
+    that hydrate's watermark offset, and it carries no watermark of its own —
+    the launcher overlays it on the held core and never moves its sequence.
+    """
+
+    section = _fixture("running_work.json")
+    owner = _fixture("hydrate_running_work_owner.json")
+    assert section["type"] == "running_work"
+    assert "watermark" not in section and "core" not in section
+    assert section["as_of_offset"] == owner["watermark"]["event_offset"]
+    assert section["running_work"] == owner["core"]["running_work"]
+    assert len(section["running_work"]["rows"]) == 2
+    # Positive control for the launcher's overlay pairing: hydrate.json is held
+    # at an EARLIER offset, so this frame is the one that applies over it.
+    held = _fixture("hydrate.json")["watermark"]["event_offset"] or 0
+    assert section["as_of_offset"] > held
 
 
 def test_the_stale_first_pair_is_same_offset_and_carries_both_freshness_tokens():

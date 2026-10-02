@@ -143,6 +143,21 @@ def active_profile_name() -> str:
     return normalize_profile_name(get_active_profile() or "default")
 
 
+def cli_sticky_profile_name() -> str:
+    """The CLI's sticky ``active_profile`` — the profile a bare ``hermes`` in a terminal edits.
+
+    Deliberately NOT :func:`active_profile_name`: that is the profile THIS
+    process serves (``HERMES_PROFILE`` / ``HERMES_HOME`` first), and a serve
+    started on ``base`` keeps serving ``base`` after the operator runs
+    ``hermes profile use gpt-launcher`` in a shell. ``hermes model`` from that
+    shell then writes gpt-launcher's ``model.default`` while the agents keep
+    resolving base's — the split the snapshot envelope reports so the launcher
+    can say so.
+    """
+
+    return normalize_profile_name(get_active_profile() or "default")
+
+
 def resolve_persona_profile(persona) -> PersonaProfileBinding:
     if not persona.hermes_profile:
         return PersonaProfileBinding(

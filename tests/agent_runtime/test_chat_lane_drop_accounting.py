@@ -22,6 +22,9 @@ import pytest
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 from agent_runtime import chat_lane_bundle as CLB
+# The scope family moved to chat_lane_scope (8edc90e9d0); CLB re-exports the
+# functions, but they read the restore and permission knobs from CLS's globals.
+from agent_runtime import chat_lane_scope as CLS
 from agent_runtime.chat_lane_toolsets import (
     DROP_KIND_TOOL,
     DROP_KIND_TOOLSET,
@@ -232,7 +235,7 @@ def test_unbounded_mode_claims_no_drops():
 
 def test_restore_config_suppresses_the_lane_rows(monkeypatch, bounded_chat_session):
     monkeypatch.setattr(
-        CLB, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"]
+        CLS, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"]
     )
     qa = _persona("qa")
     drops = CLB.chat_lane_capability_drops(qa, session_id=bounded_chat_session(qa.id))

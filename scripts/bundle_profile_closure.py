@@ -76,6 +76,7 @@ _SKIP_TOP_DIRS = {"web", "website", "apps", "ui-tui"}
 #: run time.
 DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
     "hermes_cli.plugins": (
+        "agent.provider_access",
         "agent.image_gen_registry", "agent.image_gen_provider",
         "agent.video_gen_registry", "agent.video_gen_provider",
         "agent.web_search_registry", "agent.web_search_provider",
@@ -84,11 +85,25 @@ DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
         "agent.secret_sources.registry", "agent.secret_sources.base",
         "agent.tts_registry", "agent.tts_provider",
         "agent.transcription_registry", "agent.transcription_provider",
+        "agent.provider_access",
     ),
     "agent.secret_sources.registry": (
         "agent.secret_sources.bitwarden", "agent.secret_sources.onepassword", "agent.secret_sources.command",
     ),
 }
+
+
+def facade_exports() -> dict[str, dict[str, str]]:
+    """PEP 562 facades: package -> {exported name: the module that defines it}.
+
+    ``from pm import install_hint`` reads to the AST as an import of ``pm`` alone; the name
+    resolves through ``pm.__getattr__`` to ``pm.extras``, so the walk must follow the facade's
+    own table. Read from that table at run time (``pm`` is a light, lazy package), never copied.
+    """
+    import pm
+
+    return {"pm": dict(pm._HOME)}
+
 
 #: The bundle target: markers are evaluated for the interpreter the installer ships.
 TARGET_ENV = {
@@ -294,6 +309,7 @@ class Walk:
         self.pinned: set[str] = set()
         self.unguarded_into_pruned: list[dict] = []
         self.import_sites: dict[str, list[dict]] = {}
+        facades = facade_exports()
         # A root prefix (``agent_runtime``) must not seed a switched-off module under it.
         queue = deque(m for m in index if _under(m, roots) and not _under(m, pruned))
         parent: dict[str, str] = {m: "" for m in queue}
@@ -315,6 +331,9 @@ class Walk:
             dynamic = ((target, False, False, 0) for target in DYNAMIC_IMPORTS.get(module, ()))
             for dotted, eager, guarded, line in (*_imports(path, module, path.name == "__init__.py"), *dynamic):
                 owner = _owner(dotted, index)
+                if owner in facades and dotted != owner:
+                    target = facades[owner].get(dotted[len(owner) + 1:].partition(".")[0])
+                    owner = target if target in index else owner
                 if owner is None:
                     top = dotted.split(".")[0]
                     if top and top not in first_party_tops and top not in sys.stdlib_module_names:

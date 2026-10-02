@@ -199,22 +199,42 @@ def test_a_server_that_will_not_wake_is_bounded_and_registers_nothing(
     have, and must not hold the turn open either: the wake is bounded, the
     server falls through to the cold path exactly as it does today, and an
     honest ``mcp_not_registered_on_lane`` is the outcome.
+
+    The bound is on the WAKE, timed around ``_wake_parked_servers`` itself.
+    The whole call also pays the real cold registrar for the fallthrough —
+    2.6–3.0 s alone on Windows, 3.2 s under ``run_tests.sh`` -j8 — which is
+    not the budget this test exists to hold and made a whole-call wall flaky.
     """
 
     import tools.mcp_tool as mcp_tool
     from agent_runtime.mcp_admission import _default_registrar
+    from agent_runtime.mcp_admission import transport
 
     parked = _ParkedServer(
         "launcher_qa", _LAUNCHER_QA_FULL_SURFACE, revives=False
     )
     monkeypatch.setitem(mcp_tool._servers, "launcher_qa", parked)
 
-    started = time.monotonic()
+    real_wake = transport._wake_parked_servers
+    wakes: list[float] = []
+
+    def _timed_wake(names):
+        started = time.monotonic()
+        try:
+            return real_wake(names)
+        finally:
+            wakes.append(time.monotonic() - started)
+
+    patch_where_bound(monkeypatch, admission_module, "_wake_parked_servers", _timed_wake)
+
     _default_registrar({"launcher_qa": {"command": "noop"}})
-    elapsed = time.monotonic() - started
 
     assert _registered_launcher_qa_tools(clean_registry) == set()
-    assert elapsed < 3.0, f"the bounded wake was not bounded ({elapsed:.2f}s)"
+    assert parked.nudges >= 1, "the parked server was never asked to reconnect"
+    assert len(wakes) == 1, f"the wake ran {len(wakes)} times"
+    # Budget patched to 0.3 s by ``impatient_wake``; 1.5 s is five budgets of
+    # scheduler slack and still far under the unpatched 5.0 s.
+    assert wakes[0] < 1.5, f"the bounded wake was not bounded ({wakes[0]:.2f}s)"
 
 
 def test_a_live_server_is_not_nudged(monkeypatch, clean_registry):

@@ -91,6 +91,11 @@ QA judges work, never patches code.
   `terminal(background=true, notify=true)` in your own worktree — never in
   the operator's primary checkout (a live Launcher locks its DLLs), never as a
   foreground call (that blocks the turn up to its 180 s default with nothing on screen).
+- **QA sign-in is `mcp_launcher_qa_dev_login`** — never `browser_login:true` or
+  `begin_pkce_login`, which hang app-side in a QA build. A `launcher_qa` reply that opens
+  "Note: the launcher QA tool is out of date …" means its answers may be wrong: relay it
+  to the operator verbatim ("… was out of date … rebuilt itself" is informational).
+  Both: `references/proof.md`.
 - Image lines pass through UNTOUCHED — reproduce every `MEDIA:<absolute image path>`
   line, and every bare absolute screenshot path, VERBATIM on a line of its own, in
   your own reports and in every relay, quote, and summary. Canonical rule:

@@ -237,10 +237,108 @@ class PersonaInstanceStore:
                 return candidate
         return None
 
+    #: The instance model-override tier, in one place. ``update_profile`` stamps
+    #: all five together (``model_override_issued_at`` is the tier's CLOCK) and
+    #: emits ``persona_instance.profile_updated`` + ``state.patched``; the realm
+    #: replica door carries all five and emits too.
+    _MODEL_LANE_FIELDS: tuple[str, ...] = (
+        "provider",
+        "model",
+        "api_mode",
+        "reasoning_effort",
+        "model_override_issued_at",
+    )
+
     def update(self, instance: PersonaInstance) -> PersonaInstance:
+        """Write a whole row back — WITHOUT moving the model tier from under it.
+
+        ``update`` is a whole-row write, and its callers hold rows for a while:
+        the chat turn loaded the instance at admission and wrote it back at
+        settle, minutes later. A ``set-model`` landing in between (2026-10-01,
+        ``personainst_dev_agent_8b319ebf``: set at 19:43:01Z inside a turn that
+        started 19:40:41Z and settled 19:54:36Z) was silently reverted by that
+        settle — eventless, because ``update`` emits nothing — and every chat
+        after it ran the old model until the owner re-picked.
+
+        So the tier's clock decides: when the row ON DISK carries a newer
+        ``model_override_issued_at`` than the copy being written, the disk's
+        five fields win and the stale copy's are dropped with a WARNING. A copy
+        whose clock matches (or is newer) writes as before, and a model-tier
+        field it does move ships a ``state.patched`` so no change to the tier
+        is ever invisible to the read model.
+        """
+
         instance.updated_at = now()
+        moved = self._reconcile_model_lane_with_disk(instance)
         self._write(instance)
+        if moved:
+            self._emit_state_patch(instance, {name: getattr(instance, name) for name in moved})
         return self.get(instance.id)
+
+    def patch_fields(self, persona_instance_id: str, **fields: Any) -> PersonaInstance:
+        """Re-read the row and write ONLY ``fields`` onto it.
+
+        The door for a caller that owns a few fields of a row it loaded long
+        ago (the chat turn's ``skill_manifest_hash`` and its return-to-idle):
+        everything else is taken from the row as it is NOW, so a concurrent
+        rename, skills edit or model pick is never reverted by a turn that
+        merely finished.
+        """
+
+        instance = self.get(persona_instance_id)
+        for name, value in fields.items():
+            if not hasattr(instance, name):
+                raise AttributeError(f"PersonaInstance has no field {name!r}")
+            setattr(instance, name, value)
+        return self.update(instance)
+
+    def _reconcile_model_lane_with_disk(self, instance: PersonaInstance) -> list[str]:
+        """Settle the model tier against the stored row; return the tier fields this write MOVES.
+
+        A stale copy (its clock older than the disk's) takes the disk's tier and
+        moves nothing. A missing or unreadable row is not a baseline: the write
+        proceeds as it always did and reports nothing moved.
+        """
+
+        from agent_runtime.persona_assignments.profile import _as_utc
+
+        try:
+            stored = from_jsonable(
+                PersonaInstance,
+                json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8")),
+            )
+        except Exception:  # noqa: BLE001 — absent/unreadable: no baseline to defend
+            return []
+        stored_clock = stored.model_override_issued_at
+        copy_clock = instance.model_override_issued_at
+        stale = stored_clock is not None and (
+            copy_clock is None or _as_utc(copy_clock) < _as_utc(stored_clock)
+        )
+        if stale:
+            dropped = [
+                name
+                for name in self._MODEL_LANE_FIELDS
+                if getattr(instance, name) != getattr(stored, name)
+            ]
+            for name in self._MODEL_LANE_FIELDS:
+                setattr(instance, name, getattr(stored, name))
+            if dropped:
+                logging.getLogger(__name__).warning(
+                    "persona_instance_stale_model_write_dropped instance=%s fields=%s "
+                    "stored_issued_at=%s copy_issued_at=%s — a whole-row write held a "
+                    "copy older than the stored model override; the stored override "
+                    "was kept",
+                    instance.id,
+                    ",".join(dropped),
+                    stored_clock,
+                    copy_clock,
+                )
+            return []
+        return [
+            name
+            for name in self._MODEL_LANE_FIELDS
+            if name != "model_override_issued_at" and getattr(instance, name) != getattr(stored, name)
+        ]
 
     #: The STORE fields ``open_chat`` may move, in one place, named.
     #:

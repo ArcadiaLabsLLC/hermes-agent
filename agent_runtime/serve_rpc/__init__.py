@@ -28,6 +28,7 @@ office_actor_writes      lanes   ``runtime.office.upsert/remove``
 office_surface_writes    lanes   ``runtime.office.surface_update/resolve_conflict``
 level                    lanes   ``runtime.level.*``
 map                      lanes   ``runtime.map.*``
+prefab                   lanes   ``runtime.prefab.*`` (a profile's prefab shelf)
 agent                    lanes   ``runtime.agent.create/retire``
 chat                     lanes   open_chat, prewarm, ``runtime.chat.message/steer``
 scope                    lanes   ``runtime.workspace.use`` / ``runtime.realm.use``
@@ -35,6 +36,8 @@ media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
 provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
+default_model            lanes   ``runtime.default_model.set`` (the serve profile's
+                                 ``model.default`` / ``model.provider``)
 speech                   lanes   ``runtime.speech.*`` (load, recognize, synthesize)
 admission                lanes   ``runtime.admission.*`` (the model memory budget)
 =======================  ======  ================================================
@@ -43,7 +46,7 @@ Each verb family registers its handlers on import; the family import below is
 in the original definition order, so ``method_names()`` and ``manifest()`` are
 the same table the single module built. Stores written: none directly — every
 write goes through the owning store (``OfficeStore``, ``LevelStore``,
-``MapStore``, the agent/chat services). Never imported from here:
+``MapStore``, ``PrefabStore``, the agent/chat services). Never imported from here:
 ``hermes_cli.harness``.
 """
 
@@ -60,6 +63,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     office_surface_writes,
     level,
     map,
+    prefab,
     agent,
     chat,
     operator_conversation,
@@ -70,6 +74,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     peer,
     gateway_peers,
     provider,
+    default_model,
     speech,
     admission,
     client,

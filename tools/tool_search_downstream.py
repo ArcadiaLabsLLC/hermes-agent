@@ -66,6 +66,24 @@ def never_defer_tool_names(config=None) -> frozenset[str]:
     return _NEVER_DEFER_TOOLS | frozenset(config.never_defer)
 
 
+#: The ``tool_call`` shape restated where the agent first holds several names: a
+#: ``tool_describe`` result. The bridge's own ``tool_call`` schema says it too, but an
+#: agent handed three names by describe still sent all three in one call (owner
+#: screenshot 2026-10-01, ``events.81417412.jsonl`` line 17549) and lost a round trip.
+LOCAL_CALL_RULE = (
+    "Invoke each local tool with its own tool_call (calls: an array of ONE entry); "
+    "only connectors__ names may be batched in one tool_call."
+)
+
+
+def attach_local_call_rule(result: Dict[str, Any]) -> None:
+    """Stamp :data:`LOCAL_CALL_RULE` on a describe result that described a local tool."""
+    from tools.connectors import is_connector_name
+
+    if any(not is_connector_name(name) for name in result.get("tools") or {}):
+        result["call_rule"] = LOCAL_CALL_RULE
+
+
 def tool_describe_schema() -> Dict[str, Any]:
     """Return the fixed, always-available ``tool_describe`` schema.
 
@@ -83,7 +101,8 @@ def tool_describe_schema() -> Dict[str, Any]:
             "description": (
                 "Load a tool's full documentation and parameter reference by "
                 "name. Tool descriptions in this list are brief; call "
-                "tool_describe before the first use of an unfamiliar tool."
+                "tool_describe before the first use of an unfamiliar tool. "
+                + LOCAL_CALL_RULE
             ),
             # Upstream's describe argument (the bridge's ``names``; a single string is one name), so
             # ``dispatch_tool_describe`` answers it through upstream's own list door (RESOLVER 7c,

@@ -681,6 +681,13 @@ standard is the launcher's test, not the removal's tidiness. The
 goldens still move and still have to be mirrored — see
 ``tests/fixtures/stream_frames/README.md``.
 
+54 KEPT (w6-hm, 2026-10-02) — ``parity.profile`` gained
+``cli_active_profile`` and ``cli_active_profile_differs`` beside ``name``.
+Rule (a) does not apply (nothing left the wire) and rule (b) does not either:
+two keys on a block the launcher already parses as a map are "merely unread"
+by a reader that predates them, never invisible. The goldens moved and the
+launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

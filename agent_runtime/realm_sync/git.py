@@ -182,8 +182,16 @@ def _refresh_remote_tracking(repo: Path, *, credential: "RealmSyncCredential | N
     return {"checked": True, "error": None}
 
 
+#: Config every realm-sync git call carries. ``core.longpaths``: a realm tree nests
+#: ``realms/<realm>/store/boards/<board>/cards/<card>.json`` under the sync repo, and
+#: Git for Windows refuses a path past MAX_PATH ("Filename too long") without it --
+#: measured 2026-10-02, ``git add`` of a 118-char repo root failed the publish. Other
+#: platforms' git ignores the key.
+_REPO_CONFIG = ("core.longpaths=true",)
+
+
 def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str] | None = None) -> str:
-    proc = run_git(args, repo=repo, config=extra_config)
+    proc = run_git(args, repo=repo, config=(*_REPO_CONFIG, *(extra_config or ())))
     if check and proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         # safe_details carries the plain subcommand args only — the -c config
@@ -199,7 +207,7 @@ def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str]
 
 
 def _git_clone(ref: str, repo: Path, *, extra_config: Sequence[str] | None = None) -> None:
-    proc = run_git(["clone", ref, str(repo)], config=extra_config)
+    proc = run_git(["clone", ref, str(repo)], config=(*_REPO_CONFIG, *(extra_config or ())))
     if proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         raise RealmSyncError(
