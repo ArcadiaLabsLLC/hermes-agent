@@ -1,6 +1,23 @@
 # Instance conversation convergence
 
-Status: implementation in progress; Launcher parity is required before cutover.
+Status: foundation-only landing candidate; Launcher parity is required before cutover.
+
+## Foundation landing boundary, October 2
+
+Land opaque ownership, canonical instance discovery, native directory paging,
+account-aware open-chat, independent room admission and exact-session skills/model
+inspection and selection. Existing native stores and admission remain authoritative.
+No profile worker or conversation transport is retired. Shared Console mounting,
+rich input/activity integration and final lifecycle parity remain branch work.
+
+The full branch is `land/instance-foundation-main-2026-10-02`; the foundation-only
+branch excludes its latency lane and transport-cutover work. The isolated hot
+probe enabled `persona_chat.hot_sessions_enabled`, yet both warm turns reported
+`resident_actor_reused: 0` with root-model revision invalidation. The runtime queue
+records this for the retained latency lane; production configuration was not changed.
+Current raw gate outputs are `foundation-*.log` in the local
+`receipts/instance-conversations/` evidence directory. Historical checkpoints below
+are not a claim that the latest foundation or desktop acceptance is green.
 
 Reuse persona instances and their existing profile binding, chat mint receipts,
 SessionDB, turn admission and discussion scheduler. Do not add another identity,

@@ -75,3 +75,15 @@ def test_history_requires_console_and_cursors_cannot_cross_account_or_install(pl
     assert read_history(install_id="other")["error"]["data"]["reason"] == "installation_changed"
     assert read_history(client_scope=None)["error"]["data"]["reason"] == "invalid_client_scope"
     assert read_history(before="[0]")["error"]["data"]["reason"] == "invalid_history_cursor"
+
+
+def test_unowned_history_without_metadata_requires_all_accounts(placed_agent):
+    session = create(placed_agent, "unassigned", None)
+    with closing(default_persona_session_db()) as db:
+        db._write_sql("UPDATE sessions SET model_config=NULL WHERE id=?", (session,))
+    assert session not in {row["session_id"] for row in read_history()["result"]["conversations"]}
+    rows = read_history(all_accounts=True)["result"]["conversations"]
+    row = next(row for row in rows if row["session_id"] == session)
+    assert row.get("client_scope") is None
+    assert row["persona_instance_id"] == placed_agent["persona_instance_id"]
+    assert row["available"]

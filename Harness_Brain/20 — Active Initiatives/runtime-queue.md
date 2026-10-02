@@ -74,7 +74,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **Pin that exactly one stored thinking row is persisted per emitted `reasoning.summary` frame, in emitted order — the launcher's positional live↔stored Thinking pairing (owner decision pending) is admissible only on that 1:1 contract** · fork · evidence: launcher mission-control-queue Live Thinking row VERDICT 2026-10-02 · UNCLAIMED
 ### Owner asks — 2026-10-01 (instance conversations)
 
-- [ ] **Converge Launcher conversations on persona-instance identity; preserve rich conversation capabilities, opaque account ownership and independent non-spatial rooms.** · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md) · Launcher cutover follows parity · **TAKEN 2026-10-01 Codex**
+- [ ] **Instance-conversation cutover remainder:** qualify rich input/activity, recovery and live latency before retiring the profile worker; identity/account/directory/inspection foundation lands separately. · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · UNCLAIMED
+- [ ] **Hot-session loopback probe rebuilds both warm actors despite the enabled flag:** `resident_actor_reused=0`, `resident_rebuild_component_root_model_config_revision=1`; inspect native signature invalidation before worker retirement. · `fork / runtime` · `agent_runtime/persona_chat_continuity/runtime_registry.py` · [Foundation boundary](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · latency lane remains on branch · UNCLAIMED
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
