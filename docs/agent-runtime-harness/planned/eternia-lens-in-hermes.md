@@ -1,6 +1,6 @@
 # Eternia Lens in hermes — an ingest-and-trigger module for the Mission Control persona
 
-**Status: proposed, written 2026-10-01. Not approved. Nothing here is built.** Program cursor: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` (the row under "Owner asks — 2026-10-01"). The launcher half is one row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, filed the same day.
+**Status: proposed, written 2026-10-01; the §6 rulings were accepted by the owner 2026-10-02. Nothing here is built.** Program cursor: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` (the row under "Owner asks — 2026-10-01"). The launcher half is one row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, filed the same day.
 
 ## 0. The ask, and the one sentence that scopes it
 
@@ -102,6 +102,13 @@ Rules the sequence obeys: one plugin, one package, no file over 800 lines, no ed
 2. **Persona targeting:** per-manifest persona with the selected Mission Control persona as the default (assumed), or always the selected persona.
 3. **The `act` level stays out** of this plan (assumed; §2.6).
 4. **Phones do not run the poller** (assumed; §2.1).
+
+**Ruled 2026-10-02 (owner) — all four accepted as written; L0 may start from this plan:**
+
+1. 2026-10-02: name is `eternia-lens` (plugin) and `runtime.lens.*` (methods).
+2. 2026-10-02: persona targeting is per-manifest, defaulting to the selected Mission Control persona.
+3. 2026-10-02: the `act` level stays out of this plan.
+4. 2026-10-02: phones run no poller.
 
 ## 7. Provenance
 
