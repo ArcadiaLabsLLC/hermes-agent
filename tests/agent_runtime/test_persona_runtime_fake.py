@@ -822,6 +822,29 @@ def test_mission_chat_reply_injects_operative_rules_into_system_message(tmp_path
     assert captured["request"].agent_ready_callback is agent_ready
 
 
+def test_owned_chat_executes_in_session_workspace(tmp_path):
+    from contextlib import closing
+    from hermes_state import SessionDB
+
+    persona = next(row for row in sample_personas() if row.id == "neko_supervisor")
+    requests = []
+
+    class Runner:
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(final_response="ok", session_id="owned", provider=None,
+                                  model=None, base_url=None, messages=[])
+
+    directory = tmp_path / "conversation"
+    directory.mkdir()
+    with closing(SessionDB(db_path=tmp_path / "owned.db")) as db:
+        db.create_session("owned", source="mission_chat", cwd=str(directory),
+                          model_config={"client_scope": "a" * 64})
+        GPTPersonaRuntime(session_db=db, agent_runner=Runner()).mission_chat_reply(
+            persona, "Hello", permission_session_id="owned")
+    assert requests[0].workdir == directory
+
+
 def test_mission_chat_reply_rides_hud_on_user_turn_not_system_prompt(tmp_path, monkeypatch):
     # T5 wiring guard: the caller passes the resolved situational HUD block; it
     # must land on the operator's USER turn (after the message), never in the
