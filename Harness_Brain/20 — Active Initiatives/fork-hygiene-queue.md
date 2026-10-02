@@ -9,6 +9,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-02 (lane w10-s7h)
+
+- [ ] **`scripts/changed_line_mutation_check.py --list --base origin/main` exits 2 on a clean `main` with a configuration error: claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` says its mutation source occurs twice in `hermes_cli/harness_parts/persona/chat_events.py::_ChatProtocolV2Emitter._match_started_tool`, so the inventory (and any real run) refuses before listing anything; re-anchor the needle (`tests/mutation_claims.json`) and let `tests/scripts/test_mutation_claims_still_anchor.py` say why it did not catch this** · `fork / mutation gate` · reproduced 2026-10-02 in the primary checkout at `d1604a9ccb` and in the w10-s7h worktree · UNCLAIMED
+
 ## Filed on arrival — 2026-10-02 (lane w5-fh)
 
 - [ ] **`test_duplicate_helper_bodies::test_no_new_duplicate_anywhere_in_the_fork` is red on `c3dbda5cc0` with five unrelated private-helper pairs after `_model` was renamed: `_flag` (bundle_profiles/manifest, chat_turn), `_owner` (spawn_stand_ins, scripts/bundle_profile_closure), `_read_reply` (harness_query/serve_route, serve_rpc/operator_conversation), `_strip_ansi` (running_work/rows, persona/tool_heartbeat), `_tail` (scripts/upstream_sync_gate, tools/environments/foreground_watch). Rename the fork-side one of each pair for what it does** · `fork / suite` · evidence: lane w5-fh `w5-logs/r7e.log`; the h12-upfix bullet below
