@@ -1,5 +1,6 @@
 """Account isolation through real RPC dispatch, run admission and SessionDB."""
 from contextlib import closing
+from pathlib import Path
 
 import pytest
 
@@ -46,7 +47,9 @@ def test_empty_rooms_are_retry_stable_account_owned_and_do_not_start_turns(room_
     with closing(SessionDB(db_path=context.home / "state.db", read_only=True)) as db:
         for run, owner in ((first, OWNER), (second, OTHER)):
             for member in service.runs.members(run["run_id"]):
-                assert session_client_scope(db.get_session(member["session_id"])) == owner
+                row = db.get_session(member["session_id"])
+                assert session_client_scope(row) == owner
+                assert Path(row["cwd"]).is_absolute() and Path(row["cwd"]).is_dir()
     assert call("get", run_id=first["run_id"], client_scope=OWNER)["result"]["run"]["run_id"] == first["run_id"]
     assert call("get", run_id=first["run_id"], client_scope=OTHER)["error"]["data"]["reason"] == "conversation_owner_changed"
 
