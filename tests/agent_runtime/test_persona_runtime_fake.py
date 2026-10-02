@@ -1268,6 +1268,7 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
         session_id=None,
         permission_session_id="chat-neko-stable-1",
         turn_id="runtime-turn-1",
+        persona_instance_id="pi-neko-1",
     )
 
     request = captured["request"]
@@ -1275,7 +1276,16 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
     assert request.cache_scope_id == "chat-neko-stable-1"
     # …and the transcript/session-load key is left None (no re-bake).
     assert request.session_id is None
-    assert captured["invocation"] == {"channel": "operator", "session_id": "chat-neko-stable-1", "turn_id": "runtime-turn-1"}
+    invocation = captured["invocation"]
+    assert (invocation["channel"], invocation["session_id"], invocation["turn_id"]) == (
+        "operator", "chat-neko-stable-1", "runtime-turn-1")
+    # The Launcher's placement record also learns WHO ran: the persona instance
+    # the turn was handed, and the profile the run request carried (the same
+    # resolution, never a second one). This fixture binds no hermes profile, so
+    # the profile arm only pins absence here; its presence is pinned on the wire
+    # in test_launcher_app_function_catalog.
+    assert invocation["persona_instance_id"] == "pi-neko-1"
+    assert invocation.get("profile") == request.profile
 
 
 def test_mission_chat_reply_cache_scope_falls_back_to_session_when_no_perm(tmp_path, monkeypatch):

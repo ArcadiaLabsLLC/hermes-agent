@@ -184,13 +184,18 @@ def test_the_same_list_again_does_not_move_the_registry_epoch():
     assert registry_epoch() == epoch
 
 
-def test_an_entry_the_launcher_drops_is_deregistered():
+def test_an_entry_the_launcher_drops_is_deregistered_once_the_connection_lists_afresh():
     from tools.registry import registry
 
     launcher = _Launcher()
     link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
     laf.refresh_app_function_tools(link)
     launcher.tools = _TOOLS[:1]
+    laf.refresh_app_function_tools(link)
+    # The list is read once per connection: the catalog still holds both.
+    assert registry.get_entry("launcher_navigation_open") is not None
+
+    laf.forget_launcher_connection(launcher)  # the connection went; a reconnect lists afresh
     laf.refresh_app_function_tools(link)
 
     assert registry.get_entry("launcher_navigation_open") is None

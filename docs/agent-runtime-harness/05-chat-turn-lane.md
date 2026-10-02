@@ -276,6 +276,9 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
 - `agent_chat`, `board` and `clarify` are unconditional chat capabilities
   (`_CHAT_CAPABILITY_TOOLSETS`, `:902`) regardless of the persona's configured list; `clarify` is
   additionally un-blocked by name on the bounded lane (`:603`), which has a clarify bridge.
+- The Launcher's app functions (`launcher_app_functions`, Stage 7) join the augmentation once a
+  Launcher has listed them; under `read_only` the same chokepoint blocks every entry the Launcher
+  marks `requires_confirmation` (`extra_blocked_tools_for_permission_mode`) beside `READ_ONLY_BLOCKS`.
 
 `apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane
 resolution onto the operator preview, so `persona tool-diff` reports what the turn ships. It sets

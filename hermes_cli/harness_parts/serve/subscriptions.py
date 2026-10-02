@@ -483,8 +483,18 @@ class SubscriptionLanes:
         the same reasoning ``_broadcast_lanes`` is written down with.
         """
 
+        with self.connection_sinks_lock:
+            launcher_sink = self.connection_sinks.get(connection.key) if connection is not None else None
         self._release_subscription(connection)
         self._reclaim_abandoned_streams(connection)
+        if launcher_sink is not None:
+            # Stage 7: the Launcher that answered app functions on this sink is
+            # gone — drop its cached tool list and fail its open requests now
+            # rather than at the call timeout; a reconnect lists afresh and
+            # never inherits a request.
+            from agent_runtime.launcher_app_functions import forget_launcher_connection
+
+            forget_launcher_connection(launcher_sink)
 
     def _broadcast_lanes(self, frame: dict[str, Any]) -> None:
         """Tell every attached client, on whichever door it came through.

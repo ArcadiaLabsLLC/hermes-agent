@@ -337,8 +337,20 @@ def permission_state_for_chat(persona: AgentPersona, *, session_id: str | None) 
 
 
 def extra_blocked_tools_for_permission_mode(mode: str) -> list[str]:
+    """The names ``read_only`` blocks on top of the bounded tier.
+
+    ``READ_ONLY_BLOCKS`` plus every Launcher app function the Launcher marks
+    ``requires_confirmation`` (Stage 7): on that wire the confirm mark IS the
+    mutation mark — install, change a setting — and a session the operator
+    held at ``read_only`` must not reach them through the Launcher either.
+    Read from the live registration, never a copy, so a Launcher that lists a
+    new confirm entry is blocked the moment it is registered.
+    """
+
     if effective_permission_mode(mode) == PERMISSION_MODE_READ_ONLY:
-        return sorted(READ_ONLY_BLOCKS)
+        from .launcher_app_functions import confirm_app_function_tools
+
+        return sorted(READ_ONLY_BLOCKS | confirm_app_function_tools())
     return []
 
 

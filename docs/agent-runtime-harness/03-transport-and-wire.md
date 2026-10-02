@@ -39,7 +39,26 @@ identities; spatial placement remains separate.
 `agent_runtime/launcher_invocation.py` binds runtime-owned placement coordinates;
 `LauncherLink.request` in `agent_runtime/launcher_app_functions.py` stamps them
 as `params._meta.invocation`, after stripping model-supplied metadata. Fields are
-`channel`, `session_id`, `turn_id` and optional `client_scope`.
+`channel`, `session_id`, `turn_id` and optional `client_scope`,
+`persona_instance_id` and `profile` (the operator lane stamps the last two; the
+Launcher's `InvocationOrigin.fromJson` reads the first four and ignores the rest
+until it needs them). `params._meta.origin` is a separate word — `local` or
+`paired_device`, who started the turn — and never carries ids: the Launcher's
+reach check fails closed on anything else.
+
+The wire lane itself (`agent_runtime/launcher_client_requests.py`) asks
+`launcher.app_functions.list` ONCE per admitted connection: the catalog is
+cached by sink and forgotten on the serve's one disconnect path
+(`_on_connection_closed` → `forget_launcher_connection`) and on a
+`runtime.client.capabilities` re-declaration, so a reconnect lists afresh. A
+connection that closes with requests open has them failed at once with
+`data.refusal: connection_closed`; nothing is resent on the next connection.
+The Launcher's eight typed refusals and the confirmation outcome reach the model
+through `agent_runtime/launcher_app_function_answers.py` (one reading: `retry`
+and `detail` per word, `confirmed: true|false` on a `confirm` entry), and a
+session held at `read_only` blocks every entry the Launcher marks
+`requires_confirmation` through the same `permission_options_for_chat`
+chokepoint that blocks `READ_ONLY_BLOCKS`.
 
 - `conversation`: `conversations/service.py` supplies the admitted native route,
   turn and account scope; `conversations/app_functions.py` carries them across

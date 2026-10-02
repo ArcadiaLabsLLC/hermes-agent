@@ -210,7 +210,9 @@ class GPTPersonaRuntime:
             runtime_root=paths.store_root(),
             permission_mode=lane_bundle.permission_mode,
         )
-        with launcher_invocation("operator", root_chat_session_id or perm_session_id, turn_id):
+        with launcher_invocation("operator", root_chat_session_id or perm_session_id, turn_id,
+                                 persona_instance_id=persona_instance_id,
+                                 profile=binding.hermes_profile):
             result = self._runner.run(
                 AgentRunRequest(
                     profile=binding.hermes_profile,

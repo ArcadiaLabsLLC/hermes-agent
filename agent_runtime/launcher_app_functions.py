@@ -7,7 +7,9 @@ gate, argument validation and confirmation (launcher
 launcher half as landed"). This module is the agent's side of that door:
 
 * at the start of a chat turn that arrived over the serve connection, ask the
-  Launcher ``launcher.app_functions.list`` on that connection;
+  Launcher ``launcher.app_functions.list`` on that connection — ONCE per
+  admitted connection (the catalog is cached by sink and forgotten when the
+  connection closes or the client re-declares, so a reconnect lists afresh);
 * register one tool per entry (name, description and parameters exactly as
   given) in the :data:`APP_FUNCTIONS_TOOLSET` toolset;
 * a tool call is a JSON-RPC REQUEST on the same connection whose method is the
@@ -17,7 +19,11 @@ launcher half as landed"). This module is the agent's side of that door:
 
 Policy is the Launcher's, never re-decided here: an entry the Launcher refuses
 comes back as a JSON-RPC error carrying ``data.refusal``, and the tool returns
-that refusal to the model as its result.
+that refusal to the model as its result, read through
+:mod:`agent_runtime.launcher_app_function_answers`. The runtime offers exactly
+what the Launcher listed — a set the Launcher keeps behind a gate (the Studio
+functions) is absent from the list while the gate is closed, and nothing here
+knows those names, so no runtime setting can offer them.
 
 The request lane is :mod:`agent_runtime.launcher_client_requests`: server→client
 requests on the serve NDJSON wire, each answered by a response frame with the
@@ -39,6 +45,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+from .launcher_app_function_answers import refusal_result, success_result
 from .launcher_client_requests import _METHOD_NOT_FOUND, CLIENT_REQUESTS, ClientRequestFailed
 
 __layer__ = "stores"
@@ -60,7 +67,9 @@ __all__ = [
     "LauncherLink",
     "bind_launcher_link",
     "call_app_function",
+    "confirm_app_function_tools",
     "current_launcher_link",
+    "forget_launcher_connection",
     "refresh_app_function_tools",
     "reset_launcher_link",
 ]
@@ -80,6 +89,8 @@ LIST_TIMEOUT_SECONDS = 3.0
 #: A ``confirm`` entry waits for the operator's approval card, so a call gets
 #: the clarify-sized wait rather than the list's.
 CALL_TIMEOUT_SECONDS = 300.0
+#: JSON-RPC code of this side's own ``no_launcher`` answer.
+_NO_LAUNCHER_CODE = -32000
 @dataclass(frozen=True, slots=True)
 class LauncherLink:
     """Where this turn's app-function requests go, and who started the turn."""
@@ -130,6 +141,10 @@ class AppFunctionEntry:
     method: str
     description: str
     parameters: dict[str, Any]
+    #: The Launcher waits for the person's approval card before running it.
+    requires_confirmation: bool = False
+    #: ``local`` or ``paired_device``: the farthest origin the entry runs from.
+    reach: str = ""
 
     @classmethod
     def parse(cls, raw: Any) -> AppFunctionEntry | None:
@@ -146,10 +161,21 @@ class AppFunctionEntry:
         if not isinstance(parameters, dict):
             parameters = {"type": "object", "properties": {}}
         description = raw.get("description")
-        return cls(name, method, description if isinstance(description, str) else "", parameters)
+        reach = raw.get("reach")
+        return cls(name, method, description if isinstance(description, str) else "", parameters,
+                   requires_confirmation=raw.get("requires_confirmation") is True,
+                   reach=reach if isinstance(reach, str) else "")
 
     def schema(self) -> dict[str, Any]:
-        return {"name": self.name, "description": self.description, "parameters": self.parameters}
+        """The tool schema: the Launcher's name, description and parameters, with
+        the one fact the model must know before calling — that a ``confirm``
+        entry waits on the person — appended to the description."""
+
+        description = self.description
+        if self.requires_confirmation:
+            description = (f"{description} Needs the person's approval at the Launcher before it "
+                           "runs; the call waits for their answer.").strip()
+        return {"name": self.name, "description": description, "parameters": self.parameters}
 
 
 def call_app_function(entry: AppFunctionEntry, args: Mapping[str, Any]) -> str:
@@ -157,18 +183,27 @@ def call_app_function(entry: AppFunctionEntry, args: Mapping[str, Any]) -> str:
 
     link = current_launcher_link()
     if link is None:
-        return json.dumps({"error": "no Launcher is attached to this turn; app functions are unavailable"})
+        answer = refusal_result(refusal="no_launcher", code=_NO_LAUNCHER_CODE,
+                                message="no Launcher is attached to this turn; app functions are unavailable",
+                                requires_confirmation=entry.requires_confirmation)
+        return json.dumps(answer, ensure_ascii=False)
     try:
         result = link.request(entry.method, args or {})
     except ClientRequestFailed as exc:
         refusal = exc.data.get("refusal") if isinstance(exc.data, dict) else None
-        return json.dumps({"error": exc.message, "code": exc.code, "refusal": refusal}, ensure_ascii=False)
-    return json.dumps(result, ensure_ascii=False, default=str)
+        if refusal is None and exc.timed_out:
+            refusal = "no_reply"
+        answer = refusal_result(refusal=refusal, code=exc.code, message=exc.message,
+                                requires_confirmation=entry.requires_confirmation)
+        return json.dumps(answer, ensure_ascii=False, default=str)
+    return json.dumps(success_result(result, requires_confirmation=entry.requires_confirmation),
+                      ensure_ascii=False, default=str)
 
 
 class _ToolsetState:
     """What the registry holds for the toolset, which serve owners declared they answer
-    ``launcher.`` requests, and which sinks never answered."""
+    ``launcher.`` requests, which sinks never answered, and each answering
+    connection's catalog (its last list, kept until the connection goes)."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -176,6 +211,8 @@ class _ToolsetState:
         #: Declaring owners in declaration order (a re-declaration moves to the end).
         self.answerers: dict[str, None] = {}
         self.unanswered: dict[int, Any] = {}
+        #: By sink identity: the sink (so the id stays live) and its entries.
+        self.catalog: dict[int, tuple[Any, list[AppFunctionEntry]]] = {}
 
 
 _state = _ToolsetState()
@@ -189,6 +226,11 @@ def declare_answerer(owner: str, answers: bool) -> None:
         _state.answerers.pop(owner, None)
         if answers:
             _state.answerers[owner] = None
+        # A declaration is a client announcing itself: the catalogs and the
+        # silence latches describe connections as they were before it, and a
+        # Launcher that restarted behind the same pipe lists afresh.
+        _state.catalog.clear()
+        _state.unanswered.clear()
 
 
 def answers_launcher_requests(owner: str) -> bool:
@@ -212,6 +254,29 @@ def app_function_tools_registered() -> bool:
 
     with _state.lock:
         return bool(_state.registered)
+
+
+def confirm_app_function_tools() -> frozenset[str]:
+    """The registered tools the Launcher marks ``requires_confirmation`` — the
+    mutation mark on this wire; ``read_only`` blocks them (``tool_permissions``)."""
+
+    with _state.lock:
+        return frozenset(name for name, entry in _state.registered.items() if entry.requires_confirmation)
+
+
+def forget_launcher_connection(sink: Any) -> None:
+    """The connection behind *sink* is gone: drop its catalog and silence latch,
+    fail its open requests now, and — when no catalog is left — empty the
+    toolset, so a turn with no Launcher is offered nothing stale."""
+
+    with _state.lock:
+        _state.catalog.pop(id(sink), None)
+        _state.unanswered.pop(id(sink), None)
+        if not _state.catalog:
+            _sync_registry([])
+    abandoned = CLIENT_REQUESTS.abandon(sink)
+    if abandoned:
+        logger.info("launcher connection closed with %d app-function request(s) open; failed, not resent", abandoned)
 
 
 def _link_available() -> bool:
@@ -249,17 +314,23 @@ def _sync_registry(entries: list[AppFunctionEntry]) -> None:
 
 
 def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
-    """Ask *link*'s connection for its app functions and register them as tools.
+    """Make the registry hold *link*'s connection's app functions as tools.
 
-    Returns the tool names, or None when the list failed. A connection that
-    stayed silent or has no such method is latched and not asked again; an
-    error reply from a real responder is not latched. A malformed entry is skipped and logged,
-    never registered half-built.
+    The list is asked ONCE per connection: a catalog already held for this sink
+    is re-synced into the registry (idempotent, no wire) and its names
+    returned. Returns the tool names, or None when the list failed. A
+    connection that stayed silent or has no such method is latched and not
+    asked again; an error reply from a real responder is not latched. A
+    malformed entry is skipped and logged, never registered half-built.
     """
 
     with _state.lock:
         if id(link.sink) in _state.unanswered:
             return None
+        held = _state.catalog.get(id(link.sink))
+        if held is not None:
+            _sync_registry(held[1])
+            return [entry.name for entry in held[1]]
     try:
         result = link.request(LIST_METHOD, {})
     except ClientRequestFailed as exc:
@@ -277,6 +348,7 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
             continue
         entries.append(entry)
     with _state.lock:
+        _state.catalog[id(link.sink)] = (link.sink, entries)
         _sync_registry(entries)
     return [entry.name for entry in entries]
 
@@ -290,3 +362,4 @@ def _reset_for_tests() -> None:
         _state.registered = {}
         _state.answerers.clear()
         _state.unanswered.clear()
+        _state.catalog.clear()

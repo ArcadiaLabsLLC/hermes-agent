@@ -12,12 +12,21 @@ def current_invocation():
 
 
 @contextmanager
-def launcher_invocation(channel, session_id, turn_id, *, client_scope=None):
+def launcher_invocation(channel, session_id, turn_id, *, client_scope=None,
+                        persona_instance_id=None, profile=None):
+    """Bind who is calling for the width of the block: the channel and its turn,
+    and — when the lane knows them — the account scope, the persona instance and
+    the hermes profile the turn runs as. The Launcher reads the first three and
+    ``client_scope``; the rest travel for its placement record and are ignored
+    by a Launcher that does not read them yet."""
     value = None
     if session_id and turn_id:
         value = {"channel": channel, "session_id": session_id, "turn_id": turn_id}
-        if client_scope is not None:
-            value["client_scope"] = client_scope
+        for key, item in (("client_scope", client_scope),
+                          ("persona_instance_id", persona_instance_id),
+                          ("profile", profile)):
+            if item is not None:
+                value[key] = item
     token = _current.set(value)
     try:
         yield

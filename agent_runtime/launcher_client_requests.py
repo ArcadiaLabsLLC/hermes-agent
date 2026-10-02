@@ -21,6 +21,7 @@ __layer__ = "stores"
 
 __all__ = [
     "CLIENT_REQUESTS",
+    "CONNECTION_CLOSED",
     "ClientRequestFailed",
     "ClientRequests",
     "is_response_frame",
@@ -31,6 +32,9 @@ __all__ = [
 _NO_REPLY_CODE = -32000
 #: The client has no handler for the method: as final as silence.
 _METHOD_NOT_FOUND = -32601
+#: ``data.refusal`` of the error this side synthesizes when the asking
+#: connection closed with the request still open.
+CONNECTION_CLOSED = "connection_closed"
 
 
 class ClientRequestFailed(Exception):
@@ -103,6 +107,30 @@ class ClientRequests:
         pending.frame = dict(frame)
         pending.event.set()
         return True
+
+    def abandon(self, sink: Any, *, reason: str = CONNECTION_CLOSED) -> int:
+        """Settle every request still open on *sink* as failed, now, with *reason*.
+
+        The connection is gone, so no answer can arrive: without this a tool
+        call waits the full call timeout for a frame nobody will write. The
+        request is NOT resent on any other connection — a reopen never
+        replays — so the caller learns a typed ``connection_closed`` and
+        decides for itself. Returns how many were settled.
+        """
+
+        with self._lock:
+            abandoned = [(request_id, pending) for request_id, pending in self._open.items()
+                         if pending.sink is sink]
+            for request_id, _ in abandoned:
+                self._open.pop(request_id, None)
+        for request_id, pending in abandoned:
+            pending.frame = {"jsonrpc": "2.0", "id": request_id, "error": {
+                "code": _NO_REPLY_CODE,
+                "message": "the client connection closed before it answered",
+                "data": {"refusal": reason},
+            }}
+            pending.event.set()
+        return len(abandoned)
 
     def open_count(self) -> int:
         with self._lock:
