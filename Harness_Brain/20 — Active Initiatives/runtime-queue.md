@@ -30,7 +30,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
 
-- [ ] **The progress sink's allowlist (`agent_runtime/progress.py::_SAFE_PROGRESS_KEYS`) lacks `tool_call_id`, `outcome`, `timed_out` and `timeout_seconds`: they reach the event log and the stream only under redaction observe mode (`would_redact: unsupported_progress_key` on every `run.tool.*` event), so turning observe mode off strips the call id and the verdict the single finished event carries. Admit them with typed checks** · `fork / runtime` · events `X:/Eternia/.hermes/agent-runtime/events_archive/events.81417412.jsonl` 17586, 17609; lane w3-turn report · **TAKEN 2026-10-02 w5-rt**
 
 ### Filed on arrival — 2026-10-01 (launcher lane mc-a, filed by the orchestrator)
 

@@ -65,6 +65,10 @@ _SAFE_PROGRESS_KEYS = {
     # what lets the operator console expand ANY tool row instead of showing
     # "no input or result detail was emitted".
     "tool_input", "tool_result",
+    # The finished-call record a ``run.tool.*`` pair carries: the call id that
+    # pairs started with finished, the verdict, and the terminal deadline. Each
+    # is admitted only through its typed check in ``_TYPED_TOOL_CALL_FIELDS``.
+    "tool_call_id", "outcome", "timed_out", "timeout_seconds",
 }
 
 # Bounds for the operator-detail fields (event payload cap is 4096 bytes).
@@ -97,6 +101,41 @@ _DISPATCH_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,%d}" % _OPERATOR_DISPATCH_ID_MA
 # re-truncated into garbage.
 _OPERATOR_TOOL_INPUT_MAX = 1100
 _OPERATOR_TOOL_RESULT_MAX = 1700
+
+# The tool-call record's typed admission. A value failing its check is dropped
+# (strict) or kept with a ``would_redact`` marker (observe) — never coerced.
+#: ``outcome`` words: ``profile_runner.tool_payloads._outcome_fields``' status
+#: pair plus its ``TOOL_OUTCOME_TIMED_OUT``.
+_TOOL_CALL_OUTCOMES = frozenset({"passed", "failed", "timed_out"})
+_TOOL_CALL_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
+
+
+def _typed_tool_call_id(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and _TOOL_CALL_ID_RE.fullmatch(value) is not None
+        and not _looks_sensitive(value)
+    )
+
+
+def _typed_outcome(value: Any) -> bool:
+    return isinstance(value, str) and value in _TOOL_CALL_OUTCOMES
+
+
+def _typed_timed_out(value: Any) -> bool:
+    return value is True
+
+
+def _typed_timeout_seconds(value: Any) -> bool:
+    return type(value) is int and value >= 0
+
+
+_TYPED_TOOL_CALL_FIELDS: dict[str, Callable[[Any], bool]] = {
+    "tool_call_id": _typed_tool_call_id,
+    "outcome": _typed_outcome,
+    "timed_out": _typed_timed_out,
+    "timeout_seconds": _typed_timeout_seconds,
+}
 
 _CHAT_TRACE_EVENT_TYPES = {"run.tool.started", "run.tool.finished", "run.progress"}
 # run.progress payloads that carry one of these keys are real signal (a tool
@@ -356,6 +395,14 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
             if observe:
                 safe[key] = _observe_value(value)
                 _mark_would_redact(safe, key, "unsupported_progress_key")
+            continue
+        typed_check = _TYPED_TOOL_CALL_FIELDS.get(key)
+        if typed_check is not None:
+            if typed_check(value):
+                safe[key] = value
+            elif observe:
+                safe[key] = _observe_value(value)
+                _mark_would_redact(safe, key, "tool_call_field")
             continue
         if isinstance(value, list) and key == "changed_files":
             labels = _safe_file_labels(value)
