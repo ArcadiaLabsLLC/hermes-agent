@@ -31,7 +31,7 @@ from agent_runtime.persona_chat_durability import (
 from hermes_constants import get_hermes_home
 from hermes_time import now
 from .chat_open import _emit_persona_open_chat_payload
-from .chat_session import _persona_chat_bound_owner, _persona_chat_session_owner
+from agent_runtime.persona_chat_session import _persona_chat_bound_owner, _persona_chat_session_owner
 
 __layer__ = "lanes"
 __all__ = [
