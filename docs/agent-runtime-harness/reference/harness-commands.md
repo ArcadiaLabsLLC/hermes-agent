@@ -166,6 +166,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona-instance reconcile](#hermes-harness-persona-instance-reconcile)
 - [hermes harness persona-instance chat-bindings](#hermes-harness-persona-instance-chat-bindings)
 - [hermes harness persona-instance detail](#hermes-harness-persona-instance-detail)
+- [hermes harness query](#hermes-harness-query)
 - [hermes harness agent](#hermes-harness-agent)
 - [hermes harness agent list](#hermes-harness-agent-list)
 - [hermes harness agent create](#hermes-harness-agent-create)
@@ -209,10 +210,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -252,6 +253,10 @@ positional arguments:
     contracts           Inspect canonical Mission Control event contracts
     worktree            Manage harness-managed git worktrees
     persona-instance    Manage durable persona-instance store rows
+    query               READ-ONLY narrow lookups: roster, one instance (with its MCP resolution), an
+                        instance's chat sessions with hot/busy/cold state, and live QA sessions by
+                        id. Answered by the running serve when one is up; use this, not `snapshot`,
+                        for lookups
     agent               Inspect and rebind harness agent definitions
     install-harness-skills
                         Install versioned Harness skills into configured persona profiles
@@ -2979,7 +2984,9 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--persona-instance-id PERSONA_INSTANCE_ID]
                                            [--session-id SESSION_ID] [--new-session]
                                            [--clarify-token CLARIFY_TOKEN] [--title TITLE]
-                                           --message MESSAGE [--provider PROVIDER] [--model MODEL]
+                                           (--message MESSAGE |
+                                           --reviewed-prompt-json REVIEWED_PROMPT_JSON)
+                                           [--provider PROVIDER] [--model MODEL]
                                            [--use-agent-default] [--surface-prompt SURFACE_PROMPT]
                                            [--agents-file AGENTS_FILE] [--workspace-id WORKSPACE_ID]
                                            [--workspace-name WORKSPACE_NAME]
@@ -3010,6 +3017,8 @@ options:
                         dispatch under the new_per_dispatch policy); ignored when continuing an
                         existing thread
   --message MESSAGE
+  --reviewed-prompt-json REVIEWED_PROMPT_JSON
+                        Reviewed text and image bytes; never client file paths
   --provider PROVIDER   Provider override for this persona chat session only
   --model MODEL         Model override for this persona chat session only
   --use-agent-default   Clear the chat-scoped provider/model override before sending
@@ -3380,6 +3389,23 @@ positional arguments:
 
 options:
   -h, --help   show this help message and exit
+  --json
+```
+
+## hermes harness query
+
+```text
+usage: hermes harness query [-h] [--limit LIMIT] [--direct] [--json]
+                            {roster,instance,sessions,live_qa} [target]
+
+positional arguments:
+  {roster,instance,sessions,live_qa}
+  target                Persona-instance id or persona id (instance, sessions)
+
+options:
+  -h, --help            show this help message and exit
+  --limit LIMIT         Most sessions to return (default 10, max 50)
+  --direct              Read in this process; do not ask the running serve
   --json
 ```
 
