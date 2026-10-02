@@ -92,7 +92,7 @@ def _history_position(value, scope):
 def _page(db, *, owner, before, limit):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
     # read boundary; owner filtering must precede the page bound, not follow it.
-    clauses = ["source=?", "hidden=0", "json_valid(model_config)",
+    clauses = ["source=?", "hidden=0", "(model_config IS NULL OR json_valid(model_config))",
                "COALESCE(json_extract(model_config,'$.mission_chat_root_id'),id)=id"]
     args = [PERSONA_CHAT_SESSION_SOURCE]
     if owner is not None:
