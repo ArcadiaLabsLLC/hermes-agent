@@ -215,3 +215,8 @@ direct sessions. Model reads and changes reuse operator-session services with
 the member's exact instance, session and owner; placement stays unchanged.
 Uncertain execution blocks changes. The native room/model/import group passed
 22 tests; the binding recheck passed separately. Full cutover remains open.
+
+The operator-only All accounts directory includes native persona-chat rows with
+null metadata. Current-account queries still exclude unowned sessions; no owner
+is inferred or assigned. Three native directory tests and the isolated Launcher
+creation/continuation test pass. Account-safe console wiring remains open.
