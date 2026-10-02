@@ -6229,7 +6229,15 @@
       "subcommands": []
     },
     "harness mission-chat message": {
-      "exclusive_groups": [],
+      "exclusive_groups": [
+        {
+          "opts": [
+            "--message",
+            "--reviewed-prompt-json"
+          ],
+          "required": true
+        }
+      ],
       "options": {
         "--agents-file": {
           "action": "store",
@@ -6332,7 +6340,7 @@
           "canonical": "--message",
           "choices": null,
           "nargs": 1,
-          "required": true,
+          "required": false,
           "type": null
         },
         "--model": {
@@ -6402,6 +6410,14 @@
         "--requested-by-session": {
           "action": "store",
           "canonical": "--requested-by-session",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--reviewed-prompt-json": {
+          "action": "store",
+          "canonical": "--reviewed-prompt-json",
           "choices": null,
           "nargs": 1,
           "required": false,

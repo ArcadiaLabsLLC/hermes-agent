@@ -710,6 +710,8 @@ class AgentRunExecution:
             conversation_kwargs["reuse_current_user_message"] = True
         if request.stream_callback is not None:
             conversation_kwargs["stream_callback"] = request.stream_callback
+        if request.user_display_kind is not None:
+            conversation_kwargs["persist_user_display_kind"] = request.user_display_kind
         return conversation_kwargs
 
     def converse(self, agent_ready_cleanup: Any) -> tuple[Any, Any, dict[str, Any]]:

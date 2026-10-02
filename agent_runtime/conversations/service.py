@@ -112,9 +112,12 @@ class ConversationService:
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from .prompt import submit
-        from ..reviewed_prompt import validate
+        from ..reviewed_prompt import ReviewedPromptError, validate
 
-        validate(prompt)
+        try:
+            validate(prompt)
+        except ReviewedPromptError as exc:
+            raise ConversationError(Refusal.INVALID_REQUEST) from exc
         with self._session(scope, session_id) as live, live.operations:
             with self._lock:
                 self._admit()

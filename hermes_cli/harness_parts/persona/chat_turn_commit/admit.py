@@ -271,12 +271,16 @@ class _AdmitPhases:
         # Resolve the effective instance once. Prompt receipts and execution must
         # observe the same model and skill assignment authority.
         self.persona = apply_instance_model_overrides(self.persona, instance)
-        message = safe_assignment_text(getattr(args, "message", None), limit=12000)
-        if not message:
+        from agent_runtime.operator_input import input_from_args
+        from agent_runtime.reviewed_prompt import ReviewedPromptError
+
+        try:
+            self.submitted_input = input_from_args(args)
+        except ReviewedPromptError:
             data = _missing_chat_message_payload()
             _mission_chat_emit(args, data)
             return 2
-        self.message = message
+        self.message = self.submitted_input.text
         return None
 
     def _read_prior_attempt(self) -> None:
