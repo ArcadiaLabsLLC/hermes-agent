@@ -236,6 +236,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-02 (launcher lane w8-mcp, filed by the orchestrator)
+
+- [ ] **hermes' MCP client sends no `_meta.progressToken` and relays no `notifications/progress`, so the launcher QA server's rebuild progress (phase/commit/elapsed/expected, launcher `87c550098`) never reaches the Agent Console card's `tool.progress` — pass a progress callback to `call_tool` in `tools/mcp_tool*.py` and forward each report to `tool.progress` (seam first; upstream PR if it cannot move)** · `seam / tools` · launcher half landed in `87c550098` · UNCLAIMED
+
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
 
