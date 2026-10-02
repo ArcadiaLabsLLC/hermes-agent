@@ -117,13 +117,14 @@ def test_tool_describe_returns_full_docs_and_live_params():
     for name in ("session_search", "browser_navigate", "execute_code"):
         schema = _schema(name)
         result = json.loads(dispatch_tool_describe(
-            {"name": name}, current_tool_defs=[{"type": "function", "function": schema}]))
+            {"names": [name]}, current_tool_defs=[{"type": "function", "function": schema}]))
         assert "error" not in result, (name, result)
-        assert result["description"] == _full(name)
+        described = result["tools"][name]
+        assert described["description"] == _full(name)
         # The wire brief is shorter; tool_describe returns MORE.
-        assert len(result["description"]) > len(_wire(name)), name
+        assert len(described["description"]) > len(_wire(name)), name
         # Parameters are never trimmed — live registry schema comes back.
-        assert result["parameters"] == schema.get("parameters", {})
+        assert described["parameters"] == schema.get("parameters", {})
 
 
 def test_skill_manage_full_docs_stay_profile_aware():
