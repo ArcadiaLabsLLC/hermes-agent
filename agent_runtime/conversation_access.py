@@ -7,7 +7,7 @@ from .persona_chat_history.messages import existing_persona_chat_messages
 __layer__ = "lanes"
 
 
-def require_scoped_conversation(params: dict) -> None:
+def validate_conversation_access(params: dict) -> None:
     owner = request_client_scope(params)
     if owner is None:
         return

@@ -31,6 +31,9 @@ map                      lanes   ``runtime.map.*``
 prefab                   lanes   ``runtime.prefab.*`` (a profile's prefab shelf)
 agent                    lanes   ``runtime.agent.create/retire``
 chat                     lanes   open_chat, prewarm, ``runtime.chat.message/steer``
+operator_conversation    lanes   exact-session read, message and Stop
+operator_inspection      lanes   native session model, usage and skill reads
+instance_history         lanes   account-scoped native conversation directory
 scope                    lanes   ``runtime.workspace.use`` / ``runtime.realm.use``
 media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
@@ -67,6 +70,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     agent,
     chat,
     operator_conversation,
+    operator_inspection,
     instance_history,
     scope,
     workspace,
