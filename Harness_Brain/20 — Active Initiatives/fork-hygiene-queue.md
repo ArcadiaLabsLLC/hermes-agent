@@ -25,7 +25,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - **Provider-boundary qualification, October 1:** the existing TLS setup stall and duplicate-name/routing-ladder gate failures were reproduced, not waived; [evidence](../../docs/downstream/provider-access-boundary-2026-10-01.md#qualification). Native provider, plugin and execution checks pass; this does not certify a whole-repository green run.
 
-- [ ] **Repair the stale Toolsets citation in the chat-turn canon.** · The citation-adjacency gate on `6c3fce3947` reports one unwaived failure in `docs/agent-runtime-harness/05-chat-turn-lane.md`, whose Toolsets paragraph points away from `clarify`, `delegation` and `terminal`; gate inputs are unchanged by the QA follow-up. [Check receipt](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#documentation-checks). Filed 2026-09-30 Projects QA. **TAKEN 2026-10-02 w5-fh**
 
 - [ ] **Diagnose the local CLI startup stall opening the inherited TLS key-log device target.** · The bounded inspector trace stops at `ssl.create_default_context` assigning `keylog_filename`, reached while `pm/downloader.py` constructs its opener during startup; no chat journal was created. Preserve certificate validation and logging oversight; classify host configuration versus startup handling before changing code. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#local-startup-stall). Filed 2026-09-30 Projects QA. **TAKEN 2026-10-02 w5-fh**
 
