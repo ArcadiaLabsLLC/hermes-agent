@@ -15,6 +15,7 @@ from ..persona_assignments import (
     safe_assignment_token,
 )
 from .vocabulary import canonical_chat_persona_id
+from .trace_journal import page_chat_trace_by_turn
 from .trace_rows import _bounded_message_tail, _trace_entry, _trace_fetch_limit
 from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, _TRACE_EVENT_TYPES
 
@@ -145,6 +146,19 @@ def persona_chat_trace_summary(
     for instance_id in order:
         acc = accumulators[instance_id]
         entries = acc.entries(tail=tail, accountant=accountant)
+        if acc.session_id:
+            # Paged by TURN: a settled turn the tail missed or cut comes from the
+            # turn journal whole (``trace_journal``), so an earlier turn in the
+            # history window keeps its tool calls across a restart or reopen.
+            entries = page_chat_trace_by_turn(
+                entries,
+                session_id=acc.session_id,
+                persona_id=acc.persona_id,
+                cut_turn_ids=acc.cut_turn_ids,
+                tail=tail,
+                accountant=accountant,
+                entity_id=acc.instance_id,
+            )
         if not entries:
             continue
         row: dict[str, Any] = {
@@ -183,13 +197,16 @@ class _TraceAccumulator:
     """Collects a persona instance's trace events across lanes, then renders
     them chronologically into a bounded list of redaction-safe entry dicts."""
 
-    __slots__ = ("instance_id", "persona_id", "task_id", "session_id", "_events")
+    __slots__ = ("instance_id", "persona_id", "task_id", "session_id", "cut_turn_ids", "_events")
 
     def __init__(self, *, instance_id: str, persona_id: str, task_id: str | None, session_id: str | None):
         self.instance_id = instance_id
         self.persona_id = persona_id
         self.task_id = task_id or None
         self.session_id = session_id or None
+        #: Turns the tail retention dropped at least one entry of — filled by
+        #: :meth:`entries`, read by the turn pager.
+        self.cut_turn_ids: set[str] = set()
         self._events: list[Any] = []
 
     def extend(self, events: Iterable[Any]) -> None:
@@ -206,6 +223,13 @@ class _TraceAccumulator:
                 continue
             rendered.append(entry)
         kept = _retain_trace_tail(rendered, tail=tail)
+        if len(kept) < len(rendered):
+            kept_ids = {id(entry) for entry in kept}
+            self.cut_turn_ids = {
+                str(entry.get("turn_id"))
+                for entry in rendered
+                if id(entry) not in kept_ids and entry.get("turn_id")
+            }
         if accountant is not None:
             accountant.consider(len(self._events))
             accountant.include(len(kept))
