@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-02 (instance qualification)
+
+- [ ] **Refresh the provider sign-in child's CLI expectation against the Harness-owned login door.** `test_serve_rpc_provider.py::test_the_default_child_is_the_machine_sign_in_verb` expects `auth login`; the unchanged producer emits `harness auth login`. Reproduced on clean main `d19a19f597` with 22 passing / one failing test. Preserve the JSON, flow and profile assertions. · fork / suite · `agent_runtime/provider_signin_child.py` · UNCLAIMED
+
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
 ## Filed on arrival — 2026-10-02 (lane w5-fh)
