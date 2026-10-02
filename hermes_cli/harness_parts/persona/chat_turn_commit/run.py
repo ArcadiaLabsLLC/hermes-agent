@@ -244,11 +244,13 @@ class _RunPhases:
             context_id=str(prompt_context["context_id"])
         )
         self.prompt_context = prompt_context
-        instance.skill_manifest_hash = safe_assignment_token(
-            prompt_context.get("skill_manifest_hash")
-        )
+        manifest_hash = safe_assignment_token(prompt_context.get("skill_manifest_hash"))
+        instance.skill_manifest_hash = manifest_hash
         if not is_auxiliary_chat(instance.id, self.session_id):
-            self.instance = self.instance_store.update(instance)
+            # Field-scoped on a fresh read, like the settle's return-to-idle.
+            self.instance = self.instance_store.patch_fields(
+                instance.id, skill_manifest_hash=manifest_hash
+            )
 
     def _open_stream(self) -> None:
         """The protocol-v2 emitter and the turn's trace buffer. Marks ``emitter_created``."""

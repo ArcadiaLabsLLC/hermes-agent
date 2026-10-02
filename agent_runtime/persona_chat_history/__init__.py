@@ -17,7 +17,8 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   row).
 * stores — ``markers`` (terminal and silent turn markers, transcript order;
   read from the turn journal), ``curation`` (the transcript policy, its
-  revision and cursor; reads the turn journal), ``history_rows`` (SessionDB session rows), ``trace`` (the event-log
+  revision and cursor; reads the turn journal), ``history_rows`` (SessionDB session rows), ``trace_journal`` (settled turns
+  the trace tail missed, paged from the turn journal), ``trace`` (the event-log
   trace tail).
 * lanes — ``summary``, ``messages``.
 

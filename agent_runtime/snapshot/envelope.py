@@ -146,11 +146,31 @@ def _runtime_root_identity() -> dict:
 
 
 def _runtime_profile_identity() -> dict:
+    """``name`` is the profile this serve runs (whose ``model.default`` agents
+    resolve); ``cli_active_profile`` is the CLI's sticky profile, the one a bare
+    ``hermes model`` in a terminal edits, and ``cli_active_profile_differs`` says
+    the two are not the same profile. Additive keys on the parity block: a
+    reader that ignores them is unchanged, so no contract bump (the "52 KEPT"
+    rule in docs/agent-runtime-harness/02-runtime-data-and-shapes.md).
+
+    Not a build input — no fingerprint covers the sticky marker — so
+    ``core_cache.read.label_core`` re-stamps this block on every served core.
+    """
+
     try:
         from ..profile_context import active_profile_name
 
         name = active_profile_name()
     except Exception:
         name = None
+    try:
+        from ..profile_context import cli_sticky_profile_name
+
+        cli_name = cli_sticky_profile_name()
+    except Exception:
+        cli_name = None
     safe = _safe_model_label(str(name)) if name else None
-    return {"name": safe or "default"}
+    safe_cli = _safe_model_label(str(cli_name)) if cli_name else None
+    serve = safe or "default"
+    cli = safe_cli or "default"
+    return {"name": serve, "cli_active_profile": cli, "cli_active_profile_differs": cli != serve}

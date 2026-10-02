@@ -255,7 +255,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # ``dispatch.completed`` precedent: the row appears on one and disappears on the
 # other. This counter went red on that commit and was moved deliberately — which
 # is, again, the counter working.
-SURVIVING_EVENT_COUNT = 66
+# 67 (w6-hm, 2026-10-02): ``runtime.default_model.set``, the serve op that writes
+# the serve profile's ``model.default`` (``agent_runtime.runtime_default_model``).
+# Red at 66 on that commit and moved deliberately.
+SURVIVING_EVENT_COUNT = 67
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

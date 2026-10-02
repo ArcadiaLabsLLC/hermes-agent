@@ -351,11 +351,16 @@ class _SettlePhases:
         instance = self.instance
         try:
             if not is_auxiliary_chat(instance.id, self.session_id):
-                instance.active_run_id = None
-                instance.current_assignment_id = None
-                instance.state = WorkerSessionState.IDLE
-                instance.default_chat_session_id = self.session_id
-                self.instance_store.update(instance)
+                # FIELD-scoped, on a fresh read: ``self.instance`` was loaded at
+                # admission, and writing that whole copy back reverted a model
+                # pick made mid-turn (2026-10-01, see ``PersonaInstanceStore.update``).
+                self.instance = self.instance_store.patch_fields(
+                    instance.id,
+                    active_run_id=None,
+                    current_assignment_id=None,
+                    state=WorkerSessionState.IDLE,
+                    default_chat_session_id=self.session_id,
+                )
         except Exception as instance_commit_exc:
             # NOT silent any more. This write is what returns the agent to idle
             # and repoints its default thread; swallowing its failure is why a
