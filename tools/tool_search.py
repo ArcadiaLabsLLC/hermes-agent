@@ -532,6 +532,7 @@ def dispatch_tool_describe(args: Dict[str, Any], *, current_tool_defs: List[Dict
         result["errors"] = errors
     if hosted_failure:
         result["connectors"] = connectors_unavailable(hosted_failure, verb="described", names=undescribed)
+    attach_local_call_rule(result)  # fork: tool_search_downstream
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -588,4 +589,4 @@ __all__ = [
     "CONNECTOR_BATCH_SENTINEL", "is_connector_name"]
 
 
-from tools.tool_search_downstream import attach_hit_parameters, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema  # noqa: E402,F401 — fork
+from tools.tool_search_downstream import attach_hit_parameters, attach_local_call_rule, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema  # noqa: E402,F401 — fork
