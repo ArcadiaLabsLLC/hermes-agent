@@ -99,3 +99,32 @@ resident actor was reused. Do not generalize that flag to production.
 Receipts: `{instance,worker}-phases-{1,2,3}.xml` and bounded logs under the
 same local receipt directory. All six runs passed; no guard fired. Keep the
 profile worker pending matched live latency and console parity.
+
+## Hot-session rerun before foundation landing
+
+Rebased candidate `49d618deb7`; one fresh process per route, two warm turns.
+The isolated serve reports `agent_runtime.persona_chat.hot_sessions_enabled: true`.
+Both tests passed; receipts: `hot-instance.xml`, `hot-worker.xml` and their raw
+logs/resource records. These measurements stay on the cutover branch.
+
+| Route | Warm first answer (ms) | Warm complete (ms) |
+|---|---:|---:|
+| Instance | 468 / 442; median 455 | 534 / 573; median 553.5 |
+| Worker | 148 / 91; median 119.5 | 197 / 151; median 174 |
+
+Warm delta: **+335.5 ms** first answer, **+379.5 ms** completion.
+`resident_actor_reused` was **0 / 0**, despite the enabled flag. Both turns
+report `resident_rebuild_component_root_model_config_revision: 1`; this is
+observed invalidation, not proof of its cause or production behavior.
+Native phase medians: DB 16 ms; skill preload 20; signature 4.5; HUD 3.5;
+skill observability 1; runtime resolution 0 (cached); construction 78
+(context engine 53.5, core 5.5, memory/skills 6, provider client 4);
+conversation call 138 (turn context 12, prompt restore 2.5, provider dispatch
+22, first delta 19, stream consume 0); normalization/budget 0. Nested spans
+overlap; the worker has no equivalent phase projection for subtraction.
+
+The normal Launcher's persisted selection is the full installation, base
+profile. Its root configuration omits this flag; native default is **false**.
+No production serve was running when inspected. This states its configured
+boot value, not a live-process observation. No production settings were changed.
+Keep the worker; hot-resident invalidation and final live parity remain open.

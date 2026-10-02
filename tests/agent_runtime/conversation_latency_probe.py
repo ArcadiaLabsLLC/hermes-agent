@@ -77,6 +77,7 @@ def local_profile(monkeypatch):
         "    api_key: probe-only\n    discover_models: false\n"
         "dashboard:\n  turn_isolation: false\n"
         "conversations:\n  subprocess_worker: true\n"
+        "agent_runtime:\n  persona_chat:\n    hot_sessions_enabled: true\n"
         "mcp_servers: {}\n"
     )
     for destination in (home, get_hermes_home()):
@@ -179,6 +180,11 @@ def instance_timing(target, turn):
 
 def measure_lane(record_property, monkeypatch, open_target, send, read, details=None):
     with local_profile(monkeypatch) as home, runtime_probe() as probe:
+        from agent_runtime.config import load_root_runtime_config
+
+        hot_sessions = load_root_runtime_config().persona_chat.hot_sessions_enabled
+        assert hot_sessions
+        record_property("hot_sessions_enabled", hot_sessions)
         started = time.monotonic()
         target = open_target(probe, home)
         record_property("open_ms", round((time.monotonic() - started) * 1000))
