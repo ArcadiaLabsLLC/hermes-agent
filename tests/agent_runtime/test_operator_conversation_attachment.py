@@ -40,13 +40,15 @@ def call(operation, params, *, spawn=None):
 def test_attach_reuses_history_questions_and_send_owner_across_profiles(tmp_path, monkeypatch):
     a = fixture(tmp_path / "a", monkeypatch, "Amelia")
     ticket = PersonaChatClarifyTicketStore().mint(chat_session_id=a["session_id"],
-        persona_instance_id=a["persona_instance_id"], persona_id="builder")
+        persona_instance_id=a["persona_instance_id"], persona_id="builder",
+        question={"question": "Which project?", "choices": ["Launcher", "Harness"]})
     persist_mission_chat_turn(session_id=a["session_id"], client_message_id="old-turn",
         turn_id="old-turn", state="running", elements=[{"kind": "segment", "text": "Partial"}])
     attached = call("read", a)
     assert "result" in attached, attached
     read = attached["result"]
     assert read["clarify_token"] == ticket
+    assert read["question"] == {"question": "Which project?", "choices": ["Launcher", "Harness"]}
     assert read["active_turns"][0]["client_message_id"] == "old-turn"
     assert len(read["messages"]) == 40 and read["next_before"]
     earlier = call("read", {**a, "before": read["next_before"]})["result"]
@@ -69,6 +71,7 @@ def test_attach_reuses_history_questions_and_send_owner_across_profiles(tmp_path
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path / "a"))
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "a" / "runtime"))
     assert call("read", a)["result"]["clarify_token"] == ticket
+    assert call("read", a)["result"]["question"] == read["question"]
     assert call("read", a)["result"]["messages"][0]["text"].startswith("Amelia")
 
 
