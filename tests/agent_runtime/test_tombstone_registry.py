@@ -178,7 +178,7 @@ HARNESS_NAMESPACE = (
     "hermes_cli.harness_parts.persona.chat_open",
     "hermes_cli.harness_parts.persona.chat_reply_stamps",
     "hermes_cli.harness_parts.persona.chat_request",
-    "hermes_cli.harness_parts.persona.chat_session",
+    "agent_runtime.persona_chat_session",
     "hermes_cli.harness_parts.persona.chat_target",
     "hermes_cli.harness_parts.persona.chat_tickets_commands",
     "hermes_cli.harness_parts.persona.chat_turn_commit",

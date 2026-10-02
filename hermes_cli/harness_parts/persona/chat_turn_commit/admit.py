@@ -49,7 +49,7 @@ from ..chat_request import (
     _requested_chat_model_override,
     _retired_persona_instance_payload,
 )
-from ..chat_session import (
+from agent_runtime.persona_chat_session import (
     _chat_effective_model_payload,
     _persona_chat_native_revision,
     _persona_chat_native_tip,

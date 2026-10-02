@@ -56,7 +56,7 @@ from ..chat_request import (
     _mission_chat_clarify_request_payload,
     _settle_mission_chat_clarify_binding,
 )
-from ..chat_session import _persona_chat_native_revision, _persona_chat_native_tip
+from agent_runtime.persona_chat_session import _persona_chat_native_revision, _persona_chat_native_tip
 from ..chat_target import _maybe_auto_title_persona_chat
 
 __layer__ = "lanes"
