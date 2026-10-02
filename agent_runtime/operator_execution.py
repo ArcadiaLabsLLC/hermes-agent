@@ -32,7 +32,8 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
     else:
         outcome = "stop_requested" if receipt.stop_requested else "unsettled"
     return {"turn_request_id": turn_id, "outcome": outcome,
-            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested}
+            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested,
+            "request_id": receipt.request_id}
 
 
 def stop_operator_execution(session_id: str, turn_id: str,

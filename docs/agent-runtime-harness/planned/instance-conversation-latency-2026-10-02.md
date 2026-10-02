@@ -57,3 +57,45 @@ profile, model and prompt, cold and warm, before retirement. Preserve first-delt
 streaming and investigate the measured post-open/warm difference in that path.
 The earlier 12-second operator report is a different workload and is neither
 confirmed nor disproved by this loopback baseline.
+
+## Stream-enabled phase attribution, October 2
+
+Three new isolated runs per lane, six warm turns each, at `85f686e74e` plus
+the stream-enabled instance probe. Same controlled workload and limits above;
+these supersede neither the original sample nor the required live comparison.
+The probe reads the native journal's existing `profile_timing` projection,
+also used by the Harness history query. No new runtime instrumentation.
+
+| Route | Open | Cold first answer | Warm admission | Warm first answer | Warm complete |
+|---|---:|---:|---:|---:|---:|
+| Instance | 189 | 4,828 | 26 | 387 | 506 |
+| Profile worker | 4,409 | 3,479 | 55.5 | 90 | 126 |
+
+The warm first-answer delta is **+297 ms**, completion **+380 ms**.
+Instance warm `profile_timing` medians (milliseconds unless flagged):
+
+| Native phase | Median |
+|---|---:|
+| `session_db_open_ms` | 15 |
+| `context_skill_preload_ms` | 18.5 |
+| `context_signature_ms` / `context_hud_ms` | 2.5 / 2.5 |
+| `observability_skill_rows_ms` | 1 |
+| `runtime_resolve_ms` | 0 (cached in all six) |
+| `agent_construct_ms` | 61 |
+| ↳ context engine / core state / memory skills / provider client | 38.5 / 7 / 5 / 4.5 |
+| `conversation_call_ms` | 130 |
+| ↳ turn context / system prompt restore / provider dispatch | 14.5 / 3 / 14 |
+| ↳ provider first delta / stream consume | 12 / 0 |
+| `result_normalize_ms` / `budget_checks_ms` | 0 / 0 |
+| `resident_actor_reused` | **0 in all six warm turns** |
+
+Nested spans overlap; their medians must not be summed. The worker does not
+publish these phases, so a per-phase *cross-route subtraction* is unavailable.
+These records locate instance costs, not all 297 ms of the difference: admission,
+unrecorded preparation/commit work, read delivery and polling remain in the
+end-to-end number. This fixture leaves hot sessions at the native default; no
+resident actor was reused. Do not generalize that flag to production.
+
+Receipts: `{instance,worker}-phases-{1,2,3}.xml` and bounded logs under the
+same local receipt directory. All six runs passed; no guard fired. Keep the
+profile worker pending matched live latency and console parity.
