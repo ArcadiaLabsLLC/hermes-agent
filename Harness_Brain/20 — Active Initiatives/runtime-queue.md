@@ -23,9 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Filed on arrival — 2026-10-02 (launcher lane w6-chat, filed by the orchestrator)
-
-
 ### Filed on arrival — 2026-10-02 (launcher lane w5-mc, filed by the orchestrator)
 
 - [ ] **Seven argv handlers are no longer lowered by the launcher (`agent create`, `agent retire`, `level clear`, `level set`, `map clear`, `map list`, `map set` — method-only there): one DELETE row per handler once the operator/script-use ruling is made** · fork · evidence: `EterniaLauncher/docs/mission_control/planned/argv-census-launcher-half-2026-10-02.md` · UNCLAIMED
