@@ -11,7 +11,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-30 (GenUI invocation)
 
-- [ ] **Repair or classify canonical-suite residuals: office manifests, strict XPASS, Windows/SQLite assumptions and isolated-runner/interpreter identity.** · [GenUI validation baseline](../../docs/downstream/genui-invocation-2026-09-30.md#validation-baseline); preserve primary-versus-worktree evidence and existing ownership, without product-policy changes or enlarged exemptions. · **TAKEN 2026-10-02 w5-fh**
 
 ## Filed on arrival — 2026-10-01 (lane w3-turn)
 

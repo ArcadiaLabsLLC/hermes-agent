@@ -133,6 +133,16 @@ def _up_red(detail: str) -> pytest.MarkDecorator:
     return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail})")
 
 
+def _up_red_when(condition: bool, detail: str) -> pytest.MarkDecorator:
+    """``_up_red`` for a red that belongs to the HOST, not to Windows as a whole.
+
+    The condition names what makes it red (an interpreter, its bundled SQLite, a
+    directory on the checkout's drive), so a host without it runs the test
+    unmarked instead of reporting a strict XPASS.
+    """
+    return pytest.mark.xfail(condition, strict=True, reason=f"{_UP_RED} ({detail})")
+
+
 def _up_red_skip(detail: str) -> pytest.MarkDecorator:
     """For a red that kills the process (a thread-method timeout), not an assertion."""
     return pytest.mark.skip(reason=f"{_UP_RED} ({detail})")
