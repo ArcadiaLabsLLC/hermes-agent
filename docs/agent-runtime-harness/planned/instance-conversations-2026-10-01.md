@@ -110,7 +110,11 @@ no live provider, Launcher, installed profile or credential was changed.
 The three new production modules are 20–59 lines; the largest new function has
 five AST decision nodes (not a cyclomatic-complexity claim).
 
-## Remaining before cutover
+## Historical cutover checklist
+
+This checkpoint preceded the October 2 owner boundary above. Later sections
+record the implemented model, skills, reviewed-input and recovery work. Console
+promotion, combined desktop acceptance and matched live latency remain open.
 
 Native instance conversations still need rich model/skills/context/attachment
 and recovery parity with the current Direct transport. Keep execution in the
