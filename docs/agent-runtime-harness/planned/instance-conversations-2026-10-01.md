@@ -30,6 +30,12 @@ history ordering failure. Clean main `d19a19f597` reproduces the duplicate helpe
 its realm-history test passes, so the ordering failure remains unresolved, not
 classified as a proven baseline failure. No production profile or provider used.
 
+Six later failures shared one stale RPC manifest expectation. Regenerating it
+from the native registry adds the four operator-inspection methods and reviewed
+`prompt` parameter; no runtime method or permission changed. The three stdio,
+socket and office-manifest test files now pass **129 checks**. The separate
+provider-child argv test fails identically on clean main and is queued.
+
 Reuse persona instances and their existing profile binding, chat mint receipts,
 SessionDB, turn admission and discussion scheduler. Do not add another identity,
 credential, session or execution authority.
