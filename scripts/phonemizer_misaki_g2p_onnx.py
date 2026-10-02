@@ -37,7 +37,7 @@ FORMAT = 1
 MAX_STEPS = 64
 
 
-def _model():
+def _load_g2p_model():
     from transformers import BartForConditionalGeneration
 
     model = BartForConditionalGeneration.from_pretrained(MODEL)
@@ -80,7 +80,7 @@ def _wrapped(model):
 def export(data_dir: Path, kokoro_config: Path, out: Path) -> dict:
     import torch
 
-    model = _model()
+    model = _load_g2p_model()
     out.mkdir(parents=True, exist_ok=True)
     onnx_path = out / f"{ARTIFACT}.onnx"
     enc = torch.export.Dim("enc", min=2, max=MAX_STEPS)
@@ -102,7 +102,7 @@ def check(out: Path, count: int) -> dict:
     import onnxruntime as ort
     import torch
 
-    model = _model()
+    model = _load_g2p_model()
     meta = json.loads((out / f"{ARTIFACT}.json").read_text(encoding="utf-8"))
     session = ort.InferenceSession(str(out / f"{ARTIFACT}.onnx"), providers=["CPUExecutionProvider"])
     index = {g: i for i, g in enumerate(meta["graphemes"])}

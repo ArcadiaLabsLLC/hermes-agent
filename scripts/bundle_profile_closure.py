@@ -76,6 +76,7 @@ _SKIP_TOP_DIRS = {"web", "website", "apps", "ui-tui"}
 #: run time.
 DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
     "hermes_cli.plugins": (
+        "agent.provider_access",
         "agent.image_gen_registry", "agent.image_gen_provider",
         "agent.video_gen_registry", "agent.video_gen_provider",
         "agent.web_search_registry", "agent.web_search_provider",

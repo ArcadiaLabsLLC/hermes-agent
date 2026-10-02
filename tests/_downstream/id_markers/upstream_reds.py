@@ -11,6 +11,8 @@ The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import os
+import sqlite3
 import sys
 
 import pytest
@@ -24,6 +26,7 @@ from tests._downstream.id_markers.reasons import (
     _TMP_LITERAL,
     _up_red,
     _up_red_skip,
+    _up_red_when,
     _WIN,
 )
 
@@ -309,8 +312,13 @@ if _WIN:
             'tests/hermes_cli/test_startup_fast_guards.py::test_literal_tilde_hermes_home_expands_before_any_reader',
             'tests/hermes_cli/test_startup_fast_guards.py::test_normalize_hermes_home_env_rewrites_tilde_and_leaves_absolute_alone',
             'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env0]',
-            'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env1]',
         )},
+        'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env1]': (
+            _up_red_when(sys.version_info < (3, 13), (
+                "update_restart_recovery._host_state_dir asks os.path.isabs('/srv/xdg-state'), True on "
+                "Windows before CPython 3.13 and False from 3.13 on, where it then agrees with the "
+                "gateway resolver's Path.is_absolute (lane w5-fh, 2026-10-02)")),
+        ),
         **{node: (_up_red('bash invocation with Windows paths inside a POSIX command string (class c-E, #121226)'),) for node in (
             'tests/hermes_cli/test_agent_env_advertisement.py::TestWrapCommandAdvertisesHarness::test_shell_sets_default_and_preserves_outer',
             'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_output_is_streamed_to_writer',
@@ -381,7 +389,6 @@ if _WIN:
         )},
         **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
             'tests/hermes_cli/test_agent_plugins.py::test_server_declaration_joins_mcp_and_preserves_liveness',
-            'tests/hermes_cli/test_cli_clarify_batch.py::TestClarifyBellOnPrompt::test_bell_on_prompt_rings_and_off_is_silent',
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_lf_enter_binding_respects_multiline_shortcuts',
             'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_cpr_gating_posix_suppresses_without_ssh',
             'tests/hermes_cli/test_ctrl_enter_newline.py::test_ctrl_j_legacy_submit_when_multiline_shortcuts_disabled',
@@ -406,10 +413,25 @@ if _WIN:
         **{node: (_up_red('prompt_toolkit needs a real Windows console; none under pytest (class e-TTY)'),) for node in (
         )},
         **{node: (_up_red('no Windows marker in the failure text; red at the tag on this box (class f-?)'),) for node in (
-            'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait',
             'tests/hermes_cli/test_noninteractive_git.py::TestNoninteractiveGitEnv::test_safe_directory_reset_still_revokes_wildcard_for_real_git',
             'tests/hermes_cli/test_plugin_validate.py::test_portable_validation_fails_orphan_and_reports_availability',
         )},
+        # Host-conditional (lane w5-fh, 2026-10-02): each was a strict XPASS on a host
+        # without the condition, so the condition is the classification.
+        'tests/hermes_cli/test_cli_clarify_batch.py::TestClarifyBellOnPrompt::test_bell_on_prompt_rings_and_off_is_silent': (
+            # Evaluated against the cwd's drive, which is the drive the test's own
+            # open("/dev/tty") resolves against.
+            _up_red_when(os.path.isdir("/dev"), (
+                "terminal_notify.write_tty opens '/dev/tty', which Windows resolves under "
+                "the root of the cwd's drive; when that dev directory exists the BEL lands in a FILE and "
+                "never reaches the patched stdout, and on a drive without it the test passes")),
+        ),
+        'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait': (
+            _up_red_when(sys.version_info < (3, 13), (
+                "orders events by time.monotonic(), which is GetTickCount64 (15.6 ms) on "
+                "Windows before CPython 3.13, so a yield shares the scope's tick; "
+                "QueryPerformanceCounter from 3.13 on")),
+        ),
         "tests/hermes_cli/test_completion.py::TestGenerateBash::test_valid_bash_syntax": (
             pytest.mark.xfail(strict=True, reason=(
                 "bash resolves a native temp path by POSIX rules and eats its backslashes; "
@@ -444,7 +466,7 @@ if _WIN:
         # Windows-only caller of a process-wide patch.
         **{
             f"tests/hermes_state/test_fts_runtime_rebuild.py::TestRuntimeFtsRebuild::{test}": (
-                _up_red("SQLite 3.45.3 cannot DROP a corrupt FTS5 table from a fresh "
+                _up_red_when(sqlite3.sqlite_version_info < (3, 46), "SQLite 3.45.3 cannot DROP a corrupt FTS5 table from a fresh "
                         "connection ('vtable constructor failed: messages_fts'), so the "
                         "stale-FTS rebuild never recovers; product defect, runtime-queue "
                         "upstream-owned row"),
@@ -457,7 +479,7 @@ if _WIN:
             )
         },
         "tests/hermes_state/test_state_db_malformed_repair.py::test_repair_rebuilds_stale_btree_indexes": (
-            _up_red("pins SQLite >= 3.46 integrity_check wording 'wrong # of entries'; "
+            _up_red_when(sqlite3.sqlite_version_info < (3, 46), "pins SQLite >= 3.46 integrity_check wording 'wrong # of entries'; "
                     "3.45.3 reports 'row N missing from index', which the product also "
                     "parses and repairs via reindex_btree (probed)"),
         ),

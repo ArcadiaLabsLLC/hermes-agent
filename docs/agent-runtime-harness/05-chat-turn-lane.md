@@ -293,7 +293,8 @@ The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
 `agent_runtime/personas.py::HARNESS_LANE_DEFAULT_TOOLSETS` = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
 an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
-resolves narrow, never wide. `harness_core` (`toolsets.py:259`) is a composite of 15 member
+resolves narrow, never wide. `harness_core` (`agent_runtime/harness_toolset.py::HARNESS_CORE_INCLUDES`, registered into
+upstream's `TOOLSETS` by `ensure_harness_core`) is a composite of 15 member
 toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
 `browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
 to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the cost policy, which drops by name, still

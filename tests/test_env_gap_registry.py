@@ -55,6 +55,14 @@ from tests._env_gap_fence import (
 
 TESTS_ROOT = Path(__file__).resolve().parent
 
+# The tests here CALL the host probes, and whichever runs first in the process pays
+# them (they are memoized): up to three ``subprocess.run(..., timeout=30)`` spawns, and
+# ``bare_bash_is_not_posix`` cold-starts a WSL distro through the System32 launcher —
+# past the 30 s per-test cap under ``run_tests.sh -j 8`` (lane h13-test, 2026-09-30,
+# RETRY PASS at one worker). The cap sits above the probes' summed bound so a slow
+# host reaches the probe's own verdict instead of a killed process.
+pytestmark = pytest.mark.timeout(120)
+
 # Per-directory conftests that may carry a probe-backed registry.
 _FENCED_DIRS = ("agent", "gateway", "hermes_cli", "tools")
 

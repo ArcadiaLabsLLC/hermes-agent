@@ -16,6 +16,9 @@ import textwrap
 import pytest
 
 from agent_runtime import chat_lane_bundle as CLB
+# The scope family moved to chat_lane_scope (8edc90e9d0); CLB re-exports the
+# functions, but they read the restore and permission knobs from CLS's globals.
+from agent_runtime import chat_lane_scope as CLS
 from agent_runtime.chat_lane_toolsets import (
     DEFAULT_CHAT_LANE_EXCLUDED_TOOLS,
     DEFAULT_CHAT_LANE_EXCLUDED_TOOLSETS,
@@ -224,7 +227,7 @@ def test_chat_lane_scopes_dev_toolkit_when_persona_carries_it(bounded_chat_sessi
 def test_chat_lane_restore_keeps_named_toolsets(monkeypatch, bounded_chat_session):
     # Per-persona config restore flows through the chokepoint: file + terminal
     # survive; a non-restored excluded toolset (browser) still drops.
-    monkeypatch.setattr(CLB, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"])
+    monkeypatch.setattr(CLS, "chat_lane_restore_toolsets", lambda persona_id: ["file", "terminal"])
     persona = _persona_with_dev_toolkit()
     enabled = CLB._enabled_toolsets_for_chat(
         persona, session_id=bounded_chat_session(persona.id)
@@ -237,7 +240,7 @@ def test_unbounded_permission_mode_is_not_scoped(monkeypatch):
     # Unbounded is the operator's explicit full-capability escape hatch — the
     # cost policy must not silently strip its browser/vision/file/terminal.
     monkeypatch.setattr(
-        CLB,
+        CLS,
         "permission_options_for_chat",
         lambda persona, *, session_id: ToolVisibilityOptions(
             permission_mode=PERMISSION_MODE_UNBOUNDED
@@ -272,7 +275,7 @@ def test_chat_lane_restore_unblocks_skill_manage(monkeypatch, bounded_chat_sessi
     neko = next(p for p in sample_personas() if p.id == "neko_supervisor")
     session_id = bounded_chat_session(neko.id)
     assert "skill_manage" in CLB._blocked_tool_names_for_chat(neko, session_id=session_id)
-    monkeypatch.setattr(CLB, "chat_lane_restore_toolsets", lambda persona_id: ["skill_manage"])
+    monkeypatch.setattr(CLS, "chat_lane_restore_toolsets", lambda persona_id: ["skill_manage"])
     blocked = CLB._blocked_tool_names_for_chat(neko, session_id=session_id)
     assert "skill_manage" not in blocked
 
@@ -280,7 +283,7 @@ def test_chat_lane_restore_unblocks_skill_manage(monkeypatch, bounded_chat_sessi
 def test_unbounded_permission_mode_does_not_block_skill_manage(monkeypatch):
     neko = next(p for p in sample_personas() if p.id == "neko_supervisor")
     monkeypatch.setattr(
-        CLB,
+        CLS,
         "permission_options_for_chat",
         lambda persona, *, session_id: ToolVisibilityOptions(
             permission_mode=PERMISSION_MODE_UNBOUNDED
