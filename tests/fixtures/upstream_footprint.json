@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-01",
+  "measured_at": "2026-10-02",
   "base": "ee5f49b943",
   "files": 172,
   "deleted_lines": 882,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "owner ruling 2026-10-02 (lane w13-hm): drop the Copilot plain-client carry in agent/process_bootstrap.py build_keepalive_http_client — upstream's bytes restored there",
+      "files": "172 -> 172: agent/process_bootstrap.py still carries the _load_openai_cls sdk_import_failure guard",
+      "deleted_lines": "882 -> 882: the carry was additive (5 added, 0 deleted); the file's added lines fall 10 -> 5; heavy unchanged at 4",
+      "reason": "The 'second request stalls' cause did not reproduce on upstream 8d30c4eaab (lane h12-upfix 2026-09-30); Copilot now rides upstream's shared keepalive transport like every direct host, pinned by tests/agent/test_copilot_keepalive_no_carry.py."
+    },
     {
       "change": "owner ruling 2026-10-01: drop the watcher reply_to carry in gateway/run_notifications.py — Eternia Harness reports finished background work in Mission Control's own Background Work panel; chat-platform alerts follow upstream 10938a7cf9 (#52694, standalone, no stale reply anchor)",
       "files": "173 -> 172: gateway/run_notifications.py is byte-identical to upstream",
