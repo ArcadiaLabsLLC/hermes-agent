@@ -155,3 +155,10 @@ model read/write/default persistence alongside reconstruction and exact Stop.
 
 These are branch checks, not desktop acceptance. Rich conversation transport,
 console account isolation and final qualification still precede worker retirement.
+
+The curated reply now carries its existing journal outcome beside its public
+elements. Reopening a partial interrupted reply preserves Stop rather than
+implying completion. Curation and response tests passed 63 cases. Forcing the
+outcome to `completed` failed the new regression; restoration passed. The Launcher
+uses these facts in its shared Activity/response presentation, including native
+reconstruction coverage. No execution or transcript authority moved.

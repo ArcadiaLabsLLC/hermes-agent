@@ -280,9 +280,10 @@ class _AgentCurator:
         # through on its own; this is the additive extension that lets the
         # cockpit read the block the settle point persisted. Read-only: the
         # projection reads the journal, it never writes it.
-        _carry_run_budget(
-            row, state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
-        )
+        record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
+        if record is not None:
+            row["settled_state"] = record["state"]
+        _carry_run_budget(row, record)
 
 
 #: The transcript roles that render, each with its curator. ``MessageRole.SYSTEM``
