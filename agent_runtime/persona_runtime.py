@@ -44,6 +44,7 @@ class GPTPersonaRuntime:
         persist_agent_session: bool = True,
     ):
         self._default_provider = default_provider
+        self._session_db = session_db
         self._default_model = default_model
         runner_session_db = session_db if persist_agent_session else None
         self._runner = agent_runner or ProfileAgentRunner(
@@ -184,7 +185,8 @@ class GPTPersonaRuntime:
         # path that does not exist degrades to that same safe cwd and is reported
         # as a typed row on the preview lane — it never fails the turn.
         workdir = mission_chat_workdir_for_persona(
-            persona, workspace_agents_path=workspace_agents_path
+            persona, workspace_agents_path=workspace_agents_path,
+            session_id=perm_session_id, session_db=self._session_db,
         )
         # Lane/role identity for the terminal safety envelope. Bound for the
         # WHOLE run so envelope enforcement on this lane is deterministic and

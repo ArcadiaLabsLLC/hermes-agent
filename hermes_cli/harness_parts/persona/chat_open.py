@@ -31,6 +31,8 @@ from agent_runtime.persona_chat_durability import (
     ensure_persona_chat_session as _ensure_persona_chat_session,
 )
 from agent_runtime.persona_chat_mints import PersonaChatMintError, reserve_persona_chat_mint
+from agent_runtime.conversation_workspace import initialize_conversation_workspace
+from agent_runtime.mission_chat_workdir import mission_chat_workdir_for_persona
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
@@ -481,6 +483,10 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
                             required=True,
                             client_scope=receipt.client_scope,
                         )
+                        initialize_conversation_workspace(
+                            session_db, receipt.session_id,
+                            directory=mission_chat_workdir_for_persona(
+                                _persona_by_id(load_agent_runtime_config(), persona_id)).path)
                 except PersonaChatPersistenceError as exc:
                     data = {
                         "ok": False,

@@ -189,3 +189,16 @@ the duplicate-body gate, also fails on clean main `667f7521c8`: the unchanged
 `ProviderRefused` and `DefaultModelRefused` constructors collide. It is queued,
 not waived. Launcher focused input/conformance tests and the bounded native-client
 reconstruction test passed. This is not full transport parity or desktop acceptance.
+
+## Session-owned workspace, October 2
+
+Account-owned sessions initialize SessionDB's existing cwd at mint, reusing the
+persona directory policy or creating a native session directory. Execution and
+preview resolve that same field. Missing owned directories refuse, never silently
+fall back. Unowned console sessions retain their policy. No workspace side store
+or circular import was added.
+
+The native directory, workdir, runtime, tool visibility and layer group passed
+88 tests. Disabling the pinned execution path fails the regression. Eleven
+Launcher projection/review/widget tests passed. Rich input and context are now
+covered; full instance cutover and account-safe console wiring remain open.
