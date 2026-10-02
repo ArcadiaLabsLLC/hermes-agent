@@ -53,8 +53,8 @@ Load `launcher-mcp-operations` and follow it. In outline:
   Do not ask QA to run `open_app_tab` / `launch_or_attach` first; those cannot attach to a
   user-launched Launcher and will spawn a second instance.
 - **Driven proof (navigate, click, login, verify state)** → the full MCP marionette
-  control path: `launch_or_attach` (picks up the DebugStageC build), `login` via the Stage C
-  smoke credential path if gated, navigate with the nav tools / batched `run_actions`, then
+  control path: `launch_or_attach` (picks up the DebugStageC build), sign in with
+  `mcp_launcher_qa_dev_login` if gated (next section), navigate with the nav tools / batched `run_actions`, then
   capture with `screenshot_window`. Default `reap_stale:false`.
 - **Never kill Tony's live Launcher session to take a screenshot.**
 - Deliver each capture as a `MEDIA:<absolute path>` line, verbatim, on a line of its own.
@@ -64,6 +64,29 @@ The acceptance-matrix PS1 scripts under `docs/stages/qa-reboot/scripts/` (e.g.
 `Test-StageCAppTabMcpE2E.ps1`) and the marionette build command
 (`flutter build windows --debug --target lib/main_marionette.dart`) are human/CI operator
 lanes — an agent does not shell them as a substitute for the MCP path.
+
+**QA sign-in is `mcp_launcher_qa_dev_login`, nothing else.** It answers in ~0.15 s and
+exists in QA builds only. Never `launch_or_attach` with `browser_login:true` and never
+`begin_pkce_login`: both hang app-side in a QA build. Measured 2026-10-01: an agent spent
+three `browser_login` retries (30 s) and reported "login is broken", while `dev_login`
+followed by `open_app_tab` News worked. `dev_login` signs in the CHROME, not the data: the
+access token stays null under it, so a backend-backed surface answers "Session expired" —
+report that as the `dev_login` boundary, not a login fault. If `dev_login` itself answers
+`dev_login_unavailable`, that blocker is the answer; do not fall back to browser login.
+
+**The `launcher_qa` self-heal notice.** The first tool reply of a session may carry a text
+item that starts with "Note: the launcher QA tool". Read it by its opening:
+
+- "Note: the launcher QA tool **was out of date** … rebuilt itself before answering" —
+  informational. The answer is from the fresh build; carry on.
+- "Note: the launcher QA tool **is out of date and could not rebuild itself** (<reason>)"
+  or "… **is out of date and self-heal is off** (<reason>)" — answers come from the OLD
+  build and may be wrong. Relay the sentence to the operator verbatim, with the proof it
+  qualifies; do not present those answers as settled.
+
+The structured twin is `_meta.server_build` on the reply: `self_heal` (`rebuilt` |
+`failed:<reason>` | `not_needed` | `disabled:<reason>`) and `stale` (true / false, null
+when a digest is unknown). The notice is shown once per session; `_meta` is on every reply.
 
 **When `launcher_qa` answers a typed blocker, the blocker IS the answer.** Measured
 2026-10-01: asked for a News screenshot, an agent got `launch_stale_stagec_copy` from
