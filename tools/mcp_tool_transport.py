@@ -19,6 +19,7 @@ from tools.mcp_tool_node_abi import node_abi_error
 from tools import mcp_tool_config as _config
 from tools import mcp_tool_lifecycle as _lifecycle
 from tools import mcp_tool_registration as _registration
+from tools import mcp_progress_relay as _progress_relay  # fork
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -174,6 +175,7 @@ class MCPServerTransportMixin:
                 kwargs.update(handler.session_kwargs())
         if _core._MCP_NOTIFICATION_TYPES and _core._MCP_MESSAGE_HANDLER_SUPPORTED:
             kwargs["message_handler"] = self._make_message_handler()
+            kwargs["message_handler"] = _progress_relay.tee_message_handler(kwargs["message_handler"])  # fork
         if _core._MCP_LOGGING_CALLBACK_SUPPORTED:
             kwargs["logging_callback"] = self._make_logging_callback()
         return kwargs
@@ -252,6 +254,7 @@ class MCPServerTransportMixin:
         moments later, so only keepalive/tool-call success clears the reconnect budget."""
         self.initialize_result = await self._negotiate_session(session, connect_timeout)
         self.session = session
+        _progress_relay.instrument_session(session, self.name, self)  # fork: progress + reset-on-progress timeout
         if mark_lifecycle:
             self._mark_lifecycle_started()
         await self._discover_tools()

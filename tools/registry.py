@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Set
 
 from hermes_constants import hermes_home_key, normalize_scope
+from tools import mcp_progress_relay as _mcp_progress_relay  # fork: stdlib-only, cycle-safe
 
 logger = logging.getLogger(__name__)
 
@@ -921,6 +922,7 @@ class ToolRegistry:
         entry = self.get_entry(name, scope=scope)
         if not entry:
             return tool_error(f"Unknown tool: {name}")
+        _mcp_progress = _mcp_progress_relay.enter_dispatch(args, entry.toolset)  # fork: MCP progress joins this thread
         try:
             # Plugin contract (plugins/AGENTS.md): optional context kwargs (task_id, session_id, user_task,
             # parent_agent, ...) are signature-inspected like hook payloads, so a narrow ``handle(args)``
@@ -943,6 +945,8 @@ class ToolRegistry:
             except Exception:
                 sanitized = raw  # defensive: never let the sanitizer block error propagation
             return tool_error(sanitized)
+        finally:
+            _mcp_progress_relay.exit_dispatch(_mcp_progress)
 
     # ---- Query helpers -----------------------------------------------
 

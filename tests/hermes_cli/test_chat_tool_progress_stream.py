@@ -141,6 +141,8 @@ def test_a_non_foreground_tool_beats_without_a_command(emitter, frames):
     [beat] = of_type(frames, "tool.progress")
     assert beat["pid"] is None and beat["output_tail"] is None and beat["seconds_since_output"] is None
     assert isinstance(beat["elapsed_ms"], int)
+    # Not dispatched as an MCP call here: no progress channel, so no progress claim.
+    assert beat["progress_state"] is None and beat["progress_updates"] is None
 
 
 def test_no_beat_once_the_tool_finished(emitter, frames):
@@ -149,3 +151,106 @@ def test_no_beat_once_the_tool_finished(emitter, frames):
 
     assert emitter._heartbeat.beat() == 0
     assert of_type(frames, "tool.progress") == []
+
+
+# --------------------------------------------- MCP progress on the beat (w14-prog)
+
+class _StubSession:
+    """A session whose ``call_tool`` has the SDK's signature; ``during`` runs while the
+    call is in flight, with the meta the instrumented wrapper sent."""
+
+    def __init__(self, during):
+        self.during = during
+        self.meta = None
+
+    async def call_tool(self, name, arguments=None, read_timeout_seconds=None, progress_callback=None, *, meta=None):
+        self.meta = meta
+        self.during(meta)
+        return "done"
+
+
+def _dispatch_mcp_on_a_loop_thread(session, beat_frames):
+    """registry.dispatch on THIS thread (the tool's worker thread); the handler runs
+    ``session.call_tool`` on another thread's event loop, as the MCP loop does."""
+
+    import asyncio
+
+    from tools.registry import ToolRegistry
+
+    def handler(args, **_kwargs):
+        box = {}
+
+        def loop_thread():
+            box["result"] = asyncio.run(session.call_tool("open_app_tab", arguments=args))
+
+        worker = threading.Thread(target=loop_thread)
+        worker.start()
+        worker.join(10)
+        return box["result"]
+
+    registry = ToolRegistry()
+    registry.register(
+        name="mcp_launcher_qa_open_app_tab", toolset="mcp-launcher_qa", handler=handler,
+        schema={"name": "mcp_launcher_qa_open_app_tab", "description": "x",
+                "parameters": {"type": "object", "properties": {}}})
+    return registry.dispatch("mcp_launcher_qa_open_app_tab", {"tab": "library"})
+
+
+def _mcp_beat(emitter, frames, during):
+    from tools import mcp_progress_relay as relay
+
+    session = _StubSession(during)
+    assert relay.instrument_session(session, "launcher_qa") is True
+    with live_turns.live_turn(turn_id="turn_1", session_id="s", persona_instance_id="i", agent=object()):
+        live_turns.tool_started("turn_1", "call_mcp", "mcp_launcher_qa_open_app_tab")
+        emitter.progress(started("mcp_launcher_qa_open_app_tab", tool_call_id="call_mcp"))
+        assert _dispatch_mcp_on_a_loop_thread(session, frames) == "done"
+    return session
+
+
+def test_an_mcp_progress_report_rides_the_beat(emitter, frames):
+    from mcp import types
+
+    from tools import mcp_progress_relay as relay
+
+    def during(meta):
+        token = (meta or {}).get("progressToken", "no-token-was-sent")
+        relay.observe_notification(types.ProgressNotification(params=types.ProgressNotificationParams(
+            progress_token=token, progress=85.0,
+            message="Rebuilding the QA Launcher copy (commit 87c550098): compiling, 1m 25s elapsed",
+            _meta={"stagec_qa_build": {"phase": "compiling", "commit": "87c550098",
+                                       "elapsed_ms": 85000, "expected_ms": 330000}})))
+        assert emitter._heartbeat.beat() == 1
+
+    session = _mcp_beat(emitter, frames, during)
+
+    [beat] = of_type(frames, "tool.progress")
+    assert beat["tool_call_id"] == "call_mcp"
+    assert beat["progress_state"] == "reported"
+    assert beat["progress"] == 85.0 and beat["progress_total"] is None
+    assert "compiling, 1m 25s elapsed" in beat["progress_message"]
+    assert beat["progress_phase"] == "compiling"
+    assert beat["expected_ms"] == 330000
+    assert beat["progress_updates"] == 1
+    assert isinstance(beat["seconds_since_progress"], float)
+    assert session.meta["progressToken"].startswith("hermes-progress-")
+
+
+def test_an_mcp_call_with_no_report_still_beats_as_none_reported(emitter, frames):
+    def during(_meta):
+        assert emitter._heartbeat.beat() == 1
+
+    _mcp_beat(emitter, frames, during)
+
+    [beat] = of_type(frames, "tool.progress")
+    assert beat["progress_state"] == "none_reported"
+    assert beat["progress_updates"] == 0
+    assert beat["progress"] is None and beat["expected_ms"] is None and beat["progress_message"] is None
+    assert isinstance(beat["elapsed_ms"], int)
+
+
+def test_the_mcp_record_closes_with_the_dispatch(emitter, frames):
+    from tools import mcp_progress_relay as relay
+
+    _mcp_beat(emitter, frames, lambda _meta: None)
+    assert relay.snapshot_by_tid() == {}

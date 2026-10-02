@@ -261,11 +261,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
-### Filed on arrival — 2026-10-02 (launcher lane w8-mcp, filed by the orchestrator)
-
-- [ ] **hermes' MCP client sends no `_meta.progressToken` and relays no `notifications/progress`, so the launcher QA server's rebuild progress (phase/commit/elapsed/expected, launcher `87c550098`) never reaches the Agent Console card's `tool.progress` — pass a progress callback to `call_tool` in `tools/mcp_tool*.py` and forward each report to `tool.progress` (seam first; upstream PR if it cannot move)** · `seam / tools` · launcher half landed in `87c550098` · owner 2026-10-02: a ~5 min QA rebuild read as "stuck" again (16:36Z) · **TAKEN 2026-10-02 w14-prog**
-
-
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
 
 - [ ] **Retire the compute-host cold-start carry: `tui_gateway/host_supervisor.py` waits a fixed 10 s for the child's hello while the child imports `tui_gateway.server` first (5.6–6.2 s idle, 10.8–28.5 s loaded); the fork added `_HELLO_COLD_START_GRACE_SECS` (additions only). Upstream PR: a configurable hello budget, or the hello sent before the heavy import** · `upstream / tui_gateway` · ledger row `tui_gateway/host_supervisor.py` (cold-start hello grace, 2026-10-01) · **TAKEN 2026-10-02 w5-rt** · VERDICT 2026-10-02: upstream wait: opening the upstream PR is public posting the owner must approve. upstream/main (7239625ae1) still waits a fixed 10 s for hello. Recommend: owner OKs one small PR — a configurable hello budget (env/config, default 10 s) — the smaller of the two asks; the carry retires when it merges.
