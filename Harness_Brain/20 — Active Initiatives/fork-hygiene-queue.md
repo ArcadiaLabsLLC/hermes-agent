@@ -11,6 +11,11 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-02 (lane w13-hm, filed by the orchestrator)
+
+- [ ] **Mutation claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` no longer anchors: its search text appears twice in `_ChatProtocolV2Emitter._match_started_tool`, so `test_mutation_claims_still_anchor` is red on main (same red on base `3aec8e37ca0`)** · `agent_runtime/chat_events.py`
+- [ ] **`test_tool_call_guardrail_runtime::test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch` expects `\approved\path` but gets a drive-qualified path on Windows; red on main (same on base `3aec8e37ca0`)** · `tests/`
+
 ## Filed on arrival — 2026-10-02 (lane w10-s7h)
 
 - [ ] **`scripts/changed_line_mutation_check.py --list --base origin/main` exits 2 on a clean `main` with a configuration error: claim `dcw-h4-a-matched-start-stays-pending-and-can-be-settled-twice` says its mutation source occurs twice in `hermes_cli/harness_parts/persona/chat_events.py::_ChatProtocolV2Emitter._match_started_tool`, so the inventory (and any real run) refuses before listing anything; re-anchor the needle (`tests/mutation_claims.json`) and let `tests/scripts/test_mutation_claims_still_anchor.py` say why it did not catch this** · `fork / mutation gate` · reproduced 2026-10-02 in the primary checkout at `d1604a9ccb` and in the w10-s7h worktree · UNCLAIMED

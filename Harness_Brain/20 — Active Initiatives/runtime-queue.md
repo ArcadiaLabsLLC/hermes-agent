@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-02 (launcher lane w12-qa, filed by the orchestrator)
+
+- [ ] **`_expose_windows_user_bin` registers `<root>\bin` in the user PATH for ANY `HERMES_HOME` root, including custom roots outside the native home (QA seeded homes, test sandboxes); reserve the PATH write to the installer-owned native root, not only behind `HERMES_REGISTRY_WRITE_FENCE`** · `hermes_cli/_launchers.py` · launcher side: eternia-launcher `d547ec0f3` (bin fence), `3081282cb` · cross-repo, hermes moves first
+
 ### Owner asks — 2026-10-02 (long tool calls)
 
 - [ ] **DESIGN — long tool calls move to the background (owner ask 2026-10-02: "what would be good agent UX"). Proposed: a call that passes a threshold (~30–60 s, or a tool that declares itself long-running) is promoted to running_work / Background Work; the agent gets an immediate "running in background" result with a handle and may keep talking; the operator may keep chatting; on completion the final result is delivered to the agent as a new event that wakes the turn; running cards offer Send to background and Cancel. Write the design (turn/await semantics, how the result re-enters the conversation, upstream vs fork seams, what the console renders) for the owner to approve before any build** · `fork / runtime` · launcher Background Work panel · UNCLAIMED
