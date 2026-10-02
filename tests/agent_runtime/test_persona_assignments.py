@@ -1475,6 +1475,9 @@ class _FakeSessionDB:
         self.sessions = sessions
         self.messages = messages or {}
 
+    def close(self):
+        return None
+
     def list_sessions_rich(self, **kwargs):
         return list(self.sessions)
 
@@ -1993,6 +1996,9 @@ class _TranscriptDB:
         self.sessions = {}
         self.messages = {}
         self.titles = {}
+
+    def close(self):
+        return None
 
     def create_session(self, session_id, source, **kwargs):
         self.sessions.setdefault(session_id, {"source": source, **kwargs})
