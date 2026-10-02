@@ -5,8 +5,9 @@ from threading import RLock
 
 from agent_runtime.launcher_app_functions import (
     LauncherLink, ORIGIN_LOCAL, bind_launcher_link, reset_launcher_link,
-    refresh_app_function_tools, resolve_response,
+    refresh_app_function_tools,
 )
+from agent_runtime.launcher_client_requests import resolve_response
 from agent_runtime.launcher_invocation import launcher_invocation
 
 __layer__ = "stores"

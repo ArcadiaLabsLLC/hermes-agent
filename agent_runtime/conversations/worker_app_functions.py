@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from agent_runtime import launcher_app_functions as app
+from agent_runtime.launcher_client_requests import resolve_response
 
 __layer__ = "lanes"
 METHOD = "eternia.launcher"
@@ -47,7 +48,7 @@ class _Sink:
         reply = (result or {}).get("reply")
         if not isinstance(reply, dict):
             reply = {"error": {"code": -32000, "message": "The Launcher connection is unavailable."}}
-        app.resolve_response({**reply, "id": frame["id"]}, self)
+        resolve_response({**reply, "id": frame["id"]}, self)
 
 
 def bind(sid, session):

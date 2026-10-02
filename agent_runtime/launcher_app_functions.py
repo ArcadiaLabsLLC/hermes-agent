@@ -19,10 +19,9 @@ Policy is the Launcher's, never re-decided here: an entry the Launcher refuses
 comes back as a JSON-RPC error carrying ``data.refusal``, and the tool returns
 that refusal to the model as its result.
 
-The request lane is :class:`ClientRequests`: server→client requests on the
-serve NDJSON wire, each answered by a response frame with the same ``id``
-(``handle_message`` routes those frames to :func:`resolve_response`). Ids are
-``lrq-<12 hex>`` strings, so they never collide with the Launcher's own ids.
+The request lane is :mod:`agent_runtime.launcher_client_requests`: server→client
+requests on the serve NDJSON wire, each answered by a response frame with the
+same ``id``.
 
 Only a connection that declared it answers ``launcher.`` requests
 (``runtime.client.capabilities {answers: ["launcher."]}``, keyed by the serve
@@ -37,9 +36,10 @@ import contextvars
 import json
 import logging
 import threading
-import uuid
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
+
+from .launcher_client_requests import _METHOD_NOT_FOUND, CLIENT_REQUESTS, ClientRequestFailed
 
 __layer__ = "stores"
 
@@ -48,7 +48,6 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "APP_FUNCTIONS_TOOLSET",
     "CALL_TIMEOUT_SECONDS",
-    "CLIENT_REQUESTS",
     "LIST_METHOD",
     "LIST_TIMEOUT_SECONDS",
     "ORIGIN_LOCAL",
@@ -58,16 +57,12 @@ __all__ = [
     "latest_answerer",
     "declare_answerer",
     "app_function_tools_registered",
-    "ClientRequestFailed",
-    "ClientRequests",
     "LauncherLink",
     "bind_launcher_link",
     "call_app_function",
     "current_launcher_link",
-    "is_response_frame",
     "refresh_app_function_tools",
     "reset_launcher_link",
-    "resolve_response",
 ]
 
 #: The toolset every app-function tool registers under.
@@ -85,112 +80,6 @@ LIST_TIMEOUT_SECONDS = 3.0
 #: A ``confirm`` entry waits for the operator's approval card, so a call gets
 #: the clarify-sized wait rather than the list's.
 CALL_TIMEOUT_SECONDS = 300.0
-#: JSON-RPC code this side answers with when the Launcher never replied.
-_NO_REPLY_CODE = -32000
-#: The client has no handler for the method: as final as silence.
-_METHOD_NOT_FOUND = -32601
-
-
-class ClientRequestFailed(Exception):
-    """The client answered with an error, or never answered."""
-
-    def __init__(self, code: int, message: str, data: Any = None, *, timed_out: bool = False) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.data = data
-        #: True when nothing answered at all (as opposed to an error reply).
-        self.timed_out = timed_out
-
-
-class _Pending:
-    __slots__ = ("event", "frame", "sink")
-
-    def __init__(self, sink: Any) -> None:
-        self.sink = sink
-        self.event = threading.Event()
-        self.frame: dict[str, Any] | None = None
-
-
-def is_response_frame(frame: Any) -> bool:
-    """A JSON-RPC response: an ``id`` and a ``result``/``error``, and no ``method``."""
-
-    return (
-        isinstance(frame, dict)
-        and "method" not in frame
-        and "id" in frame
-        and ("result" in frame or "error" in frame)
-    )
-
-
-class ClientRequests:
-    """Server→client requests on the serve wire, settled by id on the asking sink."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._open: dict[str, _Pending] = {}
-
-    def request(self, sink: Any, method: str, params: Mapping[str, Any], *, timeout: float) -> dict[str, Any]:
-        """Send one request on *sink* and wait for its result (a dict)."""
-
-        request_id = f"lrq-{uuid.uuid4().hex[:12]}"
-        pending = _Pending(sink)
-        with self._lock:
-            self._open[request_id] = pending
-        try:
-            sink.emit({"jsonrpc": "2.0", "id": request_id, "method": method, "params": dict(params)})
-            answered = pending.event.wait(timeout)
-        finally:
-            with self._lock:
-                self._open.pop(request_id, None)
-        if not answered or pending.frame is None:
-            raise ClientRequestFailed(_NO_REPLY_CODE, f"no reply to {method} within {timeout:g}s", timed_out=True)
-        return _result_of(pending.frame)
-
-    def resolve(self, frame: Mapping[str, Any], sink: Any) -> bool:
-        """Settle the open request *frame* answers. False when nothing on *sink* waits for it."""
-
-        request_id = frame.get("id")
-        if not isinstance(request_id, str):
-            return False
-        with self._lock:
-            pending = self._open.get(request_id)
-            if pending is None or pending.sink is not sink:
-                return False
-            self._open.pop(request_id, None)
-        pending.frame = dict(frame)
-        pending.event.set()
-        return True
-
-    def open_count(self) -> int:
-        with self._lock:
-            return len(self._open)
-
-
-def _result_of(frame: Mapping[str, Any]) -> dict[str, Any]:
-    error = frame.get("error")
-    if error is not None:
-        body = error if isinstance(error, dict) else {}
-        code = body.get("code")
-        raise ClientRequestFailed(
-            code if isinstance(code, int) else _NO_REPLY_CODE,
-            str(body.get("message") or "the client answered with an error"),
-            body.get("data"),
-        )
-    result = frame.get("result")
-    return result if isinstance(result, dict) else {}
-
-
-#: The one request lane of this process.
-CLIENT_REQUESTS = ClientRequests()
-
-
-def resolve_response(frame: Mapping[str, Any], sink: Any) -> bool:
-    """Route one inbound response frame (``handle_message``'s entry point)."""
-
-    return CLIENT_REQUESTS.resolve(frame, sink)
-
-
 @dataclass(frozen=True, slots=True)
 class LauncherLink:
     """Where this turn's app-function requests go, and who started the turn."""

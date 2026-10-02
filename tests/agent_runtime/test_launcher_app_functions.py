@@ -15,6 +15,7 @@ import threading
 import pytest
 
 from agent_runtime import launcher_app_functions as laf
+from agent_runtime import launcher_client_requests as lcr
 from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
@@ -50,7 +51,7 @@ class _Launcher:
         self.sent.append(frame)
         if self.silent or "method" not in frame:
             return
-        threading.Thread(target=laf.resolve_response, args=(self._answer(frame), self)).start()
+        threading.Thread(target=lcr.resolve_response, args=(self._answer(frame), self)).start()
 
     def _answer(self, frame):
         method = frame["method"]
@@ -170,7 +171,7 @@ def test_a_silent_connection_is_probed_once(monkeypatch):
     assert laf.refresh_app_function_tools(link) is None
     assert laf.refresh_app_function_tools(link) is None
     assert len(silent.sent) == 1
-    assert laf.CLIENT_REQUESTS.open_count() == 0
+    assert lcr.CLIENT_REQUESTS.open_count() == 0
 
 
 def test_the_same_list_again_does_not_move_the_registry_epoch():
@@ -210,13 +211,13 @@ def test_a_response_on_another_connection_settles_nothing():
     asked, other = _Launcher(silent=True), _Launcher(silent=True)
     result: dict = {}
     waiter = threading.Thread(
-        target=lambda: result.update(laf.CLIENT_REQUESTS.request(asked, "launcher.x", {}, timeout=5)))
+        target=lambda: result.update(lcr.CLIENT_REQUESTS.request(asked, "launcher.x", {}, timeout=5)))
     waiter.start()
     while not asked.sent:
         pass
     frame = {"jsonrpc": "2.0", "id": asked.sent[0]["id"], "result": {"from": "asked"}}
-    assert laf.resolve_response({**frame, "result": {"from": "other"}}, other) is False
-    assert laf.resolve_response(frame, asked) is True  # positive control: same frame, the asking sink
+    assert lcr.resolve_response({**frame, "result": {"from": "other"}}, other) is False
+    assert lcr.resolve_response(frame, asked) is True  # positive control: same frame, the asking sink
     waiter.join()
     assert result == {"from": "asked"}
 
@@ -225,7 +226,7 @@ def test_the_serve_dispatcher_routes_a_response_frame_and_answers_nothing():
     asked = _Launcher(silent=True)
     result: dict = {}
     waiter = threading.Thread(
-        target=lambda: result.update(laf.CLIENT_REQUESTS.request(asked, "launcher.x", {}, timeout=2)),
+        target=lambda: result.update(lcr.CLIENT_REQUESTS.request(asked, "launcher.x", {}, timeout=2)),
         daemon=True)
     waiter.start()
     while not asked.sent:

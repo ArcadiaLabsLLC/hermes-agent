@@ -9,7 +9,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from agent_runtime.launcher_app_functions import ClientRequestFailed
+from agent_runtime.launcher_client_requests import ClientRequestFailed
 from agent_runtime.launcher_invocation import launcher_invocation
 from .worker_app_functions import METHOD
 

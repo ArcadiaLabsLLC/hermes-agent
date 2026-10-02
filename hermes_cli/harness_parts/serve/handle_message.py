@@ -779,7 +779,7 @@ class MessageHandling:
     ) -> str | None:
         """A frame no op claims: the METHOD lane if it is JSON-RPC, else argv."""
 
-        from agent_runtime.launcher_app_functions import is_response_frame, resolve_response
+        from agent_runtime.launcher_client_requests import is_response_frame, resolve_response
         from agent_runtime.serve_rpc.dispatch import is_rpc_frame
 
         if is_response_frame(message):
