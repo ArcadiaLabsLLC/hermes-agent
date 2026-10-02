@@ -6,7 +6,7 @@ import json
 from agent_runtime.operator_input import OperatorInput, operator_input
 from agent_runtime.reviewed_prompt import ReviewedPromptError
 
-__layer__ = "lanes"
+__layer__ = "policy"
 
 
 def input_from_args(args) -> OperatorInput:
