@@ -89,6 +89,7 @@ class PersonaChatClarifyTicketStore:
         asked_by_client_message_id: str | None = None,
         asked_turn_id: str | None = None,
         requested_by_session: str | None = None,
+        question: dict[str, Any] | None = None,
     ) -> str | None:
         """Record a clarify ticket for the question this turn is asking.
 
@@ -116,6 +117,7 @@ class PersonaChatClarifyTicketStore:
             "requested_by_session": safe_assignment_text(requested_by_session, limit=240)
             or None,
             "state": CLARIFY_TICKET_OPEN,
+            "question": question,
             "created_at": time.time(),
             "answered_at": None,
             "answered_by_client_message_id": None,
