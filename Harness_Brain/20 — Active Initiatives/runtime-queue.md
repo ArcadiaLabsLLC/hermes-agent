@@ -23,9 +23,15 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Owner asks — 2026-10-01 (instance conversations)
+### Owner asks — 2026-10-02 (agent chat is ONE surface; filed by the launcher orchestrator)
 
-- [ ] **Converge Launcher conversations on persona-instance identity; preserve rich conversation capabilities, opaque account ownership and independent non-spatial rooms.** · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md) · Launcher cutover follows parity · **TAKEN 2026-10-01 Codex**
+- [ ] **Instance conversations, the hermes half (`feat/instance-conversations`, 2026-10-01): account-scoped chat mints on existing receipts, `runtime.agent.directory`, `runtime.workspace.conversations`, independent non-spatial rooms, `runtime.operator.conversation.list`; remaining before cutover is model, skills, context, attachment and recovery parity for instance sessions, then the launcher transport cutover; the profile worker (the `tui_gateway` subprocess behind `runtime.conversation.*`) retires only after a matched LIVE first-turn comparison, never on the controlled test alone** · `fork-owned / agent_runtime` · launcher rulings `OR-2026-10-01-instance-conversations` and `OR-2026-10-02-console-is-the-chat-surface` in `EterniaLauncher/docs/rulings/owner_rulings.json`; plan, checkpoints and the latency report are branch-only until it lands (`docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md`, `instance-conversation-latency-2026-10-02.md` on that branch) · **TAKEN 2026-10-01 Codex**
+- The launcher half of the same ruling (the Agent Console becomes the one chat widget, rendered with Intelligence's materials; `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`) changes NO hermes method: `runtime.chat.*` and `perform_chat_turn` are the surviving chat lane; the `tui_gateway` worker is the lane that goes. Work on the worker's lifecycle beyond keeping it alive until the cutover is upstream work (the cold-start hello carry under Upstream-owned), not cutover work.
+
+### Filed on arrival — 2026-10-02 (orchestrator, live MCP check)
+
+- [ ] **`hermes -p <profile> <cmd>` / `--profile` fails from the installed launcher: `X:/Eternia/.hermes/bin/hermes.cmd -p alice mcp list` (and `-p base …`) answers "'alice' is not a `hermes` command", although `hermes --help` documents the flag. The launcher script calls `hermes_cli.main.main()` directly, so the profile pre-parse never runs. Make the flag work on every launch path and pin it with a test that runs the published launcher's bootstrap** · `hermes_cli/main.py` (profile override) · `hermes_cli/_launchers.py` · UNCLAIMED
+
 
 ### Filed on arrival — 2026-10-02 (launcher lane w5-mc, filed by the orchestrator)
 
@@ -45,7 +51,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-01 (lane hq-b)
 
-- [ ] **Restore the optional MCP client in the managed runtime serving the existing Launcher QA agent, then verify its live catalog and one read-only call.** · Owner-approved root admission and `launcher-qa` registration are applied; authentication works, but live turns register zero tools and the selected environment has no `mcp` package. Use the canonical managed installer and safe service refresh; no replacement agent/session. [Preflight evidence](../../docs/downstream/launcher-qa-preflight-2026-09-30.md#missing-runtime-dependency); unblocks `EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`. Filed 2026-09-30 Projects QA. **TAKEN 2026-10-02 w5-rt** · VERDICT 2026-10-02: operator action, not lane work — it repairs the operator's managed runtime and refreshes its serve, which a lane may not touch. Read-only finding: X:/Eternia/.hermes/venvs/hermes-agent already holds mcp 2.0.0 (dist-info dated 2026-09-15, before the 09-30 preflight), so the 'selected environment' the preflight probed is a different interpreter. Recommend: name the interpreter the Launcher QA agent's serve actually runs (its process command line), run 'hermes pm install --extra mcp' against THAT one, safe-refresh, then the live catalog + one read-only call.
 
 
 
@@ -238,6 +243,11 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Seams — fork edits inside upstream files (additive only)
 
 - [ ] **Expose a public scoped SessionDB page query.** Native account history must filter metadata before keyset pagination; `list_sessions_rich` exposes neither predicate nor keyset cursor. The fork localizes the read through `_read_all` in `instance_history._page`, pending a public upstream seam. No upstream edit or parallel store. Evidence: [instance history checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#history-checkpoint). · instance-conversations 2026-10-01
+
+### Filed on arrival — 2026-10-02 (launcher lane w8-mcp, filed by the orchestrator)
+
+- [ ] **hermes' MCP client sends no `_meta.progressToken` and relays no `notifications/progress`, so the launcher QA server's rebuild progress (phase/commit/elapsed/expected, launcher `87c550098`) never reaches the Agent Console card's `tool.progress` — pass a progress callback to `call_tool` in `tools/mcp_tool*.py` and forward each report to `tool.progress` (seam first; upstream PR if it cannot move)** · `seam / tools` · launcher half landed in `87c550098` · UNCLAIMED
+
 
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
