@@ -25,7 +25,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane w6-chat, filed by the orchestrator)
 
-- [ ] **On a fresh seeded instance the first send before "new chat" is refused with "Unknown explicit persona chat root profile:base::personainst_profile_base" — the profile-default instance is not a valid chat root until a chat is opened. Make the first send open (or adopt) the root, or refuse with a typed code the launcher can act on** · `agent_runtime/persona_chat_history/` · launcher lane w6-chat · **TAKEN 2026-10-02 w6-hm**
 
 ### Filed on arrival — 2026-10-02 (launcher lane w5-mc, filed by the orchestrator)
 

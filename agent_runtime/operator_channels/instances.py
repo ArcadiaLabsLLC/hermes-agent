@@ -24,6 +24,29 @@ if TYPE_CHECKING:  # the builder imports this module; annotation only
 __layer__ = "policy"
 
 
+#: Joins the two halves of :attr:`ChannelIdentity.channel_id`.
+CHANNEL_ID_SEPARATOR = "::"
+
+
+def split_operator_channel_id(value: Any) -> tuple[str, str] | None:
+    """``(persona_id, tail)`` of an operator channel id, or ``None`` for anything else.
+
+    The inverse of :attr:`ChannelIdentity.channel_id`: ``tail`` is the channel's
+    chat session id, or — for an instance with no chat yet — its canonical
+    instance id. A chat session id never contains the separator, so a value that
+    does is a channel id handed back where a session id was expected (a fresh
+    seeded instance's first send, 2026-10-02), never a session.
+    """
+
+    text = safe_assignment_text(value, limit=400)
+    if not text or CHANNEL_ID_SEPARATOR not in text:
+        return None
+    persona_id, _, tail = text.partition(CHANNEL_ID_SEPARATOR)
+    if not persona_id or not tail or CHANNEL_ID_SEPARATOR in tail:
+        return None
+    return persona_id, tail
+
+
 @dataclass(frozen=True)
 class ChannelIdentity:
     """Who one operator channel is: the rows it projects and the ids derived from them.
@@ -41,7 +64,7 @@ class ChannelIdentity:
 
     @property
     def channel_id(self) -> str:
-        return f"{self.persona_id}::{self.session_id or self.canonical_id}"
+        return f"{self.persona_id}{CHANNEL_ID_SEPARATOR}{self.session_id or self.canonical_id}"
 
     @property
     def is_empty(self) -> bool:
