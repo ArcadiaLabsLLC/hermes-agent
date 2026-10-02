@@ -99,7 +99,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         "executions": [execution_status(session, key) for key in execution_ids],
         "requested_execution": execution_status(session, requested) if requested else None,
         "can_interrupt": can_interrupt,
-        "capabilities": {"skills": True, "settings": True, "models": True},
+        "capabilities": {"skills": True, "settings": True, "models": True, "reviewed_input": True},
     }
 
 

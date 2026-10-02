@@ -11,7 +11,8 @@ from typing import Any
 
 from ..serde import safe_assignment_text
 
-from .bounds import BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote, _MAX_ARGUMENTS, _bounded_free_text, bound_composed_user_content
+from .bounds import BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote, _MAX_ARGUMENTS, _bounded_free_text
+from .content import bound_message_content
 
 __layer__ = "policy"
 
@@ -187,19 +188,13 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     role = str(message.get("role") or "").strip().lower()
     if role not in WIRE_ROLE_NAMES:
         role = WIRE_ROLE_ASSISTANT
-    # Named `submitted`, not `raw`: the loop over `tool_calls` below rebinds
-    # `raw` per call, and the two must not be the same name.
-    submitted = message.get("content")
     # The operator user row is the ONE composed row on this lane — a join of
     # three parts with three different contracts — so it is bounded per part
     # (see :func:`bound_composed_user_content`). Every other role is opaque free
     # text and keeps the flat bound it always had — but now reports it.
-    bounded = (
-        bound_composed_user_content(submitted)
-        if role == WIRE_ROLE_USER
-        else _bounded_free_text(submitted)
-    )
-    content = bounded.text
+    boundary = bound_message_content(message, role=role)
+    bounded = boundary.text
+    content = boundary.value
     result: dict[str, Any] = {"role": role, "content": content}
     for key in (
         "tool_call_id",
@@ -209,6 +204,7 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
         "client_message_id",
         "turn_id",
         "root_chat_session_id",
+        "display_kind",
     ):
         raw_value = message.get(key)
         if key == "platform_message_id" and raw_value is None:
@@ -248,9 +244,9 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     return WireBoundaryRow(
         row=result,
         notes=tuple(notes),
-        submitted_chars=len(submitted) if isinstance(submitted, str) else 0,
+        submitted_chars=boundary.submitted_chars,
         redacted_chars=bounded.source_chars,
-        wire_chars=len(content),
+        wire_chars=len(bounded.text),
     )
 
 

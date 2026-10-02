@@ -10,6 +10,8 @@ import json
 from typing import Any
 import re
 
+from agent.message_content import flatten_message_text
+
 from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 from agent_runtime.profile_runner.models import AgentRunRequest
@@ -302,9 +304,7 @@ def _wire_user_message(*, agent: Any, request: AgentRunRequest) -> tuple[str, di
     ``persona_chat_continuity``; anywhere else it is a finding.
     """
 
-    composed = request.user_message if isinstance(request.user_message, str) else str(
-        request.user_message or ""
-    )
+    composed = flatten_message_text(request.user_message)
     receipt: dict[str, Any] = {
         "schema_version": 1,
         "source": "request_composed",
@@ -317,9 +317,10 @@ def _wire_user_message(*, agent: Any, request: AgentRunRequest) -> tuple[str, di
         receipt["unavailable_reason"] = reason
         return composed, receipt
     content = row.get("content")
-    if not isinstance(content, str):
+    if not isinstance(content, (str, list)):
         receipt["unavailable_reason"] = "content_not_text"
         return composed, receipt
+    content = flatten_message_text(content)
     receipt["source"] = "agent_wire"
     receipt["wire_chars"] = len(content)
     receipt["bounded"] = len(content) != len(composed)

@@ -63,6 +63,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
+from .operator_input import MAX_MESSAGE_LENGTH, operator_input
+from .reviewed_prompt import ReviewedPromptError
 
 from .chat_turn_reservations import (
     STATE_ACCEPTED,
@@ -101,13 +103,6 @@ CHAT_TURN_METHODS: tuple[str, ...] = (
     CHAT_STEER_METHOD,
     PEER_CHAT_EXECUTE_METHOD,
 )
-
-#: Ceiling on one remote message body. The chat handler has its own caps
-#: further in; this one exists at the BOUNDARY so an oversized frame is refused
-#: before it is spawned onto a worker, and it is generous rather than tuned —
-#: the purpose is to make "a device wedged the pool with a 40 MB paste"
-#: unreachable, not to have an opinion about how long an operator writes.
-MAX_MESSAGE_LENGTH = 64_000
 
 #: Mirrors the ``client_message_id`` normaliser's cap in the chat handler.
 MAX_TURN_REQUEST_ID_LENGTH = 200
@@ -166,6 +161,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "new_session",
     "persona_id",
     "persona_instance_id",
+    "prompt",
     "provider",
     "session_id",
     "stream",
@@ -368,7 +364,10 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
     )
     persona_id = _required_text(params, "persona_id", limit=200)
-    message = _required_text(params, "message", limit=MAX_MESSAGE_LENGTH)
+    try:
+        submitted = operator_input(params.get("message"), params.get("prompt"))
+    except ReviewedPromptError as exc:
+        raise ChatTurnInvalid(str(exc), "Enter a message or supported context.") from exc
     session_id = _text(params, "session_id", limit=200)
     persona_instance_id = _text(params, "persona_instance_id", limit=200)
     workspace_id = _text(params, "workspace_id", limit=200)
@@ -426,8 +425,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         "message",
         "--persona",
         persona_id,
-        "--message",
-        message,
+        *submitted.argv(),
         # THE key. The gateway plan calls it ``turn_request_id``; mission chat
         # has called it ``client_message_id`` since long before this stage, and
         # the turn journal keyed on that name is what already makes a repeated
