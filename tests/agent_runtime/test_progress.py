@@ -513,7 +513,9 @@ def test_safe_progress_payload_redacts_secret_tool_io_lines_and_bounds():
 
     lines = payload["tool_input"].split("\n")
     assert lines[0] == 'url: "https://x"'
-    assert lines[1] == "[redacted line — contained a secret]"
+    # The credential VALUE goes; the field name stays (2026-10-02).
+    assert lines[1].startswith("authorization: [REDACTED]")
+    assert "abc" not in lines[1]
     # Head-bounded with an explicit truncation marker (1700 + marker line).
     assert payload["tool_result"].startswith("z" * 100)
     assert payload["tool_result"].endswith("…(rest truncated)…")

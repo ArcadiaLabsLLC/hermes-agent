@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from functools import singledispatch
 from pathlib import Path
@@ -331,3 +332,125 @@ def _transport_sequence(value: Any) -> Any:
 @_transport.register(str)
 def _transport_text(value: str) -> Any:
     return redact_transport_text(value)
+
+
+# ── secret VALUES in a tool's input or result (the operator tool-IO lane) ─────
+#
+# THE DEFECT THIS RETIRES (2026-10-02): the tool-IO lane blanked any LINE that
+# contained a secret WORD. ``open_app_tab`` answered an auth refusal as one line
+# of JSON whose prose said "no access token", and the operator console showed
+# ``[redacted line — contained a secret]`` in place of the whole result —
+# failure_class, message and next step included — while no secret was in it.
+# A word is not a secret; a value is. So this lane scrubs VALUES: a mapping
+# value under a secret-named field, a value written as a secret assignment in
+# prose, a bearer/header credential, a signed URL, and the token shapes below.
+# Field names and prose survive.
+
+#: Field-name TAILS whose value is a secret, after camelCase/``-``/``.`` fold to
+#: ``_``. A tail, not a substring: ``credential_profile`` and ``token_count``
+#: name things that are not secrets; ``access_token`` and ``client_secret`` do.
+SECRET_FIELD_TAILS = (
+    "token", "secret", "password", "passwd", "passphrase", "authorization",
+    "cookie", "credential", "credentials", "api_key", "apikey", "private_key",
+    "access_key", "secret_key",
+)
+
+#: Credential SHAPES that are secrets wherever they appear, whatever they are
+#: called: OpenAI/Anthropic-style ``sk-`` keys, GitHub tokens, Slack tokens, AWS
+#: access key ids, Google API keys and JWTs.
+SECRET_VALUE_SHAPE_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:"
+    r"sk-[A-Za-z0-9_-]{16,}"
+    r"|gh[pousr]_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}"
+    r"|AKIA[0-9A-Z]{16}"
+    r"|AIza[0-9A-Za-z_-]{30,}"
+    r"|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
+    r")"
+)
+
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def is_secret_field_name(key: Any) -> bool:
+    """Is ``key`` a field whose VALUE is a secret? Control characters are removed
+    first, so ``"pass\\nword"`` is read as ``password``."""
+
+    text = _CONTROL_CHARS_RE.sub("", str(key))
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", text).lower()
+    text = re.sub(r"[\s.\-]+", "_", text).strip("_")
+    return any(text == tail or text.endswith(f"_{tail}") for tail in SECRET_FIELD_TAILS)
+
+
+def _redact_assignment_value(match: re.Match[str]) -> str:
+    value = match.group(2)
+    if REDACTED_VALUE in value and not value.replace(REDACTED_VALUE, "", 1).strip("\"'}])"):
+        return match.group(0)  # already scrubbed: a second pass changes nothing
+    return f"{match.group(0)[: match.start(2) - match.start(0)]}{REDACTED_VALUE}"
+
+
+def scrub_secret_values(text: str) -> str:
+    """``text`` with every secret VALUE replaced by :data:`REDACTED_VALUE` and
+    everything else -- field names, prose, line structure -- kept. Idempotent."""
+
+    text = redact_transport_text(str(text))
+    text = TEXT_SECRET_VALUE_ASSIGNMENT_RE.sub(_redact_assignment_value, text)
+    return SECRET_VALUE_SHAPE_RE.sub(REDACTED_VALUE, text)
+
+
+def scrub_secret_value_tree(value: Any) -> Any:
+    """A JSON-shaped copy of ``value`` with secret VALUES replaced: a value under
+    a secret-named field (a boolean or ``None`` there is a fact, not a secret,
+    and is kept), and every string through :func:`scrub_secret_values`. A string
+    that is itself a JSON object or array is decoded and walked, so a tool that
+    answers ``{"error": "<json>"}`` is read field by field, not as one line.
+    Dispatch is the type table (``functools.singledispatch``), as in
+    :func:`scrub_tree`."""
+
+    return _value_tree(value)
+
+
+@singledispatch
+def _value_tree(value: Any) -> Any:
+    return value
+
+
+@_value_tree.register(dict)
+def _value_tree_mapping(value: dict) -> Any:
+    return {
+        str(key): REDACTED_VALUE if _holds_secret(key, item) else _value_tree(item)
+        for key, item in value.items()
+    }
+
+
+@_value_tree.register(list)
+@_value_tree.register(tuple)
+def _value_tree_sequence(value: Any) -> Any:
+    return [_value_tree(item) for item in value]
+
+
+@_value_tree.register(str)
+def _value_tree_text(value: str) -> Any:
+    decoded = _decoded_json_container(value)
+    return scrub_secret_values(value) if decoded is None else _value_tree(decoded)
+
+
+def _holds_secret(key: Any, item: Any) -> bool:
+    """A secret-named field holds a secret unless its value is a bare fact
+    (a boolean or ``None``)."""
+
+    return is_secret_field_name(key) and item is not None and not isinstance(item, bool)
+
+
+def _decoded_json_container(text: str) -> dict | list | None:
+    """``text`` as the JSON object or array it spells, else ``None``."""
+
+    stripped = text.strip()
+    if stripped[:1] not in ("{", "["):
+        return None
+    try:
+        decoded = json.loads(stripped)
+    except ValueError:
+        return None
+    return decoded if isinstance(decoded, (dict, list)) else None

@@ -8,7 +8,7 @@ import json
 from typing import Any
 import re
 
-from agent_runtime.redaction import safe_file_labels
+from agent_runtime.redaction import safe_file_labels, scrub_secret_value_tree, scrub_secret_values
 from agent_runtime.serde import strict_int
 __layer__ = "policy"
 
@@ -27,7 +27,6 @@ __all__ = [
     "_OPERATOR_TOOL_RESULT_MAX",
     "_PATCH_HEADER_RE",
     "_TOOL_RESULT_ECHO_KEYS",
-    "TOOL_INPUT_ALL_REDACTED",
     "TOOL_INPUT_NO_ARGUMENTS",
     "_attach_tool_io",
     "_is_error_result",
@@ -155,8 +154,14 @@ def _safe_operator_output(tool_name: str | None, result: Any) -> str | None:
 # call additionally gets a bounded, secret-scrubbed rendering of its raw
 # invocation and result when no dedicated field captured them — so the
 # operator console never has to show a bare "no detail was emitted" row.
-# Dict payloads render one `key: <json>` line per top-level key so the
-# per-line secret scrub drops only the offending pair, never the whole record.
+# Dict payloads render one `key: <json>` line per top-level key.
+#
+# This lane scrubs secret VALUES, never words (2026-10-02): an auth refusal
+# whose prose said "no access token" used to blank the whole one-line result,
+# verdict and next step included. A JSON result is decoded and walked
+# (``redaction.scrub_secret_value_tree``), its verdict keys lead the record so
+# the head bound can never cut them, and every rendered line is value-scrubbed
+# again (``redaction.scrub_secret_values``) for a secret in a key or in prose.
 _OPERATOR_TOOL_INPUT_MAX = 1000
 
 
@@ -167,12 +172,18 @@ _OPERATOR_TOOL_RESULT_MAX = 1600
 _TOOL_RESULT_ECHO_KEYS = ("exit_code",)
 
 
+#: The keys an operator acts on, rendered first so the head bound never cuts
+#: them: the verdict, the failure's class and message, and the next step.
+_TOOL_RESULT_LEAD_KEYS = (
+    "ok", "success", "failure_class", "error_kind", "error", "message_safe",
+    "message", "suggested_next_action", "next_action", "next_expected",
+)
+
+
 def _render_kv_line_token(value: Any) -> str:
     """One-line rendering of a dict KEY (or the last-resort repr). Newlines and
-    NULs are REMOVED (not replaced with spaces) — the per-line secret scrub
-    keys on contiguous marker words, so a hostile key like ``"pass\\nword"``
-    must reconstitute to ``password`` on ONE line rather than split the marker
-    across two lines and defeat every scrub layer downstream."""
+    NULs are REMOVED (not replaced with spaces) so one key stays one line and a
+    hostile key like ``"pass\\nword"`` reads as ``password`` on it."""
 
     return re.sub(r"[\r\n\x00]+", "", str(value))
 
@@ -202,24 +213,12 @@ def _render_operator_kv_block(value: Any) -> str | None:
 
 
 def _scrub_operator_block_head(text: str, *, limit: int) -> str | None:
-    """Per-line secret scrub, HEAD-bounded: the leading keys/fields are the
+    """Every line value-scrubbed, HEAD-bounded: the leading keys/fields are the
     operator signal (unlike command output, where the tail is), so truncation
-    keeps the front and marks the cut explicitly. A record whose EVERY line was
-    redacted carries zero signal — dropped whole rather than persisted as a
-    marker-only blob."""
+    keeps the front and marks the cut explicitly. Never blanks a line for a
+    word in it; ``None`` only for a block with nothing printable in it."""
 
-    kept_any = False
-    lines: list[str] = []
-    for line in text.split("\n"):
-        if _line_has_secret(line):
-            lines.append("[redacted line — contained a secret]")
-        else:
-            lines.append(line)
-            if line.strip():
-                kept_any = True
-    if not kept_any:
-        return None
-    out = "\n".join(lines).strip()
+    out = "\n".join(scrub_secret_values(line) for line in text.split("\n")).strip()
     if not out:
         return None
     if len(out) > limit:
@@ -227,20 +226,32 @@ def _scrub_operator_block_head(text: str, *, limit: int) -> str | None:
     return out
 
 
+def _lead_with_verdict(record: dict[str, Any]) -> dict[str, Any]:
+    """``record`` with :data:`_TOOL_RESULT_LEAD_KEYS` first, in that order."""
+
+    lead = {key: record[key] for key in _TOOL_RESULT_LEAD_KEYS if key in record}
+    return {**lead, **{key: item for key, item in record.items() if key not in lead}}
+
+
+def _unwrapped_error_envelope(value: Any) -> Any:
+    """``{"error": {...}}`` -> the inner record: an MCP tool's structured failure
+    arrives as its JSON envelope inside an ``error`` string, and the operator
+    reads that envelope's fields, not one opaque line."""
+
+    if isinstance(value, dict) and len(value) == 1 and isinstance(value.get("error"), dict):
+        return value["error"]
+    return value
+
+
 #: ``tool_input`` for a call made with NO arguments. Every call whose input is
 #: known carries an input record (2026-10-01: an argument-less MCP start such as
 #: ``get_runtime_state`` carried none, so the console could not tell "no
 #: arguments" from "input not reported").
 TOOL_INPUT_NO_ARGUMENTS = "(no arguments)"
-#: ``tool_input`` for arguments whose EVERY line held a secret: the call had
-#: input, and that is the one fact about it that can be shown. Worded so that
-#: neither scrubber (this module's nor the progress sink's) reads the marker
-#: itself as sensitive -- both drop a block with no clean line.
-TOOL_INPUT_ALL_REDACTED = "(arguments withheld — every line was redacted)"
 
 
 def _safe_operator_tool_input(invocation: Any) -> str | None:
-    """The bounded, per-line-scrubbed input record; ``None`` only when the input
+    """The bounded, value-scrubbed input record; ``None`` only when the input
     is not known at all (no invocation, or one that cannot be rendered)."""
 
     if isinstance(invocation, str):
@@ -249,13 +260,10 @@ def _safe_operator_tool_input(invocation: Any) -> str | None:
         return None
     if not invocation:
         return TOOL_INPUT_NO_ARGUMENTS
-    rendered = _render_operator_kv_block(invocation)
+    rendered = _render_operator_kv_block(scrub_secret_value_tree(invocation))
     if rendered is None:
         return None
-    return (
-        _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
-        or TOOL_INPUT_ALL_REDACTED
-    )
+    return _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_INPUT_MAX)
 
 
 def _decoded_object(text: str) -> Any:
@@ -273,13 +281,14 @@ def _decoded_object(text: str) -> Any:
 def _safe_operator_tool_result(result: Any) -> str | None:
     if result is None:
         return None
-    if isinstance(result, dict):
-        slim = {key: item for key, item in result.items() if key not in _TOOL_RESULT_ECHO_KEYS}
+    value = _unwrapped_error_envelope(scrub_secret_value_tree(result))
+    if isinstance(value, dict):
+        slim = {key: item for key, item in value.items() if key not in _TOOL_RESULT_ECHO_KEYS}
         if not slim:
             return None
-        rendered = _render_operator_kv_block(slim)
+        rendered = _render_operator_kv_block(_lead_with_verdict(slim))
     else:
-        rendered = _render_operator_kv_block(result)
+        rendered = _render_operator_kv_block(value)
     if rendered is None:
         return None
     return _scrub_operator_block_head(rendered, limit=_OPERATOR_TOOL_RESULT_MAX)

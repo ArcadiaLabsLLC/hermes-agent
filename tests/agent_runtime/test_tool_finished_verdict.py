@@ -268,13 +268,11 @@ def test_an_argument_less_mcp_start_says_so():
 
 
 def test_a_start_whose_every_argument_is_secret_still_says_it_had_input():
-    """*Killing mutation:* drop ``or TOOL_INPUT_ALL_REDACTED`` -> no field.
-    The secret itself never reaches the record."""
-
-    from agent_runtime.profile_runner.operator_redaction import TOOL_INPUT_ALL_REDACTED
+    """The record names the field and drops its value (2026-10-02: the lane
+    scrubs values, so an all-secret input is no longer withheld whole)."""
 
     started = _sunk_start(_MCP, {"api_key": "sk-live-1234567890abcdef"})
-    assert started["tool_input"] == TOOL_INPUT_ALL_REDACTED
+    assert started["tool_input"] == 'api_key: "[REDACTED]"'
     assert "sk-live" not in json.dumps(started)
 
 
