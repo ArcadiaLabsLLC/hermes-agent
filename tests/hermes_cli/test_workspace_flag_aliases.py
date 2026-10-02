@@ -167,7 +167,6 @@ def _required_extras(path: str) -> list[str]:
     """
 
     return {
-        "harness level set": ["--document", "{}"],
         "harness office actor-upsert": ["--actor-json", "{}"],
         "harness office actor-remove": ["--actor", "personainst_qa"],
         "harness office actor-restore": ["--actor", "personainst_qa"],

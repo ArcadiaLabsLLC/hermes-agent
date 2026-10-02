@@ -109,13 +109,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness office archive-surface](#hermes-harness-office-archive-surface)
 - [hermes harness level](#hermes-harness-level)
 - [hermes harness level show](#hermes-harness-level-show)
-- [hermes harness level set](#hermes-harness-level-set)
-- [hermes harness level clear](#hermes-harness-level-clear)
 - [hermes harness map](#hermes-harness-map)
-- [hermes harness map list](#hermes-harness-map-list)
 - [hermes harness map show](#hermes-harness-map-show)
-- [hermes harness map set](#hermes-harness-map-set)
-- [hermes harness map clear](#hermes-harness-map-clear)
 - [hermes harness persona](#hermes-harness-persona)
 - [hermes harness persona list](#hermes-harness-persona-list)
 - [hermes harness persona show](#hermes-harness-persona-show)
@@ -231,10 +226,10 @@ positional arguments:
                         drive runtime execution)
     office              Manage the Mission Office layout (one file per actor placement; realm-synced
                         like boards)
-    level               Read or set a workspace's LEVEL document (the environment it stands in;
-                        realm-synced whole-document)
+    level               Read a workspace's LEVEL document (the environment it stands in; realm-
+                        synced whole-document; writes are runtime.level.*)
     map                 Map CATALOGUE: the named scenes this install knows about, carried by the
-                        realm
+                        realm (list/writes are runtime.map.*)
     persona             Run bounded live-token diagnostics for one persona
     mission-chat        Canonical Mission Control chat path
     status              Show harness status
@@ -2134,18 +2129,14 @@ options:
 ## hermes harness level
 
 ```text
-usage: hermes harness level [-h] {show,set,clear} ...
+usage: hermes harness level [-h] {show} ...
 
 positional arguments:
-  {show,set,clear}
-    show            Show a workspace's level (metadata; --full carries the document)
-    set             Store a workspace's level document VERBATIM (hermes validates that it is JSON
-                    with a version and reformats nothing)
-    clear           Remove a workspace's level (local only — a level the realm still publishes
-                    returns on the next pull)
+  {show}
+    show      Show a workspace's level (metadata; --full carries the document)
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help  show this help message and exit
 ```
 
 ## hermes harness level show
@@ -2165,81 +2156,17 @@ options:
   --fields FIELDS
 ```
 
-## hermes harness level set
-
-```text
-usage: hermes harness level set [-h] [--workspace WORKSPACE] --document DOCUMENT
-                                [--expect-sha256 EXPECT_SHA256] [-o {json,table,yaml,wide}] [--json]
-                                [-q] [--no-color] [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --workspace, --workspace-id WORKSPACE
-  --document DOCUMENT   Level document: a PATH to a JSON file (use this — a level can be 1 MB and a
-                        Windows command line caps at ~32 KB), or inline JSON
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this write is based on, or
-                        'none' if the workspace must have no level yet
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
-## hermes harness level clear
-
-```text
-usage: hermes harness level clear [-h] [--workspace WORKSPACE] [--expect-sha256 EXPECT_SHA256]
-                                  [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                  [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --workspace, --workspace-id WORKSPACE
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this clear is based on, or
-                        'none' if the workspace must have no level
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
 ## hermes harness map
 
 ```text
-usage: hermes harness map [-h] {list,show,set,clear} ...
+usage: hermes harness map [-h] {show} ...
 
 positional arguments:
-  {list,show,set,clear}
-    list                List the catalogue (names and hashes; never the documents)
-    show                Show one catalogue map (metadata; --full carries the document)
-    set                 Store a catalogue map VERBATIM (hermes validates that it is JSON with a
-                        version and a name, and reformats nothing)
-    clear               Remove a catalogue map (local only — a map the realm still publishes returns
-                        on the next pull)
+  {show}
+    show      Show one catalogue map (metadata; --full carries the document)
 
 options:
-  -h, --help            show this help message and exit
-```
-
-## hermes harness map list
-
-```text
-usage: hermes harness map list [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                               [--fields FIELDS]
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
+  -h, --help  show this help message and exit
 ```
 
 ## hermes harness map show
@@ -2257,50 +2184,6 @@ options:
   -q, --quiet
   --no-color
   --fields FIELDS
-```
-
-## hermes harness map set
-
-```text
-usage: hermes harness map set [-h] [--map MAP] --document DOCUMENT [--expect-sha256 EXPECT_SHA256]
-                              [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                              [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --map, --map-id MAP
-  --document DOCUMENT   Map document: a PATH to a JSON file (use this — a map carries a scene and a
-                        Windows command line caps at ~32 KB), or inline JSON
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this write is based on, or
-                        'none' if the catalogue must not hold this map yet
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
-## hermes harness map clear
-
-```text
-usage: hermes harness map clear [-h] [--map MAP] [--expect-sha256 EXPECT_SHA256]
-                                [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --map, --map-id MAP
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this clear is based on, or
-                        'none' if the catalogue must not hold this map
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
 ```
 
 ## hermes harness persona

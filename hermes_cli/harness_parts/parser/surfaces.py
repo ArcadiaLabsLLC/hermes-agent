@@ -354,7 +354,7 @@ def add_level(subs) -> None:
     """``hermes harness level``."""
     level = subs.add_parser(
         "level",
-        help="Read or set a workspace's LEVEL document (the environment it stands in; realm-synced whole-document)",
+        help="Read a workspace's LEVEL document (the environment it stands in; realm-synced whole-document; writes are runtime.level.*)",
     )
     level_subs = level.add_subparsers(dest="level_command", required=True)
     level_show = level_subs.add_parser("show", help="Show a workspace's level (metadata; --full carries the document)")
@@ -362,66 +362,21 @@ def add_level(subs) -> None:
     level_show.add_argument("--full", action="store_true", help="Include the level document itself, byte for byte as stored")
     _add_stage42_global_args(level_show)
     level_show.set_defaults(func=level_commands._cmd_level_show)
-    level_set = level_subs.add_parser("set", help="Store a workspace's level document VERBATIM (hermes validates that it is JSON with a version and reformats nothing)")
-    level_set.add_argument("--workspace", "--workspace-id", default=None)
-    level_set.add_argument(
-        "--document",
-        required=True,
-        help="Level document: a PATH to a JSON file (use this — a level can be 1 MB and a Windows command line caps at ~32 KB), or inline JSON",
-    )
-    level_set.add_argument(
-        "--expect-sha256",
-        default=None,
-        help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the workspace must have no level yet",
-    )
-    _add_stage42_global_args(level_set, controls=frozenset({"dry_run"}))
-    level_set.set_defaults(func=level_commands._cmd_level_set)
-    level_clear = level_subs.add_parser("clear", help="Remove a workspace's level (local only — a level the realm still publishes returns on the next pull)")
-    level_clear.add_argument("--workspace", "--workspace-id", default=None)
-    level_clear.add_argument(
-        "--expect-sha256",
-        default=None,
-        help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the workspace must have no level",
-    )
-    _add_stage42_global_args(level_clear, controls=frozenset({"dry_run"}))
-    level_clear.set_defaults(func=level_commands._cmd_level_clear)
+    # `level set` / `level clear` were deleted 2026-10-02 (owner ruling): the
+    # launcher writes only through `runtime.level.set` / `runtime.level.clear`.
 
 
 def add_map(subs) -> None:
     """``hermes harness map``."""
     map_parser = subs.add_parser(
         "map",
-        help="Map CATALOGUE: the named scenes this install knows about, carried by the realm",
+        help="Map CATALOGUE: the named scenes this install knows about, carried by the realm (list/writes are runtime.map.*)",
     )
     map_subs = map_parser.add_subparsers(dest="map_command", required=True)
-    map_list = map_subs.add_parser("list", help="List the catalogue (names and hashes; never the documents)")
-    _add_stage42_global_args(map_list)
-    map_list.set_defaults(func=map_commands._cmd_map_list)
     map_show = map_subs.add_parser("show", help="Show one catalogue map (metadata; --full carries the document)")
     map_show.add_argument("--map", "--map-id", default=None)
     map_show.add_argument("--full", action="store_true", help="Include the map document itself, byte for byte as stored")
     _add_stage42_global_args(map_show)
     map_show.set_defaults(func=map_commands._cmd_map_show)
-    map_set = map_subs.add_parser("set", help="Store a catalogue map VERBATIM (hermes validates that it is JSON with a version and a name, and reformats nothing)")
-    map_set.add_argument("--map", "--map-id", default=None)
-    map_set.add_argument(
-        "--document",
-        required=True,
-        help="Map document: a PATH to a JSON file (use this — a map carries a scene and a Windows command line caps at ~32 KB), or inline JSON",
-    )
-    map_set.add_argument(
-        "--expect-sha256",
-        default=None,
-        help="Compare-and-set: the sha256 of the stored bytes this write is based on, or 'none' if the catalogue must not hold this map yet",
-    )
-    _add_stage42_global_args(map_set, controls=frozenset({"dry_run"}))
-    map_set.set_defaults(func=map_commands._cmd_map_set)
-    map_clear = map_subs.add_parser("clear", help="Remove a catalogue map (local only — a map the realm still publishes returns on the next pull)")
-    map_clear.add_argument("--map", "--map-id", default=None)
-    map_clear.add_argument(
-        "--expect-sha256",
-        default=None,
-        help="Compare-and-set: the sha256 of the stored bytes this clear is based on, or 'none' if the catalogue must not hold this map",
-    )
-    _add_stage42_global_args(map_clear, controls=frozenset({"dry_run"}))
-    map_clear.set_defaults(func=map_commands._cmd_map_clear)
+    # `map list` / `map set` / `map clear` were deleted 2026-10-02 (owner ruling):
+    # the launcher reaches them only as `runtime.map.list` / `.set` / `.clear`.

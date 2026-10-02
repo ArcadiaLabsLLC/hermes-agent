@@ -4,6 +4,8 @@ Plan: `downstream-god-file-refactor.md` §4.2. Dead-code queue row "The argv cen
 
 How it was taken (a runtime read, not a source walk): `hermes_cli.harness_parts.parser.build_parser` was built into a fresh `argparse` root and every sub-parser walked for its `func` default — 156 handlers over 157 argv paths (`gateway` has one alias). Method twins: the §4.4 table's seven hand-matched rows, plus a name match of the argv words against `agent_runtime.serve_rpc.registry._METHODS` (118 methods) — the name match is a lead, not a proof. Callers: `git grep -nw <handler>` minus the defining module, the parser package and `tests/`, keeping only lines that import, call or attribute-access the name, and dropping files that define their own same-named function (`_cmd_status` in `agent/lsp/cli.py`, `_cmd_init` in `hermes_cli/kanban.py`, … are collisions, not callers). "Tests" counts test FILES naming the handler.
 
+**2026-10-02 (owner ruling, lane w13-hm): the seven method-only handlers — `agent create`, `agent retire`, `level clear`, `level set`, `map clear`, `map list`, `map set` — are DELETED; their rows below are history.**
+
 Summary: 18 handlers have a method twin; 11 have a production caller outside the parser; 35 are named by no test file. Every handler without a twin is carried only by argv, so it can be deleted only if BOTH no launcher lowering AND no operator/script use remains — the second is a product ruling, not a grep.
 
 | argv (`harness …`) | handler | method twin | production callers outside the parser | test files |
