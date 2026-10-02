@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .app_functions import AppFunctionPool, client_requests
 from . import model_preferences, session_facts
+from ..session_model_catalog import facts as model_facts
 from .bindings import Bindings
 from .live import LiveConversation
 from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
@@ -183,7 +184,7 @@ class ConversationService:
     def _facts(self, route, snapshot: dict, inventory: dict) -> dict:
         from hermes_cli.config import is_managed
 
-        return {**session_facts.facts(route.id, snapshot, inventory),
+        return {**model_facts(route.id, snapshot, inventory),
                 "default_model_id": model_preferences.default_id(Path(route.home), self.auth_home),
                 "can_save_model_default": not is_managed()}
 

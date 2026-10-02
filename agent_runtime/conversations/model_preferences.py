@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .session_facts import model_key
+from ..session_model_catalog import model_key
 
 __layer__ = "lanes"
 
