@@ -109,13 +109,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness office archive-surface](#hermes-harness-office-archive-surface)
 - [hermes harness level](#hermes-harness-level)
 - [hermes harness level show](#hermes-harness-level-show)
-- [hermes harness level set](#hermes-harness-level-set)
-- [hermes harness level clear](#hermes-harness-level-clear)
 - [hermes harness map](#hermes-harness-map)
-- [hermes harness map list](#hermes-harness-map-list)
 - [hermes harness map show](#hermes-harness-map-show)
-- [hermes harness map set](#hermes-harness-map-set)
-- [hermes harness map clear](#hermes-harness-map-clear)
 - [hermes harness persona](#hermes-harness-persona)
 - [hermes harness persona list](#hermes-harness-persona-list)
 - [hermes harness persona show](#hermes-harness-persona-show)
@@ -166,10 +161,9 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona-instance reconcile](#hermes-harness-persona-instance-reconcile)
 - [hermes harness persona-instance chat-bindings](#hermes-harness-persona-instance-chat-bindings)
 - [hermes harness persona-instance detail](#hermes-harness-persona-instance-detail)
+- [hermes harness query](#hermes-harness-query)
 - [hermes harness agent](#hermes-harness-agent)
 - [hermes harness agent list](#hermes-harness-agent-list)
-- [hermes harness agent create](#hermes-harness-agent-create)
-- [hermes harness agent retire](#hermes-harness-agent-retire)
 - [hermes harness agent set-profile](#hermes-harness-agent-set-profile)
 - [hermes harness install-harness-skills](#hermes-harness-install-harness-skills)
 - [hermes harness snapshot](#hermes-harness-snapshot)
@@ -209,10 +203,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -232,10 +226,10 @@ positional arguments:
                         drive runtime execution)
     office              Manage the Mission Office layout (one file per actor placement; realm-synced
                         like boards)
-    level               Read or set a workspace's LEVEL document (the environment it stands in;
-                        realm-synced whole-document)
+    level               Read a workspace's LEVEL document (the environment it stands in; realm-
+                        synced whole-document; writes are runtime.level.*)
     map                 Map CATALOGUE: the named scenes this install knows about, carried by the
-                        realm
+                        realm (list/writes are runtime.map.*)
     persona             Run bounded live-token diagnostics for one persona
     mission-chat        Canonical Mission Control chat path
     status              Show harness status
@@ -252,6 +246,10 @@ positional arguments:
     contracts           Inspect canonical Mission Control event contracts
     worktree            Manage harness-managed git worktrees
     persona-instance    Manage durable persona-instance store rows
+    query               READ-ONLY narrow lookups: roster, one instance (with its MCP resolution), an
+                        instance's chat sessions with hot/busy/cold state, and live QA sessions by
+                        id. Answered by the running serve when one is up; use this, not `snapshot`,
+                        for lookups
     agent               Inspect and rebind harness agent definitions
     install-harness-skills
                         Install versioned Harness skills into configured persona profiles
@@ -2131,18 +2129,14 @@ options:
 ## hermes harness level
 
 ```text
-usage: hermes harness level [-h] {show,set,clear} ...
+usage: hermes harness level [-h] {show} ...
 
 positional arguments:
-  {show,set,clear}
-    show            Show a workspace's level (metadata; --full carries the document)
-    set             Store a workspace's level document VERBATIM (hermes validates that it is JSON
-                    with a version and reformats nothing)
-    clear           Remove a workspace's level (local only — a level the realm still publishes
-                    returns on the next pull)
+  {show}
+    show      Show a workspace's level (metadata; --full carries the document)
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help  show this help message and exit
 ```
 
 ## hermes harness level show
@@ -2162,81 +2156,17 @@ options:
   --fields FIELDS
 ```
 
-## hermes harness level set
-
-```text
-usage: hermes harness level set [-h] [--workspace WORKSPACE] --document DOCUMENT
-                                [--expect-sha256 EXPECT_SHA256] [-o {json,table,yaml,wide}] [--json]
-                                [-q] [--no-color] [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --workspace, --workspace-id WORKSPACE
-  --document DOCUMENT   Level document: a PATH to a JSON file (use this — a level can be 1 MB and a
-                        Windows command line caps at ~32 KB), or inline JSON
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this write is based on, or
-                        'none' if the workspace must have no level yet
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
-## hermes harness level clear
-
-```text
-usage: hermes harness level clear [-h] [--workspace WORKSPACE] [--expect-sha256 EXPECT_SHA256]
-                                  [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                  [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --workspace, --workspace-id WORKSPACE
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this clear is based on, or
-                        'none' if the workspace must have no level
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
 ## hermes harness map
 
 ```text
-usage: hermes harness map [-h] {list,show,set,clear} ...
+usage: hermes harness map [-h] {show} ...
 
 positional arguments:
-  {list,show,set,clear}
-    list                List the catalogue (names and hashes; never the documents)
-    show                Show one catalogue map (metadata; --full carries the document)
-    set                 Store a catalogue map VERBATIM (hermes validates that it is JSON with a
-                        version and a name, and reformats nothing)
-    clear               Remove a catalogue map (local only — a map the realm still publishes returns
-                        on the next pull)
+  {show}
+    show      Show one catalogue map (metadata; --full carries the document)
 
 options:
-  -h, --help            show this help message and exit
-```
-
-## hermes harness map list
-
-```text
-usage: hermes harness map list [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                               [--fields FIELDS]
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
+  -h, --help  show this help message and exit
 ```
 
 ## hermes harness map show
@@ -2254,50 +2184,6 @@ options:
   -q, --quiet
   --no-color
   --fields FIELDS
-```
-
-## hermes harness map set
-
-```text
-usage: hermes harness map set [-h] [--map MAP] --document DOCUMENT [--expect-sha256 EXPECT_SHA256]
-                              [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                              [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --map, --map-id MAP
-  --document DOCUMENT   Map document: a PATH to a JSON file (use this — a map carries a scene and a
-                        Windows command line caps at ~32 KB), or inline JSON
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this write is based on, or
-                        'none' if the catalogue must not hold this map yet
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
-```
-
-## hermes harness map clear
-
-```text
-usage: hermes harness map clear [-h] [--map MAP] [--expect-sha256 EXPECT_SHA256]
-                                [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                [--fields FIELDS] [--dry-run]
-
-options:
-  -h, --help            show this help message and exit
-  --map, --map-id MAP
-  --expect-sha256 EXPECT_SHA256
-                        Compare-and-set: the sha256 of the stored bytes this clear is based on, or
-                        'none' if the catalogue must not hold this map
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --dry-run
 ```
 
 ## hermes harness persona
@@ -3383,23 +3269,36 @@ options:
   --json
 ```
 
-## hermes harness agent
+## hermes harness query
 
 ```text
-usage: hermes harness agent [-h] {list,create,retire,set-profile} ...
+usage: hermes harness query [-h] [--limit LIMIT] [--direct] [--json]
+                            {roster,instance,sessions,live_qa} [target]
 
 positional arguments:
-  {list,create,retire,set-profile}
-    list                List persisted/configured agent definitions
-    create              Place an agent: roster row, chat root and office placement in ONE atomic
-                        call
-    retire              Retire a placed agent: archive its roster row AND every office actor bound
-                        to it in ONE call
-    set-profile         Rebind an agent to a different Hermes profile (the ONE door; cascades every
-                        instance projection)
+  {roster,instance,sessions,live_qa}
+  target                Persona-instance id or persona id (instance, sessions)
 
 options:
   -h, --help            show this help message and exit
+  --limit LIMIT         Most sessions to return (default 10, max 50)
+  --direct              Read in this process; do not ask the running serve
+  --json
+```
+
+## hermes harness agent
+
+```text
+usage: hermes harness agent [-h] {list,set-profile} ...
+
+positional arguments:
+  {list,set-profile}
+    list              List persisted/configured agent definitions
+    set-profile       Rebind an agent to a different Hermes profile (the ONE door; cascades every
+                      instance projection)
+
+options:
+  -h, --help          show this help message and exit
 ```
 
 ## hermes harness agent list
@@ -3417,58 +3316,6 @@ options:
   --no-color
   --fields FIELDS
   --sort SORT
-```
-
-## hermes harness agent create
-
-```text
-usage: hermes harness agent create [-h] --persona PERSONA_ID --workspace WORKSPACE_ID [--pos X Y]
-                                   [--skill SKILLS] [--display-name DISPLAY_NAME]
-                                   [--placement-id PLACEMENT_ID] [--realm-id REALM_ID]
-                                   [--folder FOLDER] [--idempotency-key IDEMPOTENCY_KEY]
-                                   [--correlation-id CORRELATION_ID] [--json]
-
-options:
-  -h, --help            show this help message and exit
-  --persona PERSONA_ID  Roster persona id (or profile:<token>); an unknown id is refused before any
-                        write
-  --workspace, --workspace-id WORKSPACE_ID
-                        Mission Control workspace the placement lands in; must already exist
-  --pos X Y             Canvas position for the placement; omitted, the layout policy picks the
-                        first free slot in the folder
-  --skill SKILLS        Assign a skill to the new instance (repeatable); a canonical harness skill
-                        is installed and hash-verified first
-  --display-name DISPLAY_NAME
-                        Authoritative name; omitted falls back to the persona's configured display
-                        name
-  --placement-id PLACEMENT_ID
-                        Scene itemId to predict the actor key from; must end in <persona-
-                        token>_agent_<hex8>, and omitted mints one server-side
-  --realm-id REALM_ID
-  --folder FOLDER       Office folder for the placement (default: Agents)
-  --idempotency-key IDEMPOTENCY_KEY
-                        Stable retry key; omitted mints a fresh cli-<uuid4> so a re-run is a new
-                        gesture
-  --correlation-id CORRELATION_ID
-  --json
-```
-
-## hermes harness agent retire
-
-```text
-usage: hermes harness agent retire [-h] [--reason REASON] [--requested-by REQUESTED_BY]
-                                   [--correlation-id CORRELATION_ID] [--json]
-                                   persona_instance_id
-
-positional arguments:
-  persona_instance_id   Persona-instance id of the placement to retire
-
-options:
-  -h, --help            show this help message and exit
-  --reason REASON
-  --requested-by REQUESTED_BY
-  --correlation-id CORRELATION_ID
-  --json
 ```
 
 ## hermes harness agent set-profile

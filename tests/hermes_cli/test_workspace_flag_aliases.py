@@ -2,7 +2,7 @@
 
 The harness parser had grown three unrelated conventions for the same argument:
 ``--workspace`` with dest ``workspace`` (office, board), ``--workspace`` with
-dest ``workspace_id`` (``agent create``), and ``--workspace-id`` (persona
+dest ``workspace_id`` (``agent create``, an argv verb deleted 2026-10-02), and ``--workspace-id`` (persona
 instance, mission chat). An operator who learned one verb's spelling was refused
 by the next, and nothing in the tree said which was which — the spelling was a
 per-verb accident, not a decision.
@@ -109,7 +109,7 @@ def test_the_walk_reaches_the_whole_tree():
     # Spot the three conventions D8 unified, one verb from each, so a walk that
     # descended into only one subtree is caught by name rather than by count.
     for expected in (
-        "harness agent create",
+        "harness level show",
         "harness office actor-upsert",
         "harness board create",
         "harness persona instance create",
@@ -167,12 +167,6 @@ def _required_extras(path: str) -> list[str]:
     """
 
     return {
-        # ``--pos`` was here until S2 made it optional. Removed rather than
-        # left harmless: this table's docstring says "required arguments", and
-        # a table carrying a non-required flag is a second description of
-        # requiredness that is free to disagree with argparse's.
-        "harness agent create": ["--persona", "qa"],
-        "harness level set": ["--document", "{}"],
         "harness office actor-upsert": ["--actor-json", "{}"],
         "harness office actor-remove": ["--actor", "personainst_qa"],
         "harness office actor-restore": ["--actor", "personainst_qa"],
@@ -218,98 +212,9 @@ def test_the_discriminator_is_the_dest_not_the_spelling():
     assert "harness realm agents set" not in _workspace_options()
 
 
-def d12_violated(*, retire_exists: bool, pos_required: bool) -> bool:
-    """THE D12 rule, as a predicate: ``agent retire`` may not exist while
-    ``--pos`` is still required.
-
-    A ONE-directional implication, and the direction is the whole content. The
-    launcher decides whether to omit ``position`` from a create by looking for
-    ``runtime.agent.retire`` in the serve manifest — a per-method capability
-    marker standing in for "this serve accepts an absent position". So:
-
-    * **retire WITHOUT an optional position is the forbidden pair.** The serve
-      advertises the marker and then refuses every create the launcher sends
-      under it. That is the ordering that strands a client, and it is the only
-      one.
-    * **an optional position WITHOUT retire is SAFE**, and is the state S2
-      lands in. The launcher keeps sending its predicted slot explicitly until
-      the marker appears; a serve that would also accept an absent one is
-      strictly more permissive than the client is.
-
-    Extracted from the live-parser test below because that test can only ever
-    exercise the arm the tree is currently in — and the arm that matters is the
-    one that must never be reached. Written as a function so the rule itself is
-    pinned over all four combinations, rather than asserted once in whichever
-    state HEAD happens to be in.
-    """
-
-    return retire_exists and pos_required
-
-
-@pytest.mark.parametrize(
-    ("retire_exists", "pos_required", "violated"),
-    [
-        # The forbidden pair — the only one.
-        (True, True, True),
-        # S5 landed on top of S2: the marker means what the launcher reads it
-        # to mean.
-        (True, False, False),
-        # Where S2 leaves the tree: more permissive than any client asks for.
-        (False, False, False),
-        # Before either slice. Also fine — nothing advertises the marker.
-        (False, True, False),
-    ],
-)
-def test_the_d12_rule_is_one_directional(retire_exists, pos_required, violated):
-    """KILLING MUTATION: widen ``d12_violated`` to ``or`` (or to ``!=``) and the
-    ``(False, True)`` row reds — that is the row that says an optional position
-    without the retire verb is NOT a defect, which is exactly the reading S2
-    needed and the previous ``assert pos.required is True`` got backwards.
-    """
-
-    assert (
-        d12_violated(retire_exists=retire_exists, pos_required=pos_required)
-        is violated
-    )
-
-
-def test_pos_is_optional_whenever_agent_retire_exists():
-    """The D12 rollout gate, applied to the REAL parser tree.
-
-    The rule is :func:`d12_violated` and its four combinations are pinned
-    above; this is the measurement. It reds the moment ``agent retire`` is added
-    while ``--pos`` is still required.
-
-    State at S2 (2026-08-26), recorded rather than left to be inferred:
-    ``--pos`` is OPTIONAL and ``agent retire`` exists since S5 (``748687daa3``) — so the live arm is
-    the ``(retire=True, pos_required=False)`` one. That is the
-    safe half of the implication, not a vacuous pass — the assertion below is
-    live on every combination, because it asks the predicate rather than
-    branching on which one we are in.
-    """
-
-    agent = dict(_walk(_root_parser(), ()))
-    verbs = {path for path, _ in agent.items()}
-    retire_exists = ("harness", "agent", "retire") in verbs
-    create = agent.get(("harness", "agent", "create"))
-    assert create is not None
-
-    pos = next(
-        action for action in create._actions if "--pos" in action.option_strings
-    )
-    assert not d12_violated(
-        retire_exists=retire_exists, pos_required=pos.required
-    ), (
-        "`agent retire` is the launcher's D12 marker for an OPTIONAL position; "
-        "shipping it while --pos is still required strands every client that "
-        "trusted the marker"
-    )
-
-
 @pytest.mark.parametrize(
     "argv",
     [
-        ["harness", "agent", "create", "--persona", "qa", "--workspace-id", "ws"],
         ["harness", "office", "show", "--workspace-id", "ws"],
         ["harness", "persona", "instance", "create", "--persona", "qa", "--title", "t", "--workspace", "ws"],
         ["harness", "mission-chat", "message", "--persona", "qa", "--message", "hi", "--workspace", "ws"],
@@ -318,10 +223,7 @@ def test_pos_is_optional_whenever_agent_retire_exists():
 def test_the_previously_refused_spelling_now_parses(argv):
     """The operator-facing half, one verb per old convention.
 
-    Every verb here parses exactly as written. ``agent create`` used to need
-    ``--pos`` appended for the parse to reach the workspace at all; since S2 it
-    does not, so the append is gone and this now also exercises the shortest
-    real create an operator can type.
+    Every verb here parses exactly as written.
     """
 
     parser = _root_parser()

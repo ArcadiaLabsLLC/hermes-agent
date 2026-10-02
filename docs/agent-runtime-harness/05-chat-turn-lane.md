@@ -598,12 +598,11 @@ to nothing on the machine that received it.
 `runtime.agent.create` (`serve_rpc/agent.py::_runtime_agent_create`) performs roster row + chat root +
 office placement in ONE handler with a recorded-progress reservation
 (`agent_runtime/agent_create_reservations.py`) and a compensating retire, replacing the launcher's
-two sequenced writes over two transports. `harness agent create`
-(`hermes_cli/harness_parts/persona/lifecycle_commands.py::_cmd_agent_create`) is the same function behind an argv door — every result
-field a script reads is the field it would read off the wire — and it works with no `harness serve`
-running because every lock in the path is a cross-process file lock. `harness agent retire` and
-`runtime.agent.retire` are the same arrangement for the inverse
-(`agent_retire.perform_agent_retire`), and `harness persona instance retire` is a THIRD door onto
+two sequenced writes over two transports. The service (`agent_create.perform_agent_create`) runs
+with no `harness serve` because every lock in the path is a cross-process file lock. The argv
+`harness agent create` / `harness agent retire` doors were deleted 2026-10-02 (owner ruling: the
+launcher calls both only as methods). `runtime.agent.retire` is the same arrangement for the inverse
+(`agent_retire.perform_agent_retire`), and `harness persona instance retire` is the argv door onto
 it; see [06 — The inverse](06-office-and-board.md#the-inverse--one-call-takes-an-agent-off-the-level-and-says-what-left).
 An unknown persona is refused with `persona_not_found` (`agent_create.PERSONA_NOT_FOUND_REASON`,
 message built by `persona_not_found_message`), kept a separate reason from

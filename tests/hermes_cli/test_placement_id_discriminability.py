@@ -7,11 +7,13 @@ it into the operator-channel dedupe on the shared key
 `(profile:alice, "Alice Agent")`, and — newer-wins — evicted the operator's own
 `personainst_profile_alice` from the roster.
 
-Every test here drives the REAL argparse tree through `args.func`, the same rule
-`test_agent_create_verb` states: a handler nothing routes to is a verb no
-operator can run. All three placement doors are exercised, because the fence had
-to land in three places — the two `persona instance` verbs do not pass through
-`agent_create` at all.
+The two `persona instance` verbs are driven through the REAL argparse tree and
+`args.func`: a handler nothing routes to is a verb no operator can run. The third
+placement door is `agent_create.perform_agent_create` itself — the function
+`runtime.agent.create` answers with — since the argv `harness agent create` was
+deleted 2026-10-02 (owner ruling: method-only). All three are exercised, because
+the fence had to land in three places — the two `persona instance` verbs do not
+pass through `agent_create` at all.
 """
 
 from __future__ import annotations
@@ -86,16 +88,24 @@ def _dispatch(argv: list[str]) -> int:
     return args.func(args)
 
 
-def _agent_create(capsys, *extra: str):
-    code = _dispatch([
-        "harness", "agent", "create",
-        "--persona", "qa",
-        "--workspace", WORKSPACE,
-        "--pos", "3.5", "-1.25",
-        "--json",
-        *extra,
-    ])
-    return code, json.loads(capsys.readouterr().out)
+def _agent_create(capsys, *, idempotency_key: str, placement_id: str | None = None):
+    """``(0, result)`` or ``(1, refusal)`` from the create service — the
+    ``runtime.agent.create`` door with the JSON-RPC envelope peeled off."""
+
+    from agent_runtime.agent_create import perform_agent_create
+
+    params = {
+        "persona_id": "qa",
+        "workspace_id": WORKSPACE,
+        "position": [3.5, -1.25],
+        "idempotency_key": idempotency_key,
+    }
+    if placement_id is not None:
+        params["placement_id"] = placement_id
+    outcome = perform_agent_create(params)
+    if outcome.refusal is not None:
+        return 1, {"error": outcome.refusal.message, **outcome.refusal.data}
+    return 0, outcome.result
 
 
 def _instance_create(capsys, *extra: str):
@@ -191,12 +201,12 @@ def test_the_server_mint_clears_the_fence_it_installs():
         assert looks_like_deliberate_placement(mint_placement_id(persona))
 
 
-# ── door 1: agent create ─────────────────────────────────────────────────────
+# ── door 1: the create service (runtime.agent.create) ─────────────────────────────────────────────────────
 
 
 def test_agent_create_refuses_the_incident_id(qa_persona, seeded_workspace, capsys):
     code, data = _agent_create(
-        capsys, "--idempotency-key", "r1-create-bad", "--placement-id", INCIDENT_ID
+        capsys, idempotency_key="r1-create-bad", placement_id=INCIDENT_ID
     )
     assert code != 0
     assert data["reason"] == "placement_id_not_discriminable"
@@ -217,7 +227,7 @@ def test_agent_create_refuses_before_writing_anything(
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     _agent_create(
-        capsys, "--idempotency-key", "r1-create-clean", "--placement-id", INCIDENT_ID
+        capsys, idempotency_key="r1-create-clean", placement_id=INCIDENT_ID
     )
     assert OfficeStore().scan_actors(WORKSPACE).actors == []
     assert not [
@@ -230,7 +240,7 @@ def test_agent_create_accepts_the_launcher_mints(
     qa_persona, seeded_workspace, capsys, placement
 ):
     code, data = _agent_create(
-        capsys, "--idempotency-key", f"r1-ok-{placement}", "--placement-id", placement
+        capsys, idempotency_key=f"r1-ok-{placement}", placement_id=placement
     )
     assert code == 0, data
     assert data["persona_instance_id"] == f"personainst_{placement}"
@@ -239,7 +249,7 @@ def test_agent_create_accepts_the_launcher_mints(
 def test_agent_create_accepts_an_omitted_placement_id(
     qa_persona, seeded_workspace, capsys
 ):
-    code, data = _agent_create(capsys, "--idempotency-key", "r1-ok-minted")
+    code, data = _agent_create(capsys, idempotency_key="r1-ok-minted")
     assert code == 0, data
     # The minted id must clear the fence its own lane installs — see
     # test_the_server_mint_clears_the_fence_it_installs.
@@ -285,7 +295,7 @@ def test_the_refusal_is_the_same_reason_on_all_three_doors(
 
     reasons = set()
     _, data = _agent_create(
-        capsys, "--idempotency-key", "r1-same", "--placement-id", INCIDENT_ID
+        capsys, idempotency_key="r1-same", placement_id=INCIDENT_ID
     )
     reasons.add(data["reason"])
     _, data = _instance_create(capsys, "--placement-id", INCIDENT_ID)

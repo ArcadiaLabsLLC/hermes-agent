@@ -1,16 +1,17 @@
-"""``harness agent retire`` — the operator's serve-absent inverse of the create.
+"""``harness persona instance retire`` — the argv door onto ``perform_agent_retire``.
 
-Every test drives the REAL argparse tree and dispatches through ``args.func``,
-never by poking the handler: a handler nothing routes to is a verb no operator
-can run, and this program has been bitten by exactly that before.
+Every verb test drives the REAL argparse tree and dispatches through
+``args.func``, never by poking the handler: a handler nothing routes to is a
+verb no operator can run.
 
-The claim the suite exists for, beyond "it retires": the OTHER door —
-``harness persona instance retire`` — is the same function, so a scripted
-operator gets the same ack whichever verb they typed. That is asserted by
-running both and comparing the payloads, not by reading the two handlers.
+``harness agent retire`` was a second argv door onto the same service until
+2026-10-02, when it was deleted (owner ruling: the launcher reaches it only as
+``runtime.agent.retire``). Agents are placed here through the service itself,
+``agent_create.perform_agent_create`` — the function ``runtime.agent.create``
+answers with — because the argv ``agent create`` went in the same ruling.
 
-Nothing here spawns a ``harness serve``. As with the create, the claim is
-precisely that none is needed.
+Nothing here spawns a ``harness serve``: the claim is precisely that none is
+needed.
 """
 
 from __future__ import annotations
@@ -24,16 +25,15 @@ from agent_runtime import paths
 from tests.agent_runtime.office_seed import seed_workspace_record
 from hermes_cli.harness_parts.persona import lifecycle_commands
 
-WORKSPACE = "ws_agent_retire_verb"
+WORKSPACE = "ws_persona_instance_retire_verb"
 
 
 @pytest.fixture(autouse=True)
 def hermetic_runtime_root(tmp_path, monkeypatch):
     """Pin the runtime root INSIDE this test's tmp dir, and prove it landed.
 
-    The same guard the create verb's suite carries, for the same reason: these
-    tests archive real rows, and a resolution regression would archive the
-    OPERATOR's.
+    These tests archive real rows, and a resolution regression would archive
+    the OPERATOR's.
     """
 
     root = tmp_path / "agent-runtime"
@@ -85,25 +85,29 @@ def _dispatch(argv: list[str]) -> int:
 
 
 def _place(capsys, placement_id: str = "qa_verb_retire_1_agent_2") -> dict:
-    code = _dispatch(
-        [
-            "harness", "agent", "create",
-            "--persona", "qa",
-            "--workspace", WORKSPACE,
-            "--pos", "2", "2",
-            "--placement-id", placement_id,
-            "--idempotency-key", f"verb-retire-{placement_id}",
-            "--json",
-        ]
+    from agent_runtime.agent_create import perform_agent_create
+
+    outcome = perform_agent_create(
+        {
+            "persona_id": "qa",
+            "workspace_id": WORKSPACE,
+            "position": [2, 2],
+            "placement_id": placement_id,
+            "idempotency_key": f"verb-retire-{placement_id}",
+        }
     )
-    payload = json.loads(capsys.readouterr().out)
-    assert code == 0, payload
-    return payload
+    assert outcome.refusal is None, outcome.refusal
+    return outcome.result
 
 
 def _retire(capsys, instance_id: str, *extra: str) -> tuple[int, dict]:
-    code = _dispatch(["harness", "agent", "retire", instance_id, "--json", *extra])
-    return code, json.loads(capsys.readouterr().out)
+    """``(exit code, payload)``: the ack on success, the refusal envelope otherwise."""
+
+    code = _dispatch(
+        ["harness", "persona", "instance", "retire", instance_id, "--json", *extra]
+    )
+    data = json.loads(capsys.readouterr().out)
+    return code, data.get("persona_instance_retired", data)
 
 
 def _live_actor_keys() -> set:
@@ -132,7 +136,6 @@ def test_the_verb_archives_both_halves_and_names_the_actors(
     code, data = _retire(capsys, placed["persona_instance_id"])
 
     assert code == 0
-    assert data["ok"] is True
     assert data["archived_actor_keys"] == [placed["actor_key"]]
     assert data["office_archive_failures"] == []
     assert data["already_retired"] is False
@@ -142,7 +145,7 @@ def test_the_verb_archives_both_halves_and_names_the_actors(
 
 def test_a_second_retire_is_answered_not_refused(qa_persona, seeded_workspace, capsys):
     """KILLING MUTATION: drop the tombstone probe in the service's ``not_found``
-    arm — the exit code becomes 3 and this reds on ``code == 0``.
+    arm — the verb refuses (exit 2) and this reds on ``code == 0``.
 
     An operator who runs the verb twice (or a cron that does) must not have to
     tell "already done" apart from "wrong id" by reading prose.
@@ -158,35 +161,22 @@ def test_a_second_retire_is_answered_not_refused(qa_persona, seeded_workspace, c
     assert data["archived_actor_keys"] == [placed["actor_key"]]
 
 
-def test_an_unknown_id_still_exits_not_found(qa_persona, capsys):
-    """ANTI-VACUITY for the replay above. ``already_retired`` reads a TOMBSTONE;
-    an id that never existed has none, and must keep its own exit code (3, the
-    create verb's ``4001`` family) so a script can branch on it.
-    """
-
-    code, data = _retire(capsys, "personainst_never_existed")
-
-    assert code == 3
-    assert data["ok"] is False
-    assert data["reason"] == "not_found"
-
-
-def test_a_guard_refusal_exits_conflict_and_names_its_reason(qa_persona, capsys):
+def test_a_guard_refusal_is_refused_with_its_reason(qa_persona, capsys):
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     canonical = PersonaInstanceStore().ensure_for_persona(qa_persona)
 
     code, data = _retire(capsys, canonical.id)
 
-    assert code == 4
-    assert data["reason"] == "canonical_persona_channel"
+    assert code == 2
+    assert data["code"] == "canonical_persona_channel"
     assert paths.persona_instance_path(canonical.id).exists()
 
 
 # ── the two doors are one function ───────────────────────────────────────────
 
 
-def test_persona_instance_retire_produces_the_identical_ack(
+def test_the_argv_door_and_the_wire_door_answer_the_same_ack(
     qa_persona, seeded_workspace, capsys
 ):
     """KILLING MUTATION: point ``persona instance retire`` back at
@@ -194,59 +184,50 @@ def test_persona_instance_retire_produces_the_identical_ack(
     ``archived_actor_keys`` / ``office_archive_failures`` / ``already_retired``
     and the key-set comparison reds.
 
-    Two placements are used rather than one because a retire is not repeatable
-    against the same row; the comparison is therefore of the ack's SHAPE and of
-    every field that is not the row's own identity, which is exactly what "the
-    same ack" can mean across two different targets.
+    Two placements, because a retire is not repeatable against the same row; the
+    comparison is of the ack's SHAPE and of every field that is not the row's
+    own identity.
     """
+
+    from agent_runtime import serve_rpc
 
     first = _place(capsys, placement_id="qa_verb_retire_3_agent_2")
     second = _place(capsys, placement_id="qa_verb_retire_4_agent_2")
 
-    _, agent_door = _retire(capsys, first["persona_instance_id"])
+    wire = serve_rpc.handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "r1",
+            "method": "runtime.agent.retire",
+            "params": {"persona_instance_id": first["persona_instance_id"]},
+        }
+    )["result"]
 
-    code = _dispatch(
-        [
-            "harness", "persona", "instance", "retire",
-            second["persona_instance_id"],
-            "--json",
-        ]
-    )
-    instance_door = json.loads(capsys.readouterr().out)
+    code, ack = _retire(capsys, second["persona_instance_id"])
     assert code == 0
 
-    ack = instance_door["persona_instance_retired"]
-    # The envelope each verb has always had differs; the ACK does not.
-    assert set(ack) == set(agent_door) - {"ok", "resolution"}
+    assert set(ack) == set(wire)
     assert ack["archived_actor_keys"] == [second["actor_key"]]
     assert ack["office_archive_failures"] == []
     assert ack["already_retired"] is False
-    assert ack["persona_id"] == agent_door["persona_id"] == "qa"
+    assert ack["persona_id"] == wire["persona_id"] == "qa"
 
 
 # ── the CLI's authorization identity (chokepoint plan A4) ────────────────────
 
 
-def test_both_retire_doors_carry_the_SAME_console_identity(
+def test_the_retire_door_carries_the_console_identity(
     qa_persona, seeded_workspace, capsys, monkeypatch
 ):
-    """A4-iii. The asymmetry canon 06 recorded — one door consults a gate and
-    the other does not, on the same service function — disappears here.
+    """A4-iii. The console identity is minted in ``_agent_retire_outcome``, so
+    refusing it must refuse the verb — BEFORE the service runs.
 
-    Not by giving `agent retire` the coordinator review (that answers a different
-    question) but because both doors reach ``_agent_retire_outcome``, and the
-    console identity is minted THERE. Asserted by refusing it and watching both
-    doors refuse identically: a mirror on only one door would let exactly one of
-    these through.
+    Patched where the running handler looks the name up (lanes H1/H3: the
+    handler's own module); a patch anywhere else would go green while the
+    shipped path ran unpatched.
     """
 
-    # Patched where the running handler looks the name up (lanes H1/H3: the
-    # handler's own module). A patch anywhere else would go green while
-    # the shipped path ran unpatched — the vacuous-test shape this repo has been
-    # bitten by before.
-
-    first = _place(capsys, placement_id="qa_verb_retire_auth_1_agent_2")
-    second = _place(capsys, placement_id="qa_verb_retire_auth_2_agent_2")
+    placed = _place(capsys, placement_id="qa_verb_retire_auth_1_agent_2")
 
     monkeypatch.setattr(
         lifecycle_commands,
@@ -258,24 +239,13 @@ def test_both_retire_doors_carry_the_SAME_console_identity(
         },
     )
 
-    agent_code, agent_door = _retire(capsys, first["persona_instance_id"])
+    code, data = _retire(capsys, placed["persona_instance_id"])
 
-    instance_code = _dispatch(
-        [
-            "harness", "persona", "instance", "retire",
-            second["persona_instance_id"],
-            "--json",
-        ]
-    )
-    instance_door = json.loads(capsys.readouterr().out)
-
-    assert agent_code != 0 and instance_code != 0
-    assert agent_door["ok"] is False and instance_door["ok"] is False
-    assert agent_door["reason"] == "scope_denied"
-    assert instance_door["code"] == "scope_denied"
-    # ANTI-VACUITY: the refusal landed BEFORE the service, so both rows survive.
-    assert first["actor_key"] in _live_actor_keys()
-    assert second["actor_key"] in _live_actor_keys()
+    assert code != 0
+    assert data["ok"] is False
+    assert data["code"] == "scope_denied"
+    # ANTI-VACUITY: the refusal landed BEFORE the service, so the row survives.
+    assert placed["actor_key"] in _live_actor_keys()
 
 
 def test_a_plain_operator_retire_is_unchanged_by_the_mirror(
@@ -300,7 +270,6 @@ def test_a_plain_operator_retire_is_unchanged_by_the_mirror(
     )
 
     assert plain_code == spelled_code == 0
-    assert plain_ack["ok"] is spelled_ack["ok"] is True
     assert set(plain_ack) == set(spelled_ack)
     assert plain_ack["already_retired"] is spelled_ack["already_retired"] is False
 
@@ -331,66 +300,20 @@ def test_the_instance_door_refuses_with_the_services_typed_reason(
 def test_the_human_readable_line_names_what_left_the_canvas(
     qa_persona, seeded_workspace, capsys
 ):
-    """Without ``--json`` the verb still has to answer the question it exists for
-    — which desks went — rather than printing an id and leaving the operator to
-    go look.
-    """
+    """Without ``--json`` the verb still prints a line naming what it retired."""
 
     placed = _place(capsys, placement_id="qa_verb_retire_5_agent_2")
 
-    code = _dispatch(["harness", "agent", "retire", placed["persona_instance_id"]])
+    code = _dispatch(
+        ["harness", "persona", "instance", "retire", placed["persona_instance_id"]]
+    )
     out = capsys.readouterr().out
 
     assert code == 0
-    assert placed["persona_instance_id"] in out
-    assert placed["actor_key"] in out
+    assert out.startswith(f"retired {placed['persona_instance_id']} ")
 
 
 # ── the gesture token reaches the store from argv (S8b) ─────────────────────
-
-
-def test_the_correlation_flag_reaches_the_office_removal_and_the_ack(
-    qa_persona, seeded_workspace, capsys
-):
-    """`agent create --correlation-id` has always existed; its inverse did not,
-    so a script could place an agent under a gesture token and had no way to
-    delete it under the same one.
-
-    KILLING MUTATION (run, observed, reverted): drop
-    ``"correlation_id": getattr(args, "correlation_id", None)`` from
-    ``_agent_retire_outcome``'s params dict. Observed red::
-
-        E       KeyError: 'correlation_id'
-
-    on the ack arm — the flag parses, the handler runs, and the token goes
-    nowhere, which is what "argparse accepts it" alone would have proved.
-
-    The EVENT is asserted as well as the ack, because the ack is this process's
-    own return value: a handler that echoed the flag it was handed would satisfy
-    the ack arm with nothing on the wire an operator can grep.
-    """
-
-    from agent_runtime.state_patches import CORRELATION_ID_KEY
-
-    token = "g-office-1755400000999999-c3d4"
-    placed = _place(capsys, placement_id="qa_verb_retire_corr_agent_2")
-
-    code, data = _retire(
-        capsys, placed["persona_instance_id"], "--correlation-id", token
-    )
-
-    assert code == 0
-    assert data["correlation_id"] == token
-
-    from agent_runtime.events import EventLog
-
-    removed = [
-        event.payload
-        for _, event in EventLog().iter_from_offset(0)
-        if event.type == "office.actor.removed"
-    ]
-    assert [payload.get(CORRELATION_ID_KEY) for payload in removed] == [token]
-    assert [payload.get("actor_key") for payload in removed] == [placed["actor_key"]]
 
 
 def test_a_retire_typed_without_the_flag_carries_no_token(
@@ -399,7 +322,7 @@ def test_a_retire_typed_without_the_flag_carries_no_token(
     """The additive half, at the operator surface: the flag defaults to ``None``
     and an operator who does not type it gets the ack they always got.
 
-    Also the fence for BOTH doors' ``getattr(..., None)`` default: an operator
+    Also the fence for the ``getattr(..., None)`` default: an operator
     who omits the flag must reach the store with no token, not with a fabricated
     one. If that default were anything else, this arm would be the first thing
     to say so.

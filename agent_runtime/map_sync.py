@@ -254,8 +254,8 @@ def map_name_holder(map_id: str, raw: bytes) -> str | None:
     question about the rest of the catalogue — and the distinction decides where
     it may be asked:
 
-    - **Asked** on the two AUTHORING doors, ``runtime.map.set`` and
-      ``harness map set``, where a human or the launcher's picker is naming a
+    - **Asked** on the AUTHORING door, ``runtime.map.set`` (the argv ``harness
+      map set`` was deleted 2026-10-02), where the launcher's picker is naming a
       map and two entries called "island" make the catalogue useless for the one
       job it has. Lane LM maps the refusal to a typed failure by the reason
       string ``name_taken``.

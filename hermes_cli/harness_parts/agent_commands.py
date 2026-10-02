@@ -116,7 +116,7 @@ def _agent_definition_row(
     store-wins is surfaced rather than hidden.
 
     ``persona_spellings`` and ``skills`` (2026-09-02) make this verb answer the
-    question the refusal on ``agent create --persona`` sends an operator here to
+    question ``runtime.agent.create``'s ``persona_not_found`` refusal sends an operator here to
     ask. It already enumerated the placeable definitions — that is exactly what
     ``ensure_persisted_personas`` returns — but it named only ONE of the two
     spellings ``--persona`` takes, and the ``profile`` column beside it is the

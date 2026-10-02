@@ -99,8 +99,8 @@ def _cmd_persona_instance_retire(args) -> int:
             print(emit_json(data) if args.json else data["status"])
             return 2
     # DELEGATES to the shared service (plan S5/D7) rather than calling the store
-    # itself: the ack this verb prints and the one `harness agent retire` and
-    # `runtime.agent.retire` print are now the same object built by the same
+    # itself: the ack this verb prints and the one
+    # `runtime.agent.retire` prints are the same object built by the same
     # function, so ``archived_actor_keys`` / ``office_archive_failures`` /
     # ``already_retired`` arrive here too and a scripted operator does not have
     # to know which door they typed. The ENVELOPE below is unchanged — this

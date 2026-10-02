@@ -417,7 +417,7 @@ def test_the_skills_clock_is_independent_of_the_model_clock(capsys):
 
 @pytest.fixture
 def placement_surface():
-    """A workspace + office surface so ``harness agent create`` can place."""
+    """A workspace + office surface so the create service can place."""
 
     from agent_runtime.office_store import OfficeStore
     from agent_runtime.store import WorkspaceStore
@@ -427,24 +427,21 @@ def placement_surface():
     return "ws_pts"
 
 
-def _create_agent(persona_id: str, placement_id: str, *flags: str) -> dict:
-    import io
-    from contextlib import redirect_stdout
+def _create_agent(persona_id: str, placement_id: str) -> dict:
+    """Place through the create service — the function ``runtime.agent.create``
+    answers with (the argv ``harness agent create`` was deleted 2026-10-02)."""
 
-    buffer = io.StringIO()
-    with redirect_stdout(buffer):
-        code = _dispatch([
-            "harness", "agent", "create",
-            "--persona", persona_id,
-            "--workspace", "ws_pts",
-            "--display-name", placement_id,
-            "--placement-id", placement_id,
-            *flags,
-            "--json",
-        ])
-    payload = json.loads(buffer.getvalue())
-    assert code == 0, payload
-    return payload
+    from agent_runtime.agent_create import perform_agent_create
+
+    outcome = perform_agent_create({
+        "persona_id": persona_id,
+        "workspace_id": "ws_pts",
+        "display_name": placement_id,
+        "placement_id": placement_id,
+        "idempotency_key": f"pts-{placement_id}",
+    })
+    assert outcome.refusal is None, outcome.refusal
+    return outcome.result
 
 
 def _resolved_skills(instance_id: str, persona_id: str = "qa") -> list[str]:

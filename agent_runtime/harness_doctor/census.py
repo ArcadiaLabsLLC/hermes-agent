@@ -141,7 +141,7 @@ ORPHAN_ACTOR_INSTANCE_RETIRED = "instance_retired"
 
 #: No tombstone and no live row: this install has never held the instance. The
 #: realm-pulled placement (office actors sync, persona instances are per-install
-#: by ruling), for which `agent retire` is the refusal arm by construction and
+#: by ruling), for which `persona instance retire` is the refusal arm by construction and
 #: ``runtime.office.remove`` is the only verb that works.
 ORPHAN_ACTOR_INSTANCE_UNKNOWN = "instance_unknown"
 
@@ -589,7 +589,7 @@ def _census_health(
 # the orphan this census reports most often that names the ONE verb that cannot
 # work. A realm-pulled placement is born orphaned — office actors sync, persona
 # instances are per-install by ruling — so its instance has never existed here,
-# and `agent retire` refuses `not_found` terminally. The refusal is correct;
+# and `persona instance retire` refuses `not_found` terminally. The refusal is correct;
 # prescribing it was not. Both repairs are named, keyed on the fact that
 # decides between them (does this install hold the instance), never on the id's
 # shape.
@@ -610,7 +610,7 @@ def _census_health(
 # the pulled orphan is still the local-only one.
 CENSUS_REMEDIATION = (
     "an orphan actor reading retire_incomplete was named by its own "
-    "retire's failure list: re-run `agent retire` — retiring or "
+    "retire's failure list: re-run `persona instance retire` — retiring or "
     "re-creating its agent still clears it, and the retire's replay "
     "sweeps live placements — or evict the desk from this install with "
     "`harness office actor-remove --workspace <ws> --actor <key> "

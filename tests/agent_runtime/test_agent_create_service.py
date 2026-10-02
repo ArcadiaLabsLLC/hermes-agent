@@ -3,8 +3,8 @@
 ``tests/agent_runtime/test_serve_rpc_agent_create.py`` is the fence that the
 JSON-RPC lane still behaves exactly as it did; this file is the fence for the
 property that lane no longer owns: the sequence RUNS with no ``serve_rpc`` in
-the picture at all. That is what makes ``harness agent create`` (UC-H3), a cron
-script and any future MCP wrapper the same create rather than three.
+the picture at all. That is what makes a cron script and any future MCP
+wrapper the same create as the wire lane rather than a second one.
 
 Anti-vacuity notes are attached to each test, because the failure mode this
 repo keeps re-discovering is a probe the mutated path also satisfies.
@@ -172,7 +172,7 @@ def test_a_replay_through_the_service_writes_nothing(qa_persona):
 
 def test_the_service_itself_refuses_an_unknown_bare_persona(qa_persona):
     """The refusal must live in the SERVICE, not in the RPC handler — otherwise
-    ``harness agent create`` and every future MCP wrapper fail open while the
+    every future MCP wrapper fails open while the
     wire lane fails closed, which is the two-spellings bug one layer up.
 
     ANTI-VACUITY: absence probes, and the kill-mutation's whole effect is to
@@ -555,21 +555,6 @@ def test_the_roster_fault_arm_stamps_rolled_back(monkeypatch, qa_persona):
     assert outcome.refusal.data["rolled_back"] is True
 
 
-def test_the_argv_lanes_roster_refusal_renders_the_same_block(qa_persona):
-    """``roster_unavailable_outcome`` is the CLI's copy of one refusal.
-
-    The two constructions are compared for equality rather than trusted to
-    agree — a ``data`` block that differed by a key would put the two lanes back
-    to rendering one fault two ways, which is the defect that constructor exists
-    to end. This is the stamp's half of that comparison.
-    """
-
-    from agent_runtime.agent_create import roster_unavailable_outcome
-
-    outcome = roster_unavailable_outcome(OSError("locked"))
-
-    assert outcome.refusal is not None
-    assert outcome.refusal.data["rolled_back"] is True
 # ── S2 / D2: the position is optional, and the ack says what was written ─────
 
 

@@ -1,15 +1,16 @@
-"""`hermes harness level {show,set,clear}` — the argv mirror of the RPC family.
+"""`hermes harness level show` — the operator's read of a workspace's level.
 
-THE contract these hold, and it is the only interesting thing about them: the
-launcher owns the level document's FORMAT and hermes owns its transport. So
-``set`` then ``show --full`` must return the operator's bytes unchanged — not
-"a document that parses the same", the same bytes — because the launcher writes
-the document indented one prop per line so a realm-sync diff is per-prop hunks,
-and a hermes that re-serialized would undo that on every machine that pulled.
+``level set`` and ``level clear`` were deleted as argv verbs on 2026-10-02
+(owner ruling: the launcher reaches them only as ``runtime.level.set`` /
+``runtime.level.clear``, whose cases are ``tests/agent_runtime/test_level_rpc.py``).
+What stays is the read, and the contract it holds: the launcher owns the level
+document's FORMAT and hermes owns its transport, so ``show --full`` hands back
+the stored bytes unchanged — not "a document that parses the same".
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -42,16 +43,9 @@ def _payload(result):
     return json.loads(result.stdout)
 
 
-def test_set_then_show_full_returns_the_operators_bytes_unchanged(
-    isolate_agent_runtime_root, tmp_path
-):
+def test_show_full_returns_the_stored_bytes_unchanged(isolate_agent_runtime_root):
     document = _document()
-    path = tmp_path / "level.json"
-    path.write_text(document, encoding="utf-8", newline="")
-
-    written = _run("set", "--workspace", WS, "--document", str(path), "--json")
-    assert written.returncode == 0
-    assert _payload(written)["changed"] is True
+    LevelStore().write(WS, document.encode("utf-8"))
 
     read_back = _run("show", "--workspace", WS, "--full", "--json")
     assert read_back.returncode == 0
@@ -59,19 +53,9 @@ def test_set_then_show_full_returns_the_operators_bytes_unchanged(
 
     assert body["present"] is True
     assert body["version"] == 6
-    assert body["document"] == document
-    # The property the round trip is actually about, stated as bytes.
-    assert body["document"].encode("utf-8") == path.read_bytes()
-    assert body["sha256"] == _payload(written)["sha256"]
-
-
-def test_set_accepts_the_document_inline_as_well_as_by_path(
-    isolate_agent_runtime_root,
-):
-    result = _run("set", "--workspace", WS, "--document", _document(), "--json")
-
-    assert result.returncode == 0
-    assert LevelStore().read(WS).decode("utf-8") == _document()
+    # The property the read is actually about, stated as bytes.
+    assert body["document"].encode("utf-8") == document.encode("utf-8")
+    assert body["sha256"] == hashlib.sha256(document.encode("utf-8")).hexdigest()
 
 
 def test_show_on_a_workspace_with_no_level_is_an_honest_empty_not_an_error(
@@ -86,57 +70,15 @@ def test_show_on_a_workspace_with_no_level_is_an_honest_empty_not_an_error(
     assert body["version"] is None
 
 
-def test_set_refuses_a_document_with_no_version_and_names_which_refusal(
-    isolate_agent_runtime_root,
-):
-    """``code`` is a FAMILY (``invalid_payload`` covers four different
-    documents); ``reason`` is the word the store door actually used, which is
-    what lets the launcher say WHICH one rather than "the level was rejected"."""
-
-    result = _run("set", "--workspace", WS, "--document", '{"scene": {}}', "--json")
-
-    assert result.returncode != 0
-    body = _payload(result)
-    assert body["error"]["code"] == "invalid_payload"
-    assert body["error"]["reason"] == "missing_version"
-    assert LevelStore().read(WS) is None
-
-
-def test_set_refuses_bytes_that_are_not_json_at_all(isolate_agent_runtime_root):
-    result = _run("set", "--workspace", WS, "--document", "{not json", "--json")
-
-    assert result.returncode != 0
-    assert _payload(result)["error"]["reason"] == "unreadable_document"
-
-
-def test_dry_run_validates_and_reports_without_writing(isolate_agent_runtime_root):
-    result = _run("set", "--workspace", WS, "--document", _document(), "--dry-run", "--json")
-
-    assert result.returncode == 0
-    body = _payload(result)
-    assert body["dry_run"] is True
-    assert body["changed"] is True
-    # The whole point: nothing is on disk.
-    assert LevelStore().read(WS) is None
-
-
-def test_dry_run_over_an_identical_document_says_nothing_would_change(
-    isolate_agent_runtime_root,
-):
-    LevelStore().write(WS, _document().encode("utf-8"))
-
-    body = _payload(_run("set", "--workspace", WS, "--document", _document(), "--dry-run", "--json"))
-
-    assert body["changed"] is False
-
-
-def test_the_verbs_fall_back_to_the_active_workspace(isolate_agent_runtime_root):
+def test_show_falls_back_to_the_active_workspace(isolate_agent_runtime_root):
     workspace = WorkspaceStore().create(name="Active")
     WorkspaceStore().set_active(workspace.id)
+    LevelStore().write(workspace.id, _document().encode("utf-8"))
 
-    assert _run("set", "--document", _document(), "--json").returncode == 0
-    assert LevelStore().read(workspace.id).decode("utf-8") == _document()
-    assert _payload(_run("show", "--json"))["workspace_id"] == workspace.id
+    body = _payload(_run("show", "--json"))
+
+    assert body["workspace_id"] == workspace.id
+    assert body["present"] is True
 
 
 def test_show_names_which_root_answered(isolate_agent_runtime_root):
@@ -170,107 +112,12 @@ def test_a_stored_document_that_stops_reading_is_still_handed_back(
     assert body["document"] == "{half a document"
 
 
-# ── the compare-and-set mirror (2026-09-22) ─────────────────────────────────
-#
-# ``--expect-sha256`` and ``clear`` exist so an operator repairing by hand and
-# the launcher's adapter spend the SAME token against the same store door. The
-# RPC lane's own cases are ``tests/agent_runtime/test_level_rpc.py``; what these
-# add is argv's third state, which JSON gets for free and a command line does
-# not: ``--expect-sha256 none`` is how argv says ``null``.
+@pytest.mark.parametrize("verb", ["set", "clear"])
+def test_the_write_verbs_are_gone(isolate_agent_runtime_root, verb):
+    """The 2026-10-02 deletion, pinned: argparse refuses the verb (exit 2) and
+    nothing is written. ``runtime.level.*`` is the only write door."""
 
+    result = _run(verb, "--workspace", WS, "--document", _document(), "--json")
 
-def _sha_of(document: str) -> str:
-    import hashlib
-
-    return hashlib.sha256(document.encode("utf-8")).hexdigest()
-
-
-def test_set_with_a_matching_expectation_is_accepted(isolate_agent_runtime_root):
-    LevelStore().write(WS, _document().encode("utf-8"))
-    updated = _document(prop_x=9.0)
-
-    result = _run(
-        "set", "--workspace", WS, "--document", updated,
-        "--expect-sha256", _sha_of(_document()), "--json",
-    )
-
-    assert result.returncode == 0
-    assert LevelStore().read(WS) == updated.encode("utf-8")
-
-
-def test_set_with_a_stale_expectation_is_a_conflict_and_writes_nothing(
-    isolate_agent_runtime_root,
-):
-    """Exit family 4 and the same ``sha256_mismatch`` reason the RPC lane
-    spends — one refusal, one vocabulary across the two lanes."""
-
-    LevelStore().write(WS, _document().encode("utf-8"))
-
-    result = _run(
-        "set", "--workspace", WS, "--document", _document(prop_x=9.0),
-        "--expect-sha256", _sha_of(_document(prop_x=42.0)), "--json",
-    )
-
-    assert result.returncode == 4
-    body = _payload(result)
-    assert body["error"]["code"] == "level_sha256_mismatch"
-    assert body["error"]["reason"] == "sha256_mismatch"
-    assert LevelStore().read(WS) == _document().encode("utf-8")
-
-
-def test_expect_none_means_the_workspace_must_have_no_level_yet(
-    isolate_agent_runtime_root,
-):
-    first = _run(
-        "set", "--workspace", WS, "--document", _document(), "--expect-sha256", "none", "--json"
-    )
-    assert first.returncode == 0
-
-    second = _run(
-        "set", "--workspace", WS, "--document", _document(prop_x=9.0),
-        "--expect-sha256", "none", "--json",
-    )
-    assert second.returncode == 4
-    assert LevelStore().read(WS) == _document().encode("utf-8")
-
-
-def test_a_malformed_expectation_is_an_invalid_request_not_a_conflict(
-    isolate_agent_runtime_root,
-):
-    LevelStore().write(WS, _document().encode("utf-8"))
-
-    result = _run(
-        "set", "--workspace", WS, "--document", _document(), "--expect-sha256", "beef", "--json"
-    )
-
-    assert _payload(result)["error"]["code"] == "invalid_request"
-
-
-def test_clear_removes_the_level_and_a_second_clear_is_an_accepted_no_op(
-    isolate_agent_runtime_root,
-):
-    LevelStore().write(WS, _document().encode("utf-8"))
-
-    first = _payload(_run("clear", "--workspace", WS, "--json"))
-    assert first["cleared"] is True
+    assert result.returncode == 2
     assert LevelStore().read(WS) is None
-    assert not runtime_paths.level_path(WS).exists()
-
-    second = _payload(_run("clear", "--workspace", WS, "--json"))
-    assert second["cleared"] is False
-
-
-def test_clear_honours_the_expectation_and_its_dry_run_writes_nothing(
-    isolate_agent_runtime_root,
-):
-    LevelStore().write(WS, _document().encode("utf-8"))
-
-    stale = _run("clear", "--workspace", WS, "--expect-sha256", _sha_of("{}"), "--json")
-    assert stale.returncode == 4
-    assert LevelStore().read(WS) is not None
-
-    dry = _payload(
-        _run("clear", "--workspace", WS, "--expect-sha256", _sha_of(_document()), "--dry-run", "--json")
-    )
-    assert dry["cleared"] is True and dry["dry_run"] is True
-    assert LevelStore().read(WS) is not None

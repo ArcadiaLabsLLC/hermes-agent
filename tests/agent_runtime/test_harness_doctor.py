@@ -635,7 +635,7 @@ def test_the_orphan_remediation_names_the_verb_that_works_for_a_pulled_orphan(
     # Retire is still prescribed — for the two orphans it CAN clear — and the
     # arms are told apart both by whether this install holds the instance and
     # by the reason the row itself now carries.
-    assert "agent retire" in remediation
+    assert "persona instance retire" in remediation
     assert "retiring or re-creating its agent" in remediation
     assert "never held" in remediation
     for reason in harness_doctor.ORPHAN_ACTOR_REASONS:

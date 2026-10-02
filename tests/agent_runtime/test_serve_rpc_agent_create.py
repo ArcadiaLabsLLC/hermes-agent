@@ -1606,3 +1606,121 @@ def test_a_malformed_position_on_the_wire_still_refuses_and_writes_nothing(
         assert reply["error"]["data"]["reason"] == "position_invalid", bad
     assert _actors() == {}
     assert _instances() == {}
+
+
+# ── the persona_not_found refusal names what IS placeable ───────────────────
+#
+# Ported 2026-10-02 from ``tests/hermes_cli/test_agent_create_verb.py`` when the
+# argv ``harness agent create`` was deleted (owner ruling: method-only). The
+# message is built by the service, so the wire is now its only door.
+
+
+def _persona_with_profile(persona_id: str, profile: str | None):
+    from agent_runtime.models import AgentPersona
+    from agent_runtime.store import AgentStore
+
+    persona = AgentPersona(
+        id=persona_id,
+        display_name=persona_id.replace("_", " ").title(),
+        role="dev",
+        model=None,
+        provider=None,
+        api_mode=None,
+        toolsets=[],
+        system_prompt_path="",
+        hermes_profile=profile,
+    )
+    AgentStore().save(persona)
+    return persona
+
+
+def test_the_unknown_persona_refusal_spells_out_what_is_placeable():
+    """ANTI-VACUITY. Every probe here is a POSITIVE substring of a message the
+    pre-change code could not emit, and the ids are seeded by this test rather
+    than assumed off the operator root.
+
+    ``profile:launcher-qa`` is the probe that matters: the second accepted
+    spelling appears in NO listing, and the ``profile`` column that looks like
+    it is one is the persona's binding, not an argument.
+    """
+
+    _seed_workspace()
+    _persona_with_profile("qa", "launcher-qa")
+    _persona_with_profile("scribe", None)
+
+    reply = _call(_params(persona_id="qa_agent", idempotency_key="rpc-choices"))
+
+    message = reply["error"]["message"]
+    assert reply["error"]["code"] == serve_rpc.ERR_INVALID_PARAMS
+    assert reply["error"]["data"]["reason"] == "persona_not_found"
+    # The cure sentence is not replaced by the list; both are owed.
+    assert "harness agent list" in message
+    assert "Placeable now:" in message
+    assert "qa (or profile:launcher-qa)" in message
+    # A persona with no profile binding gets exactly one spelling, and the
+    # message must not invent a second.
+    assert "scribe" in message
+    assert "profile:scribe" not in message
+
+
+def test_a_profile_two_personas_share_is_not_offered_as_a_spelling():
+    """``profile:<token>`` parses for ANY token (D-U1 exempts every ``profile:``
+    id from the roster check), so printing a binding two personas share would
+    offer a spelling that mints a DIFFERENT agent with none of either's defaults.
+
+    ANTI-VACUITY: the negative probe is paired with two positives on the same
+    string, so "the list is empty" and "the message lost its list" both fail.
+    """
+
+    _seed_workspace()
+    _persona_with_profile("dev_a", "shared-profile")
+    _persona_with_profile("dev_b", "shared-profile")
+
+    reply = _call(_params(persona_id="dev_c", idempotency_key="rpc-shared"))
+
+    message = reply["error"]["message"]
+    assert reply["error"]["data"]["reason"] == "persona_not_found"
+    assert "dev_a" in message and "dev_b" in message
+    assert "profile:shared-profile" not in message
+
+
+# ── the ``skills`` param reaches the instance (plan S4 / D5) ────────────────
+
+
+@pytest.fixture
+def isolated_shared_skills(tmp_path, monkeypatch):
+    """Point the shared skills root at this test's tmp dir, and prove it landed:
+    ``install_harness_skill`` REPLACES a package directory under that root."""
+
+    from agent_runtime.profile_home import get_shared_skills_dir
+
+    shared = tmp_path / "shared-skills"
+    monkeypatch.setenv("HERMES_SHARED_SKILLS", str(shared))
+    assert get_shared_skills_dir() == shared
+    return shared
+
+
+def test_the_skills_param_is_assigned_to_the_new_instance(qa_persona, isolated_shared_skills):
+    """KILLING MUTATION: drop ``skills`` from ``normalize_agent_create``'s read.
+
+    ANTI-VACUITY: the STORE row is read back as well as the ack, and the ack's
+    list is asserted non-empty — a door that ignored skills answers ``[]``.
+    """
+
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    _seed_workspace()
+    result = _call(
+        _params(
+            idempotency_key="rpc-skills",
+            placement_id="qa_sk_rpc_agent_2",
+            skills=["harness-qa-verdict"],
+        )
+    )["result"]
+
+    assert result["skills"]["assigned"] == ["harness-qa-verdict"]
+    assert result["skills"]["inherited"] is False
+    assert set(result["skills"]) == {"assigned", "installed", "inherited"}
+    assert PersonaInstanceStore().get("personainst_qa_sk_rpc_agent_2").skill_overrides == [
+        "harness-qa-verdict"
+    ]

@@ -278,7 +278,7 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_retire.add_argument("persona_instance_id")
     persona_instance_retire.add_argument("--reason", default="placement removed")
     persona_instance_retire.add_argument("--requested-by", default="cli")
-    # S8b-b: the same flag `agent retire` took, on the OTHER door onto the same
+    # S8b-b: the flag the (since-deleted) `agent retire` took, on this door onto
     # `perform_agent_retire`. S8b withheld it here on the stated grounds that
     # "no gesture behind it is the truth for that door" — which was measured to
     # be false: the launcher's `persona.instance.retire` capability IS this
@@ -594,62 +594,10 @@ def add_agent(subs) -> None:
     _add_stage42_global_args(agent_list, controls=frozenset({"sort"}))
     agent_list.set_defaults(func=agent_commands._cmd_agent_list)
 
-    # UC-H3: the ONE unified create door for scripts, cron and operators. It
-    # calls `agent_create.perform_agent_create` — the exact function
-    # `runtime.agent.create` answers with — so a roster row, a chat root and an
-    # office placement land together or not at all. `persona instance create`
-    # deliberately stays the roster-only / serve-absent recovery door: it mints
-    # no placement, which is its feature, not its bug.
-    agent_create = agent_subs.add_parser(
-        "create",
-        help="Place an agent: roster row, chat root and office placement in ONE atomic call",
-    )
-    agent_create.add_argument("--persona", dest="persona_id", required=True, help="Roster persona id (or profile:<token>); an unknown id is refused before any write")
-    agent_create.add_argument("--workspace", "--workspace-id", dest="workspace_id", required=True, help="Mission Control workspace the placement lands in; must already exist")
-    # OPTIONAL since plan S2. Omitted, the service resolves the slot through
-    # `agent_runtime.office_layout_policy` — the same lattice the launcher
-    # predicts with — so a door with no canvas (this one, a cron, a remote
-    # connector over `call`) has an answer instead of a required guess.
-    agent_create.add_argument("--pos", dest="pos", nargs=2, metavar=("X", "Y"), default=None, help="Canvas position for the placement; omitted, the layout policy picks the first free slot in the folder")
-    # BYTE-PARALLEL with the RPC's `skills` param (UC-H3's rule, plan D5).
-    # `default=None` is load-bearing and is the same spelling `persona instance
-    # update-profile` uses: an OMITTED flag must reach the service as an ABSENT
-    # key, because absent means "inherit the persona's skills" while `[]` means
-    # "override with none" — two different agents. `append` is what makes
-    # `--skill a --skill b` one request rather than a last-one-wins.
-    agent_create.add_argument("--skill", dest="skills", action="append", default=None, help="Assign a skill to the new instance (repeatable); a canonical harness skill is installed and hash-verified first")
-    agent_create.add_argument("--display-name", default=None, help="Authoritative name; omitted falls back to the persona's configured display name")
-    agent_create.add_argument("--placement-id", default=None, help="Scene itemId to predict the actor key from; must end in <persona-token>_agent_<hex8>, and omitted mints one server-side")
-    agent_create.add_argument("--realm-id", dest="realm_id", default=None)
-    agent_create.add_argument("--folder", default=None, help="Office folder for the placement (default: Agents)")
-    # A re-run is a NEW gesture unless the caller says otherwise — the same rule
-    # the launcher applies by stamping micros into every key. A script that
-    # wants resume-on-retry passes its own stable key.
-    agent_create.add_argument("--idempotency-key", dest="idempotency_key", default=None, help="Stable retry key; omitted mints a fresh cli-<uuid4> so a re-run is a new gesture")
-    agent_create.add_argument("--correlation-id", dest="correlation_id", default=None)
-    agent_create.add_argument("--json", action="store_true")
-    agent_create.set_defaults(func=lifecycle_commands._cmd_agent_create)
-
-    # S5: the INVERSE of the create above, and the door that never existed. The
-    # store method has always archived BOTH halves (roster row + every office
-    # actor bound to the instance); what was missing was a verb over it and an
-    # ack that NAMES what it archived. `persona instance retire` stays and calls
-    # the very same service function, so the two doors cannot drift.
-    agent_retire = agent_subs.add_parser(
-        "retire",
-        help="Retire a placed agent: archive its roster row AND every office actor bound to it in ONE call",
-    )
-    agent_retire.add_argument("persona_instance_id", help="Persona-instance id of the placement to retire")
-    agent_retire.add_argument("--reason", default="placement removed")
-    agent_retire.add_argument("--requested-by", dest="requested_by", default="cli")
-    # S8b: the flag `agent create` has carried since D-V2, on the verb that
-    # undoes it. A script that placed an agent under one gesture token can now
-    # delete it under that token, and ONE grep over the event log joins both
-    # halves — which is the whole point of the token and was true of every
-    # level-mutating verb except this one.
-    agent_retire.add_argument("--correlation-id", dest="correlation_id", default=None)
-    agent_retire.add_argument("--json", action="store_true")
-    agent_retire.set_defaults(func=lifecycle_commands._cmd_agent_retire)
+    # `agent create` / `agent retire` were deleted 2026-10-02 (owner ruling): the
+    # launcher reaches both only as `runtime.agent.create` / `runtime.agent.retire`
+    # and no operator or script uses the argv form. `persona instance retire`
+    # stays the argv retire door onto the same `perform_agent_retire`.
 
     agent_set_profile = agent_subs.add_parser(
         "set-profile",
