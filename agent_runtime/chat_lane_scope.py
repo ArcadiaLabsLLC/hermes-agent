@@ -304,10 +304,8 @@ def apply_chat_lane_tool_scope(
     options.chat_lane_capability_drops = chat_lane_capability_drops(
         persona, session_id=session_id
     )
-    # Preview scope: the CONFIG rung of the workdir ladder only. A live turn also
-    # offers the workspace pointer (``--agents-file``), which is a per-turn fact
-    # this persona-level preview has no honest access to.
-    options.mission_chat_workdir = mission_chat_workdir_for_persona(persona)
+    # Session pins precede persona grounding on both preview and execution.
+    options.mission_chat_workdir = mission_chat_workdir_for_persona(persona, session_id=session_id)
     return options
 
 

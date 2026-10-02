@@ -274,15 +274,23 @@ def _with_fallback(
 
 
 def mission_chat_workdir_for_persona(
-    persona: Any, *, workspace_agents_path: str | None = None
+    persona: Any, *, workspace_agents_path: str | None = None,
+    session_id: str | None = None, session_db=None,
 ) -> MissionChatWorkdir:
     """:func:`resolve_mission_chat_workdir` for a live persona.
 
     The thin config-reading wrapper — the ONE place the mission-chat lane asks
     "where does this persona work?". Config faults degrade to "no configured
-    workdir" rather than propagating: a broken config must not fail a turn.
+    workdir". Account-owned sessions instead require their pinned directory;
+    its disappearance must never redirect execution.
     """
 
+    if session_id:
+        from .conversation_workspace import pinned_conversation_workdir
+
+        pinned = pinned_conversation_workdir(session_db, session_id)
+        if pinned is not None:
+            return MissionChatWorkdir(path=pinned, source="conversation")
     persona_id = str(getattr(persona, "id", "") or "")
     try:
         from .config import mission_chat_workdir
