@@ -16,7 +16,7 @@ from agent_runtime.persona_assignments import (
     safe_assignment_text,
 )
 from agent_runtime.persona_chat_continuity import PersonaChatClarifyTicketStore
-from .chat_session import _safe_chat_model_override_value
+from agent_runtime.persona_chat_session import _safe_chat_model_override_value
 
 __layer__ = "stores"
 __all__ = [

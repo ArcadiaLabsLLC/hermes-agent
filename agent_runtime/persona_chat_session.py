@@ -18,7 +18,7 @@ from agent_runtime.persona_assignments import (
     safe_assignment_token,
 )
 from agent_runtime.persona_chat_continuity import native_history_revision
-from hermes_cli.harness_support import PERSONA_CHAT_SESSION_SOURCE
+from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 
 __layer__ = "stores"
 __all__ = [

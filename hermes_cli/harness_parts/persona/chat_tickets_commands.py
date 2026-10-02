@@ -30,7 +30,7 @@ from agent_runtime.persona_chat_durability import (
 )
 from agent_runtime.root_observability import attach_root_observability
 from hermes_cli.harness_support import _list_envelope, _print_stage42, _sort_rows
-from .chat_session import _persona_chat_session_owner
+from agent_runtime.persona_chat_session import _persona_chat_session_owner
 
 __layer__ = "lanes"
 __all__ = [

@@ -429,7 +429,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     imported at serve boot.
     """
 
-    from hermes_cli.harness_parts.persona.chat_session import (
+    from agent_runtime.persona_chat_session import (
         _chat_effective_model_payload,
         _chat_model_override_from_config,
         _persona_chat_native_revision,

@@ -6,13 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from agent_runtime import persona_chat_session as chat_session
 from hermes_cli.harness_parts.persona import (
     chat_coordinator,
     chat_delete,
     chat_events,
     chat_history_writes,
     chat_open,
-    chat_session,
     chat_target,
     chat_tickets_commands,
     chat_turn_message,
