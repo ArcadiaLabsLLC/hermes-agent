@@ -179,7 +179,9 @@ class _OperatorCurator:
         # Composition order is message · skill_preload · runtime_context,
         # so strip the end-anchored HUD envelope first; the skill-preload
         # envelope is end-anchored on the remainder.
-        raw_content, runtime_context = extract_runtime_context_envelope(raw_content)
+        from agent.message_content import flatten_message_text
+
+        raw_content, runtime_context = extract_runtime_context_envelope(flatten_message_text(raw_content))
         raw_content, skill_preload = extract_skill_preload_envelope(raw_content)
         return raw_content, runtime_context, skill_preload
 
