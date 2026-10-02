@@ -14,6 +14,23 @@ Import layers, size, thin namespace and docket gates pass. The frozen-home probe
 exceeded an initial 1-GiB test-job cap, then passed at 3 GiB with the same host
 reserve. These are contained test processes, not production runtime changes.
 
+### CLI boundary and qualification environment
+
+Reviewed-input argument translation now belongs to the CLI's pure `chat_input`
+policy module; native validation remains in `operator_input`. The reachability
+and reviewed-input files pass 13 checks; import-layer guards pass 12. Generated
+command-reference checks pass eight. Touched-source name resolution and the
+upstream-footprint gate pass. The mutation inventory's duplicate anchor also
+fails on main and remains in the fork-hygiene queue.
+
+The integrated suite's first 1,272 files finished before discovery of a test
+interpreter isolation defect: an installation-owned interpreter can redirect a
+mocked update check into its owning checkout. That run was stopped; primary
+remained clean. Remaining files use an independent test venv. Both sides pass
+the affected sealed-build and lazy-secret files with that interpreter. Its
+normal pywin32 bootstrap is required for the real stdio MCP probe, which also
+passes on both sides. No runtime repair or permission bypass was added.
+
 ## October 2 model-boundary qualification
 
 Model controls now omit absent account scope for native operator rooms; owned
