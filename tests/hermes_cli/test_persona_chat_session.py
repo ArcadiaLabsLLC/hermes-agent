@@ -15,7 +15,7 @@ from hermes_cli.harness_parts.persona.chat_history_writes import (
     _update_persona_chat_token_counts,
 )
 from hermes_cli.harness_parts.persona.chat_open import _ensure_persona_chat_session
-from hermes_cli.harness_parts.persona.chat_session import _persona_chat_session_owner
+from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from agent_runtime.persona_chat_continuity import safe_native_history
 
 

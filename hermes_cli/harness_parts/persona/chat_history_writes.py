@@ -18,7 +18,7 @@ from agent_runtime.persona_assignments import (
 from agent_runtime.persona_chat_durability import (
     persona_chat_persistence_failed as _persona_chat_persistence_failed,
 )
-from .chat_session import _persona_chat_native_history, _persona_chat_native_tip
+from agent_runtime.persona_chat_session import _persona_chat_native_history, _persona_chat_native_tip
 
 __layer__ = "lanes"
 __all__ = [

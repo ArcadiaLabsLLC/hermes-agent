@@ -59,7 +59,7 @@ from ..chat_history_writes import (
     _redact_persona_chat_text,
     _resolve_relay_sender_marker,
 )
-from ..chat_session import (
+from agent_runtime.persona_chat_session import (
     _persona_chat_native_history,
     _persona_chat_native_revision,
     _persona_chat_native_tip,
