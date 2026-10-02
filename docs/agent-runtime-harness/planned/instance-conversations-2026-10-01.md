@@ -1,6 +1,7 @@
 # Instance conversation convergence
 
-Status: implementation in progress; Launcher parity is required before cutover.
+Status: native foundation implemented; rebased landing qualification in progress.
+Worker retirement still requires Launcher parity and matched live latency.
 
 Reuse persona instances and their existing profile binding, chat mint receipts,
 SessionDB, turn admission and discussion scheduler. Do not add another identity,
@@ -20,6 +21,20 @@ simultaneous non-spatial rooms, preserved table claims, recovery and exact Stop.
 Launcher capabilities must retain parity before its profile-only route is retired.
 
 Client plan: `EterniaLauncher/docs/companion/planned/INSTANCE_CONVERSATIONS_2026-10-01.md`.
+
+## Current delivery boundary — October 2 ruling
+
+Intelligence creates, opens and lists native instance sessions through existing
+operator read/send/Stop/skills/settings/reviewed-input ports and the shared,
+current-account directory. The separate console lane promotes its engine,
+controller and instruments; Intelligence will mount it with engine-blind
+Companion-derived materials. No new queue, steer, outbox, trace or run-budget
+machinery belongs in the reduced Intelligence controllers.
+
+Keep the profile worker, reduced operator view and local thread store. Console
+history/account controls, presentation parity, combined desktop acceptance and
+matched live latency qualify their later retirement, not this foundation landing.
+Earlier checklists below record progression, not additional current-lane scope.
 
 ## Native foundation checkpoint
 
