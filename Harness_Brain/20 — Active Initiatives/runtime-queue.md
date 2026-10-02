@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Owner asks — 2026-10-02 (agent chat is ONE surface; filed by the launcher orchestrator)
+
+- [ ] **Instance conversations, the hermes half (`feat/instance-conversations`, 2026-10-01): account-scoped chat mints on existing receipts, `runtime.agent.directory`, `runtime.workspace.conversations`, independent non-spatial rooms, `runtime.operator.conversation.list`; remaining before cutover is model, skills, context, attachment and recovery parity for instance sessions, then the launcher transport cutover; the profile worker (the `tui_gateway` subprocess behind `runtime.conversation.*`) retires only after a matched LIVE first-turn comparison, never on the controlled test alone** · `fork-owned / agent_runtime` · launcher rulings `OR-2026-10-01-instance-conversations` and `OR-2026-10-02-console-is-the-chat-surface` in `EterniaLauncher/docs/rulings/owner_rulings.json`; plan, checkpoints and the latency report are branch-only until it lands (`docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md`, `instance-conversation-latency-2026-10-02.md` on that branch) · **TAKEN 2026-10-01 Codex**
+- The launcher half of the same ruling (the Agent Console becomes the one chat widget, rendered with Intelligence's materials; `EterniaLauncher/docs/companion/planned/AGENT_CHAT_UNIFICATION_AUDIT_2026-10-02.md`) changes NO hermes method: `runtime.chat.*` and `perform_chat_turn` are the surviving chat lane; the `tui_gateway` worker is the lane that goes. Work on the worker's lifecycle beyond keeping it alive until the cutover is upstream work (the cold-start hello carry under Upstream-owned), not cutover work.
+
 ### Filed on arrival — 2026-10-02 (orchestrator, live MCP check)
 
 - [ ] **`hermes -p <profile> <cmd>` / `--profile` fails from the installed launcher: `X:/Eternia/.hermes/bin/hermes.cmd -p alice mcp list` (and `-p base …`) answers "'alice' is not a `hermes` command", although `hermes --help` documents the flag. The launcher script calls `hermes_cli.main.main()` directly, so the profile pre-parse never runs. Make the flag work on every launch path and pin it with a test that runs the published launcher's bootstrap** · `hermes_cli/main.py` (profile override) · `hermes_cli/_launchers.py` · UNCLAIMED
