@@ -151,3 +151,49 @@ def test_native_question_ack_and_confirmed_stop_share_exact_execution(groups):
     complete(factory, status="interrupted")
     wait_until(lambda: service.runs.get(run["run_id"])["phase"] == "paused")
     assert len(sends(factory)) == 1
+
+
+def test_a_settled_group_does_not_hold_maintenance_but_a_pending_one_does(groups):
+    """Runtime-queue row (w5-rt): idle_drain counted every owned run, so an open group
+    with nothing to do deferred automatic maintenance until the operator ended it."""
+    service, _, factory, _ = groups
+    run = create(groups)
+    assert service.pending_count() == 0  # open, nothing sent: the planner schedules nothing
+    act(service, run, "send", "ask", message="Find an idea", response={"mode": "compare", "members": []})
+    wait_until(lambda: len(sends(factory)) == 2)
+    assert service.pending_count() == 1  # live turns: pending
+    with pytest.raises(DiscussionError, match="busy"):
+        with service.idle_drain():
+            pass
+    assert service.accepting
+    complete(factory, "An idea")
+    wait_until(lambda: idle(service, run, 1))
+    wait_until(lambda: service.pending_count() == 0)
+    with service.idle_drain():
+        pass
+    assert not service.accepting  # the fence still closes admission once claimed
+    with pytest.raises(DiscussionError, match="runtime.stopping"):
+        act(service, run, "send", "after", message="must not run")
+
+
+def test_each_idle_guard_alone_keeps_a_group_pending(groups, monkeypatch):
+    """The settled verdict needs ALL of: no queued command, nothing unresolved, a planner
+    that schedules nothing. Live turns trip two of them at once, so each is held alone here."""
+    from types import SimpleNamespace
+
+    service, *_ = groups
+    run = create(groups)
+    assert service.pending_count() == 0  # control: the untouched group is settled
+    with monkeypatch.context() as m:
+        m.setattr(service, "_plan", lambda *_: SimpleNamespace(status="task"))
+        assert service.pending_count() == 1
+    with monkeypatch.context() as m:
+        m.setattr(service.state, "unresolved", lambda *_: True)
+        assert service.pending_count() == 1
+    with monkeypatch.context() as m:
+        m.setattr(service.runs, "pending", lambda *_: [{"command_key": "queued"}])
+        assert service.pending_count() == 1
+    with monkeypatch.context() as m:
+        m.setattr(service, "_plan", lambda *_: (_ for _ in ()).throw(RuntimeError("unreadable")))
+        assert service.pending_count() == 1
+    assert service.pending_count() == 0

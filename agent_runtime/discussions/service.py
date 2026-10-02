@@ -95,7 +95,7 @@ class DiscussionService:
     def idle_drain(self) -> Iterator[None]:
         """Fence admission only if every owner accepts the idle claim."""
         with self._lock:
-            if self.runs.owned():
+            if self._pending_runs():
                 raise DiscussionError("busy")
             yield
             self._draining = True
@@ -103,7 +103,39 @@ class DiscussionService:
     def pending_count(self) -> int:
         # Open rooms may schedule another round between native turns.
         with self._lock:
-            return len(self.runs.owned())
+            return len(self._pending_runs())
+
+    def _pending_runs(self) -> list[dict[str, Any]]:
+        """Owned runs that may still schedule work; caller holds ``_lock``.
+
+        Every owned run counts except a SETTLED profile group. A discussion room
+        between rounds stays pending — that is the admission fence.
+        """
+        return [run for run in self.runs.owned() if not self._settled_group(run)]
+
+    def _settled_group(self, run: Mapping[str, Any]) -> bool:
+        """An open profile group with nothing to do, decided by the planner itself.
+
+        Never inferred from an empty task list: a queued command, a live or
+        unresolved task, or a planner decision of ``task`` keeps the group
+        pending; an unreadable room cannot prove idle.
+        """
+        if "group" not in (run.get("initial") or {}) or run["phase"] != "open":
+            return False
+        if self.runs.pending(run["run_id"]) or self.state.unresolved(run["run_id"]):
+            return False
+        try:
+            decision = self._plan(run, self.state.room(run))
+        except Exception:
+            logger.warning("Discussion idle check could not plan %s", run["run_id"], exc_info=True)
+            return False
+        return decision.status != "task"
+
+    def _plan(self, run: Mapping[str, Any], room: Mapping[str, Any]) -> policy.DiscussionDecision:
+        snapshot = self.checkpoints.snapshot(room_id=run["run_id"], latest_seq=room["latest_seq"])
+        active = [m["member_id"] for m in self.runs.members(run["run_id"]) if m["status"] == "active"]
+        return policy.plan_next_task(room, list(snapshot.events), initial_watermarks=snapshot.watermarks,
+            active_member_ids=active, **self.state.policy_args(run))
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int,
               key: str, topic: str, actor_id: str) -> dict[str, Any]:
@@ -196,10 +228,7 @@ class DiscussionService:
             room = self.state.room(run)
             if self.state.unresolved(run["run_id"]):
                 return
-            snapshot = self.checkpoints.snapshot(room_id=run["run_id"], latest_seq=room["latest_seq"])
-            active = [m["member_id"] for m in self.runs.members(run["run_id"]) if m["status"] == "active"]
-            decision = policy.plan_next_task(room, list(snapshot.events), initial_watermarks=snapshot.watermarks,
-                active_member_ids=active, **self.state.policy_args(run))
+            decision = self._plan(run, room)
             if decision.status == "task" and decision.task is not None:
                 for task in decision.ready_tasks or (decision.task,):
                     driver.admit_task(self.db_path, task.identity, payload=task.payload, clock=time.time)

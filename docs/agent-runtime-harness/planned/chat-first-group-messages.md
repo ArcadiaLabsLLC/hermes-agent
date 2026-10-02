@@ -88,10 +88,10 @@ and CLI/payload contracts pass. No thresholds or baselines changed. Receipts:
 
 ## Lifecycle follow-up
 
-`DiscussionService.idle_drain` conservatively treats every open run as busy,
-including an empty or settled profile group. This preserves the existing
-between-round safety fence, but can defer automatic runtime maintenance until
-groups are ended. A later lifecycle pass should distinguish settled groups from
-pending work using the existing planner under the admission lock; never infer
-idleness from an empty task list. Source-confirmed; no maintenance behavior was
-changed in this slice.
+`DiscussionService.idle_drain` and `pending_count` count every owned run EXCEPT a
+settled profile group (2026-10-02, lane w5-rt): an open group with no queued
+command, nothing unresolved, and a planner decision — replayed under the
+admission lock — that is not `task`. Idleness is never inferred from an empty
+task list, an unreadable room is pending, and a discussion room between rounds
+still holds maintenance (the fence). Pinned by
+`tests/agent_runtime/test_discussion_profile_groups.py`.
