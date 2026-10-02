@@ -130,3 +130,20 @@ checks passed. The earlier tombstone failure was our helper-name collision,
 corrected without weakening the gate. No live runtime or provider was used.
 New production modules are 124 and 45 lines; the largest new function is 27 lines
 with six AST decision nodes, not a cyclomatic-complexity measurement.
+
+## Native model controls, October 2
+
+Exact instance sessions now use upstream model inventory and `switch_model`
+validation, then the existing instance-default and chat-override stores. The
+worker and instance adapters share the same pure catalog projection. No provider
+catalog, credential writer or settings database was added.
+
+Selection refuses active, uncertain, admitted and question-blocked turns under
+the existing session lease. Agent defaults retain native live inheritance;
+Launcher labels that effect rather than promising future-conversation-only scope.
+Thirty-three tests passed across five focused files. Disabling the idle guard
+failed four cases; restoration passed. A bounded Dart-to-native test also passed
+model read/write/default persistence alongside reconstruction and exact Stop.
+
+These are branch checks, not desktop acceptance. Rich conversation transport,
+console account isolation and final qualification still precede worker retirement.
