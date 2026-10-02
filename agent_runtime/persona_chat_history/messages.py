@@ -15,6 +15,7 @@ from typing import Any
 from .. import chat_session_scope
 from ..persona_assignments import safe_assignment_text
 from ..conversation_owner import ConversationOwnerError, require_session_owner
+from ..conversation_workspace import conversation_workspace
 from .curation import (
     _decode_history_cursor,
     _encode_history_cursor,
@@ -80,6 +81,7 @@ def existing_persona_chat_messages(*, session_id: str, before: str | None = None
     try:
         with existing_chat_session(session_id=session_id, client_scope=client_scope) as session:
             evidence = {"client_scope": session.owner} if session.owner is not None else {}
+            evidence["workspace"] = conversation_workspace(session.row)
             if check_only:
                 return {"ok": True, "session_id": session_id, **evidence}
             return {**_with_chat_scope(persona_chat_session_messages(
