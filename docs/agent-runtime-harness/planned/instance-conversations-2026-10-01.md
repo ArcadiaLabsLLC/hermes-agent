@@ -106,3 +106,11 @@ before minting. The existing send-parameter tests now permit additive method
 entries rather than freezing the method set. Owner/open-chat tests passed 29
 cases; send/manifest tests passed 48. Launcher production scope binding remains
 part of the account-view cutover, not this checkpoint.
+
+## First-turn baseline, October 2
+
+The [matched loopback measurement](instance-conversation-latency-2026-10-02.md)
+now covers both real native routes: three cold and six warm turns per route.
+Instance opens are faster, but replies after Open and warm replies are slower.
+The worker remains. These tests do not establish real-provider or UI latency
+parity; final integration qualification is still required before retirement.
