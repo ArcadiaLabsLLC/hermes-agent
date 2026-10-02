@@ -71,12 +71,3 @@ def operator_input(message=None, prompt=None) -> OperatorInput:
     if "\x00" in text:
         raise ReviewedPromptError("message_invalid")
     return OperatorInput(text, images, reviewed=prompt is not None)
-
-
-def input_from_args(args) -> OperatorInput:
-    raw = getattr(args, "reviewed_prompt_json", None)
-    try:
-        prompt = json.loads(raw) if raw is not None else None
-    except (ValueError, TypeError) as exc:
-        raise ReviewedPromptError("invalid_prompt") from exc
-    return operator_input(getattr(args, "message", None), prompt)

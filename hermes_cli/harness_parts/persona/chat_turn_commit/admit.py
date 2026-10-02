@@ -271,7 +271,7 @@ class _AdmitPhases:
         # Resolve the effective instance once. Prompt receipts and execution must
         # observe the same model and skill assignment authority.
         self.persona = apply_instance_model_overrides(self.persona, instance)
-        from agent_runtime.operator_input import input_from_args
+        from ..chat_input import input_from_args
         from agent_runtime.reviewed_prompt import ReviewedPromptError
 
         try:
