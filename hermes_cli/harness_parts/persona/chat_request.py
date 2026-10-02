@@ -164,7 +164,7 @@ def _mission_chat_caller_refusal(
     ``args``, so evaluating them here AND at their original sites is free and
     keeps those sites intact for the explicit-session lane."""
 
-    from agent_runtime.operator_input import input_from_args
+    from .chat_input import input_from_args
     from agent_runtime.reviewed_prompt import ReviewedPromptError
 
     try:

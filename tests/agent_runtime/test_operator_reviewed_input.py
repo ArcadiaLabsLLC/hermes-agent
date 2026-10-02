@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from agent_runtime.operator_input import REVIEWED_INPUT_KIND, input_from_args, operator_input
+from agent_runtime.operator_input import REVIEWED_INPUT_KIND, operator_input
+from hermes_cli.harness_parts.persona.chat_input import input_from_args
 from agent_runtime.persona_chat_continuity.wire import native_wire_row, safe_native_history
 from agent_runtime.persona_chat_history.curation import _safe_curated_messages
 from agent_runtime.profile_runner.models import AgentRunRequest
