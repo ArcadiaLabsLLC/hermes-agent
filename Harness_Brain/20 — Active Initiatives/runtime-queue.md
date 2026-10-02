@@ -33,7 +33,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-01 (launcher lane mc-a, filed by the orchestrator)
 
-- [ ] **Commit a `running_work` stream golden to `tests/fixtures/stream_frames/` (+ MANIFEST row) so the launcher's byte-mirror can pin the w4-stream section frame by file; the launcher's hub-route probe spells the line out until then** · launcher mc-d `bac88dbbb`, 2026-10-01 · **TAKEN 2026-10-02 w5-rt**
 - [ ] **`tool_call` refuses a batch for local tools — "tool_call takes exactly one entry for local tools; you sent 3" — after `tool_describe` handed the agent three launcher_qa tool names, costing a wasted round trip (owner screenshot 2026-10-01 19:04:12Z, `events.81417412.jsonl` line 17549). Either run a batch of independent read-only calls, or state the one-entry rule in `tool_describe`'s result and the tool schema so an agent never sends one** · `fork / runtime` · launcher `docs/mission_control/evidence/queued-then-burst/burst-at-end.png` · **TAKEN 2026-10-02 w5-rt**
 
 ### Filed on arrival — 2026-10-01 (lane hq-b)
