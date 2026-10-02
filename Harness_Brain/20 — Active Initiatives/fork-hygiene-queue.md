@@ -79,7 +79,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-09-30 (launcher engine-build diagnosis, filed by the launcher orchestrator)
 
-- [ ] **`tests/hermes_cli/test_update_launch_completion.py` (supervised_launch, blessed_legacy, first_launch_syncs, completion_tail) monkeypatch `Path.home` but not `winreg`, so `hermes_cli/path_setup.py:281 → windows_env.add_user_path_entry` writes `<tmp>\home\bin` into the real `HKCU\Environment\Path` every run (13 entries by 2026-09-30; broke the launcher engine build via vcvarsall's 8,191-char line). Fake `windows_env` there as `test_windows_env.py` does.** · fork · evidence `eternia-launcher/docs/tooling/WINDOWS_ENGINE_BUILD_DIAGNOSIS_2026-09-30.md` §4.3 · **TAKEN 2026-10-02 w5-fh**
 
 ## Filed on arrival — 2026-09-29 (footprint attribution, filed by the orchestrator)
 

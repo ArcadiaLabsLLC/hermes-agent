@@ -32,6 +32,7 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
+from tests._downstream import registry_write_fence
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
@@ -41,6 +42,9 @@ from tests._downstream.id_markers.reasons import (
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
     TIRITH_CONFIG_VALUE_UNDER_TEST_MARK as _TIRITH_CONFIG_VALUE_UNDER_TEST_MARK,
 )
+
+# Process-wide, at import: no test in this process writes the real Windows registry.
+registry_write_fence.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
