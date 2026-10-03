@@ -266,12 +266,17 @@ same `ServeSocketServer` class with three constructor arguments filled in, not a
 second implementation, because the hardened parts of that class are exactly the
 parts a copy would get wrong (the accept loop that announces its own death, the
 pre-auth bound that counts peers who have proven nothing, the two limiters and
-the rule that server-state refusals never charge the auth one). Config:
-`remote_gateway.listen` (a HOST STRING; `false` is off, and boolean `true` is
-REFUSED — an operator opening a LAN port has to say which interface) and
-`remote_gateway.port` (0 = ephemeral; usually pinned, because a firewall rule
-and a paired phone both need a number that survives a restart). **Off by
-default, forever.**
+the rule that server-state refusals never charge the auth one). Config, under
+the plugin manifest (`plugins.entries.eternia-harness.settings.*`, declared in
+`plugins/eternia-harness/plugin.yaml`'s `config_schema`, read only by
+`agent_runtime/harness_settings.py`): `remote_gateway_listen` (a HOST STRING;
+`false` is off, and boolean `true` is REFUSED — an operator opening a LAN port
+has to say which interface) and `remote_gateway_port` (0 = ephemeral; usually
+pinned, because a firewall rule and a paired phone both need a number that
+survives a restart). The legacy top-level `remote_gateway.listen` / `.port` are
+still read when the new key is absent, for the transition the module docstring
+states. The rest of this section says `remote_gateway.listen` for the setting
+in either spelling. **Off by default, forever.**
 
 | | loopback lane | gateway lane |
 |---|---|---|

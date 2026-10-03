@@ -258,7 +258,7 @@ def test_pair_states_when_no_listener_is_advertising_the_endpoint(capsys, monkey
     _code, payload = _run(capsys, "pair")
 
     assert payload["endpoint"]["source"] == "unknown"
-    assert "remote_gateway.listen is off" in payload["note_endpoint"]
+    assert "plugins.entries.eternia-harness.settings.remote_gateway_listen is off" in payload["note_endpoint"]
 
 
 def test_the_shared_pending_cap_reaches_the_operator_as_a_precondition_family(capsys):

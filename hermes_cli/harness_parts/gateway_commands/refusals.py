@@ -178,7 +178,7 @@ class _StoreWriteRefusal:
 #: looking at the same condition and should not have to recognise two spellings
 #: of it.
 LISTENER_OFF_SENTENCE = (
-    "remote_gateway.listen is off for this root: nothing will accept this code "
+    "plugins.entries.eternia-harness.settings.remote_gateway_listen is off for this root: nothing will accept this code "
     "until an interface is configured and the runtime restarts."
 )
 
@@ -246,7 +246,7 @@ def _dial_target(store_root, endpoint: dict, *, args):
                     f"{NO_DIAL_HOST_SENTENCE}. Writing the bind "
                     f"({endpoint.get('host')!r}) into the payload would tell the "
                     "other machine to dial an address that is not one. Name a "
-                    "reachable interface in remote_gateway.listen, or fix why "
+                    "reachable interface in plugins.entries.eternia-harness.settings.remote_gateway_listen, or fix why "
                     "this host enumerates none."
                 ),
             ),

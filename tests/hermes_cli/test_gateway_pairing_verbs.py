@@ -269,7 +269,7 @@ def test_pair_says_so_when_nothing_is_listening_for_the_code(capsys, monkeypatch
 
     assert code == 0
     assert payload["endpoint"]["source"] == "unknown"
-    assert "remote_gateway.listen is off" in payload["note"]
+    assert "plugins.entries.eternia-harness.settings.remote_gateway_listen is off" in payload["note"]
     assert payload["code"]
 
 

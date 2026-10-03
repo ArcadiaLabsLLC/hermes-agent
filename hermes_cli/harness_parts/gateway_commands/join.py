@@ -511,7 +511,7 @@ class Join:
                 "this root advertised no dialable gateway endpoint, so the other "
                 "install recorded the edge with no address for it. Calls from here "
                 "to there work; calls from there to here will not until this root's "
-                "remote_gateway.listen names a reachable interface and a `peers "
+                "plugins.entries.eternia-harness.settings.remote_gateway_listen names a reachable interface and a `peers "
                 "join` is re-run."
             )
         return row

@@ -40,7 +40,10 @@ SOURCE_UNKNOWN = "unknown"
 
 
 def gateway_listen_config() -> tuple[str | None, int]:
-    """``(host, port)`` from ``remote_gateway.*``; ``(None, …)`` means off.
+    """``(host, port)`` from the harness settings ``remote_gateway_listen`` /
+    ``remote_gateway_port`` (``agent_runtime.harness_settings``, which still
+    reads the legacy ``remote_gateway.*`` block during the transition);
+    ``(None, …)`` means off.
 
     The FIRST reader of the keys Stage 0a declared — and the read that found
     they had never existed: Stage 0a put them under ``"gateway"``, which is
@@ -57,22 +60,23 @@ def gateway_listen_config() -> tuple[str | None, int]:
     "do not bind".
     """
 
+    from agent_runtime.harness_settings import harness_setting
+
     try:
         from hermes_cli.config import load_config_readonly
 
-        block = load_config_readonly().get("remote_gateway") or {}
+        config = load_config_readonly()
+        listen = harness_setting("remote_gateway_listen", config=config)
+        raw_port = harness_setting("remote_gateway_port", 0, config=config)
     except Exception:
         return None, 0
-    if not isinstance(block, dict):
-        return None, 0
-    listen = block.get("listen")
     if not isinstance(listen, str):
         return None, 0
     host = listen.strip()
     if not host or host.lower() in {"false", "off", "no", "true"}:
         return None, 0
     try:
-        port = int(block.get("port") or 0)
+        port = int(raw_port or 0)
     except (TypeError, ValueError):
         port = 0
     return host, max(0, min(65535, port))

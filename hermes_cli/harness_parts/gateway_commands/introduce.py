@@ -382,7 +382,7 @@ class Introduce:
                 message=(
                     f"the grant payload is {size} bytes and "
                     f"the backend accepts {GRANT_PAYLOAD_MAX_BYTES}. Reduce the "
-                    "advertised endpoints (remote_gateway.listen can name one "
+                    "advertised endpoints (plugins.entries.eternia-harness.settings.remote_gateway_listen can name one "
                     "interface instead of a wildcard)."
                 ),
             )

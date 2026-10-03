@@ -15,7 +15,7 @@ __layer__ = "stores"
 # ───────────────────────────── provider seam ─────────────────────────────
 
 #: Ceiling on ONE provider call, in seconds. Overridable per install through
-#: ``charsheet.provider_timeout_seconds`` in ``config.yaml`` (see
+#: the harness setting ``charsheet_provider_timeout_seconds`` (see
 #: :func:`provider_timeout_seconds`); ``0`` or a negative value disables the
 #: bound entirely and restores the behaviour that preceded it.
 #:
@@ -89,7 +89,7 @@ def _within_deadline(call, *, seconds: float, prefix: str):
         raise ProviderTimeout(
             f"image generation for {prefix!r} did not answer within {seconds:g}s; "
             "the provider call was abandoned (it may still be running) — retry, "
-            "or raise `charsheet.provider_timeout_seconds` in config.yaml",
+            "or raise `plugins.entries.eternia-harness.settings.charsheet_provider_timeout_seconds`",
             safe_details={"prefix": prefix, "seconds": seconds},
         )
     if "error" in box:

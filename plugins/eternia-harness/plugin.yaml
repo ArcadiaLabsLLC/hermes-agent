@@ -20,3 +20,18 @@ cli_commands:
     description: >-
       One-shot post-install for pip users. Installs system dependencies that
       pip cannot provide, then runs setup if needed.
+# Harness-owned settings: plugins.entries.eternia-harness.settings.<key>.
+# One reader, agent_runtime/harness_settings.py — which still reads the legacy
+# top-level remote_gateway.* / charsheet.* keys during the stated transition.
+config_schema:
+  remote_gateway_listen:
+    # No `type`: a host string turns the LAN listener on; false or absent is off.
+    description: Interface the remote gateway listens on (host string, e.g. 0.0.0.0); false or absent = off
+  remote_gateway_port:
+    type: int
+    default: 0
+    description: Remote gateway port; 0 = ephemeral
+  charsheet_provider_timeout_seconds:
+    type: number
+    default: 300
+    description: Ceiling on one charsheet image-provider call, in seconds; 0 or negative disables the bound

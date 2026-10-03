@@ -40,7 +40,8 @@ def _sandbox_env(base: Path) -> dict[str, str]:
     # STRING (boolean `true` is refused by design) and port 0, so the kernel
     # picks and the `ready` frame publishes what it picked.
     (home / "config.yaml").write_bytes(
-        b'remote_gateway:\n  listen: "127.0.0.1"\n  port: 0\n'
+        b'plugins:\n  entries:\n    eternia-harness:\n      settings:\n'
+        b'        remote_gateway_listen: "127.0.0.1"\n        remote_gateway_port: 0\n'
     )
     env = dict(os.environ)
     env.update(

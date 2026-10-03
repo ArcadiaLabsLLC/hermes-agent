@@ -95,16 +95,13 @@ def prompt_background() -> str:
 
 
 def charsheet_setting(key: str, default):
-    """``charsheet.<key>`` from ``config.yaml``, read at call time.
-
-    Lazy because this package must not import ``hermes_cli`` at module scope
-    (``harness.py`` imports it the other way round). The key's ruled home is the
-    plugin manifest's ``config_schema`` — the runtime-queue row on the harness
-    config keys owns that move; this door is where it will land.
+    """The harness setting ``charsheet_<key>`` (``plugins.entries.eternia-harness
+    .settings``), read at call time through ``agent_runtime.harness_settings`` —
+    which still reads the legacy ``charsheet.<key>`` during the transition.
     """
-    from hermes_cli.config import cfg_get, load_config_readonly
+    from agent_runtime.harness_settings import harness_setting
 
-    return cfg_get(load_config_readonly(), "charsheet", key, default=default)
+    return harness_setting(f"charsheet_{key}", default)
 
 
 def atlas_erase_long_axis_lines(image):
