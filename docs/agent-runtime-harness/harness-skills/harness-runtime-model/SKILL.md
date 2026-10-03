@@ -41,10 +41,9 @@ command. Always `--json`. Never use raw DB / Python / ad-hoc scripts to inspect.
 Operating detail lives in `references/`, fetched with `skill_view` — read the one
 that matches BEFORE acting:
 
-- `references/operations.md` — **the operating loop**: roots and the `base` vs `alice`
-  home caveat, start checklist, extra inspect/operate rows, the fresh-instance-per-QA
-  recipe (create · office write · message · delete), MCP admission receipts,
-  stalled-turn triage, evidence preservation, final report shape. Read before operating live.
+- `references/operations.md` — **the operating loop**: roots and homes, start
+  checklist, the fresh-instance-per-QA recipe, MCP admission receipts, stalled-turn
+  triage, evidence, report shape. Read before operating live.
 - `references/persona-chat.md` — operator channel, the new-chat contract, turn
   identity, `agent_chat_send` and the relay policy.
 - `references/proof.md` — Backend/Launcher proof commands and the Stage C MCP recipe.
@@ -198,30 +197,24 @@ no tool, is `references/tool-inventory.md`.
 
 ## Persona chat continuity
 
-Explanation: `references/model-notes.md`; triage: `references/operations.md`.
+Detail and the why: `references/persona-chat.md` and `references/model-notes.md`;
+triage: `references/operations.md`, "Diagnosing a stalled or failed chat turn".
 
-- Message the on-level instance. `PersonaInstance.default_chat_session_id` is the
-  operator-chat pointer; Hermes mints every new root.
-- `unknown_chat_session` on a roster-listed root: do not retry — mint a fresh root
-  with `open-chat --new-session --idempotency-key <key>` and message that. The wrong
-  store ROOT gives an empty roster; the wrong HOME gives wrong profile answers.
-- `session_id` is the stable root; compression may rotate `active_session_id`. Only
-  the serve observes `hot`/`busy`/`cold`/`failed` — `harness_query` in your turn, or
-  `hermes harness query` (routed to a live serve); anything else says `unknown`.
-- `chat_turn_outcome_unknown`: do not retry — `turn-resolve ... --action abandon` the
-  exact `(root, client_message_id, turn_id)`, then send as a new turn with a fresh id.
-- `chat_turn_provider_refused`: definite "did not run"; `turn-resolve` refuses it.
-  Read `provider_refusal.reason`, never the prose; wait out the reset or fix the
-  credential, then send a NEW client message id.
+- Message the on-level instance; `default_chat_session_id` is its operator-chat
+  pointer, and Hermes mints every new root. `session_id` is the stable root.
+- `unknown_chat_session`: do not retry — `open-chat --new-session
+  --idempotency-key <key>` and message the fresh root.
+- `chat_turn_outcome_unknown`: do not retry — `turn-resolve ... --action abandon`,
+  then send a new turn with a fresh id.
+- `chat_turn_provider_refused`: definite "did not run"; read
+  `provider_refusal.reason`, fix or wait, send a NEW client message id.
 
 ## Delegation — helpers without context bloat
 
 Recipe and flags: `references/operations.md`, "Delegation"; why: `references/model-notes.md`.
 
-- Message exactly ONE helper at a time (`agent_chat_send`, or `mission-chat message`);
-  the message is the whole handoff: narrow objective, stop condition, parent session id.
-- **Never slurp** the helper's transcript, logs, or reasoning — carry pointers.
-- Return with `persona instance return-summary` (bounded, redaction-safe, records
-  `returned_to`, emits `steer.returned`) — pointers, not payload.
-- Intervene only on a stall, an explicit block, or scope drift, by another message on
-  the SAME chat root.
+- Message ONE helper at a time; the message is the whole handoff (objective, stop
+  condition, parent session id).
+- **Never slurp** the helper's transcript, logs, or reasoning — carry pointers, and
+  return with `persona instance return-summary` (bounded, records `returned_to`).
+- Intervene only on a stall, a block, or scope drift, on the SAME chat root.
