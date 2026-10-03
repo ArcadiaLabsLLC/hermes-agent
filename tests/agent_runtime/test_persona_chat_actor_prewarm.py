@@ -697,6 +697,18 @@ def test_the_prewarm_runs_no_conversation_and_no_agent_ready(stub_runtime):
     assert entry.agent.conversations == 0
     assert ready_calls == []
 
+    result = runner.run(
+        _request(
+            prewarm_only=False,
+            registry=registry,
+            agent_ready_callback=lambda agent: ready_calls.append(agent),
+        )
+    )
+    assert result.profile_timing["resident_actor_reused"] == 1
+    assert _Agent.constructed == 1
+    assert ready_calls == [entry.agent]
+    assert entry.agent.conversations == 1
+
 
 def test_prewarm_refuses_a_request_that_is_not_marked_prewarm_only(stub_runtime):
     """One entry point, one flag. A plain turn request reaching ``prewarm``
@@ -724,6 +736,25 @@ def test_a_prewarmed_actor_is_handed_over_with_no_turn_local_handles(stub_runtim
     entry = registry._entries["chat_root_1"]
     assert entry.agent.status_callback is None
     assert entry.agent.tool_start_callback is None
+    assert entry.agent.clarify_callback is None
+
+    def answer(question):
+        return "new answer"
+
+    ready_calls = []
+    result = runner.run(
+        _request(
+            prewarm_only=False,
+            registry=registry,
+            clarify_callback=answer,
+            agent_ready_callback=lambda agent: ready_calls.append(
+                (agent, agent.clarify_callback)
+            ),
+        )
+    )
+    assert result.profile_timing["resident_actor_reused"] == 1
+    assert _Agent.constructed == 1
+    assert ready_calls == [(entry.agent, answer)]
     assert entry.agent.clarify_callback is None
 
 

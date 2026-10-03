@@ -20,7 +20,8 @@ Transport cutover and latency qualification remain separate; the worker stays.
 `resident_cursor::` 2026-10-03 — [Identity repair](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3)
 separates session bookkeeping from actor identity and applies resolved-client
 invalidation to every provider. Native probe reuses both warm actors; rollout
-and matched worker latency remain separate.
+and live qualification remain separate. The matched loopback sample averages
+277.5 ms instance versus 116.5 ms worker; phase receipts and limits are in the note.
 
 `work_cursor::` 2026-10-01 — [Scoped chat Work](../../docs/downstream/scoped-chat-work-2026-10-01.md)
 exposes native task submission and observations through the console-private

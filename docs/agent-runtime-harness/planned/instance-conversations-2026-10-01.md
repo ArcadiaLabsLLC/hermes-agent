@@ -275,8 +275,8 @@ Verification receipts (overlapping test counts):
   matches the durable session record. No external provider or desktop QA ran.
 
 Probe assertions remain on the latency branch. Production hot-session settings
-and worker wiring remain unchanged. These receipts establish reuse and accounting,
-not a new worker comparison, remote acceptance or the earlier +335 ms's cause.
+and worker wiring remain unchanged. These initial receipts establish reuse and
+accounting; the final matched comparison follows below.
 
 Health receipts: `identity-gates-2026-10-03.log` has 1,283 passes and three
 failures. All three reproduce on unchanged main `541f497902` in
@@ -289,6 +289,63 @@ identity policy `126/94`; runner `822/586 → 823/588`. The new policy's largest
 function has 20 code lines and nesting depth 3, not a cyclomatic-complexity score
 (`identity-size-2026-10-03.log`, source spans counted through the AST).
 The extraction and behavior repair are separate commits.
+
+Review correction: two prewarm tests had narrowed to inspecting the stored
+actor, although the separate first-real-turn reuse test remained intact. Both
+now execute a normal runner turn, assert the exact warmed actor reaches
+`agent_ready`, require one construction and reuse `1`, and verify conversation
+or callback lifecycle behavior. No test reconstructs the private combined key.
+`identity-prewarm-final-2026-10-03.log`: 45 passes, zero failures across prewarm
+and both new identity test files, in isolated per-file processes.
+
+Final native probes each passed once, serially, on latency branch `c26980541c`
+(repair `ea3c12a927`): `identity-native-final-2026-10-03.log` / `.xml` and
+`identity-worker-final-2026-10-03.log` / `.xml`. Both use the same loopback
+provider, prompt and configuration in separate fresh processes. The instance
+registry exists at boot and remains the same; both warm turns retain root
+`persona_chat_personainst_profile_latency-probe_e105d9207cce` and report
+`resident_actor_reused=1`. Per-turn usage and durable anchors still agree.
+
+| Milliseconds | Warm 1 | Warm 2 |
+| --- | ---: | ---: |
+| Instance first visible | 273 | 282 |
+| Worker first visible | 146 | 87 |
+| Instance admission | 23 | 24 |
+| Instance `runtime_resolve_ms` | 0 | 0 |
+| Instance `context_signature_ms` | 3 | 5 |
+| Instance `context_skill_preload_ms` | 25 | 11 |
+| Instance `session_db_open_ms` | 12 | 18 |
+| Instance `context_hud_ms` | 2 | 4 |
+| Instance `conversation_call_ms` | 91 | 85 |
+| Instance `profile_conversation_provider_dispatch_ms` | 13 | 19 |
+| Instance `profile_provider_stream_first_delta_ms` | 12 | 14 |
+
+Warm first-visible means: instance **277.5 ms**, worker **116.5 ms**, delta
+**+161 ms**. Native phase timings overlap; they are not an additive attribution
+of that delta. `agent_construct_ms` is absent on both reused turns. Two warm
+samples per lane with a loopback provider establish neither a production latency
+distribution nor remote/provider parity. The earlier +335 ms is superseded as a
+comparison, not explained solely by this repair.
+
+Probe flag: `persona_chat.hot_sessions_enabled=true`. The selected production
+root configuration has no such entry; `PersonaChatConfig` defaults to
+`false` in `agent_runtime/runtime_config.py`. This is a configuration inspection,
+not a live-process flag receipt. No production setting was changed. Rollout and
+live latency qualification remain in the instance-conversation cutover row.
+
+The fork landing scope completed serially: 661 files, 10,300 passes, 73 failures,
+21 skips, zero errors (`identity-fork-suite-2026-10-03.log`). Every failed
+assertion reproduces on unchanged main `541f497902`: 72 in
+`identity-baseline-suite-2026-10-03.log`, plus the duplicate-body failure already
+confirmed above. `identity-failure-comparison-2026-10-03.log` records equal
+73-member failure sets with zero differences. This is not an all-green suite.
+
+Residuals: 68 gateway certificate-pin assertions, one realm-history ordering
+assertion, one old sign-in argv expectation, one expired fixed-date grant fixture,
+one fixed tool-count expectation, and one duplicate-body assertion. Existing
+certificate/history/duplication queue rows retain their ownership and gain this
+receipt. A new fork-hygiene row groups the three brittle fixture expectations;
+none was bypassed or repaired as part of actor identity.
 
 Remaining source-confirmed weakness: `_runtime_resolve_cache_key` stamps only
 the profile's `config.yaml` and `.env`; `_resolve_request_runtime` may return that
