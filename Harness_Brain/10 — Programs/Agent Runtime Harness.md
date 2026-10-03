@@ -17,6 +17,11 @@ Shared service authority does not mean a shared conversation identity.
 records opaque account ownership, native directory and exact-session inspection.
 Transport cutover and latency qualification remain separate; the worker stays.
 
+`resident_cursor::` 2026-10-03 — [Identity repair](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3)
+separates session bookkeeping from actor identity and applies resolved-client
+invalidation to every provider. Native probe reuses both warm actors; rollout
+and matched worker latency remain separate.
+
 `work_cursor::` 2026-10-01 — [Scoped chat Work](../../docs/downstream/scoped-chat-work-2026-10-01.md)
 exposes native task submission and observations through the console-private
 harness. Hermes owns execution; Launcher reuses Companion presentation through

@@ -342,6 +342,19 @@ first recorded `resident_rebuild_runtime_signature_changed` + `resident_actor_re
 constructed actor IS. Allowlists, not denylists: a new field on either record is presumed
 bookkeeping until someone names it.
 
+Session configuration follows the same rule (`persona_chat_identity.py`):
+the chat override already resolves into the provider/model components, while
+usage anchors, pruning counters and native thread bindings remain durable state,
+not actor identity. The session-field allowlist is currently empty; a new
+construction input must be named there unless another resolved component covers it.
+Upstream persistence is unchanged.
+
+`ProfileAgentRunner` completes that identity after provider resolution, for both
+prewarm and normal turns. `resolved_runtime_revision` hashes the resolved client
+inputs and local-model parameters. Thus endpoint, credential or local reload
+changes rebuild the actor; unrelated bookkeeping does not. Only the component
+name `resolved_runtime` enters rebuild receipts, never its values or digest.
+
 **And a refused reuse now NAMES the input that moved (2026-08-23).** The allowlist fix was not
 enough on its own: three consecutive turns of one neko chat at `19:03:10/23/40Z`, on a root the
 boot prewarm had warmed nine seconds earlier, each still recorded
@@ -370,7 +383,7 @@ builds that root's agent through `ProfileAgentRunner.prewarm` and registers it u
 residue: **04-boot-and-lifecycle Stage 9a**.
 
 Two facts belong here rather than there. First, the reuse key: the prewarm calls
-`mission_chat_runtime_signature` — the SAME function the builder calls, which is why it is public
+`mission_chat_runtime_signature_components` — the SAME function the builder calls, which is why it is public
 — because `acquire` compares digests for byte equality and rebuilds on a miss, so an actor warmed
 under a re-derived key would be worse than no warm at all. Second, it cannot go through
 `build_mission_chat_turn_context`: that builder CONSUMES the queued-skill list, and warming through

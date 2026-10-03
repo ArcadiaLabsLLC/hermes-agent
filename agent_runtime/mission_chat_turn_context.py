@@ -789,7 +789,9 @@ def mission_chat_runtime_signature_components(
         "persona_revision": identity.identity_revision(persona, identity.PERSONA_IDENTITY_FIELDS),
         "instance_revision": identity.identity_revision(instance, identity.INSTANCE_IDENTITY_FIELDS),
         "root": session_id,
-        "root_model_config_revision": identity.revision_hash(session_model_config),
+        "root_model_config_revision": identity.identity_revision(
+            session_model_config, identity.SESSION_MODEL_CONFIG_IDENTITY_FIELDS
+        ),
         "provider": model_selection.get("effective_provider"),
         "model": model_selection.get("effective_model"),
         "api_mode": model_selection.get("effective_api_mode")

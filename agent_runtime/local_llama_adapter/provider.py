@@ -14,8 +14,6 @@ sub-64K floor exemptions (``agent_init.py`` / ``conversation_compression.py``, o
 KEEP, "configurable floor PR, held") key on exactly that pin.
 """
 from contextlib import contextmanager
-import hashlib
-import json
 from pathlib import Path
 
 from . import DISPLAY_NAME, FLOOR_EXEMPTION_REQUESTED_PROVIDER, PROVIDER_ID, is_local_llama_provider
@@ -102,13 +100,3 @@ def construction_kwargs(runtime):
     return {"requested_provider": FLOOR_EXEMPTION_REQUESTED_PROVIDER, "max_tokens": generation["max_output_tokens"],
             "fallback_model": [], "request_overrides": {"temperature": generation["temperature"],
               "top_p": generation["top_p"], "extra_body": {"top_k": generation["top_k"]}}}
-
-
-def actor_signature(runtime, original):
-    if "local_parameters" not in runtime:
-        return original
-    # A reload with changed parameters or endpoint cannot reuse the prior client.
-    digest = hashlib.sha256(json.dumps({"parameters": runtime["local_parameters"],
-                                       "endpoint": runtime["base_url"], "credential": runtime["api_key"]},
-                                      sort_keys=True).encode()).hexdigest()
-    return original + ":local-llama:" + digest

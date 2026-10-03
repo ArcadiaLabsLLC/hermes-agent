@@ -987,7 +987,6 @@ def test_each_signature_input_is_named_by_exactly_one_component():
     cases = {
         "surface_prompt_sha256": dict(surface_prompt="operator surface"),
         "root": dict(session_id="chat-root-2"),
-        "root_model_config_revision": dict(session_model_config={"model": "sonnet"}),
         "model": dict(
             model_selection={
                 "effective_provider": "anthropic",

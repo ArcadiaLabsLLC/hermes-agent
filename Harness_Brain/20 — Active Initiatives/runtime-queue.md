@@ -25,7 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-03 (lane h-fence)
 
-- [ ] **`tests/tooling/test_function_legibility_floor.py` is red on `origin/main`: `_cmd_persona_instance_open_chat` and `_cmd_persona_instance_open_new_chat` GREW and `perform_persona_instance_open_chat` is a NEW floor breaker** · `hermes_cli/harness_parts/persona/chat_open.py`, `agent_runtime/persona_open_chat.py` · last touched by `4d81c859c3` · shrink the functions, never re-baseline
+- [ ] **`tests/tooling/test_function_legibility_floor.py` is red on `origin/main`: `_cmd_persona_instance_open_chat` and `_cmd_persona_instance_open_new_chat` GREW and `perform_persona_instance_open_chat` is a NEW floor breaker** · `hermes_cli/harness_parts/persona/chat_open.py`, `agent_runtime/persona_open_chat.py` · last touched by `4d81c859c3`; independently reproduced on unchanged main `541f497902`, receipt `identity-baseline-gates-2026-10-03.log` · shrink the functions, never re-baseline
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 

@@ -355,13 +355,15 @@ def test_the_read_projection_pins_the_window_and_routes_aux_without_credentials(
 
 
 def test_generation_parameters_ride_the_factory_and_bust_the_resident_actor():
+    from agent_runtime.persona_chat_identity import resolved_runtime_revision
+
     resolved = runtime_row()
     kwargs = provider.construction_kwargs(resolved)
     assert (kwargs["requested_provider"], kwargs["max_tokens"], kwargs["request_overrides"]["extra_body"]["top_k"]) == (FLOOR_EXEMPTION_REQUESTED_PROVIDER, 1024, 40)
-    old = provider.actor_signature(resolved, "session")
+    old = resolved_runtime_revision(resolved)
     resolved["local_parameters"]["generation"]["max_output_tokens"] = 2048
-    assert provider.actor_signature(resolved, "session") != old
-    assert provider.construction_kwargs({"provider": "cloud"}) == {} and provider.actor_signature({}, "session") == "session"
+    assert resolved_runtime_revision(resolved) != old
+    assert provider.construction_kwargs({"provider": "cloud"}) == {}
 
 
 def test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud(monkeypatch):
