@@ -199,3 +199,38 @@ model read/write/default persistence alongside reconstruction and exact Stop.
 
 These are branch checks, not desktop acceptance. Rich conversation transport,
 console account isolation and final qualification still precede worker retirement.
+
+## Resident probe positive control, October 3
+
+Probe branch `test/instance-latency-control-2026-10-03`, commit `ee5385d2d8`,
+against production code at `52e6222648`. One isolated native serve, one instance
+session, three loopback-provider turns; no external provider or desktop QA.
+The boot assertion finds the resident registry. Every turn retains that registry,
+the root below and its active session; root/profile configuration files are unchanged.
+
+Native receipt fields (both warm turns):
+
+```text
+hot_sessions_enabled=True
+root_chat_session_id=persona_chat_personainst_profile_latency-probe_521c4ec23fd7
+registry_same=true
+config_files_unchanged=true
+resident_actor_reused=0
+resident_rebuild_runtime_signature_changed=1
+resident_rebuild_component_root_model_config_revision=1
+root_model_config_changed_fields=["_usage_anchor"]
+```
+
+`agent/usage_anchor.py::persist_usage_anchor` updates token-accounting state in
+the session's `model_config`. The fork's
+`agent_runtime/mission_chat_turn_context.py::mission_chat_runtime_signature_components`
+hashes that whole dictionary. Thus ordinary usage invalidates resident identity;
+this is not a missing registry or a new-session probe artifact. Repair remains
+open: preserve native accounting and genuine configuration invalidation.
+
+Six prerequisite/observation tests and one native probe passed, serialized through
+the Launcher heavy-run wrapper and `scripts/run_tests.sh -j 1`, without retries.
+Raw receipts: `probe-control-unit-2026-10-03.log`,
+`probe-control-native-2026-10-03.log` and its JUnit `.xml`; both runs exited zero.
+Ruff passed. No production change, worker retirement or new latency comparison;
+the earlier warm delta remains provisional, not a measured cost of this defect.
