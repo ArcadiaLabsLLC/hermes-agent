@@ -13,6 +13,10 @@ The Hermes-native runtime serving Mission Control and Intelligence: operator roo
 independent conversations, discussions, personas, workspaces, office and board.
 Shared service authority does not mean a shared conversation identity.
 
+`identity_cursor::` 2026-10-02 — [Instance-conversation foundation](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md)
+records opaque account ownership, native directory and exact-session inspection.
+Transport cutover and latency qualification remain separate; the worker stays.
+
 `work_cursor::` 2026-10-01 — [Scoped chat Work](../../docs/downstream/scoped-chat-work-2026-10-01.md)
 exposes native task submission and observations through the console-private
 harness. Hermes owns execution; Launcher reuses Companion presentation through

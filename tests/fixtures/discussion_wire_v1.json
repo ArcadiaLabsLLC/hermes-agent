@@ -396,6 +396,8 @@
       "group_models": true,
       "scheduled_conclusion": true,
       "non_spatial_discussions": true,
+      "account_owned_rooms": true,
+      "empty_instance_rooms": true,
       "exact_stop": true,
       "human_input": true,
       "instance_presence": true,

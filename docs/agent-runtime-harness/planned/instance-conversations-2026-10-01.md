@@ -19,6 +19,36 @@ Current raw gate outputs are `foundation-*.log` in the local
 `receipts/instance-conversations/` evidence directory. Historical checkpoints below
 are not a claim that the latest foundation or desktop acceptance is green.
 
+## Serial verification after rebase, October 2
+
+Freeze investigation is separate. Tests use the existing Launcher slot wrapper
+and canonical Harness runner, without custom containment or overlapping suites.
+Desktop-updater tests are outside this run. Raw output and exit codes are retained
+as `resume-*.log` beside the earlier receipts.
+
+The 17 touched test files passed 1,606 tests. Boundary checks passed 57 tests;
+one duplicate-refusal-constructor failure reproduces on clean main `6c5cc00678`
+and is filed in the fork-hygiene queue. CLI/payload contracts, import layers,
+size ceilings, thin namespace, frozen-home and documentation checks passed.
+The broader run caught two missing room-capability fields in the shared wire
+fixture; both repository copies now carry the native descriptor's fields.
+
+Validated scope: 2,204 files, 24,817 passed, 92 failed, 734 skipped
+(`resume-hermes-validated.log`, exit 1). Of those assertions, 87 reproduce in
+the 48-file clean-main comparison; duplicate-body and realm-history failures
+reproduce separately, making 89. The wire producer's three tests pass after
+the fixture repair. Two download-pause failures pass isolated reruns; their
+cause remains unproven, not dismissed as unrelated.
+
+All ten collection-failure files and four of seven nonzero-exit files reproduce
+on main. The other three Git fixture setup errors pass isolated reruns. The
+fork-hygiene queue retains these residuals. The final focused run passed 96
+tests, including all three upstream-fence checks, with the one independently
+reproduced realm-history failure. No test assertion or baseline was weakened.
+
+These results do not establish full-suite or desktop acceptance. No worker,
+operator conversation view or local transcript store is retired.
+
 Reuse persona instances and their existing profile binding, chat mint receipts,
 SessionDB, turn admission and discussion scheduler. Do not add another identity,
 credential, session or execution authority.
