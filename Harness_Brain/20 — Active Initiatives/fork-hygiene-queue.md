@@ -15,6 +15,10 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 - [ ] **`tests/tooling/test_refactor_stays_downstream.py::test_no_refactor_commit_touches_an_upstream_file` times out (30 s, twice incl. the 1-worker retry) in a worktree of this `tree:0` partial clone: `scripts/god_file_fences.py::fence_crossings` runs one `git diff-tree` per first-parent commit and each lazily fetches trees; the gate skips a SHALLOW clone but not a partial one — skip or batch (one `git log --name-only` walk) for `remote.origin.partialclonefilter`** · `scripts/god_file_fences.py` · evidence: lane h-rows gate log, 2026-10-02
 
+## Filed on arrival — 2026-10-02 (instance foundation)
+
+- [ ] **Consolidate the duplicate refusal constructors in `agent_runtime/provider_account.py::ProviderRefused` and `agent_runtime/runtime_default_model.py::DefaultModelRefused` without weakening the duplicate-body gate.** · `fork / suite` · reproduced on clean main `6c5cc00678`, `test_duplicate_helper_bodies.py::test_no_new_duplicate_anywhere_in_the_fork`; raw receipt `resume-main-hermes-duplicates.log` · UNCLAIMED
+
 ## Filed on arrival — 2026-10-02 (lane w13-hm, filed by the orchestrator)
 
 
