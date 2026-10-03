@@ -338,7 +338,7 @@ request a turn assembles.) Receipt: `visibility_bundle_builds` (§2).
 turn), so with `persona_chat.hot_sessions` finally on, the second message of one chat 45 s after the
 first recorded `resident_rebuild_runtime_signature_changed` + `resident_actor_reused=0`
 (`2026-08-23T14:45:14Z`). It now folds explicit allowlists — `PERSONA_IDENTITY_FIELDS` /
-`INSTANCE_IDENTITY_FIELDS` (`mission_chat_turn_context.py`) — of the fields that decide what a
+`INSTANCE_IDENTITY_FIELDS` (`persona_chat_identity.py`) — of the fields that decide what a
 constructed actor IS. Allowlists, not denylists: a new field on either record is presumed
 bookkeeping until someone names it.
 

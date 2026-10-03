@@ -1030,7 +1030,7 @@ def test_a_steered_chat_goal_is_hud_content_not_actor_identity():
     a resident actor is handed fresh every turn. A steer changes what the next
     turn SAYS, not what its actor IS."""
 
-    from agent_runtime.mission_chat_turn_context import INSTANCE_IDENTITY_FIELDS
+    from agent_runtime.persona_chat_identity import INSTANCE_IDENTITY_FIELDS
 
     assert "current_chat_goal" not in INSTANCE_IDENTITY_FIELDS
     persona, instance = _live_records()
@@ -1492,7 +1492,7 @@ def test_a_NAMED_actor_config_field_still_rotates_the_key(monkeypatch):
     named there — and naming it must be all it takes.
     """
 
-    from agent_runtime import mission_chat_turn_context as module
+    from agent_runtime import persona_chat_identity as module
 
     monkeypatch.setattr(module, "ACTOR_CONFIG_IDENTITY_FIELDS", ("default_model",))
     before = _digests(config=_Config())
