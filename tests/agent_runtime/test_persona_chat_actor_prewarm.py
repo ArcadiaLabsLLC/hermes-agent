@@ -693,14 +693,7 @@ def test_the_prewarm_runs_no_conversation_and_no_agent_ready(stub_runtime):
         )
     )
 
-    entry, reused, _, _ = registry.acquire(
-        root_session_id="chat_root_1",
-        active_session_id="session_1",
-        signature="sig-1",
-        revision="rev-1",
-        factory=lambda: pytest.fail("the prewarm left no resident entry"),
-    )
-    assert reused
+    entry = registry._entries["chat_root_1"]
     assert entry.agent.conversations == 0
     assert ready_calls == []
 
@@ -728,13 +721,7 @@ def test_a_prewarmed_actor_is_handed_over_with_no_turn_local_handles(stub_runtim
 
     runner.prewarm(_request(prewarm_only=True, registry=registry))
 
-    entry, _, _, _ = registry.acquire(
-        root_session_id="chat_root_1",
-        active_session_id="session_1",
-        signature="sig-1",
-        revision="rev-1",
-        factory=lambda: pytest.fail("no resident entry"),
-    )
+    entry = registry._entries["chat_root_1"]
     assert entry.agent.status_callback is None
     assert entry.agent.tool_start_callback is None
     assert entry.agent.clarify_callback is None

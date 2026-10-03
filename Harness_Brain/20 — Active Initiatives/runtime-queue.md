@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-03 (lane h-fence)
+
+- [ ] **`tests/tooling/test_function_legibility_floor.py` is red on `origin/main`: `_cmd_persona_instance_open_chat` and `_cmd_persona_instance_open_new_chat` GREW and `perform_persona_instance_open_chat` is a NEW floor breaker** · `hermes_cli/harness_parts/persona/chat_open.py`, `agent_runtime/persona_open_chat.py` · last touched by `4d81c859c3`; independently reproduced on unchanged main `541f497902`, receipt `identity-baseline-gates-2026-10-03.log` · shrink the functions, never re-baseline
+
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 
 - [ ] **Read the Launcher's per-entry `read_only` mark (the Launcher sends it since lane mc-a, 2026-10-02): `AppFunctionEntry.parse` drops it, so `read_only` mode blocks by `requires_confirmation` and the HUD "mutating" label (`tool_visibility._mutating_tools`) cannot see app functions; block and label by `read_only is False` instead** · fork-owned / agent_runtime · `agent_runtime/launcher_app_functions.py::AppFunctionEntry`, `agent_runtime/tool_permissions.py::extra_blocked_tools_for_permission_mode`
@@ -34,7 +38,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane w12-qa, filed by the orchestrator)
 
-- [ ] **`_expose_windows_user_bin` registers `<root>\bin` in the user PATH for ANY `HERMES_HOME` root, including custom roots outside the native home (QA seeded homes, test sandboxes); reserve the PATH write to the installer-owned native root, not only behind `HERMES_REGISTRY_WRITE_FENCE`** · `hermes_cli/_launchers.py` · launcher side: eternia-launcher `d547ec0f3` (bin fence), `3081282cb` · cross-repo, hermes moves first · **TAKEN 2026-10-02 h-rows** · VERDICT 2026-10-02 (h-rows): DESIGN — `hermes_cli/_launchers.py` and every caller of `expose_cli` (`post_update.py::BOOT_HOME_STEPS`, `venv_sync.py`, `update_cmd_maint.py`) are in `tests/fixtures/upstream_manifest.txt`, so no fork-owned seam calls the writer; the upstream door is `_expose_windows_user_bin` (register only when the install root lives in `get_default_hermes_root()`, i.e. the installer laid out `<home>\hermes-agent` — file upstream). The only fork-side lever is widening `hermes_cli/_registry_write_fence.py` to a Path-only refusal for custom roots, which needs a new `hermes_bootstrap.py` carry line and an always-on audit hook — and the operator's own live `HERMES_HOME` (`X:\Eternia\.hermes`) is itself a custom root, so a literal "native root only" would refuse the operator's install too. Owner picks: upstream issue, or the fence widening with which root counts as installer-owned.
 
 ### Owner asks — 2026-10-02 (long tool calls)
 
@@ -75,7 +78,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Owner asks — 2026-10-01 (instance conversations)
 
 - [ ] **Instance-conversation cutover remainder:** qualify rich input/activity, recovery and live latency before retiring the profile worker; identity/account/directory/inspection foundation lands separately. · `fork / runtime` · [Plan](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · UNCLAIMED
-- [ ] **Hot-session loopback probe rebuilds both warm actors despite the enabled flag:** `resident_actor_reused=0`, `resident_rebuild_component_root_model_config_revision=1`; inspect native signature invalidation before worker retirement. · `fork / runtime` · `agent_runtime/persona_chat_continuity/runtime_registry.py` · [Foundation boundary](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#foundation-landing-boundary-october-2) · latency lane remains on branch · **TAKEN 2026-10-03 Codex probe positive control only**
+- [ ] **Hot-session actors rebuild on usage bookkeeping:** positive control confirms one registry/root, unchanged configuration files and warm reuse `0/0`; only `_usage_anchor` changes inside the hashed session configuration. Separate actor identity from mutable accounting without weakening genuine invalidation. · `fork / runtime` · `agent_runtime/mission_chat_turn_context.py::mission_chat_runtime_signature_components` · [Verified control](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-probe-positive-control-october-3) · probe `ee5385d2d8`, branch-only; runtime repair open · **TAKEN 2026-10-03 Codex resident identity repair**
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 

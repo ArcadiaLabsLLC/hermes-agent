@@ -16,6 +16,7 @@ from typing import Any, Callable
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
 from agent_runtime import live_turns, turn_budget
+from agent_runtime.persona_chat_identity import resolved_runtime_revision
 from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
 from agent_runtime.run_budget import (
@@ -607,9 +608,8 @@ class AgentRunExecution:
             # cold construction.
             timing["resident_actor_reused"] = 0
             return
-        from ..local_llama_adapter.provider import actor_signature
-
         active_id = request.session_id or request.root_chat_session_id
+        runtime_revision = resolved_runtime_revision(self.runtime)
         # The factory is now genuinely lazy: the registry calls it only
         # on a miss or a rebuild. On reuse nothing is constructed at all,
         # so `agent_construct_ms` is ABSENT rather than reporting the
@@ -619,12 +619,13 @@ class AgentRunExecution:
             request.persona_chat_runtime_registry.acquire(
                 root_session_id=request.root_chat_session_id,
                 active_session_id=active_id,
-                signature=actor_signature(self.runtime, request.persona_chat_runtime_signature or "default"),
+                signature=f"{request.persona_chat_runtime_signature or 'default'}:{runtime_revision}",
                 revision=request.persona_chat_native_revision or "unknown",
                 factory=self.construct_agent,
-                signature_components=(
-                    request.persona_chat_runtime_signature_components
-                ),
+                signature_components={
+                    **(request.persona_chat_runtime_signature_components or {}),
+                    "resolved_runtime": runtime_revision,
+                },
             )
         )
         if reused:

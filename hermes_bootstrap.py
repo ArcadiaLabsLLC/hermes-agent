@@ -506,21 +506,20 @@ def _legacy_post_swap_invocation(argv: list[str]) -> tuple[Path, list[str]] | No
 # editable-installed from a pre-PM tree maps only the top-level packages it knew then:
 # without this, ``pm`` is unimportable and the launch silently skips PM adoption.
 harden_import_path(str(_root))
-if os.environ.get("HERMES_REGISTRY_WRITE_FENCE") == "1":  # fork: a fenced (test) tree never writes HKCU
-    try:
-        from hermes_cli._registry_write_fence import install_if_requested as _fence_registry
-    except ModuleNotFoundError as _fence_exc:  # a minimal tree without the module still fences
-        if _fence_exc.name != "hermes_cli._registry_write_fence":
-            raise
+try:  # fork: a fenced (test) tree never writes HKCU; no tree PATHs a non-installer root's bin
+    from hermes_cli._registry_write_fence import install as _fence_registry
+except ModuleNotFoundError as _fence_exc:  # a minimal tree without the module still fences
+    if _fence_exc.name != "hermes_cli._registry_write_fence":
+        raise
 
-        def _fence_registry():
-            def _refuse(event, _args):
-                if event in ("winreg.SetValue", "winreg.DeleteValue", "winreg.CreateKey", "winreg.DeleteKey"):
-                    raise PermissionError(f"registry fence: {event} refused (hermes_bootstrap fallback)")
-            if not getattr(sys, "_hermes_registry_write_fence", False):
-                sys.addaudithook(_refuse)
-                sys._hermes_registry_write_fence = True
-    _fence_registry()
+    def _fence_registry():
+        def _refuse(event, _args):
+            if event in ("winreg.SetValue", "winreg.DeleteValue", "winreg.CreateKey", "winreg.DeleteKey"):
+                raise PermissionError(f"registry fence: {event} refused (hermes_bootstrap fallback)")
+        if os.environ.get("HERMES_REGISTRY_WRITE_FENCE") == "1" and not getattr(sys, "_hermes_registry_write_fence", False):
+            sys.addaudithook(_refuse)
+            sys._hermes_registry_write_fence = True
+_fence_registry()
 
 _legacy_post_swap = _legacy_post_swap_invocation(sys.argv[1:])
 if _legacy_post_swap is not None:

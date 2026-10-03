@@ -199,3 +199,92 @@ model read/write/default persistence alongside reconstruction and exact Stop.
 
 These are branch checks, not desktop acceptance. Rich conversation transport,
 console account isolation and final qualification still precede worker retirement.
+
+## Resident probe positive control, October 3
+
+Probe branch `test/instance-latency-control-2026-10-03`, commit `ee5385d2d8`,
+against production code at `52e6222648`. One isolated native serve, one instance
+session, three loopback-provider turns; no external provider or desktop QA.
+The boot assertion finds the resident registry. Every turn retains that registry,
+the root below and its active session; root/profile configuration files are unchanged.
+
+Native receipt fields (both warm turns):
+
+```text
+hot_sessions_enabled=True
+root_chat_session_id=persona_chat_personainst_profile_latency-probe_521c4ec23fd7
+registry_same=true
+config_files_unchanged=true
+resident_actor_reused=0
+resident_rebuild_runtime_signature_changed=1
+resident_rebuild_component_root_model_config_revision=1
+root_model_config_changed_fields=["_usage_anchor"]
+```
+
+`agent/usage_anchor.py::persist_usage_anchor` updates token-accounting state in
+the session's `model_config`. The fork's
+`agent_runtime/mission_chat_turn_context.py::mission_chat_runtime_signature_components`
+hashes that whole dictionary. Thus ordinary usage invalidates resident identity;
+this is not a missing registry or a new-session probe artifact. The repair below
+preserves native accounting and genuine configuration invalidation.
+
+Six prerequisite/observation tests and one native probe passed, serialized through
+the Launcher heavy-run wrapper and `scripts/run_tests.sh -j 1`, without retries.
+Raw receipts: `probe-control-unit-2026-10-03.log`,
+`probe-control-native-2026-10-03.log` and its JUnit `.xml`; both runs exited zero.
+Ruff passed. No production change, worker retirement or new latency comparison;
+the earlier warm delta remains provisional, not a measured cost of this defect.
+
+## Resident identity repair, October 3
+
+The fork-owned projection now lives in `agent_runtime/persona_chat_identity.py`.
+The turn builder and actor prewarm retain one signature composition; no cache,
+storage authority, protocol or upstream implementation was added.
+
+Upstream accounting is correct and unchanged. Upstream also already caches
+gateway agents (`gateway/run_agent_cache.py::GatewayAgentCacheMixin`); the claim
+that it has no resident agents was incorrect. That gateway-owned cache is not
+the Harness's persona-root registry. This repair follows selective identity
+projection without introducing another owner or rewriting either cache.
+
+The session allowlist is empty by audit: its chat override is consumed by
+`_chat_effective_model_payload`, whose resolved provider/model already enter the
+key. Ownership is checked before admission; transcript revision and active tip
+have separate native coherence checks. Native usage/pruning/thread metadata
+does not construct the actor and remains persisted unchanged.
+
+The audit also found that resolved endpoint/credential invalidation was local-model
+only. `AgentRunExecution.acquire_agent` now adds one private resolved-runtime
+digest for every provider, replacing the local adapter's separate signature helper.
+It covers the provider/model/API mode, endpoint, credential and existing local
+parameters. Prewarming takes the same acquisition path. Receipts disclose names only.
+
+Verification receipts (overlapping test counts):
+
+- `identity-red-2026-10-03.log`: five bookkeeping cases fail before repair;
+  two genuine provider/model invalidations pass.
+- `identity-connection-red-2026-10-03.log`: five resolved-client changes fail
+  to rebuild before repair; unchanged-client cleanup passes.
+- `identity-move-2026-10-03.log`: 40 existing tests pass after extraction only.
+- `identity-focused-2026-10-03.log`: 334 pass, zero fail.
+- `identity-runtime-focused-2026-10-03.log`: 249 pass, zero fail after the
+  resolved-client correction, including prewarming and send-path reuse.
+- `identity-native-2026-10-03.log` / `.xml`: one native probe passes; hot sessions
+  enabled, registry/root unchanged, cold reuse `0`, warm reuse `1/1`.
+  Each turn reports 12 prompt / 3 completion tokens; each native usage anchor
+  matches the durable session record. No external provider or desktop QA ran.
+
+Probe assertions remain on the latency branch. Production hot-session settings
+and worker wiring remain unchanged. These receipts establish reuse and accounting,
+not a new worker comparison, remote acceptance or the earlier +335 ms's cause.
+
+Health receipts: `identity-gates-2026-10-03.log` has 1,283 passes and three
+failures. All three reproduce on unchanged main `541f497902` in
+`identity-baseline-gates-2026-10-03.log` (six passes, three failures): duplicate
+refusal constructors and two open-chat legibility checks. Their existing runtime
+and fork-hygiene queue rows carry this evidence; no baseline was weakened.
+
+Size audit (raw / repository code lines): turn context `1170/750 → 925/676`;
+identity policy `126/94`; runner `823/588`. The new policy's largest function
+has 21 code lines and nesting depth 3, not a cyclomatic-complexity score.
+The extraction and behavior repair are separate commits.
