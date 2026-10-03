@@ -1,6 +1,6 @@
 # Instance conversation convergence
 
-Status: foundation-only landing candidate; Launcher parity is required before cutover.
+Status: foundation-only landing; Launcher parity is required before cutover.
 
 ## Foundation landing boundary, October 2
 
@@ -45,6 +45,11 @@ on main. The other three Git fixture setup errors pass isolated reruns. The
 fork-hygiene queue retains these residuals. The final focused run passed 96
 tests, including all three upstream-fence checks, with the one independently
 reproduced realm-history failure. No test assertion or baseline was weakened.
+
+Rebased onto `4d22e2e53e` (queue-only incoming change). The 12-file final boundary
+run passed 1,288 tests and retained only the reproduced duplicate-constructor
+failure. Receipt: `resume-hermes-rebased-gates.log`, exit 1. The tombstone,
+upstream-fence, import, size, namespace, contract and documentation checks passed.
 
 These results do not establish full-suite or desktop acceptance. No worker,
 operator conversation view or local transcript store is retired.
