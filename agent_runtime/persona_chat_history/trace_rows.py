@@ -51,6 +51,11 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
     turn_id = safe_assignment_text(
         getattr(event, "turn_id", None) or payload.get("turn_id"), limit=160
     )
+    reasoning = (
+        None
+        if payload.get("reasoning_summary") == "_thinking"
+        else _safe_trace_operator_line(payload.get("reasoning_summary"), limit=500)
+    )
     return {
         "kind": "harness_trace",
         "task_id": safe_assignment_text(getattr(event, "task_id", None), limit=160),
@@ -78,10 +83,14 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         ),
         # Per-step reasoning from the thinking callback. "_thinking" is the
         # legacy placeholder some historical events recorded — never content.
-        "reasoning_summary": (
-            None
-            if payload.get("reasoning_summary") == "_thinking"
-            else _safe_trace_operator_line(payload.get("reasoning_summary"), limit=500)
+        "reasoning_summary": reasoning,
+        # The stable id the progress sink minted for this summary and carried on
+        # the live `reasoning.summary` frame (`reasoning_id` there) — the
+        # launcher's live/stored pairing key. Only meaningful beside a summary
+        # this projection kept, so it is dropped with one this filter refuses;
+        # the others keep theirs (a gap, never a re-numbering).
+        "reasoning_id": (
+            _safe_reasoning_id(payload.get("reasoning_id")) if reasoning else None
         ),
         "target": _safe_trace_operator_line(payload.get("target_label"), limit=300),
         # First-class agent-to-agent dispatch (G2): structured target persona +
@@ -256,6 +265,15 @@ def _safe_trace_list_text(value: Any, *, limit: int) -> list[str]:
             continue
         items.append(text)
     return items[:12]
+
+
+_REASONING_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,200}")
+
+
+def _safe_reasoning_id(value: Any) -> str | None:
+    """A minted ``<turn_id>_reasoning_<n>`` id, or None — never free text."""
+
+    return value if isinstance(value, str) and _REASONING_ID_RE.fullmatch(value) else None
 
 
 def _looks_pathish(value: str) -> bool:

@@ -859,7 +859,7 @@ def test_goal_conversation_projects_trace_tool_calls_as_flow_messages():
     assert len(channels) == 1
     channel = channels[0]
     conversation = channel["conversation"]
-    assert conversation["schema_version"] == 2
+    assert conversation["schema_version"] == 3
     kinds = [message["kind"] for message in conversation["messages"]]
     # S47: no synthetic goal_input row precedes the projected flow any more.
     assert "goal_input" not in kinds

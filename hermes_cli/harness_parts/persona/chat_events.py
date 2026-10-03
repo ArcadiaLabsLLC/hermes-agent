@@ -421,13 +421,22 @@ class _ChatProtocolV2Emitter:
         if not text:
             return
         self._reasoning_count += 1
+        # The id the progress sink minted and PERSISTED on the stored trace row
+        # (`ChatProgressSink._stamp_reasoning_id`) — the launcher pairs the live
+        # and the stored Thinking row on it. The emitter's own count is only the
+        # fallback for a payload that never crossed the sink.
+        index = payload.get("reasoning_index")
+        if not isinstance(index, int) or isinstance(index, bool) or index < 1:
+            index = self._reasoning_count
+        row_id = safe_assignment_text(payload.get("reasoning_id"), limit=200)
         self._emit_chat_frame(
             {
                 "type": "reasoning.summary",
                 "protocol_version": 2,
                 "turn_id": self.turn_id,
-                "id": f"{self.turn_id}_reasoning_{self._reasoning_count}",
-                "index": self._reasoning_count,
+                "id": row_id or f"{self.turn_id}_reasoning_{index}",
+                "reasoning_id": row_id or f"{self.turn_id}_reasoning_{index}",
+                "index": index,
                 "after_seq": self._seq,
                 "text": text,
             }

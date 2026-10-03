@@ -190,6 +190,8 @@ class ChatProgressSink:
         self.before_first_trace = before_first_trace
         self.on_trace = on_trace
         self._did_emit_first_trace = False
+        # Per-turn ordinal for reasoning summaries (see `_stamp_reasoning_id`).
+        self._reasoning_count = 0
 
     def emit(self, event_type: str, payload: dict[str, Any] | None = None) -> None:
         try:
@@ -201,6 +203,7 @@ class ChatProgressSink:
             if event_type == "run.progress" and not _chat_progress_has_signal(payload):
                 return None
             safe_payload = _safe_progress_payload(event_type, payload)
+            self._stamp_reasoning_id(safe_payload)
             if not self.session_id:
                 if self.on_trace is not None:
                     self.on_trace(safe_payload)
@@ -236,6 +239,29 @@ class ChatProgressSink:
             )
         except Exception:
             return None
+
+    def _stamp_reasoning_id(self, safe_payload: dict[str, Any]) -> None:
+        """Mint the stable id one reasoning summary carries live AND stored.
+
+        The launcher pairs a live ``reasoning.summary`` frame with its stored
+        Thinking row by this KEY, never by position (owner ruling 2026-10-03,
+        same pattern as message client ids and ``tool_call_id``). It is minted
+        HERE because this sink is the one site that both forwards the frame
+        (``on_trace``) and persists the row (the EventLog append), and it is
+        stamped on the very dict both of them receive, so the two copies cannot
+        disagree. The ordinal advances once per summary that survives this
+        sink's redaction, BEFORE anything downstream can drop the row: a failed
+        append, the trace projection's secret filter, the conversation's repeat
+        dedupe and the tail/cap trims all lose rows, and every one of them
+        leaves a GAP in the ordinals — a surviving row keeps its id.
+        """
+
+        text = safe_payload.get("reasoning_summary")
+        if not isinstance(text, str) or not text.strip() or text == "_thinking":
+            return
+        self._reasoning_count += 1
+        safe_payload["reasoning_index"] = self._reasoning_count
+        safe_payload["reasoning_id"] = reasoning_row_id(self.turn_id, self._reasoning_count)
 
     def _forward_phase_timing_marker(self, payload: dict[str, Any]) -> bool:
         """Pass a turn's phase-timing marker through to the trace OBSERVER only.
@@ -325,6 +351,17 @@ class ChatProgressSink:
             self.emit(str(payload.get("type", "run.progress")), payload)
 
         return _emit
+
+
+def reasoning_row_id(turn_id: str | None, index: int) -> str:
+    """``<turn_id>_reasoning_<n>`` — the one spelling of a Thinking row's id.
+
+    Unique within a turn (``n`` is the sink's 1-based per-turn ordinal) and the
+    same spelling the live frame's ``id`` carried before it was persisted, so a
+    launcher that already keys the live row on ``id`` keeps working.
+    """
+
+    return f"{turn_id or 'turn'}_reasoning_{index}"
 
 
 def _chat_progress_has_signal(payload: dict[str, Any]) -> bool:

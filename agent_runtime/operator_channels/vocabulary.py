@@ -21,7 +21,10 @@ OPERATOR_CHANNELS_SCHEMA_VERSION = 1
 # v2: goal-run turn flow — thinking_summary / turn / tool_call / turns_collapsed
 # message kinds projected from run summaries + the task trace lane, so a live
 # goal reads as a conversation instead of a lone goal_input bubble.
-OPERATOR_CONVERSATION_SCHEMA_VERSION = 2
+# v3: a stored ``thinking_summary`` carries ``reasoning_id`` — the id its live
+# ``reasoning.summary`` frame carried — so the launcher pairs live and stored
+# Thinking rows by key, never by position (owner ruling 2026-10-03).
+OPERATOR_CONVERSATION_SCHEMA_VERSION = 3
 
 # Hard per-channel message budget. Flow kinds (turn/tool/thinking/progress) are
 # trimmed oldest-first past this cap; operator/reply/proof/blocker/handoff/final

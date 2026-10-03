@@ -70,6 +70,12 @@ def _conversation_trace_message(
         if turn_id:
             message["turn_id"] = turn_id
             message["turn_seq"] = TURN_SEQ_CONTENT
+        # Conversation schema v3: the stable id the live `reasoning.summary`
+        # frame carried, so the launcher pairs the two rows by key. Absent on
+        # rows stored before the sink minted it.
+        reasoning_id = safe_assignment_text(entry.get("reasoning_id"), limit=200)
+        if reasoning_id:
+            message["reasoning_id"] = reasoning_id
         return message
     summary = _safe_conversation_text(
         entry.get("summary") or entry.get("rationale"),
