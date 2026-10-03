@@ -134,7 +134,7 @@ _RUNTIME_LOCK_SUFFIX = ".lock"
 _KEPT_LOCKFILE_NAMES = frozenset({
     "uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock", "Cargo.lock", "yarn.lock", "bun.lock",
     "flake.lock", "Gemfile.lock", "composer.lock", "deno.lock", "mix.lock", "pubspec.lock",
-    "Podfile.lock",
+    "Podfile.lock", "renv.lock", "conan.lock", "requirements.lock",
 })
 
 
@@ -158,7 +158,7 @@ _EXCLUDED_PREFIXES = (
 # drives the container-boot reconciler (a foreign value leaves the gateway stuck "starting" and
 # disconnected from the Nous portal); PID/lock/registry files reference source PIDs. Mirrors
 # ``container_boot._STALE_RUNTIME_FILES``; import filters too because older backups predate the
-# backup-side exclusions.
+# backup-side exclusions. Runtime ``*.lock`` files (``_is_runtime_lock``) are skipped the same way.
 _IMPORT_SKIP_NAMES = {"gateway_state.json", "gateway.pid", "cron.pid", "gateway.lock", "processes.json"}
 
 try:  # zipfile already imports lzma (free); it is absent only from Pythons built without liblzma
@@ -727,7 +727,7 @@ def _import_skipped(rel: str) -> bool:
         parts = tuple(normalize_archive_parts(rel))
     except ValueError:
         return False  # A rejected traversal is still reported by the import itself.
-    return (parts[-1] in _IMPORT_SKIP_NAMES or
+    return (parts[-1] in _IMPORT_SKIP_NAMES or _is_runtime_lock(parts[-1]) or
             profile_root_entry(parts) in PM_RUNTIME_ROOT_DIRS or
             rel.endswith(_SQLITE_SIDECAR_SUFFIXES))
 
@@ -878,7 +878,7 @@ def run_import(args) -> Optional[int]:
             # reconciler on the target and disconnects hosted instances from the
             # Nous portal. Matched by basename so both the root profile and
             # named profiles (profiles/<name>/gateway_state.json) are covered.
-            if parts[-1] in _IMPORT_SKIP_NAMES:
+            if parts[-1] in _IMPORT_SKIP_NAMES or _is_runtime_lock(parts[-1]):
                 skipped_runtime.append(rel)
                 continue
 
