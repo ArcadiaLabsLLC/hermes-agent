@@ -63,6 +63,16 @@ class InstanceProbeControl:
         self.before_turn()
         record = mission_chat_turn_record(session_id=target["session_id"], client_message_id=turn)
         root = require_same_root(record, self.root)
+        expected_reuse = 0 if turn == "cold" else 1
+        assert record["profile_timing"]["resident_actor_reused"] == expected_reuse
+        agent = self.registry._entries[root].agent
+        assert agent.session_prompt_tokens == 12
+        assert agent.session_completion_tokens == 3
+        assert agent._usage_anchor["prompt_tokens"] == 12
+        assert agent._usage_anchor["completion_tokens"] == 3
+        assert agent._usage_anchor == agent._session_db.get_session_model_config_value(
+            record["active_session_id"], "_usage_anchor", None
+        )
         assert root in self.configs, "Probe did not observe the native runtime signature"
         current = self.configs[root]
         previous = self.previous_config
@@ -76,6 +86,8 @@ class InstanceProbeControl:
             "config_files_unchanged": True,
             "root_model_config_changed_fields": changed,
             "resident_actor_reused": record["profile_timing"]["resident_actor_reused"],
+            "per_turn_usage_verified": True,
+            "durable_usage_anchor_verified": True,
         }
         self.previous_config = current
         self.record_property(f"{turn}_control", json.dumps(proof, sort_keys=True))
