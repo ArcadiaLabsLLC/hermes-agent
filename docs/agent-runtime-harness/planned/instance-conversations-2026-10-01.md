@@ -284,6 +284,11 @@ failures. All three reproduce on unchanged main `541f497902` in
 refusal constructors and two open-chat legibility checks. Their existing runtime
 and fork-hygiene queue rows carry this evidence; no baseline was weakened.
 
+Landing refresh incorporated main `7492658a7e` (queue-only). The final eleven-file
+gate run repeats 1,283 passes and the same three baseline failures
+(`identity-landing-gates-2026-10-03.log`, exit 1). No incoming runtime or test
+code changed, so the broad suite was not repeated.
+
 Size audit (raw / repository code lines): turn context `1170/750 → 925/676`;
 identity policy `126/94`; runner `822/586 → 823/588`. The new policy's largest
 function has 20 code lines and nesting depth 3, not a cyclomatic-complexity score
