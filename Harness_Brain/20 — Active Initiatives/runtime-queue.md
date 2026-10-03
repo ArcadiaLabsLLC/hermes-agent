@@ -27,6 +27,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **`tests/tooling/test_function_legibility_floor.py` is red on `origin/main`: `_cmd_persona_instance_open_chat` and `_cmd_persona_instance_open_new_chat` GREW and `perform_persona_instance_open_chat` is a NEW floor breaker** · `hermes_cli/harness_parts/persona/chat_open.py`, `agent_runtime/persona_open_chat.py` · last touched by `4d81c859c3` · shrink the functions, never re-baseline
 
+### Filed on arrival — 2026-10-03 (launcher lane fx-mc2, filed by the orchestrator)
+
+- [ ] **`harness serve` cold boot dominates Mission Control's first open: total_ms 21592, interpreter_ms 15203 (interpreter_boot 5196, main_import 4016, dispatch 5991) on a disk-cold QA seed, 2026-10-03 — profile and cut the import/dispatch path** · `hermes_cli/harness_parts/serve/boot.py` · launcher fx-mc2
+
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 
 - [ ] **Read the Launcher's per-entry `read_only` mark (the Launcher sends it since lane mc-a, 2026-10-02): `AppFunctionEntry.parse` drops it, so `read_only` mode blocks by `requires_confirmation` and the HUD "mutating" label (`tool_visibility._mutating_tools`) cannot see app functions; block and label by `read_only is False` instead** · fork-owned / agent_runtime · `agent_runtime/launcher_app_functions.py::AppFunctionEntry`, `agent_runtime/tool_permissions.py::extra_blocked_tools_for_permission_mode`
