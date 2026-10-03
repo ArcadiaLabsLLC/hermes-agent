@@ -433,7 +433,7 @@ from gateway.warning_notifications import diagnostic_wake_muted
 from hermes_cli.observability.shared_metrics_gateway import records_delivery, stop_reply_clock
 from gateway.session import SessionSource, build_session_key
 from gateway.session_transcript import TranscriptReadError
-from hermes_constants import get_default_hermes_root, get_hermes_dir, get_hermes_home
+from hermes_constants import get_default_hermes_root, get_hermes_dir, get_hermes_home, get_real_home
 from agent.provider_media import GENERATED_SUBDIR, MEDIA_CACHE_MAX_AGE_HOURS
 
 if TYPE_CHECKING:
@@ -938,9 +938,11 @@ def _kanban_board_db_paths() -> List[Path]:
 
 def _media_delivery_denied_paths() -> List[Path]:
     """Return absolute denylist paths under which delivery is never allowed."""
-    # The native home (USERPROFILE on Windows) AND an operator ``$HOME`` that differs from it:
-    # adding the second root must never drop the first one's credential dirs.
-    homes = dict.fromkeys(Path(h) for h in (os.path.expanduser("~"), os.environ.get("HOME")) if h)
+    # The native home (USERPROFILE on Windows), an operator ``$HOME`` that differs from it, AND the
+    # OS account's real home: a re-homed child (``HOME={HERMES_HOME}/home``) keeps the account home
+    # only in ``HERMES_REAL_HOME``, where ``~`` and ``$HOME`` both name the profile home.
+    real_home = _or_default(get_real_home, "", exc=(OSError, RuntimeError, ValueError))
+    homes = dict.fromkeys(Path(h) for h in (os.path.expanduser("~"), os.environ.get("HOME"), real_home) if h)
     return [*map(Path, _MEDIA_DELIVERY_DENIED_PREFIXES),
             *(home / sub for home in homes for sub in _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS),
             *(r / rel for r in _credential_home_roots() for rel in _ROOT_CREDENTIAL_PATHS),
@@ -1332,10 +1334,10 @@ MEDIA_TAG_CLEANUP_RE = re.compile(
     r'''(?P<path>`[^`\n]+?`|"[^"\n]+?"|'[^'\n]+?'|'''
     r'''(?:~/|/|[A-Za-z]:[/\\])\S+?(?:[^\S\n]+\S+?)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r'''))'''
     r'''(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\.(?:\s|$)|$|'''
-    # An escaped ``\n`` / ``\r`` / ``\t`` glued to the path ends it, but only when the rest of the
-    # token (up to whitespace or the next ``MEDIA:``) names no further media file: in
-    # ``C:\out\album.png\photo.jpg`` the backslash is a separator and ``album.png`` a directory.
-    r'''\\[nrt](?!(?:(?!MEDIA:)\S)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r''')\b))'''
+    # An escaped ``\n`` / ``\r`` / ``\t`` (or a run of them) glued to the path ends it only when a
+    # real boundary follows the letter. Otherwise the backslash is a separator: in
+    # ``C:\out\a.png\notes\README`` or ``C:\out\album.png\photo.jpg``, ``a.png`` is a directory.
+    r'''(?:\\[nrt])+(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''
     r'''[`"'*_]{0,3}\.?''',
     re.IGNORECASE)
 

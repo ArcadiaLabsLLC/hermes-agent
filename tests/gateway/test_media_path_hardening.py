@@ -80,3 +80,55 @@ def test_escaped_newline_before_the_next_tag_still_splits_the_two_paths():
     text = "MEDIA:C:" + BS + "out" + BS + "a.png" + BS + "nMEDIA:C:" + BS + "out" + BS + "b.png"
     media, _ = BasePlatformAdapter.extract_media(text)
     assert [p for p, _ in media] == ["C:" + BS + "out" + BS + "a.png", "C:" + BS + "out" + BS + "b.png"]
+
+
+def _rehomed_profile(tmp_path, monkeypatch, *, strict: bool):
+    """A profile-mode child: HOME (and USERPROFILE) point at ``{HERMES_HOME}/home`` while
+    ``HERMES_REAL_HOME`` keeps the OS account's home. Returns ``(real_home, profile_home)``."""
+    hermes_home = tmp_path / "hermes-home"
+    profile_home, real_home = hermes_home / "home", tmp_path / "real-home"
+    profile_home.mkdir(parents=True)
+    real_home.mkdir()
+    for var in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(var, str(profile_home))
+    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    monkeypatch.setenv("HERMES_REAL_HOME", str(real_home))
+    _isolate_hermes_root(tmp_path, monkeypatch)
+    monkeypatch.setattr(base, "_media_delivery_allowed_roots", lambda: [])
+    monkeypatch.setattr(base, "_translate_docker_container_media_path", lambda *a, **k: None)
+    monkeypatch.setattr("gateway.media_policy.media_delivery_strict", lambda: strict)
+    monkeypatch.setattr("gateway.media_policy.media_delivery_trust_recent", lambda: True)
+    monkeypatch.setattr("gateway.media_policy.media_delivery_trust_recent_seconds", lambda: "")
+    return real_home, profile_home
+
+
+def _fixture(path: Path) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("synthetic nonsecret fixture")
+    return str(path)
+
+
+def test_real_home_credentials_stay_denied_when_home_is_the_profile_home(tmp_path, monkeypatch):
+    """Re-homed children keep the account home only in ``HERMES_REAL_HOME``; its credential
+    dirs must stay denied in default mode and, when fresh, in strict/recency mode."""
+    for strict in (False, True):
+        real_home, profile_home = _rehomed_profile(tmp_path / str(strict), monkeypatch, strict=strict)
+        assert base.validate_media_delivery_path(_fixture(real_home / ".ssh" / "id_ed25519")) is None
+        assert base.validate_media_delivery_path(_fixture(profile_home / ".ssh" / "id_ed25519")) is None
+        artifact = _fixture(tmp_path / str(strict) / "out" / "chart.png")  # positive control
+        assert base.validate_media_delivery_path(artifact) == str(Path(artifact).resolve())
+
+
+def test_escaped_control_letter_needs_a_boundary_after_it():
+    """``\n`` / ``\r`` / ``\t`` ends a path only when a boundary follows the letter; otherwise
+    it is a separator starting a directory (``\notes``), and the tag is not cut at ``a.png``."""
+    for tail in ("notes" + BS + "README", "reports" + BS + "data.weird", "tmp" + BS + "script.py"):
+        text = "MEDIA:C:" + BS + "out" + BS + "a.png" + BS + tail
+        assert [m.group("path") for m in MEDIA_TAG_CLEANUP_RE.finditer(text)] == []
+        media, cleaned = BasePlatformAdapter.extract_media(text)
+        assert media == []
+        assert cleaned == text  # the unvalidated tag stays whole, no stray tail
+    for suffix in ("n done", "n", "r" + BS + "n done", "t, next"):  # positive controls
+        text = "MEDIA:C:" + BS + "out" + BS + "a.png" + BS + suffix
+        assert [m.group("path") for m in MEDIA_TAG_CLEANUP_RE.finditer(text)] == [
+            "C:" + BS + "out" + BS + "a.png"]
