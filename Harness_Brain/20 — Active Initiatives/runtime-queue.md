@@ -38,7 +38,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 
 - [ ] **Read the Launcher's per-entry `read_only` mark (the Launcher sends it since lane mc-a, 2026-10-02): `AppFunctionEntry.parse` drops it, so `read_only` mode blocks by `requires_confirmation` and the HUD "mutating" label (`tool_visibility._mutating_tools`) cannot see app functions; block and label by `read_only is False` instead** · fork-owned / agent_runtime · `agent_runtime/launcher_app_functions.py::AppFunctionEntry`, `agent_runtime/tool_permissions.py::extra_blocked_tools_for_permission_mode`
-- [ ] **Widen `runtime.workspace.create` to the argv verb's contract so the Launcher can move its create onto it: accept `realm_id`, `template_workspace_id`, `copy_scopes` (plus the idempotency key), join the realm, activate inside the active realm, answer with the argv verb's workspace row** · fork-owned / agent_runtime · `agent_runtime/serve_rpc/workspace.py`, `hermes_cli/harness_parts/workspace_commands.py::_cmd_workspace_create` **TAKEN 2026-10-03 h-doors**
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-pidx, filed by the orchestrator)
 

@@ -1,4 +1,4 @@
-"""Non-activating workspace setup over the existing store."""
+"""Workspace setup over the existing store: the conversations home and the create door."""
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -20,13 +20,26 @@ def runtime_conversations_workspace(rid, params, context=None):
     return ok(rid, {"id": workspace.id, "name": workspace.name})
 
 
+_CREATE_REQUIRED = {"name", "idempotency_key"}
+_CREATE_OPTIONAL = {"realm_id", "template_workspace_id", "copy_scopes"}
+
+
 @method("runtime.workspace.create", tier=TIER_CONSOLE)
 def runtime_workspace_create(rid, params, context=None):
-    if set(params) != {"name", "idempotency_key"}:
+    """The argv verb's contract (``harness workspace create``): one
+    implementation in ``agent_runtime.workspace_create``, fenced by the key."""
+    keys = set(params)
+    if not _CREATE_REQUIRED <= keys or not keys <= _CREATE_REQUIRED | _CREATE_OPTIONAL:
         return err(rid, ERR_INVALID_PARAMS, "Name and creation key are required.")
     try:
-        workspace = create_workspace(params["name"], params["idempotency_key"])
+        _workspace, row, warnings = create_workspace(
+            params["name"],
+            params["idempotency_key"],
+            realm_id=params.get("realm_id"),
+            template_workspace_id=params.get("template_workspace_id"),
+            copy_scopes=params.get("copy_scopes"),
+        )
     except WorkspaceCreationRefused as exc:
         code = ERR_INVALID_PARAMS if exc.reason == WorkspaceCreationReason.INVALID else ERR_CONFLICT
         return err(rid, code, "Workspace creation needs review.", {"reason": exc.reason.value})
-    return ok(rid, {"id": workspace.id, "name": workspace.name})
+    return ok(rid, {**row, "warnings": warnings})

@@ -68,85 +68,41 @@ def _cmd_workspace_show(args) -> int:
 
 
 def _cmd_workspace_create(args) -> int:
-    from agent_runtime.workspace_template import (
-        CONTENT_COPY_SCOPES,
-        copy_workspace_content,
-        normalize_copy_scopes,
+    # The DECISION is `agent_runtime.workspace_create`'s, not this handler's —
+    # `runtime.workspace.create` reaches the same plan/apply pair, so the argv
+    # verb and the method lane cannot drift about realm join, template copy or
+    # activation. All that is left here is the dry run and the envelope.
+    from agent_runtime.workspace_create import (
+        TemplateWorkspaceNotFound,
+        apply_workspace_create,
+        plan_workspace_create,
     )
 
-    template = None
-    scopes: tuple[str, ...] = ()
-    if getattr(args, "from_workspace", None):
-        try:
-            template = WorkspaceStore().get(args.from_workspace)
-        except NotFound as exc:
-            return emit_harness_error(exc, args=args, code="template_workspace_not_found")
-        scopes = normalize_copy_scopes(getattr(args, "copy", None))
-    elif getattr(args, "copy", None):
-        return emit_harness_error(
-            ValueError("--copy requires --from-workspace"), args=args, code="invalid_request"
+    dry_run = getattr(args, "dry_run", False)
+    try:
+        plan = plan_workspace_create(
+            args.name,
+            realm_id=args.realm,
+            template_workspace_id=getattr(args, "from_workspace", None),
+            copy_scopes=getattr(args, "copy", None),
+            agent_ids=list_flag_or_empty(args, "agent"),
+            blueprint=args.blueprint,
+            isolation=args.isolation,
+            max_lanes=args.max_lanes,
+            check_realm=not dry_run,
         )
-    if getattr(args, "dry_run", False):
+    except TemplateWorkspaceNotFound as exc:
+        return emit_harness_error(exc, args=args, code="template_workspace_not_found")
+    except ValueError as exc:
+        return emit_harness_error(exc, args=args, code="invalid_request")
+    if dry_run:
         row = {"id": f"ws_dry_{uuid.uuid4().hex[:6]}", "name": args.name, "realm_id": args.realm, "agents": len(list_flag_or_empty(args, "agent")), "goals": 0, "isolation": args.isolation or "soft", "updated_at": now()}
-        if template is not None:
-            row["template_workspace_id"] = template.id
-            row["copy_scopes"] = list(scopes)
+        if plan.template is not None:
+            row["template_workspace_id"] = plan.template.id
+            row["copy_scopes"] = list(plan.scopes)
         _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
         return 0
-    if args.realm:
-        RealmStore().get(args.realm)
-    # Template settings/roster feed the create itself; explicit flags always
-    # win over the template so the operator can override any copied field.
-    agent_ids = list_flag_or_empty(args, "agent")
-    blueprint = args.blueprint
-    isolation = args.isolation
-    max_lanes = args.max_lanes
-    if template is not None:
-        if "agents" in scopes and not agent_ids:
-            agent_ids = list(template.agent_ids or [])
-        if "settings" in scopes:
-            if blueprint is None:
-                blueprint = template.default_blueprint_id
-            if isolation is None:
-                isolation = template.isolation
-            if max_lanes is None:
-                max_lanes = template.max_concurrent_lanes
-    item = WorkspaceStore().create(
-        name=args.name,
-        agent_ids=agent_ids,
-        default_blueprint_id=blueprint,
-        isolation=isolation or "soft",
-        max_concurrent_lanes=max_lanes,
-        realm_id=args.realm,
-    )
-    if args.realm:
-        realm = RealmStore().get(args.realm)
-        if item.id not in realm.workspace_ids:
-            realm.workspace_ids.append(item.id)
-            RealmStore().save(realm)
-    # Office/board content copies AFTER the workspace exists, through the
-    # store chokepoints, so every copied artifact rides its contract event.
-    warnings: list[dict] = []
-    copied = None
-    if template is not None:
-        content_scopes = tuple(scope for scope in scopes if scope in CONTENT_COPY_SCOPES)
-        if content_scopes:
-            outcome = copy_workspace_content(template.id, item.id, scopes=content_scopes)
-            copied = outcome["copied"]
-            warnings.extend(outcome["warnings"])
-    # A workspace created inside the ACTIVE realm becomes active
-    # immediately — the operator expects to land in the workspace they
-    # just created, not to run a second `workspace use` by hand.
-    # (workspace.created / workspace.activated are emitted by the store
-    # chokepoint — Stage 12.)
-    if item.realm_id and item.realm_id == RealmStore().active_id():
-        WorkspaceStore().set_active(item.id)
-    row = _workspace_row(item)
-    if template is not None:
-        row["template_workspace_id"] = template.id
-        row["copy_scopes"] = list(scopes)
-        if copied is not None:
-            row["copied"] = copied
+    _item, row, warnings = apply_workspace_create(plan)
     _print_stage42(_object_envelope("workspace", row, warnings=warnings), args=args, default_output="json")
     return 0
 
