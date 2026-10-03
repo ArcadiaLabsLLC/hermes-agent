@@ -285,6 +285,15 @@ refusal constructors and two open-chat legibility checks. Their existing runtime
 and fork-hygiene queue rows carry this evidence; no baseline was weakened.
 
 Size audit (raw / repository code lines): turn context `1170/750 → 925/676`;
-identity policy `126/94`; runner `823/588`. The new policy's largest function
-has 21 code lines and nesting depth 3, not a cyclomatic-complexity score.
+identity policy `126/94`; runner `822/586 → 823/588`. The new policy's largest
+function has 20 code lines and nesting depth 3, not a cyclomatic-complexity score
+(`identity-size-2026-10-03.log`, source spans counted through the AST).
 The extraction and behavior repair are separate commits.
+
+Remaining source-confirmed weakness: `_runtime_resolve_cache_key` stamps only
+the profile's `config.yaml` and `.env`; `_resolve_request_runtime` may return that
+answer for 30 seconds. Native authentication can instead change profile or shared
+`auth.json`, without touching either stamped file. The actor now honors the
+resolved answer, but cannot detect a change hidden by that existing memo. The
+runtime queue tracks auth-owner-aware invalidation and a sign-out/rotation test;
+no live sign-out failure or account leak is claimed here.

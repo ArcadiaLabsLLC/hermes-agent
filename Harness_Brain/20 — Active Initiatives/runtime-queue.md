@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-03 (resident identity audit)
+
+- [ ] **Invalidate the resolved-provider memo when its native authentication owner changes, not just profile config/`.env`: `auth.json` changes are otherwise hidden for up to its 30-second TTL. Reuse native auth ownership; prove rotation/sign-out across profile and shared credentials before changing the memo.** · `fork / runtime` · `profile_runner/execute.py::_runtime_resolve_cache_key` · [Source audit; live impact unmeasured](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3) · UNCLAIMED
+
 ### Filed on arrival — 2026-10-03 (lane h-fence)
 
 - [ ] **`tests/tooling/test_function_legibility_floor.py` is red on `origin/main`: `_cmd_persona_instance_open_chat` and `_cmd_persona_instance_open_new_chat` GREW and `perform_persona_instance_open_chat` is a NEW floor breaker** · `hermes_cli/harness_parts/persona/chat_open.py`, `agent_runtime/persona_open_chat.py` · last touched by `4d81c859c3`; independently reproduced on unchanged main `541f497902`, receipt `identity-baseline-gates-2026-10-03.log` · shrink the functions, never re-baseline
