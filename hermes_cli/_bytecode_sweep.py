@@ -1,6 +1,8 @@
 """Launch-time stale-bytecode sweep, serialized by a single-winner lock."""
+import json
 import logging
 import os
+import socket
 import time as _time
 from pathlib import Path
 logger = logging.getLogger(__name__)
@@ -54,12 +56,55 @@ def _bytecode_sweep_lock_path() -> Path:
         pass
     return directory / _BYTECODE_SWEEP_LOCK_FILE
 
-def _break_stale_bytecode_sweep_lock(lock_path: Path) -> bool:
-    """Remove a sweep lock old enough that its holder cannot still be alive.
+def _bytecode_sweep_lock_payload() -> bytes:
+    """What a claimed lock records: who holds it, provably, and where."""
 
-    Age is read off the file's own mtime rather than a pid recorded inside it: a
-    pid is only checkable on the machine that wrote it, and a checkout can be on
-    a share. Returns whether a lock was removed.
+    from hermes_cli.process_identity import _process_create_time
+
+    payload = {
+        "pid": os.getpid(),
+        "create_time": _process_create_time(),
+        "host": socket.gethostname(),
+    }
+    return (json.dumps(payload) + "\n").encode("utf-8")
+
+
+def _bytecode_sweep_lock_holder_alive(lock_path: Path) -> bool:
+    """True only when the lock's holder is on this host and provably running.
+
+    Anything this process cannot verify — an unreadable or bare-pid lock,
+    another host, ``psutil`` unable to say — answers False, which leaves the
+    caller's age rule in charge.
+    """
+
+    try:
+        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        pid = int(payload["pid"])
+        host = payload["host"]
+        create_time = payload.get("create_time")
+        if create_time is not None:
+            create_time = float(create_time)
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return False
+    if host != socket.gethostname():
+        return False
+    from hermes_cli.process_identity import _pid_alive_matches
+
+    return _pid_alive_matches(pid, create_time) is True
+
+
+def _break_stale_bytecode_sweep_lock(lock_path: Path) -> bool:
+    """Remove a sweep lock whose holder is gone. Returns whether one was removed.
+
+    A lock younger than :data:`_BYTECODE_SWEEP_LOCK_STALE_SECONDS` is never
+    broken. Past that age, a lock written on THIS host is broken only when its
+    holder is not provably running: a purge of a large checkout can outlast the
+    age bound, and breaking a live holder's lock lets the next launch sweep on
+    top of it. Age alone decides where liveness cannot be checked — a lock from
+    another host (a checkout on a share), a lock in the old bare-pid format, or
+    a host where ``psutil`` cannot answer — because there a crashed holder's
+    lock would otherwise never be broken and no later launch could sweep that
+    checkout again.
     """
 
     try:
@@ -67,6 +112,8 @@ def _break_stale_bytecode_sweep_lock(lock_path: Path) -> bool:
     except OSError:
         return False
     if age < _BYTECODE_SWEEP_LOCK_STALE_SECONDS:
+        return False
+    if _bytecode_sweep_lock_holder_alive(lock_path):
         return False
     try:
         lock_path.unlink()
@@ -109,7 +156,7 @@ def _claim_bytecode_sweep_lock(lock_path: Path) -> str:
     except OSError:
         return _SWEEP_CLAIM_UNAVAILABLE
     try:
-        os.write(fd, f"{os.getpid()}\n".encode("utf-8"))
+        os.write(fd, _bytecode_sweep_lock_payload())
     except OSError:
         pass
     finally:

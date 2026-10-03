@@ -16,8 +16,12 @@ and the production code cannot satisfy any other way.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import socket
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -279,6 +283,132 @@ def test_a_fresh_lock_is_not_treated_as_stale(monkeypatch, repo):
     sweep._sweep_stale_bytecode_if_checkout_changed()
 
     assert purge.calls == 0
+
+
+# ---------------------------------------------------------------------------
+# A live holder past the age bound
+# ---------------------------------------------------------------------------
+
+
+def _age_past_stale(lock_path: Path) -> None:
+    ancient = time.time() - (sweep._BYTECODE_SWEEP_LOCK_STALE_SECONDS + 180)
+    os.utime(lock_path, (ancient, ancient))
+
+
+def _write_lock(lock_path: Path, *, pid: int, create_time, host: str) -> None:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(
+        json.dumps({"pid": pid, "create_time": create_time, "host": host}) + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_live_same_host_holder_keeps_its_lock_past_the_age_bound(tmp_path):
+    """A purge that outlasts the age bound must not lose its lock.
+
+    *Mutation:* break on age alone (drop the liveness check). *Probed field:* the
+    lock file still exists after a break attempt on a lock naming THIS running
+    process — the mutant unlinks it, and the next launch sweeps on top of the
+    live winner.
+    """
+
+    pytest.importorskip("psutil")
+    from hermes_cli.process_identity import _process_create_time
+
+    lock_path = tmp_path / "lock"
+    _write_lock(
+        lock_path,
+        pid=os.getpid(),
+        create_time=_process_create_time(),
+        host=socket.gethostname(),
+    )
+    _age_past_stale(lock_path)
+
+    assert sweep._break_stale_bytecode_sweep_lock(lock_path) is False
+    assert lock_path.exists()
+
+
+def test_an_exited_same_host_holder_loses_its_lock_past_the_age_bound(tmp_path):
+    """Positive control for the test above: the same payload, a dead holder.
+
+    *Mutation:* never break a same-host lock. *Probed field:* the lock is gone —
+    the only variable changed from the live case is which process it names.
+    """
+
+    pytest.importorskip("psutil")
+    from hermes_cli.process_identity import _process_create_time
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child_create_time = _process_create_time(child.pid)
+    child.wait()
+
+    lock_path = tmp_path / "lock"
+    _write_lock(
+        lock_path,
+        pid=child.pid,
+        create_time=child_create_time,
+        host=socket.gethostname(),
+    )
+    _age_past_stale(lock_path)
+
+    assert sweep._break_stale_bytecode_sweep_lock(lock_path) is True
+    assert not lock_path.exists()
+
+
+def test_another_hosts_lock_is_still_broken_by_age(tmp_path):
+    """A pid from another machine cannot be checked here, so age decides."""
+
+    lock_path = tmp_path / "lock"
+    _write_lock(lock_path, pid=os.getpid(), create_time=None, host="other-host")
+    _age_past_stale(lock_path)
+
+    assert sweep._break_stale_bytecode_sweep_lock(lock_path) is True
+    assert not lock_path.exists()
+
+
+def test_a_bare_pid_lock_from_the_old_format_is_still_broken_by_age(tmp_path):
+    """A lock written before the payload carried a host falls back to age."""
+
+    lock_path = tmp_path / "lock"
+    lock_path.write_bytes(f"{os.getpid()}\n".encode("utf-8"))
+    _age_past_stale(lock_path)
+
+    assert sweep._break_stale_bytecode_sweep_lock(lock_path) is True
+    assert not lock_path.exists()
+
+
+def test_a_winner_still_sweeping_past_the_age_bound_is_not_swept_over(
+    monkeypatch, repo, caplog
+):
+    """The reported overlap, end to end: the winner's lock ages past the bound
+    while it is still inside the purge, and a later launch arrives.
+
+    *Mutation:* break on age alone. *Probed field:* ``purge.calls == 1`` — the
+    mutant breaks the winner's lock, claims it, and calls the purge a second
+    time while the first call is still running.
+    """
+
+    pytest.importorskip("psutil")
+    purge = _CountingPurge()
+    purge.hold = True
+    monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
+    monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 0.2)
+    lock_path = sweep._bytecode_sweep_lock_path()
+
+    winner = threading.Thread(target=sweep._sweep_stale_bytecode_if_checkout_changed)
+    winner.start()
+    try:
+        assert purge.entered.wait(timeout=8)
+        _age_past_stale(lock_path)
+        with caplog.at_level(logging.INFO, logger=sweep.logger.name):
+            sweep._sweep_stale_bytecode_if_checkout_changed()
+        assert purge.calls == 1
+        assert _outcomes(caplog) == ["proceeded_unswept"]
+        assert lock_path.exists()
+    finally:
+        purge.release.set()
+        winner.join(timeout=8)
+    assert not lock_path.exists()
 
 
 # ---------------------------------------------------------------------------
