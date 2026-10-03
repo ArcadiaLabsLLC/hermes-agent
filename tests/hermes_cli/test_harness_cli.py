@@ -15,7 +15,6 @@ from agent_runtime import paths
 from agent_runtime.models import AgentRun, Incident
 from types import SimpleNamespace
 from hermes_cli.harness_parts.persona import chat_target, chat_turn_message, inspect_commands
-from hermes_cli.harness_parts import runtime_commands
 
 Task = SimpleNamespace
 from agent_runtime.states import RunState, TaskState
@@ -348,7 +347,6 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(chat_turn_message, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(inspect_commands, "ensure_persisted_personas", lambda cfg: [])
-    monkeypatch.setattr(runtime_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
         init_commands,
         "ensure_default_scope",

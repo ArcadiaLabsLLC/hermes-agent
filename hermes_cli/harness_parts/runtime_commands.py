@@ -13,14 +13,14 @@ import sys
 
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.decision_contract_registry import (
     contract_manifest,
 )
 from agent_runtime.events import EventLog
 from agent_runtime.migrations import effective_config_summary, migration_status
 from agent_runtime.observability import build_observability
-from agent_runtime.provider_health import provider_health_for_personas
+from agent_runtime.provider_health import runtime_health
 from agent_runtime.status import build_status
 
 __layer__ = "lanes"
@@ -375,8 +375,7 @@ def _attach_runtime_service_blocks(data: dict, *, prune_stale: bool) -> None:
 
 
 def _cmd_health(args) -> int:
-    personas = ensure_persisted_personas(load_agent_runtime_config())
-    data = provider_health_for_personas(personas)
+    data = runtime_health()
     if args.json:
         print(emit_json(data))
     else:

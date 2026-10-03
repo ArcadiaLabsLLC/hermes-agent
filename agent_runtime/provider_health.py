@@ -44,6 +44,22 @@ def provider_health_for_personas(personas: list[AgentPersona]) -> dict[str, Any]
     }
 
 
+def runtime_health() -> dict[str, Any]:
+    """The ``harness health`` block — ONE implementation, two doors.
+
+    ``harness health --json`` prints it and ``runtime.health`` (the method lane)
+    returns it, so the launcher's start-up and Connections probes can read the
+    same block over the running serve instead of paying a cold ``harness
+    status`` (a ~3 MB projection) for the one key they read. It is the roster
+    this runtime would tick, with every persisted persona, checked against the
+    interpreter running it — the ``runtime_health`` key ``harness status`` also
+    carries, computed the same way.
+    """
+    from .config import ensure_persisted_personas, load_agent_runtime_config
+
+    return provider_health_for_personas(ensure_persisted_personas(load_agent_runtime_config()))
+
+
 def provider_health_for_persona(persona: AgentPersona) -> dict[str, Any]:
     return provider_health_for_personas([persona])
 

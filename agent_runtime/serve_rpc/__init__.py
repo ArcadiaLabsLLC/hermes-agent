@@ -43,6 +43,7 @@ default_model            lanes   ``runtime.default_model.set`` (the serve profil
                                  ``model.default`` / ``model.provider``)
 speech                   lanes   ``runtime.speech.*`` (load, recognize, synthesize)
 admission                lanes   ``runtime.admission.*`` (the model memory budget)
+health                   lanes   ``runtime.health`` (the ``harness health`` block)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -81,6 +82,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     default_model,
     speech,
     admission,
+    health,
     client,
 )
 from agent_runtime.serve_rpc.protocol import (
