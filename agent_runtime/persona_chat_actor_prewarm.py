@@ -178,6 +178,10 @@ _construction_spans: list[tuple[float, float]] = []
 #: because the ring evicts; once true it stays true, and it is what separates
 #: "none overlapped" from "not observable here".
 _constructed_any = False
+#: Starts of constructions still running. Counted as overlaps for the same
+#: reason ``snapshot_build_ledger._open`` is (h-chatperf): a turn reads this at
+#: ``stream_done``, and a construction still in flight then was invisible.
+_open_constructions: dict[int, float] = {}
 
 
 def record_construction(*, started: float, ended: float) -> None:
@@ -227,11 +231,13 @@ def overlapping_constructions(*, start: float, end: float) -> int | None:
         if not _constructed_any:
             return None
         spans = list(_construction_spans)
-    return sum(
+        open_starts = list(_open_constructions.values())
+    closed = sum(
         1
         for span_start, span_end in spans
         if span_end >= window_start and span_start <= window_end
     )
+    return closed + sum(1 for span_start in open_starts if span_start <= window_end)
 
 
 def reset_construction_spans_for_tests() -> None:
@@ -240,6 +246,7 @@ def reset_construction_spans_for_tests() -> None:
     global _constructed_any
     with _span_lock:
         _construction_spans.clear()
+        _open_constructions.clear()
         _constructed_any = False
 
 
@@ -249,10 +256,16 @@ class _ConstructionSpan:
     __slots__ = ("_started",)
 
     def __enter__(self) -> "_ConstructionSpan":
+        global _constructed_any
         self._started = time.monotonic()
+        with _span_lock:
+            _constructed_any = True
+            _open_constructions[id(self)] = self._started
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        with _span_lock:
+            _open_constructions.pop(id(self), None)
         try:
             record_construction(started=self._started, ended=time.monotonic())
         except Exception:  # pragma: no cover - an instrument never fails a prewarm

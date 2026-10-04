@@ -693,7 +693,15 @@ _START_ROW_ACK_CEILING_SECONDS = SLOW_TURN_SECONDS / 2
 #: the write-ahead stamp, so it measures exactly the gap this stage closed — one
 #: publish interval, one core build, and an integer floor. Before C1h-bis no
 #: frame carried the row at all inside the dwell.
-_START_ROW_ELAPSED_CEILING_SECONDS = 3
+#:
+#: 4, not 3, since h-chatperf (2026-10-03): a core build now stands aside for
+#: the turn's pre-admit window (``agent_runtime.snapshot_turn_yield``, owner
+#: ruling: builds beside a live turn are a bug), so the build that carries the
+#: row starts once the row is published rather than having run during the
+#: assembly. Measured on this fixture: start row +4.26-4.36 s after the ack on
+#: main, +4.56-4.94 s with the hold -- the integer floor of the row's elapsed
+#: moved from 3 to 3-4. Still one publish interval plus one core build.
+_START_ROW_ELAPSED_CEILING_SECONDS = 4
 
 #: How long the END publish gets to retire the row, measured from the turn's exit
 #: frame. A small multiple of one publish interval: by the exit the journal has

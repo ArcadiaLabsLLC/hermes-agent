@@ -71,6 +71,31 @@ __layer__ = "lanes"
 __all__ = ["_RunPhases"]
 
 
+
+def _steer_hot_window(window, payload) -> None:
+    """h-chatperf: each provider wait is a latency-critical window.
+
+    Opened at the dispatch marker (``request_assembled``) and closed when the
+    provider call returns (``provider_returned``, every provider path), so a core
+    build stands aside for the upload, the provider's wait AND the stream -- not
+    only until the response headers, which an SSE endpoint sends long before its
+    first token (``agent_runtime.snapshot_turn_yield``).
+    Read from the same closed marker set the phase marks are, never from text.
+    """
+
+    if window is None or not isinstance(payload, dict) or payload.get("phase") != "timing":
+        return
+    step = payload.get("step")
+    from agent_runtime.conversation_observability import (
+        CONVERSATION_PROVIDER_RETURNED_STEP,
+        CONVERSATION_REQUEST_ASSEMBLED_STEP,
+    )
+
+    if step == CONVERSATION_REQUEST_ASSEMBLED_STEP:
+        window.open()
+    elif step == CONVERSATION_PROVIDER_RETURNED_STEP:
+        window.close()
+
 class _RunPhases:
     """The ``TurnCommit`` methods that build the turn and run it through the provider."""
 
@@ -311,6 +336,7 @@ class _RunPhases:
             # Same-process, synchronous callback chain: the receipt instant IS
             # the emission instant to within the callback's own cost.
             _mark_turn_phase_from_trace_payload(self.turn_phases, payload)
+            _steer_hot_window(getattr(self, "hot_window", None), payload)
         self.stream_emitter.progress(payload)
 
     def _agent_ready_for_steer(self, agent):
@@ -402,6 +428,16 @@ class _RunPhases:
                 persona_instance_id=self.instance.id,
                 active_session_id=self.active_session_id,
             )
+        # h-chatperf: the pre-admit window closes once the start row is REAL and
+        # published, so the core build that stood aside for it starts now and
+        # carries the row in one build instead of being followed by a second.
+        # Captured on THIS thread (the handler's): the provider-wait windows are
+        # steered from the progress callback, which may run elsewhere.
+        from agent_runtime.turn_activity import current_hot_window
+
+        self.hot_window = current_hot_window()
+        if self.hot_window is not None:
+            self.hot_window.close()
         # Live-log mirror, at the write-ahead point ON PURPOSE: this lane does
         # not append the operator row itself (native continuity: the runtime
         # persists it with the turn), and a head agent checking on a teammate

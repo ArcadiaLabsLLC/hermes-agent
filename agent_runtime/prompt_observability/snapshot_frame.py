@@ -167,7 +167,12 @@ class SnapshotFrame:
             for persona in self.personas
             if safe_assignment_token(getattr(persona, "id", None))
         }
+        from ..snapshot_turn_yield import snapshot_yield_point
+
         for instance in self.roster:
+            # h-chatperf: one yield point per projected instance -- this loop is
+            # most of a build's 3-4 s ``prompt_observability`` section.
+            snapshot_yield_point()
             persona_id = safe_assignment_token(getattr(instance, "persona_id", None))
             persona = by_persona.get(persona_id) or _profile_persona_from_instance(instance)
             if persona is None:

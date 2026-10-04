@@ -179,11 +179,16 @@ class SnapshotFrameBuild:
         with _timed_section(self.sections_ms, "agents_readiness"):
             from ..profile_readiness import profile_readiness_for_persona
 
+            from agent_runtime.snapshot_turn_yield import snapshot_yield_point
+
+            def _readiness(agent):
+                # h-chatperf: a yield point per persona of the readiness walk.
+                snapshot_yield_point()
+                return profile_readiness_for_persona(agent, skill_resolver=self.skill_resolver)
+
             with _timed_section(self.readiness_split, "walk_ms"):
                 self.readiness_by_persona_id = {
-                    str(getattr(agent, "id", "") or ""): profile_readiness_for_persona(
-                        agent, skill_resolver=self.skill_resolver
-                    )
+                    str(getattr(agent, "id", "") or ""): _readiness(agent)
                     for agent in self.agents
                 }
             with _timed_section(self.readiness_split, "tool_visibility_ms"):
@@ -443,7 +448,12 @@ class SnapshotFrameBuild:
         self.sections_ms["parity"] = int(max(0.0, (time.perf_counter() - self.parity_started)) * 1000)
 
     def run(self) -> dict:
+        from agent_runtime.snapshot_turn_yield import snapshot_yield_point
+
         for _name, phase in SECTIONS:
+            # h-chatperf: a section boundary is a yield point -- a live chat
+            # turn gets the process; a no-op outside a yielding build.
+            snapshot_yield_point()
             phase(self)
         return self.data
 

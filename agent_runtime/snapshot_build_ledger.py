@@ -43,6 +43,46 @@ _spans: deque[tuple[float, float]] = deque(maxlen=_MAX_SPANS)
 #: ring evicts; once true it stays true. This is the flag that separates "none
 #: overlapped" from "not observable here".
 _observed_any = False
+#: token -> monotonic start of every build that has STARTED and not yet ended.
+#:
+#: h-chatperf (2026-10-03): a span used to exist only once its build ENDED, and
+#: a turn reads this ledger the moment it reaches ``stream_done`` -- so a build
+#: still running then was invisible. Warm turn ``15c73e0c`` read
+#: ``builds_overlapped: 0`` with generation 6 (6,354 ms) wrapped around its whole
+#: window: the build finished, then wrote its core back, and only THEN recorded,
+#: after the turn had already counted. An open build is an overlap too.
+_open: dict[int, float] = {}
+_next_token = 0
+
+
+def begin_build(*, started: float | None = None) -> int:
+    """Open one LED build's span now. Returns the token :func:`end_build` takes."""
+
+    global _observed_any, _next_token
+    start = time.monotonic() if started is None else float(started)
+    with _lock:
+        _observed_any = True
+        _next_token += 1
+        token = _next_token
+        _open[token] = start
+    return token
+
+
+def end_build(token: int, *, ended: float | None = None) -> None:
+    """Close the span :func:`begin_build` opened, recording it. Never raises."""
+
+    with _lock:
+        start = _open.pop(token, None)
+    if start is None:
+        return
+    record_build(started=start, ended=time.monotonic() if ended is None else ended)
+
+
+def builds_in_flight() -> int:
+    """How many LED builds this process is running right now."""
+
+    with _lock:
+        return len(_open)
 
 
 def record_build(*, started: float, ended: float) -> None:
@@ -92,11 +132,15 @@ def overlapping_builds(*, start: float, end: float) -> int | None:
         if not _observed_any:
             return None
         spans = list(_spans)
-    return sum(
+        open_starts = list(_open.values())
+    closed = sum(
         1
         for build_start, build_end in spans
         if build_end >= window_start and build_start <= window_end
     )
+    # A build still running has not ended, so it reaches past any window end
+    # that has already been read; it overlaps iff it started before that end.
+    return closed + sum(1 for build_start in open_starts if build_start <= window_end)
 
 
 def build_span_scope(recorder: Any = None):
@@ -137,4 +181,5 @@ def reset_for_tests() -> None:
     global _observed_any
     with _lock:
         _spans.clear()
+        _open.clear()
         _observed_any = False

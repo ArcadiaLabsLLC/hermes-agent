@@ -5,7 +5,6 @@ build, persist.
 from __future__ import annotations
 
 import copy
-import time
 
 from agent_runtime import snapshot_build_ledger
 from agent_runtime.core_cache import decision as cache_decision
@@ -108,7 +107,7 @@ def build_snapshot(
     payload, generation = _join_or_lead(accept_inflight, caller, build_info)
     if payload is not None:
         return payload
-    return _lead_build(decision, caller, generation, build_info)
+    return _lead_build(decision, caller, generation, build_info, accept_inflight=accept_inflight)
 
 
 def _build_injected(agent_store, event_log, prompt_skills_catalogs, caller: str, build_info: dict | None) -> dict:
@@ -205,7 +204,25 @@ def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -
             state["waiters"] -= 1
 
 
-def _lead_build(decision, caller: str, generation: int, build_info: dict | None) -> dict:
+def _lead_build(
+    decision, caller: str, generation: int, build_info: dict | None, *, accept_inflight: bool = False
+) -> dict:
+    """The LEADER's build, standing aside for a live chat turn first and at every
+    yield point inside it (``agent_runtime.snapshot_turn_yield``; the stream
+    hydrate, ``accept_inflight``, is exempt)."""
+
+    from agent_runtime.snapshot_turn_yield import build_yield_scope, log_build_yield
+
+    with build_yield_scope(enabled=not accept_inflight) as standing_aside:
+        if standing_aside is not None:
+            standing_aside.stand_aside()
+        try:
+            return _lead_build_now(decision, caller, generation, build_info)
+        finally:
+            log_build_yield(standing_aside, caller=caller, generation=generation)
+
+
+def _lead_build_now(decision, caller: str, generation: int, build_info: dict | None) -> dict:
     """The LEADER's build: pre-build key, build, label, receipt, write-back, notify."""
 
     state = _build_coalesce_state
@@ -215,7 +232,7 @@ def _lead_build(decision, caller: str, generation: int, build_info: dict | None)
     # turn?" is a counted fact instead of a log correlation. Only the leader —
     # a rider paid a wait, not a build, and recording both would double every
     # coalesced build. See ``agent_runtime.snapshot_build_ledger``.
-    build_span_started = time.monotonic()
+    build_span = snapshot_build_ledger.begin_build()
     try:
         # PRE-build, deliberately: a stat set taken after the build would absorb
         # any write that landed while the build ran, and the next process would
@@ -271,9 +288,7 @@ def _lead_build(decision, caller: str, generation: int, build_info: dict | None)
     finally:
         # Recorded even when the build RAISED: it occupied this process for the
         # span either way, and a turn that overlapped it paid the same price.
-        snapshot_build_ledger.record_build(
-            started=build_span_started, ended=time.monotonic()
-        )
+        snapshot_build_ledger.end_build(build_span)
         _release_coalescer(state, result, generation)
 
 

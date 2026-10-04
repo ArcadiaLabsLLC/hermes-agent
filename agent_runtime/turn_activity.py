@@ -46,11 +46,83 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
+from contextvars import ContextVar
 
 __layer__ = "policy"
 
 _LOCK = threading.Lock()
 _ADMITTED = 0
+#: Is THIS context inside an admitted turn? A build that stands aside for live
+#: turns (``snapshot_turn_yield``) must never wait on the turn that is running it.
+_IN_TURN: ContextVar[bool] = ContextVar("hermes_in_admitted_turn", default=False)
+
+
+def inside_admitted_turn() -> bool:
+    """True on the thread (context) of an admitted turn's own handler."""
+
+    return _IN_TURN.get()
+
+
+# ── the latency-critical windows (h-chatperf, 2026-10-03) ─────────────────────
+#
+# An admitted turn is not uniformly sensitive. Its operator waits on two spans:
+# the pre-admit assembly (anchor -> the published start row) and each provider
+# call (``request_assembled`` -> ``provider_returned``). Cold turn ``1e4c06ba`` spent
+# 1.3 s in the first and 9.0 s in the second with a core build beside it. The
+# rest of a turn -- the agent bootstrap, a tool round of minutes -- is where the
+# stream lane's builds carry the turn's OWN start row and running-work state to
+# every subscriber, so standing aside for the whole admitted window would hide
+# the turn from the board it is running on. A HOT window is the span a build
+# must not share; :func:`hot_turn_windows` counts the open ones.
+
+_HOT = 0
+_HOT_WINDOW: ContextVar["HotWindow | None"] = ContextVar("hermes_turn_hot_window", default=None)
+
+
+class HotWindow:
+    """One turn's latency-critical window: open or closed, idempotently.
+
+    Opened at the turn's anchor, closed once the start row is published,
+    reopened at each provider dispatch and closed when it returns; always closed when the
+    turn exits, whatever the path, so a window can never leak into the process.
+    """
+
+    __slots__ = ("_open",)
+
+    def __init__(self) -> None:
+        self._open = False
+
+    def open(self) -> None:
+        global _HOT
+        with _LOCK:
+            if not self._open:
+                self._open = True
+                _HOT += 1
+
+    def close(self) -> None:
+        global _HOT
+        with _LOCK:
+            if self._open:
+                self._open = False
+                _HOT -= 1
+
+    @property
+    def is_open(self) -> bool:
+        with _LOCK:
+            return self._open
+
+
+def hot_turn_windows() -> int:
+    """How many turns are inside a latency-critical window RIGHT NOW."""
+
+    with _LOCK:
+        return _HOT
+
+
+def current_hot_window() -> "HotWindow | None":
+    """The admitted turn's window, on its handler's own thread; else ``None``."""
+
+    return _HOT_WINDOW.get()
 
 
 def chat_turns_admitted() -> int:
@@ -86,11 +158,25 @@ def admitted_turn():
     global _ADMITTED
     with _LOCK:
         _ADMITTED += 1
+    in_turn = _IN_TURN.set(True)
+    window = HotWindow()
+    window.open()
+    window_token = _HOT_WINDOW.set(window)
     try:
-        yield
+        yield window
     finally:
+        _HOT_WINDOW.reset(window_token)
+        window.close()
+        _IN_TURN.reset(in_turn)
         with _LOCK:
             _ADMITTED -= 1
 
 
-__all__ = ["admitted_turn", "chat_turns_admitted"]
+__all__ = [
+    "HotWindow",
+    "admitted_turn",
+    "chat_turns_admitted",
+    "current_hot_window",
+    "hot_turn_windows",
+    "inside_admitted_turn",
+]
