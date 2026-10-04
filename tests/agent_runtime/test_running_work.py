@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -53,6 +54,7 @@ def _patch_bound(monkeypatch, name, value):
             running_work.ownership,
             running_work.lanes_process,
             running_work.lanes_chat,
+            running_work.lanes_build,
             running_work.surface,
         )
         if name in vars(module)
@@ -2278,3 +2280,59 @@ def test_the_owner_lookup_is_memoized_per_build_not_per_process(home, monkeypatc
     build_running_work()
 
     assert calls == [_OWNED_ROOT, _OWNED_ROOT]
+
+
+# --- the build lane (build plan §1, §8 — row H4) ------------------------------
+
+
+def test_a_terminal_build_is_reclassified_in_place_and_counted_once(home):
+    """One producer step: the build row REPLACES the terminal row, so counts never double,
+    and the replacement is accounted ``reclassified_build`` (by design) with the books
+    reconciling — considered minus dropped equals included."""
+
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    started = _self_start_time()
+    _write_checkpoint(home, [
+        {"session_id": "sess_build", "command": "flutter build windows --release", "cwd": str(home),
+         "pid": os.getpid(), "host_start_time": started, "started_at": time.time() - 30},
+        {"session_id": "sess_git", "command": "git status", "cwd": str(home),
+         "pid": os.getpid(), "host_start_time": started, "started_at": time.time() - 5},
+    ])
+    accountant = ProjectionAccountant("running_work")
+    payload = build_running_work(accountant)
+    by_id = {row["work_id"]: row for row in payload["rows"]}
+    assert "terminal:sess_build" not in by_id
+    build = by_id["build:agent:sess_build"]
+    assert (build["kind"], build["origin_work_id"], build["target"], build["mode"]) == (
+        "build", "terminal:sess_build", "windows", "release")
+    assert by_id["terminal:sess_git"]["kind"] == "terminal"  # positive control: not a build, untouched
+    assert payload["counts"]["total"] == 2
+    summary = accountant.summary()
+    assert "reclassified_build" in summary["by_design"]
+    assert summary["considered"] - summary["dropped"] == summary["included"]
+
+
+def test_an_announced_build_folds_its_mcp_job_row(home):
+    from agent_runtime.builds.registry import new_record, write_record
+
+    started = _self_start_time()
+    now = time.time()
+    job = {"server": "launcher_qa", "job_id": "qb-1", "status": "running", "pid": os.getpid(),
+           "host_start_time": started, "started_at": now - 10, "expires_at": now + 600, "label": "QA build",
+           "job_kind": "qa_build", "session_key": ""}
+    (home / "mcp_jobs.json").write_text(json.dumps([job]), encoding="utf-8")
+    assert [row["work_id"] for row in _rows_of_kind(build_running_work(), "mcp_job")] == ["mcp_job:launcher_qa:qb-1"]
+    write_record(home / "builds", new_record(job_id="qb-1", started_at=now - 10, heartbeat_at=now,
+                                             writer={"pid": os.getpid(), "host_start_time": started},
+                                             mcp_job={"server": "launcher_qa", "job_id": "qb-1"}))
+    payload = build_running_work()
+    assert _rows_of_kind(payload, "mcp_job") == []
+    [build] = _rows_of_kind(payload, "build")
+    assert build["work_id"] == "build:announced:qb-1" and build["mcp_job"]["job_id"] == "qb-1"
+
+
+def test_the_build_source_reports_three_sub_healths_and_the_detect_cost(home):
+    source = build_running_work()["sources"]["build"]
+    assert source["status"] == "ok" and set(source["sub"]) == {"agent", "announced", "detected"}
+    assert {"scan_ms", "processes_examined", "candidates", "budget_ms"} <= set(source["sub"]["detected"])

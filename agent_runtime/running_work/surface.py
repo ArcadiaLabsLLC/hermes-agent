@@ -8,11 +8,12 @@ from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
 
+from .lanes_build import _collect_builds
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
 from .lanes_process import _collect_cron, _collect_mcp_jobs, _collect_terminal
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
-from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
+from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
 
 __layer__ = "lanes"
 
@@ -23,6 +24,8 @@ _COLLECTORS = (
     (KIND_CHAT_TURN, _collect_chat_turns, True),
     (KIND_DISPATCH, _collect_dispatches, True),
     (KIND_MCP_JOB, _collect_mcp_jobs, True),
+    # AFTER the terminal lane: it reclassifies the frame's terminal rows in place.
+    (KIND_BUILD, _collect_builds, True),
     (KIND_CRON_JOB, _collect_cron, False),
 )
 
@@ -47,11 +50,12 @@ def build_running_work(
     sources: dict[str, Any] = {}
 
     for name, collector, takes_now in _COLLECTORS:
+        kwargs: dict[str, Any] = {"now": now, "accountant": accountant} if takes_now else {"accountant": accountant}
+        if getattr(collector, "takes_frame_rows", False):
+            # The build lane edits the frame so far IN PLACE (terminal → build), one producer step.
+            kwargs["frame_rows"] = rows
         try:
-            if takes_now:
-                lane_rows, source = collector(now=now, accountant=accountant)
-            else:
-                lane_rows, source = collector(accountant=accountant)
+            lane_rows, source = collector(**kwargs)
         except Exception as exc:  # noqa: BLE001 - a lane must never break the frame
             lane_rows, source = [], _source(
                 SOURCE_UNAVAILABLE,

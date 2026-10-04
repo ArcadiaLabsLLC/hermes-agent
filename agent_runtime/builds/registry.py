@@ -278,3 +278,22 @@ def gc_expired(directory: Path, *, now: float | None = None, grace_seconds: floa
         stop_request_path(directory, job_id).unlink(missing_ok=True)
         removed.append(job_id)
     return removed
+
+
+def mcp_job_keys(directory: Path, *, now: float | None = None) -> set[tuple[str, str]]:
+    """``(server, job_id)`` of every unexpired record that names an MCP job (§8's fold key).
+
+    ``McpJobLane`` drops an ``mcp_jobs.json`` entry with one of these keys ``by_design``
+    (``folded_into_build``): the announced build row IS that job, so the HUD shows one row.
+    """
+
+    now = time.time() if now is None else now
+    keys: set[tuple[str, str]] = set()
+    files, _error = read_records(directory)
+    for item in files:
+        record = item.record or {}
+        mcp_job = record.get("mcp_job") if isinstance(record.get("mcp_job"), dict) else None
+        expires = _epoch(record.get("expires_at"))
+        if mcp_job and (expires is None or expires > now):
+            keys.add((str(mcp_job.get("server") or ""), str(mcp_job.get("job_id") or "")))
+    return keys

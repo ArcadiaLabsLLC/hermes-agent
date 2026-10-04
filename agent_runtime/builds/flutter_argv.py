@@ -143,6 +143,8 @@ class CommandRecognition:
 
     command: FlutterCommand | None
     unrecognized_head: str = ""
+    #: The recognized segment's words (launch prefixes dropped): what a Restart re-runs.
+    words: tuple[str, ...] = ()
 
 
 def _mode(args: list[str], default: str) -> str:
@@ -201,9 +203,9 @@ def recognize_argv(argv: list[str] | tuple[str, ...], cwd: str | os.PathLike[str
     project = Path(os.path.expanduser(str(cwd)))
     head = os.path.basename(words[0]).lower() if words else ""
     if head in _FLUTTER_NAMES:
-        return CommandRecognition(_flutter_command(words[1:], project))
+        return CommandRecognition(_flutter_command(words[1:], project), words=tuple(words))
     if head in _DART_NAMES:
-        return CommandRecognition(_dart_command(words[1:], project))
+        return CommandRecognition(_dart_command(words[1:], project), words=tuple(words))
     return CommandRecognition(None, unrecognized_head=head or "(empty argv)")
 
 

@@ -12,6 +12,20 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (hb-a H4, 2026-10-04) — OPEN, launcher mirror OWED.**
+> Eight generated goldens moved for one reason: `running_work.sources` gained
+> the `build` lane's entry — `{"status":"ok","lane":"durable","sub":{"agent":…,
+> "announced":…,"detected":{…,"scan_ms","processes_examined","candidates",
+> "budget_ms"}}}` (additive, contract 54 KEPT — see the ledger in
+> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
+> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`,
+> `hydrate.json`, `hydrate_authoritative_same_offset.json`,
+> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
+> `running_work.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`,
+> and the new row golden `tests/fixtures/builds/build_rows.json` into
+> `test/fixtures/harness_stream/build_rows.json`. The h-jobvis mirror below is
+> still owed as well; this note is appended, it does not replace it.
+
 > **CROSS-STACK COPY STATUS (h-jobvis, 2026-10-04) — OPEN, launcher mirror OWED.**
 > Eight generated goldens moved for one reason: `running_work.sources` gained
 > the `mcp_job` lane's entry (`{"status":"ok","lane":"durable"}`; additive,

@@ -182,6 +182,10 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
       lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane, cron
       lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
                                 (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
+      build_rows.py     policy  the ``build`` row: BuildFacts -> work_row + every build key (§1 of
+                                the build plan), the status derived from liveness + outcome once
+      lanes_build.py    lanes   BuildLane: terminal -> build reclassification in place, the
+                                announced registry, the detected sub-source
       surface.py        lanes   _COLLECTORS (the table over the six lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
@@ -204,7 +208,7 @@ attribute reaches none of them — patch the binding module.
 
 from __future__ import annotations
 
-from . import lanes_chat, lanes_process, ownership, rows, surface, vocabulary
+from . import build_rows, lanes_build, lanes_chat, lanes_process, ownership, rows, surface, vocabulary
 from .lanes_chat import (
     DELEGATION_RECORD_RUNNING,
     DELEGATION_STATUS_BY_RECORD,
@@ -246,6 +250,7 @@ from .vocabulary import (
     DELEGATION_STATE_FINALIZING,
     KILL_NOT_FOUND,
     KIND_CHAT_TURN,
+    KIND_BUILD,
     KIND_CRON_JOB,
     KIND_DELEGATION,
     KIND_DISPATCH,
@@ -284,6 +289,7 @@ from .vocabulary import (
 __layer__ = "lanes"
 
 __all__ = [
+    "KIND_BUILD",
     "KIND_CHAT_TURN",
     "KIND_CRON_JOB",
     "KIND_DELEGATION",

@@ -166,3 +166,7 @@ ANNOUNCED_SUB_REASONS = (SUB_REASON_REGISTRY_UNREADABLE,)
 #: Bounds on row text (§1).
 COMMAND_LIMIT = 400
 LABEL_LIMIT = 120
+
+#: The detected source's ONE bound (§5, owner call 7): a scan over this many ms is
+#: ``detected: unavailable scan_budget`` with the measured ``scan_ms`` still reported.
+DETECT_BUDGET_MS = 50

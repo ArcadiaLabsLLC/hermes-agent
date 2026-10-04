@@ -702,6 +702,22 @@ notification lands, and the row leaves when the drain settles the wake or at
 the writer's ``expires_at``. The goldens moved and the launcher mirror is
 owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (hb-a H4, 2026-10-04) — ``running_work`` gained its eighth lane,
+``build`` (``docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md``
+§1): agent-started builds (a terminal row the Flutter recognizer reclassifies
+IN PLACE, accounted ``reclassified_build``), builds a writer announces into
+``<background-work home>/builds/``, and builds detected under a bound repo slot.
+Same ruling as ``mcp_job``: nothing left the wire, ``sources`` is parsed as a
+map, ``kind`` is an open string. The row is the shared shape plus additive
+build keys (``source``, ``project``, ``workspace_id``, ``slot_id``,
+``env_source``, ``started_by_instance``, ``unknowns``, ``toolchain``, ``target``,
+``mode``, ``stage``, ``liveness``, ``outcome``, ``controls``, ``restart`` …, every
+one present on every row); ``sources.build`` carries three sub-healths and the
+detected source's cost. An announced build that names an MCP job folds that
+job's ``mcp_job`` row (``folded_into_build``, by design). The row golden is
+``tests/fixtures/builds/build_rows.json``; the goldens moved and the launcher
+mirror is owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

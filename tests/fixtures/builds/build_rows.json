@@ -1,0 +1,1205 @@
+{
+  "rows": [
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": false,
+      "command": "dart run tool/stagec_parity_build.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "owner_not_here"
+      },
+      "elapsed_seconds": 45,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "dart build qa_isolated · launcher",
+      "liveness": "live",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": "terminal:sess_build_elsewhere",
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": 4105,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "none",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_parity_build.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "agent",
+      "source_lane": "durable",
+      "stage": "unknown",
+      "stage_detail": "",
+      "started_at": "2025-10-04T15:11:15+00:00",
+      "started_by": {
+        "kind": "agent",
+        "label": "dev"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "running",
+      "tail_preview": "",
+      "target": "qa_isolated",
+      "toolchain": "dart",
+      "unknowns": [],
+      "work_id": "build:agent:sess_build_elsewhere",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": true,
+      "command": "flutter build windows --release",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 90,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "live",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": "terminal:sess_build_live",
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": 4101,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "output",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "flutter",
+          "build",
+          "windows",
+          "--release"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 0.0,
+      "slot_id": "launcher",
+      "source": "agent",
+      "source_lane": "live",
+      "stage": "compiling",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:30+00:00",
+      "started_by": {
+        "kind": "agent",
+        "label": "dev"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "running",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:agent:sess_build_live",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": true,
+      "command": "cd \"<root>/backend\" && flutter build apk --debug",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 600,
+      "env_source": "process",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build apk · backend",
+      "liveness": "stalled",
+      "mcp_job": null,
+      "mode": "debug",
+      "origin_work_id": "terminal:sess_build_stalled",
+      "outcome": null,
+      "owner": {
+        "persona_id": null,
+        "persona_instance_id": null,
+        "session_id": null
+      },
+      "pid": 4102,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "output",
+      "project": {
+        "name": "backend",
+        "root": "<root>/backend"
+      },
+      "restart": {
+        "argv": [
+          "flutter",
+          "build",
+          "apk",
+          "--debug"
+        ],
+        "cwd": "<root>/backend"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 300.0,
+      "slot_id": null,
+      "source": "agent",
+      "source_lane": "live",
+      "stage": "unknown",
+      "stage_detail": "",
+      "started_at": "2025-10-04T15:02:00+00:00",
+      "started_by": {
+        "kind": "agent",
+        "label": "agent"
+      },
+      "started_by_instance": null,
+      "status": "stalled",
+      "tail_preview": "",
+      "target": "apk",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "<root>/backend: under none of 1 bound slot(s)",
+          "kind": "slot_unresolved",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "session (none) resolved to no persona instance",
+          "kind": "starter_unknown",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "Running Gradle task 'assembleDebug'...",
+          "kind": "stage_line_unrecognized",
+          "seen_at": 1759590720.0
+        }
+      ],
+      "work_id": "build:agent:sess_build_stalled",
+      "workspace_id": null
+    },
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": false,
+      "command": "fvm flutter run -d windows --profile",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "owner_not_here"
+      },
+      "elapsed_seconds": 30,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter run run:windows · launcher",
+      "liveness": "unknown",
+      "mcp_job": null,
+      "mode": "profile",
+      "origin_work_id": "terminal:sess_build_unproven",
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": 4103,
+      "pid_verified": false,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "none",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "flutter",
+          "run",
+          "-d",
+          "windows",
+          "--profile"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "agent",
+      "source_lane": "durable",
+      "stage": "unknown",
+      "stage_detail": "",
+      "started_at": "2025-10-04T15:11:30+00:00",
+      "started_by": {
+        "kind": "agent",
+        "label": "dev"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "unknown",
+      "tail_preview": "",
+      "target": "run:windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:agent:sess_build_unproven",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-failed.json",
+        "writer_pid": 6001
+      },
+      "artifact": null,
+      "cancellable": false,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "not_running"
+      },
+      "elapsed_seconds": 110,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": 1,
+      "expected_ms": null,
+      "finished_at": "2025-10-04T15:11:50+00:00",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "dead",
+      "mcp_job": null,
+      "mode": "profile",
+      "origin_work_id": null,
+      "outcome": "failed",
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "linking",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "error",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "no 'Built' line",
+          "kind": "artifact_unlocated",
+          "seen_at": 1759590709.0
+        }
+      ],
+      "work_id": "build:announced:qb-failed",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": 5.0,
+        "record": "qb-live.json",
+        "writer_pid": 6001
+      },
+      "artifact": null,
+      "cancellable": true,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 120,
+      "env_source": "slot:launcher",
+      "eta_ms": 210000,
+      "exit_code": null,
+      "expected_ms": 330000,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build qa_isolated · launcher",
+      "liveness": "live",
+      "mcp_job": {
+        "job_id": "qb-live",
+        "server": "launcher_qa"
+      },
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": 5101,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": 0.364,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 5.0,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "compiling",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "running",
+      "tail_preview": "",
+      "target": "qa_isolated",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "UnicodeDecodeError",
+          "kind": "output_unreadable",
+          "seen_at": 1759590660.0
+        }
+      ],
+      "work_id": "build:announced:qb-live",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-lost.json",
+        "writer_pid": 6006
+      },
+      "artifact": {
+        "kind": "other",
+        "path": "<root>/launcher/build/notes.txt"
+      },
+      "cancellable": false,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "not_running"
+      },
+      "elapsed_seconds": 120,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "dead",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": "lost",
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": false,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "resolving",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "error",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:announced:qb-lost",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": 3000.0,
+        "record": "qb-queued.json",
+        "writer_pid": 6001
+      },
+      "artifact": null,
+      "cancellable": true,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 120,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "build qa_isolated · launcher",
+      "liveness": "live",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 3000.0,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "queued",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "running",
+      "tail_preview": "",
+      "target": "qa_isolated",
+      "toolchain": "unknown",
+      "unknowns": [],
+      "work_id": "build:announced:qb-queued",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-stall-ended.json",
+        "writer_pid": 6001
+      },
+      "artifact": {
+        "kind": "bundle",
+        "path": "<root>/launcher/build/app.apk"
+      },
+      "cancellable": false,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "not_running"
+      },
+      "elapsed_seconds": 110,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "2025-10-04T15:11:50+00:00",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build apk · launcher",
+      "liveness": "dead",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": "stalled",
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "packaging",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "error",
+      "tail_preview": "",
+      "target": "apk",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:announced:qb-stall-ended",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": 300.0,
+        "record": "qb-stalled.json",
+        "writer_pid": 6001
+      },
+      "artifact": null,
+      "cancellable": true,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 120,
+      "env_source": "unknown",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · elsewhere",
+      "liveness": "stalled",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "elsewhere",
+        "root": "<root>/elsewhere"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 300.0,
+      "slot_id": null,
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "preparing",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "stalled",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "dart.exe language-server",
+          "kind": "process_unidentified",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "AccessDenied",
+          "kind": "cwd_unreadable",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "cmd.exe -> flutter.bat -> dart.exe",
+          "kind": "wrapper_unobserved",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "PUB_CACHE, JAVA_HOME",
+          "kind": "env_unobserved",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "PATH",
+          "kind": "path_unobserved",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "backend: bound on mach_far",
+          "kind": "slot_unbound_here",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "flutter --version: TimeoutExpired",
+          "kind": "slot_probe_unknown",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "gradlew.bat",
+          "kind": "toolchain_unrecognized",
+          "seen_at": 1759590713.0
+        },
+        {
+          "evidence": "<root>/elsewhere: under none of 1 bound slot(s)",
+          "kind": "slot_unresolved",
+          "seen_at": 1759590720.0
+        }
+      ],
+      "work_id": "build:announced:qb-stalled",
+      "workspace_id": null
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": 130.0,
+        "record": "qb-stalling.json",
+        "writer_pid": 6001
+      },
+      "artifact": null,
+      "cancellable": false,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "writer_declines"
+      },
+      "elapsed_seconds": 120,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "live",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 130.0,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "compiling",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "stalling",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:announced:qb-stalling",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-stopped.json",
+        "writer_pid": 6001
+      },
+      "artifact": {
+        "kind": "directory",
+        "path": "<root>/launcher/build/linux/bundle"
+      },
+      "cancellable": false,
+      "command": "",
+      "controls": {
+        "restart": "refused",
+        "restart_reason": "argv_unknown",
+        "stop": "refused",
+        "stop_reason": "not_running"
+      },
+      "elapsed_seconds": 110,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "2025-10-04T15:11:50+00:00",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "dead",
+      "mcp_job": null,
+      "mode": "",
+      "origin_work_id": null,
+      "outcome": "stopped",
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": null,
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "finishing",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "error",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:announced:qb-stopped",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-succeeded.json",
+        "writer_pid": 6001
+      },
+      "artifact": {
+        "kind": "executable",
+        "path": "<root>/launcher/build/app.exe"
+      },
+      "cancellable": false,
+      "command": "dart run tool/stagec_qa_mcp_server/bin/prebuild.dart",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "refused",
+        "stop_reason": "not_running"
+      },
+      "elapsed_seconds": 110,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": 0,
+      "expected_ms": null,
+      "finished_at": "2025-10-04T15:11:50+00:00",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "dead",
+      "mcp_job": null,
+      "mode": "debug",
+      "origin_work_id": null,
+      "outcome": "succeeded",
+      "owner": {
+        "persona_id": "dev",
+        "persona_instance_id": "personainst_dev_frontend",
+        "session_id": "sess_owned"
+      },
+      "pid": null,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "dart",
+          "run",
+          "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "done",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "tool",
+        "label": "launcher_qa"
+      },
+      "started_by_instance": "personainst_dev_frontend",
+      "status": "completed",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [],
+      "work_id": "build:announced:qb-succeeded",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": {
+        "heartbeat_age_seconds": null,
+        "record": "qb-unproven.json",
+        "writer_pid": 6008
+      },
+      "artifact": null,
+      "cancellable": false,
+      "command": "",
+      "controls": {
+        "restart": "refused",
+        "restart_reason": "writer_declines",
+        "stop": "unavailable",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 120,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "dart build windows · launcher",
+      "liveness": "unknown",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": null,
+        "persona_instance_id": null,
+        "session_id": "sess_unknown"
+      },
+      "pid": null,
+      "pid_verified": false,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "heartbeat",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": null,
+      "restart_of": null,
+      "seconds_since_progress": null,
+      "slot_id": "launcher",
+      "source": "announced",
+      "source_lane": "durable",
+      "stage": "unknown",
+      "stage_detail": "Building Windows application...",
+      "started_at": "2025-10-04T15:10:00+00:00",
+      "started_by": {
+        "kind": "operator",
+        "label": "prebuild.dart by hand"
+      },
+      "started_by_instance": null,
+      "status": "unknown",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "dart",
+      "unknowns": [
+        {
+          "evidence": "writer pid 6008 start 1: identity unproven",
+          "kind": "writer_unidentified",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "session sess_unknown resolved to no persona instance",
+          "kind": "starter_unknown",
+          "seen_at": 1759590720.0
+        }
+      ],
+      "work_id": "build:announced:qb-unproven",
+      "workspace_id": "ws_team"
+    }
+  ],
+  "source_variants": {
+    "registry_unreadable": {
+      "lane": "durable",
+      "status": "ok",
+      "sub": {
+        "agent": {
+          "reason": "",
+          "status": "ok"
+        },
+        "announced": {
+          "detail": "NotADirectoryError",
+          "reason": "registry_unreadable",
+          "status": "unavailable"
+        },
+        "detected": {
+          "budget_ms": 50,
+          "candidates": 0,
+          "processes_examined": 0,
+          "reason": "not_in_process",
+          "scan_ms": 0,
+          "status": "unavailable"
+        }
+      }
+    }
+  },
+  "sources": {
+    "build": {
+      "lane": "durable",
+      "status": "ok",
+      "sub": {
+        "agent": {
+          "reason": "",
+          "status": "ok"
+        },
+        "announced": {
+          "reason": "",
+          "status": "ok"
+        },
+        "detected": {
+          "budget_ms": 50,
+          "candidates": 0,
+          "processes_examined": 0,
+          "reason": "not_in_process",
+          "scan_ms": 0,
+          "status": "unavailable"
+        }
+      }
+    }
+  }
+}

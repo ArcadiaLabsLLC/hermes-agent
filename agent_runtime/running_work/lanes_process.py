@@ -272,6 +272,7 @@ class McpJobLane(LanePass):
         entries, refusal = _read_checkpoint(head / _MCP_JOBS_FILENAME)
         if refusal is not None:
             return [], refusal
+        self.folded = _folded_mcp_jobs(head, self.now)
         rows = [row for row in map(self.durable_row, entries) if row is not None]
         return self.finish(rows), _source(SOURCE_OK, lane=LANE_DURABLE)
 
@@ -285,6 +286,10 @@ class McpJobLane(LanePass):
             return None
         self.consider()
         stable_id = f"{server}:{job_id}"
+        if (server, job_id) in getattr(self, "folded", ()):
+            # Build plan §8: an announced build names this MCP job; its build row IS this job.
+            self.drop("folded_into_build", entity_id=stable_id, detail="an announced build carries this job", by_design=True)
+            return None
         if self.expired(entry, stable_id):
             return None
         _alive, verified, verdict = _pid_identity(entry.get("pid"), entry.get("host_start_time"))
@@ -337,6 +342,18 @@ def _mcp_job_extra(entry: dict[str, Any]) -> dict[str, Any]:
         "outcome": outcome or None,
         "finished_at": _iso(entry.get("finished_at")),
     }
+
+
+def _folded_mcp_jobs(head: Path, now: float) -> set[tuple[str, str]]:
+    """``(server, job_id)`` of every announced build naming an MCP job (build plan §8's dedupe key)."""
+
+    try:
+        from ..builds.registry import mcp_job_keys
+        from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
+
+        return mcp_job_keys(head / BUILD_REGISTRY_DIRNAME, now=now)
+    except Exception:  # noqa: BLE001 — an unreadable registry folds nothing; the build lane says why
+        return set()
 
 
 def _whole(value: Any) -> int | None:
