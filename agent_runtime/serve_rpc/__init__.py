@@ -46,6 +46,8 @@ admission                lanes   ``runtime.admission.*`` (the model memory budge
 health                   lanes   ``runtime.health`` (the ``harness health`` block)
 chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
+realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
+                                 ``.agents.*`` / ``.adopt`` (the realm argv twins)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -86,6 +88,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     admission,
     health,
     chat_verbs,
+    realm,
     client,
 )
 from agent_runtime.serve_rpc.protocol import (

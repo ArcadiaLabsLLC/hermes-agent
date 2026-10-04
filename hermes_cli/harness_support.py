@@ -27,7 +27,13 @@ import sys
 import uuid
 from pathlib import Path
 
-from agent_runtime.cli_format import emit_json
+from agent_runtime.cli_format import (
+    STAGE42_SCHEMA_VERSION,
+    emit_json,
+    list_envelope as _list_envelope,
+    object_envelope as _object_envelope,
+    sort_rows as _sort_rows,
+)
 from agent_runtime.errors import (
     AgentRuntimeError,
     AlreadyExists,
@@ -79,7 +85,6 @@ def harness_repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-STAGE42_SCHEMA_VERSION = 1
 ERROR_EXIT_CODES = {
     "not_found": 3,
     "workspace_not_found": 3,
@@ -524,25 +529,6 @@ def _load_request_json(raw: str) -> dict:
     return json.loads(candidate)
 
 
-def _list_envelope(item_kind: str, items: list[dict], *, cursor: str | None = None, truncated: bool = False) -> dict:
-    return {
-        "schema_version": STAGE42_SCHEMA_VERSION,
-        "kind": "list",
-        "item_kind": item_kind,
-        "count": len(items),
-        "items": items,
-        "cursor": cursor,
-        "truncated": bool(truncated),
-    }
-
-
-def _object_envelope(kind: str, item: dict, *, warnings: list[dict] | None = None) -> dict:
-    data = {"schema_version": STAGE42_SCHEMA_VERSION, "kind": kind, **item}
-    if warnings:
-        data["warnings"] = warnings
-    return data
-
-
 def _print_stage42(data: dict, *, args, default_output: str | None = None) -> None:
     output = "json" if getattr(args, "json", False) else (getattr(args, "output", None) or default_output or ("table" if sys.stdout.isatty() else "json"))
     data = _apply_fields(data, getattr(args, "fields", None))
@@ -623,13 +609,3 @@ def _require_yes(
         default_output="json",
     )
     return False
-
-
-def _sort_rows(rows: list[dict], sort_key: str | None) -> list[dict]:
-    key = str(sort_key or "").strip()
-    if not key:
-        return rows
-    reverse = key.startswith("-")
-    if reverse:
-        key = key[1:]
-    return sorted(rows, key=lambda item: str(item.get(key, "")), reverse=reverse)

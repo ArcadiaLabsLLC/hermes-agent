@@ -28,3 +28,39 @@ def emit_json_line(data) -> str:
     return json.dumps(
         to_jsonable(data), ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
+
+
+#: The stage-42 envelope schema every harness ``--json`` object/list carries.
+#: Here, below both doors, since the realm verbs' method twins return the same
+#: envelopes the argv verbs print (``hermes_cli.harness_support`` re-exports).
+STAGE42_SCHEMA_VERSION = 1
+
+
+def list_envelope(item_kind: str, items: list[dict], *, cursor: str | None = None, truncated: bool = False) -> dict:
+    return {
+        "schema_version": STAGE42_SCHEMA_VERSION,
+        "kind": "list",
+        "item_kind": item_kind,
+        "count": len(items),
+        "items": items,
+        "cursor": cursor,
+        "truncated": bool(truncated),
+    }
+
+
+def object_envelope(kind: str, item: dict, *, warnings: list[dict] | None = None) -> dict:
+    data = {"schema_version": STAGE42_SCHEMA_VERSION, "kind": kind, **item}
+    if warnings:
+        data["warnings"] = warnings
+    return data
+
+
+def sort_rows(rows: list[dict], sort_key: str | None) -> list[dict]:
+    """``--sort key`` / ``--sort -key``: a stable string sort; no key, no sort."""
+    key = str(sort_key or "").strip()
+    if not key:
+        return rows
+    reverse = key.startswith("-")
+    if reverse:
+        key = key[1:]
+    return sorted(rows, key=lambda item: str(item.get(key, "")), reverse=reverse)

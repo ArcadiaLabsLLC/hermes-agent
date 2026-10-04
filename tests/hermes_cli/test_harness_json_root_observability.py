@@ -37,6 +37,7 @@ _ATTACH_CALL = "attach_root_observability"
 # and reads the keys off the result. Do not add a name without a row there.
 ATTACHING_DELEGATES = {
     "persona_chat_history_page": True,
+    "realm_sync_revert": False,
 }
 
 # Chat lanes must also stamp ``chat_scope`` — ``source: "ambient_home"``
@@ -291,14 +292,18 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     claims one. Positive by construction: the stubs below return NO resolution
     block, so the keys can only come from the delegate's own attach."""
 
+    import agent_runtime.realm_revert as realm_revert
     from agent_runtime.chat_verbs.history import persona_chat_history_page
+    from agent_runtime.realm_verbs import realm_sync_revert
 
     monkeypatch.setattr(
         "agent_runtime.persona_chat_history.persona_chat_session_messages",
         lambda **kw: {"ok": True, "messages": [], "count": 0},
     )
+    monkeypatch.setattr(realm_revert, "revert_realm_sync", lambda realm_id, **kw: {"reverted": []})
     produced = {
         "persona_chat_history_page": persona_chat_history_page("s1"),
+        "realm_sync_revert": realm_sync_revert("realm_x"),
     }
     assert set(produced) == set(ATTACHING_DELEGATES)
     for name, envelope in produced.items():
