@@ -320,6 +320,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-04 (lane hb-a)
+
+- [ ] **Repo-slot context sections are not content-deduplicated against `agent/prompt_builder.py::_load_agents_md`'s cwd chain: when a persona sets `include_core_context_files`, the primary slot's CLAUDE.md/AGENTS.md can reach the prompt twice (the chain's `seen_content` is local to its own walk) — a door on prompt_builder taking already-injected content hashes is the fix** · seams · `agent_runtime/persona_slots.py::load_slot_context`, `agent/prompt_builder.py::_load_agents_md`, plan `docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md` §3.3 · lane hb-a
+
 ### Filed on arrival — 2026-10-03 (lane h-mcpwake)
 
 - [ ] **The gateway's queue drain silently DROPS every event type it does not list: `gateway/run.py::_drain_gateway_watch_events` keeps watch/heartbeat events, requeues `async_delegation`, and discards the rest on "process completion events are handled by the watcher task" — so an `mcp_job_finished` wake (`tools/mcp_job_wake.py`) in a gateway process is eaten, not delivered. Requeue unknown types (or route `mcp_job_finished` through `format_process_notification` like `async_delegation`)** · `gateway/run.py::_drain_gateway_watch_events` · lane h-mcpwake 2026-10-03
