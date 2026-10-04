@@ -39,7 +39,7 @@ hermes already has pieces of each door, none of them a rule engine:
 2. **The exit is a chat turn, never a new lane.** ADR 0008 ("Chat is the only lane") refuses any new orchestration lane unless it rides a chat turn. An Episode is forged into the selected persona's chat root through `run_mission_chat_turn`, exactly as a dispatch delivery is forged today. The turn carries a bounded evidence envelope; the persona's reply and any files it writes are the artifact.
 3. **No cron, no Work.** The upstream cron monitor is not the poller (upstream-owned, hash-diff semantics, cannot express "over threshold for 5 minutes"). The native Work service (`runtime.work.*`) is not the exit (ADR 0008 again, and the Companion Work adapter is the single largest thing being cut). The module runs its own asyncio poller **inside the `harness serve` process** under the existing serve lifecycle; it is a reader with a clock, not a scheduler of agents.
 4. **Lens the name, Monitoring the content.** The owner calls the product Lens; the plugin is `eternia-lens`. What it contains is Companion's *Monitoring* bounded context (manifests, feeds, rules, Episodes, evidence, retention). The Lens presentation packages are not ported (§4) — Mission Control is the presentation.
-5. **Presentation in the launcher is a read of hermes, nothing more.** Episodes, current values and artifact handles are folded into the snapshot the push lane already carries, and queried over the method lane. No Dart monitoring runtime, no second store, no chart kit in this plan. Charts are a later owner decision, if ever.
+5. **Presentation in the launcher is a read of hermes, nothing more.** Episodes, current values and artifact handles are folded into the snapshot the push lane already carries, and queried over the method lane. No Dart monitoring runtime, no second store, no chart kit in this plan. **Owner ruling 2026-10-04: charts are kept apart from Lens.** A chart is presentation and belongs with Generative UI as a separate component, not inside this module; Lens is the data and the trigger, and a chart is one of many things that may draw from `runtime.lens.range` (§6a).
 6. **The `act` automation level is cut from this plan.** Companion's three levels are notify / investigate / act. This plan ships notify and investigate. "Handle it" (the agent applies a fix inside pre-approved permissions) needs the per-monitor reviewed-approval machinery Companion built on its Work engine; in hermes it would ride the persona's ordinary tool permissions in the same chat turn, and that is a separate decision with its own gate — not a chop, a deferral, filed as such.
 
 ## 3. The contract (what is ported, in Python, under `agent_runtime/lens/`)
@@ -92,7 +92,7 @@ Nothing in Companion is deleted by this plan. The source stays frozen as the ref
 | **L2 — exit door** | `trigger.py`, `artifacts.py`, `tool.py` (opening block); notify and investigate levels; `daily_turn_cap`, pause; receipts; `runtime.lens.receipt`; artifacts as media handles | the same Episode forges two turns → red. A monitor at its daily cap forges a turn → red. A turn that wrote `report.md` leaves `artifact_handles` empty → red |
 | **L3 — push door** | `ingress.py` as a plugin-registered platform; HMAC + Svix; Alertmanager and Grafana mappings; generic json-path mapping; `runtime.lens.ingress.register` | a POST with a wrong signature creates an observation → red. An Alertmanager `resolved` body opens an Episode → red |
 | **L4 — pull door** | `lens_read` tool (profile-declared); `sources/sql_readonly.py`, `sources/command.py`; `via: kube_proxy` for Prometheus behind Rancher without an ingress | a profile that does not declare `lens_read` reaches it → red. A command outside the allow-list runs → red |
-| **later, separate decisions** | the `act` level; `psutil` local metrics; charts in the launcher; Postgres when `psycopg` enters a bundle closure | — |
+| **later, separate decisions** | the `act` level; `psutil` local metrics; a streaming (WebSocket) feed kind; Postgres when `psycopg` enters a bundle closure | — |
 
 Rules the sequence obeys: one plugin, one package, no file over 800 lines, no edit to an upstream file (the push door is `register_platform`, the RPC seam is in fork-owned `serve_rpc/`); nothing new in `pyproject.toml` for L0–L3 (`aiohttp` and `sqlite3` are already in the closure — "bundle only what is needed"); the CLI contract fixture is re-dumped at the landing that adds `harness lens …` argv mirrors, if any (ADR 0003: RPC first, argv only where free).
 
@@ -109,6 +109,23 @@ Rules the sequence obeys: one plugin, one package, no file over 800 lines, no ed
 2. 2026-10-02: persona targeting is per-manifest, defaulting to the selected Mission Control persona.
 3. 2026-10-02: the `act` level stays out of this plan.
 4. 2026-10-02: phones run no poller.
+
+## 6a. Owner direction 2026-10-04 — charts are not Lens, and the watch-a-deal journey
+
+**Charts.** Ruled apart from Lens (§2.5). The owner's leaning is that a chart is a Generative UI component, separate from Lens, because Generative UI will carry far more than charts and Lens far more than chart data. Lens owes that consumer exactly one thing: `runtime.lens.range` returning a bounded series with explicit gaps. Where the component lives and who builds it is the launcher's Generative UI decision (`EterniaLauncher/docs/companion/planned/UNIFIED_GENERATIVE_UI_2026-09-30.md`), not this plan's.
+
+**The journey the owner described** — "find me the best deal on a product, then tell me when a better deal appears, the price changes, the bid changes, or the listing is ending" — fits the three doors, and it shows the split the module rests on: *the agent finds and sets up; Lens watches for free; the agent returns only when something changed.* A persona turn does the search (its ordinary web tools, not Lens). It then proposes one feed per listing it found. Lens polls those feeds with no model in the loop. A rule fires, and one chat turn produces the artifact (the comparison, the "bid now" note).
+
+Stated against the §3 contract, the journey needs four things the contract did not have. They are additions to existing modules, not new modules:
+
+| addition | where | why the journey needs it |
+|---|---|---|
+| `lens_propose` — a persona-side tool that drafts a Monitor (feeds + rule) and returns a preview; the draft is sealed only by the operator's confirm in Mission Control, never by the agent | `tool.py`, stage L4 beside `lens_read` | the agent that found the listings is the one that knows their URLs and selectors; without this the user re-types what the agent already knows |
+| change rules: `changed`, `moved_by` (absolute or percent, either direction), `below` / `above` a target | `rules.py`, stage L0 | "the price changed", "the bid changed", "tell me under 400" are not threshold-for-duration rules |
+| a cross-feed rule: `best_of` (minimum or maximum across the Monitor's feeds changed holder, or beat a recorded baseline) | `rules.py`, stage L0 | "a better deal appeared" is a comparison between listings, not a property of one |
+| deadline observations: a feed whose value is an instant, and the rule `ends_within` (duration) evaluated against the runtime clock | `series.py`, `rules.py`, stage L0 | "the auction is ending" fires on time remaining, with no change in the polled value |
+
+Two limits stated up front, because the product is honest about them: a listing with no API is read through `command_allowlisted` (a reviewed script that prints the value) and is as brittle as the page it reads; and *discovering new listings* is not polling — it is a scheduled agent turn (the manifest's `schedule:` field, §4), which costs a model run each time and is capped by `daily_turn_cap`.
 
 ## 7. Provenance
 
