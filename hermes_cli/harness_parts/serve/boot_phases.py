@@ -699,6 +699,11 @@ class BootPhases:
         except Exception:
             dispatches_restored = 0
         self.timeline.mark("dispatch_restore_ms")
+        # Builds (build plan §5): THIS process owns the detected-build scan; a CLI snapshot
+        # reports the detected source ``not_in_process`` rather than scanning.
+        from agent_runtime.builds.detect import enable_detection
+
+        enable_detection()
         self.ready_frame: dict[str, Any] = {
             "event": "ready",
             "pid": os.getpid(),

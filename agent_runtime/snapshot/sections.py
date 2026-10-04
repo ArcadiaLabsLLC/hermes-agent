@@ -263,6 +263,11 @@ class SnapshotFrameBuild:
         self.running_work_accountant = ProjectionAccountant("running_work")
         with _timed_section(self.sections_ms, "running_work"):
             self.running_work_section = build_running_work(self.running_work_accountant)
+        # The detected build source's cost on every frame (build plan §1, owner call 7):
+        # measured inside the scan, so it is the scan's own ms, never a re-timing.
+        detected = (((self.running_work_section.get("sources") or {}).get("build") or {}).get("sub") or {}).get("detected") or {}
+        if isinstance(detected.get("scan_ms"), int):
+            self.sections_ms["running_work.build_detect"] = detected["scan_ms"]
 
     def frame(self) -> None:
         """The frame dict: contract stamps, runtime default and config, and the projections above."""

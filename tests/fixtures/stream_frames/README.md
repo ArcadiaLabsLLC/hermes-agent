@@ -16,7 +16,8 @@ split is structural, not an oversight, and the script names both halves
 > Eight generated goldens moved for one reason: `running_work.sources` gained
 > the `build` lane's entry — `{"status":"ok","lane":"durable","sub":{"agent":…,
 > "announced":…,"detected":{…,"scan_ms","processes_examined","candidates",
-> "budget_ms"}}}` (additive, contract 54 KEPT — see the ledger in
+> "budget_ms","unknowns"}}}` (additive, contract 54 KEPT; row H6 added the detected
+> sub's own `unknowns` index and re-moved the same eight files — see the ledger in
 > `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
 > `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`,
 > `hydrate.json`, `hydrate_authoritative_same_offset.json`,

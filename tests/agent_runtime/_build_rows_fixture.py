@@ -4,9 +4,10 @@ The golden is WRITTEN by the producer from a seeded home, never typed:
 
     python -m tests.agent_runtime._build_rows_fixture --write
 
-Seeds: a terminal checkpoint (agent-started builds, reclassified by the build lane) and the
-announced-build registry; identity, ownership and the bound slots are stubbed at the names
-the lanes BIND, so the rows are deterministic. Paths are redacted to ``<root>`` with ``/``
+Seeds: a terminal checkpoint (agent-started builds, reclassified by the build lane), the
+announced-build registry, a slot document + machine fill, and a FAKE process table for the
+detected scan; identity, ownership and the bound slots are stubbed at the names the lanes
+BIND, so the rows are deterministic. Paths are redacted to ``<root>`` with ``/``
 separators. ``test_build_rows_fixture.py`` re-runs this and compares bytes; the launcher
 mirrors the file into ``test/fixtures/harness_stream/build_rows.json``.
 """
@@ -48,7 +49,7 @@ class _Session:
 
 
 def _checkpoint(root: Path) -> list[dict[str, Any]]:
-    launcher, backend = root / "launcher", root / "backend"
+    launcher, backend = root / "launcher", root / "scratch"
     return [
         {"session_id": "sess_build_live", "command": "flutter build windows --release", "cwd": str(launcher),
          "pid": 4101, "host_start_time": 1, "started_at": NOW - 90, "session_key": "sess_owned"},
@@ -120,6 +121,72 @@ def _records(root: Path) -> list[dict[str, Any]]:
     ]
 
 
+class _Proc:
+    """A fake process-table entry with the scan's read interface; a fact may be an exception."""
+
+    def __init__(self, pid: int, name: str, argv: Any, cwd: Any, *, start: int = 11, cpu: float = 1.0,
+                 parents: list[tuple[int, str]] | None = None) -> None:
+        self.pid, self.name, self._argv, self._cwd = pid, name, argv, cwd
+        self._start, self._cpu, self._parents = start, cpu, parents or [(9000, "cmd.exe"), (8000, "explorer.exe")]
+
+    @staticmethod
+    def _fact(value: Any) -> Any:
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    def cmdline(self) -> Any:
+        return self._fact(self._argv)
+
+    def cwd(self) -> Any:
+        return self._fact(self._cwd)
+
+    def start(self) -> int:
+        return self._start
+
+    def cpu(self) -> float:
+        return self._cpu
+
+    def parents(self) -> list[tuple[int, str]]:
+        return list(self._parents)
+
+
+SNAPSHOT = r"C:/flutter/bin/cache/flutter_tools.snapshot"
+
+
+def process_table(root: Path) -> list[_Proc]:
+    dart = r"C:/flutter/bin/cache/dart-sdk/bin/dart.exe"
+    return [
+        _Proc(7001, "dart.exe", [dart, SNAPSHOT, "build", "windows", "--release"], str(root / "launcher"), cpu=12.5),
+        _Proc(7002, "dart.exe", [dart, SNAPSHOT, "build", "apk", "--debug"], str(root / "backend" / "app"), cpu=3.0),
+        _Proc(7003, "dart.exe", [dart, "language-server"], str(root / "launcher")),
+        _Proc(7004, "flutter.bat", PermissionError("access denied"), str(root / "launcher")),
+        _Proc(7005, "dart.exe", [dart, SNAPSHOT, "build", "windows"], PermissionError("access denied")),
+        _Proc(7006, "python.exe", ["python", "-m", "http.server"], str(root / "launcher")),
+        _Proc(7007, "dart.exe", [dart, SNAPSHOT, "build", "windows"], str(root / "elsewhere")),
+        _Proc(7008, "dart.exe", [dart, SNAPSHOT, "build", "windows"], str(root / "launcher"), parents=[(4101, "cmd.exe")]),
+        _Proc(7009, "dart.exe", [r"C:/tools/weird-launcher.exe", "--go"], str(root / "launcher")),
+    ]
+
+
+def _seed_slots(root: Path) -> None:
+    from agent_runtime.workspace_slot_env import set_slot_fill
+    from agent_runtime.workspace_slots import write_document
+
+    write_document("ws_team", {"schema_version": 1, "workspace_id": "ws_team", "issued_at": "2026-10-04T12:00:00+00:00",
+                               "machines": {}, "slots": {
+        "launcher": {"repo": {"clone_url": "https://x/launcher.git", "default_branch": "main"},
+                     "toolchain": {"kind": "flutter", "tools": [], "env_keys": [{"key": "FLUTTER_ROOT", "required": True}],
+                                   "dotenv": None},
+                     "context": {"role": "", "files": ["AGENTS.md"]}, "recipe": {"revision": 0, "steps": []},
+                     "issued_at": "2026-10-04T12:00:00+00:00", "removed_at": None},
+        "backend": {"repo": {"clone_url": "https://x/backend.git", "default_branch": "main"}, "toolchain": {},
+                    "context": {"role": "", "files": ["AGENTS.md"]}, "recipe": {"revision": 0, "steps": []},
+                    "issued_at": "2026-10-04T12:00:00+00:00", "removed_at": None}}})
+    set_slot_fill("ws_team", "launcher", env={"FLUTTER_ROOT": "C:/flutter"}, path_prepend=["C:/flutter/bin"],
+                  tool_paths={"flutter": "C:/flutter/bin/flutter.bat"})
+
+
 def _redact(value: Any, root: Path) -> Any:
     text = json.dumps(value, sort_keys=True)
     for spelling in {str(root), str(root).replace("\\", "/")}:
@@ -129,13 +196,16 @@ def _redact(value: Any, root: Path) -> Any:
 
 @contextmanager
 def _seeded(root: Path) -> Iterator[None]:
+    from agent_runtime.builds import detect
     from agent_runtime.builds.liveness import PROGRESS
     from agent_runtime.builds.registry import write_record
     from agent_runtime.running_work import lanes_build, lanes_process
-    from agent_runtime.workspace_slots import BoundSlot
+    from agent_runtime.workspace_slots import BoundSlot, SlotCensus
 
     home = root / "home"
-    (root / "launcher").mkdir(parents=True, exist_ok=True)
+    for name in ("launcher", "backend", "elsewhere"):
+        (root / name).mkdir(parents=True, exist_ok=True)
+    _seed_slots(root)
     home.mkdir(parents=True, exist_ok=True)
     (home / "processes.json").write_text(json.dumps(_checkpoint(root)), encoding="utf-8")
     for record in _records(root):
@@ -143,6 +213,9 @@ def _seeded(root: Path) -> Iterator[None]:
     sessions = _sessions(root)
     PROGRESS.clear()
     PROGRESS.observe(("agent", "sess_build_stalled"), 40, NOW - 300)
+    PROGRESS.observe(("detected", 7002, 11), 3.0, NOW - 300)
+    census = SlotCensus(2, (BoundSlot("ws_team", "launcher", root / "launcher"),
+                            BoundSlot("ws_team", "backend", root / "backend")))
     patches = [
         (lanes_process, "_head_home", lambda: (home, "test_home")),
         (lanes_process, "_pid_identity", _identity),
@@ -150,8 +223,11 @@ def _seeded(root: Path) -> Iterator[None]:
         (lanes_build, "_head_home", lambda: (home, "test_home")),
         (lanes_build, "_pid_identity", _identity),
         (lanes_build, "_owner_of", _owner),
-        (lanes_build, "_bound_slots", lambda: [BoundSlot("ws_team", "launcher", root / "launcher")]),
+        (lanes_build, "_census", lambda: census),
         (lanes_build, "_registry_session", lambda _registry, sid: sessions.get(sid)),
+        (lanes_build, "_detect_table", process_table(root)),
+        (lanes_build, "_detect_clock", lambda: 0.0),
+        (detect, "_ENABLED", True),
     ]
     with ExitStack() as stack:
         for module, name, value in patches:
@@ -192,7 +268,37 @@ def _source_variants(root: Path) -> dict[str, Any]:
         _rows, registry_unreadable = BuildLane(now=NOW, accountant=None, frame_rows=[]).collect()
     finally:
         lanes_build._head_home = held
-    return {"registry_unreadable": registry_unreadable}
+    return {"registry_unreadable": registry_unreadable, "detected": _detected_variants(root)}
+
+
+def _detected_variants(root: Path) -> dict[str, Any]:
+    """The detected sub-health in each state the gate and the scan can end in."""
+
+    from agent_runtime.builds import detect
+    from agent_runtime.workspace_slots import BoundSlot, SlotCensus
+
+    bound = SlotCensus(1, (BoundSlot("ws_team", "launcher", root / "launcher"),))
+    ticks = iter(range(0, 10_000, 1))
+
+    def failing():
+        raise OSError("process table unreadable")
+        yield  # pragma: no cover
+
+    held = detect._ENABLED
+    try:
+        detect._ENABLED = False
+        not_in_process = detect.scan(now=NOW, census=bound, owned=set(), table=[]).sub()
+        detect._ENABLED = True
+        return {
+            "not_in_process": not_in_process,
+            "no_slots_declared": detect.scan(now=NOW, census=SlotCensus(0, ()), owned=set(), table=[]).sub(),
+            "slots_unbound_here": detect.scan(now=NOW, census=SlotCensus(3, ()), owned=set(), table=[]).sub(),
+            "scan_budget": detect.scan(now=NOW, census=bound, owned=set(), table=process_table(root),
+                                       clock=lambda: next(ticks) * 0.03).sub(),
+            "scan_failed": detect.scan(now=NOW, census=bound, owned=set(), table=failing(), clock=lambda: 0.0).sub(),
+        }
+    finally:
+        detect._ENABLED = held
 
 
 def render(payload: dict[str, Any]) -> str:
@@ -200,8 +306,15 @@ def render(payload: dict[str, Any]) -> str:
 
 
 def main(argv: list[str]) -> int:
+    import os
+
     with tempfile.TemporaryDirectory(prefix="hermes-build-rows-", ignore_cleanup_errors=True) as temp:
-        live = render(produce(Path(temp)))
+        # The same isolation the conftest gives a test: no read of this machine's hermes root.
+        for name, sub in (("HERMES_HOME", "hermes"), ("HERMES_AGENT_RUNTIME_ROOT", "runtime")):
+            (Path(temp) / sub).mkdir()
+            os.environ[name] = str(Path(temp) / sub)
+        os.environ.pop("HERMES_HEAD_HOME", None)
+        live = render(produce(Path(temp) / "seed"))
     if argv[:1] == ["--write"]:
         FIXTURE_PATH.write_text(live, encoding="utf-8", newline="\n")
         print(f"wrote {FIXTURE_PATH.name}")

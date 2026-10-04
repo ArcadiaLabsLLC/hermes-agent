@@ -16,9 +16,11 @@ from agent_runtime.builds import vocabulary as v
 
 from tests.agent_runtime import _build_rows_fixture as fx
 
-#: Words only the DETECTED source produces; it lands in row H6, which empties this set.
-DETECTED_ONLY = {"source": {v.SOURCE_DETECTED}, "started_by": {v.STARTED_BY_EXTERNAL},
-                 "progress_signal": {v.PROGRESS_SIGNAL_CPU}, "reason": {v.CONTROL_REASON_SLOT_UNBOUND}}
+#: Words no ROW can carry, by construction, and where they are pinned instead: a detected
+#: row exists only while its slot is bound here, so ``slot_unbound`` is answered at the moment
+#: of a Stop/Restart (``test_build_control.py``), never projected.
+ACTION_TIME_ONLY = {"source": set(), "started_by": set(), "progress_signal": set(),
+                    "reason": {v.CONTROL_REASON_SLOT_UNBOUND}}
 
 
 def _golden() -> dict:
@@ -36,17 +38,17 @@ def _words(rows: list[dict], read) -> set:
 def test_every_vocabulary_word_appears_in_the_golden():
     rows = _golden()["rows"]
     expected = {
-        "source": (lambda r: [r["source"]], set(v.BUILD_SOURCES) - DETECTED_ONLY["source"]),
+        "source": (lambda r: [r["source"]], set(v.BUILD_SOURCES) - ACTION_TIME_ONLY["source"]),
         "liveness": (lambda r: [r["liveness"]], set(v.BUILD_LIVENESS)),
         "outcome": (lambda r: [r["outcome"]], set(v.BUILD_OUTCOMES)),
         "stage": (lambda r: [r["stage"]], set(v.BUILD_STAGES)),
         "toolchain": (lambda r: [r["toolchain"]], set(v.BUILD_TOOLCHAINS)),
         "mode": (lambda r: [r["mode"]], set(v.BUILD_MODES)),
-        "started_by": (lambda r: [r["started_by"]["kind"]], set(v.STARTED_BY_KINDS) - DETECTED_ONLY["started_by"]),
-        "progress_signal": (lambda r: [r["progress_signal"]], set(v.PROGRESS_SIGNALS) - DETECTED_ONLY["progress_signal"]),
+        "started_by": (lambda r: [r["started_by"]["kind"]], set(v.STARTED_BY_KINDS) - ACTION_TIME_ONLY["started_by"]),
+        "progress_signal": (lambda r: [r["progress_signal"]], set(v.PROGRESS_SIGNALS) - ACTION_TIME_ONLY["progress_signal"]),
         "control": (lambda r: [r["controls"]["stop"], r["controls"]["restart"]], set(v.CONTROL_STATES)),
         "reason": (lambda r: [r["controls"]["stop_reason"] or None, r["controls"]["restart_reason"] or None],
-                   set(v.CONTROL_REASONS) - DETECTED_ONLY["reason"]),
+                   set(v.CONTROL_REASONS) - ACTION_TIME_ONLY["reason"]),
         "env_source": (lambda r: [v.ENV_SOURCE_SLOT_PREFIX if r["env_source"].startswith(v.ENV_SOURCE_SLOT_PREFIX)
                                   else r["env_source"]], set(v.ENV_SOURCE_ARMS)),
         "unknown": (lambda r: [entry["kind"] for entry in r["unknowns"]], set(u.UNKNOWN_KINDS)),
@@ -66,6 +68,9 @@ def test_every_row_carries_every_build_key_and_the_sources_name_each_sub():
     assert {"scan_ms", "processes_examined", "candidates", "budget_ms"} <= set(build["sub"]["detected"])
     announced = golden["source_variants"]["registry_unreadable"]["sub"]["announced"]
     assert announced["reason"] in v.ANNOUNCED_SUB_REASONS
+    detected = golden["source_variants"]["detected"]
+    assert {sub["reason"] for sub in detected.values()} == set(v.DETECTED_SUB_REASONS)
+    assert all({"scan_ms", "processes_examined", "candidates", "budget_ms"} <= set(sub) for sub in detected.values())
 
 
 def test_a_build_row_names_its_starter_or_says_it_could_not():

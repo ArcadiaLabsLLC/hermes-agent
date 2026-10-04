@@ -38,12 +38,12 @@ from ..builds.vocabulary import (
     CONTROL_REASON_OWNER_NOT_HERE,
     CONTROL_REASON_WRITER_DECLINES,
     CONTROL_REFUSED,
-    DETECT_BUDGET_MS,
     ENV_SOURCE_PROCESS,
     ENV_SOURCE_UNKNOWN,
     LIVENESS_DEAD,
     LIVENESS_LIVE,
     LIVENESS_UNKNOWN,
+    PROGRESS_SIGNAL_CPU,
     PROGRESS_SIGNAL_HEARTBEAT,
     PROGRESS_SIGNAL_NONE,
     PROGRESS_SIGNAL_OUTPUT,
@@ -54,7 +54,7 @@ from ..builds.vocabulary import (
     SOURCE_DETECTED,
     STAGE_UNKNOWN,
     STARTED_BY_AGENT,
-    SUB_REASON_NOT_IN_PROCESS,
+    STARTED_BY_EXTERNAL,
     SUB_REASON_REGISTRY_UNREADABLE,
 )
 from ..projection_accountant import ProjectionAccountant
@@ -81,13 +81,21 @@ def _sub(status: str, reason: str = "", **cost: Any) -> dict[str, Any]:
     return {"status": status, "reason": reason, **cost}
 
 
-def _bound_slots() -> list[Any]:
-    try:
-        from ..workspace_slots import authorized_roots_bound_here
+def _census() -> Any:
+    """This machine's slot census: how many slots the realm declares, and the ones bound here."""
 
-        return authorized_roots_bound_here()
+    from ..workspace_slots import SlotCensus, slot_census
+
+    try:
+        return slot_census()
     except Exception:  # noqa: BLE001 — no slot store is "no slot", typed per row as slot_unresolved
-        return []
+        return SlotCensus(0, ())
+
+
+#: The process table the detected scan reads; None = psutil (a seam for the fixture and tests).
+_detect_table: Any = None
+#: The scan's clock; None = ``time.perf_counter`` (a seam so a golden's ``scan_ms`` is fixed).
+_detect_clock: Any = None
 
 
 class BuildLane(LanePass):
@@ -98,17 +106,21 @@ class BuildLane(LanePass):
     def __init__(self, *, now: float, accountant: ProjectionAccountant | None, frame_rows: list[dict[str, Any]]) -> None:
         super().__init__(now=now, accountant=accountant)
         self.frame_rows = frame_rows
-        self.bound = _bound_slots()
+        self.census = _census()
+        self.bound = list(self.census.bound)
 
     def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         subs = {SOURCE_AGENT: self.reclassify()}
         announced, subs[SOURCE_ANNOUNCED] = self.announced()
-        detected, subs[SOURCE_DETECTED] = self.detected()
+        detected, subs[SOURCE_DETECTED] = self.detected(owned=_pids(self.frame_rows) | _pids(announced))
         rows = self.finish(announced + detected)
         any_ok = any(sub["status"] == SOURCE_OK for sub in subs.values())
         entry = _source(SOURCE_OK if any_ok else SOURCE_UNAVAILABLE, lane=LANE_DURABLE)
         entry["sub"] = subs
         return rows, entry
+
+    #: The detected scan's measured cost, for ``parity.sections_ms["running_work.build_detect"]``.
+    scan_ms = 0
 
     def slot_of(self, facts: BuildFacts, path: str) -> None:
         from ..workspace_slots import slot_for_path
@@ -261,9 +273,47 @@ class BuildLane(LanePass):
 
     # ── detected: its own module (``builds.detect``) ─────────────────────────
 
-    def detected(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        cost = {"scan_ms": 0, "processes_examined": 0, "candidates": 0, "budget_ms": DETECT_BUDGET_MS}
-        return [], _sub(SOURCE_UNAVAILABLE, SUB_REASON_NOT_IN_PROCESS, **cost)
+    def detected(self, *, owned: set[int]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        from ..builds.detect import scan
+
+        kwargs = {"clock": _detect_clock} if _detect_clock is not None else {}
+        result = scan(now=self.now, census=self.census, owned=owned, table=_detect_table, **kwargs)
+        self.scan_ms = result.scan_ms
+        seen: set[Any] = set()
+        rows = [build_row(self.detected_facts(build, seen), self.accountant) for build in result.builds]
+        for _row in rows:
+            self.consider()
+        PROGRESS.prune(seen, SOURCE_DETECTED)
+        return rows, result.sub()
+
+    def detected_facts(self, build: Any, seen: set[Any]) -> BuildFacts:
+        from ..builds.detect import restart_unknowns
+
+        command = build.command
+        facts = BuildFacts(
+            source=SOURCE_DETECTED, stable_id=f"{build.pid}-{build.start}", command=" ".join(build.argv),
+            label=label_for(command.toolchain, command.kind, command.target, str(command.project_dir)),
+            pid=build.pid, pid_verified=True, source_lane=LANE_LIVE, project_root=str(command.project_dir),
+            workspace_id=build.slot.workspace_id, slot_id=build.slot.slot, env_source=slot_env_source(build.slot.slot, ""),
+            toolchain=command.toolchain, target=command.target, mode=command.mode,
+            started_by={"kind": STARTED_BY_EXTERNAL, "label": build.exe}, progress_signal=PROGRESS_SIGNAL_CPU,
+            restart={"argv": list(build.argv), "cwd": build.cwd},
+            stop=(CONTROL_ALLOWED, ""), restart_control=(CONTROL_ALLOWED, ""),
+        )
+        key = (SOURCE_DETECTED, build.pid, build.start)
+        seen.add(key)
+        facts.seconds_since_progress = PROGRESS.observe(key, round(build.cpu, 2), self.now)
+        facts.liveness, facts.stalling = liveness_for(facts.seconds_since_progress)
+        for entry in restart_unknowns(build, now=self.now).wire():
+            facts.unknowns.add(entry["kind"], entry["evidence"], entry["seen_at"])
+        note_starter(facts, "detected: no session", now=self.now)
+        return facts
+
+
+def _pids(rows: list[dict[str, Any]]) -> set[int]:
+    """The pids the agent and announced sources already own (the detected scan skips them and their children)."""
+
+    return {int(row["pid"]) for row in rows if isinstance(row.get("pid"), int)}
 
 
 def _registry_session(registry: Any, session_id: str) -> Any:

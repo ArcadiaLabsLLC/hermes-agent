@@ -151,7 +151,7 @@
       "announcement": null,
       "artifact": null,
       "cancellable": true,
-      "command": "cd \"<root>/backend\" && flutter build apk --debug",
+      "command": "cd \"<root>/scratch\" && flutter build apk --debug",
       "controls": {
         "restart": "allowed",
         "restart_reason": "",
@@ -166,7 +166,7 @@
       "finished_at": "",
       "history_samples": 0,
       "kind": "build",
-      "label": "flutter build apk · backend",
+      "label": "flutter build apk · scratch",
       "liveness": "stalled",
       "mcp_job": null,
       "mode": "debug",
@@ -188,8 +188,8 @@
       "progress_fraction": null,
       "progress_signal": "output",
       "project": {
-        "name": "backend",
-        "root": "<root>/backend"
+        "name": "scratch",
+        "root": "<root>/scratch"
       },
       "restart": {
         "argv": [
@@ -198,7 +198,7 @@
           "apk",
           "--debug"
         ],
-        "cwd": "<root>/backend"
+        "cwd": "<root>/scratch"
       },
       "restart_of": null,
       "seconds_since_progress": 300.0,
@@ -219,7 +219,7 @@
       "toolchain": "flutter",
       "unknowns": [
         {
-          "evidence": "<root>/backend: under none of 1 bound slot(s)",
+          "evidence": "<root>/scratch: under none of 2 bound slot(s)",
           "kind": "slot_unresolved",
           "seen_at": 1759590720.0
         },
@@ -833,7 +833,7 @@
           "seen_at": 1759590713.0
         },
         {
-          "evidence": "<root>/elsewhere: under none of 1 bound slot(s)",
+          "evidence": "<root>/elsewhere: under none of 2 bound slot(s)",
           "kind": "slot_unresolved",
           "seen_at": 1759590720.0
         }
@@ -1151,9 +1151,244 @@
       ],
       "work_id": "build:announced:qb-unproven",
       "workspace_id": "ws_team"
+    },
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": true,
+      "command": "C:/flutter/bin/cache/dart-sdk/bin/dart.exe C:/flutter/bin/cache/flutter_tools.snapshot build windows --release",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 0,
+      "env_source": "slot:launcher",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build windows · launcher",
+      "liveness": "live",
+      "mcp_job": null,
+      "mode": "release",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": null,
+        "persona_instance_id": null,
+        "session_id": null
+      },
+      "pid": 7001,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "cpu",
+      "project": {
+        "name": "launcher",
+        "root": "<root>/launcher"
+      },
+      "restart": {
+        "argv": [
+          "C:/flutter/bin/cache/dart-sdk/bin/dart.exe",
+          "C:/flutter/bin/cache/flutter_tools.snapshot",
+          "build",
+          "windows",
+          "--release"
+        ],
+        "cwd": "<root>/launcher"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 0.0,
+      "slot_id": "launcher",
+      "source": "detected",
+      "source_lane": "live",
+      "stage": "unknown",
+      "stage_detail": "",
+      "started_at": "",
+      "started_by": {
+        "kind": "external",
+        "label": "dart.exe"
+      },
+      "started_by_instance": null,
+      "status": "running",
+      "tail_preview": "",
+      "target": "windows",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "JAVA_HOME, PUB_CACHE",
+          "kind": "env_unobserved",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "detected: no session",
+          "kind": "starter_unknown",
+          "seen_at": 1759590720.0
+        }
+      ],
+      "work_id": "build:detected:7001-11",
+      "workspace_id": "ws_team"
+    },
+    {
+      "announcement": null,
+      "artifact": null,
+      "cancellable": true,
+      "command": "C:/flutter/bin/cache/dart-sdk/bin/dart.exe C:/flutter/bin/cache/flutter_tools.snapshot build apk --debug",
+      "controls": {
+        "restart": "allowed",
+        "restart_reason": "",
+        "stop": "allowed",
+        "stop_reason": ""
+      },
+      "elapsed_seconds": 0,
+      "env_source": "slot:backend",
+      "eta_ms": null,
+      "exit_code": null,
+      "expected_ms": null,
+      "finished_at": "",
+      "history_samples": 0,
+      "kind": "build",
+      "label": "flutter build apk · app",
+      "liveness": "stalled",
+      "mcp_job": null,
+      "mode": "debug",
+      "origin_work_id": null,
+      "outcome": null,
+      "owner": {
+        "persona_id": null,
+        "persona_instance_id": null,
+        "session_id": null
+      },
+      "pid": 7002,
+      "pid_verified": true,
+      "progress": {
+        "api_calls": null,
+        "in_tool": null,
+        "seconds_since_progress": null,
+        "source": "unavailable"
+      },
+      "progress_fraction": null,
+      "progress_signal": "cpu",
+      "project": {
+        "name": "app",
+        "root": "<root>/backend/app"
+      },
+      "restart": {
+        "argv": [
+          "C:/flutter/bin/cache/dart-sdk/bin/dart.exe",
+          "C:/flutter/bin/cache/flutter_tools.snapshot",
+          "build",
+          "apk",
+          "--debug"
+        ],
+        "cwd": "<root>/backend/app"
+      },
+      "restart_of": null,
+      "seconds_since_progress": 300.0,
+      "slot_id": "backend",
+      "source": "detected",
+      "source_lane": "live",
+      "stage": "unknown",
+      "stage_detail": "",
+      "started_at": "",
+      "started_by": {
+        "kind": "external",
+        "label": "dart.exe"
+      },
+      "started_by_instance": null,
+      "status": "stalled",
+      "tail_preview": "",
+      "target": "apk",
+      "toolchain": "flutter",
+      "unknowns": [
+        {
+          "evidence": "FLUTTER_ROOT, JAVA_HOME, PATH, PUB_CACHE",
+          "kind": "env_unobserved",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "explorer.exe → cmd.exe → dart.exe",
+          "kind": "wrapper_unobserved",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "PATH of the observed process",
+          "kind": "path_unobserved",
+          "seen_at": 1759590720.0
+        },
+        {
+          "evidence": "detected: no session",
+          "kind": "starter_unknown",
+          "seen_at": 1759590720.0
+        }
+      ],
+      "work_id": "build:detected:7002-11",
+      "workspace_id": "ws_team"
     }
   ],
   "source_variants": {
+    "detected": {
+      "no_slots_declared": {
+        "budget_ms": 50,
+        "candidates": 0,
+        "processes_examined": 0,
+        "reason": "no_slots_declared",
+        "scan_ms": 0,
+        "status": "unavailable",
+        "unknowns": []
+      },
+      "not_in_process": {
+        "budget_ms": 50,
+        "candidates": 0,
+        "processes_examined": 0,
+        "reason": "not_in_process",
+        "scan_ms": 0,
+        "status": "unavailable",
+        "unknowns": []
+      },
+      "scan_budget": {
+        "budget_ms": 50,
+        "candidates": 2,
+        "processes_examined": 2,
+        "reason": "scan_budget",
+        "scan_ms": 90,
+        "status": "unavailable",
+        "unknowns": []
+      },
+      "scan_failed": {
+        "budget_ms": 50,
+        "candidates": 0,
+        "processes_examined": 0,
+        "reason": "scan_failed",
+        "scan_ms": 0,
+        "status": "unavailable",
+        "unknowns": [
+          {
+            "evidence": "process table: OSError",
+            "kind": "process_unidentified",
+            "seen_at": 1759590720.0
+          }
+        ]
+      },
+      "slots_unbound_here": {
+        "budget_ms": 50,
+        "candidates": 0,
+        "processes_examined": 0,
+        "reason": "slots_unbound_here",
+        "scan_ms": 0,
+        "status": "unavailable",
+        "unknowns": []
+      }
+    },
     "registry_unreadable": {
       "lane": "durable",
       "status": "ok",
@@ -1173,7 +1408,8 @@
           "processes_examined": 0,
           "reason": "not_in_process",
           "scan_ms": 0,
-          "status": "unavailable"
+          "status": "unavailable",
+          "unknowns": []
         }
       }
     }
@@ -1193,11 +1429,28 @@
         },
         "detected": {
           "budget_ms": 50,
-          "candidates": 0,
-          "processes_examined": 0,
-          "reason": "not_in_process",
+          "candidates": 8,
+          "processes_examined": 9,
+          "reason": "",
           "scan_ms": 0,
-          "status": "unavailable"
+          "status": "ok",
+          "unknowns": [
+            {
+              "evidence": "flutter.bat: cmdline unreadable (PermissionError)",
+              "kind": "process_unidentified",
+              "seen_at": 1759590720.0
+            },
+            {
+              "evidence": "dart.exe C:/flutter/bin/cache/dart-sdk/bin/dart.exe C:/flutter/bin/cache/flutter_tools.snapshot build: PermissionError",
+              "kind": "cwd_unreadable",
+              "seen_at": 1759590720.0
+            },
+            {
+              "evidence": "dart.exe C:/tools/weird-launcher.exe --go",
+              "kind": "process_unidentified",
+              "seen_at": 1759590720.0
+            }
+          ]
         }
       }
     }
