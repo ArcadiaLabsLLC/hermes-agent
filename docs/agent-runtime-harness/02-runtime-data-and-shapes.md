@@ -688,6 +688,20 @@ two keys on a block the launcher already parses as a map are "merely unread"
 by a reader that predates them, never invisible. The goldens moved and the
 launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (h-jobvis, 2026-10-04) — ``running_work`` gained its seventh lane,
+``mcp_job``: a job an MCP server runs for an agent (a QA build), read durably
+from ``mcp_jobs.json`` beside ``processes.json``. Same ruling as the
+``dispatch`` lane at "52 KEPT": nothing left the wire, ``sources`` is parsed as
+a map, and the launcher parses ``kind`` as an open string with an ``unknown``
+arm that still renders label, status and elapsed. The row is the shared shape
+plus additive keys ``server``, ``job_id``, ``job_kind``, ``eta_ms``,
+``expected_ms``, ``outcome``, ``finished_at``; ``status`` is ``running``
+while pending, ``completed`` (outcome ``ready``) or ``error`` (outcome
+``failed``, ``tail_preview`` = the bounded failure tail) once the finish
+notification lands, and the row leaves when the drain settles the wake or at
+the writer's ``expires_at``. The goldens moved and the launcher mirror is
+owed (``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

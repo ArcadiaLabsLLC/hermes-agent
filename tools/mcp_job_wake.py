@@ -16,6 +16,11 @@ The join, end to end:
    ``mcp_job_finished`` event on ``process_registry.completion_queue`` — the queue every surface
    (CLI, TUI, serve's persona-chat lane) already drains for finished background terminals.
 3. :func:`format_job_finished` renders the ``[IMPORTANT: ...]`` text the drain injects.
+4. Background work: every bound job is a row in ``<background-work home>/mcp_jobs.json`` — the
+   checkpoint the ``running_work`` projection's ``mcp_job`` lane reads, beside ``processes.json``
+   (``agent_runtime/running_work/lanes_process.py``). ``running`` on bind; ``ready``/``failed``
+   (with elapsed and the redacted tail) on the finish notification; gone once the serve drain
+   settles the wake (:func:`note_wake_settled`), or past the row's own ``expires_at``.
 
 A job id wakes at most once: the binding is popped when the wake is queued. A notification for a
 job id nobody bound — unknown, foreign, or already woken — is logged and dropped. A notification
@@ -33,9 +38,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import threading
 import time
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 logger = logging.getLogger("tools.mcp_tool")
@@ -48,12 +55,22 @@ _SEARCH_DEPTH = 4
 _MAX_ROUTES = 128
 _ROUTE_TTL_S = 6 * 3600.0
 _TAIL_CHARS = 4000
+#: How long a FINISHED row stays in background work when no drain settles its wake (a CLI/TUI
+#: drain has no settle hook) — long enough to be seen, short enough not to become an archive.
+_FINISHED_TTL_S = 30 * 60.0
+CHECKPOINT_FILENAME = "mcp_jobs.json"
+ROW_RUNNING, ROW_READY, ROW_FAILED = "running", "ready", "failed"
+_OK_OUTCOMES = frozenset({"ready", "finished", "completed", "succeeded", "done", "ok"})
 
 JOB_WAKE_CAPABILITY = "eternia.job_wake"
 JOB_WAKE_VERSION = 1
 
 _lock = threading.Lock()
 _routes: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+#: The background-work rows, keyed like ``_routes``. A route is popped when its wake is queued
+#: (wake at most once); its row outlives it until the wake is settled or the row expires.
+_rows: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+_writer_identity: Optional[tuple[int, Any]] = None
 
 
 def advertise_job_wake(session: Any) -> bool:
@@ -99,7 +116,19 @@ def routing_for_call(call_kwargs: Mapping[str, Any]) -> dict:
     except Exception:
         parent_session_id = ""
     return {"session_key": session_key, "task_id": task_id, "owner_task_id": task_id,
-            "parent_session_id": parent_session_id}
+            "parent_session_id": parent_session_id, "checkpoint": _checkpoint_path()}
+
+
+def _checkpoint_path() -> str:
+    """Where this call's rows go — resolved HERE, on the worker thread, because that is the
+    thread a persona turn's head-home scope is recorded on (the same place a ``terminal``
+    spawned by this turn resolves ``processes.json``). Empty when no home resolves."""
+    try:
+        from agent_runtime.profile_home import get_hermes_background_work_home
+        return str(Path(get_hermes_background_work_home()) / CHECKPOINT_FILENAME)
+    except Exception:
+        logger.debug("MCP job checkpoint home unresolved", exc_info=True)
+        return ""
 
 
 def observe_call_result(server_name: str, result: Any, routing: Optional[dict]) -> None:
@@ -107,22 +136,25 @@ def observe_call_result(server_name: str, result: Any, routing: Optional[dict]) 
     if not routing:
         return
     try:
-        for job_id in _running_job_ids(result):
-            _bind(server_name, job_id, routing)
+        for job_key, job in _running_jobs(result):
+            _bind(server_name, job["job_id"], routing, _job_facts(server_name, job_key, job))
     except Exception:
         logger.debug("MCP job routing capture failed for '%s'", server_name, exc_info=True)
 
 
-def _bind(server_name: str, job_id: str, routing: dict) -> None:
+def _bind(server_name: str, job_id: str, routing: dict, facts: Optional[dict] = None) -> None:
     key = (server_name, job_id)
     with _lock:
         _expire_locked(time.monotonic())
         if key in _routes:
             return  # the agent that STARTED the job is the one woken
         _routes[key] = {**routing, "bound_at": time.monotonic()}
+        _rows[key] = _running_row(server_name, job_id, routing, facts or {})
         while len(_routes) > _MAX_ROUTES:
             dropped, _ = _routes.popitem(last=False)
+            _rows.pop(dropped, None)
             logger.warning("MCP job route cap reached; forgetting %s/%s", *dropped)
+        _write_checkpoints_locked(routing.get("checkpoint", ""))
     logger.info("MCP server '%s': job %s will wake session %r when it finishes",
                 server_name, job_id, routing.get("session_key"))
 
@@ -131,14 +163,43 @@ def _expire_locked(now: float) -> None:
     for key in [k for k, v in _routes.items() if now - v["bound_at"] > _ROUTE_TTL_S]:
         _routes.pop(key, None)
         logger.warning("MCP job %s/%s expired unwoken after %.0fs", key[0], key[1], _ROUTE_TTL_S)
+    wall = time.time()
+    for key in [k for k, row in _rows.items() if row["expires_at"] <= wall]:
+        _write_checkpoints_locked(_rows.pop(key)["checkpoint"])
+
+
+def _running_jobs(result: Any) -> list[tuple[str, dict]]:
+    """``(result key, job block)`` for every RUNNING job named in the result; first mention wins."""
+    found: list[tuple[str, dict]] = []
+    for payload in _json_payloads(result):
+        _collect_jobs(payload, found, _SEARCH_DEPTH)
+    unique: dict[str, tuple[str, dict]] = {}
+    for job_key, job in found:
+        unique.setdefault(job["job_id"], (job_key, job))
+    return list(unique.values())
 
 
 def _running_job_ids(result: Any) -> list[str]:
     """Job ids of RUNNING jobs named in ``structuredContent`` or in any JSON text block."""
-    found: list[str] = []
-    for payload in _json_payloads(result):
-        _collect_jobs(payload, found, _SEARCH_DEPTH)
-    return list(dict.fromkeys(found))
+    return [job["job_id"] for _key, job in _running_jobs(result)]
+
+
+def _job_facts(server_name: str, job_key: str, job: dict) -> dict:
+    """What background work shows about a job, read off its block: label, timing, kind."""
+    commit = str(job.get("commit") or "")[:7]
+    if job_key == "build_job":
+        label = f"QA build {commit}" if commit else "QA build"
+    else:
+        label = str(job.get("label") or f"{server_name} job {job['job_id']}")
+    return {"label": label[:160], "job_kind": "qa_build" if job_key == "build_job" else "",
+            "eta_ms": _ms(job.get("eta_ms")), "expected_ms": _ms(job.get("expected_ms")),
+            "elapsed_ms": _ms(job.get("elapsed_ms"))}
+
+
+def _ms(value: Any) -> Optional[int]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return None
+    return int(value)
 
 
 def _json_payloads(result: Any) -> list:
@@ -163,7 +224,7 @@ def _collect_jobs(node: Any, found: list, depth: int) -> None:
         job = node.get(key)
         if isinstance(job, dict) and isinstance(job.get("job_id"), str) and job["job_id"]:
             if str(job.get("status") or "running") == "running":
-                found.append(job["job_id"])
+                found.append((key, job))
     for value in node.values():
         if isinstance(value, dict):
             _collect_jobs(value, found, depth - 1)
@@ -184,6 +245,8 @@ def on_log_notification(server_name: str, params: Any) -> bool:
             return False
         with _lock:
             route = _routes.pop((server_name, job_id), None)
+            if route is not None:
+                _finish_row_locked((server_name, job_id), data)
         if route is None:
             logger.info("MCP server '%s': job %s finished but no call routed it here; not waking", server_name, job_id)
             return False
@@ -261,6 +324,92 @@ def format_job_finished(evt: Mapping[str, Any]) -> str:
             + (f"\n{message}" if message else "") + (f"\nFailure tail:\n{tail}" if tail else "") + "]")
 
 
+# Background-work rows: the ``mcp_job`` lane of ``running_work`` reads what these write.
+
+
+def _running_row(server_name: str, job_id: str, routing: dict, facts: dict) -> dict:
+    wall = time.time()
+    pid, start = _writer()
+    return {
+        "server": server_name, "job_id": job_id, "label": facts.get("label") or f"{server_name} job {job_id}",
+        "job_kind": facts.get("job_kind", ""), "status": ROW_RUNNING, "outcome": None,
+        "started_at": wall - (facts.get("elapsed_ms") or 0) / 1000.0, "eta_ms": facts.get("eta_ms"),
+        "expected_ms": facts.get("expected_ms"), "elapsed_ms": None, "finished_at": None, "failure_tail": "",
+        "session_key": str(routing.get("session_key") or ""), "expires_at": wall + _ROUTE_TTL_S,
+        "pid": pid, "host_start_time": start, "checkpoint": str(routing.get("checkpoint") or ""),
+    }
+
+
+def _finish_row_locked(key: tuple[str, str], data: dict) -> None:
+    row = _rows.get(key)
+    if row is None:
+        return
+    outcome, wall, tail = str(data.get("outcome") or "finished"), time.time(), data.get("failure_tail")
+    row.update(status=ROW_READY if outcome in _OK_OUTCOMES else ROW_FAILED, outcome=outcome, eta_ms=0,
+               elapsed_ms=_ms(data.get("elapsed_ms")), finished_at=wall,
+               failure_tail=_redacted_tail(tail) if isinstance(tail, str) else "",
+               expires_at=wall + _FINISHED_TTL_S)
+    _write_checkpoints_locked(row["checkpoint"])
+
+
+def note_wake_settled(evt: Mapping[str, Any]) -> bool:
+    """The drain is done with this wake (delivered, steered, or dropped for good): retire its row.
+
+    True when a row was removed. Any other event type, or a job with no row, is a no-op."""
+    if not isinstance(evt, Mapping) or evt.get("type") != EVENT_TYPE:
+        return False
+    with _lock:
+        row = _rows.pop((str(evt.get("server") or ""), str(evt.get("job_id") or "")), None)
+        if row is not None:
+            _write_checkpoints_locked(row["checkpoint"])
+    return row is not None
+
+
+def _writer() -> tuple[int, Any]:
+    """This process's pid and spawn ticks — the reader's proof the rows' owner still lives."""
+    global _writer_identity
+    if _writer_identity is None:
+        pid, start = os.getpid(), None
+        try:
+            from gateway.status import get_process_start_time
+            start = get_process_start_time(pid)
+        except Exception:
+            start = None
+        _writer_identity = (pid, start)
+    return _writer_identity
+
+
+def _write_checkpoints_locked(path: str) -> None:
+    """Rewrite *path*: this process's rows for it, plus other writers' unexpired entries."""
+    if not path:
+        return
+    pid, wall = _writer()[0], time.time()
+    mine = [{k: v for k, v in row.items() if k != "checkpoint"} for row in _rows.values() if row["checkpoint"] == path]
+    try:
+        from utils import atomic_json_write
+        foreign = [e for e in _read_checkpoint(path) if e.get("pid") != pid and _expires_after(e, wall)]
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        atomic_json_write(path, foreign + mine)
+    except Exception:
+        logger.warning("MCP job checkpoint %s could not be written", Path(path).name, exc_info=True)
+
+
+def _read_checkpoint(path: str) -> list[dict]:
+    try:
+        entries = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []
+
+
+def _expires_after(entry: dict, wall: float) -> bool:
+    expires = entry.get("expires_at")
+    return isinstance(expires, (int, float)) and expires > wall
+
+
 def reset_for_tests() -> None:
+    global _writer_identity
     with _lock:
         _routes.clear()
+        _rows.clear()
+        _writer_identity = None

@@ -1,9 +1,9 @@
 """Unified ``running_work`` projection — what background work is running RIGHT NOW.
 
-One aggregator, five lanes (terminal background processes, background subagent
+One aggregator, six lanes (terminal background processes, background subagent
 delegations, in-flight mission-chat turns — with, live, the foreground
-``tool_call`` each is blocked on — detached agent-to-agent dispatches, and cron
-jobs), producing ONE row vocabulary so an operator surface never has
+``tool_call`` each is blocked on — detached agent-to-agent dispatches, MCP
+background jobs such as a QA build, and cron jobs), producing ONE row vocabulary so an operator surface never has
 to know which subsystem spawned a piece of work.
 
 Connected MCP transports are deliberately NOT a lane. A warm connection is
@@ -179,10 +179,10 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 per-lane cap, and LanePass (consider / drop / finish)
       ownership.py      stores  the head home, running_work_store_paths (the ONE authority), PID
                                 identity (rule 2), the session owner (rule 5), the ambient block
-      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, cron
+      lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane, cron
       lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
                                 (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
-      surface.py        lanes   _COLLECTORS (the table over the five lanes), build_running_work,
+      surface.py        lanes   _COLLECTORS (the table over the six lanes), build_running_work,
                                 find_work_row, split_work_id, peek_work, cancel_work
 
     entry point                                  opens
@@ -249,6 +249,7 @@ from .vocabulary import (
     KIND_CRON_JOB,
     KIND_DELEGATION,
     KIND_DISPATCH,
+    KIND_MCP_JOB,
     KIND_TERMINAL,
     KIND_TOOL_CALL,
     LANE_DURABLE,
@@ -287,6 +288,7 @@ __all__ = [
     "KIND_CRON_JOB",
     "KIND_DELEGATION",
     "KIND_DISPATCH",
+    "KIND_MCP_JOB",
     "KIND_TERMINAL",
     "KIND_TOOL_CALL",
     "PEEK_TAIL_LIMIT",

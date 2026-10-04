@@ -1,6 +1,7 @@
-"""The two lanes whose liveness is a PROCESS this runtime owns: terminal
-background processes (durable checkpoint + live registry) and cron jobs
-(live-only, with positive proof the scheduler runs here)."""
+"""The lanes whose liveness is a PROCESS this runtime owns: terminal
+background processes (durable checkpoint + live registry), MCP background
+jobs (durable checkpoint, owned by the process holding the MCP session) and
+cron jobs (live-only, with positive proof the scheduler runs here)."""
 
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ from .rows import (
 )
 from .vocabulary import (
     KIND_CRON_JOB,
+    KIND_MCP_JOB,
     KIND_TERMINAL,
     LANE_DURABLE,
     LANE_LIVE,
@@ -35,9 +37,12 @@ from .vocabulary import (
     REGISTRY_EXITED,
     SOURCE_OK,
     SOURCE_UNAVAILABLE,
+    STATUS_COMPLETED,
+    STATUS_ERROR,
     STATUS_RUNNING,
     STATUS_UNKNOWN,
     _CHECKPOINT_FILENAME,
+    _MCP_JOBS_FILENAME,
 )
 
 __layer__ = "lanes"
@@ -85,29 +90,7 @@ class TerminalLane(LanePass):
     def read_durable(self, head: Path) -> tuple[list[Any], dict[str, Any] | None]:
         """The checkpoint's entries, or a typed ``unavailable`` source entry."""
 
-        path = head / _CHECKPOINT_FILENAME
-        try:
-            if path.exists():
-                entries = json.loads(path.read_text(encoding="utf-8"))
-            else:
-                # An absent checkpoint and a checkpoint listing nothing are the SAME
-                # runtime fact — zero background processes, proven — so the lane says
-                # `ok` with zero rows either way. Which of the two it was is storage
-                # layout, and reporting it here is what used to put a filesystem
-                # observation on a contract field.
-                entries = []
-        except Exception as exc:
-            return [], _source(
-                SOURCE_UNAVAILABLE,
-                lane=LANE_DURABLE,
-                reason="checkpoint_unreadable",
-                detail=f"{type(exc).__name__}",
-            )
-        if not isinstance(entries, list):
-            return [], _source(
-                SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="checkpoint_malformed"
-            )
-        return entries, None
+        return _read_checkpoint(head / _CHECKPOINT_FILENAME)
 
     def durable_row(self, entry: Any) -> None:
         if not isinstance(entry, dict):
@@ -236,6 +219,138 @@ class TerminalLane(LanePass):
             if item.get("uptime_seconds"):
                 existing["elapsed_seconds"] = int(item["uptime_seconds"])
         existing["tail_preview"] = _preview(item.get("output_preview"), self.accountant)
+
+
+def _read_checkpoint(path: Path) -> tuple[list[Any], dict[str, Any] | None]:
+    """A JSON-list checkpoint's entries, or a typed ``unavailable`` source entry."""
+
+    try:
+        if path.exists():
+            entries = json.loads(path.read_text(encoding="utf-8"))
+        else:
+            # An absent checkpoint and a checkpoint listing nothing are the SAME
+            # runtime fact — zero entries, proven — so the lane says `ok` with zero
+            # rows either way. Which of the two it was is storage layout, and
+            # reporting it here is what used to put a filesystem observation on a
+            # contract field.
+            entries = []
+    except Exception as exc:
+        return [], _source(
+            SOURCE_UNAVAILABLE,
+            lane=LANE_DURABLE,
+            reason="checkpoint_unreadable",
+            detail=f"{type(exc).__name__}",
+        )
+    if not isinstance(entries, list):
+        return [], _source(
+            SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="checkpoint_malformed"
+        )
+    return entries, None
+
+
+#: An ``mcp_jobs.json`` entry's ``status`` (``tools/mcp_job_wake.py``'s ``ROW_*``) on this wire.
+MCP_JOB_STATUS_BY_ROW = {"running": STATUS_RUNNING, "ready": STATUS_COMPLETED, "failed": STATUS_ERROR}
+
+
+class McpJobLane(LanePass):
+    """Durable ``mcp_jobs.json``: a job an MCP server runs for an agent, until its wake settles.
+
+    The job runs in the MCP SERVER, so there is no job pid to prove; what can be proven is the
+    entry's WRITER — the process holding the MCP session whose notification will wake the agent.
+    A dead or recycled writer means the wake can never arrive: the row is dropped (by design).
+    An unprovable writer leaves a ``running`` entry ``unknown``, as rule 2 says. A ``ready`` /
+    ``failed`` entry is the writer's record of a notification it already received, so it ships
+    as written. Expiry is the writer's own ``expires_at`` — one authority for the TTL.
+    """
+
+    kind = KIND_MCP_JOB
+
+    def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        head, _provenance = _head_home()
+        if head is None:
+            return [], _source(SOURCE_UNAVAILABLE, lane=LANE_DURABLE, reason="home_unresolved")
+        entries, refusal = _read_checkpoint(head / _MCP_JOBS_FILENAME)
+        if refusal is not None:
+            return [], refusal
+        rows = [row for row in map(self.durable_row, entries) if row is not None]
+        return self.finish(rows), _source(SOURCE_OK, lane=LANE_DURABLE)
+
+    def durable_row(self, entry: Any) -> dict[str, Any] | None:
+        if not isinstance(entry, dict):
+            return None
+        server = bounded_operator_text(entry.get("server"), limit=120)
+        job_id = bounded_operator_text(entry.get("job_id"), limit=160)
+        status = MCP_JOB_STATUS_BY_ROW.get(str(entry.get("status") or ""))
+        if not server or not job_id or status is None:
+            return None
+        self.consider()
+        stable_id = f"{server}:{job_id}"
+        if self.expired(entry, stable_id):
+            return None
+        _alive, verified, verdict = _pid_identity(entry.get("pid"), entry.get("host_start_time"))
+        if verdict in (PID_DEAD, PID_RECYCLED):
+            self.drop("mcp_job_owner_exited", entity_id=stable_id,
+                      detail="the process holding the MCP session is gone", by_design=True)
+            return None
+        if status == STATUS_RUNNING and not verified:
+            status = STATUS_UNKNOWN
+        return self.row(entry, stable_id, status, verified)
+
+    def expired(self, entry: dict[str, Any], stable_id: str) -> bool:
+        expires = entry.get("expires_at")
+        if isinstance(expires, (int, float)) and expires > self.now:
+            return False
+        self.drop("mcp_job_expired", entity_id=stable_id, detail="past the writer's expires_at", by_design=True)
+        return True
+
+    def row(self, entry: dict[str, Any], stable_id: str, status: str, verified: bool) -> dict[str, Any]:
+        started = entry.get("started_at")
+        started = float(started) if isinstance(started, (int, float)) else None
+        elapsed_ms = _whole(entry.get("elapsed_ms"))
+        if elapsed_ms is not None and status != STATUS_RUNNING:
+            elapsed = elapsed_ms // 1000
+        else:
+            elapsed = elapsed_seconds(started, now=self.now)
+        session = bounded_operator_text(entry.get("session_key"), limit=200)
+        owner_persona, owner_instance = _owner_of(session, memo=self.owners)
+        return work_row(
+            kind=KIND_MCP_JOB, stable_id=stable_id,
+            label=bounded_operator_text(entry.get("label"), limit=120) or stable_id,
+            status=status, source_lane=LANE_DURABLE, pid_verified=verified,
+            persona_id=owner_persona, persona_instance_id=owner_instance, session_id=session,
+            started_at=_iso(started), elapsed_seconds=elapsed, progress=_progress(available=False),
+            tail_preview=_preview(entry.get("failure_tail"), self.accountant), cancellable=False,
+            extra=_mcp_job_extra(entry),
+        )
+
+
+def _mcp_job_extra(entry: dict[str, Any]) -> dict[str, Any]:
+    """The ``mcp_job`` row's own keys, additive to the shared shape."""
+
+    outcome = bounded_operator_text(entry.get("outcome"), limit=40)
+    return {
+        "server": bounded_operator_text(entry.get("server"), limit=120),
+        "job_id": bounded_operator_text(entry.get("job_id"), limit=160),
+        "job_kind": bounded_operator_text(entry.get("job_kind"), limit=40),
+        "eta_ms": _whole(entry.get("eta_ms")),
+        "expected_ms": _whole(entry.get("expected_ms")),
+        "outcome": outcome or None,
+        "finished_at": _iso(entry.get("finished_at")),
+    }
+
+
+def _whole(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return None
+    return int(value)
+
+
+def _collect_mcp_jobs(
+    *, now: float, accountant: ProjectionAccountant | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The MCP-job lane's collector: one :class:`McpJobLane` pass."""
+
+    return McpJobLane(now=now, accountant=accountant).collect()
 
 
 def _collect_terminal(

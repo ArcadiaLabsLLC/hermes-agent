@@ -9,10 +9,10 @@ from typing import Any
 from ..projection_accountant import ProjectionAccountant
 
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
-from .lanes_process import _collect_cron, _collect_terminal
+from .lanes_process import _collect_cron, _collect_mcp_jobs, _collect_terminal
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
-from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
+from .vocabulary import KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
 
 __layer__ = "lanes"
 
@@ -22,6 +22,7 @@ _COLLECTORS = (
     (KIND_DELEGATION, _collect_delegations, True),
     (KIND_CHAT_TURN, _collect_chat_turns, True),
     (KIND_DISPATCH, _collect_dispatches, True),
+    (KIND_MCP_JOB, _collect_mcp_jobs, True),
     (KIND_CRON_JOB, _collect_cron, False),
 )
 

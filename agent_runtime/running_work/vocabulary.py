@@ -33,6 +33,10 @@ KIND_DISPATCH = "dispatch"
 #: lane from the executing process's live-turn registry, so it has no
 #: ``sources`` entry of its own and exists only where that process answers.
 KIND_TOOL_CALL = "tool_call"
+#: A job an MCP server runs in the background on an agent's behalf (a QA build), from the moment
+#: a tool result names it until its finish wake is settled. Written by ``tools/mcp_job_wake.py``
+#: to :data:`_MCP_JOBS_FILENAME`; read durably, like the terminal checkpoint.
+KIND_MCP_JOB = "mcp_job"
 
 #: How far back an UNDELIVERABLE dispatch keeps surfacing on the Activity
 #: projection. A day, because "your agent's answer was thrown away" is worth
@@ -55,6 +59,7 @@ RUNNING_WORK_KINDS = (
     KIND_CRON_JOB,
     KIND_DISPATCH,
     KIND_TOOL_CALL,
+    KIND_MCP_JOB,
 )
 
 #: The lanes that report a ``sources`` entry on every build. ``dispatch`` joined
@@ -67,6 +72,7 @@ RUNNING_WORK_SOURCES = (
     KIND_CHAT_TURN,
     KIND_CRON_JOB,
     KIND_DISPATCH,
+    KIND_MCP_JOB,
 )
 
 STATUS_RUNNING = "running"
@@ -115,6 +121,7 @@ STALLING_FRACTION = 0.5
 _MAX_ROWS_PER_SOURCE = 200
 
 _CHECKPOINT_FILENAME = "processes.json"
+_MCP_JOBS_FILENAME = "mcp_jobs.json"
 _STATE_DB_FILENAME = "state.db"
 
 

@@ -12,6 +12,16 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (h-jobvis, 2026-10-04) — OPEN, launcher mirror OWED.**
+> Eight generated goldens moved for one reason: `running_work.sources` gained
+> the `mcp_job` lane's entry (`{"status":"ok","lane":"durable"}`; additive,
+> contract 54 KEPT — see the ledger in
+> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
+> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`,
+> `hydrate.json`, `hydrate_authoritative_same_offset.json`,
+> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
+> `running_work.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w6-hm, 2026-10-02) — OPEN, launcher mirror OWED.**
 > Seven generated goldens moved for two reasons and nothing else:
 > `parity.profile` gained `cli_active_profile` / `cli_active_profile_differs`

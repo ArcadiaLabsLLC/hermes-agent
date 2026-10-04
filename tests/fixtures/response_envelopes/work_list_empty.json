@@ -47,6 +47,10 @@
         "lane": "durable",
         "status": "ok"
       },
+      "mcp_job": {
+        "lane": "durable",
+        "status": "ok"
+      },
       "terminal": {
         "lane": "durable",
         "status": "ok"

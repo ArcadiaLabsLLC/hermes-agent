@@ -47,6 +47,19 @@ _background_attempts: dict[str, int] = {}
 _PROCESS_LIKE_EVENTS = frozenset({"completion", "mcp_job_finished"})
 
 
+def _settled(evt: dict[str, Any]) -> None:
+    """The drain is done with *evt* for good; an MCP job's wake retires its background-work row."""
+
+    if str(evt.get("type") or "") != "mcp_job_finished":
+        return
+    try:
+        from tools.mcp_job_wake import note_wake_settled
+
+        note_wake_settled(evt)
+    except Exception:  # pragma: no cover - defensive; the row then leaves by its own expiry
+        logger.debug("MCP job row could not be retired", exc_info=True)
+
+
 def _owns_event_with_accounting(evt: dict[str, Any], policy: DrainPolicy = DEFAULT_DRAIN_POLICY) -> bool:
     """The queue's ownership filter — same boolean, now visible when it says no.
 
@@ -405,6 +418,7 @@ class BackgroundDrain:
             )
             self.tally["dropped"] += 1
             _telemetry.record_bounce(key, GATE_PERSONA_INSTANCE_MISSING, f"root={orphan}", root=orphan)
+            _settled(evt)
             return None
         if root is None or owner is None or not text:
             # Ownership was proven at drain time; if it cannot be re-proven now
@@ -432,6 +446,7 @@ class BackgroundDrain:
             return True
         if _steer_into_busy_turn(evt, root, owner, text, key):
             self.tally["steered"] += 1
+            _settled(evt)
             _telemetry.record_bounce(key, GATE_STEERED, f"root={root}", root=root)  # A
             return False
         self.registry.completion_queue.put(evt)
@@ -478,6 +493,7 @@ class BackgroundDrain:
             )
             _background_attempts.pop(key, None)
             self.tally["abandoned"] += 1
+            _settled(evt)
             _telemetry.record_bounce(  # A
                 key,
                 GATE_ABANDONED,
@@ -521,6 +537,7 @@ class BackgroundDrain:
             _settle_durable_completion(evt, claim, delivered=True)
             _background_attempts.pop(key, None)
             self.tally["delivered"] += 1
+            _settled(evt)
             reason, visibility_detail = _delivery_outcome(payload)  # A
             detail = "; ".join(
                 part for part in (f"producer_started_at={evt.get('started_at')!r}", visibility_detail) if part

@@ -102,6 +102,7 @@ def test_snapshot_carries_the_running_work_section(isolate_agent_runtime_root) -
         "delegation",
         "chat_turn",
         "dispatch",
+        "mcp_job",
         "cron_job",
     }
     for name, entry in section["sources"].items():

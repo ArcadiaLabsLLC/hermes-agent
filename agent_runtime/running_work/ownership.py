@@ -10,7 +10,7 @@ from typing import Any
 from .._upstream_doors import pid_exists
 
 from .rows import bounded_operator_text
-from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _STATE_DB_FILENAME
+from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME
 
 __layer__ = "stores"
 
@@ -59,7 +59,8 @@ def running_work_store_paths() -> tuple[Path, ...]:
     """The durable stores this projection reads — the ONE authority for them.
 
     Exported because the serve read-model cache must fingerprint exactly these
-    files: both mutate with NO EventLog event (a background process starting or
+    files: all three mutate with NO EventLog event (an MCP job binding or finishing
+    rewrites ``mcp_jobs.json``; a background process starting or
     exiting rewrites the checkpoint; a delegation dispatch/finalize writes
     ``async_delegations``), so without a stat the 20s cache would keep serving a
     HUD claiming three processes are running for twenty seconds after they all
@@ -73,7 +74,8 @@ def running_work_store_paths() -> tuple[Path, ...]:
     head, _ = _head_home()
     if head is None:
         return ()
-    return (head / _CHECKPOINT_FILENAME, head / _STATE_DB_FILENAME)
+    # ``state.db`` stays LAST: the fingerprint gates read ``[-1]`` as the SQLite store.
+    return (head / _CHECKPOINT_FILENAME, head / _MCP_JOBS_FILENAME, head / _STATE_DB_FILENAME)
 
 
 def _pid_identity(pid: Any, expected_start: Any) -> tuple[bool, bool, str]:

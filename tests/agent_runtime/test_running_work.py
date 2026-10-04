@@ -155,7 +155,9 @@ def test_the_writers_and_the_reader_resolve_the_same_directory(real_home):
     paths = running_work_store_paths()
 
     assert process_registry.checkpoint_path() == paths[0]
-    assert _db_path() == paths[1]
+    assert _db_path() == paths[-1]
+    from tools import mcp_job_wake
+    assert mcp_job_wake._checkpoint_path() == str(paths[1])
     # ...and that shared directory is the operator's head, not the profile the
     # ambient env var happens to point at.
     assert paths[0].parent == head
@@ -203,6 +205,7 @@ def test_with_no_explicit_head_both_sides_fall_back_to_the_ambient_home(
     assert _db_path() == ambient / "state.db"
     assert running_work_store_paths() == (
         ambient / "processes.json",
+        ambient / "mcp_jobs.json",
         ambient / "state.db",
     )
     assert _head_home_provenance() == "ambient_home"
@@ -1458,6 +1461,7 @@ def test_work_ids_split_on_the_first_colon_only(work_id, expected):
 def test_store_paths_are_the_single_authority_the_serve_cache_fingerprints(home):
     assert running_work_store_paths() == (
         home / "processes.json",
+        home / "mcp_jobs.json",
         home / "state.db",
     )
 
