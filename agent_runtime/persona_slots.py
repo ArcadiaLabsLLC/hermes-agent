@@ -169,6 +169,15 @@ class SlotContext:
     primary_source: str = PRIMARY_SOURCE_NONE
     primary_path: str | None = None
     bound: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    workspace_id: str = ""
+
+    @property
+    def bindings(self) -> tuple[Any, ...]:
+        """The bound assigned slots as overlay bindings (the turn's env scope, §3.3)."""
+
+        from .workspace_slot_overlay import SlotBinding
+
+        return tuple(SlotBinding(self.workspace_id, slot, path) for slot, path in self.bound)
 
     @property
     def content(self) -> str:
@@ -221,4 +230,4 @@ def load_slot_context(instance: Any) -> SlotContext | None:
                 sections.append(SlotContextSection(slot, file, loaded.content))
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
-    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound))
+    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id)

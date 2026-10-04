@@ -304,6 +304,8 @@ def _scrubbed_env(parts, plugin_strip: frozenset, fix_path) -> dict:
     # already applies this invariant; Cron scripts use this sanitizer directly (#92998).
     if path_key is not None:
         out[path_key] = _prepend_hermes_bin_dir(fix_path(out.get(path_key, "")))
+    from agent_runtime.workspace_slot_overlay import apply_slot_env_overlay  # fork seam: repo-slot env (build plan H5c)
+    out = apply_slot_env_overlay(out)
     return _finalize_child_env(out)
 
 

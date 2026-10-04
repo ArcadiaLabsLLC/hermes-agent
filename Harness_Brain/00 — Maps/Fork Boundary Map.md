@@ -41,6 +41,7 @@ The fork reaches into upstream files at a few anchors. The good shape is **one i
 | `scripts/run_tests_parallel.py`, `scripts/run_tests.sh` | the fork's hermetic runner (8 workers, per-file subprocesses) | heavy, conflicts every sync |
 | `tests/hermes_cli/conftest.py` (+1,266), `tests/conftest.py` (+569), `tests/tools/conftest.py` (+406), `tests/agent/conftest.py` | hermetic-home fixtures, env-gap fence | the single largest conflict surface |
 | `pyproject.toml` / `uv.lock` | `coverage==7.16.0`, `pytest-timeout==2.4.0` in `dev` + `[tool.uv.exclude-newer-package]` exemptions; repo-wide `--timeout=30`; `httpx2==2.12.0` over upstream's 2.7.0 in `mcp` / `computer-use` / `dev` (bundled vuln gate, 2026-09-28) | keep the fork's pair on every merge, plus any NEW upstream rows; keep the HIGHER `httpx2` pin (`tests/agent_runtime/test_bundle_vuln_floors.py`) |
+| `tools/environments/local.py` | `apply_slot_env_overlay(out)` in `_scrubbed_env` — the repo-slot environment for commands a mission-chat turn spawns under a bound slot (build plan H5c, `agent_runtime/workspace_slot_overlay.py`) | one import + one call; a no-op with no turn scope |
 
 22 upstream files carry more than 200 fork lines; 118 carry five or fewer. The heavy tail is the whole conflict problem — see [[Upstream Sync]] and [[0006 — Upstream sync is a real merge, per-file reconciliation retired]].
 

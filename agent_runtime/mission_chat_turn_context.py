@@ -413,6 +413,12 @@ class MissionChatTurnContext:
         return getattr(self.workspace_agents, "content", None)
 
     @property
+    def slot_bindings(self) -> tuple[Any, ...]:
+        """The assigned slots bound here: the env scope the turn's commands run under (H5c)."""
+
+        return () if self.slot_context is None else self.slot_context.bindings
+
+    @property
     def primary_slot_path(self) -> str | None:
         """Workdir rung 2 under an assignment: the PRIMARY slot's bound path (OWNER full-stack)."""
 

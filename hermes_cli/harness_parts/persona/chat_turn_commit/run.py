@@ -588,6 +588,7 @@ class _RunPhases:
                 # large selection must not ground the turn somewhere it never read.
                 workspace_agents_path=turn_context.workspace_agents_path,
                 primary_slot_path=turn_context.primary_slot_path,
+                slot_bindings=turn_context.slot_bindings,
                 situational_hud_content=self.situational_hud_content,
                 turn_id=safe_assignment_token(self.client_message_id),
             )
