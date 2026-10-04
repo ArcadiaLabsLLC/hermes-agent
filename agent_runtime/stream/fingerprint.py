@@ -174,6 +174,9 @@ def _running_work_parts() -> list[str]:
                     for suffix, mtime_ns, size in sqlite_fingerprint_triples(store_path)
                 )
                 continue
+            if store_path.suffix == "":
+                parts.extend(_build_registry_parts(store_path))
+                continue
             try:
                 stat = store_path.stat()
                 parts.append(
@@ -183,4 +186,24 @@ def _running_work_parts() -> list[str]:
                 parts.append(f"bgwork:{store_path.name}:absent")
     except Exception:  # noqa: BLE001 — same posture as the chat DB above
         parts.append("running_work_stores:unresolved")
+    return parts
+
+
+def _build_registry_parts(directory) -> list[str]:
+    """The build registry DIRECTORY: present/absent, then each ``*.json`` record by (name, mtime, size).
+
+    A writer announcing or updating a build rewrites its record with no EventLog event, and a
+    temp-then-rename does not move the directory's own mtime on NTFS — so every record is
+    keyed individually (plan ``build-running-work-2026-10-04.md`` §2).
+    """
+
+    from ..running_work.ownership import build_registry_record_paths
+
+    parts = [f"bgwork:{directory.name}:{'dir' if directory.is_dir() else 'absent'}"]
+    for record in build_registry_record_paths(directory):
+        try:
+            stat = record.stat()
+        except OSError:
+            continue
+        parts.append(f"bgwork:{directory.name}/{record.name}:{stat.st_mtime_ns}:{stat.st_size}")
     return parts

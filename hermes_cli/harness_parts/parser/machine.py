@@ -22,11 +22,13 @@ roots_commands = lazy_module("hermes_cli.harness_parts.roots_commands")
 runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
 usage_commands = lazy_module("hermes_cli.harness_parts.usage.commands")
 verify_commands = lazy_module("hermes_cli.harness_parts.verify_commands")
+builds_commands = lazy_module("hermes_cli.harness_parts.builds_commands")
 work_commands = lazy_module("hermes_cli.harness_parts.work_commands")
 
 __layer__ = "wiring"
 __all__ = [
     "_cmd_serve",
+    "add_builds",
     "_cmd_serve_connect",
     "add_config",
     "add_contracts",
@@ -599,3 +601,14 @@ def _cmd_serve_connect(args) -> int:
     from hermes_cli.harness_parts.serve.commands import _cmd_serve_connect as _run_connect
 
     return _run_connect(args)
+
+
+def add_builds(subs) -> None:
+    """``hermes harness builds`` — the announced-build registry (build plan §2)."""
+    builds = subs.add_parser("builds", help="The announced-build registry (where build writers announce)")
+    builds_subs = builds.add_subparsers(dest="builds_command", required=True)
+    registry_path = builds_subs.add_parser(
+        "registry-path", help="Print the directory a build writer announces into (read-only)"
+    )
+    _add_stage42_global_args(registry_path)
+    registry_path.set_defaults(func=builds_commands._cmd_builds_registry_path)

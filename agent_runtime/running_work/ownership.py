@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .._upstream_doors import pid_exists
+from ..builds.vocabulary import BUILD_REGISTRY_DIRNAME
 
 from .rows import bounded_operator_text
 from .vocabulary import PID_DEAD, PID_NO_BASELINE, PID_RECYCLED, PID_START_TIME_UNREADABLE, PID_VERIFIED, _CHECKPOINT_FILENAME, _MCP_JOBS_FILENAME, _STATE_DB_FILENAME
@@ -59,9 +60,10 @@ def running_work_store_paths() -> tuple[Path, ...]:
     """The durable stores this projection reads — the ONE authority for them.
 
     Exported because the serve read-model cache must fingerprint exactly these
-    files: all three mutate with NO EventLog event (an MCP job binding or finishing
+    files: all four mutate with NO EventLog event (an MCP job binding or finishing
     rewrites ``mcp_jobs.json``; a background process starting or
-    exiting rewrites the checkpoint; a delegation dispatch/finalize writes
+    exiting rewrites the checkpoint; a writer announcing a build rewrites its record
+    under the ``builds/`` registry directory; a delegation dispatch/finalize writes
     ``async_delegations``), so without a stat the 20s cache would keep serving a
     HUD claiming three processes are running for twenty seconds after they all
     exited — and, worse, claiming nothing is running for twenty seconds after an
@@ -75,7 +77,30 @@ def running_work_store_paths() -> tuple[Path, ...]:
     if head is None:
         return ()
     # ``state.db`` stays LAST: the fingerprint gates read ``[-1]`` as the SQLite store.
-    return (head / _CHECKPOINT_FILENAME, head / _MCP_JOBS_FILENAME, head / _STATE_DB_FILENAME)
+    # The build registry is a DIRECTORY: its consumers stat the directory entry and every
+    # ``*.json`` record under it (:func:`build_registry_record_paths`).
+    return (
+        head / _CHECKPOINT_FILENAME,
+        head / _MCP_JOBS_FILENAME,
+        head / BUILD_REGISTRY_DIRNAME,
+        head / _STATE_DB_FILENAME,
+    )
+
+
+def build_registry_record_paths(directory: Path) -> list[Path]:
+    """The announced-build records a fingerprint must stat: every ``*.json`` under the registry.
+
+    One file per job, written temp-then-rename by its writer — a record appearing, changing or
+    disappearing mutates with NO EventLog event, exactly like the checkpoint, so each record
+    is statted individually (an in-place replace does not move the directory's mtime on NTFS).
+    An absent or unlistable directory answers ``[]``; the caller still stats the directory
+    entry itself, so "absent" stays a stable, recorded signal.
+    """
+
+    try:
+        return sorted(path for path in directory.glob("*.json") if path.is_file())
+    except OSError:
+        return []
 
 
 def _pid_identity(pid: Any, expected_start: Any) -> tuple[bool, bool, str]:

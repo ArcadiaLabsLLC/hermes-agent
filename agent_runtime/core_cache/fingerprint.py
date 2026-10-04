@@ -161,8 +161,14 @@ def _collect_running_work(entries: list[FingerprintEntry]) -> bool:
         # The authority could not resolve a home. "I cannot fingerprint these"
         # is not "there is nothing to watch" — refuse.
         return False
+    from ..running_work.ownership import build_registry_record_paths
+
     for path in store_paths:
         _db_entries(path, entries)
+        if path.suffix == "":
+            # The build registry DIRECTORY (build plan §2): each ``*.json`` record by its own
+            # (mtime, size) — a writer's temp-then-rename does not move the directory on NTFS.
+            entries.extend(_stat_entry(record) for record in build_registry_record_paths(path))
     return True
 
 

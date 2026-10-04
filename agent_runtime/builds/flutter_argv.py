@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from agent_runtime.builds.vocabulary import TOOLCHAIN_DART, TOOLCHAIN_FLUTTER
+
 __layer__ = "models"
 
 
@@ -108,8 +110,6 @@ def flutter_builds(command: str, base_dir: str | os.PathLike[str]) -> list[Flutt
 
 # ── FlutterCommand: one argv, classified (plan §4) ─────────────────────────────
 
-TOOLCHAIN_FLUTTER = "flutter"
-TOOLCHAIN_DART = "dart"
 COMMAND_BUILD = "build"
 COMMAND_RUN = "run"
 COMMAND_OTHER = "other"

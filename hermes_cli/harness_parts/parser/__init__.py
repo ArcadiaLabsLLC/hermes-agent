@@ -10,7 +10,7 @@ its ``func=`` handlers BY NAME through ``lazy`` — the tree imports no handler)
 
 * ``machine`` — init, roots, gateway, status/providers/usage/doctor/health/verify,
   config, migrate, observe, contracts, worktree, install-harness-skills, snapshot,
-  stream, serve (with its two lazy ``_cmd_serve*`` trampolines), work;
+  stream, serve (with its two lazy ``_cmd_serve*`` trampolines), work, builds;
 * ``scope`` — workspace, realm;
 * ``auth`` — non-interactive provider setup over native credential handlers;
 * ``surfaces`` — flow, checkpoint, skills, prompt-context, board, office, level, map;
@@ -33,6 +33,7 @@ from .auth import add_auth
 from .characters import add_characters, add_pets
 from .common_args import _add_stage42_global_args
 from .machine import (
+    add_builds,
     add_config,
     add_contracts,
     add_doctor,
@@ -109,6 +110,7 @@ PARSER_FAMILIES: Final[tuple[Callable[[object], None], ...]] = (
     add_stream,
     add_serve,
     add_work,
+    add_builds,
     add_pets,
     add_characters,
 )

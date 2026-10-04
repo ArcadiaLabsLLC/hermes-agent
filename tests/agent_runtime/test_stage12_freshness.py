@@ -214,6 +214,25 @@ def test_scope_fingerprint_covers_running_work_stores():
     assert _scope_fingerprint() != before
 
 
+def test_scope_fingerprint_covers_announced_build_records():
+    """A writer announcing or updating a build rewrites ``builds/<job_id>.json`` with NO
+    EventLog event (build plan §2). The backstop must stat every record — the directory's own
+    mtime does not move when a temp-then-rename replaces an existing record on NTFS."""
+
+    import time as _time
+
+    from agent_runtime.builds.registry import new_record, registry_dir, write_record
+    from agent_runtime.stream import _scope_fingerprint
+
+    before = _scope_fingerprint()
+    write_record(registry_dir(), new_record(job_id="qb-fp", started_at=1.0))
+    appeared = _scope_fingerprint()
+    assert appeared != before
+    _time.sleep(0.02)  # NTFS mtime granularity guard
+    write_record(registry_dir(), new_record(job_id="qb-fp", started_at=1.0, stage="linking", stage_detail="error LNK2019"))
+    assert _scope_fingerprint() != appeared
+
+
 def _wal_mode_head_home_db():
     """The head-home chat ``state.db`` in WAL mode, with NO connection left open.
 

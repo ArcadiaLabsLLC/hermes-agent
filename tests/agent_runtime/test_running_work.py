@@ -206,6 +206,7 @@ def test_with_no_explicit_head_both_sides_fall_back_to_the_ambient_home(
     assert running_work_store_paths() == (
         ambient / "processes.json",
         ambient / "mcp_jobs.json",
+        ambient / "builds",
         ambient / "state.db",
     )
     assert _head_home_provenance() == "ambient_home"
@@ -1462,6 +1463,7 @@ def test_store_paths_are_the_single_authority_the_serve_cache_fingerprints(home)
     assert running_work_store_paths() == (
         home / "processes.json",
         home / "mcp_jobs.json",
+        home / "builds",
         home / "state.db",
     )
 

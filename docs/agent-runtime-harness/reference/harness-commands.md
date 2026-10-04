@@ -174,6 +174,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness work list](#hermes-harness-work-list)
 - [hermes harness work peek](#hermes-harness-work-peek)
 - [hermes harness work cancel](#hermes-harness-work-cancel)
+- [hermes harness builds](#hermes-harness-builds)
+- [hermes harness builds registry-path](#hermes-harness-builds-registry-path)
 - [hermes harness pets](#hermes-harness-pets)
 - [hermes harness pets gallery](#hermes-harness-pets-gallery)
 - [hermes harness pets install](#hermes-harness-pets-install)
@@ -203,10 +205,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -258,6 +260,7 @@ positional arguments:
     serve               Persistent NDJSON bridge: dispatch harness argv requests in one warm process
                         (Mission Control serve lane), on stdio and on the per-root localhost socket
     work                Background work running right now (list / peek / cancel)
+    builds              The announced-build registry (where build writers announce)
     pets                Mission Control Petdex bridge
     characters          Mission Control character-sheet bridge (8-way sheets + QA)
 
@@ -3514,6 +3517,34 @@ options:
   --fields FIELDS
   --dry-run
   --yes, -y
+```
+
+## hermes harness builds
+
+```text
+usage: hermes harness builds [-h] {registry-path} ...
+
+positional arguments:
+  {registry-path}
+    registry-path  Print the directory a build writer announces into (read-only)
+
+options:
+  -h, --help       show this help message and exit
+```
+
+## hermes harness builds registry-path
+
+```text
+usage: hermes harness builds registry-path [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                           [--no-color] [--fields FIELDS]
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
 ```
 
 ## hermes harness pets
