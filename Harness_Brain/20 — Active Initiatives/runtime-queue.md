@@ -205,7 +205,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-24 (lane MOVE-A)
 
-- [ ] **Retire the legacy top-level `remote_gateway.*` / `charsheet.*` read once the launcher writes `plugins.entries.eternia-harness.settings.remote_gateway_listen` / `remote_gateway_port`: empty `LEGACY_KEYS` and delete-and-report the old blocks at one chokepoint** · fork / config · `agent_runtime/harness_settings.py::LEGACY_KEYS` · blocked on the launcher row "Harness config keys move under the plugin manifest" (`mission-control-queue.md`) · filed by lane h-doors 2026-10-03
+- [ ] **Retire the legacy top-level `remote_gateway.*` / `charsheet.*` read once the launcher writes `plugins.entries.eternia-harness.settings.remote_gateway_listen` / `remote_gateway_port`: empty `LEGACY_KEYS` and delete-and-report the old blocks at one chokepoint** · fork / config · `agent_runtime/harness_settings.py::LEGACY_KEYS` · blocked on the launcher row "Harness config keys move under the plugin manifest" (`mission-control-queue.md`) · filed by lane h-doors 2026-10-03 · UNBLOCKED 2026-10-03: launcher writes the new path since 290449df44 (lane mc-doors); retire only once the owner's installed launcher is at or after that commit, or an older launcher's LAN toggle silently stops working
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 
@@ -430,3 +430,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Chat-open prewarm discarded on first turn: resident_signature_diff components=tool_contract (61 vs 71 deferred tools, agent.log 2026-10-03 18:49:15/17); make request_chat_actor_prewarm resolve the same chat_lane_bundle admission as the turn, or record the mismatch as a prewarm outcome** **TAKEN 2026-10-03 h-chatperf**
 - [ ] **Serve runs snapshot_build_core (6–8 s, agents_readiness walk 1.5–2.3 s) beside live chat turns in one process; builds_overlapped read 0 on warm turn 15c73e0c while gen-6 build overlapped it — fix the counter, then isolate/yield builds while a turn is between agent_ready and stream_done** **TAKEN 2026-10-03 h-chatperf**
 - [ ] **context_skill_preload_ms 683–858 + observability_skill_rows_ms 417–439 every turn (mission_chat_turn_context._resolve_skill_preload): memoize on skill-root mtime so a warm turn pays ~0** **TAKEN 2026-10-03 h-chatperf**
+- [ ] **Refusal/detail strings still name the old `remote_gateway.listen` key (pair fulfiller; quoted in launcher `pair_fulfiller_test.dart`) — reword to `plugins.entries.eternia-harness.settings.remote_gateway_listen` together with the LEGACY_KEYS retirement** · filed from launcher lane mc-doors 2026-10-03
