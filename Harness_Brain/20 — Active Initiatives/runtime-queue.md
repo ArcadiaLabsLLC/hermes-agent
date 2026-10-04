@@ -322,6 +322,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-04 (lane hb-a)
 
+- [ ] **The repo-slot env seam (`tools/environments/local.py::_scrubbed_env` → `agent_runtime/workspace_slot_overlay.py::apply_slot_env_overlay`) sees no per-command cwd, so it keys the overlay on the TURN's workdir (the primary slot): a command that `cd`s into another assigned slot runs with the primary's environment — passing the spawn cwd into `_sanitize_subprocess_env` / `_make_run_env` is a seam widening (hold as an upstream PR row in the footprint ledger)** · seams · `agent_runtime/persona_runtime.py` `slot_env_scope`, plan `docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md` §3.3 · lane hb-a
 - [ ] **Repo-slot context sections are not content-deduplicated against `agent/prompt_builder.py::_load_agents_md`'s cwd chain: when a persona sets `include_core_context_files`, the primary slot's CLAUDE.md/AGENTS.md can reach the prompt twice (the chain's `seen_content` is local to its own walk) — a door on prompt_builder taking already-injected content hashes is the fix** · seams · `agent_runtime/persona_slots.py::load_slot_context`, `agent/prompt_builder.py::_load_agents_md`, plan `docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md` §3.3 · lane hb-a
 
 ### Filed on arrival — 2026-10-03 (lane h-mcpwake)

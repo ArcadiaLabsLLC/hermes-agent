@@ -11,6 +11,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-04 (lane hb-a)
+
+- [ ] **`tests/scripts/test_upstream_footprint.py` is RED on main: live `files=175` vs fixture 172 — three upstream files carry fork lines with no ledger row and no fixture `reasons` entry (`tools/mcp_tool_handlers.py` +3, `tools/mcp_tool_health.py` +2, `tools/process_registry_notifications.py` +3); either make them additive behind a door or raise the fixture with a reason, then `--ledger`** · fork-hygiene · `scripts/upstream_footprint.py` on 99dbbe9ee7 printed `[up-fp] files=175 deleted_lines=882 heavy=4`, `tests/fixtures/upstream_footprint.json` says 172 · lane hb-a
+
 ## Filed on arrival — 2026-10-03 (resident identity verification)
 
 - [ ] **Replace stale qualification expectations with owned behavior: pin the clock for grant expiry, follow the canonical sign-in command and derive the declared tool count.** · `fork / suite` · `test_gateway_peers_join_attested`, `test_serve_rpc_provider`, `test_persona_tool_diff_declaration`; three failures reproduced on unchanged main `541f497902` · [Exact baseline comparison](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3) · UNCLAIMED
