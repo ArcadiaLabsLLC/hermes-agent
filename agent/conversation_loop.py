@@ -33,7 +33,11 @@ from agent.runtime_cwd import resolve_agent_cwd
 from agent.surface_switch import (
     identity_line_value, note_inert_pinned_tools, runtime_host_value, stage_surface_switch_note,
 )
-from agent_runtime.conversation_observability import _emit_conversation_timing
+from agent_runtime.conversation_observability import _emit_conversation_timing, _emit_phase_marker
+from agent_runtime.conversation_observability import (
+    CONVERSATION_PREFLIGHT_DONE_STEP, CONVERSATION_REQUEST_BUILT_STEP, CONVERSATION_STARTED_STEP,
+    CONVERSATION_TURN_CONTEXT_BUILT_STEP,
+)
 
 from agent.turn_context import PreflightCompressionTimedOut, build_turn_context
 from hermes_cli.observability.shared_metrics_efficiency import record_cache_break, record_prompt_rebuild
@@ -1519,6 +1523,7 @@ def _run_api_retry_loop(agent, s: _LoopState) -> Optional[Dict[str, Any]]:
             return None
         try:
             _run_phase(build_api_request, agent, s)
+            _emit_phase_marker(agent, CONVERSATION_REQUEST_BUILT_STEP)
             if _run_phase(perform_api_call, agent, s).action == "break":
                 return None
             _rc = _run_phase(check_api_response, agent, s)
@@ -1567,6 +1572,7 @@ def _run_conversation_turn(
 
     # The gateway caches agents across turns; compression state is per-turn, or a stale
     # in-place boundary would make a later uncompressed result look compacted.
+    _emit_phase_marker(agent, CONVERSATION_STARTED_STEP)
     agent._last_compaction_in_place = agent._last_compression_attempt_recorded = False
     agent._last_compression_attempt_in_place = None
     begin_fast_mode_turn(agent, conversation_history)
@@ -1605,6 +1611,7 @@ def _run_conversation_turn(
 
     _emit_conversation_timing(agent, "turn_context", _turn_context_started,
         system_prompt_restored=bool(getattr(agent, "_system_prompt_restored_from_session", False)))
+    _emit_phase_marker(agent, CONVERSATION_TURN_CONTEXT_BUILT_STEP)
 
     # Per-turn agent state (the gateway caches agents across turns, so none of this may
     # leak into the next message): interim-commentary dedup spans the whole turn but not
@@ -1654,6 +1661,7 @@ def _run_conversation_turn(
             break
         if _pg.action == "continue":
             continue
+        _emit_phase_marker(agent, CONVERSATION_PREFLIGHT_DONE_STEP)
         _run_phase(announce_api_call, agent, s)
 
         s.api_start_time, s.retry_count, s.max_retries = time.time(), 0, agent._api_max_retries

@@ -84,8 +84,20 @@ PHASE_ORDER: tuple[str, ...] = (
     "write_ahead",
     "agent_ready",
     "provider_request_started",
+    # h-chatperf (2026-10-03): the hermes half of the provider span, split.
+    "conversation_started",
+    "turn_context_built",
+    "preflight_done",
+    "request_built",
     "request_assembled",
+    # …and the transport half (``agent_runtime.transport_phase_trace``).
+    # ``tls_done`` is ABSENT on a request that rode a pooled connection.
+    "client_built",
+    "tls_done",
+    "request_sent",
+    "response_headers",
     "provider_first_byte",
+    "provider_returned",
     "stream_done",
     "native_committed",
     "projected",
@@ -135,8 +147,17 @@ _BLOCK_ORDER: tuple[str, ...] = (
     "agent_ready",
     "agent_init_cold",
     "provider_request_started",
+    "conversation_started",
+    "turn_context_built",
+    "preflight_done",
+    "request_built",
     "request_assembled",
+    "client_built",
+    "tls_done",
+    "request_sent",
+    "response_headers",
     "provider_first_byte",
+    "provider_returned",
     "stream_done",
     "native_committed",
     "projected",
@@ -384,10 +405,14 @@ def _trace_marker_steps() -> dict[str, str]:
 
     global _TRACE_MARKER_STEPS
     if _TRACE_MARKER_STEPS is None:
-        from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
+        from agent_runtime.conversation_observability import CONVERSATION_MARKER_STEPS
 
+        # Only steps naming a KNOWN mark: ``mark()`` raises on an unknown name,
+        # and a table drift must not become a turn failure on the progress path.
         _TRACE_MARKER_STEPS = {
-            CONVERSATION_REQUEST_ASSEMBLED_STEP: "request_assembled",
+            step: mark
+            for step, mark in CONVERSATION_MARKER_STEPS.items()
+            if mark in _KNOWN_MARKS
         }
     return _TRACE_MARKER_STEPS
 
@@ -544,6 +569,19 @@ _TIMING_FROM_PHASES: tuple[tuple[str, str], ...] = (
     # overlapping a prewarm, so it is the second fact that explains an outlier
     # — and a MEASURED ``0`` is the answer that acquits the bundle.
     ("visibility_bundle_builds", "visibility_bundle_builds"),
+    # h-chatperf (2026-10-03): the stamps inside the provider span. Cold turn
+    # 1e4c06ba spent 12.4 s between ``provider_request_started`` and its first
+    # byte with ONE mark inside it; these say which of hermes assembly, client
+    # build, TLS, upload or the provider's own wait each second went to.
+    ("conversation_started_ms", "conversation_started"),
+    ("turn_context_built_ms", "turn_context_built"),
+    ("preflight_done_ms", "preflight_done"),
+    ("request_built_ms", "request_built"),
+    ("client_built_ms", "client_built"),
+    ("tls_done_ms", "tls_done"),
+    ("request_sent_ms", "request_sent"),
+    ("response_headers_ms", "response_headers"),
+    ("provider_returned_ms", "provider_returned"),
 )
 
 #: The wire keys above that are COUNTS rather than elapsed ms, and therefore
@@ -625,6 +663,17 @@ TURN_TIMING_ORDER: tuple[str, ...] = (
     "runtime_resolve_ms",
     "mcp_admission_ms",
     "agent_construct_ms",
+    # h-chatperf (2026-10-03), appended under the same rule: the provider
+    # span's stamps, in the order a turn passes them.
+    "conversation_started_ms",
+    "turn_context_built_ms",
+    "preflight_done_ms",
+    "request_built_ms",
+    "client_built_ms",
+    "tls_done_ms",
+    "request_sent_ms",
+    "response_headers_ms",
+    "provider_returned_ms",
 )
 
 

@@ -30,6 +30,31 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime.conversation_observability import _emit_request_assembled_marker
+from agent_runtime.conversation_observability import (
+    CONVERSATION_PREFLIGHT_DONE_STEP,
+    CONVERSATION_REQUEST_BUILT_STEP,
+    CONVERSATION_STARTED_STEP,
+    CONVERSATION_TURN_CONTEXT_BUILT_STEP,
+    TRANSPORT_CLIENT_BUILT_STEP,
+    TRANSPORT_REQUEST_SENT_STEP,
+    TRANSPORT_RESPONSE_HEADERS_STEP,
+    TRANSPORT_TLS_DONE_STEP,
+    CONVERSATION_PROVIDER_RETURNED_STEP,
+    _emit_phase_marker,
+)
+
+_LOOP_STAMP_STEPS = (
+    CONVERSATION_STARTED_STEP,
+    CONVERSATION_TURN_CONTEXT_BUILT_STEP,
+    CONVERSATION_PREFLIGHT_DONE_STEP,
+    CONVERSATION_REQUEST_BUILT_STEP,
+)
+_TRANSPORT_STAMP_STEPS = (
+    TRANSPORT_CLIENT_BUILT_STEP,
+    TRANSPORT_TLS_DONE_STEP,
+    TRANSPORT_REQUEST_SENT_STEP,
+    TRANSPORT_RESPONSE_HEADERS_STEP,
+)
 from agent_runtime import mission_chat_phases
 from agent_runtime.mission_chat_phases import (
     PHASE_ORDER,
@@ -157,16 +182,23 @@ def _streaming_provider(*, profile_timing=None, deltas=("hello ", "world")):
                     model="gpt-5.6-luna",
                     progress_callback=progress_callback,
                 )
-                _emit_request_assembled_marker(
-                    SimpleNamespace(
-                        status_callback=_profile_status_callback(request, {})
-                    ),
-                    api_call_count=1,
+                loop_agent = SimpleNamespace(
+                    status_callback=_profile_status_callback(request, {})
                 )
+                # h-chatperf: the provider span's stamps ride the same chain,
+                # in the order a real turn passes them.
+                for step in _LOOP_STAMP_STEPS:
+                    _emit_phase_marker(loop_agent, step)
+                _emit_request_assembled_marker(loop_agent, api_call_count=1)
+                for step in _TRANSPORT_STAMP_STEPS:
+                    _emit_phase_marker(loop_agent, step)
             stream = kwargs.get("stream_callback")
             if stream is not None:
                 for chunk in deltas:
                     stream(chunk)
+            if trace is not None:
+                # The provider call returns after its stream is consumed.
+                _emit_phase_marker(loop_agent, CONVERSATION_PROVIDER_RETURNED_STEP)
             return _result(**timing)
 
     return _Provider
@@ -558,6 +590,7 @@ def test_the_accounting_block_still_rides_its_own_key(timed_turn):
 #: which is the difference between the 430 ms floor and the 840 ms one.
 _HANDLER_MEASURED_KEYS: tuple[str, ...] = (
     "session_db_open_ms",
+    "context_native_history_ms",
     "context_skill_preload_ms",
     "context_hud_ms",
     "context_signature_ms",

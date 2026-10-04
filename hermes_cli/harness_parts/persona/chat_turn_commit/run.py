@@ -8,6 +8,7 @@ after it settles what the provider returned (``settle``).
 from __future__ import annotations
 
 import hashlib
+import time
 from typing import Any
 
 from agent_runtime import paths, relay_policy
@@ -84,6 +85,10 @@ class _RunPhases:
         session_id = self.session_id
         # SessionDB's native structured lineage is the sole continuation authority.
         # The Mission Control projection is never folded into this input.
+        # h-chatperf: the native-history reload, timed. Every turn re-reads the
+        # lineage from SessionDB (the sole continuation authority), and until
+        # this span it hid inside ``context_built`` beside the skill preload.
+        _history_started = time.monotonic()
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_history = _persona_chat_native_history(session_db, active_session_id)
         abandoned_ids = {
@@ -106,6 +111,11 @@ class _RunPhases:
         )
         self.active_session_id = active_session_id
         self.native_history = native_history
+        self.pre_admit_timings.update(
+            _safe_pre_admit_timings(
+                {"context_native_history_ms": max(0, int((time.monotonic() - _history_started) * 1000))}
+            )
+        )
         self.native_revision_before = _persona_chat_native_revision(session_db, session_id)
         self.runtime_registry = persona_chat_runtime_registry()
         self.chat_message = self.message

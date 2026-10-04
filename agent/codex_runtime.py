@@ -1132,6 +1132,8 @@ def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta
             )
         stream_kwargs = _sanitize_consumer_codex_request(agent, next_api_kwargs)
         stream_kwargs["stream"] = True
+        from agent_runtime.transport_phase_trace import install_transport_phase_trace  # fork seam: turn stamps
+        install_transport_phase_trace(agent, active_client)
         return active_client.responses.create(**bypass_sdk_request_transform(stream_kwargs))
 
     def _log_failure(exc: BaseException) -> None:

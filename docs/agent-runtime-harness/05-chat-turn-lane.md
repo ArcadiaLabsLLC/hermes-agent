@@ -92,9 +92,25 @@ the bump is how a reader tells "predates instrumentation" from "instrumented and
 
 ```
 request_received → context_built → observability_built → emitter_created →
-write_ahead → agent_ready → provider_request_started → request_assembled →
-provider_first_byte → stream_done → native_committed → projected
+write_ahead → agent_ready → provider_request_started → conversation_started →
+turn_context_built → preflight_done → request_built → request_assembled →
+client_built → tls_done → request_sent → response_headers →
+provider_first_byte → provider_returned → stream_done → native_committed → projected
 ```
+
+**The provider span's stamps (h-chatperf, 2026-10-03).** Cold turn `1e4c06ba` spent 12.4 s
+between `provider_request_started` and its first byte with `request_assembled` the only mark
+inside. The loop now announces `conversation_started` (`run_conversation` entered),
+`turn_context_built`, `preflight_done` (iteration prep, request assembly and the preflight gate
+done) and `request_built` (`build_api_request` returned) through
+`conversation_observability._emit_phase_marker`; `agent_runtime/transport_phase_trace.py` hooks
+the request client's httpx `request` event to put an httpcore `trace` on the request and announces
+`client_built`, `tls_done`, `request_sent` and `response_headers`; the `llm_execution` middleware
+announces `provider_returned` when the provider call returns, on every provider path. `tls_done` is ABSENT on a
+request that rode a pooled connection — the absence is the reuse receipt. All nine are
+first-mark-wins (a tool loop's later dispatches move nothing) and ride the terminal `timing` block
+as `<mark>_ms`. The handler also folds `context_native_history_ms` (the per-turn SessionDB lineage
+reload) into `profile_timing` beside the context sub-spans.
 
 `request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
 `provider_request_started → request_assembled` is hermes assembly, `request_assembled →
@@ -192,6 +208,7 @@ for the runner's durations):
 | `agent_ready_ms` | `phases.agent_ready` (Stage 6) |
 | `visibility_bundle_builds` | `phases.visibility_bundle_builds` (Stage 6) |
 | `runtime_resolve_ms` | `profile_timing.runtime_resolve_ms` (Stage 6) — no `profile_` prefix on this one |
+| `conversation_started_ms` … `response_headers_ms`, `provider_returned_ms` | `phases.<mark>` for the nine provider-span stamps above (h-chatperf, 2026-10-03), appended in turn order |
 
 Stage 6's six are APPENDED to `TURN_TIMING_ORDER` rather than interleaved chronologically, which
 is "additive in the strict sense" taken literally: no existing key moves in name OR position.

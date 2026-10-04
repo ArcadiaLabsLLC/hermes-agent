@@ -613,6 +613,7 @@ def _visibility_bundle_rebuild_components(cursor):
 #: rather than a silent wire change.
 _PRE_ADMIT_TIMING_KEYS = frozenset(
     {
+        "context_native_history_ms",
         "context_skill_preload_ms",
         "context_hud_ms",
         "context_signature_ms",

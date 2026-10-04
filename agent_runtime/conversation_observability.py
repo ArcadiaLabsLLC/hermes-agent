@@ -6,6 +6,53 @@ from typing import Any, Optional
 __layer__ = "policy"
 
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
+
+#: h-chatperf (2026-10-03): the instants that split the turn's
+#: ``provider_request_started -> provider_first_byte`` span, which on cold turn
+#: ``1e4c06ba`` was 12.4 s with only ``request_assembled`` inside it. Each step
+#: is ``conversation_<mark>`` and the mission-chat handler converts it into the
+#: phase mark of that name (``mission_chat_phases._trace_marker_steps``).
+#:
+#: * ``conversation_started`` -- ``run_conversation`` entered; the gap before it
+#:   is the runner's own hand-off.
+#: * ``turn_context_built`` -- ``build_turn_context`` returned.
+#: * ``preflight_done`` -- the loop's pre-dispatch phases (iteration prep,
+#:   request assembly, the preflight gate) are done.
+#: * ``request_built`` -- ``build_api_request`` returned; the gap to
+#:   ``request_assembled`` is the ``llm_execution`` chain ahead of dispatch.
+#: * ``client_built`` -- the request client exists and the stream open begins.
+#: * ``tls_done`` -- the TLS handshake completed. ABSENT on a turn whose request
+#:   rode a pooled connection, which is itself the reuse receipt.
+#: * ``request_sent`` -- the request body left the process.
+#: * ``response_headers`` -- the provider's response headers arrived.
+#: * ``provider_returned`` -- the ``llm_execution`` call returned (a streamed
+#:   attempt has consumed its stream by then). Fired on EVERY provider path,
+#:   transport hook or not, so it is also what ends a provider-wait window.
+CONVERSATION_STARTED_STEP = "conversation_conversation_started"
+CONVERSATION_TURN_CONTEXT_BUILT_STEP = "conversation_turn_context_built"
+CONVERSATION_PREFLIGHT_DONE_STEP = "conversation_preflight_done"
+CONVERSATION_REQUEST_BUILT_STEP = "conversation_request_built"
+TRANSPORT_CLIENT_BUILT_STEP = "conversation_client_built"
+TRANSPORT_TLS_DONE_STEP = "conversation_tls_done"
+TRANSPORT_REQUEST_SENT_STEP = "conversation_request_sent"
+TRANSPORT_RESPONSE_HEADERS_STEP = "conversation_response_headers"
+CONVERSATION_PROVIDER_RETURNED_STEP = "conversation_provider_returned"
+
+#: step -> the phase mark it becomes. ONE table, read by the converter in
+#: ``mission_chat_phases``; a step absent here is not a timing marker.
+CONVERSATION_MARKER_STEPS: dict[str, str] = {
+    CONVERSATION_STARTED_STEP: "conversation_started",
+    CONVERSATION_TURN_CONTEXT_BUILT_STEP: "turn_context_built",
+    CONVERSATION_PREFLIGHT_DONE_STEP: "preflight_done",
+    CONVERSATION_REQUEST_BUILT_STEP: "request_built",
+    CONVERSATION_REQUEST_ASSEMBLED_STEP: "request_assembled",
+    TRANSPORT_CLIENT_BUILT_STEP: "client_built",
+    TRANSPORT_TLS_DONE_STEP: "tls_done",
+    TRANSPORT_REQUEST_SENT_STEP: "request_sent",
+    TRANSPORT_RESPONSE_HEADERS_STEP: "response_headers",
+    CONVERSATION_PROVIDER_RETURNED_STEP: "provider_returned",
+}
+
 logger = logging.getLogger(__name__)
 
 def _emit_conversation_timing(
@@ -70,6 +117,27 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     except Exception:
         logger.debug("request-assembled marker callback failed", exc_info=True)
 
+def _emit_phase_marker(agent: Any, step: str) -> None:
+    """Announce one of :data:`CONVERSATION_MARKER_STEPS`' instants. Never raises.
+
+    The same payload shape as :func:`_emit_request_assembled_marker` (an
+    INSTANT: no ``duration_ms``/``timing_key``, so the profile-timing collector
+    never sees it), for the loop and transport seams that cannot hold the
+    turn's marks. A step outside the table is dropped here rather than sent:
+    the converter would ignore it anyway, and a typo should cost nothing.
+    """
+
+    if step not in CONVERSATION_MARKER_STEPS:
+        return
+    callback = getattr(agent, "status_callback", None)
+    if callback is None:
+        return
+    try:
+        callback({"type": "run.progress", "phase": "timing", "step": step, "status": "reached"})
+    except Exception:
+        logger.debug("phase marker callback failed", exc_info=True)
+
+
 def _dispatch_streams(agent: Any) -> bool:
     try:
         from ._upstream_doors import dispatch_streams
@@ -117,3 +185,4 @@ def time_provider_dispatch(
     finally:
         _emit_conversation_timing(
             agent, "provider_dispatch", started, status=status, streaming=streaming, **meta)
+        _emit_phase_marker(agent, CONVERSATION_PROVIDER_RETURNED_STEP)

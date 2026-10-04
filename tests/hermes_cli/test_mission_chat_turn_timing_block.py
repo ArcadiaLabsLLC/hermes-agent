@@ -490,7 +490,19 @@ def test_the_new_keys_did_not_displace_the_old_ones():
         "runtime_resolve_ms",
     }
     # The first-turn split (2026-10-01), appended after Stage 6 the same way.
-    assert TURN_TIMING_ORDER[13:] == ("mcp_admission_ms", "agent_construct_ms")
+    assert TURN_TIMING_ORDER[13:15] == ("mcp_admission_ms", "agent_construct_ms")
+    # The provider span's stamps (h-chatperf, 2026-10-03), appended in turn order.
+    assert TURN_TIMING_ORDER[15:] == (
+        "conversation_started_ms",
+        "turn_context_built_ms",
+        "preflight_done_ms",
+        "request_built_ms",
+        "client_built_ms",
+        "tls_done_ms",
+        "request_sent_ms",
+        "response_headers_ms",
+        "provider_returned_ms",
+    )
 
 
 # --------------------------------------------------------------------------- #

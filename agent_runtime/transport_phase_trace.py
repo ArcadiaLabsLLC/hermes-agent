@@ -1,0 +1,113 @@
+"""Transport stamps for a chat turn's provider request (h-chatperf, 2026-10-03).
+
+**The question this answers.** Cold turn ``1e4c06ba`` (Windows, 2026-10-03)
+spent 9.0 s between "request client created" and the first parsed SSE event,
+with nothing on the record inside that span. That window holds four different
+things -- the TCP connect, the TLS handshake, the upload of a 31k-token body,
+and the provider's own wait -- and only the last one is the provider's. These
+stamps split it, so "the provider is slow" and "hermes could not get the request
+out" stop being one number.
+
+**How.** httpcore reports its connection lifecycle to a ``trace`` callable it
+finds in ``request.extensions``. An httpx ``request`` event hook runs before the
+transport sees the request, so it can put that callable there. The callable maps
+three httpcore events onto three phase marks and announces each through the
+same timing-marker payload the conversation loop already uses
+(``conversation_observability._emit_phase_marker``), because this layer cannot
+hold the turn's :class:`~agent_runtime.mission_chat_phases.TurnPhaseMarks`.
+
+* ``connection.start_tls.complete`` -> ``tls_done``. A request that rode a
+  pooled connection never does a handshake, so its turn has NO ``tls_done`` --
+  the absence is the connection-reuse receipt, not a gap.
+* ``http11|http2 .send_request_body.complete`` -> ``request_sent``.
+* ``http11|http2 .receive_response_headers.complete`` -> ``response_headers``.
+
+``client_built`` is announced by :func:`install_transport_phase_trace` itself:
+it is called where the stream is opened, by which point the request client
+exists.
+
+**Cost and failure.** One dict lookup per httpcore event; nothing per SSE
+frame. Every path is fail-open -- an instrument must never be the reason a
+request fails -- and an already-present ``trace`` (a caller's own) is chained,
+never replaced.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Callable
+
+from agent_runtime.conversation_observability import (
+    TRANSPORT_CLIENT_BUILT_STEP,
+    TRANSPORT_REQUEST_SENT_STEP,
+    TRANSPORT_RESPONSE_HEADERS_STEP,
+    TRANSPORT_TLS_DONE_STEP,
+    _emit_phase_marker,
+)
+
+__layer__ = "policy"
+
+logger = logging.getLogger(__name__)
+
+#: httpcore trace event -> the timing-marker step it announces. Closed: every
+#: other event (connect started, headers sent, body chunks, ...) is ignored.
+TRACE_EVENT_STEPS: dict[str, str] = {
+    "connection.start_tls.complete": TRANSPORT_TLS_DONE_STEP,
+    "http11.send_request_body.complete": TRANSPORT_REQUEST_SENT_STEP,
+    "http2.send_request_body.complete": TRANSPORT_REQUEST_SENT_STEP,
+    "http11.receive_response_headers.complete": TRANSPORT_RESPONSE_HEADERS_STEP,
+    "http2.receive_response_headers.complete": TRANSPORT_RESPONSE_HEADERS_STEP,
+}
+
+_HOOK_MARK = "_hermes_transport_phase_trace_hook"
+
+
+def phase_trace_for(agent: Any, chained: Callable[..., Any] | None = None) -> Callable[[str, Any], None]:
+    """The httpcore ``trace`` callable that announces this agent's stamps."""
+
+    def _trace(event_name: str, info: Any) -> None:
+        if chained is not None:
+            try:
+                chained(event_name, info)
+            except Exception:
+                logger.debug("chained transport trace raised", exc_info=True)
+        step = TRACE_EVENT_STEPS.get(event_name)
+        if step is not None:
+            _emit_phase_marker(agent, step)
+
+    return _trace
+
+
+def install_transport_phase_trace(agent: Any, client: Any) -> None:
+    """Announce ``client_built`` and hook *client*'s httpx requests. Never raises.
+
+    Idempotent per httpx client: the hook is marked, and a second install on
+    the same client only re-announces ``client_built`` (which the turn's
+    first-mark-wins rule then ignores).
+    """
+
+    _emit_phase_marker(agent, TRANSPORT_CLIENT_BUILT_STEP)
+    try:
+        http_client = getattr(client, "_client", None)
+        hooks = getattr(http_client, "event_hooks", None)
+        if not isinstance(hooks, dict):
+            return
+        if any(getattr(hook, _HOOK_MARK, False) for hook in hooks.get("request", ())):
+            return
+
+        def _on_request(request: Any) -> None:
+            try:
+                extensions = request.extensions
+                extensions["trace"] = phase_trace_for(agent, extensions.get("trace"))
+            except Exception:
+                logger.debug("transport phase trace not attached", exc_info=True)
+
+        setattr(_on_request, _HOOK_MARK, True)
+        # httpx copies on assignment; rebuild the mapping (the served-model
+        # capture in ``agent/served_model.py`` installs its hook the same way).
+        http_client.event_hooks = {**hooks, "request": [*hooks.get("request", ()), _on_request]}
+    except Exception:
+        logger.debug("transport phase trace install skipped", exc_info=True)
+
+
+__all__ = ["TRACE_EVENT_STEPS", "install_transport_phase_trace", "phase_trace_for"]
