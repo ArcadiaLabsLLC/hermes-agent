@@ -104,3 +104,127 @@ def flutter_builds(command: str, base_dir: str | os.PathLike[str]) -> list[Flutt
             project_dir=current, target=(positional[0].lower() if positional else ""), mode=_build_mode(args),
         ))
     return builds
+
+
+# ── FlutterCommand: one argv, classified (plan §4) ─────────────────────────────
+
+TOOLCHAIN_FLUTTER = "flutter"
+TOOLCHAIN_DART = "dart"
+COMMAND_BUILD = "build"
+COMMAND_RUN = "run"
+COMMAND_OTHER = "other"
+#: ``dart run tool/stagec_parity_build.dart`` is the QA build: an isolated ``ParityStageC`` output.
+QA_ISOLATED_TARGET = "qa_isolated"
+
+_DART_NAMES = frozenset({"dart", "dart.exe", "dart.bat"})
+_FLUTTER_TOOLS_SNAPSHOT = "flutter_tools.snapshot"
+_QA_BUILD_SCRIPTS = ("tool/stagec_parity_build.dart",)
+_DEVICE_FLAGS = frozenset({"-d", "--device-id"})
+
+
+@dataclass(frozen=True)
+class FlutterCommand:
+    """What one Flutter/Dart argv runs: ``kind`` (build · run · other), target, mode, where, which toolchain."""
+
+    kind: str
+    target: str
+    mode: str
+    project_dir: Path
+    toolchain: str
+
+
+@dataclass(frozen=True)
+class CommandRecognition:
+    """The parser's answer: a :class:`FlutterCommand`, or the argv head it could not place.
+
+    ``unrecognized_head`` is the evidence for a ``toolchain_unrecognized`` unknown; it is
+    empty exactly when ``command`` is set.
+    """
+
+    command: FlutterCommand | None
+    unrecognized_head: str = ""
+
+
+def _mode(args: list[str], default: str) -> str:
+    return next((mode for mode in _MODES if f"--{mode}" in args), default)
+
+
+def _positional(args: list[str]) -> list[str]:
+    return [arg for arg in args if not arg.startswith("-")]
+
+
+def _build_command(args: list[str], cwd: Path, toolchain: str) -> FlutterCommand:
+    positional = _positional(args)
+    return FlutterCommand(COMMAND_BUILD, positional[0].lower() if positional else "", _build_mode(args), cwd, toolchain)
+
+
+def _run_command(args: list[str], cwd: Path, toolchain: str) -> FlutterCommand:
+    device = ""
+    for index, arg in enumerate(args):
+        if arg in _DEVICE_FLAGS and index + 1 < len(args):
+            device = args[index + 1].lower()
+        elif arg.startswith("--device-id="):
+            device = arg.split("=", 1)[1].lower()
+    target = f"{COMMAND_RUN}:{device}" if device else COMMAND_RUN
+    return FlutterCommand(COMMAND_RUN, target, _mode(args, "debug"), cwd, toolchain)
+
+
+#: ``flutter <sub>`` → the classifier for that subcommand; any other subcommand is ``other``.
+_SUBCOMMANDS = {COMMAND_BUILD: _build_command, COMMAND_RUN: _run_command}
+
+
+def _flutter_command(args: list[str], cwd: Path) -> FlutterCommand:
+    rest = list(args)
+    while rest and rest[0].startswith("-"):
+        rest = rest[1:]
+    classify = _SUBCOMMANDS.get(rest[0].lower()) if rest else None
+    if classify is None:
+        return FlutterCommand(COMMAND_OTHER, "", "", cwd, TOOLCHAIN_FLUTTER)
+    return classify(rest[1:], cwd, TOOLCHAIN_FLUTTER)
+
+
+def _dart_command(args: list[str], cwd: Path) -> FlutterCommand:
+    lowered = [arg.replace("\\", "/").lower() for arg in args]
+    snapshot = next((i for i, arg in enumerate(lowered) if arg.endswith(_FLUTTER_TOOLS_SNAPSHOT)), None)
+    if snapshot is not None:
+        # The Flutter tool itself, running in the Dart VM: what `flutter.bat` actually spawns.
+        return _flutter_command(args[snapshot + 1:], cwd)
+    if lowered[:1] == [COMMAND_RUN] and any(arg.endswith(_QA_BUILD_SCRIPTS) for arg in lowered[1:2]):
+        return FlutterCommand(COMMAND_BUILD, QA_ISOLATED_TARGET, "release", cwd, TOOLCHAIN_DART)
+    return FlutterCommand(COMMAND_OTHER, "", "", cwd, TOOLCHAIN_DART)
+
+
+def recognize_argv(argv: list[str] | tuple[str, ...], cwd: str | os.PathLike[str]) -> CommandRecognition:
+    """Classify one process argv (a detected process, a restart spec) run in ``cwd``."""
+
+    words = _command_words([str(word) for word in argv])
+    project = Path(os.path.expanduser(str(cwd)))
+    head = os.path.basename(words[0]).lower() if words else ""
+    if head in _FLUTTER_NAMES:
+        return CommandRecognition(_flutter_command(words[1:], project))
+    if head in _DART_NAMES:
+        return CommandRecognition(_dart_command(words[1:], project))
+    return CommandRecognition(None, unrecognized_head=head or "(empty argv)")
+
+
+def recognize_command(command: str, base_dir: str | os.PathLike[str]) -> CommandRecognition:
+    """Classify a SHELL line (a terminal tool command): the first build or run segment wins.
+
+    A ``cd`` segment moves the directory exactly as :func:`flutter_builds` does. With no
+    build or run segment, the answer is the last segment's classification.
+    """
+
+    current = Path(os.path.expanduser(str(base_dir)))
+    answer = CommandRecognition(None, unrecognized_head="(empty command)")
+    for segment in _SEGMENT_SPLIT_RE.split(str(command or "")):
+        words = _command_words(_tokens(segment))
+        target_dir = _cd_target(words)
+        if target_dir is not None:
+            current = current / os.path.expanduser(target_dir)
+            continue
+        if not words:
+            continue
+        answer = recognize_argv(words, current)
+        if answer.command is not None and answer.command.kind != COMMAND_OTHER:
+            return answer
+    return answer
