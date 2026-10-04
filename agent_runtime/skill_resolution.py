@@ -93,6 +93,45 @@ def reset_skill_root_walks_for_tests() -> None:
 def _note_skill_root_walk() -> None:
     _walk_state.walks = int(getattr(_walk_state, "walks", 0)) + 1
 
+def skill_root_rebuilds_this_thread() -> int:
+    """Registry REBUILDS (signature moved: candidates re-filtered, frontmatter
+    re-read) this thread has paid for. A warm turn's answer is 0."""
+
+    return int(getattr(_walk_state, "rebuilds", 0))
+
+def _note_skill_root_rebuild() -> None:
+    _walk_state.rebuilds = int(getattr(_walk_state, "rebuilds", 0)) + 1
+
+#: h-chatperf: a turn-scoped ``_root_registries`` map for callers that cannot be
+#: handed one. Upstream's ``skill_view`` resolves through ``resolve_skill`` with
+#: no map, so a preload paid a second walk per root on top of the policy's own.
+_SCOPED_ROOT_REGISTRIES: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+    "hermes_scoped_skill_root_registries", default=None
+)
+
+@contextmanager
+def skill_root_registry_scope(registries: Optional[Dict[str, Any]]) -> Iterator[None]:
+    """Let every resolve in this context share *registries* (no-op for ``None``).
+
+    Bound only around a turn's pre-admit assembly, never around the model run,
+    so a skill the agent writes mid-turn is still seen by its own next resolve.
+    """
+
+    if registries is None:
+        yield
+        return
+    token = _SCOPED_ROOT_REGISTRIES.set(registries)
+    try:
+        yield
+    finally:
+        _SCOPED_ROOT_REGISTRIES.reset(token)
+
+def _registries_for_call(explicit: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if explicit is not None:
+        return explicit
+    scoped = _SCOPED_ROOT_REGISTRIES.get()
+    return scoped if scoped is not None else {}
+
 def _skill_root_registry_cache_clear() -> None:
     """Test hook — drop reusable physical-root candidate registries."""
 
@@ -111,17 +150,100 @@ def _is_package_owned_markdown(path: Path, search_root: Path) -> bool:
     )
 
 
+def _listing(directory: str) -> list[os.DirEntry]:
+    """One directory's entries, or none when it cannot be listed."""
+
+    try:
+        with os.scandir(directory) as entries:
+            return list(entries)
+    except OSError:
+        return []
+
+
+def _entry_stat(entry: os.DirEntry) -> tuple[int | None, int | None]:
+    """(mtime_ns, size) from the listing (free on Windows), or (None, None)."""
+
+    try:
+        stat = entry.stat()
+    except OSError:
+        return None, None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _descend_following_links(entry: os.DirEntry, seen_links: set[str]) -> bool:
+    """Walk into this directory? Symlinked ones are followed (as
+    ``os.walk(followlinks=True)`` does) but once each, so a cycle ends."""
+
+    try:
+        if not entry.is_dir():
+            return False
+        if not entry.is_symlink():
+            return True
+    except OSError:
+        return False
+    real = os.path.realpath(entry.path)
+    if real in seen_links:
+        return False
+    seen_links.add(real)
+    return True
+
+
+def _skill_root_signature(root: Path) -> tuple[tuple[str, int | None, int | None], ...]:
+    """Every ``*.md`` under *root* plus the active-org marker, as (path, mtime_ns, size).
+
+    The registry's validation key (h-chatperf, 2026-10-03). It used to be the
+    registry's own candidate list -- ``iter_skill_index_files`` plus an
+    ``rglob("*.md")`` filtered through ``is_skill_support_path`` and
+    ``_is_package_owned_markdown`` (an ``exists()`` per ancestor per file) --
+    stat'ed one path at a time: ~220 ms a root warm on the operator's ~1,150
+    skill files, paid three to four times a turn and again per profile root in
+    every snapshot build. This is one ``os.scandir`` walk whose stats come with
+    the directory listing on Windows: ~15 ms a root.
+
+    **Why it invalidates correctly.** It is a SUPERSET of everything the
+    registry reads: every manifest and every legacy candidate is a ``*.md`` file
+    under the root (this walk follows directory symlinks, as
+    ``iter_skill_index_files`` does, and prunes nothing, as ``rglob`` does not),
+    and the two filters only ask whether some ``SKILL.md`` exists -- also a
+    ``*.md`` file here. The org marker is the one non-markdown input (it gates
+    which org mirror is walked), so it is stamped explicitly. An add, delete,
+    rename or content write of any input moves this tuple; a change to a file
+    the registry ignores costs one rebuild and nothing else.
+    """
+    from agent import skill_utils as _skills
+
+    stamps: list[tuple[str, int | None, int | None]] = []
+    seen_links: set[str] = set()
+    stack = [str(root)]
+    while stack:
+        for entry in _listing(stack.pop()):
+            if _descend_following_links(entry, seen_links):
+                stack.append(entry.path)
+            elif entry.name.endswith(".md"):
+                stamps.append((entry.path, *_entry_stat(entry)))
+    marker = root / _skills.ORG_MIRROR_DIR_NAME / _skills.ORG_ACTIVE_MARKER
+    try:
+        marker_stat = marker.stat()
+        stamps.append((str(marker), marker_stat.st_mtime_ns, marker_stat.st_size))
+    except OSError:
+        stamps.append((str(marker), None, None))
+    stamps.sort()
+    return tuple(stamps)
+
+
 def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     """Return the candidate registry for one physical skill root.
 
-    The fingerprint covers every resolver-visible markdown candidate plus the
-    active-org marker. A changed root rebuilds only its own registry; unchanged
-    roots reuse parsed frontmatter across profiles and snapshot builds.
+    Validated by :func:`_skill_root_signature` (every markdown file under the
+    root plus the active-org marker). A changed root rebuilds only its own
+    registry; unchanged roots reuse parsed frontmatter across profiles, turns
+    and snapshot builds.
 
-    **This function always touches the filesystem.** Its cache is keyed on the
-    root and validated by fingerprint, so reaching it at all costs a walk. A
-    caller that wants to avoid the walk shares a ``_root_registries`` map for
-    the life of one turn instead — chat-turn-prep CP-5.
+    **This function always touches the filesystem**, since h-chatperf only as
+    one listing walk: the candidate filtering and the frontmatter reads run only
+    when the signature moved. A caller that wants to avoid even the walk shares
+    a ``_root_registries`` map for the life of one turn -- chat-turn-prep CP-5
+    -- or binds one with :func:`skill_root_registry_scope`.
     """
     from agent import skill_utils as _skills
 
@@ -137,6 +259,16 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
             _SKILL_ROOT_REGISTRY_CACHE[root_key] = registry
             return registry
 
+    # Taken BEFORE the candidates are read: a write landing during the rebuild
+    # leaves the stored signature older than the content, so the next call
+    # rebuilds again -- never the other way round.
+    fingerprint = _skill_root_signature(root)
+    with _SKILL_ROOT_REGISTRY_LOCK:
+        cached = _SKILL_ROOT_REGISTRY_CACHE.get(root_key)
+        if cached is not None and cached.fingerprint == fingerprint:
+            return cached
+    _note_skill_root_rebuild()
+
     manifests = list(_skills.iter_skill_index_files(root, "SKILL.md"))
     legacy = [
         path
@@ -144,24 +276,6 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
         if (path.name != "SKILL.md" and not _skills.is_skill_support_path(path)
             and not _is_package_owned_markdown(path, root))
     ]
-    marker = root / _skills.ORG_MIRROR_DIR_NAME / _skills.ORG_ACTIVE_MARKER
-    fingerprint_paths = [*manifests, *legacy, marker]
-    stamps: list[tuple[str, int | None, int | None]] = []
-    for path in fingerprint_paths:
-        try:
-            relative = "/".join(path.relative_to(root).parts)
-        except ValueError:
-            relative = str(path)
-        try:
-            stat = path.stat()
-            stamps.append((relative, stat.st_mtime_ns, stat.st_size))
-        except OSError:
-            stamps.append((relative, None, None))
-    fingerprint = tuple(stamps)
-    with _SKILL_ROOT_REGISTRY_LOCK:
-        cached = _SKILL_ROOT_REGISTRY_CACHE.get(root_key)
-        if cached is not None and cached.fingerprint == fingerprint:
-            return cached
 
     manifest_aliases: dict[str, list[tuple[Path | None, Path]]] = {}
     for manifest in manifests:
@@ -253,7 +367,7 @@ def resolve_skill(
     # per-root walk for every used, queued and required-preload skill it names —
     # inside the very span the CP-9 read measured at 157–547 ms. The plan's §0.3
     # counted three walkers; this was the fourth.
-    root_registries = _root_registries if _root_registries is not None else {}
+    root_registries = _registries_for_call(_root_registries)
 
     for root in search_roots:
         root_key = str(_resolved_path(root))
@@ -292,7 +406,7 @@ def resolve_skills(
     search_roots = list(roots) if roots is not None else _skills.get_all_skills_dirs()
     found: Dict[str, list[SkillResolutionCandidate]] = {name: [] for name in names}
     seen: Dict[str, set[Path]] = {name: set() for name in names}
-    root_registries = _root_registries if _root_registries is not None else {}
+    root_registries = _registries_for_call(_root_registries)
 
     def record(name: str, root: Path, skill_dir: Path | None, skill_md: Path) -> None:
         key = _resolved_path(skill_md)
@@ -356,43 +470,80 @@ def _content_hash_cache_clear() -> None:
     """Test hook — drop the skill package content-hash cache."""
     _CONTENT_HASH_CACHE.clear()
 
+def _package_file_stamps(
+    skill_dir: Path,
+) -> list[tuple[str, Path, int | None, int | None]]:
+    """The package's hashed files as (relative, path, mtime_ns, size), in hash order.
+
+    h-chatperf: the same file SET and the same ORDER as the
+    ``sorted(skill_dir.rglob("*"))`` + ``is_file()`` + per-path ``stat()`` this
+    replaced -- the digest depends on both, and install receipts compare it --
+    but one ``os.scandir`` walk, whose stats come with the listing on Windows.
+    ~2.2 ms a package warm before, paid per accessible skill on every chat turn's
+    observability row.
+
+    Equivalences, each deliberate: a directory is descended only when it is a
+    real directory (``rglob`` does not follow directory symlinks); a file is
+    kept when ``is_file()`` holds through a symlink (as ``Path.is_file`` does);
+    a name starting with ``.`` or in ``EXCLUDED_SKILL_DIRS`` drops everything
+    beneath it (the old filter rejected any path with such a PART); and the
+    final order is ``sorted()`` over the same ``Path`` objects.
+    """
+    from agent import skill_utils as _skills
+
+    excluded = _skills.EXCLUDED_SKILL_DIRS
+    found: list[tuple[Path, tuple[str, ...], int | None, int | None]] = []
+    stack: list[tuple[str, tuple[str, ...]]] = [(str(skill_dir), ())]
+    while stack:
+        directory, prefix = stack.pop()
+        for entry in _listing(directory):
+            if entry.name.startswith(".") or entry.name in excluded:
+                continue
+            parts = (*prefix, entry.name)
+            kind = _package_entry_kind(entry)
+            if kind == "dir":
+                stack.append((entry.path, parts))
+            elif kind == "file":
+                found.append((Path(entry.path), parts, *_entry_stat(entry)))
+    found.sort(key=lambda item: item[0])
+    return [("/".join(parts), path, mtime, size) for path, parts, mtime, size in found]
+
+
+def _package_entry_kind(entry: os.DirEntry) -> str:
+    """``dir`` (a real directory, never a symlinked one -- ``rglob`` does not
+    follow them), ``file`` (``is_file`` through a symlink), else ``skip``."""
+
+    try:
+        if entry.is_dir(follow_symlinks=False):
+            return "dir"
+        return "file" if entry.is_file() else "skip"
+    except OSError:
+        return "skip"
+
+
 def skill_package_content_hash(skill_dir: Path | None, skill_md: Path) -> str:
     """Stable content hash for the exact skill package the resolver selected.
 
     mtime-cached (see ``_CONTENT_HASH_CACHE``): the returned digest is identical
     to an uncached run; repeats within a build skip re-reading unchanged files.
     """
-    from agent import skill_utils as _skills
-
     if skill_dir is None:
-        files = [skill_md]
         base = skill_md.parent
-    else:
-        files = [
-            path
-            for path in sorted(skill_dir.rglob("*"))
-            if path.is_file()
-            and not any(
-                part.startswith(".") or part in _skills.EXCLUDED_SKILL_DIRS
-                for part in path.relative_to(skill_dir).parts
-            )
-        ]
-        base = skill_dir
-
-    def _relative(source: Path) -> str:
         try:
-            return "/".join(source.relative_to(base).parts)
+            relative = "/".join(skill_md.relative_to(base).parts)
         except ValueError:
-            return source.name
-
-    entries: list[tuple[str, Path]] = [(_relative(source), source) for source in files]
-    stamps: list[tuple[str, int | None, int | None]] = []
-    for relative, source in entries:
+            relative = skill_md.name
         try:
-            st = source.stat()
-            stamps.append((relative, st.st_mtime_ns, st.st_size))
+            st = skill_md.stat()
+            stamped = [(relative, skill_md, st.st_mtime_ns, st.st_size)]
         except OSError:
-            stamps.append((relative, None, None))
+            stamped = [(relative, skill_md, None, None)]
+    else:
+        base = skill_dir
+        stamped = _package_file_stamps(skill_dir)
+
+    entries: list[tuple[str, Path]] = [(relative, source) for relative, source, _m, _s in stamped]
+    stamps = [(relative, mtime, size) for relative, _source, mtime, size in stamped]
     cache_key = (str(base), tuple(stamps))
     cached = _CONTENT_HASH_CACHE.get(cache_key)
     if cached is not None:

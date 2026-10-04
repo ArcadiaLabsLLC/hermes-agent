@@ -729,11 +729,17 @@ def _resolve_skill_preload(
     missing: list[str] = []
     if to_preload:
         try:
-            prompt, loaded, missing = resolvers.build_preloaded_skills_prompt(
-                to_preload,
-                task_id=session_id,
-                required_skill_names=set(required) if required else None,
-            )
+            # h-chatperf: the loader resolves through upstream's ``skill_view``,
+            # which takes no registry map; the scope hands it the turn's, so the
+            # roots the policy just validated are not walked a second time.
+            from .skill_resolution import skill_root_registry_scope
+
+            with skill_root_registry_scope(root_registries):
+                prompt, loaded, missing = resolvers.build_preloaded_skills_prompt(
+                    to_preload,
+                    task_id=session_id,
+                    required_skill_names=set(required) if required else None,
+                )
         except Exception:
             # A preload fault degrades the turn's skills; it never fails the
             # turn. The missing list is what the observability row reports.

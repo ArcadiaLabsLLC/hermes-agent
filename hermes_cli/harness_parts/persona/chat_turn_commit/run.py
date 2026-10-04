@@ -207,7 +207,45 @@ class _RunPhases:
         # Record-at-injection: the observability row carries the very HUD dict that
         # was rendered into the fed block, so the operator's CONTEXT peek shows
         # exactly what the agent was told — never a later re-derivation.
-        prompt_context = mission_chat_prompt_observability(
+        # h-chatperf: every resolve under the row -- including the per-name
+        # receipts that reach ``resolve_skill`` without a map -- shares the
+        # turn's registries instead of re-walking the roots.
+        from agent_runtime.skill_resolution import skill_root_registry_scope
+
+        with skill_root_registry_scope(self.turn_root_registries):
+            prompt_context = self._prompt_observability_row(turn_context, instance, workspace_id, workspace_name)
+        self.turn_phases.mark("observability_built")
+        # Stage 6 item 2, the row's half — POPPED, not read: the mapping exists to
+        # reach this fold and nothing downstream may see it. The row travels on to
+        # the terminal frame's echo and to the persist chokepoint, and neither is a
+        # place for a second copy of a number the ledger already carries.
+        self.pre_admit_timings.update(
+            _safe_pre_admit_timings(
+                prompt_context.pop(PROMPT_OBSERVABILITY_TIMINGS_KEY, None)
+                if isinstance(prompt_context, dict)
+                else None
+            )
+        )
+        # The envelope is rendered last because it needs the observability row's
+        # context_id; body and volatile tail both come from the one built context.
+        self.situational_hud_content = turn_context.runtime_context_envelope(
+            context_id=str(prompt_context["context_id"])
+        )
+        self.prompt_context = prompt_context
+        manifest_hash = safe_assignment_token(prompt_context.get("skill_manifest_hash"))
+        instance.skill_manifest_hash = manifest_hash
+        if not is_auxiliary_chat(instance.id, self.session_id):
+            # Field-scoped on a fresh read, like the settle's return-to-idle.
+            self.instance = self.instance_store.patch_fields(
+                instance.id, skill_manifest_hash=manifest_hash
+            )
+
+    def _prompt_observability_row(self, turn_context, instance, workspace_id, workspace_name):
+        """The record-at-injection row (``_observe``'s build, lifted so the
+        registry scope can wrap it)."""
+
+        args = self.args
+        return mission_chat_prompt_observability(
             persona=self.persona,
             persona_instance_id=instance.id,
             session_id=self.session_id,
@@ -236,31 +274,6 @@ class _RunPhases:
             ),
             skill_resolver=_turn_skill_resolver(self.turn_root_registries),
         )
-        self.turn_phases.mark("observability_built")
-        # Stage 6 item 2, the row's half — POPPED, not read: the mapping exists to
-        # reach this fold and nothing downstream may see it. The row travels on to
-        # the terminal frame's echo and to the persist chokepoint, and neither is a
-        # place for a second copy of a number the ledger already carries.
-        self.pre_admit_timings.update(
-            _safe_pre_admit_timings(
-                prompt_context.pop(PROMPT_OBSERVABILITY_TIMINGS_KEY, None)
-                if isinstance(prompt_context, dict)
-                else None
-            )
-        )
-        # The envelope is rendered last because it needs the observability row's
-        # context_id; body and volatile tail both come from the one built context.
-        self.situational_hud_content = turn_context.runtime_context_envelope(
-            context_id=str(prompt_context["context_id"])
-        )
-        self.prompt_context = prompt_context
-        manifest_hash = safe_assignment_token(prompt_context.get("skill_manifest_hash"))
-        instance.skill_manifest_hash = manifest_hash
-        if not is_auxiliary_chat(instance.id, self.session_id):
-            # Field-scoped on a fresh read, like the settle's return-to-idle.
-            self.instance = self.instance_store.patch_fields(
-                instance.id, skill_manifest_hash=manifest_hash
-            )
 
     def _open_stream(self) -> None:
         """The protocol-v2 emitter and the turn's trace buffer. Marks ``emitter_created``."""
