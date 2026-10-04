@@ -283,13 +283,12 @@ def _wake_event(server_name: str, job_id: str, logger_name: str, data: dict, rou
 
 
 def wake_identity(server_name: str, job_id: str) -> str:
-    """The wake's per-event identity — short enough to survive the serve drain's key whole.
+    """The wake's per-event identity: a 32-char digest of both names.
 
-    ``dispatch_delivery.accounting._event_key`` keeps 40 chars of it and the forged turn's
-    ``client_message_id`` is built from that key, so a readable ``mcp_job:<server>:<job>`` cut at 40
-    chars made two wakes of one server on one day the same replay: the launcher's
-    ``qb-YYYYMMDDTHHMMSS-xxxxxx`` ids lost their tail, and the second build's wake turn was
-    deduplicated away. A digest of both names is 32 chars, so nothing is cut."""
+    Born when ``dispatch_delivery.accounting._event_key`` cut ids at 40 chars and a readable
+    ``mcp_job:<server>:<job>`` made two wakes of one server on one day the same replay. That
+    key now digests any longer id itself; this stays so the keys of wakes already queued
+    do not move."""
     digest = hashlib.sha256(json.dumps([server_name, job_id]).encode("utf-8")).hexdigest()[:24]
     return f"mcp_job:{digest}"
 

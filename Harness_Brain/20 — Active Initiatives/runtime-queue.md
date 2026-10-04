@@ -39,7 +39,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-03 (lane h-wakecap)
 
-- [ ] **The serve drain's per-event identity is cut at 40 chars (`_event_key` keeps `str(delegation_id or session_id)[:40]`) and the forged turn's `client_message_id` is built from it, so two events whose ids share a 40-char prefix are one replay and the second turn is silently deduplicated away — `mcp_job_finished` hit it (fixed producer-side with a 32-char digest, `tools/mcp_job_wake.py::wake_identity`); key on a digest of the whole id so no producer has to know the cut** · `agent_runtime/dispatch_delivery/accounting.py::_event_key` · lane h-wakecap 2026-10-03 **TAKEN 2026-10-04 h-qaeff**
 - [ ] **The `eternia.job_wake` declaration wraps the SDK's private `ClientSession._build_capabilities` because mcp 2.0.0 hard-codes `experimental=None`; when the SDK takes experimental client capabilities as a constructor argument, pass it in `_session_kwargs` and delete the wrap** · `tools/mcp_job_wake.py::advertise_job_wake` · lane h-wakecap 2026-10-03 **TAKEN 2026-10-04 h-qaeff**
 
 ### Filed on arrival — 2026-10-03 (resident identity audit)

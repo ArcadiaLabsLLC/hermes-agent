@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -311,10 +312,24 @@ def _event_key(evt: dict[str, Any]) -> str:
     completion two different ways.
     """
 
-    marker = str(
-        evt.get("delegation_id") or evt.get("session_id") or uuid.uuid4().hex
-    )[:40]
-    return f"{evt.get('type', 'completion')}:{marker}"
+    marker = str(evt.get("delegation_id") or evt.get("session_id") or uuid.uuid4().hex)
+    return f"{evt.get('type', 'completion')}:{_bounded_marker(marker)}"
+
+
+#: The marker's width in the key. An id that fits is kept verbatim (readable,
+#: and the key every pending event already carries); a longer one keeps a
+#: readable head and a digest of the WHOLE id, so two ids sharing a 40-char
+#: prefix are two keys and no producer has to know the cut.
+_MARKER_MAX_CHARS = 40
+_MARKER_HEAD_CHARS = 16
+
+
+def _bounded_marker(marker: str) -> str:
+    if len(marker) <= _MARKER_MAX_CHARS:
+        return marker
+    digest = hashlib.sha256(marker.encode("utf-8")).hexdigest()
+    head = marker[:_MARKER_HEAD_CHARS]
+    return f"{head}~{digest[: _MARKER_MAX_CHARS - _MARKER_HEAD_CHARS - 1]}"
 
 
 def _delivery_outcome(payload: dict[str, Any] | None) -> tuple[str, str]:
