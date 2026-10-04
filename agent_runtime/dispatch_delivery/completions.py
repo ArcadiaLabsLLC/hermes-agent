@@ -41,6 +41,11 @@ logger = logging.getLogger(__name__)
 #: process-local too, and so is the class of event it covers.
 _background_attempts: dict[str, int] = {}
 
+#: Event types delivered the way a finished background ``terminal`` is: steered into a busy turn,
+#: dropped loudly when their persona instance is gone. ``mcp_job_finished`` is an MCP server's
+#: job-finished wake (``tools/mcp_job_wake.py``; owner ruling 2026-10-03: a QA build is a background task).
+_PROCESS_LIKE_EVENTS = frozenset({"completion", "mcp_job_finished"})
+
 
 def _owns_event_with_accounting(evt: dict[str, Any], policy: DrainPolicy = DEFAULT_DRAIN_POLICY) -> bool:
     """The queue's ownership filter — same boolean, now visible when it says no.
@@ -109,7 +114,7 @@ def _orphaned_persona_root(
     proof of absence), and any owned candidate means the event is deliverable.
     """
 
-    if str(evt.get("type") or "") != "completion":
+    if str(evt.get("type") or "") not in _PROCESS_LIKE_EVENTS:
         return None
     orphan = None
     for key in ("origin_ui_session_id", "parent_session_id", "session_key", "session_id"):
@@ -141,7 +146,7 @@ def _steer_into_busy_turn(
     caller re-queues — the idle turn then carries it, so nothing is lost.
     """
 
-    if str(evt.get("type") or "") != "completion":
+    if str(evt.get("type") or "") not in _PROCESS_LIKE_EVENTS:
         return False
     try:
         from ..mission_chat_steer import submit_mission_chat_steer

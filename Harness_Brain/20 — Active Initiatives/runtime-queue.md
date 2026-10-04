@@ -290,6 +290,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-03 (lane h-mcpwake)
+
+- [ ] **The gateway's queue drain silently DROPS every event type it does not list: `gateway/run.py::_drain_gateway_watch_events` keeps watch/heartbeat events, requeues `async_delegation`, and discards the rest on "process completion events are handled by the watcher task" — so an `mcp_job_finished` wake (`tools/mcp_job_wake.py`) in a gateway process is eaten, not delivered. Requeue unknown types (or route `mcp_job_finished` through `format_process_notification` like `async_delegation`)** · `gateway/run.py::_drain_gateway_watch_events` · lane h-mcpwake 2026-10-03
+
 ### Filed on arrival — 2026-10-02 (instance-conversations)
 
 - [ ] **Expose a public scoped SessionDB page query.** Native account history must filter metadata before keyset pagination; `list_sessions_rich` exposes neither predicate nor keyset cursor. The fork localizes the read through `_read_all` in `instance_history._page`, pending a public upstream seam. No upstream edit or parallel store. Evidence: [instance history checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#history-checkpoint). · instance-conversations 2026-10-01
@@ -430,7 +434,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-03 (cold first-chat diagnosis, filed by the launcher orchestrator)
 - [ ] **Refusal/detail strings still name the old `remote_gateway.listen` key (pair fulfiller; quoted in launcher `pair_fulfiller_test.dart`) — reword to `plugins.entries.eternia-harness.settings.remote_gateway_listen` together with the LEGACY_KEYS retirement** · filed from launcher lane mc-doors 2026-10-03
-- [ ] **An MCP server's job-finished notification never wakes the agent: `tools/mcp_tool_health.py::_make_logging_callback` only logs `notifications/message` to agent.log. When `logger == "stagec_qa_mcp_server.qa_build"` and `data.event == "qa_build_finished"`, put a `process_registry.completion_queue` event `{type: "mcp_job_finished", server, job_id, outcome, elapsed_ms, failure_tail, session_key/task_id}` (routing captured in `mcp_tool_handlers.py` when a launcher_qa call returned `build_job.job_id`), formatted in `tools/process_registry_notifications.py::format_process_notification` as `[IMPORTANT: QA build ready, job <id> — continue: call launch_or_attach/open_app_tab again.]` (failed: with failure_tail), delivered like a finished `terminal(background=True, notify_on_complete=True)` (owner ruling 2026-10-03: a QA build is a background task)** · launcher `tool/stagec_qa_mcp_server/lib/qa_build_notify.dart` (landed afb63ada22) · lane qa-prebuild 2026-10-03 **TAKEN 2026-10-03 h-mcpwake**
 
 ### Filed on arrival — 2026-10-03 (lane h-chatperf)
 - [ ] **Warm turns rebuild the chat-lane bundle and miss the tool-definition cache every turn: MCP admission registers its servers' tools at run start and `teardown_mcp_admission` deregisters them, so `registry_epoch` moves twice per turn** · fork / `agent_runtime/mcp_admission/registration.py::teardown_mcp_admission` · evidence: turn record `15c73e0c` (`resident_actor_reused: 1`, `visibility_bundle_builds: 1`, `visibility_bundle_rebuild_component_registry_epoch: 1`) and `profiles/gpt-launcher/logs/agent.log` 2026-10-03 18:49:35.150 (`tool_search activated` logged from the warm turn's own thread = a `model_tools._tool_defs_cache` miss) · fix shape: keep an admitted server's tools registered across turns of one lane (epoch-neutral re-admission), or key the two caches on an epoch that excludes per-run MCP churn

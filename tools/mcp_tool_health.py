@@ -11,6 +11,7 @@ from tools.mcp_tool_errors import _is_method_not_found_error, _unwrap_exception_
 from tools.mcp_tool_schema import mcp_prefixed_tool_name
 from tools.mcp_tool_common import _core
 from tools import mcp_tool_registration as _registration
+from tools import mcp_job_wake as _job_wake  # fork
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -80,6 +81,7 @@ class MCPServerHealthMixin:
         """
         async def _on_log(params):
             try:
+                _job_wake.on_log_notification(self.name, params)  # fork: a job-finished event wakes its caller
                 level = _core._MCP_LOG_LEVEL_MAP.get(str(getattr(params, "level", "info")).lower(), logging.INFO)
                 data = getattr(params, "data", None)
                 if not isinstance(data, str):
