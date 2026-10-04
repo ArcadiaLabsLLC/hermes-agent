@@ -75,8 +75,9 @@ are silent by design.
 |---|---|---|
 | `source` | `agent` · `announced` · `detected` | |
 | `project` | `{root, name}` | `root`: the bound slot path for detected, the cwd for agent, the record's `project_root` for announced; `name` = basename |
-| `workspace_id` · `slot` | string or null each | the repo slot (§3) the build sits under, when one does — resolved for every source by the under-slot test over this machine's bound slots (deepest wins); null with an `unknowns` entry `slot_unresolved` otherwise |
+| `workspace_id` · `slot_id` | string or null each | the repo slot (§3) the build sits under, when one does — resolved for every source by the under-slot test over this machine's bound slots (deepest wins); null with an `unknowns` entry `slot_unresolved` otherwise |
 | `env_source` | `slot:<name>` · `process` · `unknown` | what environment the build ran (or will restart) with — a slot's fill, hermes' own process env, or unobserved (detected) |
+| `started_by_instance` | persona instance id or null | **OWNER 2026-10-04 (example):** the persona INSTANCE whose turn started the build — the shared `owner.persona_instance_id` lifted to a named build key so Activity can say "the backend agent's build" without re-deriving it. Agent source: the spawning session's owner via `_owner_of`; announced: the record's `session_key` resolved the same way; detected: null. Null ⇒ an `unknowns` entry `starter_unknown` with the evidence seen (the session key that did not resolve, or "detected: no session"). Together with `workspace_id` + `slot_id` this is what lets two instances in ONE workspace — a backend agent on `backend`, a frontend agent on `launcher` — each see their own builds. |
 | `unknowns` | list of `{kind, evidence, seen_at}` (a per-row WIRE bound of 32, dedup by kind + evidence hash, newest kept, truncation declared `by_design`) | **owner rule "index the unknowns" (2026-10-04):** everything hermes could not classify, WITH what it saw. `kind` ∈ `stage_line_unrecognized` (evidence: the line, redacted ≤200), `output_unreadable` (the exception class), `process_unidentified` (exe name + argv head), `cwd_unreadable`, `wrapper_unobserved` (the parent chain seen, e.g. `cmd.exe /c flutter.bat`), `env_unobserved` (the env KEYS a restart cannot reproduce — only the keys the slot does not declare once a slot applies), `path_unobserved`, `artifact_unlocated` (the directories probed), `writer_unidentified`, `slot_unresolved`, `slot_unbound_here` (the slot and the machines that bind it), `slot_probe_unknown` (a tool/key/file probe that could not answer — the probe and its error class), `toolchain_unrecognized` (argv head). Empty list = nothing was unclassifiable, which is itself a claim the tests pin. |
 | `toolchain` | `flutter` · `dart` · `unknown` (reserved, not emitted yet: `gradle`, `msbuild`, `cmake`, `npm`, `cargo`, `unreal`) | |
 | `target` | string | `windows`, `apk`, `run:windows`, `qa_isolated`; `""` when unknown |
@@ -266,6 +267,15 @@ rides the existing 3-way family). Always a subset of the workspace's declared sl
 refused; a removed slot is dropped from every assignment in the same write); empty means none — never all.
 No limit on count. The canonical persona channel (no workspace) has no assignment.
 
+**OWNER 2026-10-04 (example) — the motivating case.** A BACKEND agent and a FRONTEND agent are two persona
+instances in the SAME workspace, assigned `backend` and `launcher` respectively; each turn loads only its
+own slots' `CLAUDE.md` + `AGENTS.md`. Two facts follow and are pinned: (a) **a slot may be assigned to
+several instances at once** — a shared `contracts` or `docs` slot sits in both agents' lists — and
+assigning a slot to one instance NEVER removes it from another (assignment is a per-instance subset,
+not a lease; `instance.slots.set` touches one record); (b) **every build row carries `workspace_id`,
+`slot_id` and `started_by_instance`** (§1) — when known, else the typed unknown `starter_unknown` — so
+Activity can say which agent's build it is.
+
 - **Where the assignment is EDITED** (owner correction 2026-10-04): in the launcher's Agent Console, per
   persona instance — a slot picker over the active workspace's declared slots that REPLACES today's
   per-agent `AGENTS.md` directory picker in place. The workspace / Projects side declares and fills slots
@@ -356,7 +366,7 @@ Control scope selector — launcher plan §4.
 ### 3.6 Detection, migration, no limits
 
 **Detection** (§5) reads `authorized_roots_bound_here()` = every slot bound on this machine across every
-workspace of the active realm; a detected row carries `workspace_id` / `slot`. The under-slot test is one
+workspace of the active realm; a detected row carries `workspace_id` / `slot_id`. The under-slot test is one
 prefix compare per bound slot per candidate; its cost is inside `scan_ms`. **No hard limits**: no cap on
 slots, workspaces, assignments, keys or steps anywhere in this plan; the `unknowns` index's ≤32 entries is
 a per-row WIRE bound like `TAIL_PREVIEW_LIMIT`, declared `by_design` when it truncates, not a model limit.
@@ -528,7 +538,7 @@ double. Each row of §10 names its test and its killing mutation at the landing 
 Order, after the 2026-10-04 refinement: **Phase A** (H1–H9) ships builds on repo slots — declaration,
 machine fill, accounting, assignment, environment; **Phase B** (H10–H11) is the setup recipe / "image" —
 its own later phase, because every verb it needs (declare, bind, report, env.set) exists after H5a and the
-checklist is those verbs read back. H5a/H5b stay ahead of H4 (the lane needs `workspace_id` / `slot`);
+checklist is those verbs read back. H5a/H5b stay ahead of H4 (the lane needs `workspace_id` / `slot_id`);
 the env-overlay SEAM is its own row (H5c) because it is the one upstream-file edit in the program.
 
 H1 `builds/unknowns.py` (kinds tuple incl. `slot_*`, the 32-entry wire bound declared `by_design`, dedup, evidence redaction) + `flutter_argv.py` move + `FlutterCommand` (an unparseable head ⇒ `toolchain_unrecognized`) · `tests/agent_runtime/test_build_unknowns.py` (bound, dedup, newest kept, redaction, truncation accounted), `test_flutter_argv.py`; the guard's own tests unchanged and a pin that `flutter_build_guard` defines no token regex of its own.
@@ -537,7 +547,7 @@ H3 `builds/vocabulary.py` + `registry.py` (record v1 with `unknowns`) + `running
 H5a `workspace_slots.py` (slot document v1: declaration + `machines.<me>` accounting; tombstones; `report()` probes answering set/missing/unknown and NEVER a value; `authorized_roots_bound_here()`) + `workspace_slot_env.py` (private fill file, hard-excluded from sync, `secret_in_env` refusal) + `workspace_slots_sync.py` family (key-wise, three depths) + `paths.workspace_slots_path` + the store dir in the read-model fingerprint + `serve_rpc/workspace_slots.py::runtime.workspace.slots.show/.declare/.report` + `runtime.workspace.slot.bind` (writes through `write_machine_roots`) + `runtime.workspace.slot.env.set` (local verbs in `LOCAL_CONSOLE_METHODS`; `declare` gated on the realm publish right) + `harness workspace slots show|declare|bind|env-set|report` · `test_workspace_slots.py` (declare replaces the declared set and tombstones; bind writes the root and reports; the written document contains none of the fixture's env VALUES — grep pin; unbound ⇒ `slot_unbound_here` naming the binding machines; a hanging `--version` ⇒ `slot_probe_unknown`; no count limit — a 200-slot declaration round-trips), `test_realm_sync_workspace_slots.py` (two machines report one slot ⇒ union; a stale peer's removed slot loses to the tombstone), `test_peer_authorization.py` tier table + `realm_publish_denied`.
 H5b `assigned_slots` on the persona-instance record (the authority; the launcher edits it from the Agent Console, never from Projects — owner correction) + `runtime.persona.instance.slots.set/.show` + `harness persona slots show|set` + `mission_chat_turn_context` loads, for each assigned bound slot, each of `context.files` (default `CLAUDE.md` AND `AGENTS.md`) as its own labelled `workspace_context` section (128 KB per file, no total cap, typed receipts for unbound/missing/too-large; content-dedup against the cwd chain) + workdir rung 2 = first assigned bound slot + `--agents-file` deprecated alias · `test_persona_instance_slots.py` (not-in-workspace refused; slot removal drops assignments; EMPTY ⇒ nothing loaded, never all; no count limit), `test_mission_chat_turn_context.py` arms (one slot with both files ⇒ two sections `<slot>/CLAUDE.md` + `<slot>/AGENTS.md`; two slots ⇒ four; a missing `CLAUDE.md` ⇒ receipt `missing`, the `AGENTS.md` section still loads; alias ignored with `superseded_by_assignment`).
 H5c **SEAM** — `workspace_slots.env_overlay(cwd)` applied in upstream `tools/environments/local.py::_sanitize_subprocess_env` (one import, one call; contextvar set by the mission-chat turn beside the workdir; `path_prepend`, `env`, `.env` values from the file, `venv`) · `test_slot_env_overlay.py` (a command under a bound slot sees the slot's PATH head and keys; outside it sees none; a secret key never appears in the overlay from the record, only from `.env`; the seam row in `tests/fixtures/import_layers_grandfathered.json` if the layer gate needs it).
-H4 `lanes_build.py` (announced + reclassification; `workspace_id`/`slot`/`env_source` through H5a; null + `slot_unresolved` before any slot exists) + `sources.build` sub-health + cost keys + `McpJobLane` dedupe + `build_rows.json` + stream goldens regen + contract ledger + README copy-status · `test_running_work.py` arms, `test_build_rows_fixture.py` (every unknown kind appears once; every `env_source` arm).
+H4 `lanes_build.py` (announced + reclassification; `workspace_id`/`slot_id`/`env_source` through H5a; null + `slot_unresolved` before any slot exists) + `sources.build` sub-health + cost keys + `McpJobLane` dedupe + `build_rows.json` + stream goldens regen + contract ledger + README copy-status · `test_running_work.py` arms, `test_build_rows_fixture.py` (every unknown kind appears once; every `env_source` arm).
 H6 `detect.py` reading H5a's bound slots + `process_unidentified` / `cwd_unreadable` / the restart unknowns narrowed by the slot's declaration + `scan_ms` into the sub-health and `parity.sections_ms` · `test_build_detect.py` over a fake process table (under-slot, outside, unreadable cwd, already-owned pid, cpu-stall, unparseable cmdline ⇒ indexed not shown, budget breach ⇒ typed with ms, 80 bound slots ⇒ still correct and the cost reported).
 H7 `history.py` + `sweep.py` (stall-fail for agent/announced ONLY; detected MARKED; `build.ended`; history; gc) + serve boot `HERMES_BUILD_REGISTRY_DIR` export · `test_build_sweep.py` with a fake clock (queued never stalls; a detected build past the threshold is still `stalled` and alive — the kill mutation reds; agent-origin wakes its owner).
 H8 `control.py` + `_cancel_build` + `serve_rpc/work.py::runtime.work.cancel/.restart` (restart spawns with the slot env overlay and `tool_paths`-resolved argv[0]; `env_source` on the new row) + `harness work restart` · `test_build_control.py` (each origin × declared mode; detected restart with no confirm; a restart under a bound slot carries `env_source: slot:<name>` and fewer `env_unobserved` keys than the row it re-ran; replay guard both doors), tier table.
@@ -602,6 +612,14 @@ console's per-agent picker is NOT deleted: it is REPLACED IN PLACE by a slot pic
 per-agent AGENTS.md pick to the matching slot. hermes H5b stays the authority; only the launcher editor
 moves.** → §3.1 `context.files`, §3.3, §3.6 (3), §10 H5b; the launcher plan §4 drops its agent × slot
 matrix and keeps a read-only "used by" count.
+
+**OWNER 2026-10-04 (example): the motivating case is a BACKEND agent and a FRONTEND agent as two persona
+instances in the SAME workspace, each assigned different slots (backend vs launcher), loading only their
+own slots' CLAUDE.md + AGENTS.md. (a) A slot may be assigned to several instances at once (a shared
+contracts/docs repo) — assignment never moves a slot away from another instance; (b) every build row
+carries `workspace_id`, `slot_id` and the starting persona instance (when known; else a typed unknown) so
+Activity can say which agent's build it is.** → §1 `started_by_instance` + `starter_unknown`, §3.3, H4 and
+H5b tests (two instances, one shared slot; a build row names its starter).
 
 **New calls the refinement raises** (each with the recommendation; the plan is written to it):
 
