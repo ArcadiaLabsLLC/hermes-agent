@@ -571,6 +571,11 @@ def add_work(subs) -> None:
     # Peek answers about ONE row, so nothing to sort, page or bound.
     _add_stage42_global_args(work_peek)
     work_peek.set_defaults(func=work_commands._cmd_work_peek)
+    work_restart = work_subs.add_parser("restart", help="Stop a build if it is running, then re-run it (slot environment under a bound slot)")
+    work_restart.add_argument("work_id", help="A build's work id from `harness work list`, e.g. build:detected:4120-1337")
+    work_restart.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue timestamp; a restart issued before the build started is superseded")
+    _add_stage42_global_args(work_restart)
+    work_restart.set_defaults(func=work_commands._cmd_work_restart)
     work_cancel = work_subs.add_parser("cancel", help="Interrupt one piece of running work through its owning subsystem")
     work_cancel.add_argument("work_id", help="Work id from `harness work list`")
     work_cancel.add_argument("--reason", default="operator_cancel", help="Recorded interrupt reason")

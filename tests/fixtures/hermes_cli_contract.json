@@ -14067,7 +14067,8 @@
       "subcommands": [
         "cancel",
         "list",
-        "peek"
+        "peek",
+        "restart"
       ]
     },
     "harness work cancel": {
@@ -14421,6 +14422,117 @@
         "harness",
         "work",
         "peek"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "work_id",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
+      "subcommands": []
+    },
+    "harness work restart": {
+      "exclusive_groups": [],
+      "options": {
+        "--fields": {
+          "action": "store",
+          "canonical": "--fields",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--issued-at": {
+          "action": "store",
+          "canonical": "--issued-at",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--no-color": {
+          "action": "store_true",
+          "canonical": "--no-color",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--output": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--quiet": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-o": {
+          "action": "store",
+          "canonical": "--output",
+          "choices": [
+            "json",
+            "table",
+            "wide",
+            "yaml"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-q": {
+          "action": "store_true",
+          "canonical": "--quiet",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "work",
+        "restart"
       ],
       "positionals": [
         {

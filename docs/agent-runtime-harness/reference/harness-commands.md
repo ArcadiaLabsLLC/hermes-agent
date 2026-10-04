@@ -182,6 +182,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness work](#hermes-harness-work)
 - [hermes harness work list](#hermes-harness-work-list)
 - [hermes harness work peek](#hermes-harness-work-peek)
+- [hermes harness work restart](#hermes-harness-work-restart)
 - [hermes harness work cancel](#hermes-harness-work-cancel)
 - [hermes harness builds](#hermes-harness-builds)
 - [hermes harness builds registry-path](#hermes-harness-builds-registry-path)
@@ -3644,16 +3645,18 @@ options:
 ## hermes harness work
 
 ```text
-usage: hermes harness work [-h] {list,peek,cancel} ...
+usage: hermes harness work [-h] {list,peek,restart,cancel} ...
 
 positional arguments:
-  {list,peek,cancel}
-    list              Every piece of running background work, with per-source health
-    peek              Bounded read-only look at one item's recent output/progress
-    cancel            Interrupt one piece of running work through its owning subsystem
+  {list,peek,restart,cancel}
+    list                Every piece of running background work, with per-source health
+    peek                Bounded read-only look at one item's recent output/progress
+    restart             Stop a build if it is running, then re-run it (slot environment under a
+                        bound slot)
+    cancel              Interrupt one piece of running work through its owning subsystem
 
 options:
-  -h, --help          show this help message and exit
+  -h, --help            show this help message and exit
 ```
 
 ## hermes harness work list
@@ -3687,6 +3690,28 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness work restart
+
+```text
+usage: hermes harness work restart [-h] [--issued-at ISSUED_AT] [-o {json,table,yaml,wide}] [--json]
+                                   [-q] [--no-color] [--fields FIELDS]
+                                   work_id
+
+positional arguments:
+  work_id               A build's work id from `harness work list`, e.g. build:detected:4120-1337
+
+options:
+  -h, --help            show this help message and exit
+  --issued-at ISSUED_AT
+                        ISO-8601 issue timestamp; a restart issued before the build started is
+                        superseded
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet

@@ -21,6 +21,7 @@ from hermes_cli.harness_support import (
 
 __layer__ = "lanes"
 __all__ = [
+    "_cmd_work_restart",
     "WorkCancelOutcome",
     "WorkCancelVerdict",
     "_cmd_work_cancel",
@@ -237,7 +238,8 @@ def _work_cancel_outcome(args) -> WorkCancelOutcome:
         )
 
     result = cancel_work(work_id, reason=str(getattr(args, "reason", "") or "operator_cancel"))
-    if result.get("status") != "cancelled":
+    # ``cancel_requested``: an announced build's writer was asked to end it (build plan §7).
+    if result.get("status") not in ("cancelled", "cancel_requested"):
         code = str(result.get("code") or "internal_error")
         return WorkCancelOutcome(
             WorkCancelVerdict.REFUSED,
@@ -275,3 +277,37 @@ def _cmd_work_cancel(args) -> int:
     if outcome.envelope is not None:
         _print_stage42(outcome.envelope, args=args, default_output="json")
     return outcome.exit_code
+
+
+def _cmd_work_restart(args) -> int:
+    """``harness work restart`` — the argv mirror of ``runtime.work.restart`` (build plan §7).
+
+    The same decision as the method: find the row, the shared ``issued_at`` replay guard,
+    then ``builds.control.restart_build``. No confirmation: a detected build restarts through
+    the same path as every row (owner call 2) — the row already shows what it will run.
+    """
+
+    from agent_runtime.builds.control import restart_build
+    from agent_runtime.running_work import find_work_row
+    from agent_runtime.running_work.surface import _cancel_is_superseded
+
+    work_id = str(getattr(args, "work_id", "") or "")
+    row = find_work_row(work_id)
+    if row is None or row.get("kind") != "build":
+        envelope = _error_envelope("not_found", "no running build with that id", safe_details={"work_id": work_id})
+        _print_stage42(envelope, args=args, default_output="json")
+        return ERROR_EXIT_CODES["not_found"]
+    issued_at = str(getattr(args, "issued_at", None) or "").strip()
+    if _cancel_is_superseded(issued_at, str(row.get("started_at") or "")):
+        envelope = _error_envelope("stale_revision", "restart was issued before this build started; superseded",
+                                   safe_details={"work_id": work_id, "issued_at": issued_at})
+        _print_stage42(envelope, args=args, default_output="json")
+        return ERROR_EXIT_CODES["stale_revision"]
+    result = restart_build(row)
+    if result.get("status") != "restarted":
+        envelope = _error_envelope("invalid_payload", f"restart refused: {result.get('detail') or result.get('code')}",
+                                   safe_details={"work_id": work_id, "code": result.get("code"), "detail": result.get("detail")})
+        _print_stage42(envelope, args=args, default_output="json")
+        return ERROR_EXIT_CODES.get("invalid_payload", 1)
+    _print_stage42(_object_envelope("work_restart", result), args=args, default_output="json")
+    return 0

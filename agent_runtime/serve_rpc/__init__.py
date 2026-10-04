@@ -36,6 +36,7 @@ operator_inspection      lanes   native session model controls, usage and skills
 instance_history         lanes   account-scoped native conversation directory
 scope                    lanes   ``runtime.workspace.use`` / ``runtime.realm.use``
 workspace_slots          lanes   ``runtime.workspace.slots.*`` / ``.slot.*`` (repo slots)
+work                     lanes   ``runtime.work.cancel`` / ``.restart`` (Stop and Restart a row)
 media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
@@ -81,6 +82,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     scope,
     workspace,
     workspace_slots,
+    work,
     media,
     peer,
     gateway_peers,

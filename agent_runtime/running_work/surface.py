@@ -433,9 +433,17 @@ def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict
     }
 
 
+def _cancel_build(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """A build: the source's own seam (``builds.control.stop_build``), every refusal typed."""
+    from ..builds.control import stop_build
+
+    return stop_build(row, reason=reason)
+
+
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.
 _CANCELLERS = {
     KIND_TERMINAL: _cancel_terminal,
     KIND_DELEGATION: _cancel_delegation,
     KIND_TOOL_CALL: _cancel_tool_call_arm,
+    KIND_BUILD: _cancel_build,
 }

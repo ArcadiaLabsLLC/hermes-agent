@@ -56,6 +56,7 @@ from ..builds.vocabulary import (
     STAGE_UNKNOWN,
     STARTED_BY_AGENT,
     STARTED_BY_EXTERNAL,
+    STARTED_BY_OPERATOR,
     SUB_REASON_REGISTRY_UNREADABLE,
 )
 from ..projection_accountant import ProjectionAccountant
@@ -149,6 +150,7 @@ class BuildLane(LanePass):
             listed, _refusal = _read_checkpoint(head / _CHECKPOINT_FILENAME)
             entries = {str(e.get("session_id")): e for e in listed if isinstance(e, dict)}
         registry = _module("tools.process_registry")
+        self.marks = _restart_marks(head)
         seen: set[Any] = set()
         for index, row in enumerate(self.frame_rows):
             if row.get("kind") != KIND_TERMINAL:
@@ -186,6 +188,11 @@ class BuildLane(LanePass):
         )
         self.slot_of(facts, root)
         facts.env_source = slot_env_source(facts.slot_id, ENV_SOURCE_PROCESS)
+        mark = getattr(self, "marks", {}).get(session_id)
+        if mark:
+            # An operator Restart (``builds.control``): what it re-ran and the env it ran with.
+            facts.restart_of, facts.env_source = mark.get("restart_of"), str(mark.get("env_source") or facts.env_source)
+            facts.started_by = {"kind": STARTED_BY_OPERATOR, "label": "restart"}
         note_starter(facts, f"session {owner.get('session_id') or '(none)'} resolved to no persona instance", now=self.now)
         self._agent_progress(facts, row, session, seen)
         facts.stop = (CONTROL_ALLOWED, "") if session is not None else (CONTROL_REFUSED, CONTROL_REASON_OWNER_NOT_HERE)
@@ -324,6 +331,14 @@ class BuildLane(LanePass):
         note_starter(facts, "detected: no session", now=self.now)
         self.estimate(facts)
         return facts
+
+
+def _restart_marks(head: Any) -> dict[str, dict[str, Any]]:
+    if head is None:
+        return {}
+    from ..builds.control import restart_marks
+
+    return restart_marks(head / BUILD_REGISTRY_DIRNAME)
 
 
 def _pids(rows: list[dict[str, Any]]) -> set[int]:
