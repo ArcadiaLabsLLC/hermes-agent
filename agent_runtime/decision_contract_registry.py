@@ -424,6 +424,10 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "dispatch.dropped": EventContract("dispatch.dropped", "Detached dispatch delivery abandoned", ("dispatch_id", "reason"), ("attempts",)),
     "dispatch.delivery_backlog": EventContract("dispatch.delivery_backlog", "Undelivered dispatch completions exceed the retention cap", ("pending", "cap"), ()),
     "dispatch.outcome_superseded": EventContract("dispatch.outcome_superseded", "A different outcome landed on an already-delivered dispatch", ("dispatch_id", "settled"), ("previous",)),
+    # A build ended (build plan §7): one per transition, emitted by the serve build sweep —
+    # stall-fail, lost, failed, succeeded, stopped, or a process that simply exited
+    # (``outcome: null``, ``ended_reason: process_exited``). The launcher renders it as a notice.
+    "build.ended": EventContract("build.ended", "Build ended", ("work_id", "source", "outcome"), ("ended_reason", "label", "workspace_id", "slot_id", "started_by_instance", "duration_ms"), ("tail_preview",)),
     # Peer-store mutations (S2c, R-IP12). Every write door in
     # ``gateway_peers`` rides one of these, for the standing store reason: the
     # stream/read-model pipeline is watermark-gated on the EventLog, so an

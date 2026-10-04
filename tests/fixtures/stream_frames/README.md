@@ -24,7 +24,9 @@ split is structural, not an oversight, and the script names both halves
 > `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
 > `running_work.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`,
 > and the new row golden `tests/fixtures/builds/build_rows.json` into
-> `test/fixtures/harness_stream/build_rows.json`. The h-jobvis mirror below is
+> `test/fixtures/harness_stream/build_rows.json`. Row H7 then moved seven of them
+> again (all but `running_work.json`) for `core.decision_contract_hash` alone: the
+> `build.ended` event type was registered. The h-jobvis mirror below is
 > still owed as well; this note is appended, it does not replace it.
 
 > **CROSS-STACK COPY STATUS (h-jobvis, 2026-10-04) — OPEN, launcher mirror OWED.**

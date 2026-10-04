@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from ..builds import history as build_history
 from ..builds import registry as build_registry
 from ..builds.flutter_argv import COMMAND_OTHER, recognize_command
 from ..builds.liveness import PROGRESS, liveness_for
@@ -122,6 +123,18 @@ class BuildLane(LanePass):
     #: The detected scan's measured cost, for ``parity.sections_ms["running_work.build_detect"]``.
     scan_ms = 0
 
+    def estimate(self, facts: BuildFacts) -> None:
+        """``expected_ms``: the writer's own number, else the history median (§6), else null."""
+
+        if facts.expected_ms is not None or facts.outcome is not None:
+            return
+        head, _provenance = _head_home()
+        if head is None:
+            return
+        facts.expected_ms, facts.history_samples = build_history.estimate(
+            head / BUILD_REGISTRY_DIRNAME, project_root=facts.project_root, toolchain=facts.toolchain,
+            target=facts.target, mode=facts.mode)
+
     def slot_of(self, facts: BuildFacts, path: str) -> None:
         from ..workspace_slots import slot_for_path
 
@@ -177,6 +190,7 @@ class BuildLane(LanePass):
         self._agent_progress(facts, row, session, seen)
         facts.stop = (CONTROL_ALLOWED, "") if session is not None else (CONTROL_REFUSED, CONTROL_REASON_OWNER_NOT_HERE)
         facts.restart_control = (CONTROL_ALLOWED, "") if facts.restart else (CONTROL_REFUSED, CONTROL_REASON_ARGV_UNKNOWN)
+        self.estimate(facts)
         return build_row(facts, self.accountant)
 
     def _agent_progress(self, facts: BuildFacts, row: dict[str, Any], session: Any, seen: set[Any]) -> None:
@@ -254,6 +268,7 @@ class BuildLane(LanePass):
         )
         self._announced_unknowns(facts, record, verdict, session)
         facts.stop, facts.restart_control = _announced_controls(record, verdict, facts.restart)
+        self.estimate(facts)
         return facts
 
     def _announced_unknowns(self, facts: BuildFacts, record: dict[str, Any], verdict: Any, session: str) -> None:
@@ -307,6 +322,7 @@ class BuildLane(LanePass):
         for entry in restart_unknowns(build, now=self.now).wire():
             facts.unknowns.add(entry["kind"], entry["evidence"], entry["seen_at"])
         note_starter(facts, "detected: no session", now=self.now)
+        self.estimate(facts)
         return facts
 
 

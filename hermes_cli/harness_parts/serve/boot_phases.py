@@ -699,11 +699,12 @@ class BootPhases:
         except Exception:
             dispatches_restored = 0
         self.timeline.mark("dispatch_restore_ms")
-        # Builds (build plan §5): THIS process owns the detected-build scan; a CLI snapshot
-        # reports the detected source ``not_in_process`` rather than scanning.
-        from agent_runtime.builds.detect import enable_detection
+        # Builds (build plan §2, §5, §7): THIS process owns the detected-build scan, exports
+        # HERMES_BUILD_REGISTRY_DIR so every child it spawns can announce, sweeps expired
+        # records, and starts the 30 s stall-fail / build.ended tick.
+        from agent_runtime.builds.sweep import boot_builds
 
-        enable_detection()
+        boot_builds()
         self.ready_frame: dict[str, Any] = {
             "event": "ready",
             "pid": os.getpid(),
