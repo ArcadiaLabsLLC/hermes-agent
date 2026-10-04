@@ -39,7 +39,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-03 (lane h-wakecap)
 
-- [ ] **The `eternia.job_wake` declaration wraps the SDK's private `ClientSession._build_capabilities` because mcp 2.0.0 hard-codes `experimental=None`; when the SDK takes experimental client capabilities as a constructor argument, pass it in `_session_kwargs` and delete the wrap** · `tools/mcp_job_wake.py::advertise_job_wake` · lane h-wakecap 2026-10-03 **TAKEN 2026-10-04 h-qaeff**
+- [ ] **The `eternia.job_wake` declaration wraps the SDK's private `ClientSession._build_capabilities` because mcp 2.0.0 hard-codes `experimental=None`; when the SDK takes experimental client capabilities as a constructor argument, pass it in `_session_kwargs` and delete the wrap** · `tools/mcp_job_wake.py::advertise_job_wake` · lane h-wakecap 2026-10-03 **TAKEN 2026-10-04 h-qaeff** · VERDICT 2026-10-04: precondition unmet — `mcp==2.0.0` is pinned (pyproject `mcp` extra) and its `ClientSession.__init__` takes no `experimental` argument (only `extensions`, a different wire field the launcher's `envelope_policy.dart` does not read) and `_build_capabilities` still hard-codes `experimental=None`; the wrap stays, `tests/tools/test_mcp_job_wake_turn.py` reds on a real ClientSession if the builder moves; act at the next `mcp` pin bump (h-qaeff)
 
 ### Filed on arrival — 2026-10-03 (resident identity audit)
 
