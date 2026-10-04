@@ -2,8 +2,14 @@
 
 **Status: designed 2026-10-04, not shipped. Owner decisions (fixed, 2026-10-04):** three sources
 (agent-started, announced, detected only under the operator's launcher Projects folders); Stop AND
-Restart on every row; Flutter first; hermes owns the rows; the launcher renders them and pushes the
-authorized roots. Queue row: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` ("Builds become a
+Restart on every row; Flutter first; hermes owns the rows; the launcher renders them. **Amended
+2026-10-04 after the owner ruled on the seven calls (§11):** the authorized folders are PERSISTED in
+hermes at two levels — the WORKSPACE holds the authorized folder set (what detection watches; realm sync
+carries it) and each persona INSTANCE is assigned a subset it loads `AGENTS.md` from — with the launcher
+Projects screen as the single editor of both (§3); detected builds that stall are MARKED, never killed;
+Restart of a detected build is the same path as every row, no confirm; and every row and record
+**indexes its unknowns** — anything hermes could not classify is a typed unknown WITH the evidence
+seen (§1 `unknowns`). Queue row: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` ("Builds become a
 first-class running_work kind"). Launcher half:
 `EterniaLauncher/docs/mission_control/planned/build-running-work-launcher-2026-10-04.md`.
 
@@ -16,7 +22,9 @@ first-class running_work kind"). Launcher half:
 | the QA build as a background job: `build_job` block, `ParityStageC.builds.job.json`, `qa_build_finished` wake | `tools/mcp_job_wake.py`, `EterniaLauncher/tool/stagec_qa_mcp_server/lib/qa_build_job.dart` | the **announced** record schema is that block generalised; the wake stays |
 | `flutter build` argv parsing (`_tokens`, `_command_words`, `_cd_target`, `FlutterBuild`) | `agent_runtime/flutter_build_guard.py` | lifted into one parser both the guard and the recognizer import |
 | background-work home authority, store fingerprinting | `agent_runtime/profile_home.py::get_hermes_background_work_home`, `running_work/ownership.py::running_work_store_paths`, `stream/fingerprint.py`, `core_cache/` | the registry dir lives under the same home and joins the same fingerprint |
-| machine roots (`machine_roots.json`, `harness roots`) | `agent_runtime/machine_roots.py` | **not** reused for authorized roots: machine roots are config path tokens an operator binds by hand; the build roots are the launcher's Projects set, pushed, never edited here |
+| machine roots (`machine_roots.json`, `harness roots`) | `agent_runtime/machine_roots.py` | **not** reused for authorized folders: machine roots are config path tokens an operator binds by hand; the authorized folders are workspace state (§3) — but the PORTABILITY lesson is reused: a path is a per-machine binding, never the portable identity |
+| workspace records + the WORKSPACE realm-sync family (generic overwrite), persona-instance records with `workspace_id` / `placement_id` + their 3-way family, the level family's whole-document adopt-or-hold | `paths.workspace_path`, `realm_sync/families.py`, `persona_assignments/store.py`, `level_sync.py` | the folder SET is a new family beside the workspace record; the per-instance assignment rides the persona-instance family |
+| the one `AGENTS.md` a mission-chat turn injects today: the launcher's per-instance directory (`mission-chat message --agents-file`, machine-local SharedPreferences) → `load_workspace_agents_context` (128 KB, typed receipt) → workdir ladder rung 2 → `prompt_builder._load_agents_md` chains git-root→cwd | `mission_chat_turn_context.py`, `prompt_observability/workspace_agents.py`, `mission_chat_workdir.py`, `agent/prompt_builder.py` | the per-folder loader and its receipt are reused per ASSIGNED folder; the `--agents-file` pointer is retired (§3) |
 
 Upstream has no build concept, no process detection and no job registry. Nothing below edits an
 upstream file: the lane reads the checkpoint and the registry's buffers through the reaches
@@ -61,7 +69,9 @@ are silent by design.
 | key | type / enum | notes |
 |---|---|---|
 | `source` | `agent` · `announced` · `detected` | |
-| `project` | `{root, name}` | `root`: the authorized root for detected, the cwd for agent, the record's `project_root` for announced; `name` = basename |
+| `project` | `{root, name}` | `root`: the authorized folder for detected, the cwd for agent, the record's `project_root` for announced; `name` = basename |
+| `workspace_id` · `folder_id` | string or null each | the authorized folder (§3) the build sits under, when one does — resolved for every source by the under-folder test; null with an `unknowns` entry `folder_unresolved` otherwise |
+| `unknowns` | list of `{kind, evidence, seen_at}` (≤32, dedup by kind + evidence hash, newest kept) | **owner rule "index the unknowns" (2026-10-04):** everything hermes could not classify, WITH what it saw. `kind` ∈ `stage_line_unrecognized` (evidence: the line, redacted ≤200), `output_unreadable` (the exception class), `process_unidentified` (exe name + argv head), `cwd_unreadable`, `wrapper_unobserved` (the parent chain seen, e.g. `cmd.exe /c flutter.bat`), `env_unobserved` (the env keys a restart cannot reproduce), `path_unobserved`, `artifact_unlocated` (the directories probed), `writer_unidentified`, `folder_unresolved`, `folder_unbound_here` (the folder id and the machines that bind it), `toolchain_unrecognized` (argv head). Empty list = nothing was unclassifiable, which is itself a claim the tests pin. |
 | `toolchain` | `flutter` · `dart` · `unknown` (reserved, not emitted yet: `gradle`, `msbuild`, `cmake`, `npm`, `cargo`, `unreal`) | |
 | `target` | string | `windows`, `apk`, `run:windows`, `qa_isolated`; `""` when unknown |
 | `mode` | `debug` · `profile` · `release` · `""` | |
@@ -79,7 +89,7 @@ are silent by design.
 | `artifact` | `{path, kind}` or null | `kind`: `executable` · `bundle` · `directory` · `other` |
 | `finished_at` | ISO UTC or `""` | |
 | `started_by` | `{kind, label}`; `kind`: `agent` · `operator` · `tool` · `external` | announced from the QA server = `tool`/"launcher_qa"; detected = `external` |
-| `controls` | `{stop: allowed·refused·unavailable, stop_reason, restart: allowed·refused·unavailable, restart_reason}` | reasons: `not_running`, `owner_not_here`, `writer_declines`, `argv_unknown`, `root_unauthorized`, `confirm_required` (detected restart, §7) |
+| `controls` | `{stop: allowed·refused·unavailable, stop_reason, restart: allowed·refused·unavailable, restart_reason}` | reasons: `not_running`, `owner_not_here`, `writer_declines`, `argv_unknown`, `folder_unauthorized`. No `confirm_required`: a detected restart is the same path as every row (owner 2026-10-04) |
 | `restart` | `{argv: [...], cwd}` or null | what Restart would run; null ⇒ `restart: refused argv_unknown` |
 | `origin_work_id` | string or null | agent source: `terminal:<session_id>` it replaced |
 | `announcement` | `{record, writer_pid, heartbeat_age_seconds}` or null | announced only |
@@ -89,9 +99,13 @@ are silent by design.
 **`sources.build`** is one entry with three sub-healths, because the three sources fail
 independently and "I could not look" must be sayable per source:
 `{"status": "ok"|"unavailable", "lane": "durable", "sub": {"agent": {...}, "announced": {...}, "detected": {...}}}`,
-each sub `{status, reason}`; `detected` reasons: `not_in_process` (CLI lane), `roots_not_pushed`,
-`roots_pusher_gone`, `scan_failed`; `announced`: `registry_unreadable`. The top-level status is
-`unavailable` only when every sub is.
+each sub `{status, reason}`; `detected` reasons: `not_in_process` (CLI lane), `no_authorized_folders`
+(no workspace in the active realm holds a folder), `folders_unbound_here` (folders exist, none bound on
+this machine), `scan_budget`, `scan_failed`; `announced`: `registry_unreadable`. The top-level status is
+`unavailable` only when every sub is. **The detected sub always carries its cost** (owner 2026-10-04,
+call 7): `scan_ms`, `processes_examined`, `candidates`, `budget_ms` — and the same `scan_ms` lands in
+`parity.sections_ms` as `running_work.build_detect`, so the number is visible on every frame and can be
+made smaller later without first having to be measured.
 
 **Golden fixtures both sides pin.** Hand-pinned `tests/fixtures/builds/build_rows.json`: one row per
 source × one per outcome arm × one per liveness arm (12 rows, every enum word appearing at least once),
@@ -128,8 +142,13 @@ read-model cache like a checkpoint rewrite does.
  "log_path": "X:\\...\\ParityStageC.builds\\qb-...\\build.log", "tail": "", 
  "controls": {"stop": "request", "restart": "command"},
  "restart": {"argv": ["dart", "run", "tool/stagec_qa_mcp_server/bin/prebuild.dart"], "cwd": "X:\\...\\EterniaLauncher"},
+ "unknowns": [{"kind": "stage_line_unrecognized", "evidence": "Running Gradle task 'assembleRelease'...", "seen_at": 1759590700.0}],
  "expires_at": 1759594260.0}
 ```
+
+`unknowns` is the writer's own index (same kinds as §1): a writer that recognised everything writes
+`[]`; hermes appends its reader-side unknowns (`writer_unidentified`, `folder_unresolved`) to the row,
+never to the file.
 
 `controls.stop`: `request` (hermes drops `<job_id>.stop` beside the record and the writer ends the
 build and records `stopped`), `kill_tree` (hermes tree-kills `build_pid`, identity-guarded, and the
@@ -151,21 +170,93 @@ inherits it; `hermes harness builds registry-path --json` prints it for a writer
 (`prebuild.dart` from an orchestrator shell). A writer with neither announces nothing and says so on
 its stdout; the build still runs.
 
-## 3. The authorized roots — `runtime.builds.roots.set`
+## 3. The authorized folders — persisted in hermes at two levels (OWNER 2026-10-04, call 4)
 
-One method, `TIER_CONSOLE` and in `LOCAL_CONSOLE_METHODS` (which folders this machine watches is the
-desktop operator's move, not a paired phone's). `serve_rpc/builds.py`.
+**The ruling.** The WORKSPACE holds the authorized folder set: what build detection watches, surviving
+restarts, carried by realm sync. Each persona INSTANCE (a specialized agent) is ASSIGNED a subset and
+loads `AGENTS.md` only from its assigned folders — never from every folder of a multi-folder workspace.
+The launcher Projects screen stays the single editor of both levels; hermes stores and is the authority
+for the persisted set. This replaces the in-memory push the first draft had.
 
-| | |
-|---|---|
-| params | `roots: [{path, name, project_id}]` (≤64; `path` absolute), `issued_at` (ISO, the launcher's gesture stamp), `account_scope` (an opaque hash — the launcher's `scope.storageKey` digest, never the account) |
-| semantics | **replace the whole set.** The previous set is discarded; an empty list is a valid push and clears detection. Paths are normalised (`os.path.realpath`, case-folded on Windows) for the under-root test only; the wire keeps what the launcher sent. A root inside another root is allowed. |
-| result | `{applied, count, missing: [paths that do not exist], superseded: bool}` — a push whose `issued_at` is older than the one held answers `applied: false, superseded: true` (newest gesture wins, the same basis `scope_activation` uses) |
-| storage | **in-memory in the serve process only**, with the pusher's connection identity. No file, no CLI setter: hermes never holds a second editable list, and a serve restart honestly reports `detected: unavailable roots_not_pushed` until the launcher re-sends (it does, on every greeting). `harness builds roots show --json` is the read-only mirror. |
-| missing folder | kept in the set and named in `missing`; nothing is detected under it; the launcher's own locate flow is the repair |
-| account switch | the launcher pushes the new account's set (an empty one for a guest); rows already running under a root that left the set stay visible to completion with `controls.restart: refused root_unauthorized` — a build is a fact, the root is a permission for future detection |
-| serve reconnect | the launcher pushes on every `ready` / `hello_ok` greeting whose `rpc` manifest lists the method; a hermes without it gets no push and the launcher says detection is unavailable |
-| pusher gone | when the pushing connection drops, the set is kept for 60 s (a reconnect re-pushes) then cleared with reason `roots_pusher_gone` |
+**What is true today, and what moves.** A mission-chat turn gets ONE `AGENTS.md`: the launcher keeps a
+per-instance directory in machine-local SharedPreferences (`LocalMissionAgentContextStore`, "deliberately
+outside workspace/realm state"), sends it as `--agents-file`, hermes reads that one file with a typed
+receipt (`load_workspace_agents_context`) and grounds the turn's cwd on its directory (workdir ladder
+rung 2), after which `prompt_builder._load_agents_md` chains git-root→cwd. So "one folder per agent" is
+already the shape; what is missing is persistence, the set it is a subset OF, and the second folder.
+Workspace records are JSON at `paths.workspace_path(id)` and travel as the `WORKSPACE` family through
+the GENERIC overwrite loop; persona instances carry `workspace_id` / `placement_id` and travel through
+the 3-way `PERSONA_INSTANCE_CONFIG` family.
+
+**Level 1 — the workspace's authorized folders.** A new store beside the workspace record,
+`paths.workspace_folders_path(workspace_id)` (`store/workspace_folders/<token>.json`), NOT a key inside
+the record: the record syncs by generic overwrite, and a per-machine binding map must merge key-wise or
+a peer's publish deletes this machine's paths. Document v1:
+
+```json
+{"schema_version": 1, "workspace_id": "ws_…", "folders": {
+  "fld_7c1e…": {"name": "EterniaLauncher", "added_at": "…", "added_by_machine": "mach_…",
+                "bindings": {"mach_a3f2…": {"path": "X:\\…\\EterniaLauncher", "bound_at": "…"},
+                             "mach_9b01…": {"path": "/home/t/eternia/launcher", "bound_at": "…"}}}}}
+```
+
+`folder_id` is minted by the launcher (`ProjectFolder.id` — already stable across locate) and is the
+PORTABLE identity; a `path` is a per-machine binding keyed by this install's machine id (the gateway
+identity's device id, the same key a paired peer is known by). A member machine with no binding for a
+folder sees the folder as `folder_unbound_here` (typed unknown, evidence: which machines bind it) —
+detection and `AGENTS.md` loading skip it, nothing is fabricated. Realm sync: a new family
+`WORKSPACE_FOLDERS` (`store/workspace_folders/`, owner `workspace_folders_sync.apply_pull`) merging
+KEY-WISE at two depths — folder ids union, and inside a folder the `bindings` map unions by machine id,
+so two machines never write the same key and no conflict can arise from paths; `name` and removal
+follow the newest `issued_at` (the same basis the scope pointers use). A folder removed from the set is
+tombstoned (`removed_at`, `removed_by_machine`) for one publish cycle so the removal wins over a peer's
+stale copy, then dropped.
+
+**Level 2 — the instance's assigned subset.** `assigned_folder_ids: [fld_…]` on the persona-INSTANCE
+record (`persona_assignments/store.py` field + the 3-way family it already rides). Always a subset of its
+workspace's set (a write naming a folder the workspace does not hold is refused `folder_not_in_workspace`;
+a folder later removed from the workspace is dropped from every assignment in the same write). Empty
+means none: an instance with no assignment loads no folder `AGENTS.md` — never "all of them". The
+canonical persona channel (no workspace) has no assignment and keeps today's behaviour.
+
+**Methods** (`serve_rpc/workspace_folders.py`, `TIER_CONSOLE`; the two `set` verbs also in
+`LOCAL_CONSOLE_METHODS` — which folders THIS machine binds is the desktop operator's move):
+
+| method | params | result / refusals |
+|---|---|---|
+| `runtime.workspace.folders.set` | `workspace_id`, `folders: [{folder_id, name, path}]` (≤64), `issued_at` | **replace-whole-set for this machine**: the folder-id set becomes exactly the list (others tombstoned), this machine's bindings become exactly the paths given; OTHER machines' bindings are untouched. `{applied, count, missing: [folder_ids whose path does not exist here], superseded}` |
+| `runtime.workspace.folders.show` | `workspace_id` | the document, with `bound_here` per folder |
+| `runtime.persona.instance.folders.set` | `persona_instance_id`, `folder_ids`, `issued_at` | replace the subset; `ERR_INVALID_PARAMS` `folder_not_in_workspace` |
+| `runtime.persona.instance.folders.show` | `persona_instance_id` | `{workspace_id, folder_ids, folders: [{folder_id, name, bound_here, path}]}` |
+
+CLI mirrors, read-only plus the same two setters: `harness workspace folders show|set`,
+`harness persona folders show|set` (argv over the same store doors; the contract dump re-runs).
+
+**What the turn does with it.** `mission_chat_turn_context` resolves the addressed instance's
+`assigned_folder_ids` → this machine's bindings → loads each folder's `AGENTS.override.md`/`AGENTS.md`
+through the existing per-file loader (128 KB each, 256 KB total, overflow typed `too_large` in the
+receipt, the remaining folders still loaded) and injects each as its own provenance-labelled
+`workspace_context` section; the receipts list every folder, including the unbound and the missing. The
+workdir ladder's rung 2 becomes "the FIRST assigned folder bound here" (assignment order is the
+launcher's order; the launcher marks the first as primary). `--agents-file` is accepted for one release
+as a deprecated alias that is IGNORED when the instance has an assignment (receipt `status:
+superseded_by_assignment`), then deleted.
+
+**What detection reads.** The authorized roots for §5 = every folder bound on this machine across every
+workspace of the ACTIVE realm (a detected row carries the `workspace_id` / `folder_id` it fell under; a
+build under two nested folders takes the deepest). Recomputed when the store's fingerprint moves — the
+`store/workspace_folders/` directory joins the read-model fingerprint — never pushed, never cached in
+serve beyond the frame.
+
+**Migration.** (1) Existing workspaces: an absent document is an empty set — nothing to migrate, detection
+is off until the Projects screen authorizes a folder. (2) The launcher's `LocalMissionAgentContextStore`
+bindings: on the first run after the launcher half lands, for each persona instance bound to a directory
+that equals a Projects folder's path (case-folded, realpath) the launcher writes the folder into the
+instance's workspace set (if absent) and assigns it; a bound directory that is NOT a Projects folder is
+listed once in a notice ("these agents pointed at folders outside your Projects; add the folder to a
+project to keep its instructions") and the binding is dropped — the launcher does not silently widen the
+authorized set with folders the operator never picked for a project. (3) hermes' `--agents-file`: the
+deprecation window above.
 
 ## 4. The Flutter recognizer — `builds/recognizer_flutter.py`
 
@@ -179,7 +270,13 @@ stage, read against each new output line; the stage only moves FORWARD through t
 later line matching an earlier stage is ignored — `pub get` lines after linking are a plugin's, not a
 regression). A transcript matching nothing yields `stage: unknown` — not `queued`, not `preparing`.
 The artifact comes from the `✓ Built <path>` line only (made absolute against the cwd); when that
-line never appears the artifact is null even if a conventional output directory exists.
+line never appears the artifact is null even if a conventional output directory exists — and the row
+carries `artifact_unlocated` with the directories probed. **Index the unknowns:** a line that looks like
+a phase announcement (matches the loose shape `^\w[\w\s]{2,40}\.\.\.$` or begins with `Running`,
+`Building`, `Linking`, `Compiling`, `Launching`) but matches no stage regex is recorded as
+`stage_line_unrecognized` with the line as evidence — bounded, deduped, newest kept — so a Flutter
+version that renames a phase leaves its new wording ON THE ROW the first time it is seen, not in
+someone's memory.
 
 **Surviving Flutter output changes.** The table is pinned by goldens of REAL transcripts captured on
 this machine (`tests/fixtures/builds/flutter_build_windows_release.txt`, `…_debug.txt`,
@@ -195,15 +292,28 @@ authoritative (it watched its own child); hermes does not re-derive. Detected: n
 
 ## 5. The detected source — `builds/detect.py`
 
-Runs in the serve process only, on the snapshot build cadence, only while the roots set is non-empty,
-under a 50 ms budget (exceeded ⇒ `detected: unavailable scan_budget`). `psutil.process_iter` filtered
-by executable name first (`dart`, `dart.exe`, `flutter`, `flutter.bat`), then `cmdline()` through the
-Flutter argv parser, then the root test on `cwd()` — a process whose cwd cannot be read, or whose cwd
-is under no authorized root, is not a detected build (unprovable scope is out of scope, by design).
-A candidate whose pid is already an agent-started session or an announced `build_pid` is skipped
-(dedupe by pid + start time). Liveness is `cpu`: the process tree's cumulative CPU time across two
-consecutive scans; unchanged for `stall_seconds` ⇒ `stalled`, never auto-ended (§7). `started_by:
-external`, empty owner, `restart.argv` = the observed cmdline, `restart.cwd` = the observed cwd.
+Runs in the serve process only, on the snapshot build cadence, only while this machine binds at least
+one authorized folder (§3), under a 50 ms budget (exceeded ⇒ `detected: unavailable scan_budget`, with
+the measured `scan_ms` still reported). `psutil.process_iter` filtered by executable name first
+(`dart`, `dart.exe`, `flutter`, `flutter.bat`), then `cmdline()` through the Flutter argv parser, then
+the folder test on `cwd()` — a process whose cwd cannot be read, or whose cwd is under no authorized
+folder, is not a detected build (unprovable scope is out of scope, by design). A candidate whose pid is
+already an agent-started session or an announced `build_pid` is skipped (dedupe by pid + start time).
+Liveness is `cpu`: the process tree's cumulative CPU time across two consecutive scans; unchanged for
+`stall_seconds` ⇒ `stalled`, **never auto-ended** (owner 2026-10-04, call 1 — the operator ends it with
+Stop). `started_by: external`, empty owner, `restart.argv` = the observed cmdline, `restart.cwd` = the
+observed cwd.
+
+**Its unknowns, indexed on the row** (the owner rule): a name-filtered process whose cmdline the parser
+cannot classify ⇒ `process_unidentified` (exe + argv head, the process is NOT shown as a build);
+`cwd_unreadable` (AccessDenied class) for a build-shaped cmdline that is dropped for want of scope;
+and on every detected row, because the scan cannot see them: `env_unobserved` (the env a restart
+cannot reproduce — `PATH`, `PUB_CACHE`, `FLUTTER_ROOT`, `JAVA_HOME` named as the keys it would need),
+`wrapper_unobserved` (the parent chain observed, e.g. `explorer.exe → cmd.exe → flutter.bat → dart.exe`),
+`path_unobserved`. These are what the launcher lists under Restart, so the operator sees what will differ.
+
+**Cost, visible on every frame:** `scan_ms`, `processes_examined`, `candidates`, `budget_ms` on
+`sources.build.sub.detected`, and `running_work.build_detect` in `parity.sections_ms` (§1).
 
 ## 6. Progress and ETA — `builds/history.py`
 
@@ -223,23 +333,31 @@ renders a determinate bar only when `expected_ms` is non-null.
 | agent | `process_registry.kill_process` (identity-guarded tree-kill; `consume_output=False`) from the owning process | `owner_not_here` from any other process |
 | announced, `controls.stop: request` | write `<job_id>.stop`; answer `cancel_requested` | writer declines (`none`) ⇒ `writer_declines` |
 | announced, `controls.stop: kill_tree` | `terminate_host_pid(build_pid, build_host_start_time)` | identity mismatch ⇒ `not_found` |
-| detected | `terminate_host_pid(pid, host_start_time)` | root no longer authorized ⇒ `root_unauthorized` |
+| detected | `terminate_host_pid(pid, host_start_time)` | folder no longer authorized ⇒ `folder_unauthorized` |
 
-The `--issued-at` replay guard applies unchanged (`work_commands._cancel_is_superseded`).
+Both verbs are direct METHODS (owner 2026-10-04, call 3): `runtime.work.cancel {work_id, issued_at,
+reason}` and `runtime.work.restart {work_id, issued_at}` in `serve_rpc/work.py`, `TIER_CONSOLE`, each
+the same decision the argv verb reaches (`cancel_work`; `harness work restart` is the argv mirror of the
+second). The `issued_at` replay guard applies unchanged (`work_commands._cancel_is_superseded`, lifted
+beside the decision so both doors share it).
 
-**Restart** = `runtime.work.restart {work_id, issued_at, confirm}` → stop if running, then spawn
-`restart.argv` in `restart.cwd` through `process_registry.spawn` as a background process with the
-completion default, `started_by: operator`, empty owner, `restart_of: <work_id>`; returns the new
-`work_id`. A detected build's restart additionally requires `confirm: true` (the launcher's dialog;
-without it, `confirm_required`), because hermes is about to run under its own registry a command it
-only observed. `harness work restart <work_id> --issued-at …` is the argv mirror.
+**Restart** = stop if running, then spawn `restart.argv` in `restart.cwd` through
+`process_registry.spawn` as a background process with the completion default, `started_by: operator`,
+empty owner, `restart_of: <work_id>`; returns the new `work_id`. **A detected build restarts through the
+SAME path and method as every other row, with no confirm step** (owner 2026-10-04, call 2): the row
+already shows the exact argv and cwd it will run and lists, as typed unknowns, what hermes could not
+observe (`env_unobserved`, `wrapper_unobserved`, `path_unobserved`). The restarted build runs under
+hermes' registry — with hermes' own env and PATH — which is precisely what those unknowns say will
+differ.
 
 **Stall-fail** (the 2026-10-04 frozen-job class): the serve sweep ticks every 30 s beside the
-delegation stale monitor. `stalled` for `stall_fail_seconds` (default 900) ⇒ the build is ENDED with
-`outcome: stalled`: agent-started → `kill_process`; announced → the declared stop mode; detected →
-**not killed** — marked `error`/`stalled` and left, since hermes does not own it. Every ending (stall,
-lost, failed, succeeded) emits a `build.ended` EventLog event the launcher renders as a notice, and an
-agent-started one additionally rides the completion queue so the owning agent is woken with the tail.
+delegation stale monitor. `stalled` for `stall_fail_seconds` (default 900) ⇒ agent-started and announced
+builds are ENDED with `outcome: stalled` (agent-started → `kill_process`; announced → the declared stop
+mode) and the owner notified; **detected builds are MARKED only — never auto-killed** (owner 2026-10-04,
+call 1): the row stays `stalled` with its `seconds_since_progress` climbing, and the operator ends it
+with Stop. Every ending (stall, lost, failed, succeeded, stopped) emits a `build.ended` EventLog event the
+launcher renders as a notice, and an agent-started one additionally rides the completion queue so the
+owning agent is woken with the tail.
 
 ## 8. Folding `mcp_job` — no double rows at any step
 
@@ -261,13 +379,17 @@ agent_runtime/builds/
   flutter_argv.py      models   the parser lifted from flutter_build_guard
   recognizer_flutter.py policy  FLUTTER_STAGES table, stage advance, artifact line
   registry.py          stores   record schema v1, reader (liveness/stall/expiry), writer helper, registry dir
-  roots.py             stores   the in-memory authorized set (+ pusher identity, superseded basis)
+  unknowns.py          models   the unknown kinds tuple, the bounded/deduped index, evidence redaction
   history.py           stores   history.jsonl append + median
-  detect.py            lanes    the psutil scan under the roots
+  detect.py            lanes    the psutil scan under this machine's bound folders (+ scan cost)
   control.py           lanes    stop / restart decisions (origin × declared controls)
-  sweep.py             lanes    serve tick: stall-fail, build.ended, history append, registry gc
-agent_runtime/running_work/lanes_build.py   lanes   BuildLane: announced rows + the terminal reclassification pass + detected rows
-agent_runtime/serve_rpc/builds.py           lanes   runtime.builds.roots.set / .show, runtime.work.restart
+  sweep.py             lanes    serve tick: stall-fail (agent/announced only), build.ended, history append, registry gc
+agent_runtime/workspace_folders.py          stores   level 1: the per-workspace folder set document, machine bindings, tombstones, `authorized_folders_bound_here()`
+agent_runtime/workspace_folders_sync.py     stores   the WORKSPACE_FOLDERS realm-sync family: key-wise merge at two depths
+agent_runtime/persona_assignments/store.py  (field)  level 2: `assigned_folder_ids` on the instance record
+agent_runtime/running_work/lanes_build.py   lanes    BuildLane: announced rows + the terminal reclassification pass + detected rows
+agent_runtime/serve_rpc/workspace_folders.py lanes   runtime.workspace.folders.set/.show, runtime.persona.instance.folders.set/.show
+agent_runtime/serve_rpc/work.py             lanes    runtime.work.cancel / runtime.work.restart
 ```
 
 Reclassification: `BuildLane` runs AFTER the terminal lane in `_COLLECTORS` and is handed the frame's
@@ -277,25 +399,56 @@ double. Each row of §10 names its test and its killing mutation at the landing 
 
 ## 10. Implementation rows (one commit each, in this order)
 
-H1 `flutter_argv.py` move + `FlutterCommand` · `tests/agent_runtime/test_flutter_argv.py`; the guard's own tests unchanged and a pin that `flutter_build_guard` defines no token regex of its own.
-H2 `recognizer_flutter.py` + four transcript goldens · `test_build_recognizer_flutter.py` (mutation: swap two stage regexes ⇒ the ordered-sequence assertion reds; random-line transcript ⇒ `unknown`).
-H3 `builds/vocabulary.py` + `registry.py` + `running_work_store_paths` dir entry + fingerprint restat + `harness builds registry-path` · `test_build_registry.py`, `test_stream_fingerprint.py` arm (a record touched ⇒ fingerprint moves).
-H4 `lanes_build.py` (announced + reclassification) + `sources.build` + `McpJobLane` dedupe + `build_rows.json` + stream goldens regen + contract ledger + README copy-status · `test_running_work.py` arms, `test_build_rows_fixture.py`.
-H5 `roots.py` + `serve_rpc/builds.py::runtime.builds.roots.set/.show` + `LOCAL_CONSOLE_METHODS` + `harness builds roots show` · `test_build_roots.py`, `test_peer_authorization.py` tier table.
-H6 `detect.py` + the detected sub-source · `test_build_detect.py` over a fake process table (under-root, outside-root, unreadable cwd, already-owned pid, cpu-stall).
-H7 `history.py` + `sweep.py` (stall-fail, `build.ended`, history, gc) + serve boot `HERMES_BUILD_REGISTRY_DIR` export · `test_build_sweep.py` with a fake clock (queued never stalls; detected never killed; agent-origin wakes its owner).
-H8 `control.py` + `_cancel_build` + `runtime.work.restart` + `harness work restart` · `test_build_control.py` (each origin × each declared mode; `confirm_required` on detected; replay guard).
+Order changed 2026-10-04 with the rulings: the two-level folder store (H5a/H5b) now sits BEFORE the
+lane that needs `workspace_id` / `folder_id` on its rows, and the unknowns index is born in H1 so every
+later row writes into it rather than retrofitting.
+
+H1 `builds/unknowns.py` (kinds tuple, bounded/deduped index, evidence redaction) + `flutter_argv.py` move + `FlutterCommand` (an unparseable head ⇒ `toolchain_unrecognized` with the argv head) · `tests/agent_runtime/test_build_unknowns.py` (cap, dedup, newest kept, evidence redacted), `test_flutter_argv.py`; the guard's own tests unchanged and a pin that `flutter_build_guard` defines no token regex of its own.
+H2 `recognizer_flutter.py` + four transcript goldens + `stage_line_unrecognized` / `artifact_unlocated` · `test_build_recognizer_flutter.py` (mutation: swap two stage regexes ⇒ the ordered-sequence pin reds; random-line transcript ⇒ `unknown` AND zero unknowns; a renamed-phase transcript ⇒ exactly that line indexed).
+H3 `builds/vocabulary.py` + `registry.py` (record v1 with `unknowns`) + `running_work_store_paths` dir entry + fingerprint restat + `harness builds registry-path` · `test_build_registry.py`, `test_stream_fingerprint.py` arm (a record touched ⇒ fingerprint moves).
+H4 `lanes_build.py` (announced + reclassification; `workspace_id`/`folder_id` resolved through H5a's reader, null + `folder_unresolved` before any folder exists) + `sources.build` with sub-health and cost keys + `McpJobLane` dedupe + `build_rows.json` + stream goldens regen + contract ledger + README copy-status · `test_running_work.py` arms, `test_build_rows_fixture.py` (every unknown kind appears in the golden at least once).
+H5a `workspace_folders.py` (document v1, machine bindings keyed by gateway device id, tombstones, `authorized_folders_bound_here()`) + `workspace_folders_sync.py` family + `paths.workspace_folders_path` + the store dir in the read-model fingerprint + `serve_rpc/workspace_folders.py::runtime.workspace.folders.set/.show` (`LOCAL_CONSOLE_METHODS`) + `harness workspace folders show|set` · `test_workspace_folders.py` (replace-whole-set touches only this machine's bindings; tombstone wins over a stale peer; unbound ⇒ `folder_unbound_here` with the binding machines), `test_realm_sync_workspace_folders.py` (two machines bind one folder ⇒ union, no conflict), `test_peer_authorization.py` tier table.
+H5b `assigned_folder_ids` on the persona-instance record + `runtime.persona.instance.folders.set/.show` + `harness persona folders show|set` + `mission_chat_turn_context` loads each assigned bound folder's `AGENTS.md` as its own `workspace_context` section (per-file 128 KB, 256 KB total, receipts for unbound/missing/too-large) + workdir ladder rung 2 = first assigned bound folder + `--agents-file` deprecated alias · `test_persona_instance_folders.py` (subset refused when not in the workspace; workspace removal drops assignments; empty ⇒ no folder loaded, NEVER all), `test_mission_chat_turn_context.py` arms (two folders ⇒ two labelled sections; alias ignored under an assignment with `superseded_by_assignment`).
+H6 `detect.py` + the detected sub-source reading H5a's bound folders + `process_unidentified` / `cwd_unreadable` / the three restart unknowns + `scan_ms` into the sub-health and `parity.sections_ms` · `test_build_detect.py` over a fake process table (under-folder, outside, unreadable cwd, already-owned pid, cpu-stall, unparseable cmdline ⇒ indexed not shown, budget breach ⇒ typed with the measured ms).
+H7 `history.py` + `sweep.py` (stall-fail for agent/announced ONLY, `build.ended`, history, gc) + serve boot `HERMES_BUILD_REGISTRY_DIR` export · `test_build_sweep.py` with a fake clock (queued never stalls; a detected build past the threshold is still `stalled` and alive — the mutation that kills it reds; agent-origin wakes its owner).
+H8 `control.py` + `_cancel_build` + `serve_rpc/work.py::runtime.work.cancel/.restart` + `harness work restart` · `test_build_control.py` (each origin × each declared mode; a detected restart succeeds with no confirm param and the new row carries `restart_of`; replay guard shared by both doors), tier table.
 H9 `mcp_job_wake` stops writing `qa_build` rows · `tests/tools/test_mcp_job_background_work.py` (route still bound, no row).
 
-## 11. Open owner calls (each with the recommendation)
+## 11. Owner calls — ruled 2026-10-04, plus the new ones call 4 raises
 
-1. **Stall-fail for detected builds** — kill, or mark only? *Recommend mark only* (§7): hermes never started it, and a zero-CPU build waiting on a lock or a slot is indistinguishable from a wedged one without its output.
-2. **Restart of a detected build** — operator confirm, or one click like the others? *Recommend confirm* (the launcher dialog names argv and cwd verbatim), because the restarted build runs under hermes' own registry and becomes hermes-owned.
-3. **Stop/Restart transport** — new methods `runtime.work.cancel` + `runtime.work.restart`, or argv mirrors like today's `work.cancel`? *Recommend methods for both, used by build rows; the argv `work.cancel` stays for the older kinds until its own row moves it* (route-first rule).
-4. **Roots durability** — in-memory only (§3) or a file written only by the method? *Recommend in-memory*: strictly "no second list", and the launcher re-pushes on every greeting within seconds.
-5. **`ParityStageC.builds.job.json`** — keep as the QA server's output-directory lock beside the registry record, or make the record the lock? *Recommend keep both, one writer, one `toBuildJobJson()`*: the lock is keyed by output dir and read by foreign QA servers; the record is per job and operator-facing.
-6. **Registry dir for hand-run writers** — env only, or the CLI fallback too? *Recommend both* (§2); a writer with neither prints that it is not announcing.
-7. **Detected-source cost ceiling** — 50 ms per scan on the snapshot cadence, scan only while roots are non-empty. *Recommend as written*; the budget breach is a typed sub-reason, not a silent skip.
+1. **Stall-fail for detected builds** — *recommended mark only.* **OWNER 2026-10-04: MARK only, never auto-kill; the operator kills with Stop. Agent/announced keep end-failed + notify. NEW RULE "index the unknowns": anything hermes cannot classify (unrecognized stage line, unreadable output, unidentifiable process, unknown env/wrapper) is recorded on the row/registry as a typed unknown WITH the evidence seen, so future problems can be debugged from the record.** → §1 `unknowns`, §2, §4, §5, §7.
+2. **Restart of a detected build** — *recommended a confirm dialog.* **OWNER 2026-10-04: SAME path and method as every other row, NO confirm dialog; the row shows the exact argv + cwd it will run and lists what hermes could not observe (shell env, wrapper script, PATH) as typed unknowns.** → §5, §7; `confirm_required` deleted.
+3. **Stop/Restart transport** — *recommended methods.* **OWNER 2026-10-04: new direct methods `runtime.work.cancel` / `.restart` — accepted.** → §7, `serve_rpc/work.py`.
+4. **Roots durability** — *recommended in-memory.* **OWNER 2026-10-04: CHANGED — authorized roots are PERSISTED in hermes at TWO levels: the WORKSPACE holds the authorized folder set (what build detection watches; survives restarts; realm sync carries it), and each PERSONA / specialized agent is ASSIGNED a subset — it loads AGENTS.md only from its assigned folders, never every folder in the workspace. The launcher Projects screen stays the single editor for both levels; hermes stores and is authority for the persisted set.** → §3 replaced; migration named there.
+5. **`ParityStageC.builds.job.json`** — *recommended keep both, one writer.* **OWNER 2026-10-04: accepted.**
+6. **Registry dir for hand-run writers** — *recommended env + CLI fallback.* **OWNER 2026-10-04: hand-run `prebuild.dart` asks hermes for the registry path, else no announce + a stdout line — accepted.**
+7. **Detected-source cost** — *recommended as written.* **OWNER 2026-10-04: as written; keep the per-snapshot cost metric visible so it can be made faster later.** → `scan_ms` on the sub-health and in `parity.sections_ms` (§1, §5).
+
+**New calls that ruling 4 raises** (each with the recommendation; the plan above is written to the
+recommendation):
+
+- **4a. How a folder's PATH travels between machines.** A realm has members on different machines, and
+  the same folder lives at different paths on each. *Recommend per-machine bindings inside the folder
+  document, keyed by the gateway device id* (§3) — the launcher on each machine binds its own path through
+  the ordinary "locate" gesture, the portable identity is the launcher's `folder_id`, and an unbound
+  folder is a typed unknown rather than a fabricated path. The alternative — logical `${roots.…}` tokens
+  bound in `machine_roots.json` — would make every Projects folder a hand-edited config token, which is
+  the second editable list the ruling forbids.
+- **4b. Default assignment for a NEW instance.** Empty (loads nothing) or the workspace's only folder when
+  it has exactly one? *Recommend empty, always*: the ruling says never every folder, "exactly one" is
+  "every" in the common case, and the launcher's assign control is one click. The launcher may OFFER the
+  single folder at instance creation; it never writes it unasked.
+- **4c. Which workspaces feed detection.** The active workspace only, or every workspace of the active
+  realm? *Recommend every workspace of the active realm*, each detected row tagged with its
+  `workspace_id`: an operator who authorized a folder in workspace B still expects to see B's build while
+  looking at A, and the filter is a render choice the launcher can add.
+- **4d. The `WORKSPACE_FOLDERS` family's conflict policy.** Key-wise union (as §3) or whole-document
+  adopt-or-hold like the level? *Recommend key-wise*: bindings are disjoint by machine id, so the only
+  contended keys are `name` and removal, both ordered by `issued_at`; whole-document HOLD would block a
+  realm's detection over a rename.
+- **4e. The deprecation window for `--agents-file`.** One launcher release as an ignored-under-assignment
+  alias, then deleted? *Recommend yes*; the receipt names the supersession so the one operator still on
+  the chip sees why their file stopped loading.
 
 One deviation from the row's wording, stated: "the `mcp_job` row folds into this kind" is done for
 the QA build (§8); the `mcp_job` KIND is kept for MCP jobs that are not builds, so a future non-build
