@@ -217,7 +217,7 @@ def _refusal(reason: str) -> str:
         f"BLOCKED by the Eternia harness: `flutter build` refused — {reason}. A running Launcher "
         "locks its build output (the .exe, WebView2Loader.dll), so this build fails after minutes or "
         "breaks the operator's session. For QA or a screenshot call `mcp_launcher_qa_launch_or_attach` "
-        "(or `mcp_launcher_qa_screenshot_window`) and REPORT any typed blocker it returns instead of "
+        "(for a tab screenshot, `mcp_launcher_qa_open_app_tab` with `screenshot: true`) and REPORT any typed blocker it returns instead of "
         "building. If a QA binary really must be built, run the Launcher's `tool/stagec_parity_build.dart` "
         "(isolated `ParityStageC` output; attach with `exe_dir`), or build in a separate git worktree — "
         "never in the operator's primary checkout or into a runner directory a process is executing from."

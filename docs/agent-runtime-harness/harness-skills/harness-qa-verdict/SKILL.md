@@ -104,6 +104,9 @@ no proof runner to ask and no gate to satisfy.
   Control, pass `hermes_profile`, `harness_runtime_root`, and `hermes_home`, then verify the
   envelope shows `hermes_profile` non-null, `harness_runtime_root_configured:true`, and
   `hermes_home_configured:true`. Unpinned pixels do not prove the correct runtime root/profile.
+- A screenshot of a tab is ONE `mcp_launcher_qa_open_app_tab(tab: <tab>, screenshot: true)`
+  call (attach, navigate, settle, capture). `screenshot_window` needs an already-attached
+  session; with none it can only answer `app_not_attached`.
 - `mcp_launcher_qa_open_app_tab` owns composed screenshot knobs: `screenshot_stabilize_ms`,
   `screenshot_max_retries`, and `screenshot_retry_delay_ms`.
 - `mcp_launcher_qa_screenshot_window` is a primitive and accepts only

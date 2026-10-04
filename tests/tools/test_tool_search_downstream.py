@@ -100,6 +100,45 @@ class TestClassification:
                 f"Read-side sibling '{name}' must stay deferred"
             )
 
+    def test_launcher_qa_core_verbs_never_defer(self):
+        """A "screenshot news" turn spent two of four model round trips on
+        tool_search + tool_describe before open_app_tab (owner run 2026-10-04):
+        the four launcher_qa core verbs ride eagerly once the server is admitted.
+        Positive control: a non-core verb of the SAME server, registered the same
+        way, still defers — so the four are un-hidden by the promotion, not by a
+        fixture that never reached the MCP deferral branch."""
+        from tools.registry import registry
+        from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
+
+        def _handler(args, task_id=None, **kw):
+            return json.dumps({"ok": True})
+
+        core = (
+            "mcp_launcher_qa_open_app_tab",
+            "mcp_launcher_qa_screenshot_window",
+            "mcp_launcher_qa_capture_screenshot",
+            "mcp_launcher_qa_launch_or_attach",
+        )
+        control = "mcp_launcher_qa_click_button"
+        cfg = ToolSearchConfig.from_raw(None)
+        for name in (*core, control):
+            registry.register(
+                name=name, handler=_handler,
+                schema=_td(name, "launcher_qa verb.")["function"],
+                toolset="mcp-launcher_qa",
+            )
+        try:
+            assert is_deferrable_tool_name(control, config=cfg), (
+                f"control '{control}' must defer — the fixture never reached the MCP branch"
+            )
+            eager = [n for n in core if not is_deferrable_tool_name(n, config=cfg)]
+            assert eager == list(core), (
+                f"launcher_qa core verbs must never defer; eager={eager}"
+            )
+        finally:
+            for name in (*core, control):
+                registry.deregister(name)
+
     def test_never_defer_does_not_grant(self):
         """Un-hide, never grant. classify_tools only PARTITIONS the defs it is
         handed — a promoted name can never materialize in a lane that was not

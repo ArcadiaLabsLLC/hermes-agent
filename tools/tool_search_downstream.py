@@ -49,7 +49,17 @@ def attach_hit_parameters(record: Dict[str, Any], index: int, params) -> None:
 #: Fork tools that stay in the direct tool list. ``skill_search`` is the eternia-harness plugin's tool
 #: (toolset ``skills``); upstream defers every plugin tool, and it used to stay eager only by being
 #: named in upstream's core list in ``toolsets.py`` (moved here, lane h11-fp 2026-09-29).
-_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"})
+#: The launcher_qa core verbs ride eagerly too: a "screenshot news" turn spent two of its four
+#: model round trips on tool_search + tool_describe before ``open_app_tab`` (owner run
+#: 2026-10-04). They exist only in a run ADMITTED the ``launcher_qa`` server, so naming them
+#: here un-hides them for exactly the personas that use it and grants nothing to anyone else.
+_LAUNCHER_QA_CORE_TOOLS = frozenset({
+    "mcp_launcher_qa_open_app_tab",
+    "mcp_launcher_qa_screenshot_window",
+    "mcp_launcher_qa_capture_screenshot",
+    "mcp_launcher_qa_launch_or_attach",
+})
+_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | _LAUNCHER_QA_CORE_TOOLS
 
 
 def never_defer_tool_names(config=None) -> frozenset[str]:
