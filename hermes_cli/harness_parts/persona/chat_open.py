@@ -10,7 +10,6 @@ from dataclasses import asdict
 from contextlib import closing
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
-from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (
@@ -37,7 +36,7 @@ from .chat_coordinator import (
     _coordinator_scope_from_args,
     _maybe_stamp_spawned_by,
 )
-from .chat_request import _retired_persona_instance_payload
+from .chat_request import _emit_persona_open_chat_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
 from .lifecycle_commands import _placement_discriminability_refusal
@@ -592,35 +591,6 @@ def _prewarm_chat_actor_for_open(session_id) -> None:
         request_chat_actor_prewarm(session_id)
     except Exception:
         pass
-
-
-def _emit_persona_open_chat_payload(args, data: dict, *, plain: str | None = None) -> None:
-    """Hand ONE open-chat payload to whoever owns this call's transport.
-
-    The exact seam ``_emit_mission_chat_payload`` is for the send lane, one verb
-    over, and it exists for the same reason and against the same alternative.
-    ``runtime.persona.instance.open_chat`` (plan C1h, ruling R-C5) is an
-    IN-PROCESS second door onto this handler, running on a serve's reader loop —
-    so the only other way for it to read the row would be
-    ``contextlib.redirect_stdout``, which rebinds ``sys.stdout``
-    PROCESS-GLOBALLY and would briefly steal the serve's own frame protocol from
-    every other thread on it. That argument is written out in full at
-    :func:`_emit_mission_chat_payload`; nothing about it is weaker here.
-
-    ``args.payload_sink`` is the seam, and it is absent on every argparse
-    Namespace, so the CLI and the serve's argv bridge are untouched: with no
-    sink this prints byte-for-byte what each call site printed before.
-
-    ``plain`` is the non-JSON console line; ``None`` keeps the historical
-    ``data["error"]``. Deliberately no ``stream`` arm — opening a chat is not a
-    turn and has never had one.
-    """
-
-    sink = getattr(args, "payload_sink", None)
-    if callable(sink):
-        sink(data)
-        return
-    print(emit_json(data) if args.json else (data["error"] if plain is None else plain))
 
 
 def _emit_persona_open_chat_error(

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from agent_runtime import paths
+from agent_runtime.cli_format import emit_json
 from agent_runtime.config import mission_chat_clarify_token_binding
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
@@ -20,6 +21,7 @@ from agent_runtime.persona_chat_session import _safe_chat_model_override_value
 
 __layer__ = "stores"
 __all__ = [
+    "_emit_persona_open_chat_payload",
     "_invalid_chat_model_override_payload",
     "_missing_chat_message_payload",
     "_mission_chat_caller_refusal",
@@ -376,3 +378,36 @@ def _mission_chat_retired_target_refusal(
         persona_instance_id=canonical_chat_instance_id(persona_id, persona_instance_id),
         archive_path=archive_path,
     )
+
+
+def _emit_persona_open_chat_payload(args, data: dict, *, plain: str | None = None) -> None:
+    """Hand ONE open-chat / chat-delete / instance-create payload to whoever owns this call's transport.
+
+    Lives here, below ``chat_open``, because ``chat_delete`` and
+    ``lifecycle_commands`` (``persona instance create``) route through the same
+    seam for their method twins and ``chat_open`` imports ``lifecycle_commands``.
+
+    The exact seam ``_emit_mission_chat_payload`` is for the send lane, one verb
+    over, and it exists for the same reason and against the same alternative.
+    ``runtime.persona.instance.open_chat`` (plan C1h, ruling R-C5) is an
+    IN-PROCESS second door onto this handler, running on a serve's reader loop —
+    so the only other way for it to read the row would be
+    ``contextlib.redirect_stdout``, which rebinds ``sys.stdout``
+    PROCESS-GLOBALLY and would briefly steal the serve's own frame protocol from
+    every other thread on it. That argument is written out in full at
+    :func:`_emit_mission_chat_payload`; nothing about it is weaker here.
+
+    ``args.payload_sink`` is the seam, and it is absent on every argparse
+    Namespace, so the CLI and the serve's argv bridge are untouched: with no
+    sink this prints byte-for-byte what each call site printed before.
+
+    ``plain`` is the non-JSON console line; ``None`` keeps the historical
+    ``data["error"]``. Deliberately no ``stream`` arm — opening a chat is not a
+    turn and has never had one.
+    """
+
+    sink = getattr(args, "payload_sink", None)
+    if callable(sink):
+        sink(data)
+        return
+    print(emit_json(data) if args.json else (data["error"] if plain is None else plain))

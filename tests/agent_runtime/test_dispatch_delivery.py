@@ -34,7 +34,6 @@ from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
     chat_target,
-    chat_tickets_commands,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -612,7 +611,6 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
     monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)

@@ -3221,7 +3221,9 @@ def test_mission_chat_turn_resolve_requires_exact_owner_and_records_abandon(
 ):
 
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    from agent_runtime.chat_verbs import turn_resolve as turn_resolve_verb
+
+    monkeypatch.setattr(turn_resolve_verb, "_default_persona_session_db", lambda: db)
     owner = PersonaInstanceStore().open_chat(
         persona_id="dev", session_id="persona_chat_personainst_dev"
     )

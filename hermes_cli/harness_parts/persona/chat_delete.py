@@ -6,7 +6,6 @@ Separate because it is the one verb that retires a chat's history and bindings.
 from __future__ import annotations
 
 import uuid
-from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
@@ -30,7 +29,7 @@ from agent_runtime.persona_chat_durability import (
 )
 from hermes_constants import get_hermes_home
 from hermes_time import now
-from .chat_open import _emit_persona_open_chat_payload
+from .chat_request import _emit_persona_open_chat_payload
 from agent_runtime.persona_chat_session import _persona_chat_bound_owner, _persona_chat_session_owner
 
 __layer__ = "lanes"
@@ -71,7 +70,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "persistence_operation": exc.operation,
             "error": str(exc),
         }
-        print(emit_json(data) if args.json else data["error"])
+        _emit_persona_open_chat_payload(args, data)
         return 2
     owner_instance_id = _persona_chat_session_owner(session_db, session_id)
     if not owner_instance_id:
@@ -98,7 +97,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "cleared_bindings": [],
             "error": f"persona chat session not found: {session_id}",
         }
-        print(emit_json(data) if args.json else data["error"])
+        _emit_persona_open_chat_payload(args, data)
         return 2
     # Third site of the same shape: the STORED ``owner_instance.persona_id``
     # compared raw against ``requested_persona``, which is
@@ -131,7 +130,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "session_id": session_id,
             "persona_instance_id": requested_instance or None,
         }
-        print(emit_json(data) if args.json else data["error"])
+        _emit_persona_open_chat_payload(args, data)
         return 2
     if not bool(getattr(args, "_persona_chat_delete_lease_acquired", False)):
         try:
@@ -156,7 +155,7 @@ def _cmd_persona_chat_delete(args) -> int:
                 "lease_owner": exc.owner,
                 "error": str(exc),
             }
-            print(emit_json(data) if args.json else data["error"])
+            _emit_persona_open_chat_payload(args, data)
             return 2
     try:
         from agent_runtime.session_extensions import delete_compression_lineage
@@ -175,7 +174,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "session_id": session_id,
             "error": f"failed to delete persona chat session: {exc}",
         }
-        print(emit_json(data) if args.json else data["error"])
+        _emit_persona_open_chat_payload(args, data)
         return 2
 
     instance_store = PersonaInstanceStore()
@@ -245,7 +244,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "error": f"persona chat session not found: {session_id}",
             "next_expected": "refresh Harness snapshot; if the row is still visible, inspect SessionDB source and persona_instance.default_chat_session_id",
         }
-        print(emit_json(data) if args.json else data["error"])
+        _emit_persona_open_chat_payload(args, data)
         return 2
 
     try:
@@ -278,5 +277,5 @@ def _cmd_persona_chat_delete(args) -> int:
         "closed_assignment_ids": closed_assignment_ids,
         "next_expected": "refresh Harness snapshot; deleted persona chat should be absent and active bindings should be cleared",
     }
-    print(emit_json(data) if args.json else f"deleted persona chat {session_id}")
+    _emit_persona_open_chat_payload(args, data, plain=f"deleted persona chat {session_id}")
     return 0

@@ -439,21 +439,12 @@ def _cmd_persona_chat_history(args) -> int:
     fetch that replaces the tail S2 evicts from the frame. The frame carries the
     recency pointer (session id + anchors); this returns the messages."""
 
-    from agent_runtime.persona_chat_history import persona_chat_session_messages
-    from agent_runtime.root_observability import attach_root_observability
+    from agent_runtime.chat_verbs.history import persona_chat_history_page
 
-    limit = max(1, min(40, int(getattr(args, "limit", 40) or 40)))
-    # ``chat_scope`` is the incident tell: a ``count: 0`` envelope now says
-    # WHICH state.db it read and how that head was named. ``source:
-    # "ambient_home"`` beside an empty result means "wrong root", not "no
-    # messages" (2026-08-12 ambient chat-history incident).
-    data = attach_root_observability(
-        persona_chat_session_messages(
-            session_id=args.session_id,
-            limit=limit,
-            before=getattr(args, "before", None),
-        ),
-        chat_scope=True,
+    # ``chat_scope`` is the incident tell: a ``count: 0`` envelope says WHICH
+    # state.db it read (see ``agent_runtime.chat_verbs.history``).
+    data = persona_chat_history_page(
+        args.session_id, limit=getattr(args, "limit", 40), before=getattr(args, "before", None)
     )
     if getattr(args, "json", False):
         print(emit_json(data))

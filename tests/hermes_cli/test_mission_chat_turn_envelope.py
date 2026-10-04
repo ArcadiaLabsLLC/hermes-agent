@@ -48,7 +48,6 @@ from hermes_cli.harness_parts.persona import (
     chat_admission,
     chat_delete,
     chat_events,
-    chat_tickets_commands,
     chat_turn_commit,
     chat_turn_message,
 )
@@ -165,7 +164,6 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
             depth.pop()
 
     monkeypatch.setattr(chat_delete, "persona_chat_root_lease", _tracking_lease)
-    monkeypatch.setattr(chat_tickets_commands, "persona_chat_root_lease", _tracking_lease)
     monkeypatch.setattr(chat_turn_message, "persona_chat_root_lease", _tracking_lease)
 
     def _witness(name, target, attr):

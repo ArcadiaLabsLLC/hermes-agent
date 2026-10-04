@@ -15,6 +15,13 @@ The same door carries the CLI's OPEN-CHAT handler
 runs in-process: :func:`bind_open_chat` / :func:`run_open_chat`, the same
 payload-sink contract and the same typed refusal when unbound (lane W3-B).
 
+And, by NAME, the two chat verbs whose sequence is likewise an argparse handler
+with CLI-side helpers — ``persona chat delete`` and ``persona instance create``
+(lane h-twins, the ``runtime.persona.chat.delete`` / ``runtime.persona.instance
+.create`` methods): :func:`bind_chat_verb` / :func:`run_chat_verb`, same
+contract. A name is the verb's capability id, spelled once in
+:data:`CHAT_DELETE_VERB` / :data:`INSTANCE_CREATE_VERB`.
+
 So the CLI registers what the runtime needs. :func:`bind_mission_chat_turn` is
 called at plugin registration (``plugins/eternia-harness`` ``register``) and at
 serve boot (``ServeSession._boot_and_serve``), both through
@@ -32,16 +39,24 @@ from typing import Any
 
 __layer__ = "models"
 __all__ = [
+    "CHAT_DELETE_VERB",
+    "INSTANCE_CREATE_VERB",
     "MissionChatDoorUnbound",
+    "bind_chat_verb",
     "bind_mission_chat_turn",
     "bind_open_chat",
     "mission_chat_turn_bound",
+    "run_chat_verb",
     "run_mission_chat_turn",
     "run_open_chat",
 ]
 
+CHAT_DELETE_VERB = "persona.chat.delete"
+INSTANCE_CREATE_VERB = "persona.instance.create"
+
 _turn: Callable[[Any], int] | None = None
 _open_chat: Callable[[Any], int] | None = None
+_verbs: dict[str, Callable[[Any], int]] = {}
 
 
 class MissionChatDoorUnbound(RuntimeError):
@@ -95,3 +110,17 @@ def run_open_chat(args: Any) -> tuple[int, dict | None]:
     or None)``, :class:`MissionChatDoorUnbound` when nothing is bound.
     """
     return _run_handler(_open_chat, "open-chat", args)
+
+
+def bind_chat_verb(name: str, handler: Callable[[Any], int] | None) -> None:
+    """Bind (``None`` unbinds) the handler for one named chat verb."""
+    if handler is None:
+        _verbs.pop(name, None)
+    else:
+        _verbs[name] = handler
+
+
+def run_chat_verb(name: str, args: Any) -> tuple[int, dict | None]:
+    """Run one named chat verb in-process: same contract as
+    :func:`run_mission_chat_turn`."""
+    return _run_handler(_verbs.get(name), name, args)

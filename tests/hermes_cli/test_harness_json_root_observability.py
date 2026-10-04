@@ -28,6 +28,17 @@ _EMIT_CALLS = {"emit_json", "_print_stage42"}
 # The one attach chokepoint (agent_runtime/root_observability.py).
 _ATTACH_CALL = "attach_root_observability"
 
+# Runtime functions an argv handler DELEGATES to that attach the block
+# themselves: name -> whether they stamp ``chat_scope``. They exist because a
+# verb with a method twin keeps its one implementation in ``agent_runtime``
+# (lane h-twins), and the attach belongs with the envelope, not with the door
+# that prints it. A source walk cannot see INTO them, so each entry is held to
+# a RUNTIME proof instead — ``test_every_attaching_delegate_attaches`` calls it
+# and reads the keys off the result. Do not add a name without a row there.
+ATTACHING_DELEGATES = {
+    "persona_chat_history_page": True,
+}
+
 # Chat lanes must also stamp ``chat_scope`` — ``source: "ambient_home"``
 # beside an empty result is the tell the incident lacked entirely.
 #
@@ -187,6 +198,9 @@ def _handlers() -> dict[str, dict]:
                     called.add(name)
                 if name in _EMIT_CALLS:
                     emits = True
+                if name in ATTACHING_DELEGATES:
+                    attaches = True
+                    chat_scope = chat_scope or ATTACHING_DELEGATES[name]
                 if name == _ATTACH_CALL:
                     attaches = True
                     for keyword in sub.keywords:
@@ -269,6 +283,27 @@ def test_the_scan_sees_the_known_adopters():
             f"{name!r} should be detected as attaching the resolution block — "
             "either it regressed or the scan's attach predicate broke"
         )
+
+
+def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
+    """The runtime half of :data:`ATTACHING_DELEGATES`: each delegate, called,
+    returns an envelope that states its root — and its chat scope where the map
+    claims one. Positive by construction: the stubs below return NO resolution
+    block, so the keys can only come from the delegate's own attach."""
+
+    from agent_runtime.chat_verbs.history import persona_chat_history_page
+
+    monkeypatch.setattr(
+        "agent_runtime.persona_chat_history.persona_chat_session_messages",
+        lambda **kw: {"ok": True, "messages": [], "count": 0},
+    )
+    produced = {
+        "persona_chat_history_page": persona_chat_history_page("s1"),
+    }
+    assert set(produced) == set(ATTACHING_DELEGATES)
+    for name, envelope in produced.items():
+        assert "resolution" in envelope, f"{name} no longer attaches the resolution block"
+        assert ("chat_scope" in envelope) is ATTACHING_DELEGATES[name], name
 
 
 def test_ledger_does_not_rot():

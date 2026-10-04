@@ -138,70 +138,17 @@ def _cmd_mission_chat_steer(args) -> int:
 
 
 def _cmd_mission_chat_queue_skill(args) -> int:
-    persona_id = safe_assignment_token(getattr(args, "persona_id", None))
-    session_id = safe_assignment_token(getattr(args, "session_id", None))
-    # Both spellings collapse deliberately: this verb refuses below unless
-    # at least one skill survives, so "flag absent" and "flag given empty"
-    # reach the same refusal and no store can tell them apart.
-    raw_skills = [
-        *list_flag_or_empty(args, "skill"),
-        *list_flag_or_empty(args, "skills"),
-    ]
-    skills = list(
-        dict.fromkeys(
-            token
-            for item in raw_skills
-            if (token := safe_assignment_token(item))
-        )
-    )
-    if not persona_id or not session_id or not skills:
-        data = {
-            "ok": False,
-            "error": "persona, session-id, and at least one skill are required",
-        }
-        print(emit_json(data) if args.json else data["error"])
-        return 2
-    from agent_runtime.skill_resolution import resolve_skill, skill_runtime_compatibility
+    """The argv door; the decision is ``agent_runtime.chat_verbs.queue_skill``."""
+    from agent_runtime.chat_verbs.queue_skill import queue_skills_next_turn
 
-    resolutions = {skill: resolve_skill(skill) for skill in skills}
-    rejected = {
-        skill: result.status
-        for skill, result in resolutions.items()
-        if result.status != "resolved"
-    }
-    for skill, result in resolutions.items():
-        compatibility = skill_runtime_compatibility(
-            result.candidate,
-            surface="mission_chat",
-            root_node_mode=False,
-        )
-        if not compatibility["compatible"]:
-            rejected[skill] = compatibility["reason"]
-    if rejected:
-        data = {
-            "ok": False,
-            "error": "one or more skills are not loadable",
-            "rejected_skills": rejected,
-        }
-        print(emit_json(data) if args.json else data["error"])
-        return 2
-    from agent_runtime.queued_skills import queue_skills_for_next_turn
-
-    queued = queue_skills_for_next_turn(
-        persona_id=persona_id,
-        session_id=session_id,
+    data = queue_skills_next_turn(
+        persona_id=getattr(args, "persona_id", None),
+        session_id=getattr(args, "session_id", None),
+        skills=[*list_flag_or_empty(args, "skill"), *list_flag_or_empty(args, "skills")],
         persona_instance_id=getattr(args, "persona_instance_id", None),
-        skills=skills,
     )
-    data = {
-        "ok": True,
-        "capability_id": "mission.chat.queue_skill_for_next_turn",
-        "persona_id": persona_id,
-        "persona_instance_id": safe_assignment_token(getattr(args, "persona_instance_id", None)),
-        "session_id": session_id,
-        "skills": skills,
-        "queued_skills": queued.get("skills", []),
-        "next_expected": "send the next Mission Control chat message; queued skills will be preloaded for that turn only",
-    }
-    print(emit_json(data) if args.json else f"queued {', '.join(skills)} for next turn")
+    if data["ok"] is not True:
+        print(emit_json(data) if args.json else data["error"])
+        return 2
+    print(emit_json(data) if args.json else f"queued {', '.join(data['skills'])} for next turn")
     return 0

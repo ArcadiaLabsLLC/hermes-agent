@@ -8,29 +8,16 @@ from __future__ import annotations
 import time
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import mission_chat_clarify_token_binding
-from agent_runtime.mission_chat_turns.journal import abandon_mission_chat_turn
-from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
-from agent_runtime.mission_chat_turns.states import (
-    MissionChatTurnPersistOutcome,
-    TURN_STATE_ABANDONED,
-)
 from agent_runtime.persona_assignments import (
-    PersonaInstanceStore,
     safe_assignment_text,
     safe_assignment_token,
 )
 from agent_runtime.persona_chat_continuity import (
     CLARIFY_TICKET_TTL_SECONDS,
-    PersonaChatBusyError,
     PersonaChatClarifyTicketStore,
-    persona_chat_root_lease,
-)
-from agent_runtime.persona_chat_durability import (
-    default_persona_session_db as _default_persona_session_db,
 )
 from agent_runtime.root_observability import attach_root_observability
 from hermes_cli.harness_support import _list_envelope, _print_stage42, _sort_rows
-from agent_runtime.persona_chat_session import _persona_chat_session_owner
 
 __layer__ = "lanes"
 __all__ = [
@@ -284,114 +271,19 @@ def _cmd_mission_chat_clarify_tickets(args) -> int:
 
 
 def _cmd_mission_chat_turn_resolve(args) -> int:
-    # Function-local: the convention from before lane H1, when this file was
-    # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
-    # agent_runtime.mission_chat_outcome; nothing re-spells its values.
-    from agent_runtime.mission_chat_outcome import ChatErrorKind
-    from agent_runtime.mission_chat_turns.states import OPERATOR_RESOLVABLE_TURN_STATES
-    session_id = safe_assignment_text(getattr(args, "session_id", None), limit=240)
-    client_message_id = safe_assignment_text(
-        getattr(args, "client_message_id", None), limit=240
+    """The argv door; the decision is ``agent_runtime.chat_verbs.turn_resolve``."""
+    from agent_runtime.chat_verbs.turn_resolve import resolve_chat_turn
+
+    data = resolve_chat_turn(
+        session_id=getattr(args, "session_id", None),
+        client_message_id=getattr(args, "client_message_id", None),
+        turn_id=getattr(args, "turn_id", None),
+        action=getattr(args, "action", None),
+        persona_instance_id=getattr(args, "persona_instance_id", None),
+        reason=getattr(args, "reason", None),
     )
-    turn_id = safe_assignment_token(getattr(args, "turn_id", None))
-    action = safe_assignment_token(getattr(args, "action", None))
-    persona_instance_id = safe_assignment_token(
-        getattr(args, "persona_instance_id", None)
-    )
-    if action != "abandon" or not persona_instance_id:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.turn.resolve",
-            "error_kind": ChatErrorKind.INVALID_REQUEST,
-            "error": "action=abandon and persona_instance_id are required",
-        }
+    if "resolution" not in data:
         print(emit_json(data) if args.json else data["error"])
         return 2
-    try:
-        session_db = _default_persona_session_db()
-        owner_instance_id = _persona_chat_session_owner(session_db, session_id)
-        owner_instance = (
-            PersonaInstanceStore().get(owner_instance_id)
-            if owner_instance_id
-            else None
-        )
-    except Exception:
-        owner_instance = None
-    if owner_instance is None or owner_instance.id != persona_instance_id:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.turn.resolve",
-            "error_kind": ChatErrorKind.FOREIGN_CHAT_SESSION,
-            "error": "chat root is not owned by the requested persona instance",
-            "session_id": session_id,
-            "persona_instance_id": persona_instance_id,
-        }
-        print(emit_json(data) if args.json else data["error"])
-        return 2
-    if not bool(getattr(args, "_persona_chat_resolve_lease_acquired", False)):
-        try:
-            with persona_chat_root_lease(
-                session_id,
-                owner_id=persona_instance_id,
-                observer_kind="turn_resolve",
-            ):
-                args._persona_chat_resolve_lease_acquired = True
-                try:
-                    return _cmd_mission_chat_turn_resolve(args)
-                finally:
-                    args._persona_chat_resolve_lease_acquired = False
-        except PersonaChatBusyError as exc:
-            data = {
-                "ok": False,
-                "capability_id": "mission.chat.turn.resolve",
-                "error_kind": ChatErrorKind.CHAT_BUSY,
-                "session_id": session_id,
-                "lease_owner": exc.owner,
-                "error": str(exc),
-            }
-            print(emit_json(data) if args.json else data["error"])
-            return 2
-    record = mission_chat_turn_record(
-        session_id=session_id, client_message_id=client_message_id
-    )
-    if (
-        not record
-        # The resolvable set is the turn store's own table, never a literal
-        # spelled here — see mission_chat_turns' vocabulary guard.
-        or record.get("state") not in OPERATOR_RESOLVABLE_TURN_STATES
-        or safe_assignment_token(record.get("turn_id")) != turn_id
-    ):
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.turn.resolve",
-            "error_kind": ChatErrorKind.CHAT_TURN_RESOLUTION_MISMATCH,
-            "error": "resolution requires the exact matching outcome_unknown root/client/turn",
-            "session_id": session_id,
-            "client_message_id": client_message_id,
-            "turn_id": turn_id,
-        }
-        print(emit_json(data) if args.json else data["error"])
-        return 2
-    outcome = abandon_mission_chat_turn(
-        session_id=session_id,
-        client_message_id=client_message_id,
-        turn_id=turn_id,
-        resolution_actor=persona_instance_id,
-        resolution_reason=safe_assignment_text(
-            getattr(args, "reason", None), limit=320
-        )
-        or "operator requested abandon and resend",
-    )
-    data = {
-        "ok": outcome is MissionChatTurnPersistOutcome.PERSISTED,
-        "capability_id": "mission.chat.turn.resolve",
-        "resolution": "abandon",
-        "journal_state": TURN_STATE_ABANDONED,
-        "root_chat_session_id": session_id,
-        "session_id": session_id,
-        "client_message_id": client_message_id,
-        "turn_id": turn_id,
-        "next_expected": "send again with a new client_message_id",
-    }
     print(emit_json(data) if args.json else "abandoned ambiguous chat turn")
     return 0 if data["ok"] else 2

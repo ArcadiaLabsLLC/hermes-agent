@@ -426,7 +426,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-03 (launcher lane rpc-census, filed by the orchestrator)
 - [ ] **Add `runtime.realm.*` twins for the ten realm verbs the launcher runs as a cold process every call (sync status/pull/publish/revert/resolve, skills show/set, agents show/set, adopt), console tier; subsumes the `runtime.realm.sync.revert` recommendation on the revert-latency row** · `hermes_cli/harness_parts/realm_commands.py` · `EterniaLauncher/docs/mission_control/planned/argv-census-full-2026-10-03.md` rows 1–10 **TAKEN 2026-10-03 h-twins**
-- [ ] **Add chat-family twins: `runtime.persona.chat.history`, `runtime.persona.instance.create`, `runtime.chat.turn.resolve`, `runtime.chat.queue_skill`, `runtime.persona.chat.delete` — every chat open and first send, unreachable from a remote aim** · `hermes_cli/harness_parts/persona/` · `EterniaLauncher/docs/mission_control/planned/argv-census-full-2026-10-03.md` rows 11–15 **TAKEN 2026-10-03 h-twins**
 - [ ] **Add read twins `runtime.characters.list/status/thumb/sprite` (read tier; pixels as a media-style payload, not a stdout envelope)** · `hermes_cli/harness_parts/characters/commands.py` · `EterniaLauncher/docs/mission_control/planned/argv-census-full-2026-10-03.md` rows 16–19
 - [ ] **Add `runtime.board.card.add/move/edit/archive/restore` and `runtime.board.resolve_conflict`, console tier** · `hermes_cli/harness_parts/board.py` · `EterniaLauncher/docs/mission_control/planned/argv-census-full-2026-10-03.md` rows 22–27
 

@@ -1242,7 +1242,7 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
     monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr("agent_runtime.chat_verbs.turn_resolve._default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -1802,7 +1802,7 @@ def test_a_clarify_token_cannot_smuggle_in_a_foreign_session(
     _install_dispatch_handler_doubles(monkeypatch)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr("agent_runtime.chat_verbs.turn_resolve._default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
@@ -2199,7 +2199,7 @@ def _install_strict_db(monkeypatch):
     db = _StrictDispatchTranscriptDB()
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr("agent_runtime.chat_verbs.turn_resolve._default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     return db

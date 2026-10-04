@@ -168,7 +168,7 @@ def _chat_lane(monkeypatch, db):
     monkeypatch.setattr(runtime_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr("agent_runtime.chat_verbs.turn_resolve._default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
