@@ -587,6 +587,7 @@ class _RunPhases:
                 # LOADED points at a real workspace root — an invalid/missing/too
                 # large selection must not ground the turn somewhere it never read.
                 workspace_agents_path=turn_context.workspace_agents_path,
+                primary_slot_path=turn_context.primary_slot_path,
                 situational_hud_content=self.situational_hud_content,
                 turn_id=safe_assignment_token(self.client_message_id),
             )

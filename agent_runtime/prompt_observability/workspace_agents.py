@@ -23,11 +23,17 @@ __all__ = [
 MAX_WORKSPACE_AGENTS_BYTES = 128 * 1024
 
 
-def load_workspace_agents_context(value: str | None) -> WorkspaceAgentsContext | None:
+def load_workspace_agents_context(
+    value: str | None, *, allowed_names: tuple[str, ...] | None = ("agents.md",)
+) -> WorkspaceAgentsContext | None:
     """Load a Launcher-selected ``AGENTS.md`` without changing process CWD.
 
     Invalid, missing, unreadable, and oversized files produce an honest receipt
     and no injected content. Mission chat remains available in every case.
+
+    ``allowed_names`` (lower-case file names) guards the operator-picked file; the
+    repo-slot loader (build plan §3.3) passes ``None`` because the slot
+    DECLARATION names the files (``context.files``: ``CLAUDE.md``, ``AGENTS.md``, …).
     """
 
     raw_value = str(value or "").strip()
@@ -44,7 +50,7 @@ def load_workspace_agents_context(value: str | None) -> WorkspaceAgentsContext |
     }
     if not requested.is_absolute():
         return WorkspaceAgentsContext(content=None, receipt=receipt)
-    if requested.name.lower() != "agents.md":
+    if allowed_names is not None and requested.name.lower() not in allowed_names:
         receipt["status"] = "invalid_name"
         return WorkspaceAgentsContext(content=None, receipt=receipt)
     try:

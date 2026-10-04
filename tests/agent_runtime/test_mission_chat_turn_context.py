@@ -1512,3 +1512,101 @@ def test_the_digests_carry_no_component_VALUES():
         len(value) == 64 and set(value) <= set("0123456789abcdef")
         for value in digests.values()
     )
+
+
+# ── (H5b) repo slots: the assigned slots' CLAUDE.md + AGENTS.md, one section each ──
+#
+# Plan ``build-running-work-2026-10-04.md`` §3.3 (OWNER 2026-10-04 correction, example and
+# full-stack rulings). These arms run the REAL slot loader over a real workspace document
+# and real machine roots: the default ``load_slot_context`` resolver is not faked.
+
+
+def _slot_workspace(tmp_path, files_by_slot):
+    from agent_runtime.machine_roots import machine_roots_cache_clear, write_machine_roots
+    from agent_runtime.store import WorkspaceStore
+    from agent_runtime.workspace_slots import declare
+
+    machine_roots_cache_clear()
+    workspace = WorkspaceStore().create(name="Full stack").id
+    roots = {}
+    for slot, files in files_by_slot.items():
+        checkout = tmp_path / "checkouts" / slot
+        checkout.mkdir(parents=True)
+        for name, body in files.items():
+            (checkout / name).write_text(body, encoding="utf-8")
+        roots[slot] = str(checkout)
+    write_machine_roots(roots, dry_run=False)
+    declare(workspace, [{"name": slot, "repo": {"clone_url": f"https://x/{slot}.git"}} for slot in files_by_slot],
+            issued_at="2026-10-04T12:00:00+00:00", machine="mach_test")
+    return workspace, roots
+
+
+def _slot_instance(workspace, slots, primary=None):
+    return types.SimpleNamespace(**vars(_instance()), workspace_id=workspace, assigned_slots=slots, primary_slot=primary)
+
+
+def _slot_build(instance, **overrides):
+    from agent_runtime.mission_chat_turn_context import _default_load_slot_context
+
+    resolvers = _resolvers()
+    assert resolvers.load_slot_context is _default_load_slot_context  # the REAL loader, never a fake
+    return _build(instance=instance, resolvers=resolvers, **overrides)
+
+
+def test_one_slot_with_both_files_is_two_sections_headed_by_the_slot(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"CLAUDE.md": "claude rules", "AGENTS.md": "agent rules"}})
+    context = _slot_build(_slot_instance(workspace, ["launcher"]))
+    content = context.workspace_agents_content
+    assert content.index("## launcher — CLAUDE.md\n\nclaude rules") < content.index("## launcher — AGENTS.md\n\nagent rules")
+    labels = [item["label"] for item in context.workspace_agents_receipt["slots"]]
+    assert labels == ["launcher/CLAUDE.md", "launcher/AGENTS.md"]
+
+
+def test_two_slots_load_four_sections_and_only_the_primary_grounds_the_workdir(tmp_path):
+    workspace, roots = _slot_workspace(tmp_path, {
+        "backend": {"CLAUDE.md": "be claude", "AGENTS.md": "be agents"},
+        "launcher": {"CLAUDE.md": "fe claude", "AGENTS.md": "fe agents"},
+    })
+    context = _slot_build(_slot_instance(workspace, ["backend", "launcher"], primary="launcher"))
+    assert context.workspace_agents_content.count("## ") == 4
+    assert context.primary_slot_path == roots["launcher"]
+    assert context.workspace_agents_receipt["primary_source"] == "explicit"
+    from agent_runtime.mission_chat_workdir import WORKDIR_SOURCE_PRIMARY_SLOT, resolve_mission_chat_workdir
+
+    workdir = resolve_mission_chat_workdir(primary_slot_path=context.primary_slot_path, repo_scope=roots["backend"])
+    assert workdir.source == WORKDIR_SOURCE_PRIMARY_SLOT and os.path.samefile(workdir.path, roots["launcher"])
+
+
+def test_an_unset_primary_is_the_first_assigned_and_says_so(tmp_path):
+    workspace, roots = _slot_workspace(tmp_path, {"backend": {"AGENTS.md": "b"}, "launcher": {"AGENTS.md": "l"}})
+    context = _slot_build(_slot_instance(workspace, ["backend", "launcher"]))
+    assert context.primary_slot_path == roots["backend"]
+    assert context.workspace_agents_receipt["primary_source"] == "first_assigned"
+
+
+def test_a_missing_claude_md_is_a_receipt_and_the_agents_md_still_loads(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"AGENTS.md": "agent rules"}})
+    context = _slot_build(_slot_instance(workspace, ["launcher"]))
+    by_label = {item["label"]: item for item in context.workspace_agents_receipt["slots"]}
+    assert by_label["launcher/CLAUDE.md"]["status"] == "missing"
+    assert by_label["launcher/AGENTS.md"]["status"] == "loaded"
+    assert context.workspace_agents_content == "## launcher — AGENTS.md\n\nagent rules"
+
+
+def test_the_agents_file_alias_is_ignored_under_an_assignment(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"AGENTS.md": "slot rules"}})
+    alias = tmp_path / "elsewhere" / "AGENTS.md"
+    alias.parent.mkdir()
+    alias.write_text("alias rules", encoding="utf-8")
+    context = _slot_build(_slot_instance(workspace, ["launcher"]), agents_file=str(alias))
+    assert "alias rules" not in context.workspace_agents_content
+    assert context.workspace_agents_receipt["agents_file"]["status"] == "superseded_by_assignment"
+    assert context.workspace_agents_path is None
+
+
+def test_an_empty_assignment_loads_nothing_never_all(tmp_path):
+    workspace, _roots = _slot_workspace(tmp_path, {"launcher": {"AGENTS.md": "slot rules"}})
+    context = _slot_build(_slot_instance(workspace, []))
+    assert context.slot_context is None
+    assert context.workspace_agents_content is None
+    assert context.primary_slot_path is None

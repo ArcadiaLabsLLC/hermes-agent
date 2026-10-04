@@ -110,9 +110,21 @@ def apply_workspace_slots_pull(realm_id: str, subtree: Path) -> WorkspaceSlotsPu
         if json.dumps(merged, sort_keys=True) == json.dumps(local, sort_keys=True):
             summary.unchanged.append(path.stem)
             continue
-        write_document(str(merged.get("workspace_id") or path.stem), merged)
+        workspace_id = str(merged.get("workspace_id") or path.stem)
+        write_document(workspace_id, merged)
         summary.merged.append(path.stem)
+        _drop_newly_removed(workspace_id, local, merged)
     return summary
+
+
+def _drop_newly_removed(workspace_id: str, before: dict[str, Any], after: dict[str, Any]) -> None:
+    """A peer's tombstone that won the merge leaves every local assignment too (§3.3)."""
+
+    from .persona_slots import drop_removed_slots
+
+    was_live = {name for name, slot in (before.get("slots") or {}).items() if not (slot or {}).get("removed_at")}
+    now_removed = {name for name, slot in (after.get("slots") or {}).items() if (slot or {}).get("removed_at")}
+    drop_removed_slots(workspace_id, frozenset(was_live & now_removed))
 
 
 def publish_artifacts(workspaces: list[Any]) -> list[Any]:

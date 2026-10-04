@@ -237,7 +237,12 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     document["issued_at"] = issued_at
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)
-    return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned)}
+    from .persona_slots import drop_removed_slots
+
+    # A removed slot leaves every assignment in the same write (build plan §3.3).
+    dropped_from = drop_removed_slots(workspace_id, frozenset(tombstoned))
+    return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
+            "assignments_dropped": dropped_from}
 
 
 # ── this machine's fill ──────────────────────────────────────────────────────

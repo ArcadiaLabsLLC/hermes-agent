@@ -1,4 +1,4 @@
-"""``runtime.workspace.slots.*`` / ``runtime.workspace.slot.*`` — the repo-slot doors (build plan §3.4).
+"""``runtime.workspace.slots.*`` / ``.slot.*`` and ``runtime.persona.instance.slots.*`` — the repo-slot doors (build plan §3.4).
 
 All ``console``. The three verbs that touch THIS machine's fill — ``slot.bind``,
 ``slot.env.set``, ``slots.report`` — are on ``LOCAL_CONSOLE_METHODS``: a paired console
@@ -121,3 +121,44 @@ def _slot_env_set(params):
     row = report(workspace_id)["slots"].get(slot, {})
     return {"slot": slot, "env_keys": sorted(fill.env), "tool_paths": sorted(fill.tool_paths),
             "path_prepend": len(fill.path_prepend), "report": row}
+
+
+# ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──
+
+_ASSIGNMENT_CODES = {
+    "invalid_request": ERR_INVALID_PARAMS,
+    "instance_not_found": ERR_NOT_FOUND,
+    "slot_not_in_workspace": ERR_INVALID_PARAMS,
+    "primary_not_assigned": ERR_INVALID_PARAMS,
+    "instance_has_no_workspace": ERR_CONFLICT,
+    "stale_revision": ERR_CONFLICT,
+}
+
+
+def _assignment(handler):
+    def run(rid, params, context=None):
+        from agent_runtime.persona_slots import SlotAssignmentRefused
+
+        try:
+            return ok(rid, handler(params or {}))
+        except SlotAssignmentRefused as exc:
+            return err(rid, _ASSIGNMENT_CODES.get(exc.reason, ERR_CONFLICT), "The slot assignment was refused.",
+                       {"reason": exc.reason, "detail": exc.detail})
+    return run
+
+
+@method("runtime.persona.instance.slots.show", tier=TIER_CONSOLE)
+@_assignment
+def _instance_slots_show(params):
+    from agent_runtime.persona_slots import show_instance_slots
+
+    return show_instance_slots(str(params.get("persona_instance_id") or ""))
+
+
+@method("runtime.persona.instance.slots.set", tier=TIER_CONSOLE)
+@_assignment
+def _instance_slots_set(params):
+    from agent_runtime.persona_slots import set_instance_slots
+
+    return set_instance_slots(str(params.get("persona_instance_id") or ""), params.get("slots"), params.get("primary"),
+                              issued_at=str(params.get("issued_at") or ""))

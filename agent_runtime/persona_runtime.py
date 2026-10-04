@@ -86,6 +86,9 @@ class GPTPersonaRuntime:
         # POINTER rung of the workdir ladder (G6) — the directory the operator
         # aimed this turn at. Never read for content here.
         workspace_agents_path: str | None = None,
+        # The PRIMARY repo slot's bound path (build plan §3.3): workdir rung 2 under
+        # an assignment; never set together with ``workspace_agents_path``.
+        primary_slot_path: str | None = None,
         situational_hud_content: str | None = None,
         conversation_history: list[dict] | None = None,
         reuse_current_user_message: bool = False,
@@ -182,7 +185,7 @@ class GPTPersonaRuntime:
         # path that does not exist degrades to that same safe cwd and is reported
         # as a typed row on the preview lane — it never fails the turn.
         workdir = mission_chat_workdir_for_persona(
-            persona, workspace_agents_path=workspace_agents_path
+            persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
         )
         # Lane/role identity for the terminal safety envelope. Bound for the
         # WHOLE run so envelope enforcement on this lane is deterministic and

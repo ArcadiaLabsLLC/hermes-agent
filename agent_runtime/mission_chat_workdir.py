@@ -65,6 +65,7 @@ MISSION_CHAT_WORKDIR_UNRESOLVED = "mission_chat_workdir_unresolved"
 
 #: Where a resolved workdir came from (or why there is none).
 WORKDIR_SOURCE_PERSONA_CONFIG = "persona_config"
+WORKDIR_SOURCE_PRIMARY_SLOT = "primary_slot"
 WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
 WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
 WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
@@ -208,6 +209,7 @@ def resolve_mission_chat_workdir(
     configured: str | None = None,
     workspace_agents_path: str | None = None,
     repo_scope: str | None = None,
+    primary_slot_path: str | None = None,
 ) -> MissionChatWorkdir:
     """Walk the grounding ladder; return the first real directory, typed.
 
@@ -236,6 +238,10 @@ def resolve_mission_chat_workdir(
         )
 
     for source, candidate in (
+        # Rung 2 (build plan §3.3, OWNER full-stack): the PRIMARY slot's bound path
+        # under an assignment; the ``--agents-file`` root is its one-release alias
+        # and is never set together with it.
+        (WORKDIR_SOURCE_PRIMARY_SLOT, str(primary_slot_path or "").strip() or None),
         (WORKDIR_SOURCE_WORKSPACE_AGENTS, _workspace_root(workspace_agents_path)),
         (WORKDIR_SOURCE_PERSONA_REPO_SCOPE, str(repo_scope or "").strip() or None),
     ):
@@ -274,7 +280,7 @@ def _with_fallback(
 
 
 def mission_chat_workdir_for_persona(
-    persona: Any, *, workspace_agents_path: str | None = None
+    persona: Any, *, workspace_agents_path: str | None = None, primary_slot_path: str | None = None
 ) -> MissionChatWorkdir:
     """:func:`resolve_mission_chat_workdir` for a live persona.
 
@@ -295,4 +301,5 @@ def mission_chat_workdir_for_persona(
         configured=configured,
         workspace_agents_path=workspace_agents_path,
         repo_scope=getattr(persona, "repo_scope", None),
+        primary_slot_path=primary_slot_path,
     )

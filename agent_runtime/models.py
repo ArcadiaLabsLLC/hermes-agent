@@ -547,6 +547,17 @@ class PersonaInstance:
     # explicit allowlists); persisted rows carrying it are safe under older
     # code because ``serde._coerce`` ignores unknown keys.
     chat_head_home: str | None = None
+    # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
+    # instance's workspace's declared slots it works in — the AUTHORITY the
+    # launcher's Agent Console edits. Empty means NONE (never "all"); a slot may
+    # sit in several instances' lists at once. Each assigned slot bound here
+    # loads its CLAUDE.md + AGENTS.md into the turn. ``primary_slot`` is the
+    # default working directory (None = the first assigned, reported as such);
+    # ``slots_issued_at`` orders writes so a stale whole-row copy cannot revert
+    # a newer assignment. All three travel with the persona-instance family.
+    assigned_slots: list[str] = field(default_factory=list)
+    primary_slot: str | None = None
+    slots_issued_at: datetime | None = None
     # S70 (contract 54) removed ``context_receipt_id`` / ``compression_receipt_id``
     # / ``tool_budget_used`` / ``watchdog_warning_count`` from this record. Their
     # only writers died with the worker/goal lanes; ``ensure_for_personas`` was

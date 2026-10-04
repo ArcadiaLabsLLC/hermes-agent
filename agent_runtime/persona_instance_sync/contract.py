@@ -42,22 +42,28 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 #:   construction. The launcher's scope policy REFUSES on their absence
 #:   (``realmOnly`` / ``foreignWorkspace``), so a mint without them would swap
 #:   one badge for another rather than link the desk.
+#: - ``assigned_slots`` / ``primary_slot`` / ``slots_issued_at`` (build plan §3.3):
+#:   slot NAMES are portable (the workspace declares them); the local path a slot
+#:   resolves to never travels — it is each machine's own ``roots.<slot>``.
 #: - ``model_override_issued_at`` is a supersession CLOCK and travels WITH the
 #:   four override fields it orders, or a stale local write silently wins on the
 #:   receiver (``StaleModelOverrideWrite``).
 PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
     {
         "api_mode",
+        "assigned_slots",
         "display_name",
         "id",
         "mode",
         "model",
         "model_override_issued_at",
         "persona_id",
+        "primary_slot",
         "provider",
         "realm_id",
         "reasoning_effort",
         "skill_overrides",
+        "slots_issued_at",
         "spawned_by",
         "steered_by",
         "workspace_id",

@@ -247,6 +247,12 @@ def _default_load_workspace_agents(agents_file: Any) -> Any:
     return load_workspace_agents_context(agents_file)
 
 
+def _default_load_slot_context(instance: Any) -> Any:
+    from .persona_slots import load_slot_context
+
+    return load_slot_context(instance)
+
+
 def _default_capability_block(persona: Any, *, session_id: str | None) -> dict[str, Any]:
     # Through the bundle, which resolves ``capability_block_for_persona``.
     from .chat_lane_bundle import chat_lane_bundle
@@ -318,6 +324,8 @@ class MissionChatTurnResolvers:
         _default_build_preloaded_skills_prompt
     )
     load_workspace_agents: Callable[[Any], Any] = _default_load_workspace_agents
+    #: The instance's repo-slot context (build plan §3.3); None = no assignment.
+    load_slot_context: Callable[[Any], Any] = _default_load_slot_context
     capability_block: Callable[..., dict[str, Any]] = _default_capability_block
     situational_hud: Callable[..., dict[str, Any]] = _default_situational_hud
     admission_line: Callable[..., str] = _default_admission_line
@@ -386,6 +394,9 @@ class MissionChatTurnContext:
     #: an empty mapping is what a hand-constructed context (or one built through
     #: a resolver set that skipped a step) honestly reports.
     timings: dict[str, int] = field(default_factory=dict)
+    #: The assigned slots' context (``persona_slots.SlotContext``), or None when the
+    #: instance has no assignment and the one-release ``--agents-file`` alias applies.
+    slot_context: Any = None
 
     # — convenience projections the CLI body used to hold as locals —
 
@@ -395,7 +406,17 @@ class MissionChatTurnContext:
 
     @property
     def workspace_agents_content(self) -> str | None:
+        """Under an assignment, every assigned slot's sections, each headed by its slot name."""
+
+        if self.slot_context is not None:
+            return self.slot_context.content or None
         return getattr(self.workspace_agents, "content", None)
+
+    @property
+    def primary_slot_path(self) -> str | None:
+        """Workdir rung 2 under an assignment: the PRIMARY slot's bound path (OWNER full-stack)."""
+
+        return None if self.slot_context is None else self.slot_context.primary_path
 
     @property
     def workspace_agents_path(self) -> str | None:
@@ -406,6 +427,8 @@ class MissionChatTurnContext:
         somewhere it never read.
         """
 
+        if self.slot_context is not None:
+            return None  # the alias is superseded; the primary slot grounds the turn
         receipt = getattr(self.workspace_agents, "receipt", None)
         if not isinstance(receipt, dict) or not receipt.get("included"):
             return None
@@ -480,15 +503,8 @@ def build_mission_chat_turn_context(
     )
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
-    workspace_agents = resolvers.load_workspace_agents(agents_file)
-    workspace_agents_receipt = None
-    if workspace_agents is not None:
-        receipt = getattr(workspace_agents, "receipt", None)
-        workspace_agents_receipt = dict(receipt) if isinstance(receipt, dict) else {}
-        # The preview is operator-facing content, not a runtime input: folding
-        # it into the signature would make the signature an observability
-        # channel for prompt text.
-        workspace_agents_receipt.pop("preview", None)
+    slot_context = resolvers.load_slot_context(instance)
+    workspace_agents, workspace_agents_receipt = _workspace_context(resolvers, agents_file, slot_context)
 
     # Composed ONCE, then folded two ways: the composite is the reuse key the
     # registry compares, the per-component digests are what let a mismatch name
@@ -572,7 +588,41 @@ def build_mission_chat_turn_context(
         volatile_tail=volatile_tail,
         runtime_signature_digests=runtime_signature_digests,
         timings=timings,
+        slot_context=slot_context,
     )
+
+
+def _workspace_context(
+    resolvers: MissionChatTurnResolvers, agents_file: Any, slot_context: Any
+) -> tuple[Any, dict[str, Any] | None]:
+    """The workspace context and its receipt: the assigned slots', or the ``--agents-file`` alias.
+
+    Under an assignment the alias is IGNORED (call 4e) and its receipt says so,
+    ``superseded_by_assignment``, so the one operator still on the old chip sees why
+    the file stopped loading. The preview is operator-facing content, never a runtime
+    input, so it never reaches the receipt the signature folds.
+    """
+
+    if slot_context is not None:
+        from .persona_slots import SUPERSEDED_BY_ASSIGNMENT
+
+        receipt: dict[str, Any] = {
+            "kind": "workspace_context",
+            "source": "assigned_slots",
+            "slots": [dict(item) for item in slot_context.receipts],
+            "primary_slot": slot_context.primary_slot,
+            "primary_source": slot_context.primary_source,
+        }
+        if str(agents_file or "").strip():
+            receipt["agents_file"] = {"path": str(agents_file), "included": False, "status": SUPERSEDED_BY_ASSIGNMENT}
+        return None, receipt
+    workspace_agents = resolvers.load_workspace_agents(agents_file)
+    if workspace_agents is None:
+        return None, None
+    receipt = getattr(workspace_agents, "receipt", None)
+    workspace_agents_receipt = dict(receipt) if isinstance(receipt, dict) else {}
+    workspace_agents_receipt.pop("preview", None)
+    return workspace_agents, workspace_agents_receipt
 
 
 def _compose_volatile_tail(

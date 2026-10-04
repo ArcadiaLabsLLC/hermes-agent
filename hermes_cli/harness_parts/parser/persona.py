@@ -21,6 +21,7 @@ lifecycle_commands = lazy_module("hermes_cli.harness_parts.persona.lifecycle_com
 model_and_skills_commands = lazy_module("hermes_cli.harness_parts.persona.model_and_skills_commands")
 query_commands = lazy_module("hermes_cli.harness_parts.query_commands")
 runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
+slots_commands = lazy_module("hermes_cli.harness_parts.persona.slots_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -39,6 +40,24 @@ def add_persona(subs) -> None:
     _add_persona_read_verbs(persona_subs)
     _add_persona_chat_and_model_verbs(persona_subs)
     _add_persona_instance_verbs(persona_subs)
+    _add_persona_slots_verbs(persona_subs)
+
+
+def _add_persona_slots_verbs(persona_subs) -> None:
+    """``hermes harness persona slots show / set`` — an instance's repo-slot assignment (build plan §3.4)."""
+    slots = persona_subs.add_parser("slots", help="A persona instance's assigned repo slots and its primary slot")
+    slots_subs = slots.add_subparsers(dest="persona_slots_command", required=True)
+    show = slots_subs.add_parser("show", help="The assigned slots, where each is bound here, and the primary (read-only)")
+    show.add_argument("persona_instance_id")
+    _add_stage42_global_args(show)
+    show.set_defaults(func=slots_commands._cmd_persona_slots_show)
+    set_ = slots_subs.add_parser("set", help="Replace the assigned slots (a subset of the workspace's) and the primary")
+    set_.add_argument("persona_instance_id")
+    set_.add_argument("--slot", action="append", default=[], help="An assigned slot name (repeatable; none = no assignment)")
+    set_.add_argument("--primary", default=None, help="The primary slot (must be one of --slot); unset = the first assigned")
+    set_.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue time; an older write is refused")
+    _add_stage42_global_args(set_)
+    set_.set_defaults(func=slots_commands._cmd_persona_slots_set)
 
 
 def _add_persona_read_verbs(persona_subs) -> None:

@@ -270,6 +270,7 @@ class PersonaInstanceStore:
 
         instance.updated_at = now()
         moved = self._reconcile_model_lane_with_disk(instance)
+        self._keep_newer_slot_assignment(instance)
         self._write(instance)
         if moved:
             self._emit_state_patch(instance, {name: getattr(instance, name) for name in moved})
@@ -291,6 +292,30 @@ class PersonaInstanceStore:
                 raise AttributeError(f"PersonaInstance has no field {name!r}")
             setattr(instance, name, value)
         return self.update(instance)
+
+    #: The repo-slot assignment (build plan §3.3) and its clock, ``slots_issued_at``.
+    _SLOT_LANE_FIELDS: tuple[str, ...] = ("assigned_slots", "primary_slot", "slots_issued_at")
+
+    def _keep_newer_slot_assignment(self, instance: PersonaInstance) -> None:
+        """A whole-row copy older than the stored slot assignment takes the stored one.
+
+        The model lane's rule for the model lane's reason: a chat turn writes back a
+        row it loaded at admission, and a ``slots.set`` landing mid-turn must not be
+        reverted by that settle.
+        """
+
+        from agent_runtime.persona_assignments.profile import _as_utc
+
+        try:
+            stored = from_jsonable(
+                PersonaInstance, json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
+            )
+        except Exception:  # noqa: BLE001 — absent/unreadable: no baseline to defend
+            return
+        stored_clock, copy_clock = stored.slots_issued_at, instance.slots_issued_at
+        if stored_clock is not None and (copy_clock is None or _as_utc(copy_clock) < _as_utc(stored_clock)):
+            for name in self._SLOT_LANE_FIELDS:
+                setattr(instance, name, getattr(stored, name))
 
     def _reconcile_model_lane_with_disk(self, instance: PersonaInstance) -> list[str]:
         """Settle the model tier against the stored row; return the tier fields this write MOVES.

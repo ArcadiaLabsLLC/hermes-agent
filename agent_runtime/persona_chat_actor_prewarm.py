@@ -527,6 +527,13 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     # refusal (if any) names the component that moved. Seeding them HERE is
     # what makes the prewarm-vs-turn half of that diff answerable at all — an
     # entry with no component map can only report that the composite changed.
+    # An instance with repo slots assigned loads their context on every turn
+    # (build plan §3.3): the SAME receipt the turn folds, from the same loader, so
+    # an assigned chat matches its first turn instead of rebuilding on it.
+    from .mission_chat_turn_context import DEFAULT_RESOLVERS, _workspace_context
+
+    slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
+    _unused, slot_receipt = _workspace_context(DEFAULT_RESOLVERS, None, slot_context)
     signature_components = mission_chat_runtime_signature_components(
         persona=persona,
         instance=instance,
@@ -538,7 +545,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         # A chat with no workspace selection matches exactly; a workspace-bound
         # one rebuilds on its first turn and costs what it costs today — and now
         # says so, as ``resident_rebuild_component_workspace_agents``.
-        workspace_agents_receipt=None,
+        workspace_agents_receipt=slot_receipt if slot_context is not None else None,
         surface_prompt="",
     )
     signature = mission_chat_runtime_signature_from_components(signature_components)
@@ -550,7 +557,10 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     native_revision = _persona_chat_native_revision(session_db, root)
 
     lane_bundle = chat_lane_bundle(persona, session_id=root)
-    workdir = mission_chat_workdir_for_persona(persona, workspace_agents_path=None)
+    workdir = mission_chat_workdir_for_persona(
+        persona, workspace_agents_path=None,
+        primary_slot_path=slot_context.primary_path if slot_context is not None else None,
+    )
     envelope_scope = terminal_envelope_scope_for_persona(
         persona,
         lane=LANE_MISSION_CHAT,

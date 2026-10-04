@@ -141,6 +141,9 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona instance return-summary](#hermes-harness-persona-instance-return-summary)
 - [hermes harness persona instance update-profile](#hermes-harness-persona-instance-update-profile)
 - [hermes harness persona instance set-model](#hermes-harness-persona-instance-set-model)
+- [hermes harness persona slots](#hermes-harness-persona-slots)
+- [hermes harness persona slots show](#hermes-harness-persona-slots-show)
+- [hermes harness persona slots set](#hermes-harness-persona-slots-set)
 - [hermes harness mission-chat](#hermes-harness-mission-chat)
 - [hermes harness mission-chat message](#hermes-harness-mission-chat-message)
 - [hermes harness mission-chat queue-skill](#hermes-harness-mission-chat-queue-skill)
@@ -2333,10 +2336,10 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance} ...
+                              {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance,slots} ...
 
 positional arguments:
-  {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance}
+  {list,show,tool-diff,permission,assignments,migrate-assignment-task-ids,chat,set-model,set-skills,instance,slots}
     list                List durable persona instances
     show                Show one durable persona instance
     tool-diff           Show resolved model tools and blocked tools for one persona
@@ -2353,6 +2356,7 @@ positional arguments:
                         instances inherit it)
     instance            Create, open, steer, retire, and maintain persona instances (chat is the
                         only messaging lane)
+    slots               A persona instance's assigned repo slots and its primary slot
 
 options:
   -h, --help            show this help message and exit
@@ -2979,6 +2983,63 @@ options:
   --coordinator-may-kill-others
                         Allow killing non-operator instances spawned by another coordinator
   --json
+```
+
+## hermes harness persona slots
+
+```text
+usage: hermes harness persona slots [-h] {show,set} ...
+
+positional arguments:
+  {show,set}
+    show      The assigned slots, where each is bound here, and the primary (read-only)
+    set       Replace the assigned slots (a subset of the workspace's) and the primary
+
+options:
+  -h, --help  show this help message and exit
+```
+
+## hermes harness persona slots show
+
+```text
+usage: hermes harness persona slots show [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                         [--fields FIELDS]
+                                         persona_instance_id
+
+positional arguments:
+  persona_instance_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness persona slots set
+
+```text
+usage: hermes harness persona slots set [-h] [--slot SLOT] [--primary PRIMARY]
+                                        [--issued-at ISSUED_AT] [-o {json,table,yaml,wide}] [--json]
+                                        [-q] [--no-color] [--fields FIELDS]
+                                        persona_instance_id
+
+positional arguments:
+  persona_instance_id
+
+options:
+  -h, --help            show this help message and exit
+  --slot SLOT           An assigned slot name (repeatable; none = no assignment)
+  --primary PRIMARY     The primary slot (must be one of --slot); unset = the first assigned
+  --issued-at ISSUED_AT
+                        ISO-8601 issue time; an older write is refused
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
 ```
 
 ## hermes harness mission-chat
