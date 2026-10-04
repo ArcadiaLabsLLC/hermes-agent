@@ -20,6 +20,7 @@ from tools import mcp_tool_config as _config
 from tools import mcp_tool_lifecycle as _lifecycle
 from tools import mcp_tool_registration as _registration
 from tools import mcp_progress_relay as _progress_relay  # fork
+from tools import mcp_job_wake as _job_wake  # fork: declare eternia.job_wake when the wake route is installed
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -186,6 +187,8 @@ class MCPServerTransportMixin:
         on a modern-only signal (-32022 / initialize -32601) — the reverse of the SDK's discover-first
         mode, so handshake-era servers pay zero extra round-trips. ``stateless`` probes discover first
         (one legacy retry on any error); ``legacy`` is handshake only. A TIMEOUT never falls back."""
+        if _core._MCP_LOGGING_CALLBACK_SUPPORTED:  # fork: the wake rides logging_callback (_session_kwargs)
+            _job_wake.advertise_job_wake(session)
         def call(method: str):
             return asyncio.wait_for(getattr(session, method)(), timeout=connect_timeout)
 

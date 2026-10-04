@@ -20,10 +20,17 @@ The join, end to end:
 A job id wakes at most once: the binding is popped when the wake is queued. A notification for a
 job id nobody bound — unknown, foreign, or already woken — is logged and dropped. A notification
 that is not a job event is never touched here and stays log-only.
+
+0. Before any of that, :func:`advertise_job_wake` makes the client's ``initialize`` declare
+   ``capabilities.experimental["eternia.job_wake"] = {"version": 1}`` whenever the logging route
+   that carries the wake is installed, so a server may answer "build started — end your turn, you
+   will be woken" instead of telling the agent to block in a status poll. A server that does not
+   know the key ignores it (``experimental`` is free-form in the spec).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import threading
@@ -42,8 +49,37 @@ _MAX_ROUTES = 128
 _ROUTE_TTL_S = 6 * 3600.0
 _TAIL_CHARS = 4000
 
+JOB_WAKE_CAPABILITY = "eternia.job_wake"
+JOB_WAKE_VERSION = 1
+
 _lock = threading.Lock()
 _routes: "OrderedDict[tuple[str, str], dict]" = OrderedDict()
+
+
+def advertise_job_wake(session: Any) -> bool:
+    """Make *session*'s capability ad carry ``experimental["eternia.job_wake"]``. True when installed.
+
+    The SDK builds every ad (``initialize``, the stateless era's per-request capabilities, and our own
+    pinned re-handshake) through ``ClientSession._build_capabilities`` with ``experimental=None``
+    hard-coded, so the instance's builder is wrapped. A session without that builder (an older SDK,
+    a double) is left alone and the server sees no declaration — the wake itself still works."""
+    build = getattr(session, "_build_capabilities", None)
+    if not callable(build) or getattr(build, "_eternia_job_wake", False):
+        return False
+
+    def _with_job_wake(version):
+        caps = build(version)
+        experimental = dict(getattr(caps, "experimental", None) or {})
+        experimental[JOB_WAKE_CAPABILITY] = {"version": JOB_WAKE_VERSION}
+        return caps.model_copy(update={"experimental": experimental})
+
+    _with_job_wake._eternia_job_wake = True
+    try:
+        session._build_capabilities = _with_job_wake
+    except Exception:
+        logger.debug("MCP job-wake capability could not be declared", exc_info=True)
+        return False
+    return True
 
 
 def routing_for_call(call_kwargs: Mapping[str, Any]) -> dict:
@@ -173,7 +209,7 @@ def _wake_event(server_name: str, job_id: str, logger_name: str, data: dict, rou
     tail = data.get("failure_tail")
     return {
         "type": EVENT_TYPE,
-        "session_id": f"mcp_job:{server_name}:{job_id}",  # the drains' per-event identity
+        "session_id": wake_identity(server_name, job_id),  # the drains' per-event identity
         "session_key": route.get("session_key", ""), "task_id": route.get("task_id", ""),
         "owner_task_id": route.get("owner_task_id", ""), "parent_session_id": route.get("parent_session_id", ""),
         "server": server_name, "job_id": job_id, "job_kind": "qa_build" if logger_name == QA_BUILD_LOGGER else "",
@@ -181,6 +217,18 @@ def _wake_event(server_name: str, job_id: str, logger_name: str, data: dict, rou
         "failure_tail": _redacted_tail(tail) if isinstance(tail, str) else "",
         "message": str(data.get("message") or "")[:_TAIL_CHARS],
     }
+
+
+def wake_identity(server_name: str, job_id: str) -> str:
+    """The wake's per-event identity — short enough to survive the serve drain's key whole.
+
+    ``dispatch_delivery.accounting._event_key`` keeps 40 chars of it and the forged turn's
+    ``client_message_id`` is built from that key, so a readable ``mcp_job:<server>:<job>`` cut at 40
+    chars made two wakes of one server on one day the same replay: the launcher's
+    ``qb-YYYYMMDDTHHMMSS-xxxxxx`` ids lost their tail, and the second build's wake turn was
+    deduplicated away. A digest of both names is 32 chars, so nothing is cut."""
+    digest = hashlib.sha256(json.dumps([server_name, job_id]).encode("utf-8")).hexdigest()[:24]
+    return f"mcp_job:{digest}"
 
 
 def _redacted_tail(tail: str) -> str:
