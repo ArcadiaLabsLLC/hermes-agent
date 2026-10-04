@@ -125,6 +125,18 @@ def current_launcher_link() -> LauncherLink | None:
     return _link.get()
 
 
+def launcher_link_of(requester: Any) -> LauncherLink | None:
+    """The link behind an ``RpcContext.launcher_request`` (``link.request``).
+
+    The method lane hands handlers the bound ``request`` callable, not the
+    link; this is the one place that turns it back into the link, so a handler
+    can bind it for code that reads :func:`current_launcher_link`.
+    """
+
+    owner = getattr(requester, "__self__", None)
+    return owner if isinstance(owner, LauncherLink) else None
+
+
 def bind_launcher_link(link: LauncherLink | None) -> contextvars.Token:
     return _link.set(link)
 

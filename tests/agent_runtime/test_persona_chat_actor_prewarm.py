@@ -1224,12 +1224,12 @@ def test_the_open_chat_helper_can_never_fail_an_open(monkeypatch):
 
     seen: list[str] = []
     monkeypatch.setattr(
-        prewarm_module, "request_chat_actor_prewarm", lambda root: seen.append(root)
+        prewarm_module, "request_chat_actor_prewarm", lambda root, **_kw: seen.append(root)
     )
     _prewarm_chat_actor_for_open("chat_root_1")
     assert seen == ["chat_root_1"]
 
-    def _boom(_root):
+    def _boom(_root, **_kw):
         raise RuntimeError("the queue is on fire")
 
     monkeypatch.setattr(prewarm_module, "request_chat_actor_prewarm", _boom)

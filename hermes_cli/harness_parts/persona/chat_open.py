@@ -586,9 +586,13 @@ def _prewarm_chat_actor_for_open(session_id) -> None:
     """
 
     try:
+        from agent_runtime.launcher_app_functions import current_launcher_link
         from agent_runtime.persona_chat_actor_prewarm import request_chat_actor_prewarm
 
-        request_chat_actor_prewarm(session_id)
+        # The connection the gesture came in on, when the serve bound one: the
+        # prewarm registers its app functions first (h-chatperf), so it builds
+        # the tool contract the chat's first turn will build.
+        request_chat_actor_prewarm(session_id, launcher_link=current_launcher_link())
     except Exception:
         pass
 

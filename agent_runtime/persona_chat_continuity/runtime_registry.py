@@ -36,6 +36,11 @@ class ResidentPersonaChatRuntime:
     #: drift. Empty when the caller supplied none, in which case a mismatch
     #: reports the composite change and nothing more, honestly.
     signature_components: dict[str, str] = dataclass_field(default_factory=dict)
+    #: Built by the chat-actor prewarm, not by a turn (h-chatperf). With
+    #: ``turn_count == 0`` it is a prewarm no turn has used yet, and a
+    #: signature change that discards it is a WASTED prewarm -- recorded as
+    #: the prewarm's own outcome, not only as the turn's rebuild.
+    prewarmed: bool = False
 
 
 #: One line per rebuild whose cause is a moved signature component. Component
@@ -75,6 +80,25 @@ def _signature_component_diff(
     )
 
 
+#: h-chatperf: the chat-open prewarm's after-the-fact outcome. Only a TURN can
+#: know its prewarmed actor was wasted, so the registry -- where the turn throws
+#: it away -- writes the prewarm's receipt, in the prewarm's own line format.
+OUTCOME_DISCARDED_SIGNATURE_MISMATCH = "discarded_signature_mismatch"
+PREWARM_DISCARDED_RECEIPT = "persona_chat_actor_prewarm root=%s outcome=%s components=%s"
+
+
+def _record_prewarm_discard(root_session_id: str, components: tuple[str, ...]) -> None:
+    try:
+        logger.info(
+            PREWARM_DISCARDED_RECEIPT,
+            root_session_id,
+            OUTCOME_DISCARDED_SIGNATURE_MISMATCH,
+            ",".join(components) or "unknown",
+        )
+    except Exception:  # pragma: no cover - an instrument never fails a turn
+        pass
+
+
 #: The registry's own lifecycle vocabulary, read by name in :meth:`transition`.
 #: Not ``states.TaskState``/``RunState``: ``failed`` is spelled there too, for a
 #: different question (program batch-1 rule: a fork-wide word is named in its
@@ -91,6 +115,9 @@ class PersonaChatRuntimeRegistry:
         self.ttl_seconds = max(1.0, float(ttl_seconds))
         self._entries: OrderedDict[str, ResidentPersonaChatRuntime] = OrderedDict()
         self._transitions: dict[str, dict[str, Any]] = {}
+        #: root -> the component names of the last prewarmed actor a turn
+        #: discarded, until :meth:`take_prewarm_discard` collects it.
+        self._prewarm_discards: dict[str, tuple[str, ...]] = {}
         self._lock = threading.RLock()
 
     def acquire(
@@ -102,6 +129,7 @@ class PersonaChatRuntimeRegistry:
         revision: str,
         factory: Callable[[], Any],
         signature_components: dict[str, str] | None = None,
+        prewarm: bool = False,
     ) -> tuple[ResidentPersonaChatRuntime, bool, str | None, tuple[str, ...]]:
         """Reuse this root's actor, or build one. Reports WHY, and WHAT moved.
 
@@ -131,6 +159,9 @@ class PersonaChatRuntimeRegistry:
                         root_session_id,
                         ",".join(signature_diff),
                     )
+                if entry.prewarmed and entry.turn_count == 0 and not prewarm:
+                    self._prewarm_discards[root_session_id] = signature_diff
+                    _record_prewarm_discard(root_session_id, signature_diff)
                 self._close_entry(entry)
                 entry = None
             elif entry is not None and (entry.revision != revision or entry.active_session_id != active_session_id):
@@ -149,6 +180,7 @@ class PersonaChatRuntimeRegistry:
                     last_used_at=now,
                     last_resumed_at=now_iso_micro(),
                     signature_components=components,
+                    prewarmed=bool(prewarm),
                 )
                 self._record_transition(
                     root_session_id,
@@ -162,6 +194,16 @@ class PersonaChatRuntimeRegistry:
                 self._close_entry(evicted)
                 self._record_transition(evicted_root, "cold", "evicted")
             return entry, reused, rebuild_reason, signature_diff
+
+    def take_prewarm_discard(self, root_session_id: str) -> tuple[str, ...] | None:
+        """The components of the prewarmed actor the last acquire discarded, once.
+
+        ``None`` when the last rebuild of this root did not discard an unused
+        prewarm. Popped, so one discard is reported on exactly one turn.
+        """
+
+        with self._lock:
+            return self._prewarm_discards.pop(root_session_id, None)
 
     def finish(self, root_session_id: str, *, active_session_id: str, revision: str) -> None:
         with self._lock:

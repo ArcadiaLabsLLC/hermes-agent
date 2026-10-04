@@ -75,11 +75,24 @@ def _runtime_persona_instance_open_chat(
     integer moves only when an existing method's shape changes incompatibly.
     """
 
+    from agent_runtime.launcher_app_functions import (
+        bind_launcher_link,
+        launcher_link_of,
+        reset_launcher_link,
+    )
     from agent_runtime.persona_open_chat import perform_persona_instance_open_chat
 
-    outcome = perform_persona_instance_open_chat(
-        params, caller=context.caller if context is not None else None
+    # h-chatperf: the open's chat-actor prewarm asks THIS connection for its app
+    # functions before it builds, so its tool contract is the first turn's.
+    link_token = bind_launcher_link(
+        launcher_link_of(context.launcher_request if context is not None else None)
     )
+    try:
+        outcome = perform_persona_instance_open_chat(
+            params, caller=context.caller if context is not None else None
+        )
+    finally:
+        reset_launcher_link(link_token)
     if outcome.refusal is not None:
         refusal = outcome.refusal
         return err(rid, refusal.code, refusal.message, refusal.data)

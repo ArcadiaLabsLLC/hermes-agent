@@ -626,6 +626,7 @@ class AgentRunExecution:
                     **(request.persona_chat_runtime_signature_components or {}),
                     "resolved_runtime": runtime_revision,
                 },
+                prewarm=bool(request.prewarm_only),
             )
         )
         if reused:
@@ -644,6 +645,12 @@ class AgentRunExecution:
         # only: no digest and no value ever reaches the record.
         for component in signature_diff:
             timing[f"resident_rebuild_component_{component}"] = 1
+        # h-chatperf: this rebuild threw away an actor the chat-open prewarm
+        # built and no turn had used -- the prewarm's cost bought nothing. Inside
+        # the admitted ``resident_rebuild_*`` vocabulary, so it reaches the record.
+        take_discard = getattr(request.persona_chat_runtime_registry, "take_prewarm_discard", None)
+        if callable(take_discard) and take_discard(request.root_chat_session_id) is not None:
+            timing["resident_rebuild_prewarm_discarded"] = 1
 
     # ── phases with the agent ───────────────────────────────────────────────
 

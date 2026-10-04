@@ -48,6 +48,17 @@ logger = logging.getLogger(__name__)
 __all__ = ["ArgvLanes"]
 
 
+
+#: ``harness persona instance open-chat`` -- the argv twin of the open method.
+_OPEN_CHAT_ARGV = ("persona", "instance", "open-chat")
+
+
+def _is_open_chat_argv(argv: Any) -> bool:
+    tail = list(argv or [])
+    if tail and tail[0] == "harness":
+        tail = tail[1:]
+    return tuple(tail[: len(_OPEN_CHAT_ARGV)]) == _OPEN_CHAT_ARGV
+
 class _RunState:
     """One argv request's bookkeeping, carried from EXECUTE to REPLY."""
 
@@ -110,7 +121,13 @@ class ArgvLanes:
         """
 
         if not request.is_chat_turn:
-            return None
+            if not _is_open_chat_argv(request.argv):
+                return None
+            # h-chatperf: an open-chat binds the link WITHOUT refreshing on this
+            # thread; its chat-actor prewarm refreshes on the prewarm worker, so
+            # the actor is built against the tools the first turn will see.
+            link = self._launcher_link(request.owner, request.from_gateway, sink)
+            return None if link is None else bind_launcher_link(link)
         link = self._launcher_link(request.owner, request.from_gateway, sink)
         if link is None:
             return None

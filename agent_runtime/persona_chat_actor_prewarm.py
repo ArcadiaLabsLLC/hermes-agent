@@ -311,6 +311,13 @@ OUTCOME_SKIPPED_PERSONA_UNRESOLVED = "skipped_persona_unresolved"
 #: A real turn refuses for the same reason; there is nothing to warm.
 OUTCOME_SKIPPED_PROFILE_UNREADY = "skipped_profile_unready"
 
+#: h-chatperf (2026-10-03): the chat's FIRST turn found this prewarmed actor
+#: and threw it away (``resident_signature_diff``). Written after the fact by
+#: the registry, the only place that can know; see
+#: ``persona_chat_continuity.runtime_registry.PREWARM_DISCARDED_RECEIPT``. Cold
+#: turn ``1e4c06ba`` was this: 61 deferred tools prewarmed, 71 at the turn.
+OUTCOME_DISCARDED_SIGNATURE_MISMATCH = "discarded_signature_mismatch"
+
 #: Construction itself raised. The next real turn pays the cold cost it would
 #: have avoided and reports its own error — never this one.
 OUTCOME_SKIPPED_CONSTRUCT_FAILED = "skipped_construct_failed"
@@ -633,6 +640,36 @@ _queue: "queue.Queue[str]" = queue.Queue()
 _lock = threading.Lock()
 _pending: set[str] = set()
 _worker: threading.Thread | None = None
+#: root -> the Launcher link the open-chat gesture arrived on (h-chatperf). The
+#: worker refreshes that connection's app-function tools BEFORE it prepares, so
+#: the actor is built against the tool registry the chat's first turn will see.
+_links: dict[str, Any] = {}
+
+
+def _refresh_launcher_app_functions(link: Any) -> None:
+    """Register the opening connection's app functions, as the first turn would.
+
+    The first chat turn on a Launcher connection asks it for its app-function
+    catalog (``serve.lanes._bind_launcher_link``) and registers ~10 tools under
+    ``launcher_app_functions`` -- which ``_augment_chat_capabilities`` then adds
+    to the chat lane's toolsets. A prewarm that ran before that turn composed
+    its tool contract WITHOUT them, so the turn's signature differed and the
+    prewarmed actor was discarded (``resident_signature_diff
+    components=tool_contract``, 61 vs 71 deferred tools, 2026-10-03). Asking
+    here moves the one-per-connection wire round trip off the turn as well; the
+    turn's own refresh then re-syncs the held catalog idempotently and moves no
+    registry epoch. On this worker thread, never the reader loop: the request
+    waits for a reply that the reader delivers.
+    """
+
+    if link is None:
+        return
+    try:
+        from .launcher_app_functions import refresh_app_function_tools
+
+        refresh_app_function_tools(link)
+    except Exception:
+        logger.debug("chat-actor prewarm could not refresh launcher app functions", exc_info=True)
 
 
 def _drain() -> None:
@@ -647,7 +684,10 @@ def _drain() -> None:
     while True:
         root = _queue.get()
         started = time.monotonic()
+        with _lock:
+            link = _links.pop(root, None)
         try:
+            _refresh_launcher_app_functions(link)
             outcome = prewarm_chat_actor(root)
         except Exception:
             outcome = OUTCOME_SKIPPED_CONSTRUCT_FAILED
@@ -681,7 +721,7 @@ def _ensure_worker() -> None:
     _worker.start()
 
 
-def request_chat_actor_prewarm(root_session_id: str | None) -> str:
+def request_chat_actor_prewarm(root_session_id: str | None, *, launcher_link: Any = None) -> str:
     """Queue a chat root for background prewarm. Returns what it did.
 
     ``registry_off`` — and no thread, no queue entry — whenever
@@ -703,6 +743,8 @@ def request_chat_actor_prewarm(root_session_id: str | None) -> str:
     if not root:
         return OUTCOME_SKIPPED_NO_CHAT_ROOT
     with _lock:
+        if launcher_link is not None:
+            _links[root] = launcher_link
         if root in _pending:
             return "already_running"
         _pending.add(root)
