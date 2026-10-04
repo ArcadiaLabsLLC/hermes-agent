@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-04 (launcher lane console-boundaries, filed by the orchestrator)
+
+- [ ] **Six operations the Agent Console needs are argv-only, so a paired device can never run them (argv is refused to a device connection by design): set an agent's or a persona's model (`persona.instance.set_model`, `persona.set_model`), permission preview / override / one-time tool elevation, `harness prompt-context show`, `harness persona-instance detail`, `harness skills catalog --hash`, and `harness work cancel`. Each needs a `runtime.…` method at the right tier, the way `runtime.persona.chat.history` replaced its argv row; the launcher lowers to the method wherever an install lists it and keeps argv for this machine.** · the launcher's per-read table: `EterniaLauncher/docs/mission_control/planned/CONSOLE_PER_MACHINE_READS_2026-10-04.md` · launcher lane console-boundaries 2026-10-04
+
 ### Filed on arrival — 2026-10-04 (owner design: builds as first-class background work)
 
 
