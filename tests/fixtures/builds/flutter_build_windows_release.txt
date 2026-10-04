@@ -1,0 +1,2 @@
+Building Windows application...                                    34.6s
+√ Built build\windows\x64\runner\Release\hb_scratch.exe
