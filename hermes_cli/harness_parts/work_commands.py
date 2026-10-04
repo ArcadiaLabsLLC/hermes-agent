@@ -7,7 +7,6 @@ running-work verb family and the confirmation-target helper only it calls.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from enum import Enum, auto
 
 from hermes_cli.harness_support import (
@@ -175,49 +174,12 @@ class WorkCancelOutcome:
     envelope: dict | None
 
 
-def _stamp_epoch(text: str):
-    """Epoch seconds for an ISO stamp; naive input is read as UTC.
-
-    Every `started_at` on this wire carries an offset — the projection
-    anchors the process registry's naive LOCAL stamps at its boundary
-    precisely so this comparison cannot be made against two different
-    frames of reference. Before that, a naive local stamp read as UTC
-    landed hours in the FUTURE in any UTC-plus timezone, so a
-    legitimate cancel issued seconds ago compared as "earlier than the
-    work started" and was refused `stale_revision`. The naive branch
-    stays as a defensive fallback for a caller-supplied `--issued-at`
-    written without an offset, where UTC is the documented reading.
-    """
-
-    raw = text[:-1] + "+00:00" if text.endswith("Z") else text
-    try:
-        parsed = datetime.fromisoformat(raw)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.timestamp()
-
-
-def _cancel_is_superseded(issued_at: str, started_at: str) -> bool:
-    """Replay guard. A cancel issued BEFORE this work started cannot have been
-    aimed at it: work ids are stable per spawn, so a retried/queued command
-    arriving after the original target died and a new one took its place would
-    otherwise kill the wrong thing. Superseding is the same ruling the active
-    realm/workspace writes make with --issued-at. An unparseable stamp on
-    either side never supersedes."""
-
-    if not (issued_at and started_at):
-        return False
-    issued_epoch, started_epoch = _stamp_epoch(issued_at), _stamp_epoch(started_at)
-    return issued_epoch is not None and started_epoch is not None and issued_epoch < started_epoch
-
-
 def _work_cancel_outcome(args) -> WorkCancelOutcome:
     """Decide one cancel request. The only effects are the confirmation
     chokepoint's own refusal print and, on the last path, the kill itself."""
 
     from agent_runtime.running_work import cancel_work, find_work_row
+    from agent_runtime.running_work.surface import _cancel_is_superseded
 
     work_id = str(getattr(args, "work_id", "") or "")
     row = find_work_row(work_id)

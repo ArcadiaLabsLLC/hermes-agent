@@ -4,6 +4,7 @@ lookup, ``peek_work`` and ``cancel_work``."""
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
@@ -232,6 +233,44 @@ def _delegation_owned_here(mod: Any, delegation_id: str) -> bool:
         )
     except Exception:
         return False
+
+
+def _stamp_epoch(text: str):
+    """Epoch seconds for an ISO stamp; naive input is read as UTC.
+
+    Every `started_at` on this wire carries an offset — the projection
+    anchors the process registry's naive LOCAL stamps at its boundary
+    precisely so this comparison cannot be made against two different
+    frames of reference. Before that, a naive local stamp read as UTC
+    landed hours in the FUTURE in any UTC-plus timezone, so a
+    legitimate cancel issued seconds ago compared as "earlier than the
+    work started" and was refused `stale_revision`. The naive branch
+    stays as a defensive fallback for a caller-supplied `--issued-at`
+    written without an offset, where UTC is the documented reading.
+    """
+
+    raw = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _cancel_is_superseded(issued_at: str, started_at: str) -> bool:
+    """Replay guard. A cancel issued BEFORE this work started cannot have been
+    aimed at it: work ids are stable per spawn, so a retried/queued command
+    arriving after the original target died and a new one took its place would
+    otherwise kill the wrong thing. Superseding is the same ruling the active
+    realm/workspace writes make with --issued-at. An unparseable stamp on
+    either side never supersedes."""
+
+    if not (issued_at and started_at):
+        return False
+    issued_epoch, started_epoch = _stamp_epoch(issued_at), _stamp_epoch(started_at)
+    return issued_epoch is not None and started_epoch is not None and issued_epoch < started_epoch
 
 
 def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, Any]:
