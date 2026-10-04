@@ -86,13 +86,8 @@ class GPTPersonaRuntime:
         # POINTER rung of the workdir ladder (G6) — the directory the operator
         # aimed this turn at. Never read for content here.
         workspace_agents_path: str | None = None,
-        # The PRIMARY repo slot's bound path (build plan §3.3): workdir rung 2 under
-        # an assignment; never set together with ``workspace_agents_path``.
-        primary_slot_path: str | None = None,
-        # The assigned slots bound here (``workspace_slot_overlay.SlotBinding``): every
-        # command the turn spawns under one of them runs with that slot's environment
-        # (owner call 8e), through the one seam in ``tools/environments/local.py``.
-        slot_bindings: tuple = (),
+        primary_slot_path: str | None = None,  # build plan §3.3: workdir rung 2 under an assignment
+        slot_bindings: tuple = (),  # the bound assigned slots: their env for every command (call 8e)
         situational_hud_content: str | None = None,
         conversation_history: list[dict] | None = None,
         reuse_current_user_message: bool = False,
@@ -218,11 +213,9 @@ class GPTPersonaRuntime:
             permission_mode=lane_bundle.permission_mode,
         )
         from .workspace_slot_overlay import slot_env_scope
-
-        with slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), \
-                launcher_invocation("operator", root_chat_session_id or perm_session_id, turn_id,
-                                    persona_instance_id=persona_instance_id,
-                                    profile=binding.hermes_profile):
+        with slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
+                "operator", root_chat_session_id or perm_session_id, turn_id,
+                persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
             result = self._runner.run(
                 AgentRunRequest(
                     profile=binding.hermes_profile,

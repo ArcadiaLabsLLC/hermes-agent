@@ -58,7 +58,8 @@ def _terminal_checkpoint(head_home):
     """A background ``terminal`` as the process registry checkpoints it — this very process."""
     from gateway.status import get_process_start_time
     import json
-    entry = {"session_id": "proc_control", "command": "flutter build windows", "pid": os.getpid(),
+    # Not a build command: a build-shaped terminal row is reclassified to ``build`` (build plan H4).
+    entry = {"session_id": "proc_control", "command": "npm run dev", "pid": os.getpid(),
              "host_start_time": get_process_start_time(os.getpid()), "started_at": time.time() - 5,
              "session_key": SESSION}
     (head_home / "processes.json").write_text(json.dumps([entry]), encoding="utf-8")

@@ -413,8 +413,14 @@ def test_no_source_health_entry_carries_machine_local_state(home):
             "reason",
             "detail",
             "live_enrichment_error",
+            # The build source's three sub-healths (build plan §1) — contract, held below.
+            "sub",
         }, name
         assert home_name not in entry.get("detail", ""), name
+        for sub_name, sub in (entry.get("sub") or {}).items():
+            assert set(sub) <= {"status", "reason", "detail", "scan_ms", "processes_examined",
+                                "candidates", "budget_ms", "unknowns"}, (name, sub_name)
+            assert home_name not in str(sub.get("detail", "")), (name, sub_name)
 
 
 def test_the_resolved_home_is_published_as_ambient_context_not_lost(home):
