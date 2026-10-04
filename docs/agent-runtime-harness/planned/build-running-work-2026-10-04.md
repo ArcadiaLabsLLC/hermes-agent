@@ -678,3 +678,5 @@ per-agent pick writes it as both the one assigned slot and the explicit primary.
 One deviation from the row's wording, stated: "the `mcp_job` row folds into this kind" is done for
 the QA build (§8); the `mcp_job` KIND is kept for MCP jobs that are not builds, so a future non-build
 server job still has a row.
+
+- **OWNER 2026-10-04 (8a–8g):** accepted as recommended — publish right edits declaration + recipe; clone via the machine's own git credential helper (`clone_auth_required`); Locate onto a mismatched remote binds with `remote_mismatch`; owner `command` steps run only on click; slot env applies to every command under the slot; "ready" on Projects home + the MC scope chip; an existing root is adopted (`adopted_existing_root`). Phase A hermes rows H1–H8 dispatched to lane hb-a.
