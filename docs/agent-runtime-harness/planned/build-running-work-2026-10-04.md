@@ -288,8 +288,22 @@ Activity can say which agent's build it is.
   and missing files (`missing`, not an error). `prompt_builder`'s own cwd chain still runs for the
   workdir slot, so its `CLAUDE.md` is deduplicated by content against the slot section (the chain's
   existing `seen_content` rule) rather than injected twice.
-- **workdir**: ladder rung 2 = the first assigned slot bound here (assignment order is the launcher's;
-  the first is primary). Rung 3 (`repo_scope`) stays.
+- **workdir — the PRIMARY slot** (OWNER 2026-10-04 (full-stack)): the instance record carries
+  `primary_slot` (a slot name or null) beside `assigned_slots`; the workdir ladder's rung 2 is the primary
+  slot's bound path — the instance's default working directory and terminal start. Null means "the first
+  of `assigned_slots`", and the resolver reports which it used (`primary_source: explicit | first_assigned
+  | none`) so a default is never mistaken for a choice. The primary is marked and changed in the console
+  slot picker. Instructions load for ALL assigned slots, never only the primary. Rung 3 (`repo_scope`)
+  stays.
+- **a build's slot is resolved from the build's CWD, not the primary** (full-stack): a full-stack instance
+  running `flutter build` in its `launcher` slot and `manage.py` in its `backend` slot gets two rows with
+  two `slot_id`s and the same `started_by_instance`; the primary never relabels a build.
+
+**OWNER 2026-10-04 (full-stack).** A FULL-STACK instance may hold two or more slots (backend + launcher):
+(a) every assigned slot's `CLAUDE.md` + `AGENTS.md` loads as its own section **headed by the slot name**
+(`## launcher — CLAUDE.md`, `## launcher — AGENTS.md`, `## backend — …`), so each repo's rules stay scoped
+to that repo and the model can tell whose rule it is reading; (b) the instance has ONE primary slot (above
+— the contract field `primary_slot` + `primary_source`); (c) a build's slot comes from its cwd (above).
 - **environment, and why the restart unknowns shrink**: every subprocess the turn spawns whose cwd is
   under an assigned slot's bound path — the terminal tool's foreground and background commands, which is
   where builds come from — gets the slot environment overlaid: `path_prepend` in front of `PATH`, `env`
@@ -317,8 +331,8 @@ Activity can say which agent's build it is.
 | `runtime.workspace.slot.bind` (local) | `workspace_id`, `slot`, `path`, `issued_at` | writes `roots.<slot>` through `write_machine_roots`; probes; answers the report row; `remote_mismatch` is a typed WARNING in the answer, the bind still lands (call 8c) |
 | `runtime.workspace.slot.env.set` (local) | `workspace_id`, `slot`, `env`, `tool_paths`, `path_prepend`, `dotenv`, `venv`, `issued_at` | replaces this slot's fill in `machine_slot_env.json`; a key declared `secret` in the value map is refused `secret_in_env` (it belongs in `.env`); re-reports |
 | `runtime.workspace.slots.report` (local) | `workspace_id` | re-probe, write `machines.<me>`, answer it |
-| `runtime.persona.instance.slots.set` | `persona_instance_id`, `slots`, `issued_at` | replace the subset; `slot_not_in_workspace` |
-| `runtime.persona.instance.slots.show` | `persona_instance_id` | `{workspace_id, slots: [{name, bound_here, path, status}]}` |
+| `runtime.persona.instance.slots.set` | `persona_instance_id`, `slots`, `primary` (optional; must be in `slots`, else `primary_not_assigned`; omitted ⇒ `primary_slot: null`, i.e. first-assigned), `issued_at` | replace the subset and the primary; `slot_not_in_workspace` |
+| `runtime.persona.instance.slots.show` | `persona_instance_id` | `{workspace_id, slots: [{name, bound_here, path, status}], primary_slot, primary_source}` |
 
 CLI: `harness workspace slots show|declare|bind|env-set|report`, `harness persona slots show|set` over
 the same store doors (contract dump re-runs). `harness roots set` keeps working and is what `bind` calls.
@@ -545,7 +559,7 @@ H1 `builds/unknowns.py` (kinds tuple incl. `slot_*`, the 32-entry wire bound dec
 H2 `recognizer_flutter.py` + four transcript goldens + `stage_line_unrecognized` / `artifact_unlocated` · `test_build_recognizer_flutter.py` (swap two stage regexes ⇒ the ordered-sequence pin reds; random-line transcript ⇒ `unknown` AND zero unknowns; a renamed-phase transcript ⇒ exactly that line indexed).
 H3 `builds/vocabulary.py` + `registry.py` (record v1 with `unknowns`) + `running_work_store_paths` dir entry + fingerprint restat + `harness builds registry-path` · `test_build_registry.py`, `test_stream_fingerprint.py` arm.
 H5a `workspace_slots.py` (slot document v1: declaration + `machines.<me>` accounting; tombstones; `report()` probes answering set/missing/unknown and NEVER a value; `authorized_roots_bound_here()`) + `workspace_slot_env.py` (private fill file, hard-excluded from sync, `secret_in_env` refusal) + `workspace_slots_sync.py` family (key-wise, three depths) + `paths.workspace_slots_path` + the store dir in the read-model fingerprint + `serve_rpc/workspace_slots.py::runtime.workspace.slots.show/.declare/.report` + `runtime.workspace.slot.bind` (writes through `write_machine_roots`) + `runtime.workspace.slot.env.set` (local verbs in `LOCAL_CONSOLE_METHODS`; `declare` gated on the realm publish right) + `harness workspace slots show|declare|bind|env-set|report` · `test_workspace_slots.py` (declare replaces the declared set and tombstones; bind writes the root and reports; the written document contains none of the fixture's env VALUES — grep pin; unbound ⇒ `slot_unbound_here` naming the binding machines; a hanging `--version` ⇒ `slot_probe_unknown`; no count limit — a 200-slot declaration round-trips), `test_realm_sync_workspace_slots.py` (two machines report one slot ⇒ union; a stale peer's removed slot loses to the tombstone), `test_peer_authorization.py` tier table + `realm_publish_denied`.
-H5b `assigned_slots` on the persona-instance record (the authority; the launcher edits it from the Agent Console, never from Projects — owner correction) + `runtime.persona.instance.slots.set/.show` + `harness persona slots show|set` + `mission_chat_turn_context` loads, for each assigned bound slot, each of `context.files` (default `CLAUDE.md` AND `AGENTS.md`) as its own labelled `workspace_context` section (128 KB per file, no total cap, typed receipts for unbound/missing/too-large; content-dedup against the cwd chain) + workdir rung 2 = first assigned bound slot + `--agents-file` deprecated alias · `test_persona_instance_slots.py` (not-in-workspace refused; slot removal drops assignments; EMPTY ⇒ nothing loaded, never all; no count limit), `test_mission_chat_turn_context.py` arms (one slot with both files ⇒ two sections `<slot>/CLAUDE.md` + `<slot>/AGENTS.md`; two slots ⇒ four; a missing `CLAUDE.md` ⇒ receipt `missing`, the `AGENTS.md` section still loads; alias ignored with `superseded_by_assignment`).
+H5b `assigned_slots` on the persona-instance record (the authority; the launcher edits it from the Agent Console, never from Projects — owner correction) + `runtime.persona.instance.slots.set/.show` + `harness persona slots show|set` + `mission_chat_turn_context` loads, for each assigned bound slot, each of `context.files` (default `CLAUDE.md` AND `AGENTS.md`) as its own labelled `workspace_context` section (128 KB per file, no total cap, typed receipts for unbound/missing/too-large; content-dedup against the cwd chain) + `primary_slot` on the record with `primary_source` reported (explicit / first_assigned / none; OWNER full-stack) + workdir rung 2 = the primary slot's bound path + `--agents-file` deprecated alias · `test_persona_instance_slots.py` (not-in-workspace refused; `primary_not_assigned` refused; slot removal drops assignments and clears a primary that left; EMPTY ⇒ nothing loaded, never all; no count limit), `test_mission_chat_turn_context.py` arms (one slot with both files ⇒ two sections headed `launcher — CLAUDE.md` / `launcher — AGENTS.md`; two slots ⇒ four, ALL loaded with only the primary as workdir; unset primary ⇒ first assigned with `primary_source: first_assigned`; a missing `CLAUDE.md` ⇒ receipt `missing`, the `AGENTS.md` section still loads; alias ignored with `superseded_by_assignment`).
 H5c **SEAM** — `workspace_slots.env_overlay(cwd)` applied in upstream `tools/environments/local.py::_sanitize_subprocess_env` (one import, one call; contextvar set by the mission-chat turn beside the workdir; `path_prepend`, `env`, `.env` values from the file, `venv`) · `test_slot_env_overlay.py` (a command under a bound slot sees the slot's PATH head and keys; outside it sees none; a secret key never appears in the overlay from the record, only from `.env`; the seam row in `tests/fixtures/import_layers_grandfathered.json` if the layer gate needs it).
 H4 `lanes_build.py` (announced + reclassification; `workspace_id`/`slot_id`/`env_source` through H5a; null + `slot_unresolved` before any slot exists) + `sources.build` sub-health + cost keys + `McpJobLane` dedupe + `build_rows.json` + stream goldens regen + contract ledger + README copy-status · `test_running_work.py` arms, `test_build_rows_fixture.py` (every unknown kind appears once; every `env_source` arm).
 H6 `detect.py` reading H5a's bound slots + `process_unidentified` / `cwd_unreadable` / the restart unknowns narrowed by the slot's declaration + `scan_ms` into the sub-health and `parity.sections_ms` · `test_build_detect.py` over a fake process table (under-slot, outside, unreadable cwd, already-owned pid, cpu-stall, unparseable cmdline ⇒ indexed not shown, budget breach ⇒ typed with ms, 80 bound slots ⇒ still correct and the cost reported).
@@ -620,6 +634,17 @@ contracts/docs repo) — assignment never moves a slot away from another instanc
 carries `workspace_id`, `slot_id` and the starting persona instance (when known; else a typed unknown) so
 Activity can say which agent's build it is.** → §1 `started_by_instance` + `starter_unknown`, §3.3, H4 and
 H5b tests (two instances, one shared slot; a build row names its starter).
+
+**OWNER 2026-10-04 (full-stack): a FULL-STACK instance may hold two or more slots (e.g. backend +
+launcher). (a) Every assigned slot's CLAUDE.md + AGENTS.md loads as its own section headed by the slot
+name, so each repo's rules stay scoped to that repo; (b) the instance has ONE PRIMARY slot — its default
+working directory / terminal start — marked in the console slot picker and changeable there; "first
+assigned" is replaced by the explicit primary as the workdir rung, default when unset = the first picked,
+recorded as such; instructions load for ALL assigned slots, not only the primary; (c) a build's slot is
+resolved from the build's cwd, not the primary.** → §3.3 (new contract field `primary_slot` + the
+reported `primary_source`; `instance.slots.set` gains `primary`, `show` returns both), H5b. No data
+migration: `assigned_slots` / `primary_slot` do not exist yet; the launcher's migration of today's
+per-agent pick writes it as both the one assigned slot and the explicit primary.
 
 **New calls the refinement raises** (each with the recommendation; the plan is written to it):
 
