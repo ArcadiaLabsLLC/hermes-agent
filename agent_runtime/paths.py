@@ -601,6 +601,18 @@ def workspace_path(workspace_id: str) -> Path:
     return workspaces_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
+def workspace_slots_dir() -> Path:
+    """The repo-slot documents (build plan §3.1): beside the workspace records, never inside them."""
+
+    return store_root() / "workspace_slots"
+
+
+def workspace_slots_path(workspace_id: str) -> Path:
+    """One workspace's slot document, keyed by the workspace's path token (the WORKSPACE_SLOTS family)."""
+
+    return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
+
+
 def realm_path(realm_id: str) -> Path:
     return realms_dir() / f"{safe_path_token(realm_id)}.json"
 

@@ -248,6 +248,25 @@ def test_stage_six_moved_nothing_for_the_console_the_cli_or_a_device():
     assert authorize_call(TIER_READ, read_device, method="runtime.office.get").ok
 
 
+def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
+    """Repo slots (build plan §3.4): the three verbs that write THIS machine's paths,
+    environment and accounting are local-console only; the workspace-level verbs are not."""
+
+    local = {"runtime.workspace.slot.bind", "runtime.workspace.slot.env.set", "runtime.workspace.slots.report"}
+    tiers = serve_rpc.manifest()["tiers"]
+    assert {name for name in tiers if name.startswith("runtime.workspace.slot")} == local | {
+        "runtime.workspace.slots.show", "runtime.workspace.slots.declare"}
+    assert all(tiers[name] == TIER_CONSOLE for name in local)
+    assert local <= LOCAL_CONSOLE_METHODS
+    console_device = RpcCaller(kind=CALLER_DEVICE, transport=TRANSPORT_GATEWAY, device_id="dev_1", device_tier=TIER_CONSOLE)
+    for name in sorted(local):
+        assert authorize_call(TIER_CONSOLE, console_device, method=name).ok is False
+        assert authorize_call(TIER_CONSOLE, LOCAL_CONSOLE, method=name).ok
+    # Positive control: the same device may read and declare a workspace's slots.
+    assert authorize_call(TIER_CONSOLE, console_device, method="runtime.workspace.slots.show").ok
+    assert authorize_call(TIER_CONSOLE, console_device, method="runtime.workspace.slots.declare").ok
+
+
 def test_a_device_may_also_ping_because_the_row_says_read_and_means_it():
     """The tier map is not narrowed by the allowlist; the PEER lane is. A row
     saying ``read`` that a read-tier device could not call would be the map

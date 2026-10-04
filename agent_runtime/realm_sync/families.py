@@ -87,6 +87,8 @@ class SyncFamily(StrEnum):
     FLOW_GRAPH = "flow_graph"
     LEVEL = "level"
     MAP = "map"
+    #: The repo-slot documents (build plan §3.1): key-wise at three depths.
+    WORKSPACE_SLOTS = "workspace_slots"
     PROFILE_FILE = "profile_file"
     ARTIFACT = "artifact"
 
@@ -325,6 +327,14 @@ SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
     # last-write-wins over one this operator may have authored or renamed.
     SyncPathFamily(SyncFamily.LEVEL, _prefix("store/levels/"), owner="level_sync.apply_level_pull"),
     SyncPathFamily(SyncFamily.MAP, _prefix("store/maps/"), owner="map_sync.apply_map_pull"),
+    # The repo-slot documents: a key-wise merge (slot names union, tombstones by
+    # issued_at, machines disjoint by id). A raw write would drop another machine's
+    # accounting or resurrect a slot a newer declaration removed.
+    SyncPathFamily(
+        SyncFamily.WORKSPACE_SLOTS,
+        _prefix("store/workspace_slots/"),
+        owner="workspace_slots_sync.apply_workspace_slots_pull",
+    ),
     SyncPathFamily(
         SyncFamily.PROFILE_FILE,
         _prefix("store/profile_files/"),

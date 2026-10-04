@@ -155,6 +155,11 @@
     "runtime.work.start",
     "runtime.workspace.conversations",
     "runtime.workspace.create",
+    "runtime.workspace.slot.bind",
+    "runtime.workspace.slot.env.set",
+    "runtime.workspace.slots.declare",
+    "runtime.workspace.slots.report",
+    "runtime.workspace.slots.show",
     "runtime.workspace.use"
   ],
   "params": {
@@ -357,6 +362,11 @@
     "runtime.work.start": "console",
     "runtime.workspace.conversations": "console",
     "runtime.workspace.create": "console",
+    "runtime.workspace.slot.bind": "console",
+    "runtime.workspace.slot.env.set": "console",
+    "runtime.workspace.slots.declare": "console",
+    "runtime.workspace.slots.report": "console",
+    "runtime.workspace.slots.show": "console",
     "runtime.workspace.use": "console"
   }
 }

@@ -35,6 +35,7 @@ operator_conversation    lanes   exact-session read, message and Stop
 operator_inspection      lanes   native session model controls, usage and skills
 instance_history         lanes   account-scoped native conversation directory
 scope                    lanes   ``runtime.workspace.use`` / ``runtime.realm.use``
+workspace_slots          lanes   ``runtime.workspace.slots.*`` / ``.slot.*`` (repo slots)
 media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
@@ -79,6 +80,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     instance_history,
     scope,
     workspace,
+    workspace_slots,
     media,
     peer,
     gateway_peers,

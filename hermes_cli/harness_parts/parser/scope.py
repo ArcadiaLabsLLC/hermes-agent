@@ -11,6 +11,7 @@ from .lazy import lazy_module
 
 realm_commands = lazy_module("hermes_cli.harness_parts.realm_commands")
 workspace_commands = lazy_module("hermes_cli.harness_parts.workspace_commands")
+workspace_slots_commands = lazy_module("hermes_cli.harness_parts.workspace_slots_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -97,6 +98,45 @@ def add_workspace(subs) -> None:
         workspace_delete, controls=frozenset({"dry_run", "yes"})
     )
     workspace_delete.set_defaults(func=workspace_commands._cmd_workspace_delete)
+    _add_workspace_slots(workspace_subs)
+
+
+def _add_workspace_slots(workspace_subs) -> None:
+    """``hermes harness workspace slots`` — repo slots (build plan §3.4)."""
+    slots = workspace_subs.add_parser("slots", help="Repo slots: declare, bind on this machine, fill the environment, report")
+    slots_subs = slots.add_subparsers(dest="workspace_slots_command", required=True)
+    show = slots_subs.add_parser("show", help="The slot document and this machine's fill (read-only)")
+    show.add_argument("workspace_id")
+    _add_stage42_global_args(show)
+    show.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_show)
+    declare = slots_subs.add_parser("declare", help="Replace the declared slots (missing names are tombstoned)")
+    declare.add_argument("workspace_id")
+    declare.add_argument("--slots-file", dest="slots_file", required=True, help="JSON list of {name, repo, toolchain, context}")
+    declare.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue time; an older declaration is refused")
+    _add_stage42_global_args(declare)
+    declare.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_declare)
+    bind = slots_subs.add_parser("bind", help="Bind a declared slot to a local checkout on THIS machine (writes roots.<slot>)")
+    bind.add_argument("workspace_id")
+    bind.add_argument("slot")
+    bind.add_argument("path", help="Absolute path to the checkout on this machine")
+    bind.add_argument("--issued-at", dest="issued_at", default=None)
+    _add_stage42_global_args(bind)
+    bind.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_bind)
+    env_set = slots_subs.add_parser("env-set", help="Replace this machine's environment fill for a slot (secrets belong in .env)")
+    env_set.add_argument("workspace_id")
+    env_set.add_argument("slot")
+    env_set.add_argument("--env", action="append", default=[], help="KEY=VALUE (repeatable)")
+    env_set.add_argument("--tool-path", dest="tool_path", action="append", default=[], help="TOOL=PATH (repeatable)")
+    env_set.add_argument("--path-prepend", dest="path_prepend", action="append", default=[], help="Directory put in front of PATH (repeatable)")
+    env_set.add_argument("--dotenv", default=None, help="The .env file, relative to the checkout")
+    env_set.add_argument("--venv", default=None, help="A virtualenv whose bin/Scripts directory is prepended")
+    env_set.add_argument("--issued-at", dest="issued_at", default=None)
+    _add_stage42_global_args(env_set)
+    env_set.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_env_set)
+    report = slots_subs.add_parser("report", help="Re-probe this machine's fill and write its accounting row")
+    report.add_argument("workspace_id")
+    _add_stage42_global_args(report)
+    report.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_report)
 
 
 def add_realm(subs) -> None:

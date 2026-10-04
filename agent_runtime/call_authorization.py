@@ -288,6 +288,12 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.peers.subscribe",
         "runtime.gateway.peers.list",
         "runtime.gateway.peers.roster",
+        # Repo slots (build plan §3.4): the three verbs that write THIS machine's fill —
+        # its checkout paths, its environment, its own accounting row. A paired console
+        # device may read a workspace's slots; it never binds the operator's disk.
+        "runtime.workspace.slot.bind",
+        "runtime.workspace.slot.env.set",
+        "runtime.workspace.slots.report",
     }
 )
 

@@ -167,6 +167,7 @@ class _PullRun:
     profile_files: Any = None
     instance: Any = None
     flow_graph: Any = None
+    workspace_slots: Any = None
     workspace_tombstones: dict[str, list] | None = None
 
 
@@ -225,6 +226,17 @@ def _pull_map(run: _PullRun) -> bool:
 
     run.map = apply_map_pull(run.realm.id, run.subtree)
     return bool(run.map.changed)
+
+
+def _pull_workspace_slots(run: _PullRun) -> bool:
+    # The repo-slot documents: same exclusion (store/workspace_slots/* ->
+    # _destination_for_sync_path None); a key-wise merge, never an overwrite, so one
+    # machine's pull cannot drop another machine's accounting. After the generic loop
+    # that materialized store/workspaces/*: a slot document is addressed BY a workspace.
+    from ..workspace_slots_sync import apply_workspace_slots_pull
+
+    run.workspace_slots = apply_workspace_slots_pull(run.realm.id, run.subtree)
+    return bool(run.workspace_slots.changed)
 
 
 def _pull_skill_inbox(run: _PullRun) -> bool:
@@ -338,6 +350,7 @@ PULL_APPLIERS: Final[tuple[PullApplier, ...]] = (
     PullApplier("office_sync", _pull_office),
     PullApplier("level_sync", _pull_level),
     PullApplier("map_sync", _pull_map),
+    PullApplier("workspace_slots_sync", _pull_workspace_slots),
     PullApplier("skill_sync", _pull_skill_inbox),
     PullApplier("skill_tombstones", _pull_skill_tombstones),
     PullApplier("persona_config_sync", _pull_persona_config),
@@ -366,6 +379,9 @@ def _pull_accounting(run: _PullRun, install_results: list[Any]) -> dict[str, Any
         # with no map family", which is the one case where a missing catalogue
         # entry is expected rather than a defect.
         "map_sync": run.map.as_dict(),
+        # Unconditional for the reason the two rows above are: ``source: null`` says
+        # "this realm publishes no slot document" rather than "an older hermes".
+        "workspace_slots_sync": run.workspace_slots.as_dict(),
         "profile_artifact_sync": run.profile_files.as_dict(),
         # THE contract seam with the launcher (plan §6). Emitted UNCONDITIONALLY,
         # carrying ``source: null`` when the peer published no projection,

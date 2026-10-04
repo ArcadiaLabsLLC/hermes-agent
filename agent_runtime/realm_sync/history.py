@@ -85,6 +85,7 @@ _ITEM_SHAPES: tuple[_ItemShape, ...] = (
     _ItemShape("store/office/", _office),
     _ItemShape("skills/", _skill),
     _ItemShape("store/levels/", _document(SyncFamily.LEVEL)),
+    _ItemShape("store/workspace_slots/", _document(SyncFamily.WORKSPACE_SLOTS)),
     _ItemShape("store/maps/", _document(SyncFamily.MAP)),
     _ItemShape("store/personas.yaml", _document(SyncFamily.PERSONA_CONFIG)),
     _ItemShape("store/persona_instances.yaml", _document(SyncFamily.PERSONA_INSTANCE_CONFIG)),

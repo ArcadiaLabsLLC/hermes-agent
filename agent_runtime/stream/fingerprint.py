@@ -115,7 +115,7 @@ def _pointer_and_catalog_parts() -> list[str]:
             parts.append(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
         except OSError:
             parts.append(f"{path.name}:absent")
-    directories = [paths.workspaces_dir(), paths.realms_dir(), paths.agents_dir()]
+    directories = [paths.workspaces_dir(), paths.realms_dir(), paths.agents_dir(), paths.workspace_slots_dir()]
     for directory in directories:
         try:
             entries = [

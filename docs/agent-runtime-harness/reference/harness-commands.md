@@ -47,6 +47,12 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness workspace rename](#hermes-harness-workspace-rename)
 - [hermes harness workspace archive](#hermes-harness-workspace-archive)
 - [hermes harness workspace delete](#hermes-harness-workspace-delete)
+- [hermes harness workspace slots](#hermes-harness-workspace-slots)
+- [hermes harness workspace slots show](#hermes-harness-workspace-slots-show)
+- [hermes harness workspace slots declare](#hermes-harness-workspace-slots-declare)
+- [hermes harness workspace slots bind](#hermes-harness-workspace-slots-bind)
+- [hermes harness workspace slots env-set](#hermes-harness-workspace-slots-env-set)
+- [hermes harness workspace slots report](#hermes-harness-workspace-slots-report)
 - [hermes harness realm](#hermes-harness-realm)
 - [hermes harness realm list](#hermes-harness-realm-list)
 - [hermes harness realm show](#hermes-harness-realm-show)
@@ -708,10 +714,10 @@ options:
 
 ```text
 usage: hermes harness workspace [-h]
-                                {list,show,create,use,add-agent,remove-agent,rename,archive,delete} ...
+                                {list,show,create,use,add-agent,remove-agent,rename,archive,delete,slots} ...
 
 positional arguments:
-  {list,show,create,use,add-agent,remove-agent,rename,archive,delete}
+  {list,show,create,use,add-agent,remove-agent,rename,archive,delete,slots}
     list                List workspaces
     show                Show one workspace
     create              Create a workspace
@@ -722,6 +728,7 @@ positional arguments:
     archive             Archive a workspace
     delete              Permanently delete a workspace and its office/board content (archive is the
                         reversible path)
+    slots               Repo slots: declare, bind on this machine, fill the environment, report
 
 options:
   -h, --help            show this help message and exit
@@ -921,6 +928,139 @@ options:
   --fields FIELDS
   --dry-run
   --yes, -y
+```
+
+## hermes harness workspace slots
+
+```text
+usage: hermes harness workspace slots [-h] {show,declare,bind,env-set,report} ...
+
+positional arguments:
+  {show,declare,bind,env-set,report}
+    show                The slot document and this machine's fill (read-only)
+    declare             Replace the declared slots (missing names are tombstoned)
+    bind                Bind a declared slot to a local checkout on THIS machine (writes
+                        roots.<slot>)
+    env-set             Replace this machine's environment fill for a slot (secrets belong in .env)
+    report              Re-probe this machine's fill and write its accounting row
+
+options:
+  -h, --help            show this help message and exit
+```
+
+## hermes harness workspace slots show
+
+```text
+usage: hermes harness workspace slots show [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                           [--no-color] [--fields FIELDS]
+                                           workspace_id
+
+positional arguments:
+  workspace_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness workspace slots declare
+
+```text
+usage: hermes harness workspace slots declare [-h] --slots-file SLOTS_FILE [--issued-at ISSUED_AT]
+                                              [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                              [--fields FIELDS]
+                                              workspace_id
+
+positional arguments:
+  workspace_id
+
+options:
+  -h, --help            show this help message and exit
+  --slots-file SLOTS_FILE
+                        JSON list of {name, repo, toolchain, context}
+  --issued-at ISSUED_AT
+                        ISO-8601 issue time; an older declaration is refused
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness workspace slots bind
+
+```text
+usage: hermes harness workspace slots bind [-h] [--issued-at ISSUED_AT] [-o {json,table,yaml,wide}]
+                                           [--json] [-q] [--no-color] [--fields FIELDS]
+                                           workspace_id slot path
+
+positional arguments:
+  workspace_id
+  slot
+  path                  Absolute path to the checkout on this machine
+
+options:
+  -h, --help            show this help message and exit
+  --issued-at ISSUED_AT
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness workspace slots env-set
+
+```text
+usage: hermes harness workspace slots env-set [-h] [--env ENV] [--tool-path TOOL_PATH]
+                                              [--path-prepend PATH_PREPEND] [--dotenv DOTENV]
+                                              [--venv VENV] [--issued-at ISSUED_AT]
+                                              [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                              [--fields FIELDS]
+                                              workspace_id slot
+
+positional arguments:
+  workspace_id
+  slot
+
+options:
+  -h, --help            show this help message and exit
+  --env ENV             KEY=VALUE (repeatable)
+  --tool-path TOOL_PATH
+                        TOOL=PATH (repeatable)
+  --path-prepend PATH_PREPEND
+                        Directory put in front of PATH (repeatable)
+  --dotenv DOTENV       The .env file, relative to the checkout
+  --venv VENV           A virtualenv whose bin/Scripts directory is prepended
+  --issued-at ISSUED_AT
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness workspace slots report
+
+```text
+usage: hermes harness workspace slots report [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                             [--no-color] [--fields FIELDS]
+                                             workspace_id
+
+positional arguments:
+  workspace_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
 ```
 
 ## hermes harness realm

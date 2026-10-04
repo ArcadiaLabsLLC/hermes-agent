@@ -62,6 +62,10 @@ HARD_EXCLUDED_PATH_PARTS = {
     # box. It is the half of the portable-config split that must never travel —
     # publishing it would push one member's drive layout onto everyone else.
     MACHINE_ROOTS_FILENAME,
+    # The other half of a repo slot's machine fill (build plan §3.2): this machine's
+    # environment VALUES for each slot. Private like the roots; the slot document
+    # carries only the set/missing/unknown accounting.
+    "machine_slot_env.json",
     "proofs",
     "runs",
     "state.db",

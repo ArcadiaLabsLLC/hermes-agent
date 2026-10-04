@@ -169,6 +169,11 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # for why that trade is the cheaper half.
     map_scan = _map_publish_scan()
     artifacts.extend(map_scan.artifacts)
+    # The repo-slot documents (build plan §3.1), one per workspace of this realm,
+    # copied verbatim; the pull side merges them key-wise.
+    from ..workspace_slots_sync import publish_artifacts as _workspace_slot_artifacts
+
+    artifacts.extend(_workspace_slot_artifacts(workspaces))
     # Personas referenced by synced office placements travel with the office
     # (plan §5): an office-only persona must be materializable on pull. The
     # wanted set was workspace.agent_ids only, which would sync a placement
