@@ -312,30 +312,41 @@ def _dotenv_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str |
     return STATE_DONE, None
 
 
-def _clone_state(row: dict[str, Any]) -> tuple[str, str | None]:
-    checkout = row.get("checkout")
-    if checkout == "matches":
-        return STATE_DONE, None
-    if checkout == "remote_mismatch":
-        return STATE_WARNING, "remote_mismatch"
-    if checkout == "not_a_repo":
-        return STATE_TODO, "not_a_repo"
-    return STATE_UNKNOWN, UNKNOWN_PROBE_ABSENT if checkout is None else UNKNOWN_PROBE_UNKNOWN
+#: ``checkout`` probe → the clone step's ``(state, why)``; any other value is an unknown probe.
+_CHECKOUT_STATES = {
+    "matches": (STATE_DONE, None),
+    "remote_mismatch": (STATE_WARNING, "remote_mismatch"),
+    "not_a_repo": (STATE_TODO, "not_a_repo"),
+    None: (STATE_UNKNOWN, UNKNOWN_PROBE_ABSENT),
+}
+
+
+def _clone_state(_step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str | None]:
+    return _CHECKOUT_STATES.get(row.get("checkout"), (STATE_UNKNOWN, UNKNOWN_PROBE_UNKNOWN))
+
+
+def _env_key_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str | None]:
+    return _probe_state((row.get("env_keys") or {}).get(step["key"]), required=step["required"])
+
+
+def _command_state(step: dict[str, Any], _row: dict[str, Any]) -> tuple[str, str | None]:
+    return (STATE_OFFERED if step.get("run") == RUN_ON_SETUP_CLICK else STATE_MANUAL), None
+
+
+#: Step kind → how its state is read from this machine's report row.
+_STEP_STATES = {
+    STEP_CLONE: _clone_state,
+    STEP_TOOL: _tool_state,
+    STEP_ENV_KEY: _env_key_state,
+    STEP_DOTENV: _dotenv_state,
+    STEP_COMMAND: _command_state,
+}
 
 
 def step_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str | None]:
     """``(state, why)`` of one step against this machine's report row (bound rows only)."""
 
-    kind = step["kind"]
-    if kind == STEP_CLONE:
-        return _clone_state(row)
-    if kind == STEP_TOOL:
-        return _tool_state(step, row)
-    if kind == STEP_ENV_KEY:
-        return _probe_state((row.get("env_keys") or {}).get(step["key"]), required=step["required"])
-    if kind == STEP_DOTENV:
-        return _dotenv_state(step, row)
-    return (STATE_OFFERED if step.get("run") == RUN_ON_SETUP_CLICK else STATE_MANUAL), None
+    return _STEP_STATES[step["kind"]](step, row)
 
 
 def readiness(slot_name: str, slot: dict[str, Any], row: dict[str, Any] | None) -> dict[str, Any]:
