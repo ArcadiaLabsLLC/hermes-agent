@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (lane h-turn1-c1-design)
+
+- [ ] **The core's `persona_chat_history` creation-order bound (50) omits the operator's two most active chats on the live roster (98 candidates, `omitted 48`): `personainst_backend_dev` `…0132487b1ceb` and `personainst_base` `…fcbd74697901` ship with `history: null` and a 0-message conversation in every core while the per-instance query path hydrates them; the bound should rank by activity, or the console should fetch an omitted root per session** · fork / persona_chat projection · evidence: this plan §2 C0.3 (read-only measurement 2026-10-05 against `X:/Eternia/.hermes/agent-runtime`) · UNCLAIMED
+- [ ] **`EventLog.for_session` reads every slice whole (`read_text().splitlines()`: 50 ms for the 11 MB live slice, 261 ms for the 81 MB sealed one) on every call; a cold per-root trace read is 513–625 ms, most of it the scan; a reverse chunked tail reader would make C1's overlay ~0.4 s cheaper** · fork / events · evidence: §2 C0.2 · UNCLAIMED
+
 ### Filed on arrival — 2026-10-05 (launcher lane console-1a, filed by the orchestrator)
 
 - [ ] **Retire `workspace_id` / `workspace_name` from `runtime.chat.message` and `mission-chat message`. Since 2026-10-05 they decide nothing: the turn's context record is stamped from the workspace the turn resolved (`MissionChatTurnContext.lane_workspace`), and the two are read only to log `client_workspace_claim_differs` when a client names another workspace. Once no supported launcher sends them, remove them from `CHAT_MESSAGE_PARAMS` and the lowering in `agent_runtime/chat_turn.py` and from the parser (`hermes_cli/harness_parts/parser/persona.py`): a manifest `params` change and a CLI contract change, so the launcher re-mirrors `tests/fixtures/hermes_cli_contract.json` in the same wave** · the launcher stops sending them under `eternia_launcher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, row "The workspace on a chat send is a per-mount LABEL" · found 2026-10-05 by lane h-turnws · UNCLAIMED
