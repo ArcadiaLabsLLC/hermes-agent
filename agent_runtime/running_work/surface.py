@@ -12,6 +12,8 @@ from ..projection_accountant import ProjectionAccountant
 from .lanes_build import _collect_builds
 from .lanes_chat import _collect_chat_turns, _collect_delegations, _collect_dispatches
 from .lanes_process import _collect_cron, _collect_mcp_jobs, _collect_terminal
+from ..builds.registry import BuildLogRefused, build_log_tail
+from ..builds.vocabulary import SOURCE_AGENT, SOURCE_ANNOUNCED, TAIL_SOURCE_TERMINAL
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
 from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
@@ -149,37 +151,89 @@ def peek_work(work_id: str) -> dict[str, Any]:
         return payload
 
     if kind == KIND_TERMINAL:
-        registry = _module("tools.process_registry")
-        if registry is None:
-            payload["tail_reason"] = REASON_NOT_IN_PROCESS
-            return payload
-        try:
-            session = registry.process_registry.get(stable)
-        except Exception:
-            session = None
-        if session is None:
-            payload["tail_reason"] = "session_not_in_registry"
-            return payload
-        try:
-            # Read the rolling buffer directly under the session's own lock.
-            # No reconcile, no consumption flag, no state transition.
-            with session._lock:  # noqa: SLF001 - the buffer's only guard
-                buffered = session.output_buffer or ""
-            tail = _strip_ansi(buffered)[-PEEK_TAIL_LIMIT:]
-        except Exception as exc:
-            payload["tail_reason"] = f"buffer_unreadable:{type(exc).__name__}"
-            return payload
-        payload["tail_available"] = True
-        payload["tail"] = bounded_operator_text(tail, limit=PEEK_TAIL_LIMIT)
-        payload["truncated"] = len(buffered) > PEEK_TAIL_LIMIT
-        return payload
+        return _peek_terminal(payload, stable)
 
     if kind == KIND_TOOL_CALL:
         return _peek_tool_call(payload, row)
 
+    if kind == KIND_BUILD:
+        return _peek_build(payload, row, stable)
+
     # Every other kind reports progress, not output: the row already carries the
     # whole readable truth (status, elapsed, in_tool, seconds_since_progress).
     payload["tail_reason"] = "no_output_stream"
+    return payload
+
+
+def _peek_tail(text: str) -> str:
+    """The masked, whitespace-collapsed LAST ``PEEK_TAIL_LIMIT`` characters.
+
+    Masked before it is bounded, and bounded from the END: a mask that lengthens the text
+    (``KEY=v`` ⇒ ``KEY: [redacted]``) must cost the oldest output, never the newest line; the
+    masked window is twice the tail so a secret cut at the window's edge falls outside the tail.
+    """
+
+    window = text[-PEEK_TAIL_LIMIT * 2:]
+    masked = bounded_operator_text(window, limit=len(window) * 2 + 32)
+    return masked[-PEEK_TAIL_LIMIT:]
+
+
+def _peek_terminal(payload: dict[str, Any], session_id: str) -> dict[str, Any]:
+    """A background process's rolling buffer, read under its own lock — no consumption."""
+
+    registry = _module("tools.process_registry")
+    if registry is None:
+        payload["tail_reason"] = REASON_NOT_IN_PROCESS
+        return payload
+    try:
+        session = registry.process_registry.get(session_id)
+    except Exception:
+        session = None
+    if session is None:
+        payload["tail_reason"] = "session_not_in_registry"
+        return payload
+    try:
+        # Read the rolling buffer directly under the session's own lock.
+        # No reconcile, no consumption flag, no state transition.
+        with session._lock:  # noqa: SLF001 - the buffer's only guard
+            buffered = session.output_buffer or ""
+        tail = _strip_ansi(buffered)[-PEEK_TAIL_LIMIT:]
+    except Exception as exc:
+        payload["tail_reason"] = f"buffer_unreadable:{type(exc).__name__}"
+        return payload
+    payload["tail_available"] = True
+    payload["tail"] = _peek_tail(tail)
+    payload["truncated"] = len(buffered) > PEEK_TAIL_LIMIT
+    return payload
+
+
+def _peek_build(payload: dict[str, Any], row: dict[str, Any], stable: str) -> dict[str, Any]:
+    """A build's output, by source: an agent build IS a terminal process, so its buffer;
+    an announced build's writer-declared ``log_path`` tail (else the record's own ``tail``);
+    a detected build has no output hermes can see. ``tail_source`` names which was read."""
+
+    source, _sep, ident = stable.partition(":")
+    if source == SOURCE_AGENT:
+        payload["tail_source"] = TAIL_SOURCE_TERMINAL
+        return _peek_terminal(payload, ident)
+    if source != SOURCE_ANNOUNCED:
+        payload["tail_reason"] = "no_output_stream"
+        return payload
+    from ..builds.control import announced_record
+
+    record = announced_record(row)
+    if record is None:
+        payload["tail_reason"] = "build_record_unreadable"
+        return payload
+    try:
+        text, truncated, origin = build_log_tail(record, limit=PEEK_TAIL_LIMIT)
+    except BuildLogRefused as refused:
+        payload["tail_reason"] = str(refused)
+        return payload
+    payload["tail_source"] = origin
+    payload["tail_available"] = True
+    payload["tail"] = _peek_tail(_strip_ansi(text))
+    payload["truncated"] = truncated
     return payload
 
 
@@ -212,7 +266,7 @@ def _peek_tool_call(payload: dict[str, Any], row: dict[str, Any]) -> dict[str, A
         return payload
     buffered = _strip_ansi(command.tail or "")
     payload["tail_available"] = True
-    payload["tail"] = bounded_operator_text(buffered[-PEEK_TAIL_LIMIT:], limit=PEEK_TAIL_LIMIT)
+    payload["tail"] = _peek_tail(buffered)
     payload["truncated"] = command.output_chars > PEEK_TAIL_LIMIT
     payload["seconds_since_output"] = command.seconds_since_output
     return payload

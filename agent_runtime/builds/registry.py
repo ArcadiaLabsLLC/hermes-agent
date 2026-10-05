@@ -55,6 +55,8 @@ from agent_runtime.builds.vocabulary import (
     REGISTRY_SCHEMA_VERSION,
     RUNNING_RECORD_TTL_SECONDS,
     STOP_REQUEST_SUFFIX,
+    TAIL_SOURCE_BUILD_LOG,
+    TAIL_SOURCE_RECORD,
 )
 
 __layer__ = "stores"
@@ -297,3 +299,51 @@ def mcp_job_keys(directory: Path, *, now: float | None = None) -> set[tuple[str,
         if mcp_job and (expires is None or expires > now):
             keys.add((str(mcp_job.get("server") or ""), str(mcp_job.get("job_id") or "")))
     return keys
+
+
+# ── the log tail ``work peek`` reads ─────────────────────────────────────────
+
+#: Bytes read from the END of a log per character of tail asked for (UTF-8 is at most 4).
+_TAIL_BYTES_PER_CHAR = 4
+
+
+class BuildLogRefused(Exception):
+    """Why a record's log cannot be read; ``str()`` is the typed ``tail_reason``."""
+
+
+def build_log_tail(record: dict[str, Any], *, limit: int) -> tuple[str, bool, str]:
+    """``(text, truncated, tail_source)``: the last ``limit`` characters of the record's log.
+
+    The writer's ``log_path`` is read only when it is an existing regular file UNDER the
+    record's ``project_root`` — a record is a file any local writer may drop, and peek must not
+    become a way to read an arbitrary path. With no ``log_path`` the writer's own ``tail`` is
+    the answer (``record_tail``). Read-only; the caller strips and masks.
+    """
+
+    log_path = str(record.get("log_path") or "").strip()
+    if not log_path:
+        tail = str(record.get("tail") or "")
+        if not tail:
+            raise BuildLogRefused("no_log_path")
+        return tail[-limit:], len(tail) > limit, TAIL_SOURCE_RECORD
+    path = Path(log_path)
+    root = str(record.get("project_root") or "").strip()
+    if not path.is_absolute() or not root or not _is_under(path, Path(root)):
+        raise BuildLogRefused("log_path_outside_project")
+    try:
+        with path.open("rb") as handle:
+            size = handle.seek(0, os.SEEK_END)
+            window = limit * _TAIL_BYTES_PER_CHAR
+            handle.seek(max(0, size - window))
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError as exc:
+        raise BuildLogRefused(f"log_unreadable:{type(exc).__name__}") from exc
+    return text[-limit:], size > window or len(text) > limit, TAIL_SOURCE_BUILD_LOG
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except (OSError, ValueError):
+        return False
+    return True

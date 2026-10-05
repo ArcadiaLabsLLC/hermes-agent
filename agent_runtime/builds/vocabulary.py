@@ -52,6 +52,12 @@ SOURCE_ANNOUNCED = "announced"
 SOURCE_DETECTED = "detected"
 BUILD_SOURCES = (SOURCE_AGENT, SOURCE_ANNOUNCED, SOURCE_DETECTED)
 
+# ── what ``work peek`` read for a build row (``tail_source``) ───────────────
+TAIL_SOURCE_TERMINAL = "terminal_buffer"
+TAIL_SOURCE_BUILD_LOG = "build_log"
+TAIL_SOURCE_RECORD = "record_tail"
+BUILD_TAIL_SOURCES = (TAIL_SOURCE_TERMINAL, TAIL_SOURCE_BUILD_LOG, TAIL_SOURCE_RECORD)
+
 # ── liveness and outcome (§1) ───────────────────────────────────────────────
 LIVENESS_LIVE = "live"
 LIVENESS_STALLED = "stalled"

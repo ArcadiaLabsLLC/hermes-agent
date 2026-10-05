@@ -84,7 +84,9 @@ def _slot_still_bound(row: dict[str, Any]) -> bool:
                for slot in authorized_roots_bound_here())
 
 
-def _record(row: dict[str, Any]) -> dict[str, Any] | None:
+def announced_record(row: dict[str, Any]) -> dict[str, Any] | None:
+    """The registry record an ``announced`` row names (``announcement.record``), or None."""
+
     from agent_runtime.builds.registry import read_records
 
     directory, name = _registry_dir(), (row.get("announcement") or {}).get("record")
@@ -109,7 +111,7 @@ def _stop_announced(row: dict[str, Any], reason: str) -> dict[str, Any]:
     from agent_runtime._upstream_doors import terminate_host_pid
     from agent_runtime.builds.registry import stop_request_path
 
-    record = _record(row) or {}
+    record = announced_record(row) or {}
     mode = (record.get("controls") or {}).get("stop")
     directory = _registry_dir()
     if mode == RECORD_STOP_REQUEST and directory is not None:
