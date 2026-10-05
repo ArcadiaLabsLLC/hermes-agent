@@ -150,19 +150,13 @@ def peek_work(work_id: str) -> dict[str, Any]:
     if row is None:
         return payload
 
-    if kind == KIND_TERMINAL:
-        return _peek_terminal(payload, stable)
-
-    if kind == KIND_TOOL_CALL:
-        return _peek_tool_call(payload, row)
-
-    if kind == KIND_BUILD:
-        return _peek_build(payload, row, stable)
-
-    # Every other kind reports progress, not output: the row already carries the
-    # whole readable truth (status, elapsed, in_tool, seconds_since_progress).
-    payload["tail_reason"] = "no_output_stream"
-    return payload
+    peeker = _PEEKERS.get(kind)
+    if peeker is None:
+        # Every other kind reports progress, not output: the row already carries the
+        # whole readable truth (status, elapsed, in_tool, seconds_since_progress).
+        payload["tail_reason"] = "no_output_stream"
+        return payload
+    return peeker(payload, row, stable)
 
 
 def _peek_tail(text: str) -> str:
@@ -271,6 +265,15 @@ def _peek_tool_call(payload: dict[str, Any], row: dict[str, Any]) -> dict[str, A
     payload["seconds_since_output"] = command.seconds_since_output
     return payload
 
+
+
+#: The kinds whose peek reads OUTPUT, each ``(payload, row, stable) -> payload``; every other
+#: kind answers ``no_output_stream``. Late-bound so a test may patch one reader by name.
+_PEEKERS = {
+    KIND_TERMINAL: lambda payload, row, stable: _peek_terminal(payload, stable),
+    KIND_TOOL_CALL: lambda payload, row, stable: _peek_tool_call(payload, row),
+    KIND_BUILD: lambda payload, row, stable: _peek_build(payload, row, stable),
+}
 
 def _delegation_owned_here(mod: Any, delegation_id: str) -> bool:
     """True when THIS process holds the live record for ``delegation_id``.
