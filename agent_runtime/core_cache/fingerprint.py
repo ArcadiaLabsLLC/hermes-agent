@@ -409,6 +409,10 @@ def build_stamp_token() -> str | None:
     be able to serve the old install's core. Refusing is loud (the demote
     receipt names ``build_stamp_unknown``) and it is the safe direction.
 
+    The token keys on the checkout's CODE TREE (``build_identity``'s digest)
+    when it was measured and on the commit only when it was not, so a revision
+    that touched no runtime file keeps the persisted core.
+
     ``dirty`` rides the token, so a clean → dirty transition demotes. The
     residual is stated rather than hidden: two different EDITS that both leave
     the checkout dirty produce the same token, so on a dirty tree the stamp
@@ -425,4 +429,10 @@ def build_stamp_token() -> str | None:
         return None
     if stamp.commit is None:
         return None
-    return f"{stamp.source}:{stamp.commit}:{'dirty' if stamp.dirty else 'clean' if stamp.dirty is not None else 'unknown'}"
+    dirt = "dirty" if stamp.dirty else "clean" if stamp.dirty is not None else "unknown"
+    if stamp.code_tree:
+        # RS-6's digest, not the commit: a docs- or vault-only revision moves
+        # HEAD and not the code a core was built by, and keying on the commit
+        # cost the next boot a 11-15 s cold core (plan h-turn1 stage D4).
+        return f"{stamp.source}:tree:{stamp.code_tree}:{dirt}"
+    return f"{stamp.source}:{stamp.commit}:{dirt}"

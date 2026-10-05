@@ -57,7 +57,7 @@ PARITY_DIGEST = "10272b75505713833a1fb812e706b961e1d43a50"
 #: The bytes of the fixture, so "byte-equal in both repos" is a measurement.
 #: The launcher pins the same sha256 over its own copy.
 PARITY_FIXTURE_SHA256 = (
-    "2915319d2107307915eb6d4c9c3abf67f9428842a47e17866525b9f6a71b9a11"
+    "d7acd9a3690def841838733c7a43e23fb1f06ef07c8224002fa932d009b7e315"
 )
 
 
@@ -105,6 +105,10 @@ def real_repo(tmp_path):
         "README.md",
         "AGENTS.md",
         "CHANGELOG.md",
+        # The fork's Obsidian vault (plan h-turn1 stage D1): three queue-only
+        # commits restarted the live serve on 2026-10-05.
+        "Harness_Brain/TODO.md",
+        "Harness_Brain/20 — Active Initiatives/runtime-queue.md",
     ],
 )
 def test_the_rule_drops_prose_and_ci_and_the_repo_root_markdown(path):
@@ -126,6 +130,7 @@ def test_the_rule_drops_prose_and_ci_and_the_repo_root_markdown(path):
         # prefix: ``docsite/`` is code and ``tests_support/`` is code.
         "docsite/serve.py",
         "tests_support/helper.py",
+        "Harness_Brain_tools/x.py",
     ],
 )
 def test_the_rule_keeps_everything_a_runtime_can_load(path):
@@ -136,7 +141,7 @@ def test_the_rule_is_published_so_a_reader_applies_the_same_one():
     rule = code_tree_rule()
 
     assert rule == {
-        "prefixes": ["docs/", "tests/", ".github/"],
+        "prefixes": ["docs/", "tests/", ".github/", "Harness_Brain/"],
         "root_suffixes": [".md"],
     }
     assert rule["prefixes"] == list(NON_RUNTIME_PREFIXES)
@@ -213,8 +218,14 @@ def test_an_empty_tree_is_the_empty_digest_and_not_an_error():
 def test_the_shared_fixture_hashes_to_the_digest_the_launcher_pins():
     entries = parse_tree_list(PARITY_FIXTURE.read_bytes().decode("utf-8"))
 
-    assert len(entries) == 10
+    assert len(entries) == 11
     assert code_tree_digest(entries) == PARITY_DIGEST
+    # The vault row is IN the fixture and OUT of the digest: dropping it from
+    # the listing leaves the same answer (plan h-turn1 stage D1).
+    assert any(path.startswith("Harness_Brain/") for path, _ in entries)
+    assert code_tree_digest(
+        [e for e in entries if not e[0].startswith("Harness_Brain/")]
+    ) == PARITY_DIGEST
 
 
 def test_the_shared_fixture_is_byte_equal_to_the_launchers_copy():
@@ -293,6 +304,21 @@ def test_a_real_checkout_answers_a_digest_that_ignores_its_prose(real_repo):
     _git(real_repo, "commit", "-qm", "runtime")
 
     assert code_tree_for(real_repo).code_tree != first.code_tree
+
+
+def test_a_vault_only_commit_leaves_the_code_tree_where_it_was(real_repo):
+    """Plan h-turn1 stage D1: the queue-only commits that restarted the serve."""
+
+    first = code_tree_for(real_repo).code_tree
+    queue = real_repo / "Harness_Brain" / "20 — Active Initiatives"
+    queue.mkdir(parents=True)
+    (queue / "runtime-queue.md").write_bytes("- **a row** · runtime\n".encode("utf-8"))
+    (real_repo / "Harness_Brain" / "TODO.md").write_bytes(b"pointers\n")
+    _git(real_repo, "add", "-A")
+    _git(real_repo, "commit", "-qm", "queue only")
+
+    assert first is not None
+    assert code_tree_for(real_repo).code_tree == first
 
 
 def test_a_directory_that_is_not_a_repo_is_a_typed_reason_never_a_raise(tmp_path):

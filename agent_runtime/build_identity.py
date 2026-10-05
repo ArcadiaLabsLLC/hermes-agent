@@ -27,9 +27,13 @@ below rejects, sorts what is left by the path's UTF-8 bytes, and takes a sha1
 over ``<path>\\0<blob>\\n`` per entry. Dropped:
 
 * anything under :data:`NON_RUNTIME_PREFIXES` — ``docs/``, ``tests/``,
-  ``.github/`` — matched as a literal path prefix, so ``docsite/serve.py`` and
-  ``tests_support/helper.py`` are KEPT (they are directories whose names begin
-  with those letters, not those directories);
+  ``.github/``, ``Harness_Brain/`` — matched as a literal path prefix, so
+  ``docsite/serve.py`` and ``tests_support/helper.py`` are KEPT (they are
+  directories whose names begin with those letters, not those directories).
+  ``Harness_Brain/`` is the fork's Obsidian vault: no runtime imports or reads
+  it, and on 2026-10-05 three queue-only commits each restarted the live serve
+  (plan ``turn-latency-h-turn1-2026-10-05.md`` stage D1, ruling D1-r1 — the vault
+  only, not every ``*.md``, because the skills tree's markdown IS runtime data);
 * **repo-root markdown**: a path containing no ``/`` at all whose name ends,
   case-insensitively, in a suffix from :data:`NON_RUNTIME_ROOT_SUFFIXES`
   (``.md``). ``README.md`` and ``AGENTS.md`` go; ``agent_runtime/skills/README.md``
@@ -95,7 +99,7 @@ __all__ = [
 #: Path prefixes whose contents no running hermes loads. Literal prefixes, each
 #: ending in ``/`` so a directory NAME that merely starts with these letters is
 #: not swept up with it. Defined once, here, and published on the register row.
-NON_RUNTIME_PREFIXES: tuple[str, ...] = ("docs/", "tests/", ".github/")
+NON_RUNTIME_PREFIXES: tuple[str, ...] = ("docs/", "tests/", ".github/", "Harness_Brain/")
 
 #: Suffixes that make a REPO-ROOT file non-runtime — a path with no ``/`` in it
 #: whose name ends in one of these, matched case-insensitively. The root of this

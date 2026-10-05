@@ -2445,6 +2445,49 @@ def test_a_drain_asked_over_the_socket_tells_every_client_then_closes_the_lane()
     assert handle.code == 0
 
 
+def test_a_forced_drain_reclaims_the_askers_standing_streams_and_ends_at_once():
+    """Plan h-turn1 stage D2: the launcher drains over the connection that owns
+    its two ``harness stream`` requests and keeps it open while it watches the
+    pid. The monitor waited for those streams, which never return, so the serve
+    left only when the launcher gave up (``serve_drain proven=no``, 20 s)."""
+
+    from agent_runtime.request_control import request_cancelled
+
+    exits: list[int] = []
+    started = threading.Semaphore(0)
+
+    def _dispatch(argv):
+        if argv[:2] == ["harness", "stream"]:
+            started.release()
+            deadline = time.monotonic() + WAIT
+            while not request_cancelled() and time.monotonic() < deadline:
+                time.sleep(0.02)
+        return 0
+
+    with running_serve(dispatch=_dispatch, hard_exit=exits.append) as handle:
+        with client(handle, name="launcher") as (launcher, _reply):
+            launcher.send({"id": "req-1", "argv": ["harness", "stream"]})
+            launcher.send({"id": "req-2", "argv": ["harness", "stream"]})
+            assert started.acquire(timeout=WAIT) and started.acquire(timeout=WAIT)
+
+            asked = time.monotonic()
+            launcher.send({"op": "drain", "force": True, "deadline_seconds": 30})
+            assert _read_until(launcher, "draining")["pending"] == 2
+            complete = _read_until(launcher, "drain_complete")
+            waited = time.monotonic() - asked
+
+            assert waited < 2.0, f"the drain held {waited:.1f}s on the asker's own streams"
+            assert complete["requests_completed"] == 2
+            reclaimed = [
+                json.loads(frame["line"])
+                for frame in handle.sink.frames()
+                if frame.get("event") == "stderr"
+                and "serve_stream_worker_reclaimed" in (frame.get("line") or "")
+            ]
+            assert reclaimed and reclaimed[0]["request_ids"] == ["req-1", "req-2"]
+    assert exits == []
+
+
 def test_a_drain_over_the_socket_requires_force_and_the_refusal_is_typed():
     """`shutdown` is refused on this lane outright; `drain` is the safe
     replacement verb — but it still ends the service for every attached
