@@ -401,6 +401,14 @@ def test_the_assembled_request_carries_the_signature_the_turn_would_ship(
         request.persona_chat_runtime_signature_components
         == context.runtime_signature_digests
     )
+    # h-turn1 A3: the system message the prewarm builds the first turn's prompt
+    # from is the one that turn passes (``persona_runtime.mission_chat_reply``):
+    # the turn adopts the prewarmed prompt only on a byte-equal message.
+    from agent_runtime.persona_runtime import _mission_chat_surface_message
+
+    assert request.system_message == _mission_chat_surface_message(
+        persona, "", workspace_agents_content=context.workspace_agents_content
+    )
 
 
 def test_prewarm_then_two_turns_REUSE_across_an_ambient_config_reresolve(
@@ -1286,3 +1294,150 @@ def test_the_loop_starts_the_thread_for_an_actor_prewarm_alone():
     )
 
     assert fired.wait(10)
+
+
+# ── h-turn1 A3/A4: the first turn's prompt and connection move to the prewarm ─
+
+
+class _PromptAgent(_Agent):
+    """An ``_Agent`` whose conversation runs upstream's REAL
+    ``_restore_or_build_system_prompt`` exactly as ``build_turn_context`` calls
+    it (only when no prompt is cached), and which counts its prompt builds.
+    Anything else upstream's function reaches for is a ``MagicMock``."""
+
+    builds = 0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._cached_system_prompt = None
+        self._session_db = None
+        self._use_prompt_caching = False
+        self._persist_disabled = True
+        self.platform = "cli"
+        self.tools = []
+        self.enabled_toolsets = self.disabled_toolsets = None
+
+    def __getattr__(self, name):
+        from unittest.mock import MagicMock
+
+        if name.startswith("__"):
+            raise AttributeError(name)
+        value = MagicMock(name=name)
+        object.__setattr__(self, name, value)
+        return value
+
+    def _build_system_prompt(self, system_message=None):
+        type(self).builds += 1
+        return f"PROMPT<{system_message}>\nModel: {self.model}\nProvider: {self.provider}"
+
+    def run_conversation(self, user_message, system_message=None, task_id=None, **kw):
+        from agent.conversation_loop import _restore_or_build_system_prompt
+
+        if self._cached_system_prompt is None:
+            _restore_or_build_system_prompt(self, system_message, kw.get("conversation_history") or [])
+        return super().run_conversation(user_message, system_message, task_id, **kw)
+
+
+@pytest.fixture
+def prompt_agent():
+    _PromptAgent.builds = 0
+    yield _PromptAgent
+    _PromptAgent.builds = 0
+
+
+def test_the_first_turn_after_a_prewarm_adopts_the_prompt_it_built(stub_runtime, prompt_agent):
+    """A3: ``profile_conversation_system_prompt_build_ms`` is absent on turn 1, as on turn 2.
+
+    *Killing mutation:* drop ``stash_prewarmed_system_prompt`` from the prewarm
+    branch of ``AgentRunExecution.run`` (or the seam in ``conversation_loop``):
+    the turn builds again and carries the build key.
+    """
+
+    registry = PersonaChatRuntimeRegistry()
+    runner = ProfileAgentRunner(agent_factory=prompt_agent)
+    timing = runner.prewarm(_request(prewarm_only=True, registry=registry, system_message="SURFACE"))
+    assert prompt_agent.builds == 1
+    assert timing["prewarm_system_prompt_build_ms"] >= 0
+
+    result = runner.run(_request(prewarm_only=False, registry=registry, system_message="SURFACE"))
+
+    assert result.profile_timing["resident_actor_reused"] == 1
+    assert prompt_agent.builds == 1, "the first turn rebuilt the prompt the prewarm built"
+    assert "profile_conversation_system_prompt_build_ms" not in result.profile_timing
+    assert "profile_conversation_system_prompt_prewarmed_ms" in result.profile_timing
+
+
+def test_a_first_turn_with_another_system_message_builds_its_own(stub_runtime, prompt_agent, caplog):
+    """A3 negative: a prompt built from other inputs is never adopted."""
+
+    registry = PersonaChatRuntimeRegistry()
+    runner = ProfileAgentRunner(agent_factory=prompt_agent)
+    runner.prewarm(_request(prewarm_only=True, registry=registry, system_message="SURFACE"))
+    with caplog.at_level("INFO"):
+        result = runner.run(_request(prewarm_only=False, registry=registry, system_message="OTHER"))
+
+    assert prompt_agent.builds == 2
+    assert "profile_conversation_system_prompt_build_ms" in result.profile_timing
+    assert any("reason=system_message_changed" in r.getMessage() for r in caplog.records)
+
+
+class _CountingTransport:
+    """An httpx transport that counts what it is asked to send."""
+
+    def __init__(self):
+        self.requests = []
+
+    def __call__(self, request):
+        import httpx
+
+        self.requests.append((request.method, str(request.url), dict(request.headers)))
+        return httpx.Response(404, request=request)
+
+
+def _client_agent_factory(transport):
+    import httpx
+
+    class _ClientAgent(_Agent):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.base_url = "https://provider.example.test/v1"
+            self.client = type("C", (), {})()
+            self.client._client = httpx.Client(transport=httpx.MockTransport(transport))
+
+    return _ClientAgent
+
+
+def test_a_prewarm_opens_the_provider_connection_through_the_actors_own_client(stub_runtime, caplog):
+    """A4: the prewarm sends ONE body-free, credential-free HEAD through the
+    transport the turn will use, and the turn itself re-opens nothing for it.
+
+    *Killing mutation:* drop ``preopen_provider_connection`` from
+    ``ProfileAgentRunner.prewarm`` -> zero requests, no ``prewarm_connect_ms``.
+    """
+
+    transport = _CountingTransport()
+    registry = PersonaChatRuntimeRegistry()
+    runner = ProfileAgentRunner(agent_factory=_client_agent_factory(transport))
+    with caplog.at_level("INFO"):
+        timing = runner.prewarm(_request(prewarm_only=True, registry=registry))
+
+    assert [(m, u) for m, u, _ in transport.requests] == [("HEAD", "https://provider.example.test/v1")]
+    assert "authorization" not in {k.lower() for k in transport.requests[0][2]}
+    assert timing["prewarm_connect_ms"] >= 0
+    assert any("persona_chat_actor_prewarm_connect host=provider.example.test status=404" in r.getMessage()
+               for r in caplog.records)
+
+    result = runner.run(_request(prewarm_only=False, registry=registry))
+    assert result.profile_timing["resident_actor_reused"] == 1
+    assert len(transport.requests) == 1, "a real turn never pre-opens"
+
+
+def test_a_loopback_provider_is_never_pre_opened(stub_runtime):
+    from agent_runtime.provider_preconnect import preopen_provider_connection
+
+    transport = _CountingTransport()
+    agent = _client_agent_factory(transport)()
+    agent.base_url = "http://127.0.0.1:8080/v1"
+    timing = {}
+    assert preopen_provider_connection(agent, timing) == "skipped_loopback"
+    assert transport.requests == [] and "prewarm_connect_ms" not in timing

@@ -100,7 +100,14 @@ class ProfileAgentRunner:
         binding = _binding_for_profile(request.profile)
         if binding.readiness != "ready":
             raise ProfileRunnerError(binding.summary)
-        _, _, profile_timing = AgentRunExecution(self, binding, request).run()
+        _, agent, profile_timing = AgentRunExecution(self, binding, request).run()
+        # h-turn1 A4: the process's first resolve + handshake happen here, on
+        # the prewarm thread, AFTER the run released `_WORKDIR_LOCK` -- a turn
+        # arriving now never waits on the network for it.
+        if agent is not None:
+            from agent_runtime.provider_preconnect import preopen_provider_connection
+
+            preopen_provider_connection(agent, profile_timing)
         return profile_timing
 
     def _run(self, request: AgentRunRequest) -> AgentRunResult:
