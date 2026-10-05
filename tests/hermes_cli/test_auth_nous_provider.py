@@ -1188,3 +1188,27 @@ def test_restart_keeps_persisted_url_matching_operator_override(tmp_path, monkey
     monkeypatch.setenv("NOUS_INFERENCE_BASE_URL", _OPERATOR_INFERENCE_URL)
     base = _restart_and_swap_in_nous_pool_row(tmp_path, monkeypatch, _OPERATOR_INFERENCE_URL)
     assert base == _OPERATOR_INFERENCE_URL
+
+
+@pytest.mark.parametrize("persisted_url", ["https://[", "https://[::1/v1"])
+def test_restart_heals_persisted_parser_invalid_nous_inference_url(
+        tmp_path, monkeypatch, persisted_url):
+    """A persisted value ``urlparse`` raises on is rejected by the validator; the healer must
+    retire it (provider record AND pool row) instead of raising while logging it."""
+    from hermes_cli.auth import DEFAULT_NOUS_INFERENCE_URL
+
+    monkeypatch.delenv("NOUS_INFERENCE_BASE_URL", raising=False)
+    base = _restart_and_swap_in_nous_pool_row(tmp_path, monkeypatch, persisted_url)
+    assert base == DEFAULT_NOUS_INFERENCE_URL.rstrip("/")
+
+
+def test_heal_parser_invalid_guest_inference_url_selects_welcome_host(monkeypatch):
+    from hermes_cli.anon_auth import ANON_AUTH_METHOD
+    from hermes_cli.auth_nous import DEFAULT_NOUS_WELCOME_URL, _heal_persisted_nous_inference_urls
+
+    monkeypatch.delenv("NOUS_INFERENCE_BASE_URL", raising=False)
+    guest = {"auth_method": ANON_AUTH_METHOD, "inference_base_url": "https://["}
+    store = {"providers": {"nous": dict(guest)}, "credential_pool": {"nous": [dict(guest)]}}
+    _heal_persisted_nous_inference_urls(store)
+    assert store["providers"]["nous"]["inference_base_url"] == DEFAULT_NOUS_WELCOME_URL
+    assert store["credential_pool"]["nous"][0]["inference_base_url"] == DEFAULT_NOUS_WELCOME_URL
