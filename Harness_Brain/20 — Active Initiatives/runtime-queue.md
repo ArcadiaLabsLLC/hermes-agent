@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (lane hb-c)
+
+- [ ] **A pulled peer slot document is merged UNVALIDATED: `apply_workspace_slots_pull` never runs `normalize_declaration` / `normalize_owner_steps`, so a peer's slot name that is not a root name, a clone URL carrying userinfo, or a recipe `command` whose argv carries a credential lands in this machine's document (the clone door re-checks the URL; `run_step` and `recipe.show` trust the steps). Validate per slot on pull and refuse the slot typed in `WorkspaceSlotsPullSummary.refused` (not the whole document)** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::apply_workspace_slots_pull`, `agent_runtime/workspace_slot_recipe.py::normalize_owner_steps` · lane hb-c
+
 ### Filed on arrival — 2026-10-04 (launcher lane console-boundaries, filed by the orchestrator)
 
 - [ ] **Six operations the Agent Console needs are argv-only, so a paired device can never run them (argv is refused to a device connection by design): set an agent's or a persona's model (`persona.instance.set_model`, `persona.set_model`), permission preview / override / one-time tool elevation, `harness prompt-context show`, `harness persona-instance detail`, `harness skills catalog --hash`, and `harness work cancel`. Each needs a `runtime.…` method at the right tier, the way `runtime.persona.chat.history` replaced its argv row; the launcher lowers to the method wherever an install lists it and keeps argv for this machine.** · the launcher's per-read table: `EterniaLauncher/docs/mission_control/planned/CONSOLE_PER_MACHINE_READS_2026-10-04.md` · launcher lane console-boundaries 2026-10-04
