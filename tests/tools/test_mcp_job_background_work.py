@@ -1,10 +1,14 @@
-"""A pending MCP background job (a QA build) shows in background work like a background terminal.
+"""A pending MCP background job shows in background work like a background terminal.
 
-The join, end to end: a ``launch_or_attach`` result names a running ``build_job`` →
-``tools/mcp_job_wake.py`` writes a row to ``mcp_jobs.json`` in the background-work home → the
-``running_work`` projection's ``mcp_job`` lane (``agent_runtime/running_work/lanes_process.py``)
-ships it beside the ``terminal`` lane's rows → the finish notification turns it ready/failed →
-the serve drain settling the wake retires it.
+The join, end to end: a tool result names a running ``job`` → ``tools/mcp_job_wake.py`` writes a
+row to ``mcp_jobs.json`` in the background-work home → the ``running_work`` projection's
+``mcp_job`` lane (``agent_runtime/running_work/lanes_process.py``) ships it beside the
+``terminal`` lane's rows → the finish notification turns it ready/failed → the serve drain
+settling the wake retires it.
+
+A QA build (``build_job``) is the exception (build plan §8 step 3, row H9): its writer announces
+it into the build registry, so it is a ``build`` row — its wake is bound exactly as before, and no
+``mcp_job`` row is written for it.
 """
 
 import os
@@ -49,6 +53,16 @@ def _qa_envelope(job_id=JOB, status="running"):
     return envelope
 
 
+def _job_envelope(job_id=JOB, status="running"):
+    """A non-build server job (the ``job`` block) — what still gets an ``mcp_job`` row."""
+    return {"ok": True, "job": {"job_id": job_id, "status": status, "label": "index rebuild",
+                                "eta_ms": 200_000, "expected_ms": 240_000, "elapsed_ms": 40_000}}
+
+
+def _job_finished(**kwargs):
+    return _finished(logger_name="docs_index", event="index_finished", **kwargs)
+
+
 def _rows(kind=None):
     rows = build_running_work()["rows"]
     return [row for row in rows if kind is None or row["kind"] == kind]
@@ -76,13 +90,13 @@ class _Forge:
 
 def test_positive_control_a_terminal_and_an_mcp_job_side_by_side(registry, head):
     _terminal_checkpoint(head)
-    _call_qa_tool(MagicMock(), _qa_envelope())
+    _call_qa_tool(MagicMock(), _job_envelope())
     by_kind = {row["kind"]: row for row in _rows()}
     assert set(by_kind) >= {"terminal", "mcp_job"}
     assert by_kind["terminal"]["work_id"] == "terminal:proc_control"
     job = by_kind["mcp_job"]
-    assert (job["work_id"], job["label"], job["status"]) == (JOB_WORK_ID, "QA build abc1234", "running")
-    assert (job["server"], job["job_id"], job["job_kind"]) == (SERVER, JOB, "qa_build")
+    assert (job["work_id"], job["label"], job["status"]) == (JOB_WORK_ID, "index rebuild", "running")
+    assert (job["server"], job["job_id"], job["job_kind"]) == (SERVER, JOB, "")
     assert (job["eta_ms"], job["expected_ms"], job["outcome"]) == (200_000, 240_000, None)
     assert job["started_at"] and job["elapsed_seconds"] >= 40
     assert job["owner"]["session_id"] == SESSION and job["pid_verified"] is True
@@ -90,40 +104,40 @@ def test_positive_control_a_terminal_and_an_mcp_job_side_by_side(registry, head)
 
 
 def test_the_finish_notification_marks_the_row_failed_with_elapsed_and_tail(registry, head):
-    _call_qa_tool(MagicMock(), _qa_envelope())
-    _notify(_finished(outcome="failed", failure_tail="error: lib/x.dart:12: Undefined name 'y'"))
+    _call_qa_tool(MagicMock(), _job_envelope())
+    _notify(_job_finished(outcome="failed", failure_tail="error: lib/x.dart:12: Undefined name 'y'"))
     [job] = _rows("mcp_job")
     assert (job["status"], job["outcome"], job["elapsed_seconds"], job["eta_ms"]) == ("error", "failed", 281, 0)
     assert "Undefined name 'y'" in job["tail_preview"]
     assert job["finished_at"]
 
 
-def test_a_ready_build_reads_completed(registry, head):
-    _call_qa_tool(MagicMock(), _qa_envelope())
-    _notify(_finished())
+def test_a_ready_job_reads_completed(registry, head):
+    _call_qa_tool(MagicMock(), _job_envelope())
+    _notify(_job_finished())
     [job] = _rows("mcp_job")
     assert (job["status"], job["outcome"]) == ("completed", "ready")
 
 
 def test_an_unrouted_job_never_adds_an_entry(registry, head):
-    _notify(_finished(job_id="qab-nobody-routed-this"))
-    _call_qa_tool(MagicMock(), _qa_envelope(status="ready"))  # a FINISHED job routes nothing either
+    _notify(_job_finished(job_id="qab-nobody-routed-this"))
+    _call_qa_tool(MagicMock(), _job_envelope(status="ready"))  # a FINISHED job routes nothing either
     assert _rows("mcp_job") == []
     assert not (head / mcp_job_wake.CHECKPOINT_FILENAME).exists()
 
 
 def test_a_duplicate_bind_or_finish_never_adds_an_entry(registry, head):
-    _call_qa_tool(MagicMock(), _qa_envelope())
-    _call_qa_tool(MagicMock(), _qa_envelope(), task_id="persona_chat_second_asker")
-    _notify(_finished())
-    _notify(_finished(outcome="failed"))  # the duplicate is dropped; it must not rewrite the row
+    _call_qa_tool(MagicMock(), _job_envelope())
+    _call_qa_tool(MagicMock(), _job_envelope(), task_id="persona_chat_second_asker")
+    _notify(_job_finished())
+    _notify(_job_finished(outcome="failed"))  # the duplicate is dropped; it must not rewrite the row
     [job] = _rows("mcp_job")
     assert (job["owner"]["session_id"], job["status"]) == (SESSION, "completed")
 
 
 def test_the_entry_leaves_once_the_drain_delivers_the_wake(registry, head):
-    _call_qa_tool(MagicMock(), _qa_envelope())
-    _notify(_finished())
+    _call_qa_tool(MagicMock(), _job_envelope())
+    _notify(_job_finished())
     assert len(_rows("mcp_job")) == 1
     completions._background_attempts.clear()
     policy = DrainPolicy(sender_persona=lambda root: ("neko", "personainst_neko") if root == SESSION else None,
@@ -135,6 +149,17 @@ def test_the_entry_leaves_once_the_drain_delivers_the_wake(registry, head):
 
 
 def test_an_expired_entry_is_not_shown(registry, head, monkeypatch):
-    _call_qa_tool(MagicMock(), _qa_envelope())
+    _call_qa_tool(MagicMock(), _job_envelope())
     monkeypatch.setattr(time, "time", lambda real=time.time: real() + mcp_job_wake._ROUTE_TTL_S + 1)
+    assert _rows("mcp_job") == []
+
+
+def test_a_qa_build_binds_its_wake_but_writes_no_mcp_job_row(registry, head):
+    """H9: the QA build is a ``build`` row (its writer announces it); here only the route remains."""
+    _call_qa_tool(MagicMock(), _qa_envelope())
+    assert _rows("mcp_job") == []
+    assert not (head / mcp_job_wake.CHECKPOINT_FILENAME).exists()
+    _notify(_finished())  # the route is still bound: the starting session is woken, once
+    [(evt, text)] = registry.drain_notifications(session_key=SESSION)
+    assert (evt["job_id"], evt["job_kind"]) == (JOB, "qa_build") and text.startswith("[IMPORTANT: QA build ready")
     assert _rows("mcp_job") == []

@@ -21,6 +21,9 @@ The join, end to end:
    (``agent_runtime/running_work/lanes_process.py``). ``running`` on bind; ``ready``/``failed``
    (with elapsed and the redacted tail) on the finish notification; gone once the serve drain
    settles the wake (:func:`note_wake_settled`), or past the row's own ``expires_at``.
+   **Except a QA build** (``job_kind == qa_build``, build plan §8 step 3, row H9): its writer
+   announces it into the build registry, so it is a ``build`` row and no ``mcp_job`` row is
+   written for it. Its route — and so its wake — is bound exactly as before.
 
 A job id wakes at most once: the binding is popped when the wake is queued. A notification for a
 job id nobody bound — unknown, foreign, or already woken — is logged and dropped. A notification
@@ -60,6 +63,8 @@ _TAIL_CHARS = 4000
 _FINISHED_TTL_S = 30 * 60.0
 CHECKPOINT_FILENAME = "mcp_jobs.json"
 ROW_RUNNING, ROW_READY, ROW_FAILED = "running", "ready", "failed"
+#: The launcher QA server's build — woken here, SHOWN as a ``build`` row (build plan §8).
+JOB_KIND_QA_BUILD = "qa_build"
 _OK_OUTCOMES = frozenset({"ready", "finished", "completed", "succeeded", "done", "ok"})
 
 JOB_WAKE_CAPABILITY = "eternia.job_wake"
@@ -149,12 +154,15 @@ def _bind(server_name: str, job_id: str, routing: dict, facts: Optional[dict] = 
         if key in _routes:
             return  # the agent that STARTED the job is the one woken
         _routes[key] = {**routing, "bound_at": time.monotonic()}
-        _rows[key] = _running_row(server_name, job_id, routing, facts or {})
+        rows_moved = (facts or {}).get("job_kind") != JOB_KIND_QA_BUILD
+        if rows_moved:
+            _rows[key] = _running_row(server_name, job_id, routing, facts or {})
         while len(_routes) > _MAX_ROUTES:
             dropped, _ = _routes.popitem(last=False)
-            _rows.pop(dropped, None)
+            rows_moved = _rows.pop(dropped, None) is not None or rows_moved
             logger.warning("MCP job route cap reached; forgetting %s/%s", *dropped)
-        _write_checkpoints_locked(routing.get("checkpoint", ""))
+        if rows_moved:
+            _write_checkpoints_locked(routing.get("checkpoint", ""))
     logger.info("MCP server '%s': job %s will wake session %r when it finishes",
                 server_name, job_id, routing.get("session_key"))
 
@@ -191,7 +199,7 @@ def _job_facts(server_name: str, job_key: str, job: dict) -> dict:
         label = f"QA build {commit}" if commit else "QA build"
     else:
         label = str(job.get("label") or f"{server_name} job {job['job_id']}")
-    return {"label": label[:160], "job_kind": "qa_build" if job_key == "build_job" else "",
+    return {"label": label[:160], "job_kind": JOB_KIND_QA_BUILD if job_key == "build_job" else "",
             "eta_ms": _ms(job.get("eta_ms")), "expected_ms": _ms(job.get("expected_ms")),
             "elapsed_ms": _ms(job.get("elapsed_ms"))}
 
@@ -275,7 +283,7 @@ def _wake_event(server_name: str, job_id: str, logger_name: str, data: dict, rou
         "session_id": wake_identity(server_name, job_id),  # the drains' per-event identity
         "session_key": route.get("session_key", ""), "task_id": route.get("task_id", ""),
         "owner_task_id": route.get("owner_task_id", ""), "parent_session_id": route.get("parent_session_id", ""),
-        "server": server_name, "job_id": job_id, "job_kind": "qa_build" if logger_name == QA_BUILD_LOGGER else "",
+        "server": server_name, "job_id": job_id, "job_kind": JOB_KIND_QA_BUILD if logger_name == QA_BUILD_LOGGER else "",
         "outcome": str(data.get("outcome") or "finished"), "elapsed_ms": data.get("elapsed_ms"),
         "failure_tail": _redacted_tail(tail) if isinstance(tail, str) else "",
         "message": str(data.get("message") or "")[:_TAIL_CHARS],
@@ -313,7 +321,7 @@ def format_job_finished(evt: Mapping[str, Any]) -> str:
     """The ``[IMPORTANT: ...]`` text a drain injects for an ``mcp_job_finished`` event."""
     job_id, outcome = evt.get("job_id", "?"), str(evt.get("outcome") or "finished")
     tail = str(evt.get("failure_tail") or "")
-    if evt.get("job_kind") == "qa_build":
+    if evt.get("job_kind") == JOB_KIND_QA_BUILD:
         if outcome == "ready":
             return f"[IMPORTANT: QA build ready, job {job_id} — continue: call launch_or_attach/open_app_tab again.]"
         return (f"[IMPORTANT: QA build {outcome}, job {job_id} — read the failure tail, fix that cause, "
