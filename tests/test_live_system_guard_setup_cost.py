@@ -71,3 +71,29 @@ def test_the_first_guarded_kill_still_takes_the_snapshot():
             child.kill()
             child.wait(timeout=30)
     assert os.getpid() in _WALKS
+
+
+def test_a_mocked_psutil_cannot_widen_the_snapshot(monkeypatch):
+    """The lazy snapshot is taken after the test body runs, so it must not go through a mock.
+
+    A fake ``psutil.Process`` whose ``children()`` names a foreign PID would put
+    that PID on the allow-list at the first kill and let the signal reach the OS.
+    """
+    assert _guard_is_active()
+    foreign_pid = 424242
+    while psutil.pid_exists(foreign_pid):
+        foreign_pid += 1
+
+    class _FakeProcess:
+        def __init__(self, pid=None):
+            self.pid = pid
+
+        def children(self, recursive=False):
+            return [types.SimpleNamespace(pid=foreign_pid)]
+
+        def parents(self):
+            return []
+
+    monkeypatch.setattr(psutil, "Process", _FakeProcess)
+    with pytest.raises(RuntimeError, match="live-system guard"):
+        os.kill(foreign_pid, signal.SIGTERM)

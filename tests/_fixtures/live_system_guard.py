@@ -83,8 +83,14 @@ def _live_system_guard(request, monkeypatch):
     lookalike_ok = request.node.get_closest_marker(_GATEWAY_LOOKALIKE_MARK) is not None
     try:
         import psutil as _psutil
+        # Bound now, before the test body can mock psutil: the snapshot is
+        # taken later, at the first guarded kill, and a fake children() must
+        # not be able to put a foreign PID on the allow-list.
+        _real_process = _psutil.Process
+        _real_children = _psutil.Process.children
     except Exception:
         _psutil = None
+        _real_process = _real_children = None
 
     # The children snapshot is a fast-path allowlist; the live parents()
     # walk in _is_own_subtree is the authority. Taking it at fixture setup
@@ -92,7 +98,8 @@ def _live_system_guard(request, monkeypatch):
     # on Windows) to serve the few tests that deliver a signal, so it is
     # taken at the first guarded kill instead. Every PID in it is a
     # descendant of this process at that moment, which the parents() walk
-    # would allow anyway, so the snapshot never widens what is allowed.
+    # would allow anyway, so the snapshot never widens what is allowed --
+    # provided it goes through the psutil entry points bound at setup.
     _children_snapshot = None
 
     def _own_children() -> set:
@@ -100,7 +107,8 @@ def _live_system_guard(request, monkeypatch):
         if _children_snapshot is None:
             try:
                 _children_snapshot = {
-                    c.pid for c in _psutil.Process(test_pid).children(recursive=True)
+                    c.pid
+                    for c in _real_children(_real_process(test_pid), recursive=True)
                 } if _psutil is not None else set()
             except Exception:
                 _children_snapshot = set()
