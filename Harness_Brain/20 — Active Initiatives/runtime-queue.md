@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (launcher lane docs-dev, filed by the orchestrator)
+
+- [ ] **`docs/agent-runtime-harness/05-chat-turn-lane.md` §2a's timing-key table stops at `conversation_started_ms`: it omits `mcp_admission_ms`, `agent_construct_ms` and the eight later h-chatperf keys of `TURN_TIMING_ORDER` (`turn_context_built_ms` … `provider_returned_ms`, except `provider_returned_ms`'s one passing mention); and the tuple's comment in `agent_runtime/mission_chat_phases.py` names the launcher reader `MissionRuntimeTurnTiming`, which is now `AgentConsoleTurnTiming`. Bring the table up to the tuple and fix the name** · `agent_runtime/mission_chat_phases.py` (`TURN_TIMING_ORDER`) · UNCLAIMED
+
 ### Filed on arrival — 2026-10-05 (lane h-turn1-c1-design)
 
 - [ ] **The core's `persona_chat_history` creation-order bound (50) omits the operator's two most active chats on the live roster (98 candidates, `omitted 48`): `personainst_backend_dev` `…0132487b1ceb` and `personainst_base` `…fcbd74697901` ship with `history: null` and a 0-message conversation in every core while the per-instance query path hydrates them; the bound should rank by activity, or the console should fetch an omitted root per session** · fork / persona_chat projection · evidence: this plan §2 C0.3 (read-only measurement 2026-10-05 against `X:/Eternia/.hermes/agent-runtime`) · UNCLAIMED
