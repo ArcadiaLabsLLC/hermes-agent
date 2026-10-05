@@ -23,6 +23,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (lane h-prompt-design)
+
+- [ ] **`model_tool_tokens` is a names-only estimate (`agent_runtime/tool_visibility.py::_estimate_model_tool_tokens`, `(len(name)+96)//4`): doc 05 §4c's "43 tools / 1149" is fiction against a ≈16.6k-token tool payload** · fork / observability · `planned/prompt-surface-2026-10-05.md` §5 (branch `plan/h-prompt-design` `0d71896c74`) · UNCLAIMED
+- [ ] **Dead `agent.tool_search:` block in the neko and gpt-launcher `config.yaml` — the loader reads `tools.tool_search`, nothing reads the `agent.` key** · fork / config · `planned/prompt-surface-2026-10-05.md` §5 (branch `plan/h-prompt-design` `0d71896c74`) · stage S1 deletes it · UNCLAIMED
+- [ ] **The `chat_lane_toolsets` cost policy is inert under the `unbounded` permission posture (doc 05 §4), so its stated purpose is unmet on the default** · fork / chat lane · `planned/prompt-surface-2026-10-05.md` §5 (branch `plan/h-prompt-design` `0d71896c74`) · stage S1 is the posture-independent form · UNCLAIMED
+
 ### Filed on arrival — 2026-10-05 (launcher lane docs-dev, filed by the orchestrator)
 
 - [ ] **`docs/agent-runtime-harness/05-chat-turn-lane.md` §2a's timing-key table stops at `conversation_started_ms`: it omits `mcp_admission_ms`, `agent_construct_ms` and the eight later h-chatperf keys of `TURN_TIMING_ORDER` (`turn_context_built_ms` … `provider_returned_ms`, except `provider_returned_ms`'s one passing mention); and the tuple's comment in `agent_runtime/mission_chat_phases.py` names the launcher reader `MissionRuntimeTurnTiming`, which is now `AgentConsoleTurnTiming`. Bring the table up to the tuple and fix the name** · `agent_runtime/mission_chat_phases.py` (`TURN_TIMING_ORDER`) · UNCLAIMED
