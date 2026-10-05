@@ -31,7 +31,8 @@ launcher, which is the reason the boot investigation worked:
    the whole timeline with a scripted clock and a live turn cannot be poisoned
    by an NTP step.
 3. **first mark wins.** ``provider_first_byte`` is marked from the emitter's
-   ``delta()``, which fires once per token; a second mark must not move the
+   ``delta()`` on the first REPLY-TEXT delta (not the provider's first byte —
+   the key name is historical and pinned), which fires once per token; a second mark must not move the
    first. Enforced here rather than at the call site, because "the call site
    remembered to guard" is not a property anything can assert.
 4. **release-visible.** These are real accounting on the durable record, not a
@@ -467,7 +468,8 @@ def mark_from_trace_payload(marks: TurnPhaseMarks, payload: Any) -> None:
     hold the marks — converts it here. ``request_assembled`` therefore splits
     the old span honestly: ``provider_request_started → request_assembled`` is
     hermes assembly, ``request_assembled → provider_first_byte`` is client
-    init + network + provider.
+    init + network + provider + everything the model does before its first
+    reply-text delta (reasoning, tool rounds) — the mark is that delta.
 
     First-mark-wins (enforced by :meth:`TurnPhaseMarks.mark`) keeps the FIRST
     dispatch attempt's instant when the loop's retry ladder re-dispatches.

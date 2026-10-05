@@ -3863,10 +3863,13 @@ def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isol
     session_id = "persona_chat_personainst_dev"
     db.create_session(session_id, "agent_runtime_persona_chat")
     called = []
+    # One title attempt per session per process: start from a process that has
+    # not tried this chat yet, whatever ran before this test.
+    monkeypatch.setattr(chat_target, "_AUTO_TITLE_ATTEMPTED", set())
 
-    def fake_auto_title_session(session_db, sid, user_message, assistant_response, **kwargs):
-        called.append((sid, user_message, assistant_response))
-        session_db.set_session_title(sid, "Shipping Strategy Discussion")
+    def fake_auto_title_session(*, session_db, session_id, user_message, **kwargs):
+        called.append((session_id, user_message))
+        session_db.set_session_title(session_id, "Shipping Strategy Discussion")
 
     monkeypatch.setattr("agent.title_generator.auto_title_session", fake_auto_title_session)
 
@@ -3877,13 +3880,7 @@ def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isol
         assistant_response="Ship the smallest coherent slice.",
     )
 
-    assert called == [
-        (
-            session_id,
-            "what's your take on shipping fast?",
-            "Ship the smallest coherent slice.",
-        )
-    ]
+    assert called == [(session_id, "what's your take on shipping fast?")]
     assert db.get_session_title(session_id) == "Shipping Strategy Discussion"
 
 

@@ -794,5 +794,16 @@ def _cmd_mission_chat_message(args) -> int:
     # free from here, so a slow or failing deferred step delays nobody's next
     # send. ``run_once`` never raises: this is past the point where the exit
     # code is decided, and a decoration failure may not change it.
-    deferred.run_once()
+    #
+    # Past the lease is not past the ANSWER: on the method lane the Launcher's
+    # turn settles when this verb returns, so a tail run here held the typing
+    # bubble up for the whole title RTT (2026-10-05, 1.3–1.8 s per titled
+    # turn). A serve-dispatched turn hands the tail to its own thread and
+    # returns; a one-shot CLI turn has no answer to hold and runs it inline.
+    from hermes_cli.harness_parts.serve import current_serve_request_id
+
+    if current_serve_request_id() is not None:
+        deferred.run_off_path()
+    else:
+        deferred.run_once()
     return exit_code

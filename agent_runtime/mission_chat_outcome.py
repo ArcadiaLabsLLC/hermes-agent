@@ -44,6 +44,8 @@ record and stay typed at their source.
 
 from __future__ import annotations
 
+import contextvars
+import threading
 import time
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -714,6 +716,40 @@ class MissionChatDeferredFinalization:
             return True
         except Exception:
             return False
+
+    def run_off_path(self) -> threading.Thread | None:
+        """Run the deferred thunk on its own daemon thread; return that thread.
+
+        The method lane answers the Launcher when the verb RETURNS, so a tail
+        run inline — even past the lease — still holds the answer: live
+        2026-10-05, ``end_to_settle_ms`` 1261–1785 on exactly the turns whose
+        tail paid the auxiliary title call, 34–41 ms on those that did not.
+        The serve's request pool is not reachable from a verb, and lending it a
+        tail that once took 46 s would starve request workers, so the tail gets
+        a daemon thread of its own — the shape upstream gives the same call
+        (``auto_title_session`` is a daemon-thread target), and one a drain
+        never has to join. The caller's context is copied so the call-time
+        ``HERMES_HOME`` override travels with it. Never raises; the same
+        swallow as :meth:`run_once`. ``None`` when there was nothing to run.
+        """
+
+        thunk, self.thunk = self.thunk, None
+        if thunk is None:
+            return None
+        carried = MissionChatDeferredFinalization(thunk=thunk)
+        context = contextvars.copy_context()
+        worker = threading.Thread(
+            target=context.run,
+            args=(carried.run_once,),
+            name="chat-turn-deferred",
+            daemon=True,
+        )
+        try:
+            worker.start()
+        except Exception:
+            carried.run_once()
+            return None
+        return worker
 
 
 class FinalizationWarningKind(StrEnum):

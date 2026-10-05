@@ -6,6 +6,8 @@ Separate because every verb that names a persona resolves it through
 
 from __future__ import annotations
 
+import threading
+
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.models import AgentPersona
@@ -91,17 +93,42 @@ def _display_name_for_profile(profile_id: str) -> str:
     return " ".join(part.capitalize() for part in profile_id.replace("_", "-").split("-") if part) or "Profile"
 
 
+#: Sessions this process has already asked the title model about. The rule is
+#: ONE attempt per session per serve process: a generation that was refused,
+#: failed, or came back a provisional greeting (persisted ``derived``) is not
+#: re-run on every later turn — live 2026-10-05, Neko ``749525d862b7`` paid the
+#: auxiliary-LLM call on turns 1, 2 and 3 and still read ``derived``. A restart
+#: earns one more try; a title that did upgrade is skipped by upstream anyway.
+_AUTO_TITLE_ATTEMPTED: set[str] = set()
+_AUTO_TITLE_ATTEMPTED_LOCK = threading.Lock()
+
+
+def _claim_auto_title_attempt(session_id: str) -> bool:
+    """True exactly once per ``session_id`` per process."""
+
+    with _AUTO_TITLE_ATTEMPTED_LOCK:
+        if session_id in _AUTO_TITLE_ATTEMPTED:
+            return False
+        _AUTO_TITLE_ATTEMPTED.add(session_id)
+        return True
+
+
 def _maybe_auto_title_persona_chat(*, session_db, session_id: str, user_message: str, assistant_response: str) -> None:
     if session_db is None or not session_id or not assistant_response:
+        return
+    if not _claim_auto_title_attempt(session_id):
         return
     try:
         from agent.title_generator import auto_title_session
 
+        # Keywords, never positions: upstream's fourth parameter became
+        # ``failure_callback``, and the reply text rode into it positionally.
+        # Upstream titles from the user message alone; the reply only gates
+        # whether this turn is worth titling (above).
         auto_title_session(
-            session_db,
-            session_id,
-            user_message,
-            assistant_response,
+            session_db=session_db,
+            session_id=session_id,
+            user_message=user_message,
         )
     except Exception:
         return

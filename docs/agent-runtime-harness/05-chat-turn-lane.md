@@ -114,7 +114,11 @@ reload) into `profile_timing` beside the context sub-spans.
 
 `request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
 `provider_request_started → request_assembled` is hermes assembly, `request_assembled →
-provider_first_byte` is client init + network + provider (`:352-375`). Beside the marks ride one
+provider_first_byte` is client init + network + provider + whatever precedes the first reply-text
+delta (`:352-375`). **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
+turn's FIRST REPLY-TEXT DELTA, not the provider's first byte, so reasoning and tool rounds land
+inside it; `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
+and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
 flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
 closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
@@ -166,7 +170,7 @@ component moved, names only, the same disclosure rule `resident_signature_diff` 
 2. **Monotonic only.** Anchor and marks come from one injected callable (`:170-179`); `anchored_at`
    is the single wall stamp, for eyeballing `agent.log` (`:192-196`).
 3. **First mark wins**, under a per-phase lock inside `mark()` (`:221-240`) — `provider_first_byte`
-   rides the emitter's per-token `delta()` and may arrive on a worker thread.
+   (the first reply-text delta) rides the emitter's per-token `delta()` and may arrive on a worker thread.
 4. **Release-visible.** No flag, no debug gate; the block rides persists the turn already performs.
 
 Construction IS the anchor, taken as the handler's first statement
@@ -197,7 +201,7 @@ for the runner's durations):
 |---|---|
 | `turn_context_ms` | `profile_timing.profile_conversation_turn_context_ms` |
 | `request_assembled_ms` | `phases.request_assembled` |
-| `provider_first_byte_ms` | `phases.provider_first_byte` |
+| `provider_first_byte_ms` | `phases.provider_first_byte` — the first reply-text delta, not the provider's first byte |
 | `provider_dispatch_ms` | `profile_timing.profile_conversation_provider_dispatch_ms` — the `llm_execution` span; replaced `responses_create_ms`, whose source nothing wrote after plugin-fit §4 Q4 (2026-09-29) |
 | `stream_consume_ms` | `profile_timing.profile_provider_stream_consume_ms` |
 | `builds_overlapped` | `phases.builds_overlapped` |

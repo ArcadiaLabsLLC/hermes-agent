@@ -308,7 +308,11 @@ class _ChatProtocolV2Emitter:
         # The turn's phase timeline, or None for callers that do not keep one
         # (tests, and any future emitter user outside the chat handler). The
         # emitter takes exactly ONE mark from it — `provider_first_byte` — and
-        # never reads a mark back.
+        # never reads a mark back. The name is historical and pinned (it is the
+        # persisted phase key and the source of the wire's
+        # `provider_first_byte_ms`): what it marks is the FIRST REPLY-TEXT
+        # DELTA, which on a reasoning or tool-using turn lands well after the
+        # provider's first byte (`response_headers` is the nearer stamp).
         self._turn_phases = turn_phases
         # Guard for that mark, and the reason the cost of this whole plan is
         # per-turn rather than per-token: `delta()` runs once per delta, and
@@ -356,11 +360,11 @@ class _ChatProtocolV2Emitter:
         if not delta:
             return
         if not self._provider_first_byte_marked:
-            # FIRST provider byte this process has seen. Marked here rather
-            # than inside the provider client because this is the earliest site
-            # the turn owns, and the plan explicitly declines provider-client
-            # surgery for it. An empty delta is not a byte — the guard above
-            # already returned.
+            # FIRST reply-text delta of the turn — not the provider's first
+            # byte, whatever the phase key says: reasoning, tool calls and
+            # response headers all precede it. Marked here because this is the
+            # earliest REPLY site the turn owns. An empty delta is not reply
+            # text — the guard above already returned.
             self._provider_first_byte_marked = True
             if self._turn_phases is not None:
                 self._turn_phases.mark("provider_first_byte")
