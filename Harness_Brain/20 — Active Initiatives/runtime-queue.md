@@ -391,6 +391,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-05 (lane h-defer, name-set sweep)
+
+- [ ] **Upstream `agent/tool_guardrails.py::IDEMPOTENT_TOOL_NAMES` spells the filesystem MCP tools with the retired single-underscore prefix (`mcp_filesystem_read_file`, … 8 names) while the registry produces `mcp__filesystem__read_file` (`MCP_TOOL_NAME_PREFIX`, `tools/mcp_tool_schema.py`, #33533), so the no-progress guard never treats them as idempotent — derive the names with `mcp_prefixed_tool_name("filesystem", …)` (upstream PR)** · `upstream / agent` · evidence: `agent/tool_guardrails.py` lines 20-26; `ToolCallGuardrail` compares the raw registered name (`tool_name in self.config.idempotent_tools`) · UNCLAIMED
+
 ### Filed on arrival — 2026-10-02 (lane w5-fh, filed by the orchestrator)
 
 - [ ] **Upstream `hermes_cli/terminal_notify.write_tty` opens '/dev/tty' on Windows, which resolves under the cwd drive's root: where a \dev folder exists the BEL/OSC goes into a FILE (X:\dev\tty holds one now) instead of the terminal — gate the /dev/tty attempt on os.name != "nt" (upstream PR)** · `upstream / cli` · evidence: w5-fh commit 7d3e8a195d · X:\dev is test litter (X:\dev\null\nope from test_startup_watchdog) · UNCLAIMED
