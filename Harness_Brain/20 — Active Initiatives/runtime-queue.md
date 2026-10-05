@@ -29,7 +29,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (lane hb-c)
 
-- [ ] **A pulled peer slot document is merged UNVALIDATED: `apply_workspace_slots_pull` never runs `normalize_declaration` / `normalize_owner_steps`, so a peer's slot name that is not a root name, a clone URL carrying userinfo, or a recipe `command` whose argv carries a credential lands in this machine's document (the clone door re-checks the URL; `run_step` and `recipe.show` trust the steps). Validate per slot on pull and refuse the slot typed in `WorkspaceSlotsPullSummary.refused` (not the whole document)** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::apply_workspace_slots_pull`, `agent_runtime/workspace_slot_recipe.py::normalize_owner_steps` · lane hb-c **TAKEN 2026-10-05 h-peerval**
 
 ### Filed on arrival — 2026-10-04 (launcher lane console-boundaries, filed by the orchestrator)
 

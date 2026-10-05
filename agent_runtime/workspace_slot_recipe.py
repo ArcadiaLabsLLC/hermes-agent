@@ -25,12 +25,22 @@ input — a probe that answered ``unknown``, or a probe the report does not carr
 ``ready: "unknown"``, never ``"yes"``** (the unknowns rule; it outranks a definite ``"no"``,
 as the probe's own status always has).
 
-No credential ever enters a recipe: a command whose argv carries a URL with userinfo, a
-bearer token or a secret-shaped assignment is refused ``credential_in_step``.
+No credential ever enters a recipe: a command whose argv or label, or an annotation whose hint
+or url, carries a URL with userinfo, a bearer token or a secret-shaped assignment is refused
+``credential_in_step``.
+
+**One validator, two callers.** ``recipe.set`` (:func:`normalize_owner_steps`) refuses the whole
+edit on the first bad step; the realm pull (``workspace_slots_sync``) reads a PEER's stored steps
+through the same :func:`normalize_owner_step` with ``held=True`` and drops only the bad step. A
+held step is a record read back, so the drift a later re-declaration legitimately leaves is not a
+refusal there — an annotation orphaned by its derived step (``materialize`` reports it) and a
+``cwd_slot`` the document holds only as a tombstone (``run_step`` re-checks liveness) — while a
+field a stored step never carries is (a conforming writer stores only what this module returns).
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Iterable
 from urllib.parse import urlsplit
@@ -58,6 +68,8 @@ DOTENV_STEP_ID = "dotenv"
 #: A command id: never a colon (so never a derived id) and never a reserved word.
 _COMMAND_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _RESERVED_IDS = frozenset({CLONE_STEP_ID, DOTENV_STEP_ID})
+#: The shape of a derived-step id — what a HELD annotation orphaned by a re-declaration still has.
+_DERIVED_ID_RE = re.compile(r"^(?:clone|dotenv|(?:tool|env_key):[^\s:]{1,80})$")
 #: The only fields an annotation may carry.
 ANNOTATION_FIELDS = frozenset({"id", "kind", "hint", "url"})
 
@@ -178,13 +190,17 @@ def derived_steps(slot_name: str, slot: dict[str, Any]) -> list[dict[str, Any]]:
 # ── the owner's part ─────────────────────────────────────────────────────────
 
 
-def _annotation(entry: dict[str, Any], derived: dict[str, dict[str, Any]]) -> dict[str, Any]:
+#: The only fields a STORED command step carries (what :func:`_command` returns).
+COMMAND_FIELDS = frozenset({"id", "kind", "label", "argv", "cwd_slot", "run"})
+
+
+def _annotation(entry: dict[str, Any], derived: dict[str, dict[str, Any]], *, held: bool) -> dict[str, Any]:
     step_id = str(entry.get("id") or "")
     target = derived.get(step_id)
-    if target is None:
-        raise RecipeRefused(REASON_UNKNOWN_STEP, f"{step_id!r} is not a derived step of this slot")
+    if target is None and not (held and _DERIVED_ID_RE.match(step_id)):
+        raise RecipeRefused(REASON_UNKNOWN_STEP, "not a derived step of this slot")
     extra = sorted(set(entry) - ANNOTATION_FIELDS)
-    if extra or (entry.get("kind") not in (None, target["kind"])):
+    if extra or (target is not None and entry.get("kind") not in (None, target["kind"])):
         raise RecipeRefused(REASON_DERIVED_STEP_IMMUTABLE,
                             f"{step_id}: a derived step is annotated (hint, url), never edited ({extra or entry.get('kind')})")
     url = entry.get("url")
@@ -192,6 +208,8 @@ def _annotation(entry: dict[str, Any], derived: dict[str, dict[str, Any]]) -> di
         raise RecipeRefused(REASON_INVALID_STEP, f"{step_id}: an annotation url is http(s)")
     if url is not None and url_carries_credential(str(url)):
         raise RecipeRefused(REASON_CREDENTIAL_IN_STEP, f"{step_id}: the url carries userinfo")
+    if entry.get("hint") is not None and text_carries_credential(str(entry["hint"])):
+        raise RecipeRefused(REASON_CREDENTIAL_IN_STEP, f"{step_id}: the hint is credential-shaped")
     out = {"id": step_id}
     if entry.get("hint") is not None:
         out["hint"] = str(entry["hint"])
@@ -200,23 +218,53 @@ def _annotation(entry: dict[str, Any], derived: dict[str, dict[str, Any]]) -> di
     return out
 
 
-def _command(entry: dict[str, Any], slot_name: str, live_names: Iterable[str]) -> dict[str, Any]:
+def _command(entry: dict[str, Any], slot_name: str, names: frozenset[str], *, held: bool) -> dict[str, Any]:
     step_id = str(entry.get("id") or "")
     if not _COMMAND_ID_RE.match(step_id) or step_id in _RESERVED_IDS:
-        raise RecipeRefused(REASON_INVALID_STEP, f"{step_id!r}: a command id is [A-Za-z0-9_-]{{1,64}}, not a reserved id")
+        raise RecipeRefused(REASON_INVALID_STEP, "a command id is [A-Za-z0-9_-]{1,64}, not a reserved id")
+    extra = sorted(set(entry) - COMMAND_FIELDS)
+    if held and extra:
+        reason = REASON_CREDENTIAL_IN_STEP if any(
+            text_carries_credential(f"{key}={json.dumps(entry[key], default=str)}") for key in extra) else REASON_INVALID_STEP
+        raise RecipeRefused(reason, f"{step_id}: a stored command carries no {extra}")
     argv = entry.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
         raise RecipeRefused(REASON_INVALID_STEP, f"{step_id}: argv is a non-empty list of strings")
     if any(text_carries_credential(a) for a in argv):
         raise RecipeRefused(REASON_CREDENTIAL_IN_STEP, f"{step_id}: an argv token is credential-shaped")
+    if entry.get("label") is not None and text_carries_credential(str(entry["label"])):
+        raise RecipeRefused(REASON_CREDENTIAL_IN_STEP, f"{step_id}: the label is credential-shaped")
     run = entry.get("run") or RUN_ON_SETUP_CLICK
     if run not in RUN_MODES:
         raise RecipeRefused(REASON_INVALID_STEP, f"{step_id}: run is one of {RUN_MODES}")
     cwd_slot = str(entry.get("cwd_slot") or slot_name)
-    if cwd_slot not in set(live_names):
+    if cwd_slot not in names:
         raise RecipeRefused(REASON_INVALID_STEP, f"{step_id}: cwd_slot {cwd_slot!r} is not a declared slot")
     return {"id": step_id, "kind": STEP_COMMAND, "label": str(entry.get("label") or " ".join(argv)),
             "argv": list(argv), "cwd_slot": cwd_slot, "run": run}
+
+
+def normalize_owner_step(entry: Any, slot_name: str, derived: dict[str, dict[str, Any]],
+                         names: Iterable[str], *, held: bool = False) -> dict[str, Any]:
+    """ONE owner step as stored, or :class:`RecipeRefused` — the validator both callers share.
+
+    ``derived`` is the slot's derived steps by id. ``names`` are the slots a command's
+    ``cwd_slot`` may name: the LIVE ones for an edit, every name the document holds (tombstones
+    too) for a ``held`` record read back from a peer.
+    """
+
+    if not isinstance(entry, dict):
+        raise RecipeRefused(REASON_INVALID_STEP, "every step is an object")
+    is_command = entry.get("kind") == STEP_COMMAND
+    if not is_command and entry.get("kind") not in (None, *DERIVED_KINDS):
+        raise RecipeRefused(REASON_INVALID_STEP, "an owner step is a command or an annotation of a derived kind")
+    if is_command:
+        return _command(entry, slot_name, frozenset(names), held=held)
+    return _annotation(entry, derived, held=held)
+
+
+def derived_by_id(slot_name: str, slot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {step["id"]: step for step in derived_steps(slot_name, slot)}
 
 
 def normalize_owner_steps(slot_name: str, slot: dict[str, Any], steps: Any,
@@ -229,17 +277,12 @@ def normalize_owner_steps(slot_name: str, slot: dict[str, Any], steps: Any,
 
     if not isinstance(steps, list):
         raise RecipeRefused(REASON_INVALID_STEP, "steps must be a list")
-    derived = {step["id"]: step for step in derived_steps(slot_name, slot)}
-    names = list(live_names)
+    derived = derived_by_id(slot_name, slot)
+    names = frozenset(live_names)
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for entry in steps:
-        if not isinstance(entry, dict):
-            raise RecipeRefused(REASON_INVALID_STEP, "every step is an object")
-        is_command = entry.get("kind") == STEP_COMMAND
-        if not is_command and entry.get("kind") not in (None, *DERIVED_KINDS):
-            raise RecipeRefused(REASON_INVALID_STEP, f"an owner step is a command; {entry.get('kind')!r} is not a kind")
-        step = _command(entry, slot_name, names) if is_command else _annotation(entry, derived)
+        step = normalize_owner_step(entry, slot_name, derived, names)
         if step["id"] in seen:
             raise RecipeRefused(REASON_DUPLICATE_STEP_ID, step["id"])
         seen.add(step["id"])
@@ -411,7 +454,9 @@ __all__ = [
     "RUN_MODES",
     "RecipeRefused",
     "derived_steps",
+    "derived_by_id",
     "materialize",
+    "normalize_owner_step",
     "normalize_owner_steps",
     "readiness",
     "step_state",

@@ -131,6 +131,17 @@ def test_no_credential_enters_a_recipe(workspace, token):
     assert "result" in _set(workspace, [{"id": "a", "kind": "command", "argv": ["git", "https://github.com/x/y.git"]}], 0)
 
 
+@pytest.mark.parametrize("step", [
+    {"id": "a", "kind": "command", "argv": ["flutter", "pub", "get"], "label": "token=not-a-real-token-value-0123"},
+    {"id": "env_key:FLUTTER_ROOT", "hint": "Authorization: Bearer not-a-real-bearer-value"},
+])
+def test_no_credential_rides_a_label_or_a_hint(workspace, step):
+    assert _set(workspace, [step], 0)["error"]["data"]["reason"] == "credential_in_step"
+    # Positive control: the same step, its prose credential-free, lands (an env_key id is an id, not an assignment).
+    prose = {**step, **({"label": "Fetch packages"} if "label" in step else {"hint": "Set it to your SDK root"})}
+    assert "result" in _set(workspace, [prose], 0)
+
+
 # ── revision wins ────────────────────────────────────────────────────────────
 
 
