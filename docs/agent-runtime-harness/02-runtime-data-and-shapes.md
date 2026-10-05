@@ -249,6 +249,10 @@ manifest, verbatim:
 oldest-first so the flat cumulative byte position *is* the logical offset. It is
 a point-in-time view by design: appends made during a build are not reflected,
 and the next builder observes the changed size/mtime and loads a fresh view.
+The uncached `EventLog.for_task`/`for_session` read each slice from its end in
+1 MiB chunks (`events._reversed_slice_lines`), newest slice first, and stop at
+`limit`; the lines are exactly `reversed(read_text().splitlines())`, so a
+newest-N trace read costs the tail it needs, not the 11–81 MB slice.
 
 ---
 
