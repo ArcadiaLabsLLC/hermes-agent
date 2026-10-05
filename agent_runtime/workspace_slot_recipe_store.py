@@ -57,7 +57,7 @@ def set_recipe(workspace_id: str, slot: str, steps: Any, *, base_revision: Any, 
                       "edited_by": {"machine": machine, "persona_instance_id": persona_instance_id or None}}
     body["issued_at"] = issued_at
     write_document(workspace_id, document)
-    return {"slot": slot, "revision": current + 1, "recipe": _slot_checklist(slot, body, _my_rows(document))}
+    return {"slot": slot, "revision": current + 1, "recipe": _slot_checklist(workspace_id, slot, body, _my_rows(document))}
 
 
 def _my_rows(document: dict[str, Any]) -> dict[str, Any]:
@@ -66,10 +66,14 @@ def _my_rows(document: dict[str, Any]) -> dict[str, Any]:
     return mine.get("slots") or {}
 
 
-def _slot_checklist(name: str, slot: dict[str, Any], rows: dict[str, Any]) -> dict[str, Any]:
+def _slot_checklist(workspace_id: str, name: str, slot: dict[str, Any], rows: dict[str, Any]) -> dict[str, Any]:
+    """One slot's checklist; ``runs`` is the newest Clone / command run of each step on THIS machine."""
+
+    from .workspace_slot_runs import latest_runs
+
     recipe = slot.get("recipe") or {}
     return {"revision": _revision(slot), "edited_at": recipe.get("edited_at"), "edited_by": recipe.get("edited_by"),
-            **readiness(name, slot, rows.get(name))}
+            **readiness(name, slot, rows.get(name)), "runs": latest_runs(workspace_id, name)}
 
 
 def show_recipe(workspace_id: str) -> dict[str, Any]:
@@ -80,7 +84,7 @@ def show_recipe(workspace_id: str) -> dict[str, Any]:
     mine = ((document.get("machines") or {}).get(machine) or {}) if machine else {}
     rows = mine.get("slots") or {}
     return {"workspace_id": workspace_id, "machine": machine, "reported_at": mine.get("reported_at") or None,
-            "slots": {name: _slot_checklist(name, slot, rows) for name, slot in sorted(live_slots(document).items())}}
+            "slots": {name: _slot_checklist(workspace_id, name, slot, rows) for name, slot in sorted(live_slots(document).items())}}
 
 
 __all__ = ["set_recipe", "show_recipe"]

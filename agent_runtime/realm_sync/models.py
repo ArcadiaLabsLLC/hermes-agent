@@ -66,6 +66,9 @@ HARD_EXCLUDED_PATH_PARTS = {
     # environment VALUES for each slot. Private like the roots; the slot document
     # carries only the set/missing/unknown accounting.
     "machine_slot_env.json",
+    # This machine's setup runs (Clone / command steps, row H11): local paths and typed
+    # endings of work that happened on one box.
+    "machine_slot_runs.json",
     "proofs",
     "runs",
     "state.db",

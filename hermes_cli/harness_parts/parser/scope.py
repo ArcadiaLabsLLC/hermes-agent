@@ -138,6 +138,13 @@ def _add_workspace_slots(workspace_subs) -> None:
     report.add_argument("workspace_id")
     _add_stage42_global_args(report)
     report.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_report)
+    clone = slots_subs.add_parser("clone", help="Clone a declared slot into a path on THIS machine with this machine's git, then bind it")
+    clone.add_argument("workspace_id")
+    clone.add_argument("slot")
+    clone.add_argument("dest_path", help="Absolute path the checkout lands at (absent or an empty directory)")
+    clone.add_argument("--issued-at", dest="issued_at", default=None)
+    _add_stage42_global_args(clone)
+    clone.set_defaults(func=workspace_slots_commands._cmd_workspace_slots_clone)
 
 
 def add_realm(subs) -> None:

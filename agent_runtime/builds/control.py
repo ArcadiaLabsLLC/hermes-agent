@@ -162,11 +162,7 @@ def stop_build(row: dict[str, Any], *, reason: str = "operator_cancel") -> dict[
 def _resolved_argv(argv: list[str], overlay: Any) -> list[str]:
     """``argv[0]`` resolved through the slot's ``tool_paths`` (by tool stem), else as observed."""
 
-    if overlay is None or not argv:
-        return list(argv)
-    stem = Path(argv[0]).stem.lower()
-    tool = overlay.tool_paths.get(stem) or overlay.tool_paths.get(Path(argv[0]).name.lower())
-    return [tool, *argv[1:]] if tool else list(argv)
+    return list(argv) if overlay is None else overlay.resolve_argv(argv)
 
 
 def _restart_refusal(row: dict[str, Any]) -> str:

@@ -35,6 +35,7 @@ from utils import atomic_json_write
 
 from . import paths
 from .machine_roots import _ROOT_NAME_RE, load_machine_roots, write_machine_roots
+from .workspace_slot_recipe import url_carries_credential
 
 __layer__ = "stores"
 
@@ -52,6 +53,8 @@ REASON_STALE_REVISION = "stale_revision"
 REASON_WORKSPACE_NOT_FOUND = "workspace_not_found"
 REASON_REALM_PUBLISH_DENIED = "realm_publish_denied"
 REASON_MACHINE_UNIDENTIFIED = "machine_identity_unavailable"
+#: A declared clone URL never carries userinfo: no credential enters a synced record (call 8b).
+REASON_CLONE_URL_CARRIES_CREDENTIAL = "clone_url_carries_credential"
 
 _CLONE_URL_RE = re.compile(r"^(https?://\S+|ssh://\S+|[\w.-]+@[\w.-]+:\S+)$")
 
@@ -202,6 +205,8 @@ def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
     clone_url = str(repo.get("clone_url") or "") if isinstance(repo, dict) else ""
     if not _CLONE_URL_RE.match(clone_url):
         raise SlotRefused(REASON_INVALID_CLONE_URL, f"{clone_url!r} is not an http(s) or ssh clone URL")
+    if url_carries_credential(clone_url):
+        raise SlotRefused(REASON_CLONE_URL_CARRIES_CREDENTIAL, "a clone URL names no userinfo; the machine's git authenticates")
     return name, {
         "repo": {"clone_url": clone_url, "default_branch": str(repo.get("default_branch") or "main")},
         "toolchain": _toolchain(entry.get("toolchain")),

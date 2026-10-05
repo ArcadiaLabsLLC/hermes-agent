@@ -85,6 +85,14 @@ class SlotEnvOverlay:
 
         return frozenset(self.env) | (frozenset({"PATH"}) if self.path_prepend else frozenset())
 
+    def resolve_argv(self, argv: list[str]) -> list[str]:
+        """``argv[0]`` resolved through the slot's ``tool_paths`` (by tool stem, then name), else as given."""
+
+        if not argv:
+            return list(argv)
+        tool = self.tool_paths.get(Path(argv[0]).stem.lower()) or self.tool_paths.get(Path(argv[0]).name.lower())
+        return [tool, *argv[1:]] if tool else list(argv)
+
     def apply(self, env: dict[str, str]) -> dict[str, str]:
         out = dict(env)
         out.update(self.env)

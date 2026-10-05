@@ -16,6 +16,7 @@ from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_ha
 __layer__ = "lanes"
 __all__ = [
     "_cmd_workspace_slots_bind",
+    "_cmd_workspace_slots_clone",
     "_cmd_workspace_slots_declare",
     "_cmd_workspace_slots_env_set",
     "_cmd_workspace_slots_report",
@@ -99,3 +100,18 @@ def _cmd_workspace_slots_report(args) -> int:
     from agent_runtime.workspace_slots_probe import report
 
     return _run(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
+
+
+def _cmd_workspace_slots_clone(args) -> int:
+    """The same spawn ``runtime.workspace.slot.clone`` makes; the CLI then WAITS for the run to
+    settle (bind on success, the typed ending otherwise), because no serve outlives it to do so."""
+
+    from agent_runtime.workspace_slot_setup import clone_slot, spawning_registry, watch_run
+
+    def action():
+        registry = spawning_registry()
+        started = clone_slot(str(args.workspace_id), str(args.slot), str(args.dest_path), issued_at=_issued_at(args),
+                             registry=registry, watch=False)
+        return {**started, "run": watch_run(started["run"]["run_id"], registry) or started["run"]}
+
+    return _run(args, "workspace_slot_clone", action)

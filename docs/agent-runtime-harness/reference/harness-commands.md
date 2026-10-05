@@ -53,6 +53,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness workspace slots bind](#hermes-harness-workspace-slots-bind)
 - [hermes harness workspace slots env-set](#hermes-harness-workspace-slots-env-set)
 - [hermes harness workspace slots report](#hermes-harness-workspace-slots-report)
+- [hermes harness workspace slots clone](#hermes-harness-workspace-slots-clone)
 - [hermes harness realm](#hermes-harness-realm)
 - [hermes harness realm list](#hermes-harness-realm-list)
 - [hermes harness realm show](#hermes-harness-realm-show)
@@ -937,16 +938,18 @@ options:
 ## hermes harness workspace slots
 
 ```text
-usage: hermes harness workspace slots [-h] {show,declare,bind,env-set,report} ...
+usage: hermes harness workspace slots [-h] {show,declare,bind,env-set,report,clone} ...
 
 positional arguments:
-  {show,declare,bind,env-set,report}
+  {show,declare,bind,env-set,report,clone}
     show                The slot document and this machine's fill (read-only)
     declare             Replace the declared slots (missing names are tombstoned)
     bind                Bind a declared slot to a local checkout on THIS machine (writes
                         roots.<slot>)
     env-set             Replace this machine's environment fill for a slot (secrets belong in .env)
     report              Re-probe this machine's fill and write its accounting row
+    clone               Clone a declared slot into a path on THIS machine with this machine's git,
+                        then bind it
 
 options:
   -h, --help            show this help message and exit
@@ -1061,6 +1064,28 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness workspace slots clone
+
+```text
+usage: hermes harness workspace slots clone [-h] [--issued-at ISSUED_AT] [-o {json,table,yaml,wide}]
+                                            [--json] [-q] [--no-color] [--fields FIELDS]
+                                            workspace_id slot dest_path
+
+positional arguments:
+  workspace_id
+  slot
+  dest_path             Absolute path the checkout lands at (absent or an empty directory)
+
+options:
+  -h, --help            show this help message and exit
+  --issued-at ISSUED_AT
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet

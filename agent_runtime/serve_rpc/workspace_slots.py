@@ -1,7 +1,8 @@
 """``runtime.workspace.slots.*`` / ``.slot.*`` and ``runtime.persona.instance.slots.*`` — the repo-slot doors (build plan §3.4).
 
-All ``console``. The three verbs that touch THIS machine's fill — ``slot.bind``,
-``slot.env.set``, ``slots.report`` — are on ``LOCAL_CONSOLE_METHODS``: a paired console
+All ``console``. The verbs that touch THIS machine — ``slot.bind``, ``slot.env.set``,
+``slots.report``, and Phase B's ``slot.clone`` and ``recipe.run_step`` (they spawn on this
+machine) — are on ``LOCAL_CONSOLE_METHODS``: a paired console
 device may read a workspace's slots, never write the operator's paths or environment.
 ``slots.declare`` is gated on the realm PUBLISH right (call 8a) and takes the same inline
 ``credential`` object the realm verbs do. Every refusal is a typed ``data.reason``.
@@ -36,6 +37,10 @@ _REFUSAL_CODES = {
     "invalid_step": ERR_INVALID_PARAMS,
     "duplicate_step_id": ERR_INVALID_PARAMS,
     "credential_in_step": ERR_INVALID_PARAMS,
+    # Clone / run_step (row H11); the conflicts (already bound, not empty, running, replayed,
+    # unbound here) ride ERR_CONFLICT.
+    "clone_url_carries_credential": ERR_INVALID_PARAMS,
+    "step_not_runnable": ERR_INVALID_PARAMS,
 }
 
 
@@ -145,8 +150,33 @@ def _slot_env_set(params):
 @_guarded
 def _recipe_show(params):
     from agent_runtime.workspace_slot_recipe_store import show_recipe
+    from agent_runtime.workspace_slot_setup import settle_runs
 
-    return show_recipe(_workspace(params))
+    workspace_id = _workspace(params)
+    settle_runs(workspace_id)  # a run a watcher missed (serve restarted) ends before it is read
+    return show_recipe(workspace_id)
+
+
+@method("runtime.workspace.slot.clone", tier=TIER_CONSOLE)
+@_guarded
+def _slot_clone(params):
+    """Clone the slot into ``dest_path`` as a background terminal row; the machine's own git authenticates (call 8b)."""
+
+    from agent_runtime.workspace_slot_setup import clone_slot
+
+    return clone_slot(_workspace(params), str(params.get("slot") or ""), str(params.get("dest_path") or ""),
+                      issued_at=_issued_at(params))
+
+
+@method("runtime.workspace.recipe.run_step", tier=TIER_CONSOLE)
+@_guarded
+def _recipe_run_step(params):
+    """Run ONE owner command step, on this explicit request only (call 8d), under its slot's environment."""
+
+    from agent_runtime.workspace_slot_setup import run_step
+
+    return run_step(_workspace(params), str(params.get("slot") or ""), str(params.get("step_id") or ""),
+                    issued_at=_issued_at(params))
 
 
 @method("runtime.workspace.recipe.set", tier=TIER_CONSOLE)

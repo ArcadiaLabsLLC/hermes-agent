@@ -249,13 +249,16 @@ def test_stage_six_moved_nothing_for_the_console_the_cli_or_a_device():
 
 
 def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
-    """Repo slots (build plan §3.4): the three verbs that write THIS machine's paths,
+    """Repo slots (build plan §3.4): the verbs that write or spawn on THIS machine — paths,
     environment and accounting are local-console only; the workspace-level verbs are not."""
 
-    local = {"runtime.workspace.slot.bind", "runtime.workspace.slot.env.set", "runtime.workspace.slots.report"}
+    local = {"runtime.workspace.slot.bind", "runtime.workspace.slot.env.set", "runtime.workspace.slots.report",
+             "runtime.workspace.slot.clone", "runtime.workspace.recipe.run_step"}
     tiers = serve_rpc.manifest()["tiers"]
-    assert {name for name in tiers if name.startswith("runtime.workspace.slot")} == local | {
-        "runtime.workspace.slots.show", "runtime.workspace.slots.declare"}
+    family = ("runtime.workspace.slot", "runtime.workspace.recipe")
+    assert {name for name in tiers if name.startswith(family)} == local | {
+        "runtime.workspace.slots.show", "runtime.workspace.slots.declare",
+        "runtime.workspace.recipe.show", "runtime.workspace.recipe.set"}
     assert all(tiers[name] == TIER_CONSOLE for name in local)
     assert local <= LOCAL_CONSOLE_METHODS
     console_device = RpcCaller(kind=CALLER_DEVICE, transport=TRANSPORT_GATEWAY, device_id="dev_1", device_tier=TIER_CONSOLE)
