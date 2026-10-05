@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (lane h-peerval)
+
+- [ ] **A pulled peer document's `machines` block and its stamps are still taken on trust: a peer's `machines.<THIS machine>` entry with a newer `reported_at` replaces this machine's own report row (which `recipe.show` / readiness read as "mine" until the next `report()`), any keys a peer puts in a report row are republished verbatim, and a far-future document `issued_at` merged by max makes every later local `declare` refuse `stale_revision`. Take `machines.<me>` only from this machine, shape-check peer report rows, and bound peer stamps against receipt time** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::merge_documents`, `agent_runtime/workspace_slots.py::declare`, `agent_runtime/workspace_slots_probe.py::report`
+
 ### Filed on arrival — 2026-10-05 (lane hb-c)
 
 - [ ] **A pulled peer slot document is merged UNVALIDATED: `apply_workspace_slots_pull` never runs `normalize_declaration` / `normalize_owner_steps`, so a peer's slot name that is not a root name, a clone URL carrying userinfo, or a recipe `command` whose argv carries a credential lands in this machine's document (the clone door re-checks the URL; `run_step` and `recipe.show` trust the steps). Validate per slot on pull and refuse the slot typed in `WorkspaceSlotsPullSummary.refused` (not the whole document)** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::apply_workspace_slots_pull`, `agent_runtime/workspace_slot_recipe.py::normalize_owner_steps` · lane hb-c **TAKEN 2026-10-05 h-peerval**
