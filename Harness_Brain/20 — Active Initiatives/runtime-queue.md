@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-04 (launcher lane lb-proj, filed by the orchestrator)
+
+- [ ] **runtime.workspace.slot.env.set REPLACES the whole fill and slots.show returns none of it (no stored env key NAMES, tool_paths, dotenv, venv), so the launcher editor cannot change one key without clearing every other stored value — answer the fill's non-secret shape in slots.show here.<slot>.fill (key names, tool paths, dotenv, venv; never values) and/or accept env_keep:[names] on set** · agent_runtime/workspace_slot_env.py set_slot_fill · launcher row L4a (lane/lb-proj)
+- [ ] **The snapshot carries no repo-slot state, so Projects has no last-known slots table while no serve is up (launcher plan §4 assumed it) — publish each workspace's live slot names + this machine's per-slot status in the snapshot** · agent_runtime/snapshot/ · launcher plan build-running-work §4
+
 ### Filed on arrival — 2026-10-04 (launcher lane mirror-1, filed by the orchestrator)
 
 - [ ] **tests/fixtures/stream_frames/README.md still marks seven launcher mirrors "OPEN, launcher mirror OWED" (h-jobvis, w6-hm, w5-rt, w18/hb, C1h-bis, S0a, AX2) although the launcher mirror is byte-identical to origin/main (blob-hash compare 2026-10-04; launcher 2aaf9cc203 / 412ceae610 / 7ebce16917 and earlier) — mark each note settled with the launcher hash, or collapse them into one "mirror current as of" line** · `tests/fixtures/stream_frames/README.md` · found 2026-10-04 by launcher lane mirror-1 (launcher e7e73421ae)
