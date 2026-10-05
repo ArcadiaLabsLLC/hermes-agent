@@ -6,6 +6,7 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from typing import Any, Dict, List
 
 import pytest
@@ -86,10 +87,10 @@ _LAUNCHER_QA_CORE_VERBS = (
 _LAUNCHER_QA_CONTROL_VERB = "mcp_launcher_qa_click_button"
 
 
-@pytest.fixture
-def launcher_qa_registered():
+@contextmanager
+def _launcher_qa_registration():
     """The launcher_qa server's tools registered through the REAL MCP registration path into a
-    fresh registry; yields the registered names exactly as the registry spells them."""
+    fresh registry; yields ``(registry, registered names exactly as the registry spells them)``."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock, patch
 
@@ -101,8 +102,79 @@ def launcher_qa_registered():
     server._tools = [SimpleNamespace(name=verb, description="launcher_qa verb.", inputSchema=None)
                      for verb in (*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB)]
     server.session = MagicMock()
-    with patch("tools.registry.registry", ToolRegistry()):
-        yield _register_server_tools("launcher_qa", server, {})
+    fresh = ToolRegistry()
+    with patch("tools.registry.registry", fresh):
+        yield fresh, _register_server_tools("launcher_qa", server, {})
+
+
+@pytest.fixture
+def launcher_qa_registered():
+    with _launcher_qa_registration() as (_, registered):
+        yield registered
+
+
+class TestNeverDeferMatchesRegistration:
+    """Every never-defer name must match a tool the registry actually produces — an entry that
+    matches nothing is a FAILURE, never a no-op (lane h-defer: the bare launcher_qa spelling
+    matched nothing for a day while its pin stayed green)."""
+
+    def test_every_hardcoded_name_matches_a_registered_tool(self):
+        """Walk the hardcoded set against the registration fixture: built-ins discovered, the
+        eternia-harness plugin discovered as agent init does, launcher_qa registered through the
+        real MCP path. Anti-vacuity: the fixture holds every name kind the set carries."""
+        from hermes_cli.plugins import discover_plugins
+        from tools.registry import discover_builtin_tools, registry
+        from tools.tool_search_downstream import _NEVER_DEFER_TOOLS
+
+        discover_builtin_tools()
+        discover_plugins()
+        produced = set(registry.get_all_tool_names())
+        with _launcher_qa_registration() as (_, mcp_registered):
+            produced |= set(mcp_registered)
+        assert {"agent_chat_send", "skill_search"} <= produced and any(
+            n.startswith("mcp__launcher_qa__") for n in produced), (
+            "registration fixture is missing a producer — this walk would prove nothing")
+        unmatched = sorted(_NEVER_DEFER_TOOLS - produced)
+        assert unmatched == [], (
+            f"never-defer names that match NO registered tool (spell the REGISTERED name): {unmatched}")
+
+    def test_runtime_check_names_a_bare_config_entry_and_its_registered_spelling(self):
+        """The runtime surface: a config name spelled as the bare verb is reported with the name
+        the registry uses. Positive control: the registered spelling reports nothing."""
+        from tools.tool_search import ToolSearchConfig
+        from tools.tool_search_downstream import UnmatchedNeverDefer, unmatched_never_defer
+
+        bare = _LAUNCHER_QA_CONTROL_VERB
+        with _launcher_qa_registration() as (reg, registered):
+            spelled = next(n for n in registered if n.endswith(f"__{bare}"))
+            assert unmatched_never_defer(reg, ToolSearchConfig.from_raw({"never_defer": [spelled]})) == ()
+            found = unmatched_never_defer(reg, ToolSearchConfig.from_raw({"never_defer": [bare]}))
+        assert found == (UnmatchedNeverDefer(bare, "config", spelled),), found
+
+    def test_runtime_check_reports_a_hardcoded_promotion_its_server_never_produced(self, monkeypatch, caplog):
+        """A hardcoded launcher_qa promotion respelled bare is reported — once its server is
+        registered — and logged at WARNING with the registry's spelling."""
+        import tools.tool_search_downstream as downstream
+        from tools.tool_search import ToolSearchConfig
+
+        verb = _LAUNCHER_QA_CORE_VERBS[0]
+        monkeypatch.setattr(downstream, "_MCP_NEVER_DEFER", {"launcher_qa": frozenset({verb})})
+        monkeypatch.setattr(downstream, "_unmatched_warned", set())
+        cfg = ToolSearchConfig.from_raw(None)
+        with _launcher_qa_registration() as (reg, registered):
+            with caplog.at_level("WARNING", logger="tools.tool_search"):
+                found = downstream.warn_unmatched_never_defer(reg, cfg)
+        spelled = next(n for n in registered if n.endswith(f"__{verb}"))
+        assert [(f.name, f.source, f.registered_as) for f in found] == [(verb, "hardcoded", spelled)]
+        assert found[0].message() in caplog.text, caplog.text
+
+    def test_runtime_check_skips_a_server_this_process_never_admitted(self):
+        """No launcher_qa registration -> its promotions are owed nothing (not a false alarm)."""
+        from tools.registry import ToolRegistry
+        from tools.tool_search import ToolSearchConfig
+        from tools.tool_search_downstream import unmatched_never_defer
+
+        assert unmatched_never_defer(ToolRegistry(), ToolSearchConfig.from_raw(None)) == ()
 
 
 class TestClassification:

@@ -65,7 +65,14 @@ def tool_defs_cache_misses_this_thread() -> int:
 
 def with_tool_describe(filtered_tools, skip_tool_search_assembly: bool):
     """``filtered_tools`` with the standalone ``tool_describe`` present, unless the
-    tool-search assembly is skipped or the list is empty; a failure leaves it as it was."""
+    tool-search assembly is skipped or the list is empty; a failure leaves it as it was.
+    Also surfaces every never-defer name that matches no registered tool (lane h-defer)."""
+    try:
+        from tools.tool_search_downstream import warn_unmatched_never_defer
+
+        warn_unmatched_never_defer()
+    except Exception as exc:  # pragma: no cover — a diagnostic never breaks tool loading
+        logger.debug("never_defer check skipped: %s", exc)
     if skip_tool_search_assembly or not filtered_tools:
         return filtered_tools
     try:

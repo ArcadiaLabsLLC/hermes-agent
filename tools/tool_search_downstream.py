@@ -10,9 +10,11 @@ re-exports these names in one import line and calls them where the behaviour att
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
-from tools.mcp_tool_schema import mcp_prefixed_tool_name
+from tools.mcp_tool_schema import mcp_prefixed_tool_name, sanitize_mcp_name_component
 from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
 
 #: Top search hits that carry their full ``parameters`` schema, and its size bound.
@@ -89,6 +91,76 @@ def never_defer_tool_names(config=None) -> frozenset[str]:
     if not config.never_defer:
         return _NEVER_DEFER_TOOLS
     return _NEVER_DEFER_TOOLS | frozenset(config.never_defer)
+
+
+logger = logging.getLogger("tools.tool_search")
+
+
+@dataclass(frozen=True)
+class UnmatchedNeverDefer:
+    """A never-defer name that matches NO registered tool, so it un-hides nothing.
+
+    ``source`` is ``"hardcoded"`` (this module's promotions) or ``"config"``
+    (``tools.tool_search.never_defer``); ``registered_as`` is the one registered name whose
+    MCP tail equals it — the bare-verb spelling that hid the launcher_qa promotion for a day.
+    """
+
+    name: str
+    source: str
+    registered_as: Optional[str] = None
+
+    def message(self) -> str:
+        hint = (f"; the registry spells it {self.registered_as!r} — list that name"
+                if self.registered_as else "")
+        return (f"tool_search never_defer ({self.source}) name {self.name!r} matches no "
+                f"registered tool, so it keeps nothing eager{hint}")
+
+
+def _registered_spelling(name: str, registered: frozenset) -> Optional[str]:
+    """The single registered MCP name whose ``__<tool>`` tail is ``name``, else None."""
+    tail = "__" + sanitize_mcp_name_component(name)
+    hits = sorted(r for r in registered if r.endswith(tail))
+    return hits[0] if len(hits) == 1 else None
+
+
+def unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDefer, ...]:
+    """Every never-defer name that matches no registered tool, after registration.
+
+    A hardcoded MCP promotion is checked only once its server registered SOMETHING in this
+    process (a run that never admitted ``launcher_qa`` owes none of its names); a config name
+    is always checked. The hardcoded built-in names are held by
+    ``tests/tools/test_tool_search_downstream.py`` against the registration fixture instead:
+    whether a plugin tool exists at runtime is the plugin's business, not a defect here.
+    """
+    if registry is None:
+        from tools.registry import registry
+    if config is None:
+        from tools.tool_search import load_config_readonly
+
+        config = load_config_readonly()
+    registered = frozenset(registry.get_all_tool_names())
+    found: List[UnmatchedNeverDefer] = []
+    for server, promoted in sorted(_MCP_NEVER_DEFER.items()):
+        if registry.get_tool_names_for_toolset(f"mcp-{server}"):
+            found += [UnmatchedNeverDefer(n, "hardcoded", _registered_spelling(n, registered))
+                      for n in sorted(promoted - registered)]
+    found += [UnmatchedNeverDefer(n, "config", _registered_spelling(n, registered))
+              for n in config.never_defer if n not in registered]
+    return tuple(found)
+
+
+_unmatched_warned: set = set()
+
+
+def warn_unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNeverDefer, ...]:
+    """Log each :class:`UnmatchedNeverDefer` once per process at WARNING; returns all of them.
+    Runs on every tool-definitions recomputation, i.e. after each MCP registration change."""
+    found = unmatched_never_defer(registry, config)
+    for item in found:
+        if item not in _unmatched_warned:
+            _unmatched_warned.add(item)
+            logger.warning(item.message())
+    return found
 
 
 #: The ``tool_call`` shape restated where the agent first holds several names: a
