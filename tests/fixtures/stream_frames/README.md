@@ -7,10 +7,18 @@ and parses them through its real decode + read-model pipeline
 
 ## Which files are generated, and which are hand-maintained
 
-`MANIFEST.sha256` pins **eighteen** files, but
-`scripts/generate_agent_runtime_stream_fixtures.py` writes only **ten**. The
+`MANIFEST.sha256` pins **nineteen** files, but
+`scripts/generate_agent_runtime_stream_fixtures.py` writes only **eleven**. The
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
+
+> **CROSS-STACK COPY STATUS (h-turn1-c, 2026-10-05) — mirrored in the same wave.**
+> `persona_chat_turn.json` is new (plan h-turn1 §2 C1: one chat root's turn
+> sections — history row, operator channel, instance row, `running_work` — with
+> `base_offset` / `watermark`, the frame a subscriber declaring the
+> `persona_chat_turn` token gets for a turn batch instead of a core). Its row sits
+> between `delta_agent_create_narrow_profile.json` and `patch.json`. No other
+> golden moved. Launcher copy: `persona_chat_turn.json` + `MANIFEST.sha256`.
 
 > **CROSS-STACK COPY STATUS (hb-b, 2026-10-04) — OPEN, launcher mirror OWED.**
 > One generated golden moved for one reason: each `core.workspaces[]` row gained

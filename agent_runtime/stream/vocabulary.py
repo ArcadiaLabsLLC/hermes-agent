@@ -151,6 +151,17 @@ FRAME_PATCH = "patch"
 #: live 2026-10-01 — and may queue behind another one). Not a core and not a
 #: position: it carries ``as_of_offset``, never a ``watermark``.
 FRAME_RUNNING_WORK = "running_work"
+#: One chat ROOT's turn sections — its history row, its operator channel, its
+#: persona-instance row and ``running_work`` — built at flush for a batch made
+#: only of chat-turn events, in place of the full core. Unlike
+#: ``running_work`` it IS a position: it carries ``base_offset`` and a
+#: ``watermark`` exactly as a ``patch`` frame does, because the subscriber that
+#: declared :data:`~agent_runtime.patch_coverage.PERSONA_CHAT_TURN_CAPABILITY`
+#: consumes the batch with it (plan h-turn1 §2 C1).
+FRAME_PERSONA_CHAT_TURN = "persona_chat_turn"
+#: The overlay's own schema: the patch lane's version, because it is gated and
+#: consumed like a patch (``base_offset`` → the client's gap gate).
+STREAM_PERSONA_CHAT_TURN_SCHEMA_VERSION = 2
 #: The two EventLog types this package reads or writes by name: the watchdog's
 #: synthetic reconcile and the run-progress trace.
 EVENT_STATE_RECONCILED = "state.reconciled"

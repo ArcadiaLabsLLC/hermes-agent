@@ -13,13 +13,13 @@ from ..core_cache.lane import REFUSAL_CORE_BEHIND_FRAME, close_cache_lane
 from ..core_cache.shadow import shadow_validate
 from ..models import Event
 from ..parity import core_event_offset
-from ..patch_coverage import batch_required_fold_tokens, normalize_fold_entities
+from ..patch_coverage import PERSONA_CHAT_TURN_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
 from ..request_control import request_cancelled
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
-from .frames import batch_carries_patch_rows, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame
+from .frames import batch_carries_patch_rows, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames
 from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
 __layer__ = "lanes"
@@ -318,6 +318,65 @@ def _full_core_batch_frames(
     yield frame
 
 
+def _turn_batch_frames(
+    batch: list[tuple[int, Event]],
+    *,
+    base_offset: int,
+    accepted: frozenset[str],
+    promote: frozenset[str],
+    heartbeat_interval_seconds: float,
+    caller: str,
+) -> Iterator[dict[str, Any]]:
+    """A turn batch's frames: the overlay, the overlay paired with the demote
+    core, or the demote core alone.
+
+    Declared by the whole room → the ``persona_chat_turn`` frame(s) and nothing
+    else: no core, no job, no liveness (there is nothing to be live DURING).
+    Declared by SOME subscriber → each overlay rides a
+    :func:`fold_variants_frame` beside the demote core, the existing split; for
+    a two-root batch the first envelope's core half is a heartbeat at the held
+    offset, so a non-declaring subscriber is handed the core exactly once.
+    Declared by nobody, not a turn batch, or an overlay that could not be read →
+    the demote core, exactly today's frame.
+    """
+
+    roots = (
+        batch_turn_roots(batch)
+        if PERSONA_CHAT_TURN_CAPABILITY in promote
+        else None
+    )
+    overlays = (
+        persona_chat_turn_frames(batch, roots, base_offset=base_offset, caller=caller)
+        if roots
+        else None
+    )
+    if overlays and PERSONA_CHAT_TURN_CAPABILITY in accepted:
+        yield from overlays
+        return
+    demoted = _full_core_batch_frames(
+        batch,
+        base_offset=base_offset,
+        heartbeat_interval_seconds=heartbeat_interval_seconds,
+        reason=BATCH_REASON_DEMOTE,
+        caller=caller,
+    )
+    if not overlays:
+        yield from demoted
+        return
+    required = frozenset({PERSONA_CHAT_TURN_CAPABILITY})
+    for frame in demoted:
+        if frame.get("type") == FRAME_HEARTBEAT:
+            yield frame
+            continue
+        for overlay in overlays[:-1]:
+            yield fold_variants_frame(
+                patch=overlay,
+                core=heartbeat_frame(offset=base_offset),
+                required_tokens=required,
+            )
+        yield fold_variants_frame(patch=overlays[-1], core=frame, required_tokens=required)
+
+
 def _batch_frames_with_liveness(
     batch: list[tuple[int, Event]],
     *,
@@ -384,6 +443,18 @@ def _batch_frames_with_liveness(
                     patch=promoted, core=frame, required_tokens=required
                 )
             return
+    if delta_patches and not resync and not batch_carries_patch_rows(batch):
+        # A batch made ONLY of chat-turn events (plan h-turn1 §2 C2). Unreachable
+        # for anything carrying a patch row: those took the gate above first.
+        yield from _turn_batch_frames(
+            batch,
+            base_offset=base_offset,
+            accepted=accepted,
+            promote=promote,
+            heartbeat_interval_seconds=heartbeat_interval_seconds,
+            caller=caller,
+        )
+        return
     # Classified HERE because this is the only place that holds all three
     # facts. `resync` is a re-baseline the client asked for; with the lane off
     # every batch is a full core by design (not a demotion); otherwise either the

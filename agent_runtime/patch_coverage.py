@@ -182,6 +182,21 @@ PERSONA_INSTANCE_CREATE_CAPABILITY = "persona_instance_create"
 #: unknown string in a frozenset and ignores it.
 OFFICE_SURFACE_FOLD_CAPABILITY = "office_surface_fold"
 
+#: The FOURTH capability token, and the first that gates a FRAME rather than a
+#: patch row or a covered event (plan h-turn1 §2 C2, 2026-10-05).
+#:
+#: A chat turn's events (``persona_chat.turn_started`` / ``.projected`` /
+#: ``.turn_ended`` and its ``run.*`` trace) are not covered domain events and
+#: must not become them: that set means "rides beside a ``state.patched``", and
+#: these ride beside nothing. So a turn batch demoted to a full core on every
+#: subscriber — two per turn, 2.2–3.6 s of build plus 3–13 s of wait each. A
+#: client that names this token is instead handed one ``persona_chat_turn``
+#: frame per root (:func:`agent_runtime.stream.frames.persona_chat_turn_frame`),
+#: which carries the rows the turn moved and the batch's watermark. Every mixed
+#: pair degrades to today's wire: an old client never declares it and keeps its
+#: core; an old runtime ignores the string.
+PERSONA_CHAT_TURN_CAPABILITY = "persona_chat_turn"
+
 #: Domain events that ride alongside their ``state.patched`` in the same
 #: coalesced batch (same chokepoint) and carry no fold state of their own — the
 #: launcher ignores them and folds the paired op. Each has a paired op:

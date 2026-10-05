@@ -24,7 +24,9 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                log_stream_denied
       frames.py        lanes   one frame each: hydrate, heartbeat, delta, delta batch,
                                patch batch, running_work (the section alone, on a turn's
-                               end), fold variants (+ resolve_fold_variant); the
+                               end), persona_chat_turn (one root's turn sections, at
+                               flush; + batch_turn_roots), fold variants
+                               (+ resolve_fold_variant); the
                                watchdog append, _delta_op, _identity_map
       build.py         lanes   one core build with liveness: _is_one_shot,
                                _SnapshotBuildJob, _build_with_liveness, the batch frames
@@ -81,12 +83,14 @@ from .frames import (
     _delta_op,
     _identity_map,
     batch_carries_patch_rows,
+    batch_turn_roots,
     delta_batch_frame,
     delta_frame,
     fold_variants_frame,
     heartbeat_frame,
     hydrate_frame,
     patch_batch_frame,
+    persona_chat_turn_frames,
     resolve_fold_variant,
 )
 from .session import (
@@ -103,6 +107,7 @@ from .vocabulary import (
     FRAME_HEARTBEAT,
     FRAME_HYDRATE,
     FRAME_PATCH,
+    FRAME_PERSONA_CHAT_TURN,
     SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS,
     STREAM_PATCH_SCHEMA_VERSION,
     STREAM_SCHEMA_VERSION,

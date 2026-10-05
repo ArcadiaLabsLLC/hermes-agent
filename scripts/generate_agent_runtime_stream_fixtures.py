@@ -95,6 +95,9 @@ GENERATED_FRAME_FILES = (
     # :func:`_build_agent_create_frames`.
     "patch_agent_create.json",
     "delta_agent_create_narrow_profile.json",
+    # Plan h-turn1 §2 C1: one chat root's turn sections, built at flush, read
+    # against the owner hydrate's store. See :func:`_build_persona_chat_turn_frame`.
+    "persona_chat_turn.json",
 )
 
 #: Identities the running-work owner fixture seeds. They are FIXTURE constants,
@@ -753,6 +756,53 @@ def _build_running_work_section_frame(owner_hydrate: dict) -> dict:
     return frame
 
 
+def _build_persona_chat_turn_frame(owner_hydrate: dict) -> dict:
+    """One ``persona_chat_turn`` frame for the seeded instance's chat root.
+
+    Read against the SAME seeded store as ``owner_hydrate`` and right after it,
+    so the frame's ``operator_channel``, ``persona_instance`` and
+    ``running_work`` are that core's rows for :data:`FIXTURE_INSTANCE_ID` — the
+    C0.3 equality, pinned in bytes by ``test_stream_contract_fixture.py``. The
+    root has no SessionDB row in this store, so its history is ``null`` with
+    ``omitted: false`` (not a candidate at all, exactly as the core has it).
+
+    The batch is ONE ``persona_chat.turn_started`` built in memory and NOT
+    appended: appending would move the log under the frames built after this
+    one. Its offset is the owner hydrate's plus one, a fixture position — the
+    frame's contract is ``base_offset`` = the held watermark and
+    ``watermark.event_offset`` past it, not any particular byte.
+    """
+
+    from datetime import datetime, timezone
+
+    from agent_runtime.models import Event
+    from agent_runtime.stream import batch_turn_roots, persona_chat_turn_frames
+
+    held = int(owner_hydrate["watermark"]["event_offset"])
+    event = Event(
+        ts=datetime(2026, 7, 16, 12, 0, 2, tzinfo=timezone.utc),
+        type="persona_chat.turn_started",
+        task_id=None,
+        run_id=None,
+        persona_id=FIXTURE_PERSONA_ID,
+        payload={
+            "persona_instance_id": FIXTURE_INSTANCE_ID,
+            "root_chat_session_id": OWNED_CHAT_SESSION,
+        },
+        session_id=OWNED_CHAT_SESSION,
+    )
+    batch = [(held + 1, event)]
+    frames = persona_chat_turn_frames(batch, batch_turn_roots(batch), base_offset=held)
+    assert frames is not None and len(frames) == 1, frames
+    frame = frames[0]
+    core = owner_hydrate["core"]
+    assert frame["persona_instance"] == core["persona_instances"][FIXTURE_INSTANCE_ID]
+    # ``running_work`` is compared AFTER normalization (its rows carry the
+    # generator's pid and wall-clock seconds), by the fixture test.
+    assert frame["operator_channel"] in core["operator_channels"].values()
+    return frame
+
+
 def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[Any, Any]]:
     """Point ``persona_chat_session_id_for`` at ``mint`` wherever it is READ.
 
@@ -1084,6 +1134,7 @@ def main() -> int:
         assert unowned_owner["persona_id"] is None, unowned_owner
         assert unowned_owner["persona_instance_id"] is None, unowned_owner
         running_work_section = _build_running_work_section_frame(owner_hydrate)
+        persona_chat_turn = _build_persona_chat_turn_frame(owner_hydrate)
 
         # LAST of all, and after every frame above is closed: this one builds
         # real cores of its own (a convergence loop, then a gated rebuild) and
@@ -1109,6 +1160,7 @@ def main() -> int:
             "hydrate_authoritative_same_offset.json": authoritative_same_offset,
             "patch_agent_create.json": agent_create_patch,
             "delta_agent_create_narrow_profile.json": agent_create_demoted,
+            "persona_chat_turn.json": persona_chat_turn,
         }
         # A frame that silently drops out of the built set while staying in
         # MANIFEST_FILES would become hand-maintained without anyone saying so —

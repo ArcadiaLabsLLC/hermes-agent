@@ -173,6 +173,7 @@ def _live_generated_frames() -> dict[str, dict]:
     _generator_module()._seed_running_work_owner()
     owner_hydrate = hydrate_frame()
     running_work_section = _generator_module()._build_running_work_section_frame(owner_hydrate)
+    persona_chat_turn = _generator_module()._build_persona_chat_turn_frame(owner_hydrate)
     # LAST, and again through the generator's own function: this one converges a
     # persisted core and pays for a gated rebuild, so running it earlier would
     # rebuild every frame above against a store it had moved.
@@ -193,6 +194,7 @@ def _live_generated_frames() -> dict[str, dict]:
         "hydrate_authoritative_same_offset.json": authoritative,
         "patch_agent_create.json": create_patch,
         "delta_agent_create_narrow_profile.json": create_demoted,
+        "persona_chat_turn.json": persona_chat_turn,
     }
 
 
@@ -313,6 +315,9 @@ def test_manifest_pins_fixture_bytes():
         # ``test_the_agent_create_pair_is_one_batch_seen_two_ways``.
         "patch_agent_create.json",
         "delta_agent_create_narrow_profile.json",
+        # Plan h-turn1 §2 C1 (2026-10-05): one chat root's turn sections, the
+        # frame a declaring subscriber gets for a turn batch instead of a core.
+        "persona_chat_turn.json",
         "patch.json",
         "patch_upsert_profile.json",
         "patch_remove.json",
@@ -487,6 +492,38 @@ def test_every_frame_bearing_golden_carries_the_generated_core(
         assert golden_core["parity"]["capabilities"] == live_core["parity"][
             "capabilities"
         ], f"{name} core.parity.capabilities drifted"
+
+
+def test_the_persona_chat_turn_golden_is_the_owner_hydrates_rows_for_its_root():
+    """Plan h-turn1 §2 C1: the overlay's rows ARE the core's rows for its root.
+
+    Value-level against the committed owner hydrate, read at the same store: the
+    channel, the instance row and ``running_work`` equal that core's; the root
+    has no history candidate, so the row is ``null`` and ``omitted`` is false
+    (the core has no row for it either). It applies from the held watermark and
+    advances past it, like a ``patch`` frame.
+
+    *Killing mutation:* build the channel from the ONE instance's history only
+    after narrowing the instance list (the core's display-name / relationship
+    join lost), or ship the core-less frame without ``base_offset`` → red.
+    """
+
+    frame = _fixture("persona_chat_turn.json")
+    owner = _fixture("hydrate_running_work_owner.json")
+    core = owner["core"]
+    instance_id = frame["persona_instance_id"]
+    assert frame["type"] == "persona_chat_turn"
+    assert frame["schema_version"] == 2
+    assert "core" not in frame
+    assert frame["base_offset"] == owner["watermark"]["event_offset"]
+    assert frame["watermark"]["event_offset"] > frame["base_offset"]
+    assert frame["persona_instance"] == core["persona_instances"][instance_id]
+    assert frame["operator_channel"] == core["operator_channels"][frame["operator_channel"]["channel_id"]]
+    assert frame["operator_channel"]["persona_instance_id"] == instance_id
+    assert frame["running_work"] == core["running_work"]
+    assert frame["persona_chat_history"] is None
+    assert not [row for row in core["persona_chat_history"] if row.get("session_id") == frame["root_chat_session_id"]]
+    assert frame["omitted"] is False
 
 
 def test_the_running_work_section_golden_is_the_owner_hydrates_section():

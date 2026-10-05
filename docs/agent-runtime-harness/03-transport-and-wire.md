@@ -1023,6 +1023,25 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `patch` | `patch_batch_frame` (`:456`) | 2 | **no** |
 | `heartbeat` | `heartbeat_frame` (`:328`) | 1 | no |
 | `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
+| `persona_chat_turn` | `persona_chat_turn_frames` (`stream/frames.py`) | 2 | **no** — one chat root's turn sections |
+
+`persona_chat_turn` (plan h-turn1 §2 C1/C2) replaces the demote core of a batch
+made ONLY of chat-turn events (`batch_turn_roots`: the three `persona_chat.*`
+publishes and the chat-trace `run.*`; anything else in the batch, including
+`gateway.peer.updated`, keeps today's core) for a subscriber that declared the
+`persona_chat_turn` capability token (`patch_coverage.PERSONA_CHAT_TURN_CAPABILITY`).
+One frame per root, chained: `base_offset` / `watermark` exactly as `patch`
+carries them, so the client consumes the batch with it behind its gap gate. It
+carries the root's `persona_chat_history` row (`null` with `omitted: true` when
+the core's 50-row creation-order bound leaves the root out — `only_session_ids`
+narrows AFTER that bound), its `operator_channel`, its `persona_instance` row
+and `running_work`, each built by the core's own section builders over the full
+instance list, so each equals the row a full core would carry. Not
+`prompt_observability`, not `events`: they wait for the next core. A mixed room
+gets the overlay and the demote core in one `fold_variants` envelope; the two
+subscribers of one launcher share one read through `turn_section_reuse`
+(position-keyed, as `demote_core_reuse`). A read that fails demotes the batch
+as before. Receipt: `turn_section reason=<start|end|trace> root=… source=<built|reused>`.
 
 `hydrate` carries `core`, `identity_map`, `watermark`, and the parity envelope's
 `completeness` / `drops` / `parity_warnings`. With the patch lane on it also
