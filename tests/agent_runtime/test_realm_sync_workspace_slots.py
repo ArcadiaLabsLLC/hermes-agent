@@ -7,13 +7,14 @@ Key-wise at three depths: slot names union, a slot's record by newest recipe rev
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from agent_runtime import paths
 from agent_runtime.realm_sync.families import SyncFamily, _destination_for_sync_path, _kind_for_sync_path
 from agent_runtime.store import WorkspaceStore
-from agent_runtime.workspace_slots import load_document, write_document
+from agent_runtime.workspace_slots import SlotRefused, declare, load_document, machine_id, write_document
 from agent_runtime.workspace_slots_sync import apply_workspace_slots_pull, merge_documents, publish_artifacts
 
 OLD = "2026-10-04T10:00:00+00:00"
@@ -182,3 +183,143 @@ def test_a_peer_document_filed_under_another_workspace_is_refused_whole(tmp_path
     summary = apply_workspace_slots_pull("realm", tmp_path / "subtree").as_dict()
     assert summary["refused"] == [{"document": paths.workspace_slots_path(carrier).name, "reason": "slot_document_misfiled"}]
     assert sorted(load_document(victim)["slots"]) == ["launcher"]
+
+
+# ── a peer's machines block and stamps are not taken on trust (row h-trust) ──
+
+NOW = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+FAR_FUTURE = "2999-01-01T00:00:00+00:00"
+
+
+def _at(seconds: float) -> str:
+    return (NOW + timedelta(seconds=seconds)).isoformat()
+
+
+def _full_row() -> dict:
+    """Every part ``workspace_slots_probe.report`` writes, in its own vocabularies."""
+
+    return {"status": "needs_setup", "bound": True, "checkout": "matches",
+            "tools": {"flutter": {"status": "set", "version": "3.41.2"}, "dart": {"status": "missing", "version": None}},
+            "env_keys": {"FLUTTER_ROOT": "set", "PUB_CACHE": "missing"},
+            "dotenv": {"present": True, "keys": {"ETERNIA_API_BASE": "unknown"}},
+            "unknowns": [{"kind": "slot_probe_unknown", "evidence": "launcher: dart --version: TimeoutExpired",
+                          "seen_at": NOW.timestamp() - 60}],
+            "adopted_existing_root": False}
+
+
+def _pull_doc(tmp_path, remote: dict, *, local: dict | None = None) -> tuple[str, dict, dict]:
+    workspace = WorkspaceStore().create(name="Peer").id
+    if local is not None:
+        write_document(workspace, {**local, "workspace_id": workspace})
+    published = tmp_path / "subtree" / "store" / "workspace_slots"
+    published.mkdir(parents=True, exist_ok=True)
+    (published / paths.workspace_slots_path(workspace).name).write_text(
+        json.dumps({**remote, "workspace_id": workspace}), encoding="utf-8")
+    summary = apply_workspace_slots_pull("realm", tmp_path / "subtree", now=NOW.timestamp()).as_dict()
+    return workspace, load_document(workspace), summary
+
+
+def _refusals(summary: dict) -> list[tuple]:
+    return sorted(tuple(v for k, v in sorted(row.items()) if k != "document") for row in summary["refused"])
+
+
+def _declare_now(workspace: str) -> dict:
+    return declare(workspace, [{"name": "launcher", "repo": {"clone_url": "https://x/launcher.git"}}],
+                   issued_at=datetime.now(timezone.utc).isoformat(), machine="mach_local")
+
+
+def test_a_peer_copy_of_this_machines_report_never_replaces_it(tmp_path):
+    me = machine_id()
+    mine = {"reported_at": _at(-3600), "slots": {"launcher": {"status": "needs_setup", "bound": True, "unknowns": []}}}
+    forged = {"reported_at": _at(-60), "slots": {"launcher": {"status": "ready", "bound": True, "unknowns": []}}}
+    other = {"reported_at": _at(-60), "slots": {"launcher": _full_row()}}
+    _, local, summary = _pull_doc(tmp_path, _doc({}, {me: forged, "mach_b": other}),
+                                  local=_doc({}, {me: mine, "mach_b": {"reported_at": _at(-7200), "slots": {}}}))
+    assert local["machines"][me] == mine  # authored here only: the newer peer copy is ignored
+    # Positive control: another machine's newer report, every part valid, is carried as that machine's.
+    assert local["machines"]["mach_b"] == other
+    assert summary["refused"] == []
+
+
+@pytest.mark.parametrize("bad", [
+    {"token": SECRET},                                                  # a part report never writes
+    {"status": SECRET},                                                 # a status outside the vocabulary
+    {"tools": {"flutter": {"status": "set", "version": SECRET}}},       # a version that is not a version
+    {"tools": {"flutter": {"status": "set", "version": None, "path": SECRET}}},
+    {"env_keys": {f"GITHUB_TOKEN={SECRET}": "set"}},                    # a key that is an assignment
+    {"dotenv": {"present": True, "keys": {"API_BASE": SECRET}}},
+    {"unknowns": [{"kind": SECRET, "evidence": "x", "seen_at": 0}]},    # a kind outside UNKNOWN_KINDS
+    {"checkout": SECRET},
+])
+def test_a_malformed_peer_report_row_is_dropped_alone(tmp_path, bad):
+    entry = {"reported_at": _at(-60), "slots": {"launcher": {**_full_row(), **bad}, "backend": _full_row()}}
+    workspace, local, summary = _pull_doc(tmp_path, _doc({}, {"mach_b": entry}))
+    assert sorted(local["machines"]["mach_b"]["slots"]) == ["backend"]  # the sibling row is carried
+    assert _refusals(summary) == [("mach_b", "invalid_machine_report", "launcher")]
+    assert SECRET not in json.dumps(summary) and SECRET not in _local_bytes(workspace)
+
+
+def test_a_malformed_peer_machine_entry_is_dropped_whole_and_its_id_digested(tmp_path):
+    entries = {"mach_b": {"reported_at": _at(-60), "slots": {}, "extra": SECRET},
+               f"mach={SECRET}": {"reported_at": _at(-60), "slots": {}},
+               "mach_c": {"reported_at": "not-a-stamp", "slots": {}}}
+    workspace, local, summary = _pull_doc(tmp_path, _doc({}, entries))
+    assert local["machines"] == {}
+    rows = _refusals(summary)
+    assert [r for r in rows if not r[0].startswith("sha256:")] == [("mach_b", "invalid_machine_report"),
+                                                                     ("mach_c", "invalid_machine_report")]
+    assert len(rows) == 3 and SECRET not in json.dumps(summary) and SECRET not in _local_bytes(workspace)
+
+
+def test_a_peer_unknowns_evidence_is_re_redacted_before_it_is_carried(tmp_path):
+    row = {**_full_row(), "unknowns": [{"kind": "slot_probe_unknown", "evidence": f"api_key={SECRET}",
+                                        "seen_at": NOW.timestamp() - 60}]}
+    workspace, local, _ = _pull_doc(tmp_path, _doc({}, {"mach_b": {"reported_at": _at(-60),
+                                                                    "slots": {"launcher": row}}}))
+    [carried] = local["machines"]["mach_b"]["slots"]["launcher"]["unknowns"]
+    assert carried["kind"] == "slot_probe_unknown" and "[redacted]" in carried["evidence"]
+    assert SECRET not in _local_bytes(workspace)
+
+
+def test_a_far_future_peer_stamp_is_refused_and_never_wedges_a_local_declare(tmp_path):
+    late_unknown = {**_full_row(), "unknowns": [{"kind": "slot_probe_unknown", "evidence": "x",
+                                                 "seen_at": NOW.timestamp() + 10 ** 9}]}
+    remote = _doc({"launcher": _slot(FAR_FUTURE, revision=1, url="https://x/forged.git"),
+                   "backend": {**_slot(_at(-60)), "recipe": {"revision": 0, "steps": [], "edited_at": FAR_FUTURE}}},
+                  {"mach_b": {"reported_at": FAR_FUTURE, "slots": {}},
+                   "mach_c": {"reported_at": _at(-60), "slots": {"launcher": late_unknown}}},
+                  issued_at=FAR_FUTURE)
+    workspace, local, summary = _pull_doc(tmp_path, remote, local=_doc({"launcher": _slot(OLD)}))
+    assert local["issued_at"] == OLD and local["slots"]["launcher"]["repo"]["clone_url"] == "https://x/launcher.git"
+    assert "backend" not in local["slots"] and "mach_b" not in local["machines"]
+    assert local["machines"]["mach_c"]["slots"] == {}
+    assert _refusals(summary) == [("issued_at", "stamp_in_future"), ("mach_b", "stamp_in_future"),
+                                  ("mach_c", "stamp_in_future", "launcher"), ("stamp_in_future", "backend"),
+                                  ("stamp_in_future", "launcher")]
+    assert "2999" not in json.dumps(summary) and "2999" not in _local_bytes(workspace)
+    # And the local clock still writes: a declare stamped now lands.
+    assert _declare_now(workspace)["declared"] == ["launcher"]
+
+
+def test_a_legitimate_newer_peer_edit_still_wins_including_within_the_skew(tmp_path):
+    # A peer clock running four minutes fast is believed. A literal, never STAMP_SKEW_SECONDS: an
+    # arm that reads the tolerance it pins moves with it and cannot go red.
+    within = _at(240)
+    remote = _doc({"launcher": _slot(within, url="https://x/theirs.git"), "hermes": _slot(_at(-60))},
+                  {"mach_b": {"reported_at": within, "slots": {"launcher": _full_row()}}}, issued_at=within)
+    local = _doc({"launcher": _slot(OLD)}, {"mach_b": {"reported_at": _at(-7200), "slots": {}}})
+    _, held, summary = _pull_doc(tmp_path, remote, local=local)
+    assert summary["refused"] == [] and held["issued_at"] == within
+    assert held["slots"]["launcher"]["repo"]["clone_url"] == "https://x/theirs.git"
+    assert sorted(held["slots"]) == ["hermes", "launcher"]
+    assert held["machines"]["mach_b"]["slots"]["launcher"] == _full_row()
+
+
+def test_a_document_already_holding_a_future_stamp_does_not_wedge_declare():
+    workspace = WorkspaceStore().create(name="Poisoned").id
+    write_document(workspace, {**_doc({"launcher": _slot(OLD)}, issued_at=FAR_FUTURE), "workspace_id": workspace})
+    assert _declare_now(workspace)["declared"] == ["launcher"]
+    # Positive control: a stamp older than an HONEST last declare is still refused stale_revision.
+    with pytest.raises(SlotRefused) as stale:
+        declare(workspace, [], issued_at=OLD, machine="mach_local")
+    assert stale.value.reason == "stale_revision"

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +93,25 @@ def stamp_epoch(text: Any) -> float | None:
     except ValueError:
         return None
     return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+
+
+#: How far ahead of THIS machine's clock a stamp may run and still be believed, in seconds. Two
+#: machines' clocks disagree by seconds, not minutes; a stamp past this bound is a broken clock
+#: or a forged one, and believing it would let it outrank every honest write made until then.
+STAMP_SKEW_SECONDS = 300.0
+
+
+def stamp_horizon(now: float | None = None) -> float:
+    """The latest epoch this machine believes: its own clock plus :data:`STAMP_SKEW_SECONDS`."""
+
+    return (time.time() if now is None else now) + STAMP_SKEW_SECONDS
+
+
+def stamp_in_future(text: Any, *, now: float | None = None) -> bool:
+    """True when ``text`` parses and runs past :func:`stamp_horizon` (an unparseable stamp is not "future")."""
+
+    epoch = stamp_epoch(text)
+    return epoch is not None and epoch > stamp_horizon(now)
 
 
 def machine_id() -> str:
@@ -247,7 +267,10 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     last, issued = stamp_epoch(document.get("issued_at")), stamp_epoch(issued_at)
     if issued is None:
         raise SlotRefused(REASON_INVALID_DECLARATION, "issued_at must be an ISO-8601 stamp")
-    if last is not None and issued < last:
+    # A stored stamp past this machine's horizon (a broken or forged clock, pulled or local) is not
+    # believed, so it can never wedge every later declare as ``stale_revision``; the first honest
+    # declare replaces it and the check holds again from there.
+    if last is not None and last <= stamp_horizon() and issued < last:
         raise SlotRefused(REASON_STALE_REVISION, "a newer declaration already landed")
     current = document.setdefault("slots", {})
     for name, body in declared.items():

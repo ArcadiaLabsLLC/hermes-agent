@@ -233,7 +233,7 @@ machine reports about itself — statuses and versions, never a path and never a
 gateway device id so two machines never write the same key. Realm sync: family `WORKSPACE_SLOTS`
 (`store/workspace_slots/`, owner `workspace_slots_sync.apply_pull`), key-wise at three depths: slot names
 union (removal by tombstone + newest `issued_at`); inside a slot, `repo` / `toolchain` / `context` /
-`recipe` by newest `recipe.revision` then `issued_at`; `machines` by machine id (disjoint, no conflict).
+`recipe` by newest `recipe.revision` then `issued_at`; `machines` by machine id (disjoint, no conflict). A pulled peer document is held before it merges (`workspace_slots_sync.held_document`): this machine's own `machines.<me>` is never taken from a peer, another machine's entry is shape-checked against what `report` writes, and a stamp past this machine's clock plus `STAMP_SKEW_SECONDS` (300 s) is refused `stamp_in_future` (row h-trust, 2026-10-05).
 `context.files` defaults to both `CLAUDE.md` and `AGENTS.md` (owner correction 2026-10-04); a declaration
 may narrow or add (an `AGENTS.override.md`, a nested `AGENTS.md` under a subfolder), never implicitly.
 
