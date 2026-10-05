@@ -24,8 +24,17 @@ def test_public_name_is_the_private_helper(module, public, private):
     assert getattr(module, public) is getattr(module, private)
 
 
-def test_sanitize_surrogates_is_exported():
-    assert "sanitize_surrogates" in message_sanitization.__all__
+@pytest.mark.parametrize(
+    ("module", "public"),
+    [(message_sanitization, "sanitize_surrogates"), (turn_api_call, "should_stream")],
+)
+def test_public_name_is_exported(module, public):
+    assert public in module.__all__
+
+
+def test_turn_api_call_exports_resolve():
+    for name in turn_api_call.__all__:
+        assert hasattr(turn_api_call, name), name
 
 
 def test_sanitize_surrogates_replaces_a_lone_surrogate():
