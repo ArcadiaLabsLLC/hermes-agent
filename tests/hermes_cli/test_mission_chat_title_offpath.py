@@ -172,7 +172,8 @@ def test_the_caller_runs_the_deferred_tail_only_after_the_lease_block_exits():
         f"found {len(lease_blocks)}"
     )
     lease = lease_blocks[0]
-    runs = _calls_named(caller, "run_once")
+    # The tail runs through `_run_deferred_tail` (serve: off the answer path; CLI: inline).
+    runs = _calls_named(caller, "run_once") + _calls_named(caller, "_run_deferred_tail")
     assert runs, (
         "the caller must run the deferred finalization — otherwise the title is "
         "packaged and then silently dropped, and sessions never get titled"
