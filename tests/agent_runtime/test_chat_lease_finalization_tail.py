@@ -576,3 +576,64 @@ def test_deferred_finalization_refuses_a_second_thunk():
 
 def test_deferred_finalization_is_a_no_op_when_nothing_was_packaged():
     assert MissionChatDeferredFinalization().run_once() is False
+
+
+# --------------------------------------------------------------------------- #
+# h-turn1-title (2026-10-05): past the lease is not past the ANSWER            #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.timeout(60)
+def test_a_serve_dispatched_turn_returns_before_a_slow_auto_title_finishes(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """The method lane answers the Launcher when the verb RETURNS.
+
+    Live 2026-10-05: ``end_to_settle_ms`` 1261-1785 on exactly the turns whose
+    tail paid the auxiliary title call, 34-41 ms on the turns that did not —
+    the tail ran after the lease but before ``return exit_code``. Here the
+    title blocks until the test releases it; the verb must already have
+    returned, and the title must still finish and still publish the metadata
+    event once it changes the title.
+    """
+
+    import threading
+
+    from hermes_cli.harness_parts.serve import frames as serve_frames
+
+    _install_chat_lane(monkeypatch)
+    release = threading.Event()
+    finished = threading.Event()
+
+    def _slow_title(**kwargs):
+        release.wait(30)
+        kwargs["session_db"].set_session_title(kwargs["session_id"], "A real title")
+        finished.set()
+
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", _slow_title)
+    published = []
+    monkeypatch.setattr(
+        commit_settle,
+        "_publish_persona_chat_metadata_event",
+        lambda **kwargs: published.append(kwargs) or True,
+    )
+
+    token = serve_frames._request_id.set("req-h-turn1-title")
+    try:
+        assert chat_turn_message._cmd_mission_chat_message(_args("cm-offpath-1")) == 0
+    finally:
+        serve_frames._request_id.reset(token)
+    capsys.readouterr()
+
+    assert not finished.is_set(), (
+        "the verb returned only AFTER the auto-title finished: the method-lane "
+        "answer is held for the whole auxiliary-LLM round trip (the typing "
+        "bubble stays up 1.3-1.8 s after the reply lands)"
+    )
+    release.set()
+    for worker in [t for t in threading.enumerate() if t.name == "chat-turn-deferred"]:
+        worker.join(30)
+    assert finished.is_set(), "the off-path title never ran"
+    assert [p.get("session_id") for p in published] == [ROOT], (
+        "a title changed off-path must still publish persona_chat.metadata_updated"
+    )

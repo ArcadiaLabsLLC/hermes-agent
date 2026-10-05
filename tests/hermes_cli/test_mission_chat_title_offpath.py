@@ -207,7 +207,7 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
     assert (
         chat_target._maybe_auto_title_persona_chat(
             session_db=object(),
-            session_id="s1",
+            session_id="s-swallows-a-raise",
             user_message="hello",
             assistant_response="hi there",
         )
@@ -216,17 +216,64 @@ def test_maybe_auto_title_swallows_a_raising_title_generator(monkeypatch):
 
 
 def test_maybe_auto_title_still_titles_on_success(monkeypatch):
+    import inspect
+
     import agent.title_generator as tg
 
+    upstream_params = inspect.signature(tg.auto_title_session).parameters
     seen = []
     monkeypatch.setattr(tg, "auto_title_session", lambda *a, **k: seen.append((a, k)))
+    monkeypatch.setattr(chat_target, "_AUTO_TITLE_ATTEMPTED", set())
+    db = object()
     chat_target._maybe_auto_title_persona_chat(
-        session_db=object(),
-        session_id="s1",
+        session_db=db,
+        session_id="s-titles-on-success",
         user_message="hello",
         assistant_response="hi there",
     )
     assert len(seen) == 1, "the title worker must still be invoked on success"
-    # session_id + reply are forwarded positionally to the title worker.
-    assert seen[0][0][1] == "s1"
-    assert seen[0][0][3] == "hi there"
+    # h-turn1-title: KEYWORDS, matched to upstream's current signature. Upstream's
+    # fourth positional parameter became ``failure_callback``; the reply text
+    # rode into it positionally until 2026-10-05.
+    args, kwargs = seen[0]
+    assert args == (), f"auto_title_session was called positionally: {args!r}"
+    assert kwargs == {
+        "session_db": db,
+        "session_id": "s-titles-on-success",
+        "user_message": "hello",
+    }
+    assert set(kwargs) <= set(upstream_params), "a keyword no longer matches upstream's signature"
+
+
+def test_a_failed_title_is_not_retried_on_the_next_turn(monkeypatch):
+    """One title attempt per session per process (2026-10-05: Neko re-ran the
+    title LLM on turns 1, 2 and 3 and still read ``derived``)."""
+
+    import agent.title_generator as tg
+
+    calls = []
+
+    def _refused(**kwargs):
+        calls.append(kwargs["session_id"])
+        raise RuntimeError("title provider refused")
+
+    monkeypatch.setattr(tg, "auto_title_session", _refused)
+    monkeypatch.setattr(chat_target, "_AUTO_TITLE_ATTEMPTED", set())
+    for _turn in range(3):
+        chat_target._maybe_auto_title_persona_chat(
+            session_db=object(),
+            session_id="s-refused-once",
+            user_message="hello",
+            assistant_response="hi there",
+        )
+    assert calls == ["s-refused-once"], (
+        f"a refused title was re-attempted on later turns: {calls!r}"
+    )
+    # A different chat still gets its one attempt.
+    chat_target._maybe_auto_title_persona_chat(
+        session_db=object(),
+        session_id="s-another-chat",
+        user_message="hello",
+        assistant_response="hi there",
+    )
+    assert calls == ["s-refused-once", "s-another-chat"]
