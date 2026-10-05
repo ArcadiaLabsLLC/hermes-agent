@@ -25,6 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-04 (launcher lane lb-proj, filed by the orchestrator)
 
+- [ ] **`work peek` answers `no_output_stream` for every `build:` id — even `build:agent:<session>`, which IS a terminal process with an output buffer — so a build row has no log tail beyond the 200-char `tail_preview`; route an agent build's peek to the terminal buffer and an announced build's to the record's `log_path` tail** · `agent_runtime/running_work/surface.py::peek_work` · found 2026-10-04 launcher lane lb-act (L2)
 - [ ] **runtime.workspace.slot.env.set REPLACES the whole fill and slots.show returns none of it (no stored env key NAMES, tool_paths, dotenv, venv), so the launcher editor cannot change one key without clearing every other stored value — answer the fill's non-secret shape in slots.show here.<slot>.fill (key names, tool paths, dotenv, venv; never values) and/or accept env_keep:[names] on set** · agent_runtime/workspace_slot_env.py set_slot_fill · launcher row L4a (lane/lb-proj)
 - [ ] **The snapshot carries no repo-slot state, so Projects has no last-known slots table while no serve is up (launcher plan §4 assumed it) — publish each workspace's live slot names + this machine's per-slot status in the snapshot** · agent_runtime/snapshot/ · launcher plan build-running-work §4
 
