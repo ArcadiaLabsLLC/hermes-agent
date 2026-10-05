@@ -263,3 +263,35 @@ def test_env_keep_must_name_keys(workspace):
     reply = call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": ISSUED,
                                                      "env_keep": [3]})
     assert reply["error"]["data"]["reason"] == "invalid_fill"
+
+
+def _snapshot_row(workspace):
+    from agent_runtime.snapshot import workspace_summary
+
+    item = next(ws for ws in WorkspaceStore().list_all(include_archived=True) if ws.id == workspace)
+    return workspace_summary(item)["repo_slots"]
+
+
+def test_the_snapshot_workspace_row_carries_slot_names_and_this_machines_last_report(workspace, checkout):
+    _declare(workspace, [_slot("launcher"), _slot("backend")])
+    assert _snapshot_row(workspace) == {
+        "slots": {"backend": {"bound_here": False, "status": None, "checkout": None},
+                  "launcher": {"bound_here": False, "status": None, "checkout": None}},
+        "reported_at": None,
+    }
+    call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
+                                         "issued_at": ISSUED})
+    row = _snapshot_row(workspace)
+    assert row["slots"]["launcher"] == {"bound_here": True, "status": "needs_setup", "checkout": "matches"}
+    assert row["slots"]["backend"] == {"bound_here": False, "status": "not_cloned", "checkout": None}
+    assert row["reported_at"]
+    # No path and never a value on the frame.
+    shown = json.dumps(row)
+    for value in (str(checkout), json.dumps(str(checkout))[1:-1], *SECRET_VALUES):
+        assert value not in shown
+
+
+def test_a_tombstoned_slot_leaves_the_snapshot_row(workspace):
+    _declare(workspace, [_slot("launcher"), _slot("backend")])
+    _declare(workspace, [_slot("launcher")], issued_at=LATER)
+    assert list(_snapshot_row(workspace)["slots"]) == ["launcher"]

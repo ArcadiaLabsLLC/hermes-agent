@@ -25,7 +25,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-04 (launcher lane lb-proj, filed by the orchestrator)
 
-- [ ] **The snapshot carries no repo-slot state, so Projects has no last-known slots table while no serve is up (launcher plan §4 assumed it) — publish each workspace's live slot names + this machine's per-slot status in the snapshot** · agent_runtime/snapshot/ · launcher plan build-running-work §4 **TAKEN 2026-10-04 hb-b**
 
 ### Filed on arrival — 2026-10-04 (launcher lane mirror-1, filed by the orchestrator)
 

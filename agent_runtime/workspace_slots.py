@@ -423,3 +423,38 @@ def require_publish_right(workspace_id: str, credential: Any = None) -> None:
         _authorize(RealmStore().get(workspace.realm_id), "publish", None, credential)
     except RealmSyncError as exc:
         raise SlotRefused(REASON_REALM_PUBLISH_DENIED, exc.code) from exc
+
+
+# ── the snapshot's last-known slot state (no serve needed to render it) ─────
+
+
+def known_machine_id() -> str | None:
+    """This machine's ``machines.<id>`` key WITHOUT minting one — the snapshot path writes nothing."""
+
+    from .gateway_identity import read_install_identity
+
+    identity = read_install_identity(paths.store_root())
+    return str(identity.install_id) if identity.ok and identity.install_id else None
+
+
+def snapshot_slots(workspace_id: str, *, machine: str | None) -> dict[str, Any]:
+    """Each declared slot's NAME + THIS machine's last-known state, for the snapshot's workspace row.
+
+    What Projects renders while no serve is up (launcher plan §4). Read-only and probe-free —
+    no git, no subprocess, no ``--version``: ``bound_here`` is the machine-root lookup plus one
+    stat; ``status`` / ``checkout`` are this machine's LAST report in the document (null when it
+    never reported, or its id is unreadable). No path and never a value: the frame crosses to
+    paired devices, and ``slots.show`` is the door that carries this machine's path.
+    """
+
+    document = load_document(workspace_id)
+    mine = ((document.get("machines") or {}).get(machine) or {}) if machine else {}
+    reported = mine.get("slots") or {}
+    roots = load_machine_roots().roots
+    slots = {}
+    for name in sorted(live_slots(document)):
+        last = reported.get(name) or {}
+        root = roots.get(name)
+        slots[name] = {"bound_here": bool(root) and Path(root).is_dir(),
+                       "status": last.get("status"), "checkout": last.get("checkout")}
+    return {"slots": slots, "reported_at": mine.get("reported_at") or None}

@@ -12,6 +12,15 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (hb-b, 2026-10-04) — OPEN, launcher mirror OWED.**
+> One generated golden moved for one reason: each `core.workspaces[]` row gained
+> `repo_slots` (`{"slots": {}, "reported_at": null}` in the fixture — every
+> declared slot's name + this machine's last-known `bound_here` / `status` /
+> `checkout`; additive, contract 54 KEPT — see the ledger in
+> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
+> `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256` into
+> `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (hb-a H4, 2026-10-04) — OPEN, launcher mirror OWED.**
 > Eight generated goldens moved for one reason: `running_work.sources` gained
 > the `build` lane's entry — `{"status":"ok","lane":"durable","sub":{"agent":…,

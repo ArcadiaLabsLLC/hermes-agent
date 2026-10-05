@@ -718,6 +718,18 @@ job's ``mcp_job`` row (``folded_into_build``, by design). The row golden is
 ``tests/fixtures/builds/build_rows.json``; the goldens moved and the launcher
 mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
+54 KEPT (hb-b, 2026-10-04) — each ``workspaces[]`` row gained ``repo_slots``:
+``{"slots": {<name>: {"bound_here", "status", "checkout"}}, "reported_at"}`` —
+every declared (non-tombstoned) slot's name and THIS machine's last-known state
+(``status``/``checkout`` from its last report in the slot document, null when it
+never reported; ``bound_here`` from the machine-root registry plus one stat), so
+the launcher's Projects home has a slots table while no serve is up. Probe-free
+(no git, no subprocess), no path, never a value. Same ruling as ``w6-hm``: one
+additive key on a row the launcher parses as a map. One golden moved
+(``delta_agent_create_narrow_profile.json``, the only generated frame with a
+workspace row) and the launcher mirror is owed
+(``tests/fixtures/stream_frames/README.md``).
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

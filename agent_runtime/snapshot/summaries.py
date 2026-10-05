@@ -22,6 +22,7 @@ from agent_runtime.tool_visibility import (
     resolve_tool_visibility,
 )
 from agent_runtime.workspace_scope import exact_scoped_instance_ids
+from agent_runtime.workspace_slots import known_machine_id, snapshot_slots
 
 from agent_runtime.snapshot.context import logger
 
@@ -85,6 +86,10 @@ def workspace_summary(
         "archived": bool(workspace.archived),
         "active": workspace.id == active_id,
         "updated_at": workspace.updated_at,
+        # Repo slots: each declared slot's name + THIS machine's last-known state, so
+        # Projects has a slots table while no serve is up (build plan §3; launcher plan §4).
+        # Probe-free, no path, never a value — ``slots.show`` is the live door.
+        "repo_slots": snapshot_slots(workspace.id, machine=known_machine_id()),
     }
 
 
