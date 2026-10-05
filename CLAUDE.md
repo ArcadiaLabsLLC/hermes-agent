@@ -100,7 +100,8 @@ execution and landing on Opus; nothing on Sonnet. Every lane reports its tool-ca
 ```bash
 hermes harness serve                                            # the runtime the launcher spawns
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
-scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state   # THE suite (validated scope, ≥25 min)
+scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state   # THE LANDING GATE (--scope fork, the default)
+scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts          # the two scopes outside it
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
@@ -125,6 +126,20 @@ five habits cost about 390 minutes a day. The same habits apply here verbatim.
   piped through `tail` hides its own red.
 - **One full suite at a time on this box.** Two contend for the same cores; a second
   landing racing the first costs both a re-rebase and a second gate run.
+- **A landing runs the FORK gate, never the full scope, and the full scope is not run on
+  a workstation.** `scripts/run_tests_bundled.sh` with its default `--scope fork` runs the
+  fork's own files plus the upstream files the change reaches; `scripts/run_tests.sh` over
+  the three directories is every discovered file, about 1,545 of them upstream's, and
+  belongs to the weekly upstream merge lane (`--scope full`). On 2026-10-05 a session ran
+  the full scope for a landing and the operator's PC hard-froze twice, with the same four
+  upstream files in flight both times: `tests/hermes_cli/test_source_check.py`,
+  `test_source_launcher_publication.py`, `test_source_release_channels.py`,
+  `test_source_release_probe.py`. The second freeze was at 4 workers with nothing else
+  running, so it was not load. Until the fork-hygiene row closes, no scope containing those
+  four runs on a workstation; if a scope is in doubt, list what it will run first.
+- **After a freeze or a killed run, read before you re-run.** The last lines of the
+  interrupted log name what was in flight. Re-running the remainder without excluding it
+  is how the second freeze happened.
 
 **`scripts/run_tests.sh` is the test command, and the difference is not cosmetic.** Bare
 `pytest` over a directory runs the updater tests in-process, and those run
@@ -150,7 +165,8 @@ wrong.
   validated suite, the tooling gates, the docs gates or the contract dumps; those are the
   landing's job, once. A red the lane did not cause is named as pre-existing with the
   one-test run on `main` that proves it, never fixed in passing and never baselined.
-- **At the landing, once, concurrently:** (a) the validated suite in the one heavy slot;
+- **At the landing, once, concurrently:** (a) the fork landing gate
+  (`scripts/run_tests_bundled.sh …`, `--scope fork`) in the one heavy slot;
   (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
   `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`,
   and the refactor's size-ceiling, upstream-fence and thin-namespace gates once they land;
