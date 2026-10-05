@@ -15923,6 +15923,14 @@
           "required": false,
           "type": null
         },
+        "--keep": {
+          "action": "append",
+          "canonical": "--keep",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--no-color": {
           "action": "store_true",
           "canonical": "--no-color",

@@ -88,8 +88,9 @@ def _cmd_workspace_slots_env_set(args) -> int:
         fill = set_slot_fill(workspace_id, slot, env=_pairs(args.env, "--env"),
                              tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list(args.path_prepend or []),
                              dotenv=args.dotenv, venv=args.venv, secret_keys=secret_keys(declared),
-                             issued_at=_issued_at(args))
-        return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {})}
+                             issued_at=_issued_at(args), env_keep=list(args.env_keep or []))
+        return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {}),
+                "env_keep_missing": sorted(set(args.env_keep or ()) - set(fill.env))}
 
     return _run(args, "workspace_slot_env", action)
 

@@ -5,6 +5,8 @@ All ``console``. The three verbs that touch THIS machine's fill — ``slot.bind`
 device may read a workspace's slots, never write the operator's paths or environment.
 ``slots.declare`` is gated on the realm PUBLISH right (call 8a) and takes the same inline
 ``credential`` object the realm verbs do. Every refusal is a typed ``data.reason``.
+``slot.env.set`` REPLACES the fill; ``env_keep: [names]`` carries named stored values over, so
+an editor that reads only ``slots.show``'s non-secret ``fill`` shape can change one key.
 """
 
 from agent_runtime.call_authorization import TIER_CONSOLE
@@ -107,7 +109,7 @@ def _slot_bind(params):
 @method("runtime.workspace.slot.env.set", tier=TIER_CONSOLE)
 @_guarded
 def _slot_env_set(params):
-    from agent_runtime.workspace_slot_env import set_slot_fill
+    from agent_runtime.workspace_slot_env import fill_shape, set_slot_fill
     from agent_runtime.workspace_slots import REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document, secret_keys
     from agent_runtime.workspace_slots_probe import report
 
@@ -115,12 +117,15 @@ def _slot_env_set(params):
     declared = live_slots(load_document(workspace_id)).get(slot)
     if declared is None:
         raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
+    keep = params.get("env_keep")
     fill = set_slot_fill(workspace_id, slot, env=params.get("env"), tool_paths=params.get("tool_paths"),
                          path_prepend=params.get("path_prepend"), dotenv=params.get("dotenv"), venv=params.get("venv"),
-                         secret_keys=secret_keys(declared), issued_at=_issued_at(params))
+                         secret_keys=secret_keys(declared), issued_at=_issued_at(params), env_keep=keep)
     row = report(workspace_id)["slots"].get(slot, {})
     return {"slot": slot, "env_keys": sorted(fill.env), "tool_paths": sorted(fill.tool_paths),
-            "path_prepend": len(fill.path_prepend), "report": row}
+            "path_prepend": len(fill.path_prepend), "report": row, "fill": fill_shape(workspace_id, slot),
+            # A kept name with no stored value: the editor's view was stale (not an error).
+            "env_keep_missing": sorted(set(keep or ()) - set(fill.env))}
 
 
 # ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──

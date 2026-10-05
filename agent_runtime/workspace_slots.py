@@ -280,18 +280,24 @@ def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str
 
 
 def show(workspace_id: str) -> dict[str, Any]:
-    """The document plus THIS machine's fill per slot — never another machine's path."""
+    """The document plus THIS machine's fill per slot — never another machine's path.
+
+    ``here.<slot>.fill`` is the fill's non-secret shape (``workspace_slot_env.fill_shape``):
+    env key names, tool paths, PATH head, ``.env``, venv — never an env value; null when unset.
+    """
 
     import time
 
     from .builds.unknowns import UNKNOWN_SLOT_UNBOUND_HERE, UnknownsIndex
+    from .workspace_slot_env import fill_shape
 
     document = load_document(workspace_id)
     here = {}
     for name in live_slots(document):
         path = bound_path(name)
         bound_here = bool(path and path.is_dir())
-        row = {"bound_here": bound_here, "path": str(path) if bound_here else None, "unknowns": []}
+        row = {"bound_here": bound_here, "path": str(path) if bound_here else None, "unknowns": [],
+               "fill": fill_shape(workspace_id, name)}
         if not bound_here:
             index = UnknownsIndex()
             machines = binding_machines(document, name)

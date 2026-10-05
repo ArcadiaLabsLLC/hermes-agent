@@ -214,3 +214,52 @@ def test_the_store_directory_is_in_the_stream_fingerprint(workspace):
     _declare(workspace, [_slot()])
     assert _scope_fingerprint() != before
     assert os.path.isdir(paths.workspace_slots_dir())
+
+
+def test_show_answers_the_fill_shape_and_never_a_value(workspace):
+    _declare(workspace, [_slot()])
+    call("runtime.workspace.slot.env.set", {
+        "workspace_id": workspace, "slot": "launcher", "env": {"FLUTTER_ROOT": SECRET_VALUES[0]},
+        "tool_paths": {"python_probe": sys.executable}, "path_prepend": ["C:/flutter/bin"], "dotenv": ".env",
+        "issued_at": ISSUED,
+    })
+    reply = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]
+    assert reply["here"]["launcher"]["fill"] == {
+        "env_keys": ["FLUTTER_ROOT"], "tool_paths": {"python_probe": sys.executable},
+        "path_prepend": ["C:/flutter/bin"], "dotenv": ".env", "venv": None, "bound_at": ISSUED,
+    }
+    shown = json.dumps(reply)
+    assert SECRET_VALUES[0] not in shown and json.dumps(SECRET_VALUES[0])[1:-1] not in shown
+    # Positive control: the KEY is shown, so the grep can see the fill at all.
+    assert "FLUTTER_ROOT" in shown
+
+
+def test_show_answers_null_for_a_slot_this_machine_never_filled(workspace):
+    _declare(workspace, [_slot()])
+    assert call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]["fill"] is None
+
+
+def test_env_keep_changes_one_key_without_clearing_the_rest(workspace):
+    from agent_runtime.workspace_slot_env import slot_fill
+
+    _declare(workspace, [_slot()])
+    call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": ISSUED,
+                                            "env": {"FLUTTER_ROOT": SECRET_VALUES[0], "PUB_CACHE_SLOT_TEST": "old"}})
+    reply = call("runtime.workspace.slot.env.set", {
+        "workspace_id": workspace, "slot": "launcher", "issued_at": LATER,
+        "env": {"PUB_CACHE_SLOT_TEST": "new"}, "env_keep": ["FLUTTER_ROOT", "PUB_CACHE_SLOT_TEST", "NEVER_STORED"],
+    })["result"]
+    assert slot_fill(workspace, "launcher").env == {"FLUTTER_ROOT": SECRET_VALUES[0], "PUB_CACHE_SLOT_TEST": "new"}
+    assert reply["env_keep_missing"] == ["NEVER_STORED"]
+    assert reply["fill"]["env_keys"] == ["FLUTTER_ROOT", "PUB_CACHE_SLOT_TEST"]
+    # Positive control: without env_keep the set still REPLACES — the kept key is gone.
+    call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": LATER,
+                                            "env": {"PUB_CACHE_SLOT_TEST": "new"}})
+    assert slot_fill(workspace, "launcher").env == {"PUB_CACHE_SLOT_TEST": "new"}
+
+
+def test_env_keep_must_name_keys(workspace):
+    _declare(workspace, [_slot()])
+    reply = call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": ISSUED,
+                                                     "env_keep": [3]})
+    assert reply["error"]["data"]["reason"] == "invalid_fill"

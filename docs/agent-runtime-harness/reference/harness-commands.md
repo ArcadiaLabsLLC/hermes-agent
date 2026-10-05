@@ -1020,11 +1020,11 @@ options:
 ## hermes harness workspace slots env-set
 
 ```text
-usage: hermes harness workspace slots env-set [-h] [--env ENV] [--tool-path TOOL_PATH]
-                                              [--path-prepend PATH_PREPEND] [--dotenv DOTENV]
-                                              [--venv VENV] [--issued-at ISSUED_AT]
-                                              [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                              [--fields FIELDS]
+usage: hermes harness workspace slots env-set [-h] [--env ENV] [--keep ENV_KEEP]
+                                              [--tool-path TOOL_PATH] [--path-prepend PATH_PREPEND]
+                                              [--dotenv DOTENV] [--venv VENV]
+                                              [--issued-at ISSUED_AT] [-o {json,table,yaml,wide}]
+                                              [--json] [-q] [--no-color] [--fields FIELDS]
                                               workspace_id slot
 
 positional arguments:
@@ -1034,6 +1034,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --env ENV             KEY=VALUE (repeatable)
+  --keep ENV_KEEP       Keep this key's stored value (repeatable)
   --tool-path TOOL_PATH
                         TOOL=PATH (repeatable)
   --path-prepend PATH_PREPEND

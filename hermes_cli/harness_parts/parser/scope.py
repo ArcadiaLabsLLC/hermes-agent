@@ -126,6 +126,7 @@ def _add_workspace_slots(workspace_subs) -> None:
     env_set.add_argument("workspace_id")
     env_set.add_argument("slot")
     env_set.add_argument("--env", action="append", default=[], help="KEY=VALUE (repeatable)")
+    env_set.add_argument("--keep", dest="env_keep", action="append", default=[], help="Keep this key's stored value (repeatable)")
     env_set.add_argument("--tool-path", dest="tool_path", action="append", default=[], help="TOOL=PATH (repeatable)")
     env_set.add_argument("--path-prepend", dest="path_prepend", action="append", default=[], help="Directory put in front of PATH (repeatable)")
     env_set.add_argument("--dotenv", default=None, help="The .env file, relative to the checkout")

@@ -87,6 +87,28 @@ def slot_fill(workspace_id: str, slot: str) -> SlotFill | None:
     )
 
 
+def fill_shape(workspace_id: str, slot: str) -> dict[str, Any] | None:
+    """The fill's NON-SECRET shape for ``slots.show``: env key NAMES, tool paths, PATH head,
+    ``.env``, venv — never an env VALUE. None when this machine set no fill for the slot.
+
+    It is what an editor needs to change one key without clearing the rest: every field but
+    the env values round-trips as-is, and the values it cannot see are kept by NAME
+    (``set_slot_fill(env_keep=…)``).
+    """
+
+    fill = slot_fill(workspace_id, slot)
+    if fill is None:
+        return None
+    return {
+        "env_keys": sorted(fill.env),
+        "tool_paths": dict(sorted(fill.tool_paths.items())),
+        "path_prepend": list(fill.path_prepend),
+        "dotenv": fill.dotenv,
+        "venv": fill.venv,
+        "bound_at": fill.bound_at,
+    }
+
+
 def _string_map(value: Any, name: str) -> dict[str, str]:
     if value is None:
         return {}
@@ -106,10 +128,16 @@ def set_slot_fill(
     venv: Any = None,
     secret_keys: frozenset[str] = frozenset(),
     issued_at: str = "",
+    env_keep: Any = None,
 ) -> SlotFill:
-    """REPLACE this slot's fill. A value for a key the declaration marks secret is refused."""
+    """REPLACE this slot's fill. A value for a key the declaration marks secret is refused.
 
-    env_map = _string_map(env, "env")
+    ``env_keep`` names env keys whose STORED values carry over (a value in ``env`` wins), so
+    an editor that never sees a value can change one key without clearing the others. A kept
+    name with no stored value is simply absent from the result — the caller reports it.
+    """
+
+    env_map = {**_kept_env(workspace_id, slot, env_keep), **_string_map(env, "env")}
     leaked = sorted(key for key in env_map if key in secret_keys)
     if leaked:
         raise SlotEnvRefused(REASON_SECRET_IN_ENV, f"declared secret, belongs in the slot's .env: {', '.join(leaked)}")
@@ -129,6 +157,14 @@ def set_slot_fill(
     payload["workspaces"].setdefault(workspace_id, {})[slot] = entry
     _write(payload)
     return slot_fill(workspace_id, slot) or SlotFill()
+
+
+def _kept_env(workspace_id: str, slot: str, env_keep: Any) -> dict[str, str]:
+    names = list(env_keep or [])
+    if not all(isinstance(name, str) and name for name in names):
+        raise SlotEnvRefused(REASON_INVALID_FILL, "env_keep must be a list of key names")
+    stored = (slot_fill(workspace_id, slot) or SlotFill()).env
+    return {name: stored[name] for name in names if name in stored}
 
 
 def drop_slot_fill(workspace_id: str, slot: str) -> bool:
