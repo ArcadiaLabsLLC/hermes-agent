@@ -539,38 +539,16 @@ def discover_plugin_cli_commands() -> List[dict]:
 
 
 def _publish_module(full_name: str, module) -> None:
-    """Register ``module`` under ``full_name`` the way real import machinery does.
+    """Register ``module`` under ``full_name`` the way real import machinery does:
+    in ``sys.modules`` AND as an attribute of its parent package. Without the second
+    step ``import_module`` / ``from parent import child`` still resolve (both fall back
+    to ``sys.modules``), but ``getattr(parent, "cli")`` and ``parent.cli.x`` raise
+    ``AttributeError``.
 
-    TWO steps, and this loader only ever did the first.  ``importlib``'s
-    ``_handle_fromlist`` / ``_load`` finish an import by ALSO binding the child
-    on its parent package object (``setattr(plugins.memory, "honcho", mod)``);
-    a hand-rolled ``spec_from_file_location`` + ``sys.modules[name] = mod``
-    stops one step short, and the two spellings of the same import then answer
-    differently forever:
-
-    * ``import plugins.memory.honcho`` / ``importlib.import_module(...)`` read
-      ``sys.modules`` and succeed — including on a LATER call, because
-      ``import_module`` short-circuits on the row it finds and never repairs
-      the missing attribute;
-    * ``from plugins.memory import honcho`` and every attribute walk built on
-      it — ``getattr(plugins.memory, "honcho")``, which is what
-      ``unittest.mock.patch("plugins.memory.honcho.client…")`` and pytest's
-      ``monkeypatch.setattr("<dotted>")`` resolver actually do — raise
-      ``AttributeError: 'module' object at plugins.memory has no attribute
-      'honcho'``.
-
-    So whether ``memory.<name>`` resolves depends on which spelling ran first,
-    which is a PRODUCT shape and not a test shape: a plugin doing ``from
-    plugins.memory import <sibling>``, or any caller patching into a provider,
-    hits it in production exactly as a test does.  Repairing it at the loader
-    is the fix; ``tests/hermes_cli/conftest.py``'s setup-half repair loop is a
-    suite-order mitigation for the same defect and is not what makes the
-    product correct.
-
-    Idempotent and never destructive: the attribute is set unconditionally to
-    the module just registered (that is what an import does — a re-import
-    rebinds), and a parent that is absent from ``sys.modules`` is simply not
-    written to.
+    This binds onto whatever parent exists NOW (for a user-installed provider, the
+    synthetic shell). When the real package is loaded later it replaces that shell;
+    ``plugin_loader.load_plugin_module`` re-binds already-loaded siblings onto it.
+    A parent absent from ``sys.modules`` is not written to.
     """
 
     sys.modules[full_name] = module

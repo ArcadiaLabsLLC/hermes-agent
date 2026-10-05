@@ -1,47 +1,65 @@
-"""A memory provider's cli.py is bound on its parent package, and unbound on failure."""
+"""A memory provider's cli.py is bound on its parent package in either load order, and unbound on failure.
+
+The provider is user-installed (outside ``_MEMORY_PLUGINS_DIR``) and no parent package is
+planted: every module these tests read is one the loader itself registered.
+"""
 
 import sys
-import types
 
 import pytest
 
 import plugins.memory as pm
 
 PROVIDER = "heldtestprovider"
-PARENT = f"plugins.memory.{PROVIDER}"
-CLI = f"{PARENT}.cli"
 
 
 @pytest.fixture
 def provider(tmp_path, monkeypatch):
-    plugin_dir = tmp_path / PROVIDER
-    plugin_dir.mkdir()
+    plugin_dir = tmp_path / "user_plugins" / PROVIDER
+    plugin_dir.mkdir(parents=True)
     (plugin_dir / "__init__.py").write_text("pass\n")
     (plugin_dir / "plugin.yaml").write_text(f"name: {PROVIDER}\n")
-    monkeypatch.setattr(pm, "_MEMORY_PLUGINS_DIR", tmp_path)
+    assert not pm._is_bundled(plugin_dir)
     monkeypatch.setattr(pm, "_get_active_memory_provider", lambda: PROVIDER)
-    parent = types.ModuleType(PARENT)
-    monkeypatch.setitem(sys.modules, PARENT, parent)
-    sys.modules.pop(CLI, None)
-    yield plugin_dir, parent
-    sys.modules.pop(CLI, None)
+    monkeypatch.setattr(pm, "find_provider_dir", lambda name: plugin_dir if name == PROVIDER else None)
+    parent_name = pm._module_name(plugin_dir, PROVIDER)
+    assert parent_name not in sys.modules
+    yield plugin_dir, parent_name
+    for name in [n for n in sys.modules if n == parent_name or n.startswith(parent_name + ".")]:
+        sys.modules.pop(name, None)
 
 
-def test_loaded_cli_module_is_bound_on_its_parent(provider):
-    plugin_dir, parent = provider
-    (plugin_dir / "cli.py").write_text("def register_cli(subparser):\n    pass\n")
+def _write_cli(plugin_dir, body="def register_cli(subparser):\n    pass\n"):
+    (plugin_dir / "cli.py").write_text(body)
 
-    cmds = pm.discover_plugin_cli_commands()
 
-    assert [c["name"] for c in cmds] == [PROVIDER]
-    assert getattr(parent, "cli", None) is sys.modules[CLI]
+def test_cli_loaded_before_provider_is_bound_on_the_real_parent(provider):
+    plugin_dir, parent_name = provider
+    _write_cli(plugin_dir)
+
+    assert [c["name"] for c in pm.discover_plugin_cli_commands()] == [PROVIDER]
+    package = pm._load_package(plugin_dir, PROVIDER)
+
+    assert package is sys.modules[parent_name]
+    assert getattr(package, "cli", None) is sys.modules[f"{parent_name}.cli"]
+
+
+def test_cli_loaded_after_provider_is_bound_on_the_real_parent(provider):
+    plugin_dir, parent_name = provider
+    _write_cli(plugin_dir)
+
+    package = pm._load_package(plugin_dir, PROVIDER)
+    assert [c["name"] for c in pm.discover_plugin_cli_commands()] == [PROVIDER]
+
+    assert package is sys.modules[parent_name]
+    assert getattr(package, "cli", None) is sys.modules[f"{parent_name}.cli"]
 
 
 def test_failed_cli_module_leaves_nothing_bound(provider):
-    plugin_dir, parent = provider
-    (plugin_dir / "cli.py").write_text("raise RuntimeError('boom')\n")
+    plugin_dir, parent_name = provider
+    _write_cli(plugin_dir, "raise RuntimeError('boom')\n")
 
     assert pm.discover_plugin_cli_commands() == []
 
-    assert CLI not in sys.modules
-    assert not hasattr(parent, "cli")
+    assert f"{parent_name}.cli" not in sys.modules
+    assert not hasattr(sys.modules[parent_name], "cli")
