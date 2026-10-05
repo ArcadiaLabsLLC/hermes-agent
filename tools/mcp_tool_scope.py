@@ -66,8 +66,17 @@ def _resolve_server_key(name: str, scope: Optional[str] = None, *, current: bool
 def current_mcp_servers() -> Dict[str, Any]:
     """Live connections visible to the current registry scope — its own, or a shared one it
     adopted — keyed by server name. Read under ``_lock``; returns a new dict. Outside a
-    profile multiplexer this is every connection."""
+    profile multiplexer this is every connection. A pending own-scope lazy registration wins
+    call routing in ``_resolve_server_key`` but hides no live connection the scope adopted."""
     with _core._lock:
         servers = _core._servers
-        names = {_key_name(key) for key in servers}
-        return {name: servers[key] for name in names if (key := _resolve_server_key(name)) in servers}
+        scope = _core._mcp_registry_scope()
+        out: Dict[str, Any] = {}
+        for name in {_key_name(key) for key in servers}:
+            key = _resolve_server_key(name, scope, current=False)
+            if key not in servers:
+                key = next((k for k, scopes in _core._server_tool_scopes.items()
+                            if scope in scopes and _key_name(k) == name and k in servers), None)
+            if key in servers:
+                out[name] = servers[key]
+        return out

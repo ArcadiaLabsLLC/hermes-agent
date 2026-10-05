@@ -51,6 +51,17 @@ def test_current_mcp_servers_is_scoped_to_the_current_profile(monkeypatch):
     assert mcp_tool_scope.current_mcp_servers() == {"alpha": own, "beta": adopted}
 
 
+def test_current_mcp_servers_keeps_an_adopted_connection_beside_a_pending_lazy_entry(monkeypatch):
+    # The scope's own lazy registration wins call routing, but the live connection it
+    # adopted is still the one it can see.
+    adopted = object()
+    monkeypatch.setattr(mcp_tool, "_servers", {("p2", "github"): adopted})
+    monkeypatch.setattr(mcp_tool, "_server_tool_scopes", {("p2", "github"): {"p1"}})
+    monkeypatch.setattr(mcp_tool, "_lazy_server_configs", {("p1", "github"): {"command": "gh"}})
+    monkeypatch.setattr(mcp_tool, "_mcp_registry_scope", lambda: "p1")
+    assert mcp_tool_scope.current_mcp_servers() == {"github": adopted}
+
+
 def test_current_mcp_servers_returns_a_copy(monkeypatch):
     servers = {"alpha": object()}
     monkeypatch.setattr(mcp_tool, "_servers", servers)
