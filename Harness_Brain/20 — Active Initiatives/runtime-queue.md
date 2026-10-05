@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (owner screenshot, "screenshot posts" 13:05)
+
+- [ ] **The launcher_qa never-defer promotion (h-qaeff `5cdaa84054`) never matches: `_LAUNCHER_QA_CORE_TOOLS` in `tools/tool_search_downstream.py` lists the bare names (`mcp_launcher_qa_open_app_tab`, …) but MCP tools register as `mcp__launcher_qa__mcp_launcher_qa_open_app_tab` (`MCP_TOOL_NAME_PREFIX = "mcp__"`, `tools/mcp_tool_schema.py`), so `is_deferrable_tool_name` still defers them and the agent still pays tool_search + tool_describe (owner run 2026-10-05 13:05, both calls present). The pinning test used the bare names too, so it proved nothing — match on the registered name (server + tool), pin with the REAL registered name from an MCP registration fixture, positive control: a non-core launcher_qa tool still defers** · `tools/tool_search_downstream.py`, `tools/tool_search.py::is_deferrable_tool_name` · owner screenshot 2026-10-05
+
 ### Filed on arrival — 2026-10-05 (lane hb-c)
 
 
