@@ -53,8 +53,8 @@ Load `launcher-mcp-operations` and follow it. In outline:
   Do not ask QA to run `open_app_tab` / `launch_or_attach` first; those cannot attach to a
   user-launched Launcher and will spawn a second instance.
 - **Driven proof (navigate, click, login, verify state)** → the full MCP marionette
-  control path: `launch_or_attach` (picks up the DebugStageC build), sign in with
-  `mcp_launcher_qa_dev_login` if gated (next section), navigate with the nav tools / batched `run_actions`, then
+  control path: `launch_or_attach` (picks up the DebugStageC build), sign in for real
+  (`get_auth_state`, else `begin_pkce_login`; next section), navigate with the nav tools / batched `run_actions`, then
   capture with `screenshot_window`. Default `reap_stale:false`.
 - **Never kill Tony's live Launcher session to take a screenshot.**
 - Deliver each capture as a `MEDIA:<absolute path>` line, verbatim, on a line of its own.
@@ -65,14 +65,17 @@ The acceptance-matrix PS1 scripts under `docs/stages/qa-reboot/scripts/` (e.g.
 (`flutter build windows --debug --target lib/main_marionette.dart`) are human/CI operator
 lanes — an agent does not shell them as a substitute for the MCP path.
 
-**QA sign-in is `mcp_launcher_qa_dev_login`, nothing else.** It answers in ~0.15 s and
-exists in QA builds only. Never `launch_or_attach` with `browser_login:true` and never
-`begin_pkce_login`: both hang app-side in a QA build. Measured 2026-10-01: an agent spent
-three `browser_login` retries (30 s) and reported "login is broken", while `dev_login`
-followed by `open_app_tab` News worked. `dev_login` signs in the CHROME, not the data: the
-access token stays null under it, so a backend-backed surface answers "Session expired" —
-report that as the `dev_login` boundary, not a login fault. If `dev_login` itself answers
-`dev_login_unavailable`, that blocker is the answer; do not fall back to browser login.
+**QA sign-in is the real one (PKCE), and it persists.** Call `mcp_launcher_qa_get_auth_state`
+first: once the owner has signed in, the `stagec-smoke` session is restored and refreshed on
+every QA launch. If it reads guest, call `mcp_launcher_qa_begin_pkce_login` and ask the owner
+to sign in ONCE from the local URL file (pass `open_browser: true` only when he asks). You never
+complete the credentialed leg. While that flow waits, `is_authenticating` is true and a second
+begin is refused ("A sign-in is already in progress.") without disturbing it — do not retry.
+`mcp_launcher_qa_dev_login` is CHROME ONLY: it mints no token, so a backend-backed surface answers
+"Session needs a refresh" — that is the `dev_login` boundary, not a login fault; use it only
+when the owner is not around to sign in and the proof does not need backend data. (The
+2026-10-01 "PKCE hangs in QA builds" note was written against builds that predated the fix
+`87e9fa8134`; launcher diagnosis 2026-10-05, `core-packages-queue.md`.)
 
 **The `launcher_qa` self-heal notice.** The first tool reply of a session may carry a text
 item that starts with "Note: the launcher QA tool". Read it by its opening:
