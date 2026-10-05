@@ -54,7 +54,7 @@ Load `launcher-mcp-operations` and follow it. In outline:
   user-launched Launcher and will spawn a second instance.
 - **Driven proof (navigate, click, login, verify state)** → the full MCP marionette
   control path: `launch_or_attach` (picks up the DebugStageC build), sign in for real
-  (`get_auth_state`, else `begin_pkce_login`; next section), navigate with the nav tools / batched `run_actions`, then
+  (`get_auth_state`, else `browser_login: true`; next section), navigate with the nav tools / batched `run_actions`, then
   capture with `screenshot_window`. Default `reap_stale:false`.
 - **Never kill Tony's live Launcher session to take a screenshot.**
 - Deliver each capture as a `MEDIA:<absolute path>` line, verbatim, on a line of its own.
@@ -65,17 +65,19 @@ The acceptance-matrix PS1 scripts under `docs/stages/qa-reboot/scripts/` (e.g.
 (`flutter build windows --debug --target lib/main_marionette.dart`) are human/CI operator
 lanes — an agent does not shell them as a substitute for the MCP path.
 
-**QA sign-in is the real one (PKCE), and it persists.** Call `mcp_launcher_qa_get_auth_state`
-first: once the owner has signed in, the `stagec-smoke` session is restored and refreshed on
-every QA launch. If it reads guest, call `mcp_launcher_qa_begin_pkce_login` and ask the owner
-to sign in ONCE from the local URL file (pass `open_browser: true` only when he asks). You never
-complete the credentialed leg. While that flow waits, `is_authenticating` is true and a second
-begin is refused ("A sign-in is already in progress.") without disturbing it — do not retry.
-`mcp_launcher_qa_dev_login` is CHROME ONLY: it mints no token, so a backend-backed surface answers
-"Session needs a refresh" — that is the `dev_login` boundary, not a login fault; use it only
-when the owner is not around to sign in and the proof does not need backend data. (The
-2026-10-01 "PKCE hangs in QA builds" note was written against builds that predated the fix
-`87e9fa8134`; launcher diagnosis 2026-10-05, `core-packages-queue.md`.)
+**QA sign-in is the real one, and it is automatic.** Call `mcp_launcher_qa_get_auth_state`
+first: a signed-in `stagec-smoke` session is restored and refreshed on every QA launch. If it
+reads guest, call `mcp_launcher_qa_launch_or_attach` with `browser_login: true`: the QA tooling
+signs in with the stored QA account (`stagec-smoke`, staging; resolved from Kubernetes
+`eternia-staging/stagec-smoke-credentials`, else Credential Manager `EterniaStageC/stagec-smoke`).
+You never see or pass the credential. If it answers `auth_secret_unavailable`, no QA account is
+reachable on this machine: say so to the owner (re-sign `kubectl` in, or store the account), then
+fall back to `mcp_launcher_qa_begin_pkce_login` and ask him to sign in once from the local URL
+file (`open_browser: true` only when he asks). While a sign-in waits, `is_authenticating` is true
+and a second begin is refused without disturbing it — do not retry. Production stays guarded.
+`mcp_launcher_qa_dev_login` is CHROME ONLY: no token, so backend-backed surfaces answer
+"Session needs a refresh" — the `dev_login` boundary, not a login fault. (The 2026-10-01 "PKCE
+hangs in QA builds" note predated the fix `87e9fa8134`; launcher diagnosis 2026-10-05.)
 
 **The `launcher_qa` self-heal notice.** The first tool reply of a session may carry a text
 item that starts with "Note: the launcher QA tool". Read it by its opening:

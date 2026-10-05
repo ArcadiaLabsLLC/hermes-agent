@@ -93,8 +93,8 @@ QA judges work, never patches code.
   `terminal(background=true, notify=true)` in your own worktree — never in
   the operator's primary checkout (a live Launcher locks its DLLs), never as a
   foreground call (that blocks the turn up to its 180 s default with nothing on screen).
-- **QA sign-in is REAL**: `get_auth_state` first (the owner's session persists); a guest →
-  `begin_pkce_login`, owner signs in once. `dev_login` = chrome only. A `launcher_qa` reply that opens
+- **QA sign-in is REAL**: `get_auth_state` first; a guest → `launch_or_attach` with
+  `browser_login:true` (stored QA account). `dev_login` = chrome only. A `launcher_qa` reply that opens
   "Note: the launcher QA tool is out of date …" means its answers may be wrong: relay it
   to the operator verbatim ("… was out of date … rebuilt itself" is informational).
   Both: `references/proof.md`.
