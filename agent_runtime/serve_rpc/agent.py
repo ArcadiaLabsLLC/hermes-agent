@@ -139,7 +139,38 @@ def _runtime_agent_create(
     if outcome.refusal is not None:
         refusal = outcome.refusal
         return err(rid, refusal.code, refusal.message, refusal.data)
+    _prewarm_created_chat_root(outcome.result, context)
     return ok(rid, outcome.result)
+
+
+def _prewarm_created_chat_root(result: Any, context: RpcContext | None) -> None:
+    """Queue the minted chat root's resident actor (h-turn1 A1).
+
+    A drop is the operator's gesture, exactly as an open is
+    (``chat_open._prewarm_chat_actor_for_open``): the chat it mints has no turn
+    that is not its first, and the boot pass ran before it existed. Here, at the
+    serve door, never inside ``perform_agent_create`` — the service runs with no
+    serve. The connection the gesture arrived on rides along so the prewarm
+    builds the tool contract the first turn will build (as ``runtime.persona.
+    instance.open_chat`` does). Inert without a registry; best effort — a create
+    never fails because a warm could not be queued.
+    """
+
+    root = result.get("default_chat_session_id") if isinstance(result, dict) else None
+    if not root:
+        return
+    try:
+        from agent_runtime.launcher_app_functions import launcher_link_of
+        from agent_runtime.persona_chat_actor_prewarm import request_chat_actor_prewarm
+
+        request_chat_actor_prewarm(
+            root,
+            launcher_link=launcher_link_of(
+                context.launcher_request if context is not None else None
+            ),
+        )
+    except Exception:
+        pass
 
 
 # ── runtime.agent.retire ─────────────────────────────────────────────────────

@@ -2,9 +2,15 @@
   "measured_at": "2026-10-02",
   "base": "ee5f49b943",
   "files": 172,
-  "deleted_lines": 882,
+  "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h-turn1-prewarm A3 (owner ruling A3-r1, turn-latency-h-turn1-2026-10-05.md): a prewarmed chat's first turn adopts the system prompt the prewarm built",
+      "files": "unchanged: agent/conversation_loop.py was already counted (8 added: one import, the guarded adopt block)",
+      "deleted_lines": "882 -> 883: the first-turn build line moves under the block's else (re-indented); heavy unchanged at 4",
+      "reason": "No fork door: with no history _restore_or_build_system_prompt never reads the session row, and build_turn_context skips the function entirely once _cached_system_prompt is set, so neither pre-seeding the row nor the cache reaches the first-turn tail (persist, on_session_start). The block calls agent_runtime.prewarmed_system_prompt.take_prewarmed_system_prompt with upstream's own _stored_prompt_matches_runtime; held PR row in upstream-footprint-ledger.md."
+    },
     {
       "change": "owner ruling 2026-10-02 (lane w13-hm): drop the Copilot plain-client carry in agent/process_bootstrap.py build_keepalive_http_client — upstream's bytes restored there",
       "files": "172 -> 172: agent/process_bootstrap.py still carries the _load_openai_cls sdk_import_failure guard",

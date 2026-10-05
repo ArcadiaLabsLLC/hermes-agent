@@ -34,6 +34,7 @@ from agent.surface_switch import (
     identity_line_value, note_inert_pinned_tools, runtime_host_value, stage_surface_switch_note,
 )
 from agent_runtime.conversation_observability import _emit_conversation_timing, _emit_phase_marker
+from agent_runtime.prewarmed_system_prompt import take_prewarmed_system_prompt  # fork seam: h-turn1 A3
 from agent_runtime.conversation_observability import (
     CONVERSATION_PREFLIGHT_DONE_STEP, CONVERSATION_REQUEST_BUILT_STEP, CONVERSATION_STARTED_STEP,
     CONVERSATION_TURN_CONTEXT_BUILT_STEP,
@@ -857,8 +858,14 @@ def _restore_or_build_system_prompt(agent, system_message, conversation_history)
     # surface's own build (the -q footprint, its tool_search catalog) would otherwise be
     # persisted over the pin below. Pinned first, so the prompt describes the tools sent.
     built_for_this_surface = _restore_pinned_tools(agent, session_row)
-    agent._cached_system_prompt = agent._build_system_prompt(system_message)
-    _emit_conversation_timing(agent, "system_prompt_build", _prompt_started, stored_state=stored_state)
+    # Fork seam (h-turn1 A3): adopt the prompt a chat-actor prewarm built for this exact first turn.
+    _prewarmed = take_prewarmed_system_prompt(agent, system_message, conversation_history, _stored_prompt_matches_runtime)
+    if _prewarmed is not None:
+        agent._cached_system_prompt = _prewarmed
+        _emit_conversation_timing(agent, "system_prompt_prewarmed", _prompt_started, stored_state=stored_state)
+    else:
+        agent._cached_system_prompt = agent._build_system_prompt(system_message)
+        _emit_conversation_timing(agent, "system_prompt_build", _prompt_started, stored_state=stored_state)
     if conversation_history:
         record_prompt_rebuild(agent, stored_prompt, stored_state, agent._cached_system_prompt)
 

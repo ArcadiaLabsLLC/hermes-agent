@@ -28,6 +28,7 @@ from agent_runtime.run_budget import (
     RunBudgetTripReason,
 )
 
+from agent_runtime.prewarmed_system_prompt import stash_prewarmed_system_prompt
 from agent_runtime.serde import positive_float, positive_int
 from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
@@ -346,6 +347,11 @@ class AgentRunExecution:
                 # empty) prewarm-local handles, so a resident actor is handed to
                 # its first real turn in the same state a completed turn leaves
                 # it in — one state for a warm actor, not two.
+                #
+                # h-turn1 A3: the first turn's system prompt is built HERE, under
+                # the same scopes, and adopted by that turn's
+                # `_restore_or_build_system_prompt` instead of rebuilt there.
+                stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
                 _finish_resident_persona_chat_agent(self.agent)
                 return None, self.agent, self.timing
             self.bind_chat_root()

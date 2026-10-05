@@ -422,6 +422,15 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
                 "chat-actor prewarm construction failed for %s", root, exc_info=True
             )
             return OUTCOME_SKIPPED_CONSTRUCT_FAILED
+        # h-turn1 A3/A4: what the prewarm moved off the first turn, by key; a
+        # key absent is work it did not do (the actor already had a prompt, the
+        # provider is loopback or has no httpx client).
+        logger.info(
+            "persona_chat_actor_prewarm_first_turn root=%s system_prompt_build_ms=%s connect_ms=%s",
+            root,
+            timing.get("prewarm_system_prompt_build_ms", "absent"),
+            timing.get("prewarm_connect_ms", "absent"),
+        )
         return (
             OUTCOME_ALREADY_RESIDENT
             if timing.get("resident_actor_reused")
@@ -472,7 +481,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     from .mission_chat_workdir import mission_chat_workdir_for_persona
     from .models import apply_instance_model_overrides
     from .persona_chat_durability import default_persona_session_db
-    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
+    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE, _mission_chat_surface_message
     from .persona_chat_continuity import persona_chat_runtime_registry
     from .profile_context import resolve_persona_profile
     from .profile_runner import AgentRunRequest, ProfileAgentRunner
@@ -576,6 +585,12 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         ),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
         platform=PERSONA_CHAT_SCRATCH_SOURCE,
+        # h-turn1 A3: the system message the first turn will pass, through the
+        # turn's own builder, so the prompt the prewarm builds from it is the one
+        # that turn adopts (it adopts only on a byte-equal message).
+        system_message=_mission_chat_surface_message(
+            persona, "", workspace_agents_content=_workspace_agents_content(instance)
+        ),
         skill_surface="mission_chat",
         skill_root_node_mode=False,
         session_id=active_session_id,
@@ -891,6 +906,19 @@ def _slot_receipt(instance: Any) -> dict[str, Any] | None:
 
     slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
     return None if slot_context is None else _workspace_context(DEFAULT_RESOLVERS, None, slot_context)[1]
+
+
+def _workspace_agents_content(instance: Any) -> str | None:
+    """The workspace content the turn folds into its system message, as the turn reads it.
+
+    ``MissionChatTurnContext.workspace_agents_content`` under an assignment: the slot
+    context's content. Without one the turn reads the launcher's per-turn
+    ``--agents-file``, which this module never guesses (module docstring) -- None."""
+
+    from .mission_chat_turn_context import DEFAULT_RESOLVERS
+
+    slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
+    return None if slot_context is None else (slot_context.content or None)
 
 
 def _slot_primary(instance: Any) -> str | None:

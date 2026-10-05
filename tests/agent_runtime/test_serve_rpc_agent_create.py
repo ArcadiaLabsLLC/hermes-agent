@@ -1724,3 +1724,45 @@ def test_the_skills_param_is_assigned_to_the_new_instance(qa_persona, isolated_s
     assert PersonaInstanceStore().get("personainst_qa_sk_rpc_agent_2").skill_overrides == [
         "harness-qa-verdict"
     ]
+
+
+# ── h-turn1 A1: the create warms the chat root it mints ──────────────────────
+
+
+def test_a_create_queues_the_prewarm_of_the_chat_root_it_minted(qa_persona, monkeypatch):
+    """A drop is a gesture: its chat has no turn that is not its first.
+
+    The boot pass ran before the root existed, so nothing else warms it. The
+    witness is the queue call itself, with the MINTED root — not merely "some"
+    root — and exactly once; a refused create queues nothing.
+    """
+
+    import agent_runtime.persona_chat_actor_prewarm as prewarm
+
+    queued: list[str] = []
+    monkeypatch.setattr(
+        prewarm,
+        "request_chat_actor_prewarm",
+        lambda root, *, launcher_link=None: queued.append(root) or "started",
+    )
+    _seed_workspace()
+    result = _call(_params(placement_id="qa_prewarm_agent_2"))["result"]
+
+    assert queued == [result["default_chat_session_id"]]
+
+    refused = _call(_params(placement_id="qa_prewarm_agent_3", workspace_id="ws_nope"), rid="c2")
+    assert "error" in refused
+    assert queued == [result["default_chat_session_id"]]
+
+
+def test_a_prewarm_that_cannot_queue_never_fails_the_create(qa_persona, monkeypatch):
+    import agent_runtime.persona_chat_actor_prewarm as prewarm
+
+    def _boom(root, *, launcher_link=None):
+        raise RuntimeError("queue gone")
+
+    monkeypatch.setattr(prewarm, "request_chat_actor_prewarm", _boom)
+    _seed_workspace()
+    reply = _call(_params(placement_id="qa_prewarm_agent_4"))
+
+    assert reply["result"]["persona_instance_id"] == "personainst_qa_prewarm_agent_4"
