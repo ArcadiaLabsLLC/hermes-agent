@@ -43,3 +43,16 @@ def test_lenient_validation_accepts_a_suspect_row():
     with pytest.raises(ValueError, match="multi-pose width outlier"):
         atlas._validate_extracted_frames(frames, 3)
     atlas._validate_extracted_frames(frames, 3, strict=False)
+
+
+def test_2d_grid_neighbours_stay_separate():
+    """A 2x2 grid with a small vertical gap must not collapse poses above/below into one subject."""
+    pose_w, pose_h, gutter, vgap, margin = 190, 200, 80, 16, 40
+    img = _rgba(2 * margin + 2 * pose_w + gutter, 2 * margin + 2 * pose_h + vgap)
+    draw = ImageDraw.Draw(img)
+    for row in range(2):
+        for col in range(2):
+            left, top = margin + col * (pose_w + gutter), margin + row * (pose_h + vgap)
+            draw.rectangle((left, top, left + pose_w - 1, top + pose_h - 1), fill=(200, 40, 40, 255))
+    frames = atlas.extract_strip_frames(img, 4, method="components", fit=False)
+    assert len(frames) == 4
