@@ -86,9 +86,9 @@ session — is refused before all of this with the candidate `@handles` (`:2210-
 ## 2. The turn phases contract
 
 `agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under
-`phases` at schema **v3** (`:61`, `:70`). A v2 record has no `phases` key and is never migrated —
+`phases` at schema **v3** (`:62`, `:71`). A v2 record has no `phases` key and is never migrated —
 the bump is how a reader tells "predates instrumentation" from "instrumented and never got there".
-`PHASE_ORDER` (`:76-89`):
+`PHASE_ORDER` (`:77-90`):
 
 ```
 request_received → context_built → observability_built → emitter_created →

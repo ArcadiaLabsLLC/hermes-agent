@@ -645,9 +645,25 @@ class MessageHandling:
             daemon=True,
         ).start()
         self._emit_stdio(draining_frame)
-        # New connections are refused from here on BOTH doors (existing
-        # ones stay up to be told how it ends), and every attached
-        # client hears it at the same moment the stdio supervisor does.
+        self._close_doors_for_drain(draining_frame, connection)
+        threading.Thread(
+            target=self._drain_monitor,
+            args=(started,),
+            name="harness-serve-drain",
+            daemon=True,
+        ).start()
+        return None
+
+    def _close_doors_for_drain(self, draining_frame: dict[str, Any], connection: Any) -> None:
+        """Refuse new connections, tell every client, and reclaim the requester's streams.
+
+        New connections are refused from here on BOTH doors (existing ones stay
+        up to be told how it ends), and every attached client hears it at the
+        same moment the stdio supervisor does. The client that asked this
+        service to end owns standing streams that never return and the monitor
+        waits on them, so they are reclaimed now, as a closed connection would
+        (plan h-turn1 stage D2)."""
+
         for _lane in (self.socket_server, self.gateway_server):
             if _lane is None:
                 continue
@@ -656,18 +672,8 @@ class MessageHandling:
             except Exception:
                 pass
         self._broadcast_lanes(draining_frame)
-        # The client that asked this service to end owns standing streams
-        # that never return; the monitor waits on them. Reclaim them now, as
-        # a closed connection would (plan h-turn1 stage D2).
         if connection is not None:
             self._cancel_standing_streams(self._owner_of(connection), connection)
-        threading.Thread(
-            target=self._drain_monitor,
-            args=(started,),
-            name="harness-serve-drain",
-            daemon=True,
-        ).start()
-        return None
 
     def _op_stacks(
         self, message: dict[str, Any], sink: Any, connection: Any

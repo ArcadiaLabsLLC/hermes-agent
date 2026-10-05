@@ -481,7 +481,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     from .mission_chat_workdir import mission_chat_workdir_for_persona
     from .models import apply_instance_model_overrides
     from .persona_chat_durability import default_persona_session_db
-    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE, _mission_chat_surface_message
+    from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
     from .persona_chat_continuity import persona_chat_runtime_registry
     from .profile_context import resolve_persona_profile
     from .profile_runner import AgentRunRequest, ProfileAgentRunner
@@ -580,17 +580,10 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         enabled_toolsets=list(lane_bundle.enabled_toolsets),
         blocked_tool_names=list(lane_bundle.blocked_tool_names),
         quiet_mode=True,
-        skip_context_files=not bool(
-            getattr(persona, "include_core_context_files", False)
-        ),
+        skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
         platform=PERSONA_CHAT_SCRATCH_SOURCE,
-        # h-turn1 A3: the system message the first turn will pass, through the
-        # turn's own builder, so the prompt the prewarm builds from it is the one
-        # that turn adopts (it adopts only on a byte-equal message).
-        system_message=_mission_chat_surface_message(
-            persona, "", workspace_agents_content=_workspace_agents_content(instance)
-        ),
+        system_message=_first_turn_system_message(persona, instance),
         skill_surface="mission_chat",
         skill_root_node_mode=False,
         session_id=active_session_id,
@@ -906,6 +899,19 @@ def _slot_receipt(instance: Any) -> dict[str, Any] | None:
 
     slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
     return None if slot_context is None else _workspace_context(DEFAULT_RESOLVERS, None, slot_context)[1]
+
+
+def _first_turn_system_message(persona: Any, instance: Any) -> str:
+    """The system message the first turn will pass, through the turn's own builder (h-turn1 A3).
+
+    The prompt the prewarm builds from it is the one that turn adopts, and it adopts
+    only on a byte-equal message -- so this is the turn's builder, never a copy."""
+
+    from .persona_runtime import _mission_chat_surface_message
+
+    return _mission_chat_surface_message(
+        persona, "", workspace_agents_content=_workspace_agents_content(instance)
+    )
 
 
 def _workspace_agents_content(instance: Any) -> str | None:
