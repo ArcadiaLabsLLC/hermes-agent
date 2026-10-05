@@ -23,13 +23,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-### Filed on arrival — 2026-10-04 (launcher lane lb-proj, filed by the orchestrator)
-
-
-### Filed on arrival — 2026-10-04 (launcher lane mirror-1, filed by the orchestrator)
-
-- [ ] **tests/fixtures/stream_frames/README.md still marks seven launcher mirrors "OPEN, launcher mirror OWED" (h-jobvis, w6-hm, w5-rt, w18/hb, C1h-bis, S0a, AX2) although the launcher mirror is byte-identical to origin/main (blob-hash compare 2026-10-04; launcher 2aaf9cc203 / 412ceae610 / 7ebce16917 and earlier) — mark each note settled with the launcher hash, or collapse them into one "mirror current as of" line** · `tests/fixtures/stream_frames/README.md` · found 2026-10-04 by launcher lane mirror-1 (launcher e7e73421ae) **TAKEN 2026-10-04 hb-b**
-
 ### Filed on arrival — 2026-10-04 (launcher lane console-boundaries, filed by the orchestrator)
 
 - [ ] **Six operations the Agent Console needs are argv-only, so a paired device can never run them (argv is refused to a device connection by design): set an agent's or a persona's model (`persona.instance.set_model`, `persona.set_model`), permission preview / override / one-time tool elevation, `harness prompt-context show`, `harness persona-instance detail`, `harness skills catalog --hash`, and `harness work cancel`. Each needs a `runtime.…` method at the right tier, the way `runtime.persona.chat.history` replaced its argv row; the launcher lowers to the method wherever an install lists it and keeps argv for this machine.** · the launcher's per-read table: `EterniaLauncher/docs/mission_control/planned/CONSOLE_PER_MACHINE_READS_2026-10-04.md` · launcher lane console-boundaries 2026-10-04

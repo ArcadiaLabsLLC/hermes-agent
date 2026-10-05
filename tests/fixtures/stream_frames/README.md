@@ -21,112 +21,12 @@ split is structural, not an oversight, and the script names both halves
 > `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256` into
 > `test/fixtures/harness_stream/`.
 
-> **CROSS-STACK COPY STATUS (hb-a H4, 2026-10-04) — OPEN, launcher mirror OWED.**
-> Eight generated goldens moved for one reason: `running_work.sources` gained
-> the `build` lane's entry — `{"status":"ok","lane":"durable","sub":{"agent":…,
-> "announced":…,"detected":{…,"scan_ms","processes_examined","candidates",
-> "budget_ms","unknowns"}}}` (additive, contract 54 KEPT; row H6 added the detected
-> sub's own `unknowns` index and re-moved the same eight files — see the ledger in
-> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
-> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`,
-> `hydrate.json`, `hydrate_authoritative_same_offset.json`,
-> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
-> `running_work.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`,
-> and the new row golden `tests/fixtures/builds/build_rows.json` into
-> `test/fixtures/harness_stream/build_rows.json`. Row H7 then moved seven of them
-> again (all but `running_work.json`) for `core.decision_contract_hash` alone: the
-> `build.ended` event type was registered. The h-jobvis mirror below is
-> still owed as well; this note is appended, it does not replace it.
-
-> **CROSS-STACK COPY STATUS (h-jobvis, 2026-10-04) — OPEN, launcher mirror OWED.**
-> Eight generated goldens moved for one reason: `running_work.sources` gained
-> the `mcp_job` lane's entry (`{"status":"ok","lane":"durable"}`; additive,
-> contract 54 KEPT — see the ledger in
-> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`). Copy
-> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`,
-> `hydrate.json`, `hydrate_authoritative_same_offset.json`,
-> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
-> `running_work.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
-
-> **CROSS-STACK COPY STATUS (w6-hm, 2026-10-02) — OPEN, launcher mirror OWED.**
-> Seven generated goldens moved for two reasons and nothing else:
-> `parity.profile` gained `cli_active_profile` / `cli_active_profile_differs`
-> beside `name` (additive, contract 54 KEPT — see the ledger in
-> `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`), and
-> `core.decision_contract_hash` moved because `runtime.default_model.set` was
-> registered. Copy `delta.json`, `delta_agent_create_narrow_profile.json`,
-> `delta_batch.json`, `hydrate.json`, `hydrate_authoritative_same_offset.json`,
-> `hydrate_running_work_owner.json`, `hydrate_stale_first.json` and
-> `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
-
-> **CROSS-STACK COPY STATUS (w5-rt, 2026-10-02) — OPEN, launcher mirror OWED.**
-> One NEW generated golden, `running_work.json` — the w4-stream section frame
-> (`stream.frames.running_work_frame`, hermes `4204f029f6`) the launcher's
-> overlay consumes (launcher `bac88dbbb`, whose hub-route probe spells the line
-> out until this lands). No other golden moved. Copy `running_work.json` and
-> `MANIFEST.sha256` into `test/fixtures/harness_stream/` and update both
-> manifests; the new line sits after `hydrate_running_work_owner.json`.
-
-> **CROSS-STACK COPY STATUS (w18/hb, 2026-09-06) — OPEN, launcher mirror OWED,
-> and it is EIGHT files, not one.**
-> The generator redacted the temporary root to `<isolated-root>` and left the
-> TAIL of the path alone, so every committed golden carried the separator of
-> the Windows box that last regenerated it — `<isolated-root>\runtime`,
-> `<isolated-root>\hermes\profiles`, and so on. The bytes were therefore
-> reproducible only on Windows:
-> `test_committed_goldens_are_the_generators_bytes` was green there and red on
-> every Linux runner (run 33969282189, slice 7), which is the whole of that
-> red. The redaction now canonicalises the redacted spelling to `/`, and the
-> eight goldens that carry a redacted path were regenerated. **The diff is
-> separators and nothing else** — verified byte-for-byte: folding `\\` to `/`
-> in the old bytes reproduces the new ones exactly, in all eight.
->
-> Affected: `delta.json`, `delta_agent_create_narrow_profile.json`,
-> `delta_batch.json`, `hydrate.json`, `hydrate_authoritative_same_offset.json`,
-> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
-> `patch_agent_create.json`, plus `MANIFEST.sha256`.
->
-> Runtime-safe on the launcher side — these values are opaque display paths —
-> so the OWED work is the byte mirror plus its manifest, not a Dart change.
-> **Note for whoever re-vendors:** the launcher wave-18 lane `la` was told to
-> copy `delta_agent_create_narrow_profile.json` alone; after this change ALL
-> EIGHT above move, and `patch_agent_create.json` is new to the list. Copy the
-> current bytes, not the ones that row named.
-> `test_no_golden_carries_the_generating_hosts_path_separator` is the
-> structural guard against this returning.
-
-> **CROSS-STACK COPY STATUS (C1h-bis, 2026-09-05) — OPEN, launcher mirror OWED.**
-> Seven generated goldens moved ONE value and nothing else:
-> `core.decision_contract_hash`, from `114a8576…` to `fc9ac589…`. Two event
-> contracts were registered — `persona_chat.turn_started` and
-> `persona_chat.turn_ended`, the publishes that make a running chat turn visible
-> to a SECOND console on the `stream` lane — and that hash is a fingerprint of
-> the whole event catalog, so registering anything moves it. No frame shape, no
-> key, no row changed; the byte diff on each of the seven files is that one hex
-> string. Runtime-safe on the launcher side, which reads the field as an opaque
-> fingerprint, so the OWED work is the byte mirror plus its manifest, not a Dart
-> change: copy `delta.json`, `delta_agent_create_narrow_profile.json`,
-> `delta_batch.json`, `hydrate.json`,
-> `hydrate_authoritative_same_offset.json`, `hydrate_running_work_owner.json`,
-> `hydrate_stale_first.json` and `MANIFEST.sha256` into
-> `test/fixtures/harness_stream/` and update both manifests in the landing wave.
-> It supersedes nothing: the S0a mirror below is still owed and the same copy
-> settles both.
-
-> **CROSS-STACK COPY STATUS (S0a, 2026-09-03) — OPEN, launcher mirror OWED.**
-> Five generated goldens gained ONE additive key inside every
-> `core.persona_instances.<id>` row: `toolset_declaration` (null in these
-> fixtures, whose rows have no backing persona). It is the S0a atlas cleanup's
-> visibility for the fact that the per-persona `toolsets` list admits nothing —
-> the harness lane reads the bound profile's declaration
-> (`agent_runtime.personas.declared_lane_toolsets`; canon `05-chat-turn-lane.md`
-> §4c). Runtime-safe on the launcher side, which parses these rows by key and
-> ignores unknown ones (`mission_control_snapshot.dart:4830`), so the OWED work
-> is the byte mirror plus its manifest, not a Dart change: copy
-> `delta_agent_create_narrow_profile.json`, `hydrate_authoritative_same_offset.json`,
-> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
-> `patch_agent_create.json` and `MANIFEST.sha256` into
-> `test/fixtures/harness_stream/` and update both manifests in the landing wave.
+> **CROSS-STACK COPY STATUS — mirror current as of launcher `bdd24dccbb` (2026-10-04)**,
+> which mirrored hermes `01d29e1665`: every file this manifest pins, and
+> `tests/fixtures/builds/build_rows.json`, is byte-identical to the launcher's
+> `test/fixtures/harness_stream/` (blob-hash compare, 2026-10-04). That settles the
+> AX2, S0a, C1h-bis, w18/hb, w5-rt, w6-hm, h-jobvis and hb-a H4 notes; their rulings
+> live in the "54 KEPT" ledger in `docs/agent-runtime-harness/02-runtime-data-and-shapes.md`.
 
 > **CROSS-STACK COPY STATUS (WS1, 2026-09-01) — settled in the same landing.**
 > The instant-workspace-switching wave's `scope` fold entity adds
@@ -150,21 +50,6 @@ split is structural, not an oversight, and the script names both halves
 > prevent, one level in. Regenerating in WS1's landing is what makes the goldens
 > reproducible from the generator again; the launcher mirror moves with them.
 
-
-> **CROSS-STACK COPY STATUS (AX2, 2026-08-31) — OPEN, launcher mirror OWED.**
-> Seven generated hydrate/delta goldens lost three core keys with the writerless
-> assignment lane: `persona_assignments` (the whole block, with its `recent_ref`
-> eviction pointer), `persona_instance_runtime.assignment_store_enabled`, and
-> `warnings` (whose only producer emitted only `agent_already_assigned`, a code
-> the launcher had already tombstoned). No file was added or removed, so this
-> manifest's MEMBERSHIP and LINE ORDER are unchanged and
-> `check_producer_contracts.py` compares those clean; seven HASHES moved.
-> **`SNAPSHOT_CONTRACT_VERSION` deliberately did NOT move** — the ruling and its
-> argument are written at `snapshot._parity_envelope`'s version history, under
-> "54 KEPT (AX2)". The launcher must mirror these bytes into
-> `test/fixtures/harness_stream/` and update its own `MANIFEST.sha256`; until it
-> does, both repos are green while they disagree, which is exactly the drift the
-> notes below exist to prevent.
 
 > **CROSS-STACK COPY STATUS (placement verb S0, settled 2026-08-26).**
 > `patch_agent_create.json` and `delta_agent_create_narrow_profile.json` were
