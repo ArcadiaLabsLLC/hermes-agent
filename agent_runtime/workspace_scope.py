@@ -123,6 +123,30 @@ def lane_workspace(
     return LaneWorkspace(id=scope_id, name=name)
 
 
+def workspace_claim_disagreement(
+    lane: LaneWorkspace, *, claimed_id: Any = None, claimed_name: Any = None
+) -> str | None:
+    """One line saying a client named a workspace this lane's turn is not in.
+
+    ``None`` when the client claimed nothing, or claimed what the turn resolved.
+    A client knows which workspace it is SHOWING; the turn runs in the lane's
+    own. The claim never decides anything, so the only honest thing to do with
+    one that disagrees is to say so where an operator can read it.
+    """
+
+    claimed_id = optional_text(claimed_id)
+    claimed_name = optional_text(claimed_name)
+    id_differs = claimed_id is not None and claimed_id != lane.id
+    name_differs = claimed_name is not None and claimed_name != lane.name
+    if not (id_differs or name_differs):
+        return None
+    return (
+        "client_workspace_claim_differs"
+        f" claimed_id={claimed_id or '-'} claimed_name={claimed_name or '-'}"
+        f" turn_id={lane.id or '-'} turn_name={lane.name or '-'}"
+    )
+
+
 def instance_in_scope(
     candidate_workspace_id: str | None, scope_workspace_id: str | None
 ) -> bool:

@@ -8,6 +8,7 @@ after it settles what the provider returned (``settle``).
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 from typing import Any
 
@@ -43,6 +44,7 @@ from agent_runtime.prompt_observability import (
     turn_usage_from_result,
 )
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
+from agent_runtime.workspace_scope import workspace_claim_disagreement
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -69,6 +71,8 @@ from agent_runtime.persona_chat_session import (
 
 __layer__ = "lanes"
 __all__ = ["_RunPhases"]
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -268,14 +272,21 @@ class _RunPhases:
         The row's workspace is the one the turn RESOLVED
         (``turn_context.lane_workspace``: the lane's own pointer, else the active
         workspace) — the same resolution the Runtime Situation scope line is
-        named from. ``--workspace-id`` / ``--workspace-name`` are still accepted
-        on the command line and are deliberately NOT read: a client can only say
-        which workspace it was showing, and for a lane placed elsewhere that
-        named a workspace the turn did not run in.
+        named from. ``--workspace-id`` / ``--workspace-name`` never decide it: a
+        client can only say which workspace it was showing, and for a lane
+        placed elsewhere that named a workspace the turn did not run in. They
+        are read for one thing, to say so when they disagree.
         """
 
         args = self.args
         workspace = turn_context.lane_workspace
+        disagreement = workspace_claim_disagreement(
+            workspace,
+            claimed_id=safe_assignment_token(getattr(args, "workspace_id", None)),
+            claimed_name=safe_assignment_text(getattr(args, "workspace_name", None), limit=120),
+        )
+        if disagreement:
+            logger.info("mission chat %s (the record names the turn's own workspace)", disagreement)
         return mission_chat_prompt_observability(
             persona=self.persona,
             persona_instance_id=instance.id,
