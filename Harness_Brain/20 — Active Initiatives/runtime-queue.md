@@ -29,6 +29,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (owner live turns, "turns still feel slow")
 
+- [ ] **A chat turn's persona_chat section cannot ride the state.patched lane — the operator-channel row is 16–70 KB against a 4 KB EventLog cap, turn_ended always shares a batch with the uncovered persona_chat.projected, and turn_started moves running_work with no section frame** · fork / stream + patch_coverage · `planned/turn-latency-h-turn1-2026-10-05.md` §C1 "BLOCKED as written" (branch `lane/h-turn1-demote` `8ce5ac5c21`) · needs a design lane (stream-side overlay frame) before C1/C2 exec · **TAKEN 2026-10-05 Opus 5.5 (owner session, lane h-turn1)**
+
 - [ ] **`build_api_request` costs 0.65–2.3 s on first turns only (later turns ~0.1 s) and nothing says what it does there; split it with sub-stamps before deciding a fix** · fork / chat turn · evidence: plan `docs/agent-runtime-harness/planned/turn-latency-h-turn1-2026-10-05.md` (branch `plan/h-turn1`) stage A5 · UNCLAIMED
 
 - [ ] **The chat turn's deferred auto-title runs BEFORE the method-lane answer returns, so the Launcher's turn stays open (typing bubble up) 1.3–1.8 s after the reply lands: `chat_turn_message.py` runs `deferred.run_once()` after the lease but before `return exit_code`, and the title is an auxiliary-LLM RTT; move it off the answer's path (thread/background queue)** · fork / chat turn settle · evidence: `%TEMP%\eternia_launcher_diag.log` `end_to_settle_ms` 1261 / 1785 / 1509 / 1300 on exactly the four 2026-10-05 turns whose root logged `Auxiliary title_generation` (Dev `8af03b33`; Neko `7920507f`, `1b4597f1`, `f2756d71`), 34–41 ms on the three that did not · UNCLAIMED
