@@ -25,7 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (lane h-peerval)
 
-- [ ] **A pulled peer document's `machines` block and its stamps are still taken on trust: a peer's `machines.<THIS machine>` entry with a newer `reported_at` replaces this machine's own report row (which `recipe.show` / readiness read as "mine" until the next `report()`), any keys a peer puts in a report row are republished verbatim, and a far-future document `issued_at` merged by max makes every later local `declare` refuse `stale_revision`. Take `machines.<me>` only from this machine, shape-check peer report rows, and bound peer stamps against receipt time** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::merge_documents`, `agent_runtime/workspace_slots.py::declare`, `agent_runtime/workspace_slots_probe.py::report`
+- [ ] **A pulled peer document's `machines` block and its stamps are still taken on trust: a peer's `machines.<THIS machine>` entry with a newer `reported_at` replaces this machine's own report row (which `recipe.show` / readiness read as "mine" until the next `report()`), any keys a peer puts in a report row are republished verbatim, and a far-future document `issued_at` merged by max makes every later local `declare` refuse `stale_revision`. Take `machines.<me>` only from this machine, shape-check peer report rows, and bound peer stamps against receipt time** · fork-owned / agent_runtime · `agent_runtime/workspace_slots_sync.py::merge_documents`, `agent_runtime/workspace_slots.py::declare`, `agent_runtime/workspace_slots_probe.py::report` **TAKEN 2026-10-05 h-trust**
 
 ### Filed on arrival — 2026-10-05 (lane hb-c)
 
