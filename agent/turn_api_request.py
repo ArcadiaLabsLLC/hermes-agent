@@ -15,6 +15,7 @@ from typing import Any
 from agent.message_sanitization import sanitize_outbound_kwargs, strip_images_for_rejecting_model
 from hermes_cli.observability.shared_metrics_efficiency import observe_request_tools
 from utils import env_var_enabled
+from agent_runtime.request_build_timing import RequestBuildLaps  # fork seam: h-turn1 A5
 
 logger = logging.getLogger("agent.conversation_loop")
 
@@ -102,6 +103,7 @@ def build_api_request(
         _moa_client_consumes_prepared_request, _redecorate_prompt_cache_for_provider,
     )
 
+    _laps = RequestBuildLaps(agent)  # fork seam: h-turn1 A5
     agent._reset_stream_delivery_tracking()
     # Per-attempt first-chunk timestamp so a stale value never leaks into post_api_request.
     agent._last_api_first_chunk_at = None
@@ -117,11 +119,14 @@ def build_api_request(
     )
     # A model that rejected image content gets text only; history keeps the images.
     strip_images_for_rejecting_model(agent, api_messages)
+    _laps.lap("redecorate")  # fork seam: h-turn1 A5
     observe_request_tools(agent, tools_for_api)
+    _laps.lap("observe_tools")  # fork seam: h-turn1 A5
     if tools_for_api == agent.tools:
         api_kwargs = agent._build_api_kwargs(api_messages)
     else:
         api_kwargs = agent._build_api_kwargs(api_messages, tools_for_api=tools_for_api)
+    _laps.lap("kwargs")  # fork seam: h-turn1 A5
     # Messages were scrubbed above; this walk covers the rest of the payload (tool descriptions,
     # extra_body, kwargs strings) — see sanitize_outbound_kwargs for the #50959 rationale.
     sanitize_outbound_kwargs(agent, api_kwargs)
@@ -130,6 +135,7 @@ def build_api_request(
             api_kwargs, allow_stream=False, is_github_responses=agent._is_copilot_url(),
             sanitize_harmony_tokens=agent._is_codex_backend(),
         )
+    _laps.lap("preflight")  # fork seam: h-turn1 A5
     # OpenRouter caching replays identical responses, even empty ones; an empty-response
     # retry must bypass the cache.
     if agent._empty_content_retries > 0 and agent._is_openrouter_url():
@@ -154,6 +160,7 @@ def build_api_request(
     except Exception:
         _original_api_kwargs = dict(api_kwargs)
         _llm_middleware_trace = []
+    _laps.lap("middleware")  # fork seam: h-turn1 A5
 
     _fire_pre_api_request_hook(
         agent, api_kwargs, api_messages, _llm_middleware_trace, messages=messages,
@@ -179,6 +186,7 @@ def build_api_request(
                 "prepared prompt without the MoA handshake",
                 type(agent.client).__name__,
             )
+    _laps.finish("hook")  # fork seam: h-turn1 A5
     return ApiRequestBuild(
         "fallthrough", api_messages, _moa_prepared_request, tools_for_api, api_kwargs,
         _original_api_kwargs, _llm_middleware_trace,

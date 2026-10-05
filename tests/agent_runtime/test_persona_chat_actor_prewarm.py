@@ -1441,3 +1441,126 @@ def test_a_loopback_provider_is_never_pre_opened(stub_runtime):
     timing = {}
     assert preopen_provider_connection(agent, timing) == "skipped_loopback"
     assert transport.requests == [] and "prewarm_connect_ms" not in timing
+
+
+# ── h-turn1-tail: the pre-opened connection is the one turn 1 rides ─────────
+
+
+class _EdgeStream:
+    """One fake socket behind a real httpcore pool. The edge in front of the
+    provider answers a request WITHOUT the client's identity the way
+    ``chatgpt.com``'s did on 2026-10-05 (``403``, ``Connection: close``), and
+    one WITH it the way the origin does (keep-alive)."""
+
+    def __init__(self):
+        self._in = b""
+        self._out = b""
+
+    def write(self, buffer, timeout=None):
+        self._in += buffer
+        while b"\r\n\r\n" in self._in:
+            head, _, rest = self._in.partition(b"\r\n\r\n")
+            lines = head.decode("latin-1").split("\r\n")
+            headers = {k.strip().lower(): v.strip() for k, _, v in (line.partition(":") for line in lines[1:])}
+            length = int(headers.get("content-length") or 0)
+            if len(rest) < length:
+                return
+            self._in = rest[length:]
+            if "originator" not in headers:
+                self._out += b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+            else:
+                self._out += b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
+
+    def read(self, max_bytes, timeout=None):
+        chunk, self._out = self._out[:max_bytes], self._out[max_bytes:]
+        return chunk
+
+    def close(self):
+        pass
+
+    def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        return self
+
+    def get_extra_info(self, info):
+        return None
+
+
+class _Edge:
+    """An httpcore network backend that counts the connections a pool opens."""
+
+    def __init__(self):
+        self.connects = 0
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        self.connects += 1
+        return _EdgeStream()
+
+    def sleep(self, seconds):
+        pass
+
+
+_IDENTITY = {"User-Agent": "HermesAgent/test", "originator": "hermes-agent", "ChatGPT-Account-ID": "acct"}
+
+
+def _pooled_agent_factory(transport):
+    """An actor whose client and whose turn's per-request client share ONE pool,
+    as ``build_keepalive_http_client``'s process-shared transport makes them."""
+
+    import httpx
+
+    class _PooledAgent(_Agent):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.base_url = "https://provider.example.test/v1"
+            self._client_kwargs = {"api_key": "secret", "default_headers": dict(_IDENTITY)}
+            self.client = type("C", (), {})()
+            self.client._client = httpx.Client(transport=transport)
+
+        def run_conversation(self, user_message, system_message=None, task_id=None, **kw):
+            # ``codex_stream_request``: a fresh client per request over the shared transport.
+            with httpx.Client(transport=transport, headers=_IDENTITY) as request_client:
+                request_client.post(self.base_url + "/responses", content=b"{}").close()
+            return super().run_conversation(user_message, system_message, task_id, **kw)
+
+    return _PooledAgent
+
+
+def test_a_prewarmed_actors_first_turn_opens_no_connection(stub_runtime, caplog):
+    """The connection the prewarm opened is the one turn 1 rides: one connect in all.
+
+    *Killing mutation:* send the pre-connect without the actor's identity headers
+    (``headers=_identity_headers(agent)`` -> no headers): the edge answers
+    ``Connection: close``, the pool drops the socket, turn 1 connects again -> 2.
+    """
+
+    import httpx
+
+    edge = _Edge()
+    transport = httpx.HTTPTransport()
+    transport._pool._network_backend = edge
+    registry = PersonaChatRuntimeRegistry()
+    runner = ProfileAgentRunner(agent_factory=_pooled_agent_factory(transport))
+    with caplog.at_level("INFO"):
+        runner.prewarm(_request(prewarm_only=True, registry=registry))
+    assert edge.connects == 1
+
+    result = runner.run(_request(prewarm_only=False, registry=registry))
+
+    assert result.profile_timing["resident_actor_reused"] == 1
+    assert edge.connects == 1, "turn 1 opened its own connection beside the pre-opened one"
+    assert any("status=404 kept=1" in r.getMessage() for r in caplog.records)
+
+
+def test_the_pre_connect_carries_identity_and_never_a_credential():
+    from agent_runtime.provider_preconnect import preopen_provider_connection
+
+    transport = _CountingTransport()
+    agent = _client_agent_factory(transport)()
+    agent._client_kwargs = {"api_key": "secret", "default_headers": dict(_IDENTITY, Authorization="Bearer x")}
+    preopen_provider_connection(agent, {})
+
+    [(_, _, headers)] = transport.requests
+    sent = {k.lower(): v for k, v in headers.items()}
+    assert sent["user-agent"] == "HermesAgent/test" and sent["originator"] == "hermes-agent"
+    assert "authorization" not in sent and "chatgpt-account-id" not in sent
+    assert "secret" not in str(sent)
