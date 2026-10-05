@@ -48,7 +48,7 @@ python scripts/generate_agent_runtime_response_fixtures.py
 
 ## Heavy commands
 
-Background, explicit timeout, log file, exit code unpiped (`; rc=$?; exit $rc`), never polled, never `| tail`. Two full suites on this box contend; one landing at a time. See [[Running the suite]].
+Background, explicit timeout, log file, exit code unpiped (`; rc=$?; exit $rc`), never polled, never `| tail`. Two full suites on this box contend; one landing at a time. See [[Running the tests]].
 
 ## Worktrees
 

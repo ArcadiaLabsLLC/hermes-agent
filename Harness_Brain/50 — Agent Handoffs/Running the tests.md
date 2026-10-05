@@ -1,0 +1,139 @@
+---
+type: handoff
+tags: [handoff, process, tests]
+---
+
+# Running the tests
+
+Read this before you run any test, gate or suite in this repository, and before you brief a lane
+that will. `CLAUDE.md` carries only the pointer and the one rule that does damage before anyone
+opens a page (never bare `pytest` over a directory). The fork's gate definition is
+`docs/downstream-development.md` § "The fork landing gate"; this page is how a session uses it.
+
+## The commands
+
+```bash
+python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
+scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
+scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
+python scripts/dump_cli_contract.py --check                     # after any argparse change
+python scripts/dump_payload_contract.py --check                 # after any character payload change
+python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
+python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
+```
+
+**The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
+runs every fork-owned test file plus each upstream test file the change reaches by name, import or
+conftest. Given `tests/agent_runtime tests/hermes_cli tests/hermes_state` it only searches those
+three, and misses the upstream tests of an upstream file the change edits: on 2026-10-05 (landing
+h-turn1, one edit to `agent/conversation_loop.py`) the three-directory form selected 689 files, the
+whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test that function. The
+whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
+ran 908 files / 13,621 tests in minutes.
+
+**`--scope full` (every file, upstream's included) belongs to the weekly upstream merge lane, and is
+not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
+hard-froze the operator's PC twice with the same four upstream files in flight
+(`tests/hermes_cli/test_source_check.py`, `test_source_launcher_publication.py`,
+`test_source_release_channels.py`, `test_source_release_probe.py`), the second time at 4 workers
+with nothing else running. If a scope is in doubt, list what it will run before running it
+(`select_scope` in `scripts/run_tests_bundled.py`). After a freeze or a killed run, read the
+interrupted log's last lines before re-running; re-running the remainder without excluding what was
+in flight is how the second freeze happened.
+
+**Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
+`git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout on
+2026-08-01. The runners isolate files in hermetic subprocesses, find the shared test venv, and run
+8 workers — the ruled default (12 measured slower and load-flaked; do not raise
+`HERMES_TEST_WORKERS`).
+
+A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `addopts` carry
+`--timeout=30`, and pytest-timeout kills a longer test before it can say what went wrong.
+
+## Environment notes (carried from the retired "Running the suite" page)
+
+- `tests/acp` cannot collect from a worktree (the editable install resolves to the primary) — run
+  it from the primary or name the lanes explicitly.
+- `HERMES_TEST_TMP_ROOT` → a Defender-excluded throwaway dir speeds a run; `X:/Eternia` is already
+  excluded on this box.
+- A failure seen only in a parallel or bundled run is compared as a SET against a serial
+  `scripts/run_tests.sh` run of that file before it is believed (the bundled runner names an
+  isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`).
+- Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+
+## How to run a heavy command (measured — do not improvise)
+
+The launcher mined 24 days of agent transcripts (`EterniaLauncher/docs/tooling/AGENT_WALL_TIME_2026-09-18.md`):
+five habits cost about 390 minutes a day.
+
+- **Pass an explicit `timeout` on every test, build or census call.** The 120-second default killed
+  646 calls and returned nothing; 329 more died at the 600-second ceiling.
+- **Run a long command as a BACKGROUND task and wait for the completion notification.** Never
+  `sleep`, never an `until … grep` loop, never `tail -f | grep -m 1` — 772 polling calls cost 35 hours.
+- **Never re-run a byte-identical heavy command with no edit in between.** 731 did; 17 hours.
+- **Never pipe a heavy command through `tail` / `head`.** Redirect to a log file, capture the exit
+  code UNPIPED (`; rc=$?; exit $rc`), read the log after. Under `pipefail` a gate piped through
+  `tail` hides its own red.
+- **One heavy run at a time on this box.** Two contend for the same cores; a second landing racing
+  the first costs both a re-merge and a second gate run.
+
+## What a lane runs, and what it never runs
+
+- **While implementing:** `ruff` (or `pyflakes`) on the touched modules, foreground, explicit
+  timeout. Nothing heavier.
+- **At the end of the lane, before the report:** ONLY the test files that import a module you
+  touched — `grep -l` the module paths under `tests/` — as one
+  `python -m pytest -q -p no:cacheprovider <files>` run, in the background, with a log and the exit
+  code captured unpiped, timeout at least 600000. A lane never runs the landing gate, the tooling
+  gates, the docs gates or the contract dumps; those are the landing's job, once.
+- **Launcher lanes and landings run `*_test.dart` files only.** A `grep -l` under `test/` also
+  matches fixtures and helpers; on 2026-10-05 it handed `flutter test` the helper
+  `detached_serve_starter.dart` and the run hung ten minutes. Filter the list to `_test.dart`.
+- **A fork test never goes inside an upstream test file.** A test of a fork seam in upstream code
+  lives in a fork-owned `tests/**/*_downstream.py` that imports upstream's fixtures. Appending to an
+  upstream test file adds a file to the fork's upstream footprint (`tests/scripts/test_upstream_footprint.py`);
+  landing h-turn1 had to move one (`92be2b3a10`).
+- **A CHANGE commit carries its positive control:** the defect planted on a throwaway copy, the red
+  pasted into the commit body, reverted. A new gate lands with its killing mutation recorded. A
+  control that has not been run is a belief.
+
+## What a landing runs, once
+
+Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh tests` in the one heavy slot;
+(b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
+`test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`, the
+legibility floor, the upstream footprint and the namespace gates (the whole-tree gate already
+includes them; run them alone after a re-merge); (c) `changed_line_mutation_check.py` for any new
+gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.dart` files that
+import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
+commit touches a file the batch touches.
+
+## Calling a red pre-existing
+
+`main` is not green: on 2026-10-05 the whole-tree gate read 70 failing tests in 35 files on `main`
+itself. A red is pre-existing only when it is PROVEN so:
+
+1. Cut a detached worktree at the merge-base (`git merge-base HEAD origin/main`) — never in the
+   primary checkout.
+2. Run the SAME failing files there (`scripts/run_tests.sh <files>`, or `flutter test <files>`).
+3. Compare test node by test node. A node red only on the branch is the branch's.
+4. **For the drift gates, compare the violation lists, not the verdict.** The legibility floor,
+   duplicate helpers, doc-cite adjacency, the upstream footprint and the method-lane chokepoint are
+   red on `main` already, so a branch can add violations inside a test that was red anyway. Diff
+   their `NEW` / `GREW` / cite / file lines between the two logs; landing h-turn1 found three of its
+   own violations that way inside tests `main` also failed (`cd2ed22ea8`).
+
+A pre-existing red is named in the report with that proof, never fixed in passing and never
+baselined; if it is not already a row, file it in `fork-hygiene-queue.md`.
+
+## The gates are tests, not hooks
+
+There is no pre-push hook (deleted 2026-09-03, `504953f6ad`); nothing gates a push, and every check
+above is something someone runs. `main` went red unreported twice because nobody did (`6979bad59`;
+2026-09-04). The fork's CI has not fired on `main` since 2026-09-07 and is not evidence until that
+queue row closes. `scripts/unattended_suite_run.ps1` is a report the operator may schedule, never a
+gate.
+
+**When a contract dump reds, read the diff before regenerating.** A removed command, flag or payload
+key is a launcher button that now exits 2 or a stale default acted on; re-vendor the launcher's copy
+in the same wave.

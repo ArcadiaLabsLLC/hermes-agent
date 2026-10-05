@@ -5,7 +5,7 @@ development guide is [AGENTS.md](AGENTS.md); the fork's working contract is
 [docs/downstream-development.md](docs/downstream-development.md); the runtime canon is
 [docs/agent-runtime-harness/00-index.md](docs/agent-runtime-harness/00-index.md). Those
 three own the facts. This file owns how a session works in this repository: the brain,
-subagents, heavy commands, the end-of-lane test discipline, the gates, and git. A rule is
+subagents, git, and where the test rules live. A rule is
 stated once, as a fact, with the measurement or incident that bought it where one exists.
 
 # Obsidian Brain Network
@@ -99,100 +99,23 @@ execution and landing on Opus; nothing on Sonnet. Every lane reports its tool-ca
 
 ```bash
 hermes harness serve                                            # the runtime the launcher spawns
-python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
-scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state   # THE LANDING GATE (--scope fork, the default)
-scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
-scripts/run_tests.sh tests/test_coverage_claims_resolve.py tests/scripts          # the two scopes outside it
-python scripts/dump_cli_contract.py --check                     # after any argparse change
-python scripts/dump_payload_contract.py --check                 # after any character payload change
-python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
-python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 python scripts/refactor_census.py <files.txt> <out.json>        # code-line counter + dead/duplicate census
 ```
 
-### How to run a heavy command (measured — do not improvise)
-
-The launcher mined 24 days of agent transcripts (`EterniaLauncher/docs/tooling/AGENT_WALL_TIME_2026-09-18.md`):
-five habits cost about 390 minutes a day. The same habits apply here verbatim.
-
-- **Pass an explicit `timeout` on every test, build or census call.** The 120-second
-  default killed 646 calls and returned nothing; 329 more died at the 600-second ceiling.
-- **Run a long command as a BACKGROUND task and wait for the completion notification.**
-  Never `sleep`, never an `until … grep` loop, never `tail -f | grep -m 1` — 772 polling
-  calls cost 35 hours.
-- **Never re-run a byte-identical heavy command with no edit in between.** 731 did; 17 hours.
-- **Never pipe a heavy command through `tail` / `head`.** Redirect to a log file, capture
-  the exit code UNPIPED (`; rc=$?; exit $rc`), read the log after. Under `pipefail` a gate
-  piped through `tail` hides its own red.
-- **One full suite at a time on this box.** Two contend for the same cores; a second
-  landing racing the first costs both a re-rebase and a second gate run.
-- **A landing runs the FORK gate, never the full scope, and the full scope is not run on
-  a workstation.** `scripts/run_tests_bundled.sh` with its default `--scope fork` runs the
-  fork's own files plus the upstream files the change reaches; `scripts/run_tests.sh` over
-  the three directories is every discovered file, about 1,545 of them upstream's, and
-  belongs to the weekly upstream merge lane (`--scope full`). On 2026-10-05 a session ran
-  the full scope for a landing and the operator's PC hard-froze twice, with the same four
-  upstream files in flight both times: `tests/hermes_cli/test_source_check.py`,
-  `test_source_launcher_publication.py`, `test_source_release_channels.py`,
-  `test_source_release_probe.py`. The second freeze was at 4 workers with nothing else
-  running, so it was not load. Until the fork-hygiene row closes, no scope containing those
-  four runs on a workstation; if a scope is in doubt, list what it will run first.
-- **After a freeze or a killed run, read before you re-run.** The last lines of the
-  interrupted log name what was in flight. Re-running the remainder without excluding it
-  is how the second freeze happened.
-
-**`scripts/run_tests.sh` is the test command, and the difference is not cosmetic.** Bare
-`pytest` over a directory runs the updater tests in-process, and those run
-`git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout
-on 2026-08-01. The runner isolates each file in a hermetic subprocess, finds the shared test
-venv on its own, and runs 8 workers — the ruled default (12 measured slower and load-flaked;
-do not raise `HERMES_TEST_WORKERS`). Its validated scope is exactly the three directories
-above; the whole tree is a DIFFERENT scope that reads ~142 environmental reds on a green
-`main` (provider-network hangs, WSL bash shadowing Git Bash, `acp`/`ripgrep` holes).
-
-A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `addopts`
-carry `--timeout=30`, and pytest-timeout kills a longer test before it can say what went
-wrong.
-
-### The end-of-lane test discipline (what a lane runs, and what it never runs)
-
-- **While implementing:** `python -m pyflakes` or `ruff` on the touched modules, foreground,
-  explicit timeout. Nothing heavier.
-- **At the end of the lane, before the report:** ONLY the test files that import a module
-  you touched — `grep -l` the module paths under `tests/` — as one
-  `python -m pytest -q -p no:cacheprovider <files>` run DIRECTLY, in the background, with a
-  log and the exit code captured unpiped, timeout at least 600000. A lane never runs the
-  validated suite, the tooling gates, the docs gates or the contract dumps; those are the
-  landing's job, once. A red the lane did not cause is named as pre-existing with the
-  one-test run on `main` that proves it, never fixed in passing and never baselined.
-- **At the landing, once, concurrently:** (a) the fork landing gate
-  (`scripts/run_tests_bundled.sh …`, `--scope fork`) in the one heavy slot;
-  (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
-  `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`,
-  and the refactor's size-ceiling, upstream-fence and thin-namespace gates once they land;
-  (c) `changed_line_mutation_check.py` for any new gate; (d) the docs gates
-  (`test_docket_stage_claims.py` — one pre-existing red on `main`, tolerated by name).
-  (b)–(d) need no slot and do not wait on (a). After a forced re-rebase, only (b) re-runs;
-  the suite runs again only if an incoming commit touches a file the batch touches.
-- **A CHANGE commit carries its positive control:** the defect planted on a throwaway
-  copy, the red pasted into the commit body, reverted. A new gate lands with its killing
-  mutation recorded. A control that has not been run is a belief.
-
-### The gates — retired as a hook, kept as tests (and nothing gates a push)
-
-**There is no pre-push hook** (deleted 2026-09-03, `504953f6ad`, operator ruling in both
-repos). The one hook is `post-merge` (`git config core.hooksPath .githooks`), which
-re-installs the canonical skill packages. Every check above is something someone runs.
-`main` went red unreported twice because nobody did (`6979bad59`; 2026-09-04). The fork's
-CI has not fired on `main` since 2026-09-07 and is not evidence until that queue row closes.
-`scripts/unattended_suite_run.ps1` is a report the operator may schedule, never a gate.
-
-**When a contract dump reds, read the diff before regenerating.** A removed command, flag or
-payload key is a launcher button that now exits 2 or a stale default acted on; re-vendor the
-launcher's copy in the same wave.
+**Before you run any test, gate or suite — or brief a lane that will — read
+`Harness_Brain/50 — Agent Handoffs/Running the tests.md`.** It owns the commands, the landing
+gate, what a lane runs, how a red is proven pre-existing, and the heavy-command habits. The one
+rule that cannot wait for the page: never run bare `pytest` over a directory (it detached 11
+unpushed commits on 2026-08-01); the landing gate is `scripts/run_tests_bundled.sh tests`.
 
 ## Git discipline
 
+- There is no pre-push hook; nothing gates a push (the checks are tests someone runs —
+  `Running the tests.md`).
+- While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
+  never in the primary checkout: a commit there moves the code tree the serve is built from
+  and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
+  counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
 - Cut worktrees from a NEUTRAL cwd (`X:/Eternia`, never inside the checkout):
   `git -C X:/Eternia/hermes-agent worktree add X:/Eternia/worktrees/<lane> -b <branch> origin/main`.
