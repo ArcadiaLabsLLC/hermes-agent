@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-05 (launcher lane console-1a, filed by the orchestrator)
+
+- [ ] **A chat turn's context record takes its workspace from the CLIENT, while the turn runs in the workspace Hermes resolves: `mission-chat message --workspace-id / --workspace-name` reach only `mission_chat_prompt_observability(workspace_id, workspace_name)` (`hermes_cli/harness_parts/persona/chat_turn_commit/run.py`), and the turn's scope comes from session → owning instance → its workspace pointer, else the active workspace (`sender_scope_workspace_id` in `agent_runtime/persona_assignments/lookups.py`, `effective_workspace_id` in `agent_runtime/workspace_scope.py`). The record can therefore name a workspace the turn did not run in, and two clients showing one conversation can label it differently. Stamp the record's `workspace_id` and `workspace_name` from the resolved workspace and ignore the client's two params (keep accepting them, so an older launcher is not refused); the launcher then sends neither** · launcher half: `eternia_launcher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, row "The workspace on a chat send is a per-mount LABEL" · this side moves first for the name · UNCLAIMED
+
 ### Filed on arrival — 2026-10-05 (owner live turns, "turns still feel slow")
 
 - [ ] **Every chat turn triggers a full snapshot-core rebuild: the turn's own events move the fingerprint (`restat=refreshed self_perturbed_refreshed=4 foreign_moved=8/12`) and the cli/hub caller rebuilds the whole core (`reason=demote`, 3.7–9.5 s, `agents_readiness` 0.7–5.8 s + `prompt_observability` 1.3–1.4 s), which then overlaps the next turn; an appended turn should refresh its section, not the core** · fork / snapshot · evidence: base `agent.log` 2026-10-05 14:14:25.338 / 14:14:42.765 `snapshot_build_core` generations 2 and 4 after turns `5f3b0416`/`30f6c844`; the off-GIL DESIGN row under "2026-10-03 (lane h-chatperf)" is the structural half, this is the trigger · UNCLAIMED
