@@ -209,6 +209,24 @@ def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
     }
 
 
+#: The parts of a slot record a declaration decides (the recipe is edited by ``recipe.set``).
+_DECLARED_PARTS = ("repo", "toolchain", "context")
+
+
+def _revised(recipe: Any, *, bump: bool) -> dict[str, Any]:
+    """The slot's recipe, its ``revision`` advanced when the slot record's decision changed.
+
+    ``recipe.revision`` is the slot record's edit counter and the realm merge ranks a slot by
+    it first (``workspace_slots_sync``): a changed declaration or a removal advances it exactly
+    as a recipe edit does, so neither loses to an older recipe edit on a peer.
+    """
+
+    held = dict(recipe) if isinstance(recipe, dict) else {"revision": 0, "steps": [], "edited_at": None, "edited_by": None}
+    if bump:
+        held["revision"] = int(held.get("revision") or 0) + 1
+    return held
+
+
 def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> dict[str, Any]:
     """REPLACE the declared set: names missing from ``slots`` are tombstoned, never deleted.
 
@@ -229,11 +247,13 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     current = document.setdefault("slots", {})
     for name, body in declared.items():
         held = current.get(name) or {}
-        current[name] = {**body, "recipe": held.get("recipe") or {"revision": 0, "steps": [], "edited_at": None, "edited_by": None},
+        changed = bool(held) and (bool(held.get("removed_at")) or any(held.get(k) != body[k] for k in _DECLARED_PARTS))
+        current[name] = {**body, "recipe": _revised(held.get("recipe"), bump=changed),
                          "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None}
     tombstoned = [name for name, slot in current.items() if name not in declared and not slot.get("removed_at")]
     for name in tombstoned:
-        current[name] = {**current[name], "removed_at": issued_at, "issued_at": issued_at}
+        current[name] = {**current[name], "recipe": _revised(current[name].get("recipe"), bump=True),
+                         "removed_at": issued_at, "issued_at": issued_at}
     document["issued_at"] = issued_at
     document["workspace_id"] = workspace_id
     write_document(workspace_id, document)

@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 from .builds.unknowns import UNKNOWN_SLOT_PROBE_UNKNOWN, UnknownsIndex
 from .workspace_slot_env import SlotFill, slot_fill
+from .workspace_slot_recipe import READY_UNKNOWN, READY_YES, readiness
 from .workspace_slots import _now_iso, bound_path, live_slots, load_document, machine_id, write_document
 
 __layer__ = "stores"
@@ -142,29 +143,21 @@ class _SlotProbe:
             "env_keys": self.env_keys(),
             "dotenv": self.dotenv(path),
         }
-        row["status"] = _status(row, self.slot)
+        row["status"] = _status(self.name, row, self.slot)
         row["unknowns"] = self.unknowns.wire()
         return row
 
 
-def _required_missing(row: dict[str, Any], slot: dict[str, Any]) -> bool:
-    toolchain = slot.get("toolchain") or {}
-    required_env = {r["key"] for r in toolchain.get("env_keys") or [] if r.get("required")}
-    required_dotenv = {r["key"] for r in (toolchain.get("dotenv") or {}).get("keys") or [] if r.get("required")}
-    dotenv = row.get("dotenv") or {"keys": {}}
-    return (any(t["status"] == PROBE_MISSING for t in row["tools"].values())
-            or any(row["env_keys"].get(k) == PROBE_MISSING for k in required_env)
-            or any(dotenv["keys"].get(k) == PROBE_MISSING for k in required_dotenv))
+def _status(name: str, row: dict[str, Any], slot: dict[str, Any]) -> str:
+    """The row's status, from THE readiness answer (``workspace_slot_recipe.readiness``).
 
+    One authority for "ready on this machine": any unknown probe ⇒ ``unknown``; a required
+    piece missing, a checkout that is not a repository, or a remote that does not match the
+    declaration ⇒ ``needs_setup``; else ``ready``.
+    """
 
-def _status(row: dict[str, Any], slot: dict[str, Any]) -> str:
-    statuses = [t["status"] for t in row["tools"].values()] + list(row["env_keys"].values())
-    statuses += list((row.get("dotenv") or {"keys": {}})["keys"].values())
-    if PROBE_UNKNOWN in statuses:
-        return STATUS_UNKNOWN
-    if _required_missing(row, slot) or row["checkout"] == CHECKOUT_NOT_A_REPO:
-        return STATUS_NEEDS_SETUP
-    return STATUS_READY
+    ready = readiness(name, slot, row)["ready"]
+    return STATUS_READY if ready == READY_YES else STATUS_UNKNOWN if ready == READY_UNKNOWN else STATUS_NEEDS_SETUP
 
 
 def report(

@@ -7,6 +7,9 @@ device may read a workspace's slots, never write the operator's paths or environ
 ``credential`` object the realm verbs do. Every refusal is a typed ``data.reason``.
 ``slot.env.set`` REPLACES the fill; ``env_keep: [names]`` carries named stored values over, so
 an editor that reads only ``slots.show``'s non-secret ``fill`` shape can change one key.
+The setup recipe (Phase B): ``recipe.show`` is this machine's checklist read from its last
+report; ``recipe.set`` replaces one slot's owner steps from the revision the editor read
+(``stale_revision`` otherwise) and is gated on the publish right exactly like ``declare``.
 """
 
 from agent_runtime.call_authorization import TIER_CONSOLE
@@ -27,6 +30,12 @@ _REFUSAL_CODES = {
     "slot_not_declared": ERR_NOT_FOUND,
     "path_not_found": ERR_NOT_FOUND,
     "realm_publish_denied": ERR_HANDLER_FAILED,
+    # The setup recipe (Phase B, row H10); ``stale_revision`` rides ERR_CONFLICT.
+    "unknown_step": ERR_INVALID_PARAMS,
+    "derived_step_immutable": ERR_INVALID_PARAMS,
+    "invalid_step": ERR_INVALID_PARAMS,
+    "duplicate_step_id": ERR_INVALID_PARAMS,
+    "credential_in_step": ERR_INVALID_PARAMS,
 }
 
 
@@ -60,11 +69,12 @@ def _issued_at(params: dict) -> str:
 def _guarded(handler):
     def run(rid, params, context=None):
         from agent_runtime.workspace_slot_env import SlotEnvRefused
+        from agent_runtime.workspace_slot_recipe import RecipeRefused
         from agent_runtime.workspace_slots import SlotRefused
 
         try:
             return ok(rid, handler(params or {}))
-        except (SlotRefused, SlotEnvRefused) as exc:
+        except (SlotRefused, SlotEnvRefused, RecipeRefused) as exc:
             return _refused(rid, exc)
     return run
 
@@ -126,6 +136,34 @@ def _slot_env_set(params):
             "path_prepend": len(fill.path_prepend), "report": row, "fill": fill_shape(workspace_id, slot),
             # A kept name with no stored value: the editor's view was stale (not an error).
             "env_keep_missing": sorted(set(keep or ()) - set(fill.env))}
+
+
+# ── the setup recipe (Phase B, row H10 — build plan §3.5) ──
+
+
+@method("runtime.workspace.recipe.show", tier=TIER_CONSOLE)
+@_guarded
+def _recipe_show(params):
+    from agent_runtime.workspace_slot_recipe_store import show_recipe
+
+    return show_recipe(_workspace(params))
+
+
+@method("runtime.workspace.recipe.set", tier=TIER_CONSOLE)
+@_guarded
+def _recipe_set(params):
+    """Replace one slot's owner steps; gated on the realm publish right like ``slots.declare`` (call 8a)."""
+
+    from agent_runtime.realm_membership import RealmSyncCredential
+    from agent_runtime.workspace_slot_recipe_store import set_recipe
+    from agent_runtime.workspace_slots import machine_id, require_publish_right
+
+    workspace_id = _workspace(params)
+    raw = params.get("credential")
+    require_publish_right(workspace_id, None if raw is None else RealmSyncCredential.parse(raw))
+    return set_recipe(workspace_id, str(params.get("slot") or ""), params.get("steps"),
+                      base_revision=params.get("revision"), issued_at=_issued_at(params), machine=machine_id(),
+                      persona_instance_id=params.get("persona_instance_id"))
 
 
 # ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──
