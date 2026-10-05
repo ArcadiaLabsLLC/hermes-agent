@@ -324,3 +324,46 @@ def test_addressable_roster_none_scope_shadows_across_everything():
         [dev_c, dev_p], scope_workspace_id=None, is_canonical=_is_canonical
     )
     assert [i.id for i in out] == ["personainst_dev_agent_2"]
+
+
+# --------------------------------------------------------------------------- #
+# lane_workspace: which workspace a lane's turn is in, and its name            #
+# --------------------------------------------------------------------------- #
+
+_WORKSPACES = (
+    SimpleNamespace(id="ws_a", name="Alpha"),
+    SimpleNamespace(id="ws_b", name="Beta"),
+)
+
+
+def test_a_placed_lane_is_in_its_own_workspace_whatever_is_active():
+    lane = workspace_scope.lane_workspace(
+        _inst("ws_a"), active_workspace_id="ws_b", workspaces=_WORKSPACES
+    )
+
+    assert lane == workspace_scope.LaneWorkspace(id="ws_a", name="Alpha")
+
+
+def test_a_runtime_global_lane_is_in_the_active_workspace():
+    lane = workspace_scope.lane_workspace(
+        _inst(None), active_workspace_id="ws_b", workspaces=_WORKSPACES
+    )
+
+    assert lane == workspace_scope.LaneWorkspace(id="ws_b", name="Beta")
+
+
+def test_a_pointer_to_an_unlisted_workspace_keeps_its_id_and_has_no_name():
+    lane = workspace_scope.lane_workspace(
+        _inst("ws_gone"), active_workspace_id="ws_b", workspaces=_WORKSPACES
+    )
+
+    assert lane == workspace_scope.LaneWorkspace(id="ws_gone", name=None)
+
+
+def test_no_pointer_and_nothing_active_is_no_workspace_at_all():
+    lane = workspace_scope.lane_workspace(
+        _inst(None), active_workspace_id=None, workspaces=_WORKSPACES
+    )
+
+    assert lane == workspace_scope.LaneWorkspace()
+    assert lane.id is None and lane.name is None

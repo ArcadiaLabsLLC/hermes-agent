@@ -63,6 +63,32 @@ def _board_digest_for_workspace(workspace_id: str | None) -> dict[str, Any] | No
         return None
 
 
+def lane_workspace_for_instance(instance: Any, *, workspace_store: Any = None) -> Any:
+    """The workspace this lane's turn is in, read from the store (``LaneWorkspace``).
+
+    The lane's OWN workspace when it carries a pointer, else the active one.
+    Best-effort like every wrapper here: a store that cannot be read answers an
+    empty ``LaneWorkspace`` rather than failing a turn.
+    """
+
+    from ..workspace_scope import LaneWorkspace, lane_workspace
+
+    if instance is None:
+        return LaneWorkspace()
+    try:
+        if workspace_store is None:
+            from ..store import WorkspaceStore
+
+            workspace_store = WorkspaceStore()
+        return lane_workspace(
+            instance,
+            active_workspace_id=workspace_store.active_id(),
+            workspaces=workspace_store.list_all(include_archived=True),
+        )
+    except Exception:
+        return LaneWorkspace()
+
+
 def situational_hud_for_instance(
     instance: Any,
     *,
@@ -100,25 +126,16 @@ def situational_hud_for_instance(
         # persona no longer advertises its canonical row onto every level.
         identity_roster = PersonaInstanceStore().list_all()
 
-        workspace_store = WorkspaceStore()
         realm_store = RealmStore()
-        scope_workspace_id = workspace_scope.effective_workspace_id(
-            instance, active_workspace_id=workspace_store.active_id()
-        )
+        # The scope line names the lane's OWN workspace when it carries a pointer
+        # (fallback: the active workspace), so it matches the scoped roster. One
+        # resolution: the turn's context record reads the same function.
+        scope = lane_workspace_for_instance(instance, workspace_store=WorkspaceStore())
+        scope_workspace_id = scope.id
         scoped_roster = workspace_scope.addressable_roster(
             identity_roster,
             scope_workspace_id=scope_workspace_id,
             is_canonical=is_canonical_persona_channel,
-        )
-        # The scope line names the lane's OWN workspace when it carries a pointer
-        # (fallback: the active workspace), so it matches the scoped roster.
-        workspace = next(
-            (
-                getattr(item, "name", None)
-                for item in workspace_store.list_all(include_archived=True)
-                if getattr(item, "id", None) == scope_workspace_id
-            ),
-            None,
         )
         realm = next(
             (
@@ -133,7 +150,7 @@ def situational_hud_for_instance(
             instance,
             daemon=None,
             realm=realm,
-            workspace=workspace,
+            workspace=scope.name,
             roster=scoped_roster,
             identity_roster=identity_roster,
             board=_board_digest_for_workspace(scope_workspace_id),

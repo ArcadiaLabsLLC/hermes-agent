@@ -67,6 +67,7 @@ imports the harness row model; callers hand in
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
 from .serde import optional_text
@@ -84,6 +85,42 @@ def effective_workspace_id(
     from. Returns ``None`` only when neither is set (no scene at all)."""
 
     return optional_text(getattr(instance, "workspace_id", None)) or optional_text(active_workspace_id)
+
+
+@dataclass(frozen=True, slots=True)
+class LaneWorkspace:
+    """The workspace one lane operates in, and the name it is shown by.
+
+    Both ``None`` when there is no scene at all. ``name`` alone is ``None`` when
+    the id names no workspace the caller listed (a pointer to one since removed).
+    """
+
+    id: str | None = None
+    name: str | None = None
+
+
+def lane_workspace(
+    instance: Any, *, active_workspace_id: str | None, workspaces: Iterable[Any]
+) -> LaneWorkspace:
+    """:func:`effective_workspace_id`, named from ``workspaces``.
+
+    The one answer to "which workspace is this lane's turn in": what the agent
+    is told (the Runtime Situation scope line) and what the turn's context
+    record says both read it, so the two cannot name different workspaces.
+    """
+
+    scope_id = effective_workspace_id(instance, active_workspace_id=active_workspace_id)
+    if scope_id is None:
+        return LaneWorkspace()
+    name = next(
+        (
+            optional_text(getattr(item, "name", None))
+            for item in (workspaces or ())
+            if getattr(item, "id", None) == scope_id
+        ),
+        None,
+    )
+    return LaneWorkspace(id=scope_id, name=name)
 
 
 def instance_in_scope(

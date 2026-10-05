@@ -118,6 +118,7 @@ from .runtime_hud import (
 )
 from .turn_budget import TurnWallBudget, render_turn_budget_line, resolve_turn_wall_budget
 from .volatile_tail import VolatileTail, VolatileTailBuilder
+from .workspace_scope import LaneWorkspace
 
 __layer__ = "lanes"
 
@@ -270,6 +271,12 @@ def _default_situational_hud(
     )
 
 
+def _default_lane_workspace(instance: Any) -> LaneWorkspace:
+    from .runtime_hud import lane_workspace_for_instance
+
+    return lane_workspace_for_instance(instance)
+
+
 def _default_admission_line(persona: Any, *, session_id: str | None) -> str:
     # Through the bundle, which resolves ``mission_chat_admission_line``.
     from .chat_lane_bundle import chat_lane_bundle
@@ -328,6 +335,9 @@ class MissionChatTurnResolvers:
     load_slot_context: Callable[[Any], Any] = _default_load_slot_context
     capability_block: Callable[..., dict[str, Any]] = _default_capability_block
     situational_hud: Callable[..., dict[str, Any]] = _default_situational_hud
+    #: The workspace this lane's turn is in. The SAME function the HUD's scope
+    #: line is named from, so the record and the agent's picture agree.
+    lane_workspace: Callable[[Any], LaneWorkspace] = _default_lane_workspace
     admission_line: Callable[..., str] = _default_admission_line
     tool_contract: Callable[..., dict[str, Any]] = _default_tool_contract
     permission_state: Callable[..., dict[str, Any]] = _default_permission_state
@@ -397,6 +407,11 @@ class MissionChatTurnContext:
     #: The assigned slots' context (``persona_slots.SlotContext``), or None when the
     #: instance has no assignment and the one-release ``--agents-file`` alias applies.
     slot_context: Any = None
+    #: The workspace this turn is in, as Hermes resolved it from the lane's own
+    #: pointer (else the active workspace). The context record is stamped from
+    #: THIS, never from what a client sent: a client can only say which
+    #: workspace it was showing, which is not where the turn ran.
+    lane_workspace: LaneWorkspace = LaneWorkspace()
 
     # — convenience projections the CLI body used to hold as locals —
 
@@ -595,6 +610,7 @@ def build_mission_chat_turn_context(
         runtime_signature_digests=runtime_signature_digests,
         timings=timings,
         slot_context=slot_context,
+        lane_workspace=resolvers.lane_workspace(instance) or LaneWorkspace(),
     )
 
 

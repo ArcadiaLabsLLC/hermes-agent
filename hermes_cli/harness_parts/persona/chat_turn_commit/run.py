@@ -225,10 +225,6 @@ class _RunPhases:
         # number the agent was told and the number the runtime enforces cannot drift.
         wall_budget = turn_context.wall_budget
         self.wall_budget = wall_budget
-        workspace_id = safe_assignment_token(getattr(args, "workspace_id", None))
-        workspace_name = safe_assignment_text(
-            getattr(args, "workspace_name", None), limit=120
-        )
         # Record-at-injection: the observability row carries the very HUD dict that
         # was rendered into the fed block, so the operator's CONTEXT peek shows
         # exactly what the agent was told — never a later re-derivation.
@@ -238,7 +234,7 @@ class _RunPhases:
         from agent_runtime.skill_resolution import skill_root_registry_scope
 
         with skill_root_registry_scope(self.turn_root_registries):
-            prompt_context = self._prompt_observability_row(turn_context, instance, workspace_id, workspace_name)
+            prompt_context = self._prompt_observability_row(turn_context, instance)
         self.turn_phases.mark("observability_built")
         # Stage 6 item 2, the row's half — POPPED, not read: the mapping exists to
         # reach this fold and nothing downstream may see it. The row travels on to
@@ -265,11 +261,21 @@ class _RunPhases:
                 instance.id, skill_manifest_hash=manifest_hash
             )
 
-    def _prompt_observability_row(self, turn_context, instance, workspace_id, workspace_name):
+    def _prompt_observability_row(self, turn_context, instance):
         """The record-at-injection row (``_observe``'s build, lifted so the
-        registry scope can wrap it)."""
+        registry scope can wrap it).
+
+        The row's workspace is the one the turn RESOLVED
+        (``turn_context.lane_workspace``: the lane's own pointer, else the active
+        workspace) — the same resolution the Runtime Situation scope line is
+        named from. ``--workspace-id`` / ``--workspace-name`` are still accepted
+        on the command line and are deliberately NOT read: a client can only say
+        which workspace it was showing, and for a lane placed elsewhere that
+        named a workspace the turn did not run in.
+        """
 
         args = self.args
+        workspace = turn_context.lane_workspace
         return mission_chat_prompt_observability(
             persona=self.persona,
             persona_instance_id=instance.id,
@@ -282,8 +288,8 @@ class _RunPhases:
             session_db=self.session_db,
             current_message=self.message,
             model_selection=self.model_selection,
-            workspace_id=workspace_id,
-            workspace_name=workspace_name,
+            workspace_id=workspace.id,
+            workspace_name=workspace.name,
             workspace_agents=turn_context.workspace_agents,
             situational_hud=turn_context.situational_hud,
             situational_hud_revision=turn_context.situational_hud_revision,

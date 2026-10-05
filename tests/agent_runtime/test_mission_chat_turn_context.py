@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from agent_runtime.workspace_scope import LaneWorkspace
 from agent_runtime.mission_chat_turn_context import (
     DEFAULT_RESOLVERS,
     TAIL_BUDGET_BYTES,
@@ -138,6 +139,7 @@ def _resolvers(**overrides) -> MissionChatTurnResolvers:
         tool_contract=lambda _persona, **_kw: {"enabled_toolsets": ["search"]},
         permission_state=lambda _persona, **_kw: {"mode": "profile_default"},
         store_root=lambda: "X:/test/root",
+        lane_workspace=lambda _instance: LaneWorkspace(id="ws_alpha", name="alpha"),
     )
     base.update(overrides)
     return MissionChatTurnResolvers(**base)
@@ -707,6 +709,29 @@ def _called_names(source: str) -> set[str]:
     return calls
 
 
+def test_the_turn_context_carries_the_workspace_the_turn_resolved():
+    """Resolved once, for THIS instance, and handed on as a value: the context
+    record is stamped from it (``chat_turn_commit/run.py``)."""
+
+    asked = []
+
+    def resolve(instance):
+        asked.append(instance)
+        return LaneWorkspace(id="ws_a", name="Alpha")
+
+    instance = _instance()
+    context = _build(instance=instance, resolvers=_resolvers(lane_workspace=resolve))
+
+    assert context.lane_workspace == LaneWorkspace(id="ws_a", name="Alpha")
+    assert asked == [instance]
+
+
+def test_a_lane_workspace_resolver_that_answers_nothing_is_no_workspace():
+    context = _build(resolvers=_resolvers(lane_workspace=lambda _instance: None))
+
+    assert context.lane_workspace == LaneWorkspace()
+
+
 def test_the_default_resolvers_bind_the_canonical_authorities():
     """No parallel implementations: the defaults are the SAME functions the turn
     itself would have called inline.
@@ -731,6 +756,7 @@ def test_the_default_resolvers_bind_the_canonical_authorities():
         "consume_queued_skills": (consume_skills_for_next_turn.__name__, False),
         "load_workspace_agents": (load_workspace_agents_context.__name__, False),
         "situational_hud": (runtime_hud.situational_hud_for_instance.__name__, False),
+        "lane_workspace": (runtime_hud.lane_workspace_for_instance.__name__, False),
         "admitted_operating_skills": ("mission_chat_operating_skills", True),
         "capability_block": ("capability_block_for_persona", True),
         "admission_line": ("mission_chat_admission_line", True),

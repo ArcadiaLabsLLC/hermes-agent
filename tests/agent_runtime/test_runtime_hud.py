@@ -925,3 +925,102 @@ def test_a_hud_that_predates_steering_renders_no_steering_line():
     standalone = render_situational_hud_block({"preview": True, "steering": {"steered_by": [], "steers": []}})
     assert "Steering" not in absent
     assert "- Steering: standalone" in standalone
+
+
+# --------------------------------------------------------------------------- #
+# lane_workspace_for_instance: the one resolution the HUD scope line and the   #
+# turn's context record both read                                             #
+# --------------------------------------------------------------------------- #
+
+
+class _WorkspaceStoreDouble:
+    def __init__(self, *, active, rows):
+        self._active = active
+        self._rows = rows
+
+    def active_id(self):
+        return self._active
+
+    def list_all(self, *, include_archived=False):
+        return list(self._rows)
+
+
+class _UnreadableWorkspaceStore:
+    def active_id(self):
+        raise OSError("store unreadable")
+
+    def list_all(self, *, include_archived=False):
+        raise OSError("store unreadable")
+
+
+def _two_workspaces(active):
+    from types import SimpleNamespace
+
+    return _WorkspaceStoreDouble(
+        active=active,
+        rows=[
+            SimpleNamespace(id="ws_a", name="Alpha"),
+            SimpleNamespace(id="ws_b", name="Beta"),
+        ],
+    )
+
+
+def test_the_lane_workspace_wrapper_reads_the_lanes_own_workspace_from_the_store():
+    from agent_runtime.runtime_hud import lane_workspace_for_instance
+    from agent_runtime.workspace_scope import LaneWorkspace
+
+    placed = _instance(id="personainst_dev", persona_id="dev", workspace_id="ws_a")
+    lane = lane_workspace_for_instance(placed, workspace_store=_two_workspaces("ws_b"))
+
+    assert lane == LaneWorkspace(id="ws_a", name="Alpha")
+
+
+def test_the_lane_workspace_wrapper_falls_back_to_the_active_workspace():
+    from agent_runtime.runtime_hud import lane_workspace_for_instance
+    from agent_runtime.workspace_scope import LaneWorkspace
+
+    global_row = _instance(id="personainst_neko", workspace_id=None)
+    lane = lane_workspace_for_instance(global_row, workspace_store=_two_workspaces("ws_b"))
+
+    assert lane == LaneWorkspace(id="ws_b", name="Beta")
+
+
+def test_an_unreadable_workspace_store_answers_no_workspace_rather_than_failing_a_turn():
+    from agent_runtime.runtime_hud import lane_workspace_for_instance
+    from agent_runtime.workspace_scope import LaneWorkspace
+
+    placed = _instance(id="personainst_dev", persona_id="dev", workspace_id="ws_a")
+
+    assert lane_workspace_for_instance(placed, workspace_store=_UnreadableWorkspaceStore()) == LaneWorkspace()
+    assert lane_workspace_for_instance(None, workspace_store=_two_workspaces("ws_b")) == LaneWorkspace()
+
+
+def test_the_scope_line_and_the_lane_workspace_name_the_same_workspace_from_real_stores():
+    """What the agent is TOLD and what the turn's record SAYS are one resolution.
+
+    Real stores, a lane placed in one workspace while another is active: the
+    Runtime Situation scope line must name the lane's own, and it must be the
+    very name ``lane_workspace_for_instance`` answers. Recorded: with the HUD's
+    ``workspace=`` argument cut loose from that resolution, every other test in
+    this file and the three beside it stayed green.
+    """
+
+    from agent_runtime.runtime_hud import lane_workspace_for_instance, situational_hud_for_instance
+    from agent_runtime.store import WorkspaceStore
+    from tests.agent_runtime.office_seed import seed_workspace_record
+
+    own = seed_workspace_record("ws_hud_own", name="The Lane's Own")
+    other = seed_workspace_record("ws_hud_active", name="Active Elsewhere")
+    WorkspaceStore().set_active(other.id)
+    placed = _instance(id="personainst_dev", persona_id="dev", workspace_id=own.id)
+
+    hud = situational_hud_for_instance(placed)
+    lane = lane_workspace_for_instance(placed)
+
+    assert hud, "the HUD wrapper answered nothing; this test is not looking at a scope line"
+    assert hud["scope"]["workspace"] == "The Lane's Own"
+    assert lane.id == own.id
+    assert lane.name == hud["scope"]["workspace"]
+    # Control: the active workspace is a different one, so naming "the lane's
+    # own" is not satisfied by naming whatever is active.
+    assert WorkspaceStore().active_id() == other.id != own.id

@@ -242,3 +242,49 @@ def test_the_created_root_is_the_one_the_turn_actually_threads_onto(
         session_db.close()
     assert row is not None
     assert row["title"] == "QA Agent chat"
+
+
+def test_the_turns_context_record_names_the_agents_workspace_not_the_clients(
+    qa_persona, harness_with_stub_provider, capsys, monkeypatch
+):
+    """A client can say which workspace it was SHOWING; the turn runs in the
+    agent's own. The record must name the second.
+
+    The join, end to end: a real agent placed in ``WORKSPACE``, a different
+    workspace active, and a send whose ``--workspace-id`` / ``--workspace-name``
+    name that other one — the shape of a launcher window showing workspace B
+    with a conversation open on an agent placed in A. Before 2026-10-05 the
+    record took the client's two values verbatim.
+    """
+
+    from agent_runtime.store import WorkspaceStore
+
+    created = _drag_in_an_agent("qa_agent_record_workspace_agent_2")
+    shown = seed_workspace_record("ws_the_client_was_showing", name="Shown Elsewhere")
+    WorkspaceStore().set_active(shown.id)
+    placed_name = WorkspaceStore().get(WORKSPACE).name
+
+    stamped = []
+    build_row = commit_run.mission_chat_prompt_observability
+
+    def record(**kwargs):
+        stamped.append((kwargs.get("workspace_id"), kwargs.get("workspace_name")))
+        return build_row(**kwargs)
+
+    monkeypatch.setattr(commit_run, "mission_chat_prompt_observability", record)
+
+    args = _message_args(
+        instance_id=created["persona_instance_id"],
+        session_id=created["default_chat_session_id"],
+    )
+    args.workspace_id = shown.id
+    args.workspace_name = shown.name
+    chat_turn_message._cmd_mission_chat_message(args)
+    payload = json.loads(capsys.readouterr().out)
+
+    # Anti-vacuity: the turn got as far as building its record and on to the model.
+    assert "admission reached the provider" in str(payload.get("blocker") or ""), payload
+    assert stamped == [(WORKSPACE, placed_name)]
+    # Control: the two workspaces really are different, so "the agent's own" is
+    # not satisfied by the client's value happening to match.
+    assert (shown.id, shown.name) != (WORKSPACE, placed_name)

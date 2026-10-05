@@ -126,7 +126,11 @@ from agent_runtime.runtime_hud.envelopes import (
 from agent_runtime.runtime_hud.hud import render_situational_hud_block, resolve_situational_hud
 from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
 from agent_runtime.runtime_hud.capability_account import capability_block_for_persona
-from agent_runtime.runtime_hud.ambient import installs_block, situational_hud_for_instance
+from agent_runtime.runtime_hud.ambient import (
+    installs_block,
+    lane_workspace_for_instance,
+    situational_hud_for_instance,
+)
 
 __layer__ = "lanes"
 
@@ -157,6 +161,7 @@ __all__ = [
     "resolve_capability_block",
     "resolve_situational_hud",
     "runtime_context_delivery",
+    "lane_workspace_for_instance",
     "situational_hud_for_instance",
     "situational_hud_revision",
     "skill_preload_delivery",
