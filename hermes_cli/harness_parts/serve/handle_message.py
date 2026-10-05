@@ -656,6 +656,11 @@ class MessageHandling:
             except Exception:
                 pass
         self._broadcast_lanes(draining_frame)
+        # The client that asked this service to end owns standing streams
+        # that never return; the monitor waits on them. Reclaim them now, as
+        # a closed connection would (plan h-turn1 stage D2).
+        if connection is not None:
+            self._cancel_standing_streams(self._owner_of(connection), connection)
         threading.Thread(
             target=self._drain_monitor,
             args=(started,),

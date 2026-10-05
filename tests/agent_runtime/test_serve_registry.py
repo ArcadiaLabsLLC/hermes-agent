@@ -94,7 +94,7 @@ def test_the_row_carries_the_code_tree_and_the_rule_that_made_it(tmp_path):
 
     assert "code_tree" in row_build and "code_tree_rule" in row_build
     assert row_build["code_tree_rule"] == {
-        "prefixes": ["docs/", "tests/", ".github/"],
+        "prefixes": ["docs/", "tests/", ".github/", "Harness_Brain/"],
         "root_suffixes": [".md"],
     }
     # This test process runs from a checkout, so the digest is real. Where it is
