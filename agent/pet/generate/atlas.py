@@ -267,7 +267,7 @@ def _component_boxes(image) -> list[tuple[tuple[int, int, int, int], int]]:
 
 def _isolate_slot_subject(image):
     """Keep the slot's real subject; drop detached effects/noise."""
-    rgba = _erase_long_axis_lines(image)
+    rgba = erase_long_axis_lines(image)
     comps = _component_boxes(rgba)
     if not comps:
         return rgba
@@ -367,7 +367,7 @@ def _component_crops(strip, frame_count: int, *, require_padding: bool = False) 
             frames.append(_place(source.crop((left, top, right, bottom)), (cr - cl, cb - ct), (left - cl, top - ct)))
         return frames
 
-    return attempt(strip) or attempt(_erase_long_axis_lines(strip))
+    return attempt(strip) or attempt(erase_long_axis_lines(strip))
 
 
 def sever_expected_gutters(strip, frame_count: int):
@@ -484,15 +484,15 @@ def extract_strip_frames(
     if frames is None:
         frames = _salvage_frames(strip, frame_count)
     _validate_extracted_frames(frames, frame_count)
-    return [_fit_to_cell(f) for f in frames] if fit else frames
+    return [fit_to_cell(f) for f in frames] if fit else frames
 
 
 def _salvage_frames(strip, frame_count: int) -> list:
     """Lenient last resort: gutter ranges (severing expected gutters if needed), else raw slots."""
-    source, ranges = strip, _frame_x_ranges(strip, frame_count)
+    source, ranges = strip, frame_x_ranges(strip, frame_count)
     if ranges is None:
-        source = _sever_expected_gutters(strip, frame_count)
-        ranges = _frame_x_ranges(source, frame_count)
+        source = sever_expected_gutters(strip, frame_count)
+        ranges = frame_x_ranges(source, frame_count)
     if ranges is None:
         return _slot_crops(source, frame_count, require_padding=False) or []
     w, h = source.size
@@ -557,7 +557,7 @@ def normalize_cells(frames_by_state: dict[str, list], *, pad: int = _NORMALIZE_P
 def single_frame(image, *, fit: bool = True):
     """One frame from a standalone image (idle fallback); ``fit=False`` yields the raw keyed sprite for :func:`normalize_cells`."""
     keyed = remove_background(_load_rgba(image))
-    return _fit_to_cell(keyed) if fit else _drop_side_bleed(keyed)
+    return fit_to_cell(keyed) if fit else _drop_side_bleed(keyed)
 
 
 def clear_transparent_rgb(image):
@@ -583,9 +583,9 @@ def compose_atlas(frames_by_state: dict[str, list]):
     atlas = _blank((ATLAS_WIDTH, ATLAS_HEIGHT))
     for state, row, count in ROW_SPECS:
         for col, frame in enumerate((frames_by_state.get(state) or [])[:count]):
-            cell = cell if (cell := frame.convert("RGBA")).size == (CELL_WIDTH, CELL_HEIGHT) else _fit_to_cell(cell)
+            cell = cell if (cell := frame.convert("RGBA")).size == (CELL_WIDTH, CELL_HEIGHT) else fit_to_cell(cell)
             atlas.alpha_composite(cell, (col * CELL_WIDTH, row * CELL_HEIGHT))
-    return _clear_transparent_rgb(atlas)
+    return clear_transparent_rgb(atlas)
 
 
 def validate_atlas(atlas) -> dict:

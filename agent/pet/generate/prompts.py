@@ -85,7 +85,7 @@ def spacing_spec(frame_count: int) -> tuple[int, int]:
     ~70% occupancy (still a generous gutter on 1536px, no shrinking).
     """
     slots = max(1, frame_count)
-    slot_w = _ASSUMED_STRIP_WIDTH / slots
+    slot_w = ASSUMED_STRIP_WIDTH / slots
     return round(slot_w * 0.7), max(48, round(slot_w * 0.3))
 
 
@@ -119,7 +119,7 @@ def build_base_prompt(concept: str, *, style: str | None = "auto", variation: st
         "relaxed at the sides, feet together on the ground, any cape/accessories "
         "hanging straight and still."
         f"{nudge} "
-        f"{_BACKGROUND}{style_hint(style)}"
+        f"{BACKGROUND}{style_hint(style)}"
     )
 
 
@@ -127,7 +127,7 @@ def build_row_prompt(state: str, frame_count: int, concept: str, *, style: str |
     """A row strip: *frame_count* poses of the SAME character, left→right, identity locked to the attached base image."""
     action = STATE_ACTIONS.get(state, "a simple idle pose")
     concept = (concept or "the mascot").strip()
-    pose_px, gap_px = _spacing_spec(frame_count)
+    pose_px, gap_px = spacing_spec(frame_count)
     return (
         f"Using the attached reference image as the exact same character "
         f"(same species, face, colors, markings, proportions, and props), "
@@ -140,7 +140,7 @@ def build_row_prompt(state: str, frame_count: int, concept: str, *, style: str |
         "Fill the WHOLE strip with the SAME single flat chroma-key color as the attached "
         "reference image's background (identical hue in every frame, no per-pose color shifts). "
         f"SPACING (critical): draw each pose at a consistent, healthy, clearly "
-        f"visible size (roughly {pose_px}px wide on a {_ASSUMED_STRIP_WIDTH}px "
+        f"visible size (roughly {pose_px}px wide on a {ASSUMED_STRIP_WIDTH}px "
         f"strip) — do NOT shrink it tiny — but keep its ENTIRE silhouette "
         f"(wings, tail, halo, horns, cape, every appendage) fully INSIDE its own "
         f"cell. Leave at least {gap_px}px of empty chroma-key background between "
@@ -161,5 +161,5 @@ def build_row_prompt(state: str, frame_count: int, concept: str, *, style: str |
         "bags, and scarves stay in the SAME place and shape every frame (no "
         "swinging, flowing, or drifting) unless the action itself requires it. No "
         "pose is cropped at the strip edges. "
-        f"{_BACKGROUND}{style_hint(style)}"
+        f"{BACKGROUND}{style_hint(style)}"
     )
