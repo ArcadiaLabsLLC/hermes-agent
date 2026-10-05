@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
+from tools.mcp_tool_schema import mcp_prefixed_tool_name
 from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
 
 #: Top search hits that carry their full ``parameters`` schema, and its size bound.
@@ -49,17 +50,31 @@ def attach_hit_parameters(record: Dict[str, Any], index: int, params) -> None:
 #: Fork tools that stay in the direct tool list. ``skill_search`` is the eternia-harness plugin's tool
 #: (toolset ``skills``); upstream defers every plugin tool, and it used to stay eager only by being
 #: named in upstream's core list in ``toolsets.py`` (moved here, lane h11-fp 2026-09-29).
-#: The launcher_qa core verbs ride eagerly too: a "screenshot news" turn spent two of its four
-#: model round trips on tool_search + tool_describe before ``open_app_tab`` (owner run
-#: 2026-10-04). They exist only in a run ADMITTED the ``launcher_qa`` server, so naming them
-#: here un-hides them for exactly the personas that use it and grants nothing to anyone else.
-_LAUNCHER_QA_CORE_TOOLS = frozenset({
-    "mcp_launcher_qa_open_app_tab",
-    "mcp_launcher_qa_screenshot_window",
-    "mcp_launcher_qa_capture_screenshot",
-    "mcp_launcher_qa_launch_or_attach",
-})
-_NEVER_DEFER_TOOLS = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | _LAUNCHER_QA_CORE_TOOLS
+_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"})
+
+#: MCP promotions, keyed by the server that produces them and spelled as that server EXPOSES each
+#: tool. The registered name is derived below by the registry's own naming function — never typed by
+#: hand: the first spelling of this set was the bare ``mcp_launcher_qa_open_app_tab`` while the
+#: registry holds ``mcp__launcher_qa__mcp_launcher_qa_open_app_tab``, so the promotion matched
+#: nothing and its pin, typed the same way, proved nothing (lane h-defer, owner run 2026-10-05).
+#: The launcher_qa core verbs ride eagerly: a "screenshot news" turn spent two of its four model
+#: round trips on tool_search + tool_describe before ``open_app_tab`` (owner run 2026-10-04). They
+#: exist only in a run ADMITTED the ``launcher_qa`` server, so naming them here un-hides them for
+#: exactly the personas that use it and grants nothing to anyone else.
+_MCP_NEVER_DEFER_VERBS = {
+    "launcher_qa": (
+        "mcp_launcher_qa_open_app_tab",
+        "mcp_launcher_qa_screenshot_window",
+        "mcp_launcher_qa_capture_screenshot",
+        "mcp_launcher_qa_launch_or_attach",
+    ),
+}
+_MCP_NEVER_DEFER = {
+    server: frozenset(mcp_prefixed_tool_name(server, verb) for verb in verbs)
+    for server, verbs in _MCP_NEVER_DEFER_VERBS.items()
+}
+_LAUNCHER_QA_CORE_TOOLS = _MCP_NEVER_DEFER["launcher_qa"]
+_NEVER_DEFER_TOOLS = _BUILTIN_NEVER_DEFER.union(*_MCP_NEVER_DEFER.values())
 
 
 def never_defer_tool_names(config=None) -> frozenset[str]:

@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
+import pytest
+
 from tests.tools.test_tool_search import (  # noqa: F401 — upstream names the moved tests use
     TestCatalogListing as _UpstreamCatalogListing,
     TestRegression_ToolsetScoping as _UpstreamToolsetScoping,
@@ -73,6 +75,36 @@ class TestConfigParsing:
         )
 
 
+#: The verbs the launcher_qa MCP server exposes (raw MCP tool names), spelled independently of the
+#: promotion so a respelled promotion cannot agree with its own pin by construction.
+_LAUNCHER_QA_CORE_VERBS = (
+    "mcp_launcher_qa_open_app_tab",
+    "mcp_launcher_qa_screenshot_window",
+    "mcp_launcher_qa_capture_screenshot",
+    "mcp_launcher_qa_launch_or_attach",
+)
+_LAUNCHER_QA_CONTROL_VERB = "mcp_launcher_qa_click_button"
+
+
+@pytest.fixture
+def launcher_qa_registered():
+    """The launcher_qa server's tools registered through the REAL MCP registration path into a
+    fresh registry; yields the registered names exactly as the registry spells them."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from tools.mcp_tool import MCPServerTask
+    from tools.mcp_tool_registration import _register_server_tools
+    from tools.registry import ToolRegistry
+
+    server = MCPServerTask("launcher_qa")
+    server._tools = [SimpleNamespace(name=verb, description="launcher_qa verb.", inputSchema=None)
+                     for verb in (*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB)]
+    server.session = MagicMock()
+    with patch("tools.registry.registry", ToolRegistry()):
+        yield _register_server_tools("launcher_qa", server, {})
+
+
 class TestClassification:
     def test_promoted_agent_chat_tools_never_defer(self):
         """Operator ruling 2026-08-23: agent-to-agent send is a first-class
@@ -100,44 +132,37 @@ class TestClassification:
                 f"Read-side sibling '{name}' must stay deferred"
             )
 
-    def test_launcher_qa_core_verbs_never_defer(self):
+    def test_launcher_qa_core_verbs_never_defer(self, launcher_qa_registered):
         """A "screenshot news" turn spent two of four model round trips on
         tool_search + tool_describe before open_app_tab (owner run 2026-10-04):
         the four launcher_qa core verbs ride eagerly once the server is admitted.
-        Positive control: a non-core verb of the SAME server, registered the same
-        way, still defers — so the four are un-hidden by the promotion, not by a
-        fixture that never reached the MCP deferral branch."""
-        from tools.registry import registry
+
+        The names asked about are the ones the REAL MCP registration path produced
+        (``_register_server_tools``), never typed here: the first version of this
+        test registered the bare verbs by hand, matched the equally bare promotion,
+        and stayed green while every real run still deferred the four (owner run
+        2026-10-05). Positive control: a non-core verb of the SAME server, registered
+        the same way, still defers — so the four are un-hidden by the promotion, not
+        by a fixture that never reached the MCP deferral branch."""
         from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
 
-        def _handler(args, task_id=None, **kw):
-            return json.dumps({"ok": True})
-
-        core = (
-            "mcp_launcher_qa_open_app_tab",
-            "mcp_launcher_qa_screenshot_window",
-            "mcp_launcher_qa_capture_screenshot",
-            "mcp_launcher_qa_launch_or_attach",
-        )
-        control = "mcp_launcher_qa_click_button"
+        registered = launcher_qa_registered
         cfg = ToolSearchConfig.from_raw(None)
-        for name in (*core, control):
-            registry.register(
-                name=name, handler=_handler,
-                schema=_td(name, "launcher_qa verb.")["function"],
-                toolset="mcp-launcher_qa",
-            )
-        try:
-            assert is_deferrable_tool_name(control, config=cfg), (
-                f"control '{control}' must defer — the fixture never reached the MCP branch"
-            )
-            eager = [n for n in core if not is_deferrable_tool_name(n, config=cfg)]
-            assert eager == list(core), (
-                f"launcher_qa core verbs must never defer; eager={eager}"
-            )
-        finally:
-            for name in (*core, control):
-                registry.deregister(name)
+        by_verb = {verb: name for name in registered
+                   for verb in (*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB)
+                   if name.endswith(f"__{verb}")}
+        assert set(by_verb) == {*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB}, (
+            f"registration fixture did not produce every verb: {sorted(registered)}"
+        )
+        control = by_verb[_LAUNCHER_QA_CONTROL_VERB]
+        assert is_deferrable_tool_name(control, config=cfg), (
+            f"control '{control}' must defer — the fixture never reached the MCP branch"
+        )
+        core = [by_verb[verb] for verb in _LAUNCHER_QA_CORE_VERBS]
+        deferred = [n for n in core if is_deferrable_tool_name(n, config=cfg)]
+        assert deferred == [], (
+            f"launcher_qa core verbs must never defer under their REGISTERED names; deferred={deferred}"
+        )
 
     def test_never_defer_does_not_grant(self):
         """Un-hide, never grant. classify_tools only PARTITIONS the defs it is
