@@ -28,6 +28,16 @@ no turn -- turn 0 included -- may walk the catalog or import a module between ``
 and ``request_sent``. Killing mutations: ``FIRST_TURN_MODULES`` back to its first three names
 (turn 0 imports the Relay binding and ~25 modules); the warm-up's ``skill_catalog`` step
 dropped (turn 0 walks the catalog inline).
+
+h-turn1-conn: the fake answers keep-alive (as the live edge does), the pre-connect runs against
+it, and turn 0's title upgrade races the turn for the shared pool as it did live. Turn 0 must
+ride a pre-opened connection, parse its first event as fast as a warm turn, keep its prewarmed
+actor although the persona's name differs from the instance's, write its prompt and tools pin
+after ``request_sent``, and send within ``FIRST_TURN_OVER_WARM_MS`` of the slowest warm turn.
+Killing mutations: ``PRECONNECT_CONNECTIONS = 1`` (the title takes the one socket: turn 0
+``conn=new``); the ``sdk_event_parse`` step dropped (turn 0 ``first_event_lag_ms`` ~14-23); the
+prewarm's ``_instance_as_the_send_path_stamps_it`` dropped (the actor is discarded); the
+``defer_prewarmed_turn_persist`` seam answering False (no deferred-persist receipt).
 """
 
 from __future__ import annotations
@@ -53,6 +63,7 @@ from tests.agent_runtime.test_stream_turn_section import (  # noqa: F401  (``hom
     _seed_chat,
     home,
 )
+from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
 
 MODEL = "gpt-5.6-luna"
@@ -68,22 +79,119 @@ ACCEPT_TO_ANCHOR_MS = 600
 FIRST_ANCHOR_TO_REQUEST_SENT_MS = 2500
 WARM_ANCHOR_TO_REQUEST_SENT_MS = 1500
 QUEUE_BEHIND_RIDERS_MS = 1000
+#: h-turn1-conn: turn 0 sends within this of the slowest warm turn (it was ~150 ms behind).
+FIRST_TURN_OVER_WARM_MS = 100
+#: h-turn1-conn: first byte -> first parsed event. A cold SDK event parse is 21-23 ms here
+#: (277-334 ms in a cold process); a warm one 0.4. The live bar is 50.
+FIRST_EVENT_LAG_MS = 8.0
 #: How long a turn may sit behind the parked riders before the scenario releases them (so a
 #: turn queued behind them still finishes, and reads red on ``queue_ms``).
 RIDER_HOLD_S = 5.0
+#: The title upgrade's answer time on the fake (live: ~1 s): the connection it holds is busy
+#: while turn 1 sends.
+TITLE_CALL_S = 1.0
 
 
 def _seed_persona() -> None:
     from agent_runtime.personas import AgentPersona
     from agent_runtime.store import AgentStore
 
-    # ``display_name`` is the one ``_seed_chat``'s instance carries: a name the send path's
-    # store read re-stamps would move ``instance_revision`` and discard the prewarm.
+    # h-turn1-conn: NOT the name ``_seed_chat``'s ``open_chat`` mints the instance with ("Dev"):
+    # the send path's ``ensure_for_personas`` re-stamps it, and the prewarm must sign the row
+    # turn 1 signs (it was discarded on ``instance_revision`` before the prewarm made that stamp).
     AgentStore().save(AgentPersona(
-        id="dev", display_name="Dev", role="dev", model=MODEL, provider="openai-codex",
+        id="dev", display_name="Dev Persona", role="dev", model=MODEL, provider="openai-codex",
         api_mode="codex_responses", toolsets=["file", "search", "terminal"],
         system_prompt_path="agent_runtime/prompts/dev.md",
     ))
+
+
+class _ConnTaggedRequests(list):
+    """``FakeResponsesServer.requests`` whose records name the connection that carried them.
+
+    ``ThreadingHTTPServer`` serves each accepted connection on its own thread, so the
+    handler thread's name IS the connection.
+    """
+
+    def append(self, record) -> None:  # type: ignore[override]
+        record["conn"] = threading.current_thread().name
+        threading.current_thread().fake_kind = record["kind"]
+        super().append(record)
+
+
+def _keepalive_handler_for(server):
+    """The fake's handler, answering like the live edge: ``Connection: keep-alive`` with a
+    ``Content-Length`` on every response (the stream included) and a ``404`` to the
+    pre-connect's ``HEAD``. The upstream fake closes after each response, so a pooled
+    connection could never be read there."""
+
+    base = _REAL_HANDLER_FOR(server)
+
+    class KeepAlive(base):
+        def do_HEAD(self) -> None:  # noqa: N802
+            server.requests.append({"path": self.path, "kind": "head", "body": {}, "t": time.time(),
+                                    "headers": {k.lower(): v for k, v in self.headers.items()}})
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+
+        def _render(self, step) -> None:
+            if isinstance(step, openai_responses.HttpError):
+                return super()._render(step)
+            if getattr(threading.current_thread(), "fake_kind", None) == "aux":
+                time.sleep(TITLE_CALL_S)  # the title model's own answer time
+            if isinstance(step, openai_responses.SoftFail):
+                events, limit = openai_responses.soft_fail_events(step), None
+            else:
+                events, limit = openai_responses.turn_events(step), step.drop_after_events
+            body = b"".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n".encode()
+                            for e in (events if limit is None else events[:limit]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+
+    return KeepAlive
+
+
+_REAL_HANDLER_FOR = openai_responses._handler_for
+
+
+def _title_call_on_the_shared_pool(monkeypatch, fake) -> None:
+    """Turn 1's title upgrade as it runs live: a Responses request on the auxiliary client's
+    keep-alive client -- the SAME process-shared transport as the turn's -- started on its own
+    thread before the model request, and answered slowly (live: ~1 s).
+
+    The live 14:34 / 14:54 Neko turn 1 lost its pre-connected socket to it: the title thread
+    reached the pool first and the turn opened a new connection (``tls_done_ms`` 1378 / 1070).
+    """
+
+    import openai
+
+    from agent import title_generator
+    from agent.process_bootstrap import build_keepalive_http_client
+
+    titled: list[float] = []
+
+    def call_llm(**_kwargs):
+        titled.append(time.monotonic())
+        client = openai.OpenAI(api_key="test-key", base_url=fake.base_url, max_retries=0,
+                               http_client=build_keepalive_http_client(fake.base_url))
+        for _ in client.responses.create(model=MODEL, input="name this chat", stream=True):
+            pass
+        message = SimpleNamespace(content='{"title": "Fake title"}', reasoning=None, reasoning_content=None)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    monkeypatch.setattr(title_generator, "call_llm", call_llm)
+    # The scenario's chat root carries a seeded title; a launcher-opened chat has none until
+    # turn 1's upgrade names it. Once is the race: the scenario's turns are a few hundred ms
+    # apart, so a 1 s title on every turn would hold both sockets at once (live turns are
+    # seconds apart and read ``pooled``).
+    monkeypatch.setattr(title_generator, "_has_upgraded_title", lambda *_a, **_k: bool(titled))
 
 
 class _Log(logging.Handler):
@@ -274,6 +382,7 @@ def _prefix_breaks(bodies: list[dict]) -> list[str]:
 def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
     monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
 ):
+    from agent_runtime import provider_preconnect
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
     )
@@ -294,7 +403,13 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
     spans: list[str] = []
     started = time.monotonic()
 
-    with FakeResponsesServer(default_text="hi there") as provider:
+    # The live edge keeps a connection open; the pre-connect opens one (loopback included here).
+    monkeypatch.setattr(openai_responses, "_handler_for", _keepalive_handler_for)
+    monkeypatch.setattr(provider_preconnect, "_is_loopback", lambda host: False)
+    fake = FakeResponsesServer(default_text="hi there")
+    _title_call_on_the_shared_pool(monkeypatch, fake)
+    fake.requests = _ConnTaggedRequests()
+    with fake as provider:
         monkeypatch.setattr(execute, "resolve_runtime_provider", lambda **_kw: {
             "provider": "openai-codex", "api_mode": "codex_responses", "base_url": provider.base_url,
             "api_key": "test-key", "model": MODEL})
@@ -330,6 +445,9 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
 
             # ── three turns ───────────────────────────────────────────────────
             sections_seen = len(log.receipts("turn_section "))
+            windows_seen = len(log.receipts("send_window_receipt "))
+            deferred_seen = len(log.receipts("first_turn_persist_deferred "))
+            sent_by_turn: dict[int, int] = {}
             for index in range(TURNS):
                 if index:  # past the TTL: a warm turn answers stale, never walks inline
                     skills_resolver._skill_catalog_memo["at"] = time.monotonic() - 60.0
@@ -354,6 +472,12 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     violations.append(f"turn {index}: turn-section read on the stream thread: {executors}")
                 if index == 0 and timing.get("visibility_bundle_builds") != 0:
                     violations.append(f"turn 0: visibility_bundle_builds={timing.get('visibility_bundle_builds')}")
+                deferred = [_fields(m) for m in log.receipts("first_turn_persist_deferred ")[deferred_seen:]]
+                deferred_seen += len(deferred)
+                expected = [{"ran_on": "request_sent"}] if index == 0 else []
+                if [{"ran_on": d.get("ran_on")} for d in deferred] != expected:
+                    violations.append(f"turn {index}: first-turn persist receipts {deferred} (turn 0 writes its "
+                                      "prompt and tools pin after request_sent, once)")
                 if index == 0 and timing.get("resident_actor_reused") is not True:
                     violations.append("turn 0: the prewarmed actor was not reused")
                 turn_thread = serve.handlers[f"m-{index}"][0]
@@ -363,6 +487,15 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                                       "and request_sent (the prewarm's first-turn warm-up owns them)")
                 if inline:
                     violations.append(f"turn {index}: {len(inline)} inline catalog walk(s) on the turn's thread")
+                windows = [_fields(m) for m in log.receipts("send_window_receipt ")[windows_seen:]]
+                windows_seen += len(windows)
+                if [w.get("conn") for w in windows] != ["reused"]:
+                    violations.append(f"turn {index}: send_window conn={[w.get('conn') for w in windows]} "
+                                      "(the pre-opened connections are the ones every turn rides)")
+                lag = windows[0].get("first_event_lag_ms") if windows else None
+                if lag in (None, "na") or float(lag) > FIRST_EVENT_LAG_MS:
+                    budgets.append(f"turn {index}: first_event_lag_ms={lag} > {FIRST_EVENT_LAG_MS} "
+                                   "(the SDK's first event parse belongs to the prewarm)")
 
                 anchor = [_fields(m) for m in log.receipts(f"chat_turn_accept_to_anchor request=turn-{index} ")]
                 if not anchor:
@@ -375,10 +508,18 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     budgets.append(f"turn {index}: accept->anchor {anchor[0]['total_ms']} ms "
                                    f"> {ACCEPT_TO_ANCHOR_MS}")
                 sent = timing.get("request_sent_ms")
-                spans.append(f"turn {index} accept->anchor={anchor[0]['total_ms']} anchor->request_sent={sent}")
+                if isinstance(sent, int):
+                    sent_by_turn[index] = sent
+                spans.append(f"turn {index} accept->anchor={anchor[0]['total_ms']} anchor->request_sent={sent} "
+                             f"conn={windows[0].get('conn') if windows else None} first_event_lag_ms={lag}")
                 bound = WARM_ANCHOR_TO_REQUEST_SENT_MS if index else FIRST_ANCHOR_TO_REQUEST_SENT_MS
                 if not isinstance(sent, int) or sent > bound:
                     budgets.append(f"turn {index}: anchor->request_sent {sent} ms > {bound}")
+
+            warm = [sent_by_turn[i] for i in range(1, TURNS) if i in sent_by_turn]
+            if 0 in sent_by_turn and warm and sent_by_turn[0] > max(warm) + FIRST_TURN_OVER_WARM_MS:
+                budgets.append(f"turn 0: anchor->request_sent {sent_by_turn[0]} ms > the slowest warm turn "
+                               f"{max(warm)} + {FIRST_TURN_OVER_WARM_MS}")
 
             # ── one handler per client message id ─────────────────────────────
             twin = [f for f in serve.frames if f.get("id") == "twin"]

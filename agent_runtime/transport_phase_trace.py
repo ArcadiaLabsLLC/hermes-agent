@@ -44,6 +44,7 @@ from agent_runtime.conversation_observability import (
     TRANSPORT_TLS_DONE_STEP,
     _emit_phase_marker,
 )
+from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist
 from agent_runtime.send_window_receipt import SendWindow
 from agent_runtime.stream_gap_receipt import begin_send_window, begin_stream_gap_receipt
 
@@ -90,6 +91,9 @@ def phase_trace_for(
         step = TRACE_EVENT_STEPS.get(event_name)
         if step is not None:
             _emit_phase_marker(agent, step)
+        if step == TRANSPORT_REQUEST_SENT_STEP and agent is not None:
+            # h-turn1-conn: the first turn's held persist writes, now that the request is out.
+            run_deferred_turn_persist(agent)
 
     return _trace
 

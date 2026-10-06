@@ -29,7 +29,11 @@ from agent_runtime.run_budget import (
 )
 
 from agent_runtime.first_turn_warmup import warm_first_turn_paths
-from agent_runtime.prewarmed_system_prompt import stash_prewarmed_system_prompt
+from agent_runtime.prewarmed_system_prompt import (
+    RAN_ON_RUN_END,
+    run_deferred_turn_persist,
+    stash_prewarmed_system_prompt,
+)
 from agent_runtime.serde import positive_float, positive_int
 from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
@@ -269,7 +273,11 @@ def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[st
 
     # The persona's defer reaches the bridge's reads (search catalog, tool_call resolve) here.
     with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)), bind_turn_reasoning(agent) as reasoning:
-        raw_result = agent.run_conversation(**conversation_kwargs)
+        try:
+            raw_result = agent.run_conversation(**conversation_kwargs)
+        finally:
+            # h-turn1-conn: a held first-turn persist whose request never went out runs now.
+            run_deferred_turn_persist(agent, RAN_ON_RUN_END)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
         raw_result["reasoning_window"] = reasoning.fields()

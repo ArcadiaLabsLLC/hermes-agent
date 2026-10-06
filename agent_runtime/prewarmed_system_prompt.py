@@ -120,7 +120,69 @@ def take_prewarmed_system_prompt(
     return prompt
 
 
+# ── h-turn1-conn: the adopted turn's persist writes go after ``request_sent`` ──
+#
+# A first turn persists its system prompt and its ``tools[]`` pin to the session
+# row before it builds the request (``_persist_system_prompt(...,
+# persist_tools=True)``): two write transactions, each with a sweep of the
+# content-addressed prompt table, ~30 ms of the turn-cost guard's turn-0 lag
+# (stack-sampled: ``update_system_prompt`` + ``update_session_tool_names``) and
+# more on a large live store. Nothing on the way to the provider reads them --
+# the NEXT turn restores from them. So a turn that adopted a prewarmed prompt
+# hands the write here, and it runs when the request is on the wire
+# (:func:`run_deferred_turn_persist` from the transport trace's ``request_sent``),
+# or when the run ends if no request was ever sent. ONE state, popped once.
+
+_DEFERRED = "_deferred_first_turn_persist"
+
+DEFERRED_PERSIST_RECEIPT = "first_turn_persist_deferred session=%s ran_on=%s elapsed_ms=%d"
+
+RAN_ON_REQUEST_SENT = "request_sent"
+RAN_ON_RUN_END = "run_end"
+
+
+def defer_prewarmed_turn_persist(agent: Any, prewarmed: Optional[str], persist: Callable[[], None]) -> bool:
+    """Hold *persist* until the turn's request is sent, when the turn adopted a prewarmed prompt.
+
+    Returns False (the caller persists now, as upstream does) for every turn
+    that built its own prompt.
+    """
+
+    if prewarmed is None:
+        return False
+    try:
+        vars(agent)[_DEFERRED] = persist
+    except TypeError:
+        return False
+    return True
+
+
+def run_deferred_turn_persist(agent: Any, ran_on: str = RAN_ON_REQUEST_SENT) -> bool:
+    """Run the held persist, once. Never raises; True when one ran."""
+
+    try:
+        persist = vars(agent).pop(_DEFERRED, None)
+    except TypeError:
+        return False
+    if persist is None:
+        return False
+    started = time.perf_counter()
+    try:
+        persist()
+    except Exception:
+        logger.warning("deferred first-turn persist failed for session %s", getattr(agent, "session_id", None),
+                       exc_info=True)
+    logger.info(DEFERRED_PERSIST_RECEIPT, getattr(agent, "session_id", None), ran_on,
+                max(0, int((time.perf_counter() - started) * 1000)))
+    return True
+
+
 __all__ = [
+    "DEFERRED_PERSIST_RECEIPT",
+    "RAN_ON_REQUEST_SENT",
+    "RAN_ON_RUN_END",
+    "defer_prewarmed_turn_persist",
+    "run_deferred_turn_persist",
     "DISCARD_REASONS",
     "PREWARM_DISCARDED_RECEIPT",
     "PREWARM_SYSTEM_PROMPT_BUILD_MS",

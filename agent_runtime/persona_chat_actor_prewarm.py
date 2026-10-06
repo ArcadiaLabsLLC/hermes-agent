@@ -532,6 +532,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     persona = _persona_by_id(cfg, str(getattr(instance, "persona_id", "") or ""))
     if persona is None:
         raise _PrewarmRefused(OUTCOME_SKIPPED_PERSONA_UNRESOLVED)
+    instance = _instance_as_the_send_path_stamps_it(persona, instance, root)
     # The send path folds the instance model-override tier into the persona
     # BEFORE it resolves anything else (persona_commands: `persona =
     # apply_instance_model_overrides(persona, instance)`), and the folded
@@ -662,6 +663,38 @@ def _assert_provider_health(assert_fn: Any, persona: Any, provider: Any, model: 
     health_persona.provider = provider
     health_persona.model = model
     assert_fn(health_persona)
+
+
+def _instance_as_the_send_path_stamps_it(persona: Any, instance: Any, root: str) -> Any:
+    """*instance* after the store write the send path makes before it signs.
+
+    h-turn1-conn. The send path runs ``PersonaInstanceStore.ensure_for_personas``
+    on every non-auxiliary turn (``hermes_cli/harness_parts/persona/chat_turn_message.py``),
+    and ``ensure_for_persona`` re-stamps a persona's canonical instance with the
+    persona's ``display_name``; ``persona_assignments/chat_binding.py::open_chat``
+    mints that row with a template or operator name. Two writers: a row minted
+    "Dev" for a persona named "Dev Persona" moved ``instance_revision`` between
+    the prewarm's signature and turn 1's, and the actor was discarded
+    (``discarded_signature_mismatch``). The prewarm makes the same write first
+    -- this persona only, the row the send path would touch for it -- so both
+    sign one row. Fail-open: the instance as given.
+    """
+
+    from .auxiliary_chat import is_auxiliary_chat
+    from .persona_assignments import PersonaInstanceStore
+    from .persona_lifecycle import is_runtime_persona
+
+    instance_id = str(getattr(instance, "id", "") or "")
+    if not instance_id or is_auxiliary_chat(instance_id, root) or not is_runtime_persona(persona):
+        return instance
+    try:
+        store = PersonaInstanceStore()
+        store.ensure_for_persona(persona)
+        return store.get(instance_id)
+    except Exception:
+        logger.debug("prewarm could not re-read instance %s after the send path's stamp", instance_id,
+                     exc_info=True)
+        return instance
 
 
 def _instance_for_root(root: str) -> Any:
