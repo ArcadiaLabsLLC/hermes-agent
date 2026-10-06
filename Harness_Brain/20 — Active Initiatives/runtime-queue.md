@@ -61,6 +61,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (owner live turns, "turns still feel slow")
 
+- [ ] **Prompt-cache regression after wave 3: before (2026-10-05 21:23) a new Neko chat's turn 2 hit the provider cache (94–97%); after `f779903ba7` (22:51 and 2026-10-06 00:14) turns 1 AND 2 miss and hits start at turn 3 (91–95%), and S6's instance-scoped key gives turn 1 no hit either — suspect the prewarm-built system prompt turn 1 adopts is not byte-identical to the prompt turn 2 sends (or the request prefix/tool order moves between turn 1 and 2); find the first differing byte between turn 1's and turn 2's request prefix and make them one** · fork / prompt surface · evidence: neko `agent.log` `API call #1 … cache=` lines 2026-10-05 21:23, 22:51, 2026-10-06 00:14 · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-cache-hit)**
+
 
 - [ ] **Remove the h-turn1 A5 stamps from upstream `agent/turn_api_request.py` (8 lines marked `# fork seam: h-turn1 A5`) once the first-turn `build_api_request` cost is fixed — owner kept them 2026-10-05 as a TEMPORARY diagnostic against the 2026-09-29 DOORS-A ruling (`bfee7eb896`); the file returns to upstream bytes and the footprint fixture drops by one** · seam / `agent/turn_api_request.py` · evidence: `lane/h-turn1-tail` `4b49ff114b` · blocked on the A5 row · UNCLAIMED
 
