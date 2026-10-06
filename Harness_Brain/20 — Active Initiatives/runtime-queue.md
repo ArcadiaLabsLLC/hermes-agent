@@ -403,6 +403,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-06 (lane h-prereq-window)
+
+- [ ] **CLASS (third instance: turn-1 `conn=new`, turn-1 375 ms stream-gap stall, the turns 1–3 pre-request window): the turn-start title upgrade (`agent/title_generator.maybe_auto_title`, started by `agent/turn_context.py`) runs on turns 1–3 INSIDE anchor→request_sent — live 17:05 it logged 600–850 ms after the anchor, 60–180 ms before `request_sent`, and `request_built` read 95/162 ms on titled turns vs 46–55 untitled; structural answer: hold the upgrade unstarted (upstream's own `_deferred_title_upgrade` path) via one additive seam and start it from the fork's `request_sent` hook (`transport_phase_trace` → `run_deferred_turn_persist`'s neighbour); supersedes the h-turn1-conn title row** · seam (`agent/turn_context.py`, ledger row) · evidence: `send_prep_receipt` `title_threads=` + `request_built_ms`; lane h-prereq-window report · lane: seam + guard check that no `auto-title` thread is alive at turn N's `request_sent`
+
 ### Filed on arrival — 2026-10-06 (lane h-model-pick)
 
 - [ ] **A turn with no native reasoning shows the reply duplicated as a Thinking row ("Thought once"): upstream `agent/turn_response_intake.py::_relay_thinking` sends the content as `reasoning.available`, and the fork's `profile_runner/progress.py` `CALLBACK_EVENTS` maps it straight to a `reasoning_summary` row** · seam (upstream file untouched) · evidence: live events 18810–18826 2026-10-06, reasoning_summary == reply on all 5 turns, reasoning_tokens=0 · lane: h-think-echo

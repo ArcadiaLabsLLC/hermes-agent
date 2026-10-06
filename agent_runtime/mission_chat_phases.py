@@ -58,6 +58,7 @@ import time
 from typing import Any, Callable
 
 from agent_runtime.clock import now_iso_micro
+from agent_runtime.send_prep_receipt import emit_send_prep_receipt
 
 __layer__ = "policy"
 
@@ -204,6 +205,8 @@ class TurnPhaseMarks:
         "_counters",
         "_baselines",
         "_lock",
+        "_cpu_anchor",
+        "receipt_turn",
     )
 
     def __init__(
@@ -225,6 +228,10 @@ class TurnPhaseMarks:
         # acquisitions for a whole turn), not per delta, so first-mark-wins is
         # an actual guarantee rather than a benign-looking race.
         self._lock = threading.Lock()
+        # h-prereq-window: the near end of the ``send_prep_receipt``'s ``cpu_ms``, and the
+        # client message id it is keyed on (the handler stamps it once it has parsed args).
+        self._cpu_anchor = time.process_time()
+        self.receipt_turn: str | None = None
 
     # ── reading ────────────────────────────────────────────────────────────
 
@@ -276,7 +283,13 @@ class TurnPhaseMarks:
                 return existing
             value = self._elapsed_ms_now()
             self._marks[name] = value
-            return value
+            marks = dict(self._marks) if name == "request_sent" else None
+        if marks is not None:
+            emit_send_prep_receipt(
+                marks, PHASE_ORDER, turn=self.receipt_turn, anchored_at=self._anchored_at,
+                cpu_ms=(time.process_time() - self._cpu_anchor) * 1000.0,
+            )
+        return value
 
     def flag(self, name: str, value: bool | None) -> None:
         """Record a boolean qualifier, or record NOTHING when it is unknown.

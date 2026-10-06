@@ -11,6 +11,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-06 (lane h-prereq-window)
+
+- [ ] **`tests/hermes_cli/test_harness_cli.py` is red on `main`: `test_harness_verify_skip_tests_emits_proof_packet` and `test_run_verify_command_survives_non_cp1252_bytes_in_child_output` fail alone via `scripts/run_tests.sh` on merge-base `a13510c1bb` and on lane/h-prereq-window alike** · fork / suite · evidence: lane h-prereq-window report (same two nodes both runs) · lane: read the failure, fix or prove env
+
 ## Filed on arrival — 2026-10-05 (owner ask: a usable suite)
 
 - [ ] **Per-test full plugin rediscovery is about half of a store-heavy file's CPU: `discover_plugins` ×81 per file ≈ 48% of `test_persona_assignments` profiled time, called from `agent_runtime/tool_visibility._ensure_plugin_tools_registered` after `tests/conftest.py::_hermetic_environment` resets plugin managers; the same reset is the `test_run_agent` floor — needs a ruling on whether bundled-plugin load may be session-cached** · `fork / suite` · evidence: lane h-suite-tail-b `9cc27e7f66` profile · UNCLAIMED
