@@ -40,6 +40,7 @@ from hermes_cli.harness_parts.serve.frames import (
     _request_sink,
 )
 from hermes_cli.harness_parts.serve.manifest import _is_gateway
+from agent_runtime.turn_activity import accepted_turn_scope
 
 __layer__ = "lanes"
 
@@ -58,6 +59,25 @@ def _is_open_chat_argv(argv: Any) -> bool:
     if tail and tail[0] == "harness":
         tail = tail[1:]
     return tuple(tail[: len(_OPEN_CHAT_ARGV)]) == _OPEN_CHAT_ARGV
+
+def accept_chat_turn(request: _ArgvRequest) -> Any:
+    """A chat turn's accepted-not-anchored hold, taken before its pool submit (h-prewarm-order)."""
+
+    from agent_runtime.turn_activity import AcceptedTurn
+
+    return AcceptedTurn(request.rid)
+
+
+def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
+    """``pool.submit(run, request)``; a submit that raises releases the request's hold."""
+
+    try:
+        return pool.submit(run, request)
+    except BaseException:
+        if request.accepted is not None:
+            request.accepted.release()
+        raise
+
 
 class _RunState:
     """One argv request's bookkeeping, carried from EXECUTE to REPLY."""
@@ -97,17 +117,23 @@ class ArgvLanes:
         # which leaves the contextvar unset and the proxy on stdout — the
         # pre-socket path, unchanged.
         sink_token = _request_sink.set(request.sink)
+        accepted = request.accepted
+        if accepted is not None:
+            accepted.started = request.started_monotonic
         state = _RunState(
             request.sink if request.sink is not None else self.frames,
             _CACHEABLE_ARGV.get(tuple(request.argv)),
         )
-        link_token = self._bind_launcher_link(request, state.sink)
-        try:
-            self._execute_request(request, state)
-        finally:
-            if link_token is not None:
-                reset_launcher_link(link_token)
-            self._reply_exit(request, state, token, sink_token)
+        with accepted_turn_scope(accepted):
+            link_token = self._bind_launcher_link(request, state.sink)
+            if accepted is not None:
+                accepted.link_bound = time.monotonic()
+            try:
+                self._execute_request(request, state)
+            finally:
+                if link_token is not None:
+                    reset_launcher_link(link_token)
+                self._reply_exit(request, state, token, sink_token)
 
     def _bind_launcher_link(self, request: _ArgvRequest, sink: Any) -> Any:
         """A chat turn's app-function link (Stage 7): refresh the tools, bind the link.
@@ -395,8 +421,10 @@ class ArgvLanes:
             turn_request_id=turn_request_id,
             from_gateway=_is_gateway(connection),
         )
+        chat_request.accepted = accept_chat_turn(chat_request)
         with self.inflight_lock:
             if self.drain_state is not None:
+                chat_request.accepted.release()
                 self.drain_state.note_refused()
                 raise ChatTurnSpawnRefused(
                     "draining",
@@ -406,12 +434,13 @@ class ArgvLanes:
             # not a client behaviour — it is a bug, and it refuses
             # rather than silently replacing a live request's entry.
             if chat_request.key in self.inflight:
+                chat_request.accepted.release()
                 raise ChatTurnSpawnRefused(
                     "request_id_collision",
                     "a request with this server-minted id is already in flight",
                 )
             self.inflight[chat_request.key] = chat_request
-        chat_future = self.pool.submit(self._run, chat_request)
+        chat_future = submit_accepted(self.pool, self._run, chat_request)
         with self.inflight_lock:
             if chat_request.key in self.inflight:
                 self.inflight_futures[chat_request.key] = chat_future

@@ -22,6 +22,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
 from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
+from hermes_cli.harness_parts.serve.lanes import accept_chat_turn, submit_accepted
 from hermes_cli.harness_parts.serve.constants import (
     _DRAIN_DEADLINE_FLOOR_SECONDS,
     DRAINING_EXIT_CODE,
@@ -981,8 +982,10 @@ class MessageHandling:
                     }
                 )
                 return
+            if request.is_chat_turn:
+                request.accepted = accept_chat_turn(request)
             self.inflight[request.key] = request
-        future = self.pool.submit(self._run, request)
+        future = submit_accepted(self.pool, self._run, request)
         with self.inflight_lock:
             # _run may already have finished and popped the request;
             # only track the future while the request is in flight so

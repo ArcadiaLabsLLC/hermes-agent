@@ -85,4 +85,76 @@ def warm_first_turn_paths(agent: Any, timing: dict[str, Any]) -> None:
         pass
 
 
-__all__ = ["FIRST_TURN_MODULES", "PREWARM_FIRST_TURN_WARMUP_MS", "warm_first_turn_paths"]
+# ── the process-once half, paid at serve boot (h-prewarm-order) ───────────────
+#
+# The 2026-10-06 01:24:59.35 -> 01:25:04.62 silent span of the boot actor
+# prewarm (5.3 s, ``system_prompt_build_ms=2159``), re-measured offline in a
+# cold process (scratch home, loopback provider): the first system-prompt build
+# is 3,232 ms of which 3,050 ms is upstream's once-per-process scratch prune
+# (``build_environment_hints`` -> ``get_scratch_dir`` -> ``prune_scratch_dir``
+# -> ``reap_processes_rooted_in``: ``psutil`` reads the cwd of every process on
+# the host, ~6 ms each); the second build is 39 ms. ``sdk_request_build`` is
+# 1,579 ms, of which ~1,420 ms is importing ``openai.resources.responses`` and
+# ~130 ms ``platform.platform()``. On Linux the prune runs at import
+# (``hermes_bootstrap.export_scratch_tmp_env``); on Windows the OS's ``%TEMP%``
+# makes that hook return before it, so the first prompt build paid it -- on the
+# one worker the operator's opened chat queues behind.
+#
+# Every step below is process-wide (a global flag, a module import, the
+# ``platform`` cache), so paying it once on the serve's boot thread removes it
+# from every construction after.
+
+PROCESS_ONCE_WARM_RECEIPT = (
+    "serve_process_once_warm scratch_prune_ms=%d sdk_responses_ms=%d platform_ms=%d request_modules_ms=%d"
+)
+
+#: The SDK resource the codex turn sends through (``client.responses``).
+SDK_RESPONSES_MODULE = "openai.resources.responses"
+
+
+def _warm_scratch_prune() -> None:
+    from hermes_constants import get_scratch_dir
+
+    get_scratch_dir()
+
+
+def _warm_sdk_responses() -> None:
+    importlib.import_module(SDK_RESPONSES_MODULE)
+
+
+def _warm_platform() -> None:
+    import platform
+
+    platform.platform()
+
+
+_PROCESS_ONCE_STEPS = (
+    ("scratch_prune", _warm_scratch_prune),
+    ("sdk_responses", _warm_sdk_responses),
+    ("platform", _warm_platform),
+    ("request_modules", _warm_request_modules),
+)
+
+
+def warm_process_once_costs() -> dict[str, int]:
+    """Pay the process-once costs a chat actor's construction would pay; log one receipt. Never raises."""
+
+    spent: dict[str, int] = {}
+    for name, step in _PROCESS_ONCE_STEPS:
+        started = time.perf_counter()
+        try:
+            step()
+        except Exception:
+            logger.debug("process-once warm step %s failed", name, exc_info=True)
+        spent[name] = max(0, int((time.perf_counter() - started) * 1000))
+    logger.info(PROCESS_ONCE_WARM_RECEIPT, *(spent[name] for name, _ in _PROCESS_ONCE_STEPS))
+    return spent
+
+
+__all__ = [
+    "FIRST_TURN_MODULES",
+    "PREWARM_FIRST_TURN_WARMUP_MS",
+    "PROCESS_ONCE_WARM_RECEIPT",
+    "warm_first_turn_paths",
+    "warm_process_once_costs",
+]

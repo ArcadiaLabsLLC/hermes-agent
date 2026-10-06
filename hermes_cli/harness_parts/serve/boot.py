@@ -378,6 +378,15 @@ def _prewarm_provider_runtime() -> None:
         get_tool_definitions(quiet_mode=True)
     except Exception:
         pass
+    try:
+        # h-prewarm-order: the 5.3 s the boot actor prewarm spent before its
+        # pre-connect was process-once work (scratch prune, SDK resource import);
+        # paid here, before the actor pass, it holds no chat's prewarm behind it.
+        from agent_runtime.first_turn_warmup import warm_process_once_costs
+
+        warm_process_once_costs()
+    except Exception:
+        pass
 
 
 def _prewarm_persona_chat_actors() -> None:
