@@ -13,6 +13,8 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-05 (owner ask: a usable suite)
 
+- [ ] **Per-test full plugin rediscovery is about half of a store-heavy file's CPU: `discover_plugins` ×81 per file ≈ 48% of `test_persona_assignments` profiled time, called from `agent_runtime/tool_visibility._ensure_plugin_tools_registered` after `tests/conftest.py::_hermetic_environment` resets plugin managers; the same reset is the `test_run_agent` floor — needs a ruling on whether bundled-plugin load may be session-cached** · `fork / suite` · evidence: lane h-suite-tail-b `9cc27e7f66` profile · UNCLAIMED
+- [ ] **A fresh SessionDB costs 0.8–1.0 s per test (one fsync per schema statement); the `_session_db_template` fixture is wired into only 2 files — count fresh DBs across `tests/agent_runtime` and widen it** · `fork / suite` · evidence: `9cc27e7f66` body · suite-speed 4F widening · UNCLAIMED
 - [ ] **Concurrent agent sessions share one scratchpad directory; another lane's file overwrote lane h-snap-worker's commit-message file between write and commit (`0383888e4a` on `lane/h-snap-worker` carries l-turn-fold's message; the correct record is `93aefd83cc` on `lane/h-snap-worker-r2`) — briefs should name a per-lane scratch subfolder** · `fork hygiene / session tooling` · evidence: that commit · UNCLAIMED
 - [ ] **`test_tombstone_registry.py`'s ~40 s import-time render is now most of its 65 s wall (after h-suite-tail-a collapsed its 1,228 items to 27)** · `fork / suite` · evidence: lane h-suite-tail-a `3a22204883` + suite-speed plan §2.3 · next 4B slice · UNCLAIMED
 - [ ] **Stage 4A's remaining e2e cost is cold CLI starts the tests keep on purpose (the process boundary is the subject) and a per-test `two_installs` pair the assertions need; the saving can only come from Stage 3 soloing these files first** · `fork / suite` · evidence: lane h-suite-tail-a `3a22204883` body · Stage 3 lane · UNCLAIMED
@@ -291,7 +293,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Filed on arrival — 2026-10-04 (lane h-qaeff)
 
-- [ ] **`test_upstream_footprint.py::test_the_upstream_footprint_never_rises_and_the_fixture_follows_it_down` is red on `main`: files 172 → 175 against `tests/fixtures/upstream_footprint.json` (deleted_lines 882, heavy 4 unchanged) — find the three newly touched upstream files and make them additive/plugin-side, or raise the fixture with a `reasons` row** · `fork / suite` · reproduced at `251645a6e7` (h-qaeff base run, 2026-10-04) · UNCLAIMED
 - [ ] **`test_duplicate_helper_bodies.py::test_the_fork_wide_baseline_still_describes_the_code` is red on `main`: W0-G3 helper names 15 NEW (e.g. `_read_checkpoint` in `running_work/lanes_process.py` + `tools/mcp_job_wake.py`, `_text`, `_flag`, `_strings` around `serve_rpc/realm.py`) and 2 STALE rows (`_resolve`, `_text`) — fold the collisions or re-baseline with reasons** · `fork / suite` · reproduced at `251645a6e7` (h-qaeff base run, 2026-10-04) · UNCLAIMED
 - [ ] **`test_mission_chat_outcome.py::test_every_owned_member_has_a_producer_in_the_cli_lane` is red on `main`: turn-outcome member `CHAT_TURN_RESOLUTION_MISMATCH` has no producer in the CLI lane — give it one or retire the member** · `fork / suite` · reproduced at `251645a6e7` (h-qaeff base run, 2026-10-04) · UNCLAIMED
 

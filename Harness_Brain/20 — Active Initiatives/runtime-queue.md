@@ -61,6 +61,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (owner live turns, "turns still feel slow")
 
+- [ ] **Turns still force full snapshot cores: in a 2-minute five-turn Neko test (2026-10-06 00:14–00:16) the serve ran 6 led `reason=demote` cores (10.2/8.0/5.9/8.4/3.8/2.9 s, `events=2…11`, callers hub and cli) plus `turn_section` overlay builds of 0.9–1.8 s at each turn start/end — ~39 s of serve Python in ~50 s, inflating headers→first-text to ~1.9 s every turn; census which event kinds in those batches fall outside the turn set (title metadata, persona_instance updates, run.*), cover them in the overlay or a patch, and run the overlay build off the stream thread / in the snapshot worker** · fork / snapshot + stream · evidence: base `agent.log` 2026-10-06 00:14:53–00:15:46 `snapshot_build`/`turn_section` lines; turn records `838075fa1cc1` · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-demote-census)**
+
+- [ ] **Prompt-cache regression after wave 3: before (2026-10-05 21:23) a new Neko chat's turn 2 hit the provider cache (94–97%); after `f779903ba7` (22:51 and 2026-10-06 00:14) turns 1 AND 2 miss and hits start at turn 3 (91–95%), and S6's instance-scoped key gives turn 1 no hit either — suspect the prewarm-built system prompt turn 1 adopts is not byte-identical to the prompt turn 2 sends (or the request prefix/tool order moves between turn 1 and 2); find the first differing byte between turn 1's and turn 2's request prefix and make them one** · fork / prompt surface · evidence: neko `agent.log` `API call #1 … cache=` lines 2026-10-05 21:23, 22:51, 2026-10-06 00:14 · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-cache-hit)**
+
 
 - [ ] **Remove the h-turn1 A5 stamps from upstream `agent/turn_api_request.py` (8 lines marked `# fork seam: h-turn1 A5`) once the first-turn `build_api_request` cost is fixed — owner kept them 2026-10-05 as a TEMPORARY diagnostic against the 2026-09-29 DOORS-A ruling (`bfee7eb896`); the file returns to upstream bytes and the footprint fixture drops by one** · seam / `agent/turn_api_request.py` · evidence: `lane/h-turn1-tail` `4b49ff114b` · blocked on the A5 row · UNCLAIMED
 
@@ -454,6 +458,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **Upstream `_apply_request_chain` hands every `llm_request` callback the ORIGINAL request and keeps only the LAST result, so a second callback silently drops the first's rewrite; the eternia-harness plugin therefore composes the wire-brief rewrite and the Codex cache-key rewrite in ONE callback** · `hermes / seams` · widening PR candidate (HELD while PRs are paused): chain the callbacks (each sees the previous result) — a one-line upstream change; until then every fork `llm_request` rewrite must join the single composed callback in `plugins/eternia-harness/` · evidence: lane DOORS-A 2026-09-24 (`seam/doors-a-2026-09-24`, the cache-key commit) **UNCLAIMED** · VERDICT 2026-09-29 h10-rtseam: still true on upstream/main 5bb2be179d. Not one line: `invoke_middleware` fans out once, so the chain needs a manager entry point. Drafted `up/middleware-request-chain` (940ab495bc, pushed to origin, NOT opened): `PluginManager.invoke_middleware_chain` + `_apply_request_chain` on it, red→green test in `tests/hermes_cli/test_plugins.py`. Owed: the owner opens it when PRs resume; then the eternia-harness plugin may split its composed callback · OWNER 2026-09-29: open the PR (after the branch pass) · VERDICT 2026-09-29 h10b-up2: branch pass: `up/middleware-request-chain` OPEN (clean on 77e2992020; new test red->green, the 1 other red is identical on upstream). Table: X:/Eternia/worktrees/h10b-logs/up-verdicts.md · 2026-09-30: waits on upstream PR #128643 (`up/middleware-request-chain`); then the eternia-harness plugin may split its composed callback
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-10-06 (lane h-suite-tail-b)
+
+- [ ] **`plugins/dashboard_auth/basic` computes a scrypt `_DUMMY_HASH` at import time (~0.2 s), paid again on every plugin re-import (80–122 scrypt calls per test file in the profiles)** · upstream-owned · evidence: lane h-suite-tail-b profiles · an upstream issue or a caller-side memo, never an edit · UNCLAIMED
 
 ### Filed on arrival — 2026-10-05 (lane h-defer, name-set sweep)
 
