@@ -101,8 +101,169 @@ def _scope_fingerprint() -> str:
     commit that both already reported.
     """
 
-    parts = [*_pointer_and_catalog_parts(), *_chat_db_parts(), *_running_work_parts()]
-    return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    return scope_reading(with_sessions=False).fingerprint
+
+
+# ── what moved: the watchdog names it (lane h-demote-census, 2026-10-06) ──────
+#
+# A reconcile that says only "something moved" demotes its whole batch to a full
+# core. Measured on the operator's 2026-10-06 00:14-00:16 five-turn test: 4 of
+# the 6 led cores were batches carrying a watchdog ``state.reconciled`` — one
+# for the previous chat's ``ended_at`` at a new-chat open, one for a long turn's
+# own user-message commit. Both moved ONE existing chat row and nothing else, a
+# change the ``persona_chat_turn`` overlay carries whole. So the reconcile now
+# says which store FAMILY moved and, for the chat SessionDB, which existing chat
+# rows moved; the stream's turn rule covers exactly that and nothing wider.
+
+#: The three store families the fingerprint keys, in its own part order.
+FAMILY_SCOPE = "scope"
+FAMILY_CHAT_DB = "chat_db"
+FAMILY_RUNNING_WORK = "running_work"
+
+#: More moved chat rows than this is not a turn; the reconcile names none.
+WATCHDOG_ATTRIBUTION_MAX_ROOTS = 8
+
+#: Columns whose change can move a session INTO or OUT OF the history section
+#: (its candidate pool, its root/child shape, its creation-order rank), as
+#: opposed to changing that session's own row. A move in any of them is never
+#: attributed: the overlay can replace a row, not re-rank the section.
+_MEMBERSHIP_COLUMNS = frozenset(
+    {
+        "started_at",
+        "archived",
+        "auto_archived",
+        "hidden",
+        "parent_session_id",
+        "source",
+        "profile_name",
+        "model_config",
+    }
+)
+
+
+class ScopeReading:
+    """One stat of the fingerprint's three families, plus — when asked and when
+    the read was consistent — each chat session's (membership, content, is_root)
+    digests, read between two identical stats of the chat database so no commit
+    can fall between the digests and the fingerprint they ride with."""
+
+    __slots__ = ("fingerprint", "families", "chat_sessions")
+
+    def __init__(self, fingerprint: str, families: dict[str, str], chat_sessions: dict[str, tuple[tuple, tuple, bool]] | None) -> None:
+        self.fingerprint = fingerprint
+        self.families = families
+        self.chat_sessions = chat_sessions
+
+
+def scope_reading(*, previous: ScopeReading | None = None, with_sessions: bool = True) -> ScopeReading:
+    """Stat every family; re-read the chat rows only when the chat database moved."""
+
+    scope = _pointer_and_catalog_parts()
+    chat = _chat_db_parts()
+    running = _running_work_parts()
+    fingerprint = hashlib.sha1("|".join([*scope, *chat, *running]).encode("utf-8")).hexdigest()[:16]
+    families = {
+        FAMILY_SCOPE: "|".join(scope),
+        FAMILY_CHAT_DB: "|".join(chat),
+        FAMILY_RUNNING_WORK: "|".join(running),
+    }
+    sessions = None
+    if with_sessions:
+        if previous is not None and previous.families.get(FAMILY_CHAT_DB) == families[FAMILY_CHAT_DB]:
+            sessions = previous.chat_sessions
+        else:
+            digests = _chat_session_digests()
+            # A commit between the stat and the read would make the digests
+            # newer than the fingerprint they ride with: refuse them (unknown).
+            if digests is not None and "|".join(_chat_db_parts()) == families[FAMILY_CHAT_DB]:
+                sessions = digests
+    return ScopeReading(fingerprint, families, sessions)
+
+
+def scope_move_attribution(known: ScopeReading | None, candidate: ScopeReading) -> dict[str, object]:
+    """The reconcile's payload extras: the moved families and, when the chat
+    database's move is exactly a content change of a few existing root chats,
+    those chats (``chat_roots``). Anything less certain names no chat."""
+
+    if known is None:
+        return {}
+    moved = sorted(name for name, key in candidate.families.items() if known.families.get(name) != key)
+    out: dict[str, object] = {"families": moved}
+    if FAMILY_CHAT_DB in moved:
+        roots = _content_moved_roots(known.chat_sessions, candidate.chat_sessions)
+        if roots:
+            out["chat_roots"] = roots
+    return out
+
+
+def _content_moved_roots(
+    before: dict[str, tuple[tuple, tuple, bool]] | None,
+    after: dict[str, tuple[tuple, tuple, bool]] | None,
+) -> list[str] | None:
+    if before is None or after is None or before.keys() != after.keys():
+        return None
+    changed = sorted(sid for sid, digest in after.items() if digest != before[sid])
+    if not changed or len(changed) > WATCHDOG_ATTRIBUTION_MAX_ROOTS:
+        return None
+    for sid in changed:
+        membership, _content, is_root = after[sid]
+        if membership != before[sid][0] or not is_root:
+            return None
+    return changed
+
+
+def _chat_session_digests() -> dict[str, tuple[tuple, tuple, bool]] | None:
+    """Each chat session's digests, read-only; ``None`` when unreadable."""
+
+    try:
+        import sqlite3
+
+        from ..chat_session_scope import chat_session_db_path
+
+        db_path = chat_session_db_path()
+        if not db_path.exists():
+            return {}
+        connection = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True, timeout=0.2)
+        try:
+            columns = [row[1] for row in connection.execute("PRAGMA table_info(sessions)")]
+            selected = ", ".join(
+                "length(system_prompt)" if name == "system_prompt" else f'"{name}"' for name in columns
+            )
+            rows = connection.execute(f"SELECT {selected} FROM sessions").fetchall()
+        finally:
+            connection.close()
+    except Exception:  # noqa: BLE001 — unknown is the safe answer: nothing is attributed
+        return None
+    index = {name: position for position, name in enumerate(columns)}
+    membership_at = [position for name, position in sorted(index.items()) if name in _MEMBERSHIP_COLUMNS]
+    content_at = [position for name, position in sorted(index.items()) if name not in _MEMBERSHIP_COLUMNS]
+    id_at = index["id"]
+    # The row values themselves are the digest: compared, never hashed (a
+    # 303-row store reads in ~4 ms this way, against ~11 ms hashing two reprs).
+    return {
+        str(row[id_at]): (
+            tuple(row[position] for position in membership_at),
+            tuple(row[position] for position in content_at),
+            _is_chat_root(str(row[id_at]), row, index),
+        )
+        for row in rows
+    }
+
+
+def _is_chat_root(session_id: str, row: tuple, index: dict[str, int]) -> bool:
+    if "parent_session_id" in index and row[index["parent_session_id"]]:
+        return False
+    raw = row[index["model_config"]] if "model_config" in index else None
+    if raw and "mission_chat_root_id" in str(raw):
+        try:
+            import json
+
+            root = (json.loads(raw) or {}).get("mission_chat_root_id")
+        except Exception:  # noqa: BLE001 — an unparseable config is not provably a root
+            return False
+        if root and root != session_id:
+            return False
+    return True
 
 
 def _pointer_and_catalog_parts() -> list[str]:

@@ -17,7 +17,7 @@ from ..state_patches.emit import delta_patches_enabled
 
 from .build import _SnapshotBuildJob, _batch_frames_with_liveness, _bounded_sleep, _build_with_liveness, _is_one_shot
 from .build_policy import _log_snapshot_build
-from .fingerprint import _scope_fingerprint
+from .fingerprint import ScopeReading, scope_move_attribution, scope_reading
 from .frames import _append_state_reconciled, _resume_offset, batch_ends_a_chat_turn, heartbeat_frame, hydrate_frame, running_work_frame
 from .vocabulary import DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _DELTA_BATCH_CAP
 
@@ -186,6 +186,11 @@ class StreamSession:
         self.emitted = 0
         self.offset: int | None = None
         self.known_fingerprint = ""
+        #: The reading ``known_fingerprint`` came from, and the latest candidate
+        #: (whose chat-row digests the next stat reuses when the database has
+        #: not moved). The pair is what lets a reconcile name what moved.
+        self.known_scope: ScopeReading | None = None
+        self.last_scope: ScopeReading | None = None
         self.last_heartbeat = 0.0
         # One drain pass's state, reset at the top of every pass.
         self.pending: list[tuple[int, Event]] = []
@@ -385,7 +390,7 @@ class StreamSession:
         # Memoize BEFORE the first yield: a generator body pauses at yield, so a
         # memo taken after it would absorb any write racing the consumer's first
         # pull — exactly the writes the watchdog exists to catch.
-        self.known_fingerprint = _scope_fingerprint()
+        self._adopt_scope(scope_reading(previous=self.last_scope))
         return (yield from self.emit(hydrate, beat=False))
 
     def tail(self):
@@ -414,7 +419,8 @@ class StreamSession:
         # watchdog exists to catch (found by live proof). Taken before the
         # read, a racing write always lands in a LATER iteration's candidate
         # and reconciles at the next heartbeat.
-        fingerprint_candidate = _scope_fingerprint()
+        candidate = scope_reading(previous=self.last_scope)
+        self.last_scope = candidate
         # The room, re-read once per drain pass. See :meth:`room`: a restart-free
         # join is only safe when the producer can NOTICE it, and this is where it
         # does. Read beside the fingerprint and for a sibling reason — both are
@@ -438,8 +444,8 @@ class StreamSession:
             # changes. (An evented write landing between the candidate and the
             # batch read can cause one spurious reconcile — harmless: it is
             # just an extra full-core delta.)
-            self.known_fingerprint = fingerprint_candidate
-        return (yield from self.beat(fingerprint_candidate))
+            self._adopt_scope(candidate)
+        return (yield from self.beat(candidate))
 
     def measure(self):
         """The position is unknown: wait for a readable tail, then re-baseline."""
@@ -468,7 +474,7 @@ class StreamSession:
         if self.offset is None:
             return _AGAIN
         self.resync_pending = True
-        self.known_fingerprint = _scope_fingerprint()
+        self._adopt_scope(scope_reading(previous=self.last_scope))
         if (yield from self.emit(rebaseline)):
             return _STOP
         return None
@@ -529,15 +535,27 @@ class StreamSession:
         self.pending = []
         return False
 
-    def beat(self, fingerprint_candidate: str):
-        """No delta this pass and a heartbeat is due: reconcile a silent write, or beat."""
+    def _adopt_scope(self, reading: ScopeReading) -> None:
+        self.known_scope = reading
+        self.last_scope = reading
+        self.known_fingerprint = reading.fingerprint
+
+    def beat(self, candidate: ScopeReading):
+        """No delta this pass and a heartbeat is due: reconcile a silent write, or beat.
+
+        The reconcile names what moved (:func:`fingerprint.scope_move_attribution`):
+        a turn's own chat-row commit then rides the ``persona_chat_turn`` overlay
+        instead of demoting its batch to a full core.
+        """
 
         if self.emitted_delta or not self.heartbeat_due():
             return None
-        if fingerprint_candidate != self.known_fingerprint and _append_state_reconciled(
-            self.log, fingerprint_candidate
+        if candidate.fingerprint != self.known_fingerprint and _append_state_reconciled(
+            self.log,
+            candidate.fingerprint,
+            scope_move_attribution(self.known_scope, candidate),
         ):
-            self.known_fingerprint = fingerprint_candidate
+            self._adopt_scope(candidate)
             # Skip the sleep: the next iteration reads the appended event
             # and emits the reconcile delta (which resets the heartbeat).
             return _AGAIN

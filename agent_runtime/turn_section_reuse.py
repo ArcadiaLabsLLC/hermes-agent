@@ -20,6 +20,13 @@ same POSITION rule makes the reuse safe:
 It is a reuse of the SECTIONS, never of a frame: each caller stamps its own
 ``base_offset`` / ``watermark`` on its own copy. An unknown position on either
 side refuses, the expensive direction, deliberately.
+
+**In flight (lane h-demote-census, 2026-10-06).** The read now stands aside for
+a live turn's hot windows (``snapshot_turn_yield``), so it can take seconds, and
+the second lane's batch used to arrive mid-read, miss the memo and read the same
+root again. ``begin`` / ``finish`` bracket a read, and ``await_inflight`` lets
+that lane wait for a read whose position already covers its floor — the same
+position rule, applied before the read finishes instead of after.
 """
 
 from __future__ import annotations
@@ -41,6 +48,7 @@ _MAX_ROOTS = 32
 
 _lock = threading.Lock()
 _entries: dict[tuple[str, str], tuple[int, dict[str, Any]]] = {}
+_inflight: dict[tuple[str, str], tuple[int, threading.Event]] = {}
 
 
 def remember(root: str, sections: dict[str, Any], *, position: int | None) -> bool:
@@ -77,8 +85,52 @@ def consult(root: str, *, floor: int | None) -> dict[str, Any] | None:
     return copy.deepcopy(sections)
 
 
+def begin(root: str, *, position: int | None) -> tuple[str, str] | None:
+    """Mark a read of ``root`` at ``position`` in flight; the key for :func:`finish`."""
+
+    store = _store_root()
+    if not root or position is None or store is None:
+        return None
+    key = (store, root)
+    with _lock:
+        held = _inflight.get(key)
+        if held is not None and held[0] >= int(position):
+            return None
+        _inflight[key] = (int(position), threading.Event())
+    return key
+
+
+def finish(key: tuple[str, str] | None) -> None:
+    """End the read ``begin`` marked (remembered or not); wakes its waiters."""
+
+    if key is None:
+        return
+    with _lock:
+        held = _inflight.pop(key, None)
+    if held is not None:
+        held[1].set()
+
+
+def await_inflight(root: str, *, floor: int | None, timeout_s: float) -> dict[str, Any] | None:
+    """Wait for an in-flight read of ``root`` that covers ``floor``, then consult."""
+
+    store = _store_root()
+    if not root or floor is None or store is None:
+        return None
+    with _lock:
+        held = _inflight.get((store, root))
+    if held is None or held[0] < int(floor):
+        return None
+    held[1].wait(max(0.0, float(timeout_s)))
+    return consult(root, floor=floor)
+
+
 def clear() -> None:
     """Drop every held root (tests, and a store switch)."""
 
     with _lock:
         _entries.clear()
+        waiting = list(_inflight.values())
+        _inflight.clear()
+    for _position, event in waiting:
+        event.set()
