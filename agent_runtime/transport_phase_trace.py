@@ -44,6 +44,7 @@ from agent_runtime.conversation_observability import (
     TRANSPORT_TLS_DONE_STEP,
     _emit_phase_marker,
 )
+from agent_runtime.stream_gap_receipt import begin_stream_gap_receipt
 
 __layer__ = "policy"
 
@@ -87,6 +88,7 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
     """
 
     _emit_phase_marker(agent, TRANSPORT_CLIENT_BUILT_STEP)
+    begin_stream_gap_receipt(agent, client)  # h-stream-gap: a fresh receipt per opened stream
     try:
         http_client = getattr(client, "_client", None)
         hooks = getattr(http_client, "event_hooks", None)
