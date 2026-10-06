@@ -45,6 +45,7 @@ E2E_TEST_TIMEOUT_SECONDS = 600
 
 #: The spawn IS the claim — same bypass, same reason, as the sibling e2e files.
 pytestmark = [
+    pytest.mark.e2e_child,
     pytest.mark.live_system_guard_bypass,
     pytest.mark.timeout(E2E_TEST_TIMEOUT_SECONDS),
 ]

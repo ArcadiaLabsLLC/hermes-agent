@@ -32,6 +32,11 @@ from pathlib import Path
 
 import pytest
 
+#: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
+#: processes. It selects nothing and skips nothing; it lets the runner's tail
+#: report name the class and a scheduler start these files first.
+pytestmark = pytest.mark.e2e_child
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOT_TIMEOUT_SECONDS = 180.0
 CLI_TIMEOUT_SECONDS = 180.0

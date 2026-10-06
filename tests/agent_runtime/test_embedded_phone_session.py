@@ -43,7 +43,7 @@ from agent_runtime.host_store import binding
 from agent_runtime.host_store.fake import FakeHostSecureStore
 from hermes_cli.harness_parts.serve.in_memory import EmbeddedServe, app_folder_environment
 
-pytestmark = pytest.mark.timeout(180)
+pytestmark = [pytest.mark.timeout(180), pytest.mark.e2e_child]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
