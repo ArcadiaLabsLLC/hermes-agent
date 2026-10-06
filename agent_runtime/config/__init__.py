@@ -94,6 +94,7 @@ from agent_runtime.config.knobs import (  # noqa: F401
     mission_chat_dispatch_max_concurrent,
     mission_chat_dispatch_max_seconds,
     mission_chat_dispatch_session_policy,
+    mission_chat_lean_operative_rules,
     mission_chat_workdir,
     resolve_mission_chat_dispatch_max_seconds,
     resolve_mission_chat_max_seconds,

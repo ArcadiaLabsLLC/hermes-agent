@@ -124,6 +124,7 @@ ROOT_ONLY_CONFIG_KEYS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("personas", "*", "chat_lane_restore_toolsets"), "agent_runtime.config.chat_lane_restore_toolsets"),
     (("personas", "*", "chat_lane_defer_tools"), "agent_runtime.config.chat_lane_defer_tools"),
     (("personas", "*", "workdir"), "agent_runtime.config.mission_chat_workdir"),
+    (("mission_chat", "lean_operative_rules"), "agent_runtime.config.mission_chat_lean_operative_rules"),
 )
 
 

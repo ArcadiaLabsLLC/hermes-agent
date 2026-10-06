@@ -12,6 +12,12 @@
       "reason": "The span is 0.57-2.3 s on every first turn and 30-96 ms after, and its steps run inside one upstream function with no hook between them; the DOORS-A removal (bfee7eb896) had no consumer, this one has the A5 row. Held PR row in upstream-footprint-ledger.md (PHASE-PR)."
     },
     {
+      "change": "lane h-prompt-surface S3 (prompt-surface-2026-10-05.md): the chat lane's skills index names its persona's categories in full and every other names-only",
+      "files": "unchanged: agent/system_prompt.py was already counted (11 -> 12 added: one guarded line in _skills_prompt, `# fork seam: h-prompt S3`)",
+      "deleted_lines": "unchanged: the line is additive; heavy unchanged",
+      "reason": "No fork door: _skills_prompt computes compact_categories from upstream's coding-context deny-list, which never engages on platform=tool, and the fork cannot reach the argument it passes to build_skills_system_prompt. The line unions agent._chat_lane_compact_skill_categories (a frozenset set by agent_runtime.chat_lane_skill_index; anything else is ignored) into upstream's own set, so an agent without the attribute renders byte-identically. Held PR row in upstream-footprint-ledger.md (a compact_categories override attribute)."
+    },
+    {
       "change": "lane h-turn1-prewarm A3 (owner ruling A3-r1, turn-latency-h-turn1-2026-10-05.md): a prewarmed chat's first turn adopts the system prompt the prewarm built",
       "files": "unchanged: agent/conversation_loop.py was already counted (8 added: one import, the guarded adopt block)",
       "deleted_lines": "882 -> 883: the first-turn build line moves under the block's else (re-indented); heavy unchanged at 4",

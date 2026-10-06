@@ -598,6 +598,9 @@ class AgentRunExecution:
             session_db=runner._session_db,
             **self.turn_state,
         )
+        from agent_runtime.chat_lane_skill_index import apply_chat_lane_skill_scope
+
+        apply_chat_lane_skill_scope(built, request.chat_lane_index_skills)
         self.timing["agent_construct_ms"] = _emit_request_timing(
             request, "agent_construct", construct_started
         )

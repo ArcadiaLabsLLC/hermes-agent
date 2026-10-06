@@ -5,6 +5,8 @@ from typing import Callable
 
 from . import paths
 from .chat_lane_bundle import chat_lane_bundle
+from .cache_routing import persona_cache_scope_id
+from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
 from .launcher_invocation import launcher_invocation
 from .models import AgentPersona
@@ -246,8 +248,11 @@ class GPTPersonaRuntime:
                     # that names the turn store / observability session) as the
                     # header-only cache_scope_id so the warm prefix survives across
                     # turns. Header/routing value ONLY — never a transcript-load key
-                    # (T10c). Worker/mission-run lanes leave this unset.
-                    cache_scope_id=perm_session_id,
+                    # (T10c). Worker/mission-run lanes leave this unset. h-prompt S6:
+                    # scoped to the persona INSTANCE so a new chat's first turn hits
+                    # the bucket the instance's previous chat filled (R5).
+                    cache_scope_id=persona_cache_scope_id(persona_instance_id, perm_session_id),
+                    chat_lane_index_skills=chat_lane_index_skills(persona, lane_bundle.operating_skills),
                     tool_execution_scope_id=root_chat_session_id or perm_session_id,
                     conversation_history=conversation_history,
                     reuse_current_user_message=reuse_current_user_message,
