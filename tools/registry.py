@@ -1162,6 +1162,19 @@ def probe_rounds_this_thread() -> int:
     return int(getattr(_probe_state, "rounds", 0))
 
 
+def check_fn_epoch() -> int:
+    """The availability half of :func:`registry_epoch` alone (fork addition).
+
+    Moves on every :func:`invalidate_check_fn_cache` and on nothing else. A
+    memo that keys on registry CONTENT (``agent_runtime.chat_lane_bundle``)
+    pairs this with that content instead of with ``registry.generation``,
+    which also counts a register/deregister pair that left the content as it
+    was. Equality only, like the epoch.
+    """
+
+    return _check_fn_epoch
+
+
 def registry_epoch() -> int:
     """The registry's identity for cache keys: registration + availability.
 

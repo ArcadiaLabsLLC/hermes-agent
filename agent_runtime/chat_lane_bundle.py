@@ -74,9 +74,11 @@ The key is the bundle's own inputs — not a clock:
   and keyed on exactly what the config loader's own mtime cache keys on.
 * **runtime root + entry-point lane** — both are inputs to the resolved
   permission state's ``requirement_failures``.
-* **registry epoch** (``tools.registry.registry_epoch``) — every registration
-  change (including every MCP dynamic refresh) and every explicit
-  ``invalidate_check_fn_cache``.
+* **registry content** (:func:`_registry_content_revision`) — the registered
+  ``(tool, toolset)`` pairs, the toolset aliases, and the availability epoch
+  every explicit ``invalidate_check_fn_cache`` moves. CONTENT, not the
+  registration generation: a register/deregister pair that leaves the registry
+  as it was (every MCP-admitting turn's admission + teardown) is not a change.
 
 **The instance revision is deliberately absent**, and that is not an oversight:
 no component here reads the persona INSTANCE. An instance edit (``set-model``,
@@ -90,21 +92,21 @@ rewritten each turn.
 The staleness surface this moves, stated plainly
 ------------------------------------------------
 Before: any change to tool availability surfaced within 30 s, everywhere.
-After: within the turn path, it surfaces when the epoch moves or when one of the
-keyed inputs changes. The residue — a change nobody announced — is:
+After: within the turn path, it surfaces when the registry content or the
+availability epoch moves, or when one of the keyed inputs changes. The residue — a change nobody announced — is:
 
 * a backend that goes down without anything calling ``invalidate_check_fn_cache``
-  keeps its TOOLSET listed on the chat lane's accounting until the epoch moves.
+  keeps its TOOLSET listed on the chat lane's accounting until the key moves.
   Its TOOLS still vanish from the model's schema at construction (the definitions
   pass re-probes), so the agent cannot call what is not there; what goes stale is
   the name in the enabled-toolset list and in the operator's permission preview.
 * an on-disk edit to a persona PROFILE's MCP declaration that changes neither
-  ``config.yaml`` nor the registry. Registering such a server bumps the epoch, so
+  ``config.yaml`` nor the registry. Registering such a server moves the content, so
   this is bounded to the window before registration.
 
 Everything else — permission changes, persona edits, config edits, tool
-registration, MCP refresh, ``hermes tools enable`` — is in the key or bumps the
-epoch. :func:`invalidate_chat_lane_bundles` is the explicit escape hatch.
+registration, an MCP refresh that changes a tool set, ``hermes tools enable`` —
+is in the key. :func:`invalidate_chat_lane_bundles` is the explicit escape hatch.
 
 Scope
 -----
@@ -247,8 +249,8 @@ def _note_key_material_moves(previous: Any, current: Any) -> None:
     :attr:`ChatLaneBundle.degraded` follows. Every value in the material is a
     persona content hash, a chat session id, a store path or a permission
     record, and the name is the whole diagnosis: an operator reading
-    ``registry_epoch`` knows a registration moved, and reading the epoch's
-    number would tell them nothing more while putting a turn's identity onto a
+    ``registry_content`` knows a registration moved, and reading the digest
+    would tell them nothing more while putting a turn's identity onto a
     durable record through a timing key.
 
     Top level only, deliberately. ``permission`` is a nested dict and "the
@@ -296,7 +298,7 @@ class ChatLaneBundle:
     _permission_state: dict[str, Any]
     #: False when a best-effort component faulted. Such a bundle is served to
     #: THIS caller (degraded exactly as the uncached path degrades) and then
-    #: thrown away — pinning a degraded account until the next epoch bump is how
+    #: thrown away — pinning a degraded account until the next key move is how
     #: one transient fault becomes a permanent wrong answer.
     complete: bool = True
     #: WHICH best-effort components faulted, as ``<component>:<ExceptionClass>``
@@ -369,6 +371,35 @@ def _config_revisions() -> tuple[str, str]:
     return root, active
 
 
+def _registry_content_revision() -> str:
+    """What the composition reads from the tool registry, as one digest.
+
+    The composition asks the registry three things: which tools exist, which
+    toolset each belongs to (``get_registered_toolset_names``,
+    ``get_toolset_for_tool``, ``get_all_tool_names``) and which aliases resolve
+    to which toolset — plus the availability epoch the ``check_fn`` answers
+    behind them hang on. Those, and nothing else, are the key.
+
+    Not ``registry.generation``: MCP admission registers its admitted servers'
+    tools for one run and tears the scope down after it
+    (``mcp_admission.registration``), so every turn that admits a server
+    leaves the registry exactly as it found it while moving the generation by
+    twice the tool count. Keyed on the generation, every such turn rebuilt the
+    bundle for a move nobody could see (live, every turn record since
+    2026-09-08: ``visibility_bundle_rebuild_component_registry_epoch=1``).
+    Handlers and schemas are deliberately absent — the composition never reads
+    them, and admission swaps every admitted handler for a metered one.
+    """
+
+    from tools.registry import check_fn_epoch, registry
+
+    tools = sorted((str(e.name), str(e.toolset)) for e in registry.get_all_entries())
+    aliases = sorted(registry.get_registered_toolset_aliases().items())
+    return _revision(
+        {"tools": tools, "aliases": aliases, "check_fn_epoch": int(check_fn_epoch())}
+    )
+
+
 def chat_lane_bundle_key_material(
     persona: Any, permission: Any, *, session_id: str | None
 ) -> dict[str, Any]:
@@ -379,8 +410,6 @@ def chat_lane_bundle_key_material(
     that some input did. :func:`chat_lane_bundle_key` is exactly
     ``sha256(this)``.
     """
-
-    from tools.registry import registry_epoch
 
     from . import paths
     from .mcp_lane import current_entry_point_lane
@@ -412,7 +441,7 @@ def chat_lane_bundle_key_material(
         "active_config_revision": active_config,
         "runtime_root": runtime_root,
         "entry_point_lane": lane,
-        "registry_epoch": int(registry_epoch()),
+        "registry_content": _registry_content_revision(),
     }
 
 
@@ -558,8 +587,7 @@ def invalidate_chat_lane_bundles() -> None:
     """Drop every memoized bundle. The explicit escape hatch.
 
     Real API, not a test hook: anything that changes chat-lane visibility in a
-    way neither the key nor ``tools.registry.registry_epoch`` can see calls
-    this. Cheap — the next lookup rebuilds one bundle per live chat root.
+    way the key cannot see calls this. Cheap — the next lookup rebuilds one bundle per live chat root.
     """
 
     with _memo_lock:
