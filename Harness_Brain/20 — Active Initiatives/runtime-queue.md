@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-06 (lane h-conn-pool)
+
+- [ ] **Re-read turn 1 on the next prewarmed Neko chat after h-conn-pool lands: the pre-connect now warms the turn's own request client and the default config already shares one pool (offline + real-edge probe: turn 0 rides the HEAD's connection), so a turn-1 `tls_done` there means something else took or killed the warm connection between prewarm and turn — read `tls_done`, `client_built→request_sent` and `prewarm_first_turn_warmup_ms`** · fork / chat turn · evidence: lane h-conn-pool `3b0cbc20ab` body · UNCLAIMED
+
 ### Filed on arrival — 2026-10-06 (lane h-readiness)
 
 - [ ] **The serve's `SnapshotBuildContext.skill_root_registries` keeps registries for the serve's life and never re-checks them, so the argv read lane misses skill edits until a restart** · fork / snapshot · evidence: `resolve_skills`/`resolve_skill` use the explicit `_root_registries` map without signature validation; the map is created once in `hermes_cli/harness_parts/serve/session.py` · UNCLAIMED
@@ -358,6 +362,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-10-06 (lane h-conn-pool)
+
+- [ ] **Upstream PR: `_CodexCompletionsAdapter.create` drains the settled Responses stream before closing it (the turn's `run_codex_stream` already does); retires the h-conn-pool seam in `agent/auxiliary_client.py`** · seam / auxiliary_client · evidence: ledger held-PR row, `tests/agent_runtime/test_conn_pool_reuse_downstream.py` · UNCLAIMED
 
 ### Filed on arrival — 2026-10-06 (lane h-readiness)
 
