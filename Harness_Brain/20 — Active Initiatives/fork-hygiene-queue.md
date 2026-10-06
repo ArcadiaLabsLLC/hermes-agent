@@ -17,6 +17,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-05 (lane h-turn1-title)
 
+- [ ] **`test_stream_turn_section::test_the_overlay_is_the_full_cores_rows_for_its_root` (`runtime_observed_at` 50 ms skew) and `test_stream_contract_fixture::test_committed_goldens_are_the_generators_bytes` (golden byte 27061) red on main when run in one pytest process with the 22 persona_chat_history importers; both pass alone — order/load-dependent** · `fork / suite` · evidence: lane h-history-bound report (branch and origin/main code, identical diffs) · UNCLAIMED
 - [ ] **`test_agents_readiness_attribution` reds twice on main (`test_a_slow_readiness_walk_lands_on_the_walk_number`, `test_a_slow_summary_lands_on_the_tool_visibility_number`: `agent_runtime.snapshot.build` has no attribute `time` — a stale monkeypatch target)** · `fork / suite` · evidence: lane h-prompt-tools base-checkout run; landing h-turn1 gates · UNCLAIMED
 - [ ] **`test_stream_contract_fixture::test_committed_goldens_are_the_generators_bytes` reds in a combined in-process run (`hydrate.json` byte 3123 `_`≠`t`) yet passes alone — an isolation leak present on main** · `fork / suite` · evidence: lane h-turn1-c logs, branch and merge-base (also seen by lane h-eventlog-tail) · UNCLAIMED
 - [ ] **`test_chat_tool_progress_stream.py::test_an_mcp_progress_report_rides_the_beat` reds `KeyError: 'result'` on main** · `fork / suite` · reproduced on `ee7ee998ff` by lane h-turn1-title (one-test run, primary) · UNCLAIMED
