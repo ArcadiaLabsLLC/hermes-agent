@@ -321,3 +321,7 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-10-06 (lane h-turn1-conn)
 
 - [ ] **A `git merge` in a lane worktree runs a hook that installs the worktree's harness skills into the operator's live home: merging origin/main into `lane/h-turn1-conn` printed `harness-skill-install: ok` into the live install root's `.hermes/shared/skills`, so a lane's unlanded skill edits would reach the live serve** · fork hygiene / git hooks · evidence: lane h-turn1-conn merge output 2026-10-06 · lane: the hook installs only from the primary checkout (or a landing), never a lane worktree
+
+## Filed on arrival — 2026-10-06 (upstream PR triage)
+
+- [ ] **Upstream removed tirith from core (#133832, merged `eb6a3886f1`, not yet in a release; scanner becomes an opt-in plugin, `security.tirith_*` keys migrated away). At the next release merge: take the deletion of `tools/tirith_security.py` (fork +61/-11), delete the fork's `hermes_cli/tirith_config.py` and its three tests, drop the tirith hunks in `cli.py`, `gateway/run.py`, `tools/approval_context.py`, remove `tools.tirith_security` from `agent_runtime/bundle_profiles/bundled-phone.yaml`, retire the ledger rows citing PR #121646 (closed by teknium1 2026-10-06), and rule whether the fork enables the tirith plugin** · `fork / upstream sync` · PR #121646 closing comment; ledger rows for the four files · UNCLAIMED
