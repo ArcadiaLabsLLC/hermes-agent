@@ -407,7 +407,7 @@ def test_history_row_normalizes_iso_and_drops_garbage_timestamps():
     assert rows[0]["updated_at"] is None
 
 
-def test_history_uses_persisted_instance_binding_and_creation_order():
+def test_history_uses_persisted_instance_binding_and_the_activity_bound():
     instance_id = "personainst_neko_supervisor_agent_f6f7a51b"
     older_session = f"persona_chat_{instance_id}_111111111111"
     newer_session = f"persona_chat_{instance_id}_222222222222"
@@ -441,16 +441,17 @@ def test_history_uses_persisted_instance_binding_and_creation_order():
             _chat_persona_instance(
                 instance_id,
                 "neko_supervisor",
-                older_session,
+                newer_session,
             )
         ],
         session_db=db,
-        limit=1,
+        limit=2,
     )
 
-    assert [row["session_id"] for row in rows] == [newer_session]
+    # Both kept, EMITTED in creation order although the older one is fresher.
+    assert [row["session_id"] for row in rows] == [newer_session, older_session]
     assert rows[0]["persona_id"] == "neko_supervisor"
-    assert rows[0]["persona_instance_id"] == instance_id
+    assert rows[1]["persona_instance_id"] == instance_id
     assert rows[0]["created_at"] == "2026-07-22T05:49:48.000000Z"
 
 
@@ -467,7 +468,9 @@ def test_history_hydrates_only_visible_newest_fifty_with_equivalent_accounting()
         }
         for index in range(120)
     ]
-    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_000")
+    # Bound to the newest chat: activity follows creation here, so the bound's
+    # 50 are the newest 50 and the pin changes nothing.
+    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_119")
     full_db = CountingHistorySessionDB(sessions, messages=[])
     expected = persona_chat_history_summary(
         persona_instances=[instance], session_db=full_db, limit=120
@@ -2189,7 +2192,7 @@ def test_only_session_ids_narrows_after_the_bound_so_an_omitted_root_stays_omitt
     """The ``persona_chat_turn`` overlay's history rule (plan h-turn1 §2 C0.3).
 
     The narrowed read ranks every candidate exactly as the full core does and
-    cuts to the named session only AFTER the creation-order bound: a root the
+    cuts to the named session only AFTER the activity bound: a root the
     bound keeps is the full read's row byte for byte; a root it omits yields no
     row and lands in ``omitted_session_ids`` — the full core's answer.
 
@@ -2210,7 +2213,7 @@ def test_only_session_ids_narrows_after_the_bound_so_an_omitted_root_stays_omitt
         }
         for index in range(3)
     ]
-    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_0")
+    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_2")
     full_omitted: set[str] = set()
     full = persona_chat_history_summary(
         persona_instances=[instance],
@@ -2242,3 +2245,111 @@ def test_only_session_ids_narrows_after_the_bound_so_an_omitted_root_stays_omitt
     )
     assert outside == []
     assert "chat_0" in outside_omitted
+
+
+# ── h-history-bound: the bound ranks by activity, pins bound chats ───────────
+
+
+class ActivityOrderedHistorySessionDB(FakeHistorySessionDB):
+    """Honours ``order_by_last_active`` the way SessionDB does: it picks the page."""
+
+    def list_sessions_rich(self, **kwargs):
+        rows = super().list_sessions_rich(**{**kwargs, "limit": len(self._sessions)})
+        key = "last_active" if kwargs.get("order_by_last_active") else "started_at"
+        rows.sort(key=lambda row: (row.get(key) or "", row.get("id") or ""), reverse=True)
+        return rows[: kwargs.get("limit", len(rows))]
+
+
+def _activity_sessions(instance_id: str) -> list[dict]:
+    """``old_busy`` is the oldest and the freshest; ``new_idle`` the newest unbound and idle."""
+
+    def row(session_id: str, started: str, active: str) -> dict:
+        return {
+            "id": session_id,
+            "source": "agent_runtime_persona_chat",
+            "title": session_id,
+            "started_at": started,
+            "last_active": active,
+            "model_config": json.dumps({"persona_instance_id": instance_id}),
+        }
+
+    return [
+        row("old_busy", "2026-07-01T00:00:00Z", "2026-10-05T12:00:00Z"),
+        row("mid", "2026-08-01T00:00:00Z", "2026-10-01T00:00:00Z"),
+        row("new_idle", "2026-09-20T00:00:00Z", "2026-09-20T00:00:00Z"),
+        row("newest_bound", "2026-09-30T00:00:00Z", "2026-09-30T00:00:00Z"),
+    ]
+
+
+def _activity_bound(limit: int, *, bound: str = "newest_bound") -> tuple[list[str], set[str]]:
+    instance_id = "personainst_neko_supervisor"
+    omitted: set[str] = set()
+    rows = persona_chat_history_summary(
+        persona_instances=[_chat_persona_instance(instance_id, "neko_supervisor", bound)],
+        session_db=ActivityOrderedHistorySessionDB(_activity_sessions(instance_id), messages=[]),
+        limit=limit,
+        omitted_session_ids=omitted,
+    )
+    return [row["session_id"] for row in rows], omitted
+
+
+def test_the_bound_keeps_a_recently_active_old_chat():
+    """The oldest chat, in use today, survives a bound of two; emission stays creation order.
+
+    *Killing mutation:* rank the bound by creation (``activity_key`` →
+    ``_persona_chat_candidate_sort_key``) → ``old_busy`` omitted → red.
+    """
+
+    kept, _omitted = _activity_bound(2)
+    assert kept == ["newest_bound", "old_busy"]
+
+
+def test_the_bound_may_omit_an_idle_new_chat():
+    """A newer chat nobody has touched since it was opened falls behind fresher ones."""
+
+    kept, omitted = _activity_bound(3)
+    assert kept == ["newest_bound", "mid", "old_busy"]
+    assert omitted == {"new_idle"}
+
+
+def test_an_instances_bound_chat_is_pinned_inside_the_bound_however_idle():
+    """The chat an operator channel renders never ships ``history: null``.
+
+    Live 2026-10-05: ``personainst_base`` / ``personainst_backend_dev`` bound
+    chats ranked 67th and 100th of 100 by activity. *Killing mutation:* drop the
+    ``pinned`` element of ``activity_key`` → ``new_idle`` omitted → red.
+    """
+
+    kept, omitted = _activity_bound(1, bound="new_idle")
+    assert kept == ["new_idle"]
+    assert omitted == {"old_busy", "mid", "newest_bound"}
+
+
+def test_the_persona_chat_pool_is_picked_by_activity():
+    """An old chat in use is a CANDIDATE even when the pool is smaller than the store.
+
+    ``limit=1`` makes the pool four rows; ``old_busy`` is the fifth by creation.
+    *Killing mutation:* request the persona-chat pool with
+    ``order_by_last_active=False`` → ``old_busy`` never seen, not even omitted → red.
+    """
+
+    instance_id = "personainst_neko_supervisor"
+    sessions = _activity_sessions(instance_id) + [
+        {
+            "id": "newer_still",
+            "source": "agent_runtime_persona_chat",
+            "title": "newer_still",
+            "started_at": "2026-10-01T00:00:00Z",
+            "last_active": "2026-10-01T00:00:00Z",
+            "model_config": json.dumps({"persona_instance_id": instance_id}),
+        }
+    ]
+    omitted: set[str] = set()
+    rows = persona_chat_history_summary(
+        persona_instances=[_chat_persona_instance(instance_id, "neko_supervisor", "missing_root")],
+        session_db=ActivityOrderedHistorySessionDB(sessions, messages=[]),
+        limit=1,
+        omitted_session_ids=omitted,
+    )
+    assert [row["session_id"] for row in rows] == ["old_busy"]
+    assert omitted == {"newer_still", "newest_bound", "new_idle", "mid"}
