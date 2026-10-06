@@ -185,7 +185,9 @@ what the fixture mirror below enforces.
 
 | receipt (grep this) | emitter | consumer |
 |---|---|---|
-| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… pid=…` | `agent_runtime/snapshot/build_log.py:58-68` (fn `:369`, call site `:683`) | operator grep (`role=led` is the build count); `tests/agent_runtime/test_snapshot_build_logging.py:758` pins the prefix |
+| `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… reason=… executor=… turns=… worker_pid=… pid=…` | `agent_runtime/snapshot/build_log.py::_log_snapshot_build_core`, called from `snapshot/build.py::_lead_build_now` | operator grep (`role=led` is the build count); `hermes harness observe snapshot-builds`; `tests/agent_runtime/test_snapshot_build_logging.py` pins the prefix and `pid` last |
+| `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
+| `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream/build_policy.py::_log_snapshot_build` | operator grep; a launcher in the field still parses `elapsed_ms` (`agent_runtime/stream/frames.py`); `tests/agent_runtime/test_stream_build_timing_log.py` |
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:88-90`, emitted in `_log_agents_readiness_split` (`:93`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream/build_policy.py::log_stream_denied` | boot-investigation join (third `pid=`-bearing family) |
@@ -219,6 +221,27 @@ WAIT line only when the build under it crossed `BUILD_SECTIONS_WAIT_THRESHOLD_MS
 all three join families so no adjacency moves — an additive field, never a
 formatter change, because `%(process)d` would re-shape every line the runtime
 emits and break every grep anchored on a neighbour (`agent_runtime/stream/build.py::_is_one_shot`).
+
+**Build accounting (h-snap-worker, 2026-10-06; plan `planned/snapshot-offproc-2026-10-06.md`
+S2).** Every build is a receipt: led builds on `snapshot_build_core`, the shadow
+validation on `snapshot_build_shadow`. Four fields ride before `pid=` on both:
+`reason=` (with `caller=`, the trigger — `demote` / `hydrate` / `boot` /
+`core_behind_frame`, `-` when the caller seeded none), `executor=worker|in_process`
+(which interpreter's GIL paid: the resident snapshot worker, or the serve's own),
+`turns=` (the admitted chat turns the build overlapped — in flight at its start or
+admitted before its end — from `agent_runtime/turn_activity.py::turn_overlap_watch`,
+the one owner of admitted turns; `-` for none, `?` for a turn with no id, `+N` past
+eight ids) and `worker_pid=` (`-` in process). No key was added to the parity
+envelope or the turn record (ruling R6): `builds_overlapped` still counts led spans
+on the serve's clock, worker or not. The worker's own build-time receipts
+(`snapshot_agents_readiness …`) come back in its reply and are written by the
+serve under the serve's `pid` (ruling R5), so the `pid` joins above are unchanged.
+
+`hermes harness observe snapshot-builds --since 2h [--json] [--log PATH]` derives,
+read-only, from `agent.log` and its rotations: builds (led / shadow), total and max
+`build_ms`, builds by trigger (`caller/reason`), the executor split (`unknown` for a
+line written before these fields existed), worker fallbacks, and the distinct turns
+affected (`agent_runtime/snapshot_build_census.py::census_builds`).
 
 ### The core-cache family and its census
 

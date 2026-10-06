@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 
 from agent_runtime import snapshot_build_ledger
+from agent_runtime.turn_activity import turn_overlap_watch
 from agent_runtime.core_cache import decision as cache_decision
 from agent_runtime.core_cache import lane as cache_lane
 from agent_runtime.core_cache import persist as cache_persist
@@ -25,7 +26,9 @@ from agent_runtime.snapshot.receipts import (
 )
 from agent_runtime.snapshot.build_log import (
     _build_caller,
+    _build_reason,
     _log_snapshot_build_core,
+    _log_snapshot_build_shadow,
     _record_build_info,
 )
 from agent_runtime.snapshot.sections import _build_snapshot_in_runtime_scope
@@ -40,6 +43,7 @@ __all__ = [
     "_lead_build",
     "_release_coalescer",
     "_serve_cached",
+    "_shadow_build",
     "_build_snapshot_uncoalesced",
     "build_snapshot",
 ]
@@ -155,9 +159,30 @@ def _serve_cached(cached: dict, caller: str, build_info: dict | None) -> dict:
     cache_shadow.maybe_start_shadow_validation(
         cached,
         caller=caller,
-        build=lambda: _build_snapshot_uncoalesced(),
+        build=lambda: _shadow_build(caller),
     )
     return cached
+
+
+def _shadow_build(caller: str) -> dict:
+    """The shadow validation's full build: through the executor (ruling R3), with a receipt.
+
+    It is the most expensive build of a cache-hit boot, and until this receipt it
+    was the one no line named.
+    """
+
+    from agent_runtime.snapshot_worker.executor import execute_build
+
+    with turn_overlap_watch() as overlap:
+        execution = execute_build()
+    _log_snapshot_build_shadow(
+        caller=caller,
+        snapshot=execution.core,
+        executor=execution.executor,
+        turns=overlap.receipt_value(),
+        worker_pid=execution.worker_pid,
+    )
+    return execution.core
 
 
 def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -> tuple[dict | None, int]:
@@ -246,7 +271,13 @@ def _lead_build_now(decision, caller: str, generation: int, build_info: dict | N
         # a full walk whenever no consult stands — a cold store, a disarmed lane,
         # or a persisted pair that moved since.
         pre_build_fingerprint = cache_lane.pre_build_fingerprint()
-        result = _build_snapshot_uncoalesced()
+        # The build itself is the one step that may run in the resident snapshot
+        # worker (plan snapshot-offproc S2); everything around it stays here.
+        from agent_runtime.snapshot_worker.executor import execute_build
+
+        with turn_overlap_watch() as overlap:
+            execution = execute_build()
+        result = execution.core
         if decision.demoted:
             # A persisted core WAS available and was rejected, so this core has a
             # provenance question to answer: it is the rebuild that replaced it.
@@ -268,7 +299,13 @@ def _lead_build_now(decision, caller: str, generation: int, build_info: dict | N
         # operator reads the log. A build that raised logs nothing: there is no
         # envelope to read the cost off, and the exception is the receipt.
         _log_snapshot_build_core(
-            caller=caller, generation=generation, snapshot=result
+            caller=caller,
+            generation=generation,
+            snapshot=result,
+            reason=_build_reason(build_info),
+            executor=execution.executor,
+            turns=overlap.receipt_value(),
+            worker_pid=execution.worker_pid,
         )
         # EG-3.1's write half: EVERY successful default-store build persists the
         # core it just produced, plus the sidecar that says which inputs it was

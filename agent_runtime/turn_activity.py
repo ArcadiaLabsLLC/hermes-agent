@@ -44,7 +44,9 @@ inside a turn", asked by something that is about to spend the same GIL.
 
 from __future__ import annotations
 
+import itertools
 import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -140,14 +142,97 @@ def chat_turns_admitted() -> int:
         return _ADMITTED
 
 
+# ── which turns a span overlapped (h-snap-worker, 2026-10-06) ─────────────────
+#
+# The counters above answer "is a turn admitted"; a build receipt also has to
+# say WHICH turns it shared the process with. Same owner, same lock: each
+# admitted turn is an entry for its life, and an open watch collects every
+# entry admitted at its start or at any moment until it closes -- a turn that
+# began and ended inside a build is overlapped just as much as one that spans
+# it. The id is read LAZILY: the mission-chat handler mints a missing
+# ``client_message_id`` a few statements after the anchor, and the receipt is
+# rendered after the build, when the minted id exists.
+
+_ENTRIES: dict[int, "str | Callable[[], object] | None"] = {}
+_WATCHES: list["TurnOverlapWatch"] = []
+_ENTRY_TOKENS = itertools.count(1)
+#: The most ids one receipt names; the rest are counted, never dropped silently.
+TURN_IDS_SHOWN = 8
+
+
+def _render_turn_id(source) -> str:
+    try:
+        value = source() if callable(source) else source
+    except Exception:
+        value = None
+    text = str(value or "").strip()
+    if not text:
+        return "?"
+    # One whitespace-free, comma-free token: the receipt is ``key=value`` pairs.
+    return "".join(ch if (ch.isalnum() or ch in "-_.:") else "_" for ch in text)[:120]
+
+
+class TurnOverlapWatch:
+    """The admitted turns one span overlapped: those in flight at its start, plus
+    every turn admitted before it closes."""
+
+    __slots__ = ("_entries",)
+
+    def __init__(self) -> None:
+        self._entries: dict[int, object] = {}
+
+    def turn_ids(self) -> list[str]:
+        """Distinct ids in admission order; an anonymous turn reads ``?``."""
+
+        with _LOCK:
+            sources = [self._entries[token] for token in sorted(self._entries)]
+        ids: list[str] = []
+        for source in sources:
+            rendered = _render_turn_id(source)
+            if rendered == "?" or rendered not in ids:
+                ids.append(rendered)
+        return ids
+
+    def receipt_value(self) -> str:
+        """``id1,id2`` (``-`` for none, ``+N`` when more than :data:`TURN_IDS_SHOWN`)."""
+
+        ids = self.turn_ids()
+        if not ids:
+            return "-"
+        shown = ",".join(ids[:TURN_IDS_SHOWN])
+        hidden = len(ids) - TURN_IDS_SHOWN
+        return f"{shown},+{hidden}" if hidden > 0 else shown
+
+
 @contextmanager
-def admitted_turn():
+def turn_overlap_watch() -> Iterator[TurnOverlapWatch]:
+    """Collect the admitted turns that overlap the ``with`` body. Never raises."""
+
+    watch = TurnOverlapWatch()
+    with _LOCK:
+        watch._entries.update(_ENTRIES)
+        _WATCHES.append(watch)
+    try:
+        yield watch
+    finally:
+        with _LOCK:
+            try:
+                _WATCHES.remove(watch)
+            except ValueError:  # pragma: no cover - only this function removes
+                pass
+
+
+@contextmanager
+def admitted_turn(turn_id=None):
     """Hold the admitted count for the life of one turn.
 
     Entered at the handler anchor — the same statement that constructs the
     turn's :class:`~agent_runtime.mission_chat_phases.TurnPhaseMarks`, so the
     counted window and the measured window are the same window by construction
     rather than by two call sites agreeing.
+
+    ``turn_id`` names the turn to every :func:`turn_overlap_watch` open during
+    it: a string, or a zero-argument callable read when a receipt is rendered.
 
     Released in a ``finally``: the mission-chat handler has fourteen terminal
     transitions in its commit phase and a dozen refusals above them, and a count
@@ -156,8 +241,12 @@ def admitted_turn():
     """
 
     global _ADMITTED
+    token = next(_ENTRY_TOKENS)
     with _LOCK:
         _ADMITTED += 1
+        _ENTRIES[token] = turn_id
+        for watch in _WATCHES:
+            watch._entries[token] = turn_id
     in_turn = _IN_TURN.set(True)
     window = HotWindow()
     window.open()
@@ -170,6 +259,7 @@ def admitted_turn():
         _IN_TURN.reset(in_turn)
         with _LOCK:
             _ADMITTED -= 1
+            _ENTRIES.pop(token, None)
 
 
 __all__ = [
@@ -179,4 +269,6 @@ __all__ = [
     "current_hot_window",
     "hot_turn_windows",
     "inside_admitted_turn",
+    "TurnOverlapWatch",
+    "turn_overlap_watch",
 ]
