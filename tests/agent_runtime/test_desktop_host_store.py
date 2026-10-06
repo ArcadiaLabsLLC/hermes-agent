@@ -73,7 +73,7 @@ def _sign_in(home: Path) -> None:
     config.save_env_value("OPENROUTER_API_KEY", API_KEY)
     _write_hermes_oauth_credentials(PKCE, PKCE + "-r", 1)
     mcp_oauth._write_json(mcp_oauth._get_token_dir() / "srv.json", {"access_token": MCP})
-    webhook._save_subscriptions({"route": {"secret": HMAC}})
+    webhook._mutate_subscriptions(lambda subs: subs.update({"route": {"secret": HMAC}}))
     os.environ.pop("OPENROUTER_API_KEY", None)
 
 

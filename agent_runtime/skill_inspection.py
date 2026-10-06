@@ -103,10 +103,10 @@ def _inspection_location(identifier):
     plugin = get_plugin_manager().find_plugin_skill(identifier) if ":" in identifier else None
     if plugin is not None:
         return plugin, "plugin"
-    project, roots, _active = _skill_search_dirs()
-    error, _directory, document = _locate_skill(identifier, None, project, roots)
+    roots, _active = _skill_search_dirs()
+    error, _directory, document = _locate_skill(identifier, None, roots)
     if error is not None:
         raise SkillInspectionError(SkillInspectionReason.UNAVAILABLE)
-    source = next((skill_source_kind(root) for root in roots
+    source = next((skill_source_kind(root) for _tier, root in roots
                    if document.is_relative_to(root)), "external")
     return document, source

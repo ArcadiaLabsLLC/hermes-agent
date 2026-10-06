@@ -1,10 +1,17 @@
 {
   "measured_at": "2026-10-06",
-  "base": "ee5f49b943",
+  "base": "206102314a",
   "files": 175,
-  "deleted_lines": 883,
-  "heavy": 4,
+  "deleted_lines": 964,
+  "heavy": 5,
   "reasons": [
+    {
+      "change": "merge upstream/main 206102314a811b01abb27d24ca6d05fdd1b977b5; regenerate with pinned uv 0.12.3; supersession keeps 175 rows (103 incoming-touched), retires 0 whole rows",
+      "files": "175 -> 175",
+      "deleted_lines": "883 -> 964: uv.lock +83 (13 -> 96), all other files net -2",
+      "heavy": "4 -> 5: regenerated uv.lock (332 changed lines)",
+      "reason": "The immediate-run instruction explicitly retains coverage==7.16.0 and pytest-timeout==2.4.0 in pyproject, their exclude-newer-package exemptions, and --timeout=30, plus fork speech extras and higher httpx2 pins. Required lock regeneration accounts for the increase; no source-footprint growth is hidden. Upstream supersedes replay eviction and skill ranking; the remaining fork seams are kept."
+    },
     {
       "change": "lane h-mergeprep: AGENTS.md fork pointer removed; AGENTS.md is byte-identical to the merge base ee5f49b943",
       "files": "176 -> 175: AGENTS.md (2 added, 0 deleted) leaves the footprint; its carry-permanent ledger row is gone",

@@ -71,7 +71,7 @@ def _session(home: Path) -> None:
     _write_hermes_oauth_credentials(PKCE, PKCE + "-r", 1)
     mcp_oauth._write_json(mcp_oauth._get_token_dir() / "srv.json", {"access_token": MCP})
     pairing._save_json_file(home / "pairing" / "pending.json", {"code": PAIRING})
-    webhook._save_subscriptions({"route": {"secret": HMAC}})
+    webhook._mutate_subscriptions(lambda subs: subs.update({"route": {"secret": HMAC}}))
 
     db = SessionDB(home / "state.db")
     try:
