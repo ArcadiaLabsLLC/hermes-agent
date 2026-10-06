@@ -86,6 +86,7 @@ from agent_runtime.config.roster import (  # noqa: F401
     persona_skill_sources,
 )
 from agent_runtime.config.knobs import (  # noqa: F401
+    chat_lane_defer_tools,
     chat_lane_restore_toolsets,
     mission_chat_clarify_token_binding,
     mission_chat_compaction_threshold_tokens,

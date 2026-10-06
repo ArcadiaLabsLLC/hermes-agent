@@ -82,6 +82,29 @@ def chat_lane_restore_toolsets(persona_id: str, cfg: AgentRuntimeConfig | None =
     return []
 
 
+def chat_lane_defer_tools(persona_id: str, cfg: AgentRuntimeConfig | None = None) -> list[str]:
+    """Per-persona chat-lane DEFER list: tools that leave the eager array for the bridge listing.
+
+    Read from ``agent_runtime.personas.<id>.chat_lane_defer_tools`` in the ROOT
+    ``config.yaml``, for the reason :func:`chat_lane_restore_toolsets` gives. Unlike the
+    toolset cost policy it is posture-independent — ``unbounded`` does not bypass it —
+    because deferring removes nothing: a deferred tool is still listed by name in
+    ``tool_search``'s description and called through ``tool_call``
+    (``agent_runtime.chat_lane_defer``). It is never a grant either: a name the lane's
+    toolsets did not produce defers nothing. Absent / malformed → ``[]``."""
+
+    persona_id = str(persona_id or "").strip()
+    if not persona_id:
+        return []
+    cfg = cfg or load_agent_runtime_config(harness_root_config_path())
+    personas = cfg.personas if isinstance(getattr(cfg, "personas", None), dict) else {}
+    for key in (persona_id, *persona_id_aliases(persona_id)):
+        raw = personas.get(key)
+        if isinstance(raw, dict) and "chat_lane_defer_tools" in raw:
+            return _string_list(raw.get("chat_lane_defer_tools"))
+    return []
+
+
 def mission_chat_compaction_threshold_tokens(cfg: AgentRuntimeConfig | None = None) -> int:
     """The chat-lane compaction cap in tokens; ``0`` ⇒ no lane cap.
 

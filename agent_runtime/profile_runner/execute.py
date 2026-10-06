@@ -244,11 +244,14 @@ def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[st
     """Run the turn with a per-call usage ledger, the persona agent bound for plugin
     middleware (dispatch timing, cache routing) and the provider stream observers armed;
     a dict result carries the ledger as ``usage_ledger``."""
+    from agent_runtime.chat_lane_defer import turn_defer_tools
     from agent_runtime.codex_observability import stream_observers_armed
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent
     from agent_runtime.usage_ledger import bind_usage_ledger
+    from tools.tool_search_downstream import scoped_turn_defer
 
-    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed():
+    # The persona's defer reaches the bridge's reads (search catalog, tool_call resolve) here.
+    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)):
         raw_result = agent.run_conversation(**conversation_kwargs)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
@@ -583,6 +586,9 @@ class AgentRunExecution:
             enabled_toolsets=_enabled_toolsets_for_run(request, self.admitted_servers),
             disabled_toolsets=request.disabled_toolsets,
             blocked_tool_names=_blocked_tool_names_for_run(request),
+            # Only when set, so an injected factory that predates the knob keeps its signature.
+            **({"chat_lane_defer_tools": list(request.chat_lane_defer_tools)}
+               if request.chat_lane_defer_tools else {}),
             quiet_mode=request.quiet_mode,
             skip_context_files=request.skip_context_files,
             skip_memory=request.skip_memory,

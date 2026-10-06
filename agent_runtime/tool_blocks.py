@@ -142,6 +142,11 @@ def reprune_turn_agent(session_id: Any = None) -> None:
     agent = current_persona_turn_agent()
     if agent is None:
         return
+    # The same refresh restores the profile-wide eager list over the persona's defer; the
+    # re-assembly starts unpruned, so it runs first.
+    from agent_runtime.chat_lane_defer import reapply_chat_lane_defer
+
+    reapply_chat_lane_defer(agent)
     prune_agent_tools(agent, blocked_tools_for(session_id or getattr(agent, "session_id", None)))
 
 

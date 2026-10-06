@@ -125,6 +125,8 @@ def _config_from_loader(loader_name: str) -> ToolSearchConfig:
 
 load_config = functools.partial(_config_from_loader, "load_config")
 load_config_readonly = functools.partial(_config_from_loader, "load_config_readonly")  # no copy
+_profile_config_readonly = load_config_readonly  # fork: the bridge honours the turn's defer (tool_search_downstream)
+load_config_readonly = lambda: with_turn_defer(_profile_config_readonly())  # noqa: E731 — fork, additive
 
 
 def _core_tool_names() -> frozenset[str]:
@@ -589,4 +591,4 @@ __all__ = [
     "CONNECTOR_BATCH_SENTINEL", "is_connector_name"]
 
 
-from tools.tool_search_downstream import attach_hit_parameters, attach_local_call_rule, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema  # noqa: E402,F401 — fork
+from tools.tool_search_downstream import attach_hit_parameters, attach_local_call_rule, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # noqa: E402,F401 — fork

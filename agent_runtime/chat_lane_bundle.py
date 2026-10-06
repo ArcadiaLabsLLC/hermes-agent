@@ -128,6 +128,7 @@ import threading
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
+from .config import chat_lane_defer_tools
 from .chat_lane_scope import (  # noqa: F401 — re-exported: the scope family lived here
     _CHAT_CAPABILITY_TOOLSETS,
     _augment_chat_capabilities,
@@ -310,6 +311,10 @@ class ChatLaneBundle:
     #: diagnosis available named the bundle KEY (which had not moved). The
     #: degraded components were in a debug log line that nobody was capturing.
     degraded: tuple[str, ...] = ()
+    #: The persona's chat-lane defer list (``config.chat_lane_defer_tools``,
+    #: applied by ``agent_runtime.chat_lane_defer``). Part of the tool contract, so a
+    #: changed list moves the resident actor's signature and the actor is rebuilt.
+    defer_tools: tuple[str, ...] = ()
 
     def capability(self) -> dict[str, Any]:
         return copy.deepcopy(self._capability)
@@ -491,12 +496,14 @@ def _build_bundle(
         _enabled_toolsets_for_chat(persona, session_id=session_id, admission=admission)
     )
     blocked = tuple(_blocked_tool_names_for_chat(persona, session_id=session_id))
-    # The tool contract IS these two lists — composed here, once, so the actor's
+    defer = tuple(sorted(set(chat_lane_defer_tools(str(getattr(persona, "id", "") or "")))))
+    # The tool contract IS these three lists — composed here, once, so the actor's
     # reuse key and the request the actor is built from are literally the same
     # answer, not two equal ones.
     tool_contract = {
         "enabled_toolsets": list(enabled),
         "blocked_tool_names": list(blocked),
+        "chat_lane_defer_tools": list(defer),
     }
     permission_state = permission_state_for_chat(persona, session_id=session_id)
 
@@ -543,6 +550,7 @@ def _build_bundle(
         _permission_state=permission_state if isinstance(permission_state, dict) else {},
         complete=not degraded,
         degraded=tuple(degraded),
+        defer_tools=defer,
     )
 
 

@@ -579,6 +579,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         mcp_admission=lane_bundle.admission,
         enabled_toolsets=list(lane_bundle.enabled_toolsets),
         blocked_tool_names=list(lane_bundle.blocked_tool_names),
+        chat_lane_defer_tools=list(lane_bundle.defer_tools),
         quiet_mode=True,
         skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),

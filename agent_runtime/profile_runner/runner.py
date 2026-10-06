@@ -374,10 +374,16 @@ def _default_agent_factory(**kwargs):
     # agent is pruned once here, and the wire and the call are guarded by the
     # eternia-harness plugin against the block the run binds (agent_runtime.tool_blocks).
     blocked_tool_names = kwargs.pop("blocked_tool_names", None)
+    # The chat lane's per-persona defer (agent_runtime.chat_lane_defer) is not one either:
+    # the eager list is re-assembled with the persona's names deferred, BEFORE the block is
+    # pruned, since the re-assembly starts from the lane's unpruned definitions.
+    chat_lane_defer_tools = kwargs.pop("chat_lane_defer_tools", None)
     agent = AIAgent(**kwargs)
     if cache_scope_id:
         agent.cache_scope_id = cache_scope_id
+    from agent_runtime.chat_lane_defer import apply_chat_lane_defer
     from agent_runtime.tool_blocks import prune_agent_tools
 
+    apply_chat_lane_defer(agent, chat_lane_defer_tools)
     prune_agent_tools(agent, blocked_tool_names)
     return agent

@@ -215,7 +215,8 @@ def render_inventory_md(inventory: dict[str, Any]) -> str:
         "",
         f"`harness_core` = {counts['toolsets']} member toolsets, **{counts['tools']} "
         f"callable tools**, ~{counts['token_estimate']} model tool tokens "
-        "(`tool_name_envelope_v1` heuristic, not a provider bill). This is what every "
+        "(`registry_wire_chars_v1`: each registered schema as the wire carries it, chars/4, "
+        "every tool eager — before tool-search deferral; not a provider bill). This is what every "
         "Eternia persona's harness lane resolves unless its profile declares "
         "something else — see canon `05-chat-turn-lane.md` §4c.",
         "",

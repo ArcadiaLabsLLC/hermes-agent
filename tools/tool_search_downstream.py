@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from tools.mcp_tool_schema import mcp_prefixed_tool_name, sanitize_mcp_name_component
 from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
@@ -63,11 +65,12 @@ _BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "s
 #: round trips on tool_search + tool_describe before ``open_app_tab`` (owner run 2026-10-04). They
 #: exist only in a run ADMITTED the ``launcher_qa`` server, so naming them here un-hides them for
 #: exactly the personas that use it and grants nothing to anyone else.
+#: ``capture_screenshot`` left the set (lane h-prompt-tools, ruling R2, 2026-10-05): zero calls on
+#: record, and ``screenshot_window`` is the verb the screenshot skill teaches; it rides the listing.
 _MCP_NEVER_DEFER_VERBS = {
     "launcher_qa": (
         "mcp_launcher_qa_open_app_tab",
         "mcp_launcher_qa_screenshot_window",
-        "mcp_launcher_qa_capture_screenshot",
         "mcp_launcher_qa_launch_or_attach",
     ),
 }
@@ -76,7 +79,10 @@ _MCP_NEVER_DEFER = {
     for server, verbs in _MCP_NEVER_DEFER_VERBS.items()
 }
 _LAUNCHER_QA_CORE_TOOLS = _MCP_NEVER_DEFER["launcher_qa"]
-_NEVER_DEFER_TOOLS = _BUILTIN_NEVER_DEFER.union(*_MCP_NEVER_DEFER.values())
+#: Every promoted MCP tool under its registered name: the set whose wire text is briefed
+#: (``tools.downstream_schema.promoted_brief``), since the server's own manual rides eagerly.
+PROMOTED_MCP_TOOLS: frozenset[str] = frozenset().union(*_MCP_NEVER_DEFER.values())
+_NEVER_DEFER_TOOLS = _BUILTIN_NEVER_DEFER | PROMOTED_MCP_TOOLS
 
 
 def never_defer_tool_names(config=None) -> frozenset[str]:
@@ -94,6 +100,38 @@ def never_defer_tool_names(config=None) -> frozenset[str]:
 
 
 logger = logging.getLogger("tools.tool_search")
+
+
+#: The running turn's per-persona defer extension (lane h-prompt-tools S1). The chat lane
+#: re-assembles its agent's eager list with these names deferred
+#: (``agent_runtime.chat_lane_defer``); the bridge's reads — the search catalog, the
+#: ``tool_call`` resolve and scope checks — load their config through
+#: ``tools.tool_search.load_config_readonly``, which unions this set in, so a tool the
+#: persona deferred is found and callable through the bridge exactly as a curated one is.
+#: The assembly loader (``load_config``) never reads it: ``get_tool_definitions`` memoizes
+#: its assembled list per toolset selection, and a persona's set must not reach that memo.
+_TURN_DEFER_TOOLS: ContextVar[frozenset] = ContextVar("eternia_turn_defer_tools", default=frozenset())
+
+
+@contextmanager
+def scoped_turn_defer(names: Iterable[str] | None) -> Iterator[None]:
+    """Bind ``names`` as this turn's defer extension for the bridge's config reads."""
+    token = _TURN_DEFER_TOOLS.set(frozenset(str(n) for n in (names or ()) if str(n).strip()))
+    try:
+        yield
+    finally:
+        _TURN_DEFER_TOOLS.reset(token)
+
+
+def with_turn_defer(config):
+    """``config`` with the bound turn's defer extension unioned into ``defer_tools``.
+
+    Deferring is never a grant: a name only matters if the session's own toolsets
+    produced its definition, and the bridge's scope checks still require that."""
+    extra = _TURN_DEFER_TOOLS.get()
+    if not extra:
+        return config
+    return replace(config, defer_tools=frozenset(config.effective_defer_tools) | extra)
 
 
 @dataclass(frozen=True)

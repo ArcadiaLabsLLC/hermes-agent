@@ -3,13 +3,16 @@
 The registry keeps upstream's schema text (``tool_describe`` serves it). The brief
 reaches the wire through :func:`brief_request_tools`, which the eternia-harness
 plugin registers as ``llm_request`` middleware: it replaces ``description`` by tool
-name in the final provider kwargs and never touches parameters. No built-in is
+name in the final provider kwargs and never touches parameters — except for the
+promoted MCP tools (:func:`promoted_brief`), whose parameter descriptions are clipped
+too, since the server's whole manual would otherwise ride every turn. No built-in is
 briefed at registration (``terminal``, the last, left 2026-09-26, lane PF-1). A
 brief exists only while it is shorter than upstream's text: ``vision_analyze`` left 2026-09-24 (lane REDS3) once upstream's
 own diet (#97339) undercut it.
 """
 
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict, Iterable, Optional
 
 BRIEF_DESCRIPTIONS = {
     'browser_navigate': 'Load a URL before other browser_* calls; returns a compact snapshot '
@@ -63,6 +66,51 @@ BRIEF_DESCRIPTIONS = {
                  "shell cat/head/tail.",
 }
 
+#: The promoted-MCP brief (lane h-prompt-tools S2): a server's manual rides every turn once
+#: its tool is promoted eager (``tools.tool_search_downstream.PROMOTED_MCP_TOOLS``), so the wire
+#: carries the first sentence (at most this many chars) and every parameter description clipped
+#: to the second bound. The registry keeps the server's text: ``tool_describe`` serves the full
+#: description AND the full ``parameters`` from it, one call away.
+PROMOTED_BRIEF_DESCRIPTION_CHARS = 300
+PROMOTED_BRIEF_PARAMETER_CHARS = 120
+PROMOTED_BRIEF_SUFFIX = " Full reference: tool_describe."
+
+
+def _clip(text: str, cap: int) -> str:
+    return text if len(text) <= cap else text[: cap - 1].rstrip() + "…"
+
+
+def _first_sentence(text: str) -> str:
+    """The text up to its first sentence end (a "." then a space, past 40 chars), clipped."""
+    text = " ".join(str(text or "").split())
+    for index in range(40, len(text)):
+        if text[index] == "." and (index + 1 == len(text) or text[index + 1] == " "):
+            return _clip(text[: index + 1], PROMOTED_BRIEF_DESCRIPTION_CHARS)
+    return _clip(text, PROMOTED_BRIEF_DESCRIPTION_CHARS)
+
+
+def _clipped_schema(node: Any) -> Any:
+    """A JSON schema with every nested ``description`` clipped; structure and types kept whole."""
+    if isinstance(node, dict):
+        return {
+            key: (_clip(value, PROMOTED_BRIEF_PARAMETER_CHARS)
+                  if key == "description" and isinstance(value, str) else _clipped_schema(value))
+            for key, value in node.items()
+        }
+    if isinstance(node, list):
+        return [_clipped_schema(item) for item in node]
+    return node
+
+
+def promoted_brief(target: Dict[str, Any]) -> Dict[str, Any]:
+    """A promoted MCP tool's function body with its brief description and clipped parameters."""
+    rewritten = {**target, "description": _first_sentence(target.get("description") or "") + PROMOTED_BRIEF_SUFFIX}
+    for key in ("parameters", "input_schema"):
+        if isinstance(target.get(key), dict):
+            rewritten[key] = _clipped_schema(target[key])
+    return rewritten
+
+
 def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
     """``entry`` with its brief description, or None when it needs no rewrite.
 
@@ -74,10 +122,18 @@ def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
         return None
     inner = entry.get("function")
     target = inner if isinstance(inner, dict) else entry
-    brief = BRIEF_DESCRIPTIONS.get(target.get("name"))
-    if brief is None or target.get("description") == brief:
+    name = target.get("name")
+    brief = BRIEF_DESCRIPTIONS.get(name)
+    if brief is None:
+        from tools.tool_search_downstream import PROMOTED_MCP_TOOLS
+
+        if name not in PROMOTED_MCP_TOOLS or str(target.get("description") or "").endswith(PROMOTED_BRIEF_SUFFIX):
+            return None
+        rewritten = promoted_brief(target)
+    elif target.get("description") == brief:
         return None
-    rewritten = {**target, "description": brief}
+    else:
+        rewritten = {**target, "description": brief}
     return {**entry, "function": rewritten} if target is inner else rewritten
 
 
@@ -93,3 +149,26 @@ def brief_request_tools(request: Any) -> Optional[Dict[str, Any]]:
             tools[index] = rewritten
             changed = True
     return {**request, "tools": tools} if changed else None
+
+
+def wire_tool_chars(tool_defs: Iterable[Any]) -> Dict[str, int]:
+    """``{name: chars}`` of each tool definition as the WIRE carries it: briefed, compact JSON.
+
+    The measurement behind the prompt-surface receipt (lane h-prompt-tools S0) and the
+    tool-visibility token figure; tokens are derived from it by upstream's chars/4 rule
+    (``tools.tool_search_catalog.CHARS_PER_TOKEN``), never a tokenizer the venv lacks.
+    A definition without a name is skipped."""
+    out: Dict[str, int] = {}
+    for entry in tool_defs or ():
+        if not isinstance(entry, dict):
+            continue
+        wired = _briefed(entry) or entry
+        inner = wired.get("function")
+        name = str((inner if isinstance(inner, dict) else wired).get("name") or "")
+        if not name:
+            continue
+        try:
+            out[name] = len(json.dumps(wired, ensure_ascii=False, separators=(",", ":"), default=str))
+        except (TypeError, ValueError):
+            out[name] = len(str(wired))
+    return out
