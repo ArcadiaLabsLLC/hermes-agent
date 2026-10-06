@@ -143,6 +143,10 @@ class HostSecretFile:
     def with_suffix(self, suffix: str) -> Path:
         return self.path.with_suffix(suffix)
 
+    def with_name(self, name: str) -> Path:
+        """Sibling metadata path, including upstream's non-secret write lock."""
+        return self.path.with_name(name)
+
 
 def view(path: PathLike) -> Any:
     """*path* itself when unbound; bound, a :class:`HostSecretFile` over the same path."""
