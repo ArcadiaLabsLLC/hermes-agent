@@ -403,6 +403,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-06 (lane h-prereq-window)
+
+- [ ] **CLASS (third instance: turn-1 `conn=new`, turn-1 375 ms stream-gap stall, the turns 1–3 pre-request window): the turn-start title upgrade (`agent/title_generator.maybe_auto_title`, started by `agent/turn_context.py`) runs on turns 1–3 INSIDE anchor→request_sent — live 17:05 it logged 600–850 ms after the anchor, 60–180 ms before `request_sent`, and `request_built` read 95/162 ms on titled turns vs 46–55 untitled; structural answer: hold the upgrade unstarted (upstream's own `_deferred_title_upgrade` path) via one additive seam and start it from the fork's `request_sent` hook (`transport_phase_trace` → `run_deferred_turn_persist`'s neighbour); supersedes the h-turn1-conn title row** · seam (`agent/turn_context.py`, ledger row) · evidence: `send_prep_receipt` `title_threads=` + `request_built_ms`; lane h-prereq-window report · lane: seam + guard check that no `auto-title` thread is alive at turn N's `request_sent`
+
 ### Filed on arrival — 2026-10-06 (lane h-model-pick)
 
 - [ ] **The `API call #N` INFO line (`agent/turn_usage.py`) names model and provider but not the reasoning effort the request carried; the fork's `chat_turn_effort` receipt is per run, so a per-call effort (fallback re-resolve, mid-turn switch) is still unlogged** · seam · evidence: Neko 12:18–12:19 turns (chat `…391ce2958eea`) could not be proven low from the log · lane: additive `effort=` field as a held upstream PR row in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`

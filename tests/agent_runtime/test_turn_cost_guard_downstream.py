@@ -38,6 +38,11 @@ Killing mutations: ``PRECONNECT_CONNECTIONS = 1`` (the title takes the one socke
 ``conn=new``); the ``sdk_event_parse`` step dropped (turn 0 ``first_event_lag_ms`` ~14-23); the
 prewarm's ``_instance_as_the_send_path_stamps_it`` dropped (the actor is discarded); the
 ``defer_prewarmed_turn_persist`` seam answering False (no deferred-persist receipt).
+
+h-prereq-window: every turn writes ONE ``send_prep_receipt`` (anchor -> request_sent split into
+its phase marks), and a warm turn sends within the ABSOLUTE ``WARM_ANCHOR_TO_REQUEST_SENT_MS``,
+so a regression that slows every turn alike goes red (the turn-0-vs-warm budget cannot see it).
+Killing mutation: a 400 ms sleep planted before every turn's request (recorded in the commit).
 """
 
 from __future__ import annotations
@@ -77,7 +82,10 @@ RIDERS = 4
 #: Span budgets, ms: about 3x the 2026-10-06 live numbers.
 ACCEPT_TO_ANCHOR_MS = 600
 FIRST_ANCHOR_TO_REQUEST_SENT_MS = 2500
-WARM_ANCHOR_TO_REQUEST_SENT_MS = 1500
+#: h-prereq-window: ABSOLUTE warm-turn bound. Offline warm turns read 217-359 ms on the 14:34,
+#: 16:55 and current builds alike (h-perf-guard's four-copies load check: 314-373); 600 is ~1.6x
+#: the worst of those, so a slowdown on every turn of a few hundred ms reads red.
+WARM_ANCHOR_TO_REQUEST_SENT_MS = 600
 QUEUE_BEHIND_RIDERS_MS = 1000
 #: h-turn1-conn: turn 0 sends within this of the slowest warm turn (it was ~150 ms behind).
 FIRST_TURN_OVER_WARM_MS = 100
@@ -512,6 +520,10 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     sent_by_turn[index] = sent
                 spans.append(f"turn {index} accept->anchor={anchor[0]['total_ms']} anchor->request_sent={sent} "
                              f"conn={windows[0].get('conn') if windows else None} first_event_lag_ms={lag}")
+                prep = [_fields(m) for m in log.receipts("send_prep_receipt ") if f" turn=m-{index} " in m]
+                if len(prep) != 1 or str(prep[0].get("total_ms")) != str(sent):
+                    violations.append(f"turn {index}: send_prep_receipt {prep} (one per turn, total_ms = "
+                                      f"request_sent_ms {sent})")
                 bound = WARM_ANCHOR_TO_REQUEST_SENT_MS if index else FIRST_ANCHOR_TO_REQUEST_SENT_MS
                 if not isinstance(sent, int) or sent > bound:
                     budgets.append(f"turn {index}: anchor->request_sent {sent} ms > {bound}")
@@ -542,5 +554,6 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
             root_logger.setLevel(previous_level)
 
     print(f"turn-cost guard: {time.monotonic() - started:.1f} s; " + "; ".join(spans))
+    print("\n".join(log.receipts("send_prep_receipt ")))
     assert not violations, "turn-cost guard (counts):\n  " + "\n  ".join(violations)
     assert not budgets, "turn-cost guard (span budgets):\n  " + "\n  ".join(budgets)

@@ -130,6 +130,8 @@ def _cmd_mission_chat_message(args) -> int:
     # One ``time.monotonic()`` read. See ``agent_runtime.mission_chat_phases``
     # for the honesty contract every mark below obeys.
     turn_phases = TurnPhaseMarks()
+    # h-prereq-window: the send_prep_receipt's join key, the one chat_turn_accept_to_anchor carries.
+    turn_phases.receipt_turn = getattr(args, "client_message_id", None)
     # Baseline for Stage 4's ``registry_probe_rounds``. The registry's counter
     # is cumulative and thread-local (serve reuses pooled threads across turns),
     # so the turn's number is a DELTA and the near end of it has to be sampled
