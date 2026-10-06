@@ -103,8 +103,7 @@ class _SkillObservabilityResolver:
         return self._realm_rows
 
     def resolve(self, identifiers: Iterable[str]) -> dict[str, Any]:
-        from agent.skill_utils import get_all_skills_dirs
-        from agent_runtime.skill_resolution import resolve_skills
+        from agent_runtime.skill_resolution import resolve_skills, skill_search_roots
 
         names = list(
             dict.fromkeys(
@@ -113,7 +112,7 @@ class _SkillObservabilityResolver:
         )
         if not names:
             return {}
-        roots = list(get_all_skills_dirs())
+        roots = skill_search_roots()
         root_key = tuple(str(root.resolve()) for root in roots)
         cached = self._resolutions_by_roots.get(root_key, {})
         if root_key not in self._resolutions_by_roots:

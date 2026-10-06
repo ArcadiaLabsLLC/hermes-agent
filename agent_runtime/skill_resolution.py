@@ -4,7 +4,7 @@ import os
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from hermes_constants import get_skills_dir
@@ -73,6 +73,26 @@ class _SkillRootRegistry:
     legacy: tuple[tuple[Path | None, Path], ...]
     manifests_by_alias: dict[str, tuple[tuple[Path | None, Path], ...]]
     legacy_by_alias: dict[str, tuple[tuple[Path | None, Path], ...]]
+    #: ``manifests`` / ``legacy`` grouped by their file path, in registry order.
+    #: ``resolve_skills`` asks "which entries ARE ``<root>/<name>/SKILL.md``"
+    #: once per name; scanning the whole tuple for that was names x entries
+    #: Path compares (~200 x ~1,150 per persona per snapshot build).
+    manifests_by_path: dict[Path, tuple[tuple[Path | None, Path], ...]] = field(default_factory=dict)
+    legacy_by_path: dict[Path, tuple[tuple[Path | None, Path], ...]] = field(default_factory=dict)
+    #: ``realpath`` of an entry's file, filled on first ask. Valid exactly as
+    #: long as the registry is: both are keyed on the root's signature.
+    resolved_files: dict[Path, Path] = field(default_factory=dict)
+
+
+def _group_by_path(
+    entries: tuple[tuple[Path | None, Path], ...],
+) -> dict[Path, tuple[tuple[Path | None, Path], ...]]:
+    """Registry entries keyed by their file, order kept (``Path`` hash agrees with ``==``)."""
+
+    grouped: dict[Path, list[tuple[Path | None, Path]]] = {}
+    for entry in entries:
+        grouped.setdefault(entry[1], []).append(entry)
+    return {path: tuple(group) for path, group in grouped.items()}
 
 _SKILL_ROOT_REGISTRY_CACHE: dict[str, _SkillRootRegistry] = {}
 
@@ -294,12 +314,16 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     for path in legacy:
         legacy_aliases.setdefault(path.stem, []).append((None, path))
 
+    manifest_entries = tuple((manifest.parent, manifest) for manifest in manifests)
+    legacy_entries = tuple((None, path) for path in legacy)
     registry = _SkillRootRegistry(
         fingerprint,
-        tuple((manifest.parent, manifest) for manifest in manifests),
-        tuple((None, path) for path in legacy),
+        manifest_entries,
+        legacy_entries,
         {key: tuple(value) for key, value in manifest_aliases.items()},
         {key: tuple(value) for key, value in legacy_aliases.items()},
+        _group_by_path(manifest_entries),
+        _group_by_path(legacy_entries),
     )
     with _SKILL_ROOT_REGISTRY_LOCK:
         _SKILL_ROOT_REGISTRY_CACHE[root_key] = registry
@@ -310,6 +334,65 @@ def _resolved_path(path: Path) -> Path:
         return path.expanduser().resolve()
     except (OSError, RuntimeError):
         return path.expanduser().absolute()
+
+#: ``skill_search_roots`` memo: key -> (roots, create_dir, create_dir existed).
+_SEARCH_ROOTS_CACHE: Dict[Tuple[Any, ...], Tuple[Tuple[Path, ...], Optional[Path], bool]] = {}
+
+_SEARCH_ROOTS_CACHE_MAX = 64
+
+
+def _search_roots_cache_clear() -> None:
+    """Test hook — drop the ``skill_search_roots`` memo."""
+
+    _SEARCH_ROOTS_CACHE.clear()
+
+
+def skill_search_roots() -> List[Path]:
+    """``agent.skill_utils.get_all_skills_dirs()`` for the active profile, memoized per profile.
+
+    h-readiness: upstream parses ``config.yaml`` behind a ONE-entry cache that
+    clears on every new key, which is right for a process with one
+    ``HERMES_HOME`` and wrong for this one. A snapshot build binds each
+    persona's profile in turn, so every persona re-parsed its profile's config
+    (~60 ms of ruamel each, 5 of them per build on the operator's roster).
+
+    The key is every input the upstream body reads: the walker itself (a patch
+    or reload invalidates), the active Hermes home (skills dir, config path,
+    relative-path anchor, shared root), ``config.yaml``'s file signature, and
+    the whole environment (``${VAR}``/``~`` expansion, ``HERMES_SHARED_SKILLS``).
+    The one filesystem fact it adds, whether the configured ``create_dir``
+    exists, is re-checked on every hit. ``external_dirs`` existence is upstream's
+    own cache's contract (keyed on the config signature alone) and is served
+    exactly as upstream would serve it.
+    """
+    from agent import skill_utils as _skills
+    from hermes_constants import get_hermes_home
+    from utils import file_signature
+
+    home = get_hermes_home()
+    try:
+        config_sig: Optional[Tuple[int, ...]] = file_signature((home / "config.yaml").stat())
+    except OSError:
+        config_sig = None
+    key = (
+        _skills.get_all_skills_dirs,
+        str(home),
+        config_sig,
+        frozenset(os.environ.items()),
+    )
+    cached = _SEARCH_ROOTS_CACHE.get(key)
+    if cached is not None:
+        roots, create_dir, existed = cached
+        if create_dir is None or create_dir.is_dir() == existed:
+            return list(roots)
+    create_dir = _skills.get_skill_create_dir()
+    existed = create_dir is not None and create_dir.is_dir()
+    roots = tuple(_skills.get_all_skills_dirs())
+    if len(_SEARCH_ROOTS_CACHE) >= _SEARCH_ROOTS_CACHE_MAX:
+        _SEARCH_ROOTS_CACHE.clear()
+    _SEARCH_ROOTS_CACHE[key] = (roots, create_dir, existed)
+    return list(roots)
+
 
 def skill_source_kind(root: Path) -> str:
     """Classify a resolver root without exposing its absolute path on wire."""
@@ -407,9 +490,21 @@ def resolve_skills(
     found: Dict[str, list[SkillResolutionCandidate]] = {name: [] for name in names}
     seen: Dict[str, set[Path]] = {name: set() for name in names}
     root_registries = _registries_for_call(_root_registries)
+    # h-readiness: ``record`` paid a ``realpath`` per candidate (a syscall pair
+    # on Windows) and re-classified the root per candidate. The realpath now
+    # lives on the registry it came from; the root's kind is classified once.
 
-    def record(name: str, root: Path, skill_dir: Path | None, skill_md: Path) -> None:
-        key = _resolved_path(skill_md)
+    def record(
+        name: str,
+        root: Path,
+        kind: str,
+        resolved_files: Dict[Path, Path],
+        skill_dir: Path | None,
+        skill_md: Path,
+    ) -> None:
+        key = resolved_files.get(skill_md)
+        if key is None:
+            key = resolved_files[skill_md] = _resolved_path(skill_md)
         if key in seen[name]:
             return
         seen[name].add(key)
@@ -418,7 +513,7 @@ def resolve_skills(
                 root=root,
                 skill_dir=skill_dir,
                 skill_md=skill_md,
-                source_kind=skill_source_kind(root),
+                source_kind=kind,
             )
         )
 
@@ -428,19 +523,17 @@ def resolve_skills(
         if registry is None:
             registry = _skill_root_registry(root)
             root_registries[root_key] = registry
+        kind = skill_source_kind(root)
+        hit = registry.resolved_files
         for name in names:
-            direct_manifest = root / name / "SKILL.md"
-            for skill_dir, manifest in registry.manifests:
-                if manifest == direct_manifest:
-                    record(name, root, skill_dir, manifest)
-            direct_legacy = (root / name).with_suffix(".md")
-            for skill_dir, legacy in registry.legacy:
-                if legacy == direct_legacy:
-                    record(name, root, skill_dir, legacy)
+            for skill_dir, manifest in registry.manifests_by_path.get(root / name / "SKILL.md", ()):
+                record(name, root, kind, hit, skill_dir, manifest)
+            for skill_dir, legacy in registry.legacy_by_path.get((root / name).with_suffix(".md"), ()):
+                record(name, root, kind, hit, skill_dir, legacy)
             for skill_dir, manifest in registry.manifests_by_alias.get(name, ()):
-                record(name, root, skill_dir, manifest)
+                record(name, root, kind, hit, skill_dir, manifest)
             for skill_dir, legacy in registry.legacy_by_alias.get(name, ()):
-                record(name, root, skill_dir, legacy)
+                record(name, root, kind, hit, skill_dir, legacy)
 
     result: Dict[str, SkillResolution] = {}
     for name, candidates in found.items():
