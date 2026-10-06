@@ -189,6 +189,7 @@ what the fixture mirror below enforces.
 | `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `silent` (no `snapshot.ready` within 20 s of the spawn, or no beat for 5 s), `idle` (the request's thread burned no CPU for 15 s), `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `chat_turn_duplicate_refused request= twin= verb= client_message_id=` | `DUPLICATE_REFUSED_RECEIPT` in `hermes_cli/harness_parts/serve/request_pool.py` | a chat turn presented again (same `--client-message-id`) while another worker of this serve runs it: no handler ran, the request was answered `chat_turn_duplicate_in_flight` (exit 2); `tests/agent_runtime/test_pool_starve_downstream.py` |
+| `chat_turn_accept_to_anchor request=… queue_ms=… link_ms=… dispatch_ms=… total_ms=… turn=…` | `ACCEPT_TO_ANCHOR_RECEIPT` in `agent_runtime/turn_activity.py`, emitted by `admitted_turn` at the handler anchor | one line per turn that came through the serve's pool: where accept -> anchor went (`queue` behind other work, `link` the Launcher app-function bind, `dispatch` the argv parse and imports). `turn=` (h-perf-guard) is the client message id; a line written before it joins its turn record on the anchor instant. `hermes harness observe turn-timing`; `tests/agent_runtime/test_turn_timing_census_downstream.py`, `test_pool_starve_downstream.py` |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream/build_policy.py::_log_snapshot_build` | operator grep; a launcher in the field still parses `elapsed_ms` (`agent_runtime/stream/frames.py`); `tests/agent_runtime/test_stream_build_timing_log.py` |
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:178-180`, emitted in `_log_agents_readiness_split` (`:183`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream/build_policy.py::log_stream_denied` | boot-investigation join (third `pid=`-bearing family) |
@@ -244,6 +245,24 @@ read-only, from `agent.log` and its rotations: builds (led / shadow), total and 
 `build_ms`, builds by trigger (`caller/reason`), the executor split (`unknown` for a
 line written before these fields existed), worker fallbacks, and the distinct turns
 affected (`agent_runtime/snapshot_build_census.py::census_builds`).
+
+`hermes harness observe turn-timing --since 2h [--json] [--log PATH] [--launcher-log PATH]
+[--baseline PATH]` joins, read-only and per turn on the client message id, the turn record's
+`phases` (cut into consecutive segments: anchor -> write-ahead -> agent ready -> request sent ->
+headers -> first byte -> stream done -> projected, plus anchor -> request sent), the
+`chat_turn_accept_to_anchor` receipt and the Launcher's `[MissionChatTiming]` spans, and names
+every span over 1.5x (and 25 ms over) the committed baseline `tests/fixtures/turn_timing_baseline.json`
+(seeded from the 2026-10-06 operator turns); a count (`visibility_bundle_builds`,
+`builds_overlapped`, `prewarm_overlapped`) is regressed when it is over its baseline at all, and the
+two provider segments are named apart. The agent.log it reads is the LIVE serve's
+(`serve_instances/<pid>.json` `hermes_home`), never the CLI's sticky profile
+(`agent_runtime/turn_timing_census.py`). Its test-side twin is the fork-gate guard
+`tests/agent_runtime/test_turn_cost_guard_downstream.py`: a new chat and three turns through the
+serve's lanes against a loopback provider, failing on any full snapshot core on the open or a turn,
+a turn-section read off the worker, a turn-1 bundle build or un-reused prewarm, an inline catalog
+walk on a warm turn, a request prefix that moved, a turn queued behind parked hydrate riders, a
+second handler for one client message id, or a span over its budget (accept -> anchor 600 ms,
+anchor -> request sent 2.5 s on turn 1 and 1.5 s warm).
 
 ### The core-cache family and its census
 

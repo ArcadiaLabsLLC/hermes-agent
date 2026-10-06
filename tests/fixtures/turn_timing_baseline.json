@@ -1,0 +1,21 @@
+{
+  "seeded": "2026-10-06",
+  "source": "medians of the 17 operator turns of 2026-10-06 (local) on the base profile's serve: mission_chat_turns phases, 7 chat_turn_accept_to_anchor receipts joined on the anchor instant; no Launcher diag log was teed that day, so the launcher spans have no baseline yet",
+  "spans_ms": {
+    "accept_queue": 0,
+    "accept_to_anchor": 28,
+    "anchor_to_write_ahead": 362,
+    "write_ahead_to_agent_ready": 42,
+    "agent_ready_to_request_sent": 323,
+    "request_sent_to_headers": 834,
+    "headers_to_first_byte": 1920,
+    "first_byte_to_stream_done": 658,
+    "stream_done_to_projected": 82,
+    "anchor_to_request_sent": 816
+  },
+  "counts": {
+    "visibility_bundle_builds": 0,
+    "builds_overlapped": 1,
+    "prewarm_overlapped": 0
+  }
+}
