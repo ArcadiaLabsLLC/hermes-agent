@@ -483,6 +483,9 @@ class _SettlePhases:
             "input_tokens": getattr(chat_result, "input_tokens", None),
             "output_tokens": getattr(chat_result, "output_tokens", None),
             "total_tokens": getattr(chat_result, "total_tokens", None),
+            # h-think-tokens: the turn's reasoning_tokens / reasoning_ms, absent
+            # when the provider reported no reasoning count.
+            **dict(getattr(chat_result, "reasoning_window", None) or {}),
             # Turn latency accounting (see harness-serve brain note, 2026-07-08):
             # latency_ms is the whole runner.run wall; profile_timing carries the
             # per-phase breakdown (agent construct, provider dispatch, stream).
@@ -545,6 +548,7 @@ class _SettlePhases:
             input_tokens=data.get("input_tokens"),
             output_tokens=data.get("output_tokens"),
             total_tokens=data.get("total_tokens"),
+            reasoning=dict(getattr(self.chat_result, "reasoning_window", None) or {}),
         )
         self.turn_phases.mark("projected")
         self.terminal_outcome = transition_mission_chat_turn(
@@ -562,6 +566,7 @@ class _SettlePhases:
                 "stored_reply": reply_text,
                 "active_session_id": self.active_session_id,
                 "native_revision": self.native_revision,
+                **dict(getattr(self.chat_result, "reasoning_window", None) or {}),
             },
         )
         if self.terminal_outcome is not MissionChatTurnPersistOutcome.PERSISTED:

@@ -222,6 +222,7 @@ class _TraceAccumulator:
                 unrenderable += 1
                 continue
             rendered.append(entry)
+        rendered, folded = _fold_reasoning_usage(rendered)
         kept = _retain_trace_tail(rendered, tail=tail)
         if len(kept) < len(rendered):
             kept_ids = {id(entry) for entry in kept}
@@ -235,6 +236,11 @@ class _TraceAccumulator:
             accountant.include(len(kept))
             if unrenderable:
                 accountant.drop("unrenderable_entry", count=unrenderable, entity_id=self.instance_id)
+            if folded:
+                # Not lost: the counts now ride the turn's Thinking rows.
+                accountant.drop(
+                    "reasoning_usage_folded", count=folded, entity_id=self.instance_id, by_design=True
+                )
             truncated = len(rendered) - len(kept)
             if truncated > 0:
                 # Deliberate bound: the trace lane keeps a tail window.
@@ -246,6 +252,34 @@ class _TraceAccumulator:
                 )
                 accountant.mark_truncated()
         return kept
+
+
+def _fold_reasoning_usage(rendered: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Copy each turn's ``reasoning_tokens`` / ``reasoning_ms`` onto its Thinking rows.
+
+    The counts arrive as ONE turn-end event (``ChatProgressSink.record_reasoning_usage``),
+    after the Thinking rows it describes were stored; this is where they meet,
+    by ``turn_id``. The carrier entry is dropped (it is no row of its own).
+    Returns the entries and how many carriers were folded.
+    """
+
+    usage: dict[str, dict[str, Any]] = {}
+    out: list[dict[str, Any]] = []
+    for entry in rendered:
+        if "reasoning_tokens" in entry and not entry.get("reasoning_summary"):
+            turn_id = entry.get("turn_id")
+            if turn_id:
+                usage[str(turn_id)] = {
+                    key: entry[key] for key in ("reasoning_tokens", "reasoning_ms") if key in entry
+                }
+            continue
+        out.append(entry)
+    if usage:
+        for entry in out:
+            counts = usage.get(str(entry.get("turn_id") or ""))
+            if counts and entry.get("reasoning_summary"):
+                entry.update(counts)
+    return out, len(rendered) - len(out)
 
 
 def _retain_trace_tail(rendered: list[dict[str, Any]], *, tail: int) -> list[dict[str, Any]]:

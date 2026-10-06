@@ -11,6 +11,7 @@ from typing import Any
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import mask_secret_lines
 from ..serde import strict_int
+from ..stream_gap_receipt import REASONING_USAGE_STEP
 from ..transcript_order import TURN_SEQ_CONTENT
 from .vocabulary import (
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
@@ -151,7 +152,22 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         "acceptance": _safe_trace_list_text(payload.get("acceptance"), limit=500),
         "non_goals": _safe_trace_list_text(payload.get("non_goals"), limit=500),
         "allowed_decisions": _safe_trace_list_text(payload.get("allowed_decisions"), limit=80),
+        **_reasoning_usage_fields(payload),
     }
+
+
+def _reasoning_usage_fields(payload: dict[str, Any]) -> dict[str, int]:
+    """The turn-end ``reasoning_usage`` event's counts; ``{}`` on every other event.
+
+    Present only on that one event, so no other entry grows a key; the
+    accumulator folds them onto the turn's Thinking rows
+    (``trace._fold_reasoning_usage``) and drops the carrier.
+    """
+
+    if payload.get("step") != REASONING_USAGE_STEP:
+        return {}
+    fields = {key: strict_int(payload.get(key)) for key in ("reasoning_tokens", "reasoning_ms")}
+    return {key: value for key, value in fields.items() if value is not None and value >= 0}
 
 
 def _first_safe_trace_text(*values: Any, limit: int) -> str | None:

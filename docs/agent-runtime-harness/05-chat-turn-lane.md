@@ -247,6 +247,34 @@ contention) survives. Values are sanitized on the way OUT as well as in, because
 straight off a wire frame: non-integers, a `True` in a millisecond slot, negatives and absurd
 magnitudes are dropped rather than coerced.
 
+### 2b. The turn's reasoning on the Thinking row (h-think-tokens, 2026-10-06)
+
+Two additive integers name what the model spent thinking: `reasoning_tokens` (the provider's
+`usage.output_tokens_details.reasoning_tokens`, summed over the turn's requests) and
+`reasoning_ms` (per request, first parsed event to the first reply output — output text, or a
+function call's arguments on a tool round; the terminal event when neither came — summed). Both
+come from the stream-gap window (`agent_runtime/stream_gap_receipt.py`, `TurnReasoning`, bound
+per turn by `bind_turn_reasoning` in `_run_conversation_with_usage_ledger`) and reach the runner
+result as `AgentRunResult.reasoning_window`. A request abandoned before its terminal event is not
+counted.
+
+**Absent is not zero.** No request reported a reasoning count → no key anywhere (an older
+transport, a non-Codex provider). A reported `0` stays `0`, so the Launcher can say "0 tokens".
+
+**Where they ride.** The Thinking frames (`reasoning.summary`) leave while the model streams,
+before the usage block exists, and are never held for it; the counts land at turn end in ONE
+update per surface:
+
+| surface | carrier |
+|---|---|
+| live | `turn.end` frame, `reasoning_tokens` / `reasoning_ms` beside `output_tokens` |
+| terminal payload | `chat.final` (the `_mission_chat_emit` dict), same two keys |
+| turn record | `mission_chat_turns/*.json`, top-level keys on the projected record (`_safe_journal_metadata`) |
+| stored Thinking rows | ONE `run.progress` event, step `reasoning_usage` (`ChatProgressSink.record_reasoning_usage`, written by `mission_chat_reply` after the run), folded by `persona_chat_history.trace._fold_reasoning_usage` onto every Thinking entry of the same `turn_id`; the carrier is no row of its own (`reasoning_usage_folded`, by design) |
+| history replay | every `thinking_summary` message of the turn (conversation schema v3), same two keys |
+
+An older Launcher ignores the keys; no contract integer moves.
+
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`

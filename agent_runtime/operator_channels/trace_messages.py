@@ -76,6 +76,13 @@ def _conversation_trace_message(
         reasoning_id = safe_assignment_text(entry.get("reasoning_id"), limit=200)
         if reasoning_id:
             message["reasoning_id"] = reasoning_id
+        # The turn's reasoning counts (h-think-tokens), folded onto every
+        # Thinking row of the turn at read time; absent when the provider
+        # reported none, 0 when it reported zero.
+        for key in ("reasoning_tokens", "reasoning_ms"):
+            value = entry.get(key)
+            if type(value) is int and value >= 0:
+                message[key] = value
         return message
     summary = _safe_conversation_text(
         entry.get("summary") or entry.get("rationale"),
