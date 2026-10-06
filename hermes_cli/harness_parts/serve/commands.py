@@ -15,6 +15,7 @@ from hermes_cli.harness_parts.serve.boot import (
     _prewarm_persona_chat_actors,
     _prewarm_provider_runtime,
     _prewarm_read_model_snapshot,
+    _prewarm_read_model_snapshot_in_worker,
     install_harness_skills_at_boot,
 )
 from hermes_cli.harness_parts.serve.session import (
@@ -160,7 +161,7 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
             pool_size=getattr(args, "pool_size", DEFAULT_POOL_SIZE)
             or DEFAULT_POOL_SIZE,
             boot_timeline=timeline,
-            snapshot_prewarm=_prewarm_read_model_snapshot,
+            snapshot_prewarm=_prewarm_read_model_snapshot_in_worker,
             # The production wiring for both warmups. The provider one is
             # injected here rather than hardcoded in the loop (EG-3.2): it is
             # policy, it now runs BEHIND the read-model build on one thread, and

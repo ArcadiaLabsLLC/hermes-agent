@@ -510,7 +510,9 @@ def _within_admitted_turn(handler):
         # Function-local, like every other import in this file.
         from agent_runtime.turn_activity import admitted_turn
 
-        with admitted_turn():
+        # The turn's id, read when a build receipt names the turns it overlapped
+        # (``turn_overlap_watch``): the handler writes a minted id back to ``args``.
+        with admitted_turn(turn_id=lambda: getattr(args, "client_message_id", None)):
             return handler(args)
 
     return _admitted

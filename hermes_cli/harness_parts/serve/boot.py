@@ -24,6 +24,7 @@ __all__ = [
     "_prewarm_persona_chat_actors",
     "_prewarm_provider_runtime",
     "_prewarm_read_model_snapshot",
+    "_prewarm_read_model_snapshot_in_worker",
     "_repoint_logging_root_stderr",
     "_runtime_state_fingerprint",
     "_stat_board_tree",
@@ -314,13 +315,36 @@ def _prewarm_read_model_snapshot() -> None:
     try:
         from agent_runtime.snapshot.build import build_snapshot
 
-        build_snapshot(build_info={"caller": "prewarm"})
+        build_snapshot(build_info={"caller": "prewarm", "reason": "boot"})
     except Exception:
         import logging as _logging
 
         _logging.getLogger(__name__).debug(
             "serve snapshot prewarm did not complete", exc_info=True
         )
+
+
+def _prewarm_read_model_snapshot_in_worker() -> None:
+    """The serve's production prewarm: bind the resident snapshot worker, then prewarm.
+
+    Plan snapshot-offproc S2: bound here, so the cold prewarm build is the worker's
+    first and the boot pays it once, as before; off where
+    ``snapshot.subprocess_worker`` is off. The serve session unbinds it at teardown.
+    A separate step so a caller of :func:`_prewarm_read_model_snapshot` (a unit
+    test) never starts a process.
+    """
+
+    try:
+        from agent_runtime.snapshot_worker.executor import bind
+
+        bind()
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "snapshot worker bind failed; building in process", exc_info=True
+        )
+    _prewarm_read_model_snapshot()
 
 
 def _prewarm_provider_runtime() -> None:

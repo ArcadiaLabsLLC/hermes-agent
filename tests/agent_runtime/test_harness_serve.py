@@ -942,7 +942,7 @@ def test_the_serve_entry_point_wires_the_real_prewarm_and_timeline(monkeypatch):
         pool_size = 4
 
     assert serve_mod._cmd_serve(_Args()) == 0
-    assert captured["snapshot_prewarm"] is serve_boot._prewarm_read_model_snapshot
+    assert captured["snapshot_prewarm"] is serve_boot._prewarm_read_model_snapshot_in_worker
     # EG-3.2's injectable-parameter contract (HC-H3): the provider warmup is
     # policy the entry point supplies, exactly like the read-model one. Pinned
     # here because the loop's default is OFF — a wiring that forgot it would ship

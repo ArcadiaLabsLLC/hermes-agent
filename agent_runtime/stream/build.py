@@ -65,6 +65,7 @@ class _SnapshotBuildJob:
         *,
         caller: str = DEFAULT_STREAM_CALLER,
         accept_inflight: bool = False,
+        reason: str | None = None,
     ) -> None:
         #: Whether this job may RIDE a build that is already running rather than
         #: waiting for the next one. Load-bearing for exactly one caller and
@@ -92,6 +93,9 @@ class _SnapshotBuildJob:
         #: Filled by the builder: role / caller / generation / build_ms. See
         #: :func:`agent_runtime.snapshot.build_snapshot`.
         self.build_info: dict[str, Any] = {"caller": caller}
+        if reason:
+            # The trigger's second half on the build's own receipt (h-snap-worker).
+            self.build_info["reason"] = reason
 
     def run(self) -> None:
         started = time.monotonic()
@@ -261,7 +265,7 @@ def _full_core_batch_frames(
     if request_cancelled():
         return
 
-    job = _SnapshotBuildJob(caller=caller)
+    job = _SnapshotBuildJob(caller=caller, reason=reason)
     # Keep the watermark at the last APPLIED core — see ``_build_with_liveness``
     # for why this caller answers ``heartbeat_offset`` differently from the boot.
     yield from _build_with_liveness(
@@ -288,7 +292,7 @@ def _full_core_batch_frames(
             caller=caller,
             detail=f"core_offset={core_offset} frame_offset={last_offset}",
         )
-        job = _SnapshotBuildJob(caller=caller)
+        job = _SnapshotBuildJob(caller=caller, reason=REFUSAL_CORE_BEHIND_FRAME)
         yield from _build_with_liveness(
             job,
             heartbeat_offset=base_offset,

@@ -272,6 +272,12 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         finally:
             sys.stdout, sys.stderr = self.original_stdout, self.original_stderr
             try:
+                from agent_runtime.snapshot_worker.executor import unbind as unbind_snapshot_worker
+
+                unbind_snapshot_worker()
+            except Exception:  # pragma: no cover - shutdown is best effort
+                pass
+            try:
                 if self.conversation_owner is not None:
                     from agent_runtime.conversations.binding import shutdown as shutdown_conversations
                     shutdown_conversations(root=self.conversation_owner.root)
