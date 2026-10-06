@@ -69,6 +69,18 @@ from agent_runtime.profile_runner.model_input_observability import (
 
 __layer__ = "lanes"
 
+
+def _warm_skill_catalog(agent) -> None:
+    """Fill the process-wide skill-catalog memo the turn's observability row reads (h-send-window)."""
+
+    from agent_runtime.prompt_observability.skills_resolver import _installed_skill_catalog
+
+    _installed_skill_catalog()
+
+
+#: Warm-up steps that read a store; ``first_turn_warmup`` is policy and may not import one.
+_FIRST_TURN_STORE_STEPS = (("skill_catalog", _warm_skill_catalog),)
+
 __all__ = [
     "AgentRunExecution",
     "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
@@ -360,7 +372,7 @@ class AgentRunExecution:
                 # `_restore_or_build_system_prompt` instead of rebuilt there.
                 stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
                 # h-conn-pool: the first turn's one-time process costs (spinner catalog, lazy imports, SDK headers).
-                warm_first_turn_paths(self.agent, self.timing)
+                warm_first_turn_paths(self.agent, self.timing, _FIRST_TURN_STORE_STEPS)
                 _finish_resident_persona_chat_agent(self.agent)
                 return None, self.agent, self.timing
             self.bind_chat_root()

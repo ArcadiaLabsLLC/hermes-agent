@@ -159,12 +159,8 @@ class SendWindow:
         }
 
     def line(self, *, request_id: Any = None, model: Any = None) -> str:
-        def fmt(value: Any) -> str:
-            if value is None:
-                return "na"
-            if isinstance(value, float):
-                return f"{value:.1f}"
-            return str(value)
+        from agent_runtime.stream_gap_receipt import receipt_value as fmt
+
 
         parts = [SEND_WINDOW_RECEIPT, f"request={request_id or 'na'}", f"model={model or 'na'}"]
         parts += [f"{key}={fmt(value)}" for key, value in self.fields().items()]

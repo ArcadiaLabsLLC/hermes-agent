@@ -113,6 +113,16 @@ class _StallProbe:
                 self.late_over_floor_ms += late_ms
 
 
+def receipt_value(value: Any) -> str:
+    """One receipt field: ``na`` for unknown, one decimal for a float, else ``str``."""
+
+    if value is None:
+        return "na"
+    if isinstance(value, float):
+        return f"{value:.1f}"
+    return str(value)
+
+
 @dataclass
 class StreamGapReceipt:
     """One streamed request's first-event -> first-text window."""
@@ -240,12 +250,7 @@ class StreamGapReceipt:
         }
 
     def line(self, *, request_id: Any = None, model: Any = None) -> str:
-        def fmt(value: Any) -> str:
-            if value is None:
-                return "na"
-            if isinstance(value, float):
-                return f"{value:.1f}"
-            return str(value)
+        fmt = receipt_value
 
         parts = [STREAM_GAP_RECEIPT, f"request={request_id or 'na'}", f"model={model or 'na'}"]
         parts += [f"{key}={fmt(value)}" for key, value in self.fields().items()]

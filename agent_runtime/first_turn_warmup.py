@@ -32,7 +32,7 @@ turns:
   ``observability_catalog_walk_ms=312 / 330`` -- the serve's skill-catalog memo
   is COLD on its first chat turn, because the hub's snapshot builds (the only
   other readers) run in the snapshot worker process. The memo is process-wide,
-  so the prewarm reads it once (:func:`_warm_skill_catalog`).
+  so the prewarm reads it once (the caller's ``skill_catalog`` step, ``profile_runner.execute``).
 
 :func:`warm_first_turn_paths` runs each once, under the prewarm's own scopes (the
 catalog is keyed by the profile home the turn will run in), so the first turn
@@ -89,14 +89,6 @@ def _warm_request_modules() -> None:
             logger.debug("first-turn module %s not importable", name, exc_info=True)
 
 
-def _warm_skill_catalog() -> None:
-    """Fill the process-wide skill-catalog memo the turn's observability row reads."""
-
-    from agent_runtime.prompt_observability.skills_resolver import _installed_skill_catalog
-
-    _installed_skill_catalog()
-
-
 def _warm_sdk_request_build(agent: Any) -> None:
     """The SDK's process-wide first-request costs: platform headers and the resource import."""
 
@@ -110,16 +102,15 @@ def _warm_sdk_request_build(agent: Any) -> None:
 _STEPS = (
     ("spinner_catalog", lambda agent: _warm_spinner_catalog()),
     ("request_modules", lambda agent: _warm_request_modules()),
-    ("skill_catalog", lambda agent: _warm_skill_catalog()),
     ("sdk_request_build", _warm_sdk_request_build),
 )
 
 
-def warm_first_turn_paths(agent: Any, timing: dict[str, Any]) -> None:
-    """Run every warm-up step for *agent*; record the total in *timing*. Never raises."""
+def warm_first_turn_paths(agent: Any, timing: dict[str, Any], extra_steps: tuple = ()) -> None:
+    """Run every warm-up step for *agent* (plus a higher layer's *extra_steps*); record the total in *timing*. Never raises."""
 
     started = time.perf_counter()
-    for name, step in _STEPS:
+    for name, step in _STEPS + tuple(extra_steps):
         try:
             step(agent)
         except Exception:
