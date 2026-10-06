@@ -34,6 +34,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-06 (lane h-snapshot-offproc)
 
+- [ ] **On a Windows venv `sys.executable` is the launcher stub, so a spawned worker's pid (`register_child`, `worker_pid=`, `NativePeer.process_identity`) names a ~4 MB stub, not the interpreter (stub + interpreter 133.6 MB); RSS and identity reads must walk the child tree** · fork / process identity (snapshot + conversations workers) · evidence: lane h-snap-worker measurement (`93aefd83cc`) · S4 · UNCLAIMED
 - [ ] **`CachedEventLog` re-reads and re-indexes every slice per snapshot build (`events` section 0.7–2.3 s; the read itself is 80 ms of a 92 MB log) — append from the live slice's consumed size** · fork / snapshot · evidence: `planned/snapshot-offproc-2026-10-06.md` (branch `plan/h-snapshot-offproc` `a6ada7e13a`) stage S1 · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-snap-events)**
 - [ ] **The serve's shadow snapshot build carries no receipt (no `snapshot_build_core`-style line names it), so its GIL time is invisible in the logs** · fork / snapshot observability · evidence: same plan §7 · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-snap-worker)**
 

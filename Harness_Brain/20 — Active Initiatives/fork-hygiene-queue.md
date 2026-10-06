@@ -13,6 +13,7 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-05 (owner ask: a usable suite)
 
+- [ ] **Concurrent agent sessions share one scratchpad directory; another lane's file overwrote lane h-snap-worker's commit-message file between write and commit (`0383888e4a` on `lane/h-snap-worker` carries l-turn-fold's message; the correct record is `93aefd83cc` on `lane/h-snap-worker-r2`) — briefs should name a per-lane scratch subfolder** · `fork hygiene / session tooling` · evidence: that commit · UNCLAIMED
 - [ ] **`test_tombstone_registry.py`'s ~40 s import-time render is now most of its 65 s wall (after h-suite-tail-a collapsed its 1,228 items to 27)** · `fork / suite` · evidence: lane h-suite-tail-a `3a22204883` + suite-speed plan §2.3 · next 4B slice · UNCLAIMED
 - [ ] **Stage 4A's remaining e2e cost is cold CLI starts the tests keep on purpose (the process boundary is the subject) and a per-test `two_installs` pair the assertions need; the saving can only come from Stage 3 soloing these files first** · `fork / suite` · evidence: lane h-suite-tail-a `3a22204883` body · Stage 3 lane · UNCLAIMED
 - [ ] **`tests/conftest.py::_REAL_KANBAN_ROOT` is captured from the pre-sandbox `HERMES_HOME` at import, so under the runner (and now bare pytest) it guards `~/.hermes`, never the recorded `HERMES_TEST_REAL_ROOT`** · `fork / suite` (seam) · evidence: lane h-suite-hermetic `9ab4c3388e` · wants an additive door in `tests/conftest.py` or an upstream PR · UNCLAIMED
