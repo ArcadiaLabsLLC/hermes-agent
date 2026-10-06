@@ -1605,6 +1605,12 @@ class _CodexCompletionsAdapter:
                     final = _consume_codex_event_stream(
                         event_stream, model=str(resp_kwargs.get("model") or model), on_event=guard.on_event
                     )
+                    try:  # fork seam: h-conn-pool -- read the settled stream to its end so its
+                        # connection returns to the shared pool (a mid-body close drops it)
+                        from agent_runtime.stream_reuse import drain_settled_stream
+                        drain_settled_stream(event_stream)
+                    except Exception:  # fork seam: h-conn-pool
+                        pass
             finally:
                 guard.release_stream(event_stream)
             if final is None:

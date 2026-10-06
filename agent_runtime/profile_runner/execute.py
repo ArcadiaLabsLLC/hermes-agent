@@ -28,6 +28,7 @@ from agent_runtime.run_budget import (
     RunBudgetTripReason,
 )
 
+from agent_runtime.first_turn_warmup import warm_first_turn_paths
 from agent_runtime.prewarmed_system_prompt import stash_prewarmed_system_prompt
 from agent_runtime.serde import positive_float, positive_int
 from agent_runtime.tool_blocks import bound_tool_block
@@ -352,6 +353,8 @@ class AgentRunExecution:
                 # the same scopes, and adopted by that turn's
                 # `_restore_or_build_system_prompt` instead of rebuilt there.
                 stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
+                # h-conn-pool: the first turn's one-time process costs (spinner catalog, lazy imports, SDK headers).
+                warm_first_turn_paths(self.agent, self.timing)
                 _finish_resident_persona_chat_agent(self.agent)
                 return None, self.agent, self.timing
             self.bind_chat_root()
