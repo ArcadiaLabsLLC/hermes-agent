@@ -201,18 +201,57 @@ _TURN_PUBLISH_EVENT_TYPES = frozenset(
 _TURN_TRACE_EVENT_TYPES = frozenset(
     {EVENT_RUN_PROGRESS, "run.tool.started", "run.tool.finished"}
 )
+#: The turn's auto-title (``chat_events._publish_persona_chat_metadata_event``):
+#: it moves the root's title, which the root's history row and channel carry.
+#: Only this ``change_kind``: a future kind is not known to stay inside the row.
+_TURN_METADATA_EVENT_TYPE = "persona_chat.metadata_updated"
+_TURN_METADATA_CHANGE_KINDS = frozenset({"auto_title_updated"})
+
+#: The watchdog's ``state.reconciled`` ``source`` (``session.StreamSession.beat``).
+WATCHDOG_SOURCE = "stream_watchdog"
+#: The fingerprint families a reconcile may name and still ride a turn batch:
+#: the chat database (only with its ``chat_roots``) and the ``running_work``
+#: stores (the overlay ships the whole section). Never ``scope``.
+_TURN_COVERABLE_FAMILIES = frozenset({"chat_db", "running_work"})
 
 
-def _turn_event_root(event: Event) -> str | None:
-    """The chat root ``event`` belongs to, or ``None`` when it is not a turn event."""
+def _turn_event_roots(event: Event) -> tuple[str, ...] | None:
+    """The chat roots ``event`` belongs to (possibly none), or ``None`` when it
+    is not an event a turn batch may carry.
+
+    A watchdog reconcile is a turn event when it proves what moved: only
+    ``chat_db`` / ``running_work`` families, and a chat-database move named
+    down to existing root chats whose rows alone changed (``chat_roots``,
+    :func:`fingerprint.scope_move_attribution`). It names those roots; a
+    ``running_work``-only move names none and is carried by whatever root the
+    batch's other events name.
+    """
 
     event_type = getattr(event, "type", None)
+    payload = event.payload if isinstance(event.payload, dict) else {}
     if event_type in _TURN_PUBLISH_EVENT_TYPES:
-        payload = event.payload if isinstance(event.payload, dict) else {}
-        return optional_text(payload.get("root_chat_session_id"))
+        root = optional_text(payload.get("root_chat_session_id"))
+        return (root,) if root else None
+    if event_type == _TURN_METADATA_EVENT_TYPE:
+        root = optional_text(payload.get("root_chat_session_id"))
+        if root and payload.get("change_kind") in _TURN_METADATA_CHANGE_KINDS:
+            return (root,)
+        return None
     if event_type in _TURN_TRACE_EVENT_TYPES:
         # A ``run.*`` with no session is a task-run trace, not a chat turn's.
-        return optional_text(event.session_id)
+        root = optional_text(event.session_id)
+        return (root,) if root else None
+    if event_type == EVENT_STATE_RECONCILED and payload.get("source") == WATCHDOG_SOURCE:
+        families = payload.get("families")
+        if not isinstance(families, list) or not families or not set(families) <= _TURN_COVERABLE_FAMILIES:
+            return None
+        roots = payload.get("chat_roots")
+        if "chat_db" in families:
+            if not isinstance(roots, list) or not roots:
+                return None
+            named = tuple(text for text in (optional_text(root) for root in roots) if text)
+            return named if len(named) == len(roots) else None
+        return ()
     return None
 
 
@@ -220,11 +259,13 @@ def batch_turn_roots(batch: list[tuple[int, Event]]) -> list[tuple[str, int]] | 
     """The chat roots a batch made ONLY of turn events names, or ``None``.
 
     A TURN batch is one where every event is a turn publish carrying
-    ``payload.root_chat_session_id`` or a chat-trace ``run.*`` carrying a
-    ``session_id``. Anything else in it — a ``state.patched`` of any entity,
-    ``gateway.peer.updated`` (ruling C2-r3), ``state.reconciled``,
-    ``persona_instance.chat_opened``, a session-less ``run.*`` — answers
-    ``None`` and the batch takes today's lanes unchanged.
+    ``payload.root_chat_session_id``, the turn's auto-title, a chat-trace
+    ``run.*`` carrying a ``session_id``, or a watchdog reconcile that proves it
+    moved only those roots' rows (:func:`_turn_event_roots`). Anything else in
+    it — a ``state.patched`` of any entity, ``gateway.peer.updated`` (ruling
+    C2-r3), an unattributed ``state.reconciled``, ``persona_instance.chat_opened``,
+    a session-less ``run.*`` — answers ``None`` and the batch takes today's
+    lanes unchanged. A batch that names no root at all answers ``None``.
 
     Each root is paired with the offset of ITS last event, and the list is in
     that order: a batch naming two roots ships two frames, chained so the first
@@ -236,10 +277,13 @@ def batch_turn_roots(batch: list[tuple[int, Event]]) -> list[tuple[str, int]] | 
         return None
     last_seen: dict[str, int] = {}
     for offset, event in batch:
-        root = _turn_event_root(event)
-        if not root:
+        roots = _turn_event_roots(event)
+        if roots is None:
             return None
-        last_seen[root] = int(offset or 0)
+        for root in roots:
+            last_seen[root] = int(offset or 0)
+    if not last_seen:
+        return None
     return sorted(last_seen.items(), key=lambda item: item[1])
 
 
@@ -304,9 +348,11 @@ def _read_persona_chat_turn_sections(
     from ..resolution import runtime_resolution_scope
     from ..snapshot.details import persona_session_db_scope
     from ..snapshot.receipts import _persona_chat_history_frame
+    from ..snapshot_turn_yield import snapshot_yield_point
     from ..store import AgentStore
 
     timings: dict[str, int] = {}
+    snapshot_yield_point()
     with runtime_resolution_scope(), persona_session_db_scope() as session_db:
         event_log = EventLog()
         instances = PersonaInstanceStore(event_log=event_log).list_all()
@@ -323,6 +369,7 @@ def _read_persona_chat_turn_sections(
             only_session_ids=frozenset({root}),
         )
         timings["history_ms"] = int((time.perf_counter() - started) * 1000)
+        snapshot_yield_point()
         started = time.perf_counter()
         trace = persona_chat_trace_summary(
             persona_instances=[instance],
@@ -330,6 +377,7 @@ def _read_persona_chat_turn_sections(
             message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
         )
         timings["trace_ms"] = int((time.perf_counter() - started) * 1000)
+        snapshot_yield_point()
         channels = operator_channel_summary(
             persona_instances=instances,
             persona_chat_history=history,
@@ -345,6 +393,7 @@ def _read_persona_chat_turn_sections(
         if is_runtime_persona(agent)
     }
     history_rows = _persona_chat_history_frame(history)
+    snapshot_yield_point()
     sections = {
         "persona_instance_id": str(instance.id),
         "persona_chat_history": to_jsonable(history_rows[0]) if history_rows else None,
@@ -388,7 +437,6 @@ def persona_chat_turn_frames(
     """
 
     from .. import turn_section_reuse
-    from ..parity import events_position
 
     if not batch or not roots:
         return None
@@ -399,18 +447,18 @@ def persona_chat_turn_frames(
         stamp_offset = int(last_offset or 0) if index == len(roots) - 1 else int(root_last)
         started = time.monotonic()
         sections = turn_section_reuse.consult(root, floor=stamp_offset)
+        if sections is None:
+            sections = turn_section_reuse.await_inflight(
+                root, floor=stamp_offset, timeout_s=_TURN_SECTION_INFLIGHT_WAIT_S
+            )
         timings: dict[str, int] = {}
         source = turn_section_reuse.SOURCE_REUSED
         if sections is None:
             source = turn_section_reuse.SOURCE_BUILT
-            position = events_position().get("event_offset")
-            try:
-                sections, timings = _read_persona_chat_turn_sections(root, batch)
-            except Exception:
-                logger.debug("persona_chat_turn: section read failed root=%s", root, exc_info=True)
+            sections, timings = _read_turn_sections_standing_aside(root, batch, caller=caller)
+            if sections is None:
                 return None
-            turn_section_reuse.remember(root, sections, position=position)
-        root_events = [event for _offset, event in batch if _turn_event_root(event) == root]
+        root_events = [event for _offset, event in batch if root in (_turn_event_roots(event) or ())]
         frame = {
             "type": FRAME_PERSONA_CHAT_TURN,
             "schema_version": STREAM_PERSONA_CHAT_TURN_SCHEMA_VERSION,
@@ -427,12 +475,13 @@ def persona_chat_turn_frames(
         }
         logger.info(
             "turn_section reason=%s root=%s waited_ms=%d history_ms=%s trace_ms=%s "
-            "bytes=%d source=%s caller=%s offset=%d pid=%d",
+            "yielded_ms=%s bytes=%d source=%s caller=%s offset=%d pid=%d",
             _turn_section_reason(root_events),
             root,
             int((time.monotonic() - started) * 1000),
             timings.get("history_ms", "-"),
             timings.get("trace_ms", "-"),
+            timings.get("yielded_ms", "-"),
             len(json.dumps(frame, default=str)),
             source,
             caller,
@@ -442,6 +491,49 @@ def persona_chat_turn_frames(
         frames.append(frame)
         applies_from = stamp_offset
     return frames
+
+
+#: How long a second lane waits for the first lane's in-flight read of the same
+#: root: the read's whole stand-aside budget plus a cold read.
+_TURN_SECTION_INFLIGHT_WAIT_S = 20.0
+
+
+def _read_turn_sections_standing_aside(
+    root: str, batch: list[tuple[int, Event]], *, caller: str
+) -> tuple[dict[str, Any] | None, dict[str, int]]:
+    """One root's read, off the turn's latency-critical windows.
+
+    The overlay is 0.9–1.8 s of pure Python on the serve's interpreter (live
+    2026-10-06: history 308–818 ms, trace 470–552 ms), and a START batch's read
+    lands exactly where the turn assembles and dispatches its provider call. So
+    the read runs under the core build's own rule (:mod:`snapshot_turn_yield`,
+    the owner's 2026-10-03 ruling — a build running during a live turn's hot
+    window is a bug): it waits before it starts and pauses at each section
+    boundary while a turn is inside a hot window, within the same budget. The
+    sections are still read NOW by the core's own builders, so C1's equality
+    rule is untouched — standing aside only makes them newer than the batch,
+    the direction every reuse here already accepts.
+    """
+
+    from .. import turn_section_reuse
+    from ..parity import events_position
+    from ..snapshot_turn_yield import build_yield_scope, log_build_yield
+
+    position = events_position().get("event_offset")
+    key = turn_section_reuse.begin(root, position=position)
+    try:
+        with build_yield_scope() as standing_aside:
+            try:
+                sections, timings = _read_persona_chat_turn_sections(root, batch)
+            except Exception:
+                logger.debug("persona_chat_turn: section read failed root=%s", root, exc_info=True)
+                return None, {}
+        log_build_yield(standing_aside, caller=caller, generation="turn_section")
+        timings["yielded_ms"] = standing_aside.waited_ms if standing_aside is not None else 0
+        turn_section_reuse.remember(root, sections, position=position)
+        return sections, timings
+    finally:
+        turn_section_reuse.finish(key)
 
 
 def _turn_section_reason(root_events: list[Event]) -> str:
@@ -678,18 +770,33 @@ def resolve_fold_variant(
     return core if isinstance(core, dict) else frame
 
 
-def _append_state_reconciled(log: EventLog, fingerprint: str) -> bool:
+def _append_state_reconciled(
+    log: EventLog, fingerprint: str, attribution: dict[str, Any] | None = None
+) -> bool:
     """Append the synthetic watchdog event; True when the offset advanced.
+
+    ``attribution`` (:func:`fingerprint.scope_move_attribution`) rides in the
+    payload: the moved ``families`` and, when provable, the ``chat_roots`` whose
+    rows moved — what lets the turn rule cover the reconcile instead of
+    demoting its batch.
 
     Cross-process guard: if another stream consumer just reconciled the same
     fingerprint, its event already advanced the offset — skip the duplicate
-    and let the normal delta path deliver it. Best effort: a broken event log
+    and let the normal delta path deliver it, but only when that event claims
+    at least as much as this one would (a narrower claim would let this lane's
+    batch be covered for less than moved). Best effort: a broken event log
     degrades to plain heartbeats (bounded UI ageing), never a stream crash.
     """
 
+    extra = dict(attribution or {})
     try:
         tail = log.tail(1)
-        if tail and tail[0].type == EVENT_STATE_RECONCILED and tail[0].payload.get("fingerprint") == fingerprint:
+        if (
+            tail
+            and tail[0].type == EVENT_STATE_RECONCILED
+            and tail[0].payload.get("fingerprint") == fingerprint
+            and _reconcile_claims_at_least(tail[0].payload, extra)
+        ):
             return True
         log.append(
             Event(
@@ -698,13 +805,34 @@ def _append_state_reconciled(log: EventLog, fingerprint: str) -> bool:
                 None,
                 None,
                 None,
-                {"fingerprint": fingerprint, "source": "stream_watchdog"},
+                {"fingerprint": fingerprint, "source": WATCHDOG_SOURCE, **extra},
             )
         )
         return True
     except Exception:  # noqa: BLE001
         logger.warning("state.reconciled append failed", exc_info=True)
         return False
+
+
+def _reconcile_claims_at_least(held: dict[str, Any], ours: dict[str, Any]) -> bool:
+    """Does the held reconcile's payload say at least what ``ours`` would?
+
+    An unattributed event (no ``chat_roots`` where the chat database moved, a
+    ``scope`` move, or no ``families`` at all) is never covered by the turn rule, so it demotes
+    whatever rode with it — it claims everything."""
+
+    held_families = held.get("families")
+    if not isinstance(held_families, list):
+        return True
+    if "chat_db" in held_families and not held.get("chat_roots"):
+        return True
+    if not set(held_families) <= _TURN_COVERABLE_FAMILIES:
+        return True
+    if not set(ours.get("families") or ()) <= set(held_families):
+        return False
+    if "chat_db" in (ours.get("families") or ()):
+        return bool(ours.get("chat_roots")) and set(ours["chat_roots"]) <= set(held.get("chat_roots") or ())
+    return True
 
 
 def _delta_op(event: Event) -> str:
