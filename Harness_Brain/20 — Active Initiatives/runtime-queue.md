@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-06 (lane h-cache-hit)
+
+- [ ] **The prompt-observability record (`final_model_input.tool_schema`, `prompt_surface`, `per_tool_chars`) reads `agent.tools` AFTER the turn, not the request the middleware sent: since wave 3 it reported 25 tools while every Neko request carried 30 (the five deferred `browser_vault_*` eager) and turn 1's `tool_search` read "48" where the record showed the turn-2 form; record the wire tools from the `llm_request` middleware's final request** · fork / prompt observability · evidence: lane h-cache-hit — the archived `prompt_cache_key_fingerprint`s recomputed from `state.db`'s pin (`ed2d1b4a`, 30 tools) and the pin with the app-functions group cut ("Search 48", `a9cca287`) · UNCLAIMED
+- [ ] **The persona chat's tool form has three writers per turn — upstream's between-turns refresh (re-appends the persona's deferred tools, keeps the BUILT bridge), the fork's re-assembly (`chat_lane_defer.reapply_chat_lane_defer`, now in `pre_llm_call` AND `llm_request`), and the session pin restore — and the pin persists the refresh's 30-tool form, not the wire's; one owner should produce the turn's tools once, after the refresh, and pin what it ships** · fork / chat lane tools · evidence: lane h-cache-hit commit body · UNCLAIMED
+
 ### Filed on arrival — 2026-10-06 (lane h-conn-pool)
 
 - [ ] **`hermes harness observe snapshot-builds` reads the CLI's sticky profile log (`profiles/alice/logs`), not the serve's home (`profiles/base`), so it reported `builds=0` while the serve's agent.log held 53 `snapshot_build_core` lines** · fork / snapshot observability · evidence: `--json` `window.files` 2026-10-06 00:35 vs `profiles/base/logs/agent.log`; workaround `--log` · lane: resolve the log from the live serve receipt's home (CLAUDE.md: read the serve receipt, never assume a home)

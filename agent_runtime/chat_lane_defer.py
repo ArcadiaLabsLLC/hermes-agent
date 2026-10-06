@@ -20,7 +20,9 @@ doors, both fork-only:
 
 A tool-set refresh mid-session (``tools.mcp_tool_agent``) re-derives ``agent.tools`` from
 the profile-wide assembly; :func:`reapply_chat_lane_defer` restores the persona's form
-before the next provider request (``tool_blocks.reprune_turn_agent``).
+before the next provider request (``tool_blocks.reprune_turn_agent``) -- run by the
+eternia-harness ``pre_llm_call`` hook AFTER upstream's between-turns refresh and BEFORE the
+turn's first request is assembled, so turn 1 and turn 2 ship one form (lane h-cache-hit).
 """
 
 from __future__ import annotations
