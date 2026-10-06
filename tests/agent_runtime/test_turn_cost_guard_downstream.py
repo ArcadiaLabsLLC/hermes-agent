@@ -43,6 +43,11 @@ h-prereq-window: every turn writes ONE ``send_prep_receipt`` (anchor -> request_
 its phase marks), and a warm turn sends within the ABSOLUTE ``WARM_ANCHOR_TO_REQUEST_SENT_MS``,
 so a regression that slows every turn alike goes red (the turn-0-vs-warm budget cannot see it).
 Killing mutation: a 400 ms sleep planted before every turn's request (recorded in the commit).
+
+h-title-defer: the turn that titles (turn 0 here; live turns 1-3) starts its ``auto-title`` upgrade
+at its own ``request_sent`` -- one ``title_upgrade_started`` receipt, and no title thread alive in
+that turn's ``send_prep_receipt``. Killing mutation: ``hold_title_upgrade`` answering False (the
+upgrade starts at turn start: ``title_threads=1``, no receipt).
 """
 
 from __future__ import annotations
@@ -455,6 +460,7 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
             sections_seen = len(log.receipts("turn_section "))
             windows_seen = len(log.receipts("send_window_receipt "))
             deferred_seen = len(log.receipts("first_turn_persist_deferred "))
+            titles_seen = len(log.receipts("title_upgrade_started "))
             sent_by_turn: dict[int, int] = {}
             for index in range(TURNS):
                 if index:  # past the TTL: a warm turn answers stale, never walks inline
@@ -486,6 +492,11 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                 if [{"ran_on": d.get("ran_on")} for d in deferred] != expected:
                     violations.append(f"turn {index}: first-turn persist receipts {deferred} (turn 0 writes its "
                                       "prompt and tools pin after request_sent, once)")
+                titles = log.receipts("title_upgrade_started ")[titles_seen:]
+                titles_seen += len(titles)
+                if len(titles) != (1 if index == 0 else 0):
+                    violations.append(f"turn {index}: {len(titles)} title upgrade(s) started on request_sent "
+                                      "(the titling turn starts its upgrade there, once)")
                 if index == 0 and timing.get("resident_actor_reused") is not True:
                     violations.append("turn 0: the prewarmed actor was not reused")
                 turn_thread = serve.handlers[f"m-{index}"][0]
@@ -524,6 +535,9 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                 if len(prep) != 1 or str(prep[0].get("total_ms")) != str(sent):
                     violations.append(f"turn {index}: send_prep_receipt {prep} (one per turn, total_ms = "
                                       f"request_sent_ms {sent})")
+                elif index == 0 and prep[0].get("title_threads") != "0":
+                    violations.append(f"turn 0: title_threads={prep[0].get('title_threads')} at request_sent "
+                                      "(the title upgrade started inside anchor->request_sent)")
                 bound = WARM_ANCHOR_TO_REQUEST_SENT_MS if index else FIRST_ANCHOR_TO_REQUEST_SENT_MS
                 if not isinstance(sent, int) or sent > bound:
                     budgets.append(f"turn {index}: anchor->request_sent {sent} ms > {bound}")
