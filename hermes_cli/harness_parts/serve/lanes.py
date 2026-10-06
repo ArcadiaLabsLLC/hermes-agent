@@ -40,6 +40,11 @@ from hermes_cli.harness_parts.serve.frames import (
     _request_sink,
 )
 from hermes_cli.harness_parts.serve.manifest import _is_gateway
+from hermes_cli.harness_parts.serve.request_pool import (
+    DUPLICATE_IN_FLIGHT_EXIT_CODE,
+    DUPLICATE_REFUSED_RECEIPT,
+    turn_claim_key,
+)
 from agent_runtime.turn_activity import accepted_turn_scope
 
 __layer__ = "lanes"
@@ -69,9 +74,13 @@ def accept_chat_turn(request: _ArgvRequest) -> Any:
 
 
 def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
-    """``pool.submit(run, request)``; a submit that raises releases the request's hold."""
+    """``run(request)`` on the pool -- a chat turn on its own lane (``RequestPool.submit_turn``,
+    lane h-pool-starve), anything else on the shared one; a submit that raises
+    releases the request's hold."""
 
     try:
+        if request.is_chat_turn:
+            return pool.submit_turn(run, request)
         return pool.submit(run, request)
     except BaseException:
         if request.accepted is not None:
@@ -124,16 +133,44 @@ class ArgvLanes:
             request.sink if request.sink is not None else self.frames,
             _CACHEABLE_ARGV.get(tuple(request.argv)),
         )
+        claim_key = turn_claim_key(request.argv) if request.is_chat_turn else None
+        twin = self.turn_claims.claim(claim_key, request.key)
         with accepted_turn_scope(accepted):
+            if twin is not None:
+                try:
+                    self._refuse_duplicate_turn(request, state, twin, claim_key)
+                finally:
+                    self._reply_exit(request, state, token, sink_token)
+                return
             link_token = self._bind_launcher_link(request, state.sink)
             if accepted is not None:
                 accepted.link_bound = time.monotonic()
             try:
                 self._execute_request(request, state)
             finally:
+                self.turn_claims.release(claim_key, request.key)
                 if link_token is not None:
                     reset_launcher_link(link_token)
                 self._reply_exit(request, state, token, sink_token)
+
+    def _refuse_duplicate_turn(self, request: _ArgvRequest, state: _RunState, twin: str, key) -> None:
+        """A second presentation of a turn another worker is running: no handler (``request_pool``)."""
+
+        verb, client_message_id = key
+        logger.info(DUPLICATE_REFUSED_RECEIPT, request.rid, twin, verb.replace(" ", "."), client_message_id)
+        state.code = DUPLICATE_IN_FLIGHT_EXIT_CODE
+        state.sink.emit(
+            {
+                "id": request.rid,
+                "event": "error",
+                "error": "chat_turn_duplicate_in_flight",
+                "client_message_id": client_message_id,
+                "detail": (
+                    "this turn is already running in this runtime; re-present the same "
+                    "client_message_id for its outcome, never a new one"
+                ),
+            }
+        )
 
     def _bind_launcher_link(self, request: _ArgvRequest, sink: Any) -> Any:
         """A chat turn's app-function link (Stage 7): refresh the tools, bind the link.

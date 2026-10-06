@@ -6,9 +6,11 @@ unbinds it at shutdown. Every led and shadow build goes through
 Unbound -- a CLI, a test, a doctor, a profile with the switch off -- it is
 today's in-process build, byte for byte.
 
-**Never a lost build.** A worker that died, hung past :data:`BUILD_TIMEOUT_SECONDS`
-or sent no core costs one ``snapshot_worker op=lost … fallback=in_process`` receipt
-and this request is built in process. A dead or hung worker is replaced on the
+**Never a lost build.** A worker that died, went silent (no ready, no beat, or a
+request thread idle past its bound -- ``peer.SnapshotPeer.silence``, seconds),
+hung past :data:`BUILD_TIMEOUT_SECONDS` or sent no core costs one
+``snapshot_worker op=lost … fallback=in_process`` receipt and this request is
+built in process. A dead or hung worker is replaced on the
 next build, at most :data:`RESPAWN_LIMIT` times per serve life; after that the
 binding retires (``op=retired``) and the serve builds in process for the rest of
 its life. A child whose BUILD raised is kept: the in-process retry raises the same
@@ -39,8 +41,8 @@ __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
 
-#: How long a lead waits for the worker before it is treated as hung. A cold first
-#: build measured 15.2-16.1 s and a warm one under a chat window up to 15.8 s.
+#: The outer bound on one build. A cold first build measured 15.2-37.7 s; a silent
+#: or idle worker is given up long before this (``peer.SnapshotPeer.silence``).
 BUILD_TIMEOUT_SECONDS = 120.0
 #: Replacements of a lost worker per serve life; then in process for good.
 RESPAWN_LIMIT = 3

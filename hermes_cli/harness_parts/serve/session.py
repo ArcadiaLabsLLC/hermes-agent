@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future
 from typing import Any, Callable, TextIO
 
 from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest, dispatch_argv
@@ -57,6 +57,7 @@ from hermes_cli.harness_parts.serve.frames import (
 )
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
 from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
@@ -552,6 +553,8 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         # still land.
         self.inflight_futures: dict[str, Future] = {}
         self.inflight_lock = threading.Lock()
+        #: One handler per chat turn (``request_pool.TurnClaims``).
+        self.turn_claims = TurnClaims()
 
         # Drain state. ``None`` until a `drain` op arrives; from then on it is the
         # single answer to "are we still accepting work", read by the request path
@@ -776,9 +779,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
 
     def _start_pool_and_accepting(self) -> None:
 
-        self.pool = ThreadPoolExecutor(
-            max_workers=max(1, self.pool_size), thread_name_prefix="harness-serve"
-        )
+        self.pool = RequestPool(self.pool_size)
         # The socket starts ACCEPTING only now: the listener has been bound
         # since before the ready frame (so the port could be published), but a
         # connection whose first request landed before this pool existed would

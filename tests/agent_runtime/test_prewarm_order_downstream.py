@@ -228,6 +228,7 @@ def test_a_chat_turn_through_the_pool_receipts_accept_to_anchor(monkeypatch, cap
     taken at the submit, the anchor logs one receipt and the count returns."""
 
     from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+    from hermes_cli.harness_parts.serve.request_pool import TurnClaims
 
     seen: dict[str, int] = {}
 
@@ -241,7 +242,8 @@ def test_a_chat_turn_through_the_pool_receipts_accept_to_anchor(monkeypatch, cap
     frames: list = []
     session = SimpleNamespace(
         inflight_lock=threading.RLock(), inflight={}, inflight_futures={}, drain_state=None,
-        pool=SimpleNamespace(submit=lambda fn, request: submitted.append((fn, request))),
+        pool=SimpleNamespace(submit_turn=lambda fn, request: submitted.append((fn, request))),
+        turn_claims=TurnClaims(),
         frames=SimpleNamespace(emit=frames.append), dispatch=dispatch,
         serve_request_home=None, read_cache=None,
         stdout_proxy=SimpleNamespace(flush_request=lambda rid: None),
