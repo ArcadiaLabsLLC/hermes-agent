@@ -346,6 +346,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-05 (lane h-prompt-tools)
+
+- [ ] **The chat lane's per-persona tool defer reaches upstream's tool_search bridge only through a rebound `load_config_readonly` (`tools/tool_search.py`, +2 lines) — wants an upstream per-agent defer door** · seam / `tools/tool_search.py` · evidence: `lane/h-prompt-tools` `a6db50294e` + ledger row · UNCLAIMED
+
 ### Filed on arrival — 2026-10-04 (lane hb-a)
 
 - [ ] **The repo-slot env seam (`tools/environments/local.py::_scrubbed_env` → `agent_runtime/workspace_slot_overlay.py::apply_slot_env_overlay`) sees no per-command cwd, so it keys the overlay on the TURN's workdir (the primary slot): a command that `cd`s into another assigned slot runs with the primary's environment — passing the spawn cwd into `_sanitize_subprocess_env` / `_make_run_env` is a seam widening (hold as an upstream PR row in the footprint ledger)** · seams · `agent_runtime/persona_runtime.py` `slot_env_scope`, plan `docs/agent-runtime-harness/planned/build-running-work-2026-10-04.md` §3.3 · lane hb-a
