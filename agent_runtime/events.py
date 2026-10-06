@@ -469,7 +469,7 @@ class _EventView:
         self.positions: dict[str, list[int]] = positions
 
 
-def _stamp(path) -> tuple[int, int, int]:
+def _slice_stamp(path) -> tuple[int, int, int]:
     """``(inode, mtime_ns, size)``: a slice replaced by a new file is a new slice."""
 
     try:
@@ -554,8 +554,8 @@ def _acquire_event_view() -> tuple[list[str], dict[str, list[int]], int]:
     slice_paths = list(event_rotation.ordered_line_sources())
     *sealed, live = slice_paths
     sources = tuple(str(path) for path in slice_paths)
-    sealed_stamps = tuple(_stamp(path) for path in sealed)
-    live_stamp = _stamp(live)
+    sealed_stamps = tuple(_slice_stamp(path) for path in sealed)
+    live_stamp = _slice_stamp(live)
     with _EVENT_VIEW_CACHE_LOCK:
         view = _EVENT_VIEWS.get(sources[0])
         if view is None or not _append_to_event_view(view, sources, sealed_stamps, live, live_stamp):

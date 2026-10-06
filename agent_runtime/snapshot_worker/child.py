@@ -120,7 +120,7 @@ def handle_build(params: dict) -> dict:
     return {"core": to_jsonable(core), "receipts": receipts, "worker_pid": os.getpid()}
 
 
-def _reply(rid: Any, *, result: dict | None = None, code: int | None = None, message: str = "") -> bytes:
+def _reply_frame(rid: Any, *, result: dict | None = None, code: int | None = None, message: str = "") -> bytes:
     frame: dict[str, Any] = {"jsonrpc": "2.0", "id": rid}
     if code is None:
         frame["result"] = result
@@ -146,11 +146,11 @@ def serve(requests: BinaryIO, replies: BinaryIO) -> None:
             continue
         rid = frame["id"]
         if frame.get("method") != BUILD_METHOD:
-            encoded = _reply(rid, code=_UNKNOWN_METHOD, message="unknown method")
+            encoded = _reply_frame(rid, code=_UNKNOWN_METHOD, message="unknown method")
         else:
             try:
-                encoded = _reply(rid, result=handle_build(frame.get("params") or {}))
+                encoded = _reply_frame(rid, result=handle_build(frame.get("params") or {}))
             except Exception as exc:
-                encoded = _reply(rid, code=_BUILD_FAILED, message=type(exc).__name__)
+                encoded = _reply_frame(rid, code=_BUILD_FAILED, message=type(exc).__name__)
         replies.write(encoded)
         replies.flush()

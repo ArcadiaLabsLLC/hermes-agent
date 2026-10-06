@@ -1152,7 +1152,7 @@ third was an observability artifact over a real 24 s window.
   now says so — `led` / `rode` / `shared_next` (`snapshot/receipts.py:183-185`) plus a
   fourth, `cache`, added when the persisted-core fingerprint hit — printed on
   `snapshot_build_core role=… caller=… generation=… build_ms=… offset=…`
-  (`snapshot/build_log.py:63`). **A boot's build count is the count of `led` lines, never
+  (`snapshot/build_log.py:125-127`). **A boot's build count is the count of `led` lines, never
   the count of lines.** The provider prewarm was moved behind the read-model
   build on one thread (`serve.py:3353-3363`, injected rather than hardcoded) so
   its SDK import stops contending with the boot-critical build.

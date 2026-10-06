@@ -59,7 +59,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    passes `first_chunk_at=None` rather than a zero when no first chunk was seen
    (the fork's `ttfb=` log token that said the same was retired 2026-09-24 as a
    duplicate of it); `_log_agents_readiness_split`
-   (`snapshot/build_log.py:97-114`) prints nothing when the section never ran, and two
+   (`snapshot/build_log.py:183-200`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO
    (`core_cache/__init__.py:59-62`).
@@ -189,7 +189,7 @@ what the fixture mirror below enforces.
 | `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream/build_policy.py::_log_snapshot_build` | operator grep; a launcher in the field still parses `elapsed_ms` (`agent_runtime/stream/frames.py`); `tests/agent_runtime/test_stream_build_timing_log.py` |
-| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:88-90`, emitted in `_log_agents_readiness_split` (`:93`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
+| `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:178-180`, emitted in `_log_agents_readiness_split` (`:183`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream/build_policy.py::log_stream_denied` | boot-investigation join (third `pid=`-bearing family) |
 | `stream_denied lane=… reason=… connection=… client=… transport=… tier=… pid=…` | `agent_runtime/stream/build_policy.py::log_stream_denied`, emitted from `serve.py::_deny_subscribe`  | the other half of `stream_attach`: WHICH of the six subscribe refusals closed a lane, and on which connection. Added because a cockpit's stream to a second machine died 7 ms after its subscribe on 2026-09-04 and neither machine held the reason (R-D26); `tests/agent_runtime/test_serve_socket_lane.py` |
 | `snapshot_core_cache …` / `snapshot_core_cache_write …` / `snapshot_core_shadow …` / `snapshot_core_cache_lane_closed …` | `agent_runtime/core_cache/` — see the channel table below | `agent_runtime/core_cache_census.py` via `scripts/core_cache_demote_census.py` |

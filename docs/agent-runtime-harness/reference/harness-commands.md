@@ -163,6 +163,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness config show](#hermes-harness-config-show)
 - [hermes harness migrate](#hermes-harness-migrate)
 - [hermes harness observe](#hermes-harness-observe)
+- [hermes harness observe snapshot-builds](#hermes-harness-observe-snapshot-builds)
 - [hermes harness contracts](#hermes-harness-contracts)
 - [hermes harness contracts dump](#hermes-harness-contracts-dump)
 - [hermes harness worktree](#hermes-harness-worktree)
@@ -3384,10 +3385,27 @@ options:
 ## hermes harness observe
 
 ```text
-usage: hermes harness observe [-h] [--json]
+usage: hermes harness observe [-h] [--json] {snapshot-builds} ...
+
+positional arguments:
+  {snapshot-builds}
+    snapshot-builds  Summarise snapshot builds from agent.log receipts: by trigger, time, executor,
+                     turns affected
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help         show this help message and exit
+  --json
+```
+
+## hermes harness observe snapshot-builds
+
+```text
+usage: hermes harness observe snapshot-builds [-h] [--since SINCE] [--log LOG] [--json]
+
+options:
+  -h, --help     show this help message and exit
+  --since SINCE  Window back from now: 90s, 30m, 2h, 1d (default 1h)
+  --log LOG      agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
   --json
 ```
 
