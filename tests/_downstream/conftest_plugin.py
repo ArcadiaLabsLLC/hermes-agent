@@ -20,6 +20,7 @@ import re
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -629,6 +630,41 @@ def _real_hermes_roots() -> list[str]:
         if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
             return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
     return []
+
+
+#: The operator's root as the root ``conftest.py`` recorded it (or the runner forwarded it).
+#: The session no longer carries that home in ``HERMES_HOME``, so ``tests/conftest.py``'s
+#: import-time captures cannot see it; the two guards below are handed it instead.
+_RECORDED_REAL_ROOT = (os.environ.get("HERMES_TEST_REAL_ROOT") or "").strip()
+
+
+def _home_io_guard_covers_recorded_root() -> None:
+    """Add the recorded real root to ``tests/conftest.py``'s home-I/O guard list (read per call)."""
+    if not _RECORDED_REAL_ROOT:
+        return
+    root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
+    for module in list(sys.modules.values()):
+        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
+        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
+        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
+            if root not in roots:
+                roots.append(root)
+            return
+
+
+_home_io_guard_covers_recorded_root()
+
+
+@pytest.fixture(autouse=True)
+def _state_db_guard_denies_recorded_root(_state_db_write_guard, monkeypatch):
+    """Extend the state.db guard's deny roots with the recorded real root, after upstream sets them."""
+    _hs = sys.modules.get("hermes_state")
+    if not _RECORDED_REAL_ROOT or _hs is None or getattr(_hs, "_STATE_DB_GUARD_BYPASS", False):
+        return
+    extra = tuple(getattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", ()))
+    root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
+    if root not in extra:
+        monkeypatch.setattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", extra + (root,))
 
 
 def _path_without_real_hermes_roots(path: str, roots: list[str]) -> str:
