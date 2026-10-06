@@ -54,7 +54,9 @@ DECLARED_TOOL_COUNT = 45
 # registered schema as the wire carries it, chars/4 — where it was a names-only
 # envelope (~12 tokens a tool). Same 45 tools: 1217 -> 13372, the number the
 # envelope hid (the recorded first request carried ~16.6k tokens of tools[]).
-DECLARED_TOKEN_ESTIMATE = 13372
+# Lane h-prompt-brief (2026-10-05): every wire description collapsed to one line,
+# parameters whole: 13372 -> 10183.
+DECLARED_TOKEN_ESTIMATE = 10183
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

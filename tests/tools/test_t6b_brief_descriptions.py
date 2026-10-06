@@ -39,7 +39,9 @@ def _plugin_tools_discovered():
     discover_plugins()
 
 
-TRIMMED_TOOLS = sorted(set(FULL_TOOL_DESCRIPTIONS) | set(BRIEF_DESCRIPTIONS))
+#: ``tool_describe`` is a bridge tool with no registry entry: its wire line is pinned by
+#: ``tests/tools/test_tool_wire_collapse_downstream.py`` (lane h-prompt-brief).
+TRIMMED_TOOLS = sorted((set(FULL_TOOL_DESCRIPTIONS) | set(BRIEF_DESCRIPTIONS)) - {"tool_describe"})
 
 
 def _schema(name):
@@ -60,17 +62,19 @@ def _full(name):
     return full_tool_description(name) or _schema(name).get("description", "")
 
 
-def test_mirror_and_briefs_cover_thirty_three_tools():
-    """Every tool whose wire description T6b trimmed has a brief (mirror or middleware).
+def test_mirror_and_briefs_cover_thirty_four_tools():
+    """Every tool whose wire description the fork hand-wrote has a row (mirror or table).
 
     34 was T6b's count after ``mission_goal_create`` retired; 33 since lane REDS3
     (2026-09-24) dropped ``vision_analyze``, whose upstream text (#97339) is now
-    shorter than the brief was. The set splits disjoint: 9 mirror rows (fork-owned
-    registrations) + 24 ``BRIEF_DESCRIPTIONS`` entries (read_file joined the
-    middleware in lane REDS3).
+    shorter than the brief was. Lane h-prompt-brief (2026-10-05) added three
+    hand-written one-liners: ``browser_exec``, ``tool_describe`` (a bridge tool, left out
+    of this registry walk) and ``skill_view``, the one tool with both a mirror row (what
+    ``tool_describe`` serves) and a wire line; every other tool is collapsed to its first
+    sentence by the middleware and needs no row.
     """
-    assert not set(FULL_TOOL_DESCRIPTIONS) & set(BRIEF_DESCRIPTIONS)
-    assert len(TRIMMED_TOOLS) == 33
+    assert set(FULL_TOOL_DESCRIPTIONS) & set(BRIEF_DESCRIPTIONS) == {"skill_view"}
+    assert len(TRIMMED_TOOLS) == 34
     assert "mission_goal_create" not in TRIMMED_TOOLS
 
 

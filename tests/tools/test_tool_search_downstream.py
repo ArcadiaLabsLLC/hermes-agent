@@ -534,14 +534,21 @@ class TestPromotedMcpBrief:
         assert described["tools"][name]["description"] == self._MANUAL
         assert described["tools"][name]["parameters"] == full["function"]["parameters"]
 
-    def test_the_brief_is_idempotent_and_leaves_unpromoted_tools_alone(self):
-        from tools.downstream_schema import brief_request_tools
+    def test_the_brief_is_idempotent_and_an_unpromoted_tool_keeps_its_parameter_prose(self):
+        """An unpromoted MCP tool gets the generic one-line collapse (lane h-prompt-brief), not the
+        promoted brief: no suffix, and its parameter descriptions ride unclipped."""
+        from tools.downstream_schema import PROMOTED_BRIEF_SUFFIX, brief_request_tools
 
         _name, full = self._open_app_tab()
         once = brief_request_tools({"tools": [full]})
         assert brief_request_tools(once) is None, "a second pass rewrote an already-briefed tool"
-        other = _td("mcp__launcher_qa__mcp_launcher_qa_click_button", self._MANUAL)
-        assert brief_request_tools({"tools": [other]}) is None
+        long_prose = {"tab": {"type": "string", "description": "y" * 400}}
+        other = _td("mcp__launcher_qa__mcp_launcher_qa_click_button", self._MANUAL, long_prose)
+        wired = brief_request_tools({"tools": [other]})["tools"][0]["function"]
+        assert not wired["description"].endswith(PROMOTED_BRIEF_SUFFIX)
+        assert "\n" not in wired["description"] and len(wired["description"]) < len(self._MANUAL)
+        assert wired["parameters"] is other["function"]["parameters"]
+        assert brief_request_tools({"tools": [{"type": "function", "function": wired}]}) is None
 
     def test_the_responses_shape_is_briefed_too(self):
         from tools.downstream_schema import brief_request_tools

@@ -332,7 +332,8 @@ to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the 
 sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld**
 (was 79 / 17). `model_tool_tokens` read 1149 then, a names-only envelope (~12 tokens a tool); since
 lane h-prompt-tools (2026-10-05) it is measured from each registered schema as the wire carries it,
-chars/4 (`tool_visibility._estimate_model_tool_tokens`): 13,372 for today's 45, every tool eager. The per-persona `AgentPersona.toolsets` list is
+chars/4 (`tool_visibility._estimate_model_tool_tokens`): 13,372 for today's 45, every tool eager; 10,183 since lane
+h-prompt-brief collapsed every wire description to one line (parameters whole, the full text served by `tool_describe`). The per-persona `AgentPersona.toolsets` list is
 LEGACY DISPLAY: it is reported as `persona_toolsets` / `toolset_declaration.persona_list` with
 `persona_toolsets_in_force: false` and admits nothing.
 
