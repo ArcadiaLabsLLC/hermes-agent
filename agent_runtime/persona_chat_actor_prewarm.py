@@ -471,8 +471,6 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
 
     from . import paths
     from .chat_lane_bundle import chat_lane_bundle
-    from .cache_routing import persona_cache_scope_id
-    from .chat_lane_skill_index import chat_lane_index_skills
     from .config import load_agent_runtime_config
     from .mcp_admission import LANE_MISSION_CHAT
     from .mission_chat_turn_context import (
@@ -581,7 +579,6 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         mcp_admission=lane_bundle.admission,
         enabled_toolsets=list(lane_bundle.enabled_toolsets),
         blocked_tool_names=list(lane_bundle.blocked_tool_names),
-        chat_lane_defer_tools=list(lane_bundle.defer_tools),
         quiet_mode=True,
         skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
@@ -590,9 +587,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         skill_surface="mission_chat",
         skill_root_node_mode=False,
         session_id=active_session_id,
-        # h-prompt S6: the same instance scope the turn passes (one setter).
-        cache_scope_id=persona_cache_scope_id(getattr(instance, "id", None), root),
-        chat_lane_index_skills=chat_lane_index_skills(persona, lane_bundle.operating_skills),
+        **_prompt_surface_kwargs(persona, instance, root, lane_bundle),
         tool_execution_scope_id=root,
         root_chat_session_id=root,
         persona_chat_runtime_registry=persona_chat_runtime_registry(),
@@ -904,6 +899,23 @@ def _slot_receipt(instance: Any) -> dict[str, Any] | None:
 
     slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
     return None if slot_context is None else _workspace_context(DEFAULT_RESOLVERS, None, slot_context)[1]
+
+
+def _prompt_surface_kwargs(persona: Any, instance: Any, root: str, lane_bundle: Any) -> dict[str, Any]:
+    """The prompt-surface inputs the first turn passes, from the turn's own setters (h-prompt S1/S3/S6).
+
+    The deferred tools, the persona's skills index and the instance-scoped prompt
+    cache key -- each from the one helper the turn path uses, so the warmed actor's
+    request matches the first turn's byte for byte."""
+
+    from .cache_routing import persona_cache_scope_id
+    from .chat_lane_skill_index import chat_lane_index_skills
+
+    return {
+        "chat_lane_defer_tools": list(lane_bundle.defer_tools),
+        "cache_scope_id": persona_cache_scope_id(getattr(instance, "id", None), root),
+        "chat_lane_index_skills": chat_lane_index_skills(persona, lane_bundle.operating_skills),
+    }
 
 
 def _first_turn_system_message(persona: Any, instance: Any) -> str:
