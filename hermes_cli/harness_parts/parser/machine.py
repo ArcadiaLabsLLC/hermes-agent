@@ -401,6 +401,16 @@ def add_observe(subs) -> None:
     builds.add_argument("--log", default=None, help="agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)")
     builds.add_argument("--json", action="store_true")
     builds.set_defaults(func=observe_commands._cmd_observe_snapshot_builds)
+    timing = observe_subs.add_parser(
+        "turn-timing",
+        help="Each chat turn's spans (turn record, serve receipts, Launcher diag line) against a baseline; names spans over 1.5x",
+    )
+    timing.add_argument("--since", default="1h", help="Window back from now: 90s, 30m, 2h, 1d (default 1h)")
+    timing.add_argument("--log", default=None, help="agent.log to read (default: the live serve's <home>/logs/agent.log)")
+    timing.add_argument("--launcher-log", default=None, help="Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)")
+    timing.add_argument("--baseline", default=None, help="Baseline JSON (default tests/fixtures/turn_timing_baseline.json)")
+    timing.add_argument("--json", action="store_true")
+    timing.set_defaults(func=observe_commands._cmd_observe_turn_timing)
 
 
 def add_contracts(subs) -> None:

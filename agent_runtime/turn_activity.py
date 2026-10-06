@@ -168,8 +168,10 @@ _CURRENT_ACCEPT: ContextVar["AcceptedTurn | None"] = ContextVar("hermes_accepted
 #: ``queue`` is submit -> the worker's first instruction, ``link`` the Launcher
 #: app-function bind (a wire round trip when the connection's catalog is not
 #: held yet), ``dispatch`` the rest (argv parse, the handler's own imports).
+#: ``turn`` is the client message id, the key the turn record and the Launcher's
+#: ``[MissionChatTiming]`` line carry (``observe turn-timing`` joins on it).
 ACCEPT_TO_ANCHOR_RECEIPT = (
-    "chat_turn_accept_to_anchor request=%s queue_ms=%d link_ms=%d dispatch_ms=%d total_ms=%d"
+    "chat_turn_accept_to_anchor request=%s queue_ms=%d link_ms=%d dispatch_ms=%d total_ms=%d turn=%s"
 )
 
 
@@ -206,6 +208,16 @@ class AcceptedTurn:
             self.request_id or "-", ms(self.submitted, started), ms(started, bound),
             ms(bound, anchored), ms(self.submitted, anchored),
         )
+
+
+def _turn_name(turn_id) -> str:
+    """``admitted_turn``'s ``turn_id`` (a string or a zero-argument callable) as a receipt value."""
+
+    try:
+        value = turn_id() if callable(turn_id) else turn_id
+    except Exception:
+        value = None
+    return str(value).split()[0] if value and str(value).strip() else "-"
 
 
 def chat_turns_accepted() -> int:
@@ -341,7 +353,7 @@ def admitted_turn(turn_id=None):
             accepted._release_locked()
     if accepted is not None:
         _CURRENT_ACCEPT.set(None)
-        _logger.info(ACCEPT_TO_ANCHOR_RECEIPT, *accepted.receipt_args(anchored))
+        _logger.info(ACCEPT_TO_ANCHOR_RECEIPT, *accepted.receipt_args(anchored), _turn_name(turn_id))
     in_turn = _IN_TURN.set(True)
     window = HotWindow()
     window.open()
