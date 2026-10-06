@@ -107,6 +107,11 @@ this prewarm ran ``elapsed_ms=5750`` across the ENTIRE pre-admit span of the
 turn the operator was typing — into the same chat root it was warming — and
 the run gauge read zero throughout.
 
+h-prewarm-order adds the window before the anchor: a turn the serve has
+ACCEPTED (``turn_activity.chat_turns_accepted()``, held from the pool submit to
+the anchor) stands a prewarm down too. And a boot item yields to a chat the
+operator opened after it started (``preempted_by_open``, requeued behind it).
+
 ``turn_activity``'s process-wide count is the sole admission authority, and it
 covers the same-root case by construction: when any turn is admitted this
 stands down, the same-root prewarm included. That is the NO-OP case, now taken
@@ -135,6 +140,7 @@ thread.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import queue
 import threading
@@ -314,6 +320,10 @@ OUTCOME_REGISTRY_OFF = "registry_off"
 #: than queue behind it on ``_WORKDIR_LOCK``. See the module docstring.
 OUTCOME_SKIPPED_TURN_ACTIVE = "skipped_turn_active"
 
+#: h-prewarm-order: a BOOT item stood down because the operator opened a chat
+#: meanwhile; the worker requeues it behind the open (``_drain``).
+OUTCOME_PREEMPTED_BY_OPEN = "preempted_by_open"
+
 #: No chat root was named, or no persona instance owns the one that was.
 OUTCOME_SKIPPED_NO_CHAT_ROOT = "skipped_no_chat_root"
 
@@ -360,9 +370,6 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
     if not root:
         return OUTCOME_SKIPPED_NO_CHAT_ROOT
 
-    from .profile_runner import agent_runs_in_flight
-    from .turn_activity import chat_turns_admitted
-
     # The yield decision, taken BEFORE anything expensive and before the scope
     # stack. See the module docstring: standing down costs a warm actor; queueing
     # behind a live turn costs that turn ~3 s.
@@ -380,8 +387,9 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
     # itself, and instead finds it). No per-root admission map is minted here;
     # the GIL this yields to is process-wide, so the counter that guards it is
     # too.
-    if chat_turns_admitted() > 0 or agent_runs_in_flight() > 0:
-        return OUTCOME_SKIPPED_TURN_ACTIVE
+    stand_down = _stand_down_outcome()
+    if stand_down is not None:
+        return stand_down
 
     # Stage 6's span opens PAST the yield and covers everything after it: the
     # §0.2 line this bills (``elapsed_ms=5750``) is the whole of
@@ -413,8 +421,9 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         # ``_prepare`` really did run and really did cost something. What this
         # prevents is the CONSTRUCTION — the expensive half — colliding with the
         # turn.
-        if chat_turns_admitted() > 0 or agent_runs_in_flight() > 0:
-            return OUTCOME_SKIPPED_TURN_ACTIVE
+        stand_down = _stand_down_outcome()
+        if stand_down is not None:
+            return stand_down
         try:
             timing = runner.prewarm(request)
         except Exception:
@@ -425,17 +434,43 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         # h-turn1 A3/A4: what the prewarm moved off the first turn, by key; a
         # key absent is work it did not do (the actor already had a prompt, the
         # provider is loopback or has no httpx client).
+        # h-prewarm-order: every phase the run timed, so a silent span between
+        # two log lines (5.3 s on 2026-10-06 01:24:59) is named by the receipt.
         logger.info(
-            "persona_chat_actor_prewarm_first_turn root=%s system_prompt_build_ms=%s connect_ms=%s",
+            "persona_chat_actor_prewarm_first_turn root=%s system_prompt_build_ms=%s connect_ms=%s"
+            " construct_ms=%s first_turn_warmup_ms=%s mcp_teardown_ms=%s",
             root,
             timing.get("prewarm_system_prompt_build_ms", "absent"),
             timing.get("prewarm_connect_ms", "absent"),
+            timing.get("agent_construct_ms", "absent"),
+            timing.get("prewarm_first_turn_warmup_ms", "absent"),
+            timing.get("mcp_teardown_ms", "absent"),
         )
         return (
             OUTCOME_ALREADY_RESIDENT
             if timing.get("resident_actor_reused")
             else OUTCOME_WARMED
         )
+
+
+def _stand_down_outcome() -> str | None:
+    """Why this item must not construct now, or None. Read at both yield points.
+
+    A turn ACCEPTED on the dispatcher but not yet anchored in its handler counts
+    (h-prewarm-order): turn ``5377d205`` was accepted 01:25:04.23 and anchored
+    04.909, and a same-root prewarm passed the admitted/running reads at 04.73
+    and constructed through that turn's pre-admit. And a BOOT item yields to a
+    chat the operator has opened since it started (``_open_waiting``).
+    """
+
+    from .profile_runner import agent_runs_in_flight
+    from .turn_activity import chat_turns_accepted, chat_turns_admitted
+
+    if chat_turns_accepted() > 0 or chat_turns_admitted() > 0 or agent_runs_in_flight() > 0:
+        return OUTCOME_SKIPPED_TURN_ACTIVE
+    with _lock:
+        preempt = _running_priority == PRIORITY_BOOT and _open_waiting_locked()
+    return OUTCOME_PREEMPTED_BY_OPEN if preempt else None
 
 
 class _PrewarmRefused(Exception):
@@ -656,14 +691,34 @@ def _instance_for_root(root: str) -> Any:
 # workers would be two constructions racing for a lock every real turn also
 # needs, which is the contention this module exists to avoid — so the queue is
 # not merely serialized by preference, it is serialized by contract.
+#
+# h-prewarm-order: ORDER, not a second worker. An open goes ahead of every queued
+# boot item, and a boot item still before its construction stands down at either
+# yield point (``preempted_by_open``) and is requeued behind the open. A boot
+# item already constructing finishes: it holds ``_WORKDIR_LOCK``, which a second
+# worker's construction would wait on anyway.
 
-_queue: "queue.Queue[str]" = queue.Queue()
+#: h-prewarm-order: a chat the operator OPENS goes ahead of the boot pass. On
+#: 2026-10-06 01:24:53 a boot item (the previously-open chat) held this worker
+#: 11.7 s; the opened chat queued FIFO behind it and ran beside its first turn.
+PRIORITY_OPEN = 0
+PRIORITY_BOOT = 1
+
+#: ``(priority, sequence, root)``; FIFO within a priority. An entry whose
+#: priority no longer matches ``_pending[root]`` was superseded by a promotion.
+_queue: "queue.PriorityQueue[tuple[int, int, str]]" = queue.PriorityQueue()
 _lock = threading.Lock()
-_pending: set[str] = set()
+#: root -> the priority it is queued at (or running at, until the worker ends it).
+_pending: dict[str, int] = {}
+_sequence = itertools.count()
+#: The item the worker is running (root, priority); None while it waits.
+_running_root: str | None = None
+_running_priority: int | None = None
 _worker: threading.Thread | None = None
-#: root -> the Launcher link the open-chat gesture arrived on (h-chatperf). The
-#: worker refreshes that connection's app-function tools BEFORE it prepares, so
-#: the actor is built against the tool registry the chat's first turn will see.
+#: root -> the refresh of the Launcher link the open-chat gesture arrived on
+#: (h-chatperf; started at the gesture since h-prewarm-order). The worker waits
+#: for it BEFORE it prepares, so the actor is built against the tool registry
+#: the chat's first turn will see.
 _links: dict[str, Any] = {}
 
 
@@ -693,6 +748,37 @@ def _refresh_launcher_app_functions(link: Any) -> None:
         logger.debug("chat-actor prewarm could not refresh launcher app functions", exc_info=True)
 
 
+#: How long the worker waits for an open's app-function refresh before it
+#: prepares anyway (the reply normally lands in one round trip).
+LINK_REFRESH_WAIT_SECONDS = 10.0
+
+
+def _start_link_refresh(link: Any) -> threading.Thread:
+    """Ask the opening connection for its app functions NOW, on a thread of its own.
+
+    h-prewarm-order: the ask used to wait for this item to reach the worker, so
+    a send that arrived first paid the round trip in its own accept -> anchor
+    span (``lanes._bind_launcher_link``; 2026-10-06 01:25: ack 04.305, anchor
+    04.909, the open's item started 04.731). Started at the gesture, the
+    catalog is held by the time the turn binds the same connection.
+    """
+
+    thread = threading.Thread(
+        target=_refresh_launcher_app_functions, args=(link,), name="persona-chat-open-link", daemon=True
+    )
+    thread.start()
+    return thread
+
+
+def _await_link_refresh(refresh: Any) -> None:
+    """The item's refresh, finished before it prepares: the actor's tool contract is the turn's."""
+
+    if isinstance(refresh, threading.Thread):
+        refresh.join(LINK_REFRESH_WAIT_SECONDS)
+    else:
+        _refresh_launcher_app_functions(refresh)
+
+
 def _drain() -> None:
     """Warm one chat root at a time, forever, and never die.
 
@@ -702,13 +788,19 @@ def _drain() -> None:
     prewarm was supposed to prevent.
     """
 
+    global _running_priority, _running_root
     while True:
-        root = _queue.get()
-        started = time.monotonic()
+        priority, _, root = _queue.get()
         with _lock:
+            if _pending.get(root) != priority:
+                # Superseded by a promotion (the open's entry already ran it).
+                _queue.task_done()
+                continue
+            _running_priority, _running_root = priority, root
             link = _links.pop(root, None)
+        started = time.monotonic()
         try:
-            _refresh_launcher_app_functions(link)
+            _await_link_refresh(link)
             outcome = prewarm_chat_actor(root)
         except Exception:
             outcome = OUTCOME_SKIPPED_CONSTRUCT_FAILED
@@ -726,8 +818,19 @@ def _drain() -> None:
             int(max(0.0, time.monotonic() - started) * 1000),
         )
         with _lock:
-            _pending.discard(root)
+            _running_priority, _running_root = None, None
+            if outcome == OUTCOME_PREEMPTED_BY_OPEN and _pending.get(root) == priority:
+                # Behind the open that preempted it; it built nothing yet.
+                _queue.put((priority, next(_sequence), root))
+            else:
+                _pending.pop(root, None)
         _queue.task_done()
+
+
+def _open_waiting_locked() -> bool:
+    """Is a chat-open item queued? Call under ``_lock``."""
+
+    return any(priority == PRIORITY_OPEN for priority in _pending.values())
 
 
 def _ensure_worker() -> None:
@@ -742,7 +845,9 @@ def _ensure_worker() -> None:
     _worker.start()
 
 
-def request_chat_actor_prewarm(root_session_id: str | None, *, launcher_link: Any = None) -> str:
+def request_chat_actor_prewarm(
+    root_session_id: str | None, *, launcher_link: Any = None, priority: int = PRIORITY_OPEN
+) -> str:
     """Queue a chat root for background prewarm. Returns what it did.
 
     ``registry_off`` — and no thread, no queue entry — whenever
@@ -753,7 +858,11 @@ def request_chat_actor_prewarm(root_session_id: str | None, *, launcher_link: An
 
     Idempotent by chat root: a root already queued or in flight is reported as
     ``already_running`` rather than queued twice, so a hook that fires on every
-    chat-open gesture cannot grow the queue.
+    chat-open gesture cannot grow the queue. An OPEN of a root still queued by
+    the boot pass promotes it ahead of the rest (``promoted``).
+
+    ``priority``: the open hooks take the default; the boot pass passes
+    :data:`PRIORITY_BOOT`, and a boot item yields to any open queued after it.
     """
 
     from .persona_chat_continuity import persona_chat_runtime_registry
@@ -765,16 +874,17 @@ def request_chat_actor_prewarm(root_session_id: str | None, *, launcher_link: An
         return OUTCOME_SKIPPED_NO_CHAT_ROOT
     with _lock:
         if launcher_link is not None:
-            _links[root] = launcher_link
-        if root in _pending:
+            _links[root] = _start_link_refresh(launcher_link)
+        held = _pending.get(root)
+        if held is not None and (priority >= held or root == _running_root):
             return "already_running"
-        _pending.add(root)
+        _pending[root] = priority
         _ensure_worker()
-        # Inside the lock: the worker discards from ``_pending`` only after it
-        # has finished the item, so enqueueing here cannot race a discard into a
-        # state where a queued root looks absent.
-        _queue.put(root)
-    return "started"
+        # Inside the lock: the worker drops a root from ``_pending`` only after
+        # it has finished the item, so enqueueing here cannot race a removal
+        # into a state where a queued root looks absent.
+        _queue.put((priority, next(_sequence), root))
+    return "started" if held is None else "promoted"
 
 
 # ── the boot pass ────────────────────────────────────────────────────────────
@@ -815,7 +925,7 @@ def prewarm_chat_actors_on_boot() -> dict[str, int]:
         roots = _boot_candidates(limit=max(1, int(persona_chat_cfg.max_hot_sessions)))
         counts["candidates"] = len(roots)
         for root in roots:
-            if request_chat_actor_prewarm(root) == "started":
+            if request_chat_actor_prewarm(root, priority=PRIORITY_BOOT) == "started":
                 counts["queued"] += 1
             else:
                 counts["skipped"] += 1
@@ -874,6 +984,7 @@ __all__ = [
     "CHAT_ACTOR_PREWARM_DONE_RECEIPT",
     "CHAT_ACTOR_PREWARM_PASS_RECEIPT",
     "OUTCOME_ALREADY_RESIDENT",
+    "OUTCOME_PREEMPTED_BY_OPEN",
     "OUTCOME_REGISTRY_OFF",
     "OUTCOME_SKIPPED_CONSTRUCT_FAILED",
     "OUTCOME_SKIPPED_NO_CHAT_ROOT",
@@ -881,6 +992,8 @@ __all__ = [
     "OUTCOME_SKIPPED_PROFILE_UNREADY",
     "OUTCOME_SKIPPED_TURN_ACTIVE",
     "OUTCOME_WARMED",
+    "PRIORITY_BOOT",
+    "PRIORITY_OPEN",
     "overlapping_constructions",
     "prewarm_chat_actor",
     "prewarm_chat_actors_on_boot",

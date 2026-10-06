@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import agent.ssl_verify as ssl_verify
 import model_tools
+from agent_runtime import first_turn_warmup
 from hermes_cli.harness_parts import _upstream_doors
 from hermes_cli.harness_parts.serve import boot as serve_boot
 
@@ -19,6 +20,7 @@ from hermes_cli.harness_parts.serve import boot as serve_boot
 def _quiet_other_steps(monkeypatch) -> None:
     monkeypatch.setattr(_upstream_doors, "load_openai_cls", lambda: None)
     monkeypatch.setattr(model_tools, "get_tool_definitions", lambda **_kw: [])
+    monkeypatch.setattr(first_turn_warmup, "warm_process_once_costs", lambda: {})
 
 
 def test_prewarm_installs_the_platform_trust_store_once(monkeypatch):

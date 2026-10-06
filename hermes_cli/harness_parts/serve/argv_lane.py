@@ -48,6 +48,7 @@ class _ArgvRequest:
         "submitted_monotonic",
         "started_monotonic",
         "progress_monotonic",
+        "accepted",
     )
 
     def __init__(
@@ -114,6 +115,9 @@ class _ArgvRequest:
         #: When the liveness pump last described this request, so a long turn
         #: is reported on a cadence rather than on every pump tick.
         self.progress_monotonic: float | None = None
+        #: A chat turn's accepted-not-anchored hold (``turn_activity.AcceptedTurn``),
+        #: taken by the lane that submits it; ``None`` for every other request.
+        self.accepted: Any = None
 
 
 #: The harness parser tree's builder (``harness_parts.parser.build_parser``),
