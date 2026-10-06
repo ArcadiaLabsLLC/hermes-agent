@@ -38,8 +38,8 @@ def _registry_populated():
 
     ``model_tools`` is imported lazily (BW-H3) and its module scope is what
     REGISTERS every builtin tool into the singleton — which correctly moves
-    ``registry_epoch``. In a live serve that happens at boot, long before any
-    turn. In a test process the first bundle build would trigger it and thereby
+    the registry content the bundle keys on. In a live serve that happens at
+    boot, long before any turn. In a test process the first bundle build would trigger it and thereby
     invalidate its own key, so these tests would be asserting a cold-import
     artifact instead of the steady state they are about.
     """
@@ -262,20 +262,99 @@ def test_a_root_config_edit_rebuilds_the_bundle():
     assert second.key != first.key
 
 
-def test_a_moved_registry_epoch_rebuilds_the_bundle(monkeypatch):
-    """The epoch is what replaces the 30 s TTL as the availability signal."""
+def _register_scratch_tool(name: str, toolset: str) -> None:
+    from tools.registry import registry
 
-    import tools.registry as registry_module
+    registry.register(
+        name=name,
+        toolset=toolset,
+        schema={"name": name, "description": "scratch", "parameters": {"type": "object", "properties": {}}},
+        handler=lambda args, **_kw: "ok",
+    )
 
-    persona = _persona()
+
+def _deregister_scratch_tool(name: str) -> None:
+    from tools.registry import registry
+
+    registry.deregister(name)
+
+
+def test_an_admission_register_and_teardown_pair_does_not_rebuild_the_bundle():
+    """lane h-bundle-epoch. MCP admission registers the admitted servers' tools
+    for one run and tears the scope down after it, so every MCP-admitting turn
+    left the registry exactly as it found it while moving
+    ``registry.generation`` by twice its tool count. Keyed on the generation,
+    every such turn rebuilt (live: ``visibility_bundle_rebuild_component_
+    registry_epoch=1`` on every turn record since 2026-09-08).
+
+    *Killing mutation:* key on ``registry_epoch()`` again — this row reds on a
+    rebuild for each of the two turns.
+    """
+
+    from tools.registry import registry
+
+    persona = _persona("dev-admission-pair")
     _warm_the_lane(persona)
-    epoch = {"value": 5}
-    monkeypatch.setattr(registry_module, "registry_epoch", lambda: epoch["value"])
-    first = CLB.chat_lane_bundle(persona, session_id="chat-epoch")
-    assert CLB.chat_lane_bundle(persona, session_id="chat-epoch") is first
+    first = CLB.chat_lane_bundle(persona, session_id="chat-pair")
+    for _turn in range(2):
+        _register_scratch_tool("mcp_bundle_pair_echo", "mcp-bundle-pair")
+        registry.register_toolset_alias("bundle-pair", "mcp-bundle-pair")
+        _deregister_scratch_tool("mcp_bundle_pair_echo")
+        builds = CLB.bundle_builds_this_thread()
+        cursor = CLB.key_material_moves_this_thread()
+        assert CLB.chat_lane_bundle(persona, session_id="chat-pair") is first
+        assert CLB.bundle_builds_this_thread() == builds
+        assert CLB.key_material_moves_since(cursor) == ()
 
-    epoch["value"] = 6
-    assert CLB.chat_lane_bundle(persona, session_id="chat-epoch") is not first
+
+def test_a_tool_added_or_removed_rebuilds_the_bundle():
+    """The safety half: a registration that CHANGES the content still rebuilds,
+    and names ``registry_content`` as the component that moved."""
+
+    persona = _persona("dev-content-move")
+    _warm_the_lane(persona)
+    before = CLB.chat_lane_bundle(persona, session_id="chat-content")
+    cursor = CLB.key_material_moves_this_thread()
+    _register_scratch_tool("bundle_content_added", "bundle-content-toolset")
+    try:
+        added = CLB.chat_lane_bundle(persona, session_id="chat-content")
+        assert added is not before
+        assert CLB.key_material_moves_since(cursor) == ("registry_content",)
+    finally:
+        _deregister_scratch_tool("bundle_content_added")
+    assert CLB.chat_lane_bundle(persona, session_id="chat-content") is not added
+
+
+def test_an_admitted_mcp_server_still_rebuilds_while_its_scope_is_registered():
+    """A server admitted (its ``mcp-*`` tools and bare alias registered) is a
+    real content change for any lookup made while the scope is live."""
+
+    from tools.registry import registry
+
+    persona = _persona("dev-mcp-admitted")
+    _warm_the_lane(persona)
+    before = CLB.chat_lane_bundle(persona, session_id="chat-mcp")
+    _register_scratch_tool("mcp_bundle_admitted_echo", "mcp-bundle-admitted")
+    registry.register_toolset_alias("bundle-admitted", "mcp-bundle-admitted")
+    try:
+        assert CLB.chat_lane_bundle(persona, session_id="chat-mcp") is not before
+    finally:
+        _deregister_scratch_tool("mcp_bundle_admitted_echo")
+
+
+def test_an_availability_invalidation_rebuilds_the_bundle():
+    """``invalidate_check_fn_cache`` (``hermes tools enable``, the credential
+    paths, a declaration change) moves no registration; the check-fn epoch in
+    the content key is what still carries it to the bundle."""
+
+    from tools.registry import invalidate_check_fn_cache
+
+    persona = _persona("dev-availability")
+    _warm_the_lane(persona)
+    first = CLB.chat_lane_bundle(persona, session_id="chat-availability")
+    assert CLB.chat_lane_bundle(persona, session_id="chat-availability") is first
+    invalidate_check_fn_cache()
+    assert CLB.chat_lane_bundle(persona, session_id="chat-availability") is not first
 
 
 def test_an_availability_invalidation_announces_itself_through_the_epoch():
@@ -323,14 +402,14 @@ def test_a_rebuild_names_exactly_the_key_component_that_moved(monkeypatch):
     persona = _persona()
     _warm_the_lane(persona)
     epoch = {"value": 11}
-    monkeypatch.setattr(registry_module, "registry_epoch", lambda: epoch["value"])
+    monkeypatch.setattr(registry_module, "check_fn_epoch", lambda: epoch["value"])
     CLB.chat_lane_bundle(persona, session_id="chat-cp7")
     cursor = CLB.key_material_moves_this_thread()
     epoch["value"] = 12
     CLB.chat_lane_bundle(persona, session_id="chat-cp7")
 
-    assert CLB.key_material_moves_since(cursor) == ("registry_epoch",), (
-        "the epoch is the only input that moved between the two lookups, so it "
+    assert CLB.key_material_moves_since(cursor) == ("registry_content",), (
+        "the registry content is the only input that moved between the two lookups, so it "
         "must be the only one named"
     )
 
@@ -395,7 +474,7 @@ def test_the_moves_counter_is_cumulative_and_read_as_a_DELTA(monkeypatch):
     persona = _persona("dev-cp7-delta")
     _warm_the_lane(persona)
     epoch = {"value": 21}
-    monkeypatch.setattr(registry_module, "registry_epoch", lambda: epoch["value"])
+    monkeypatch.setattr(registry_module, "check_fn_epoch", lambda: epoch["value"])
     CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
     epoch["value"] = 22
     CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
@@ -404,7 +483,7 @@ def test_the_moves_counter_is_cumulative_and_read_as_a_DELTA(monkeypatch):
     assert CLB.key_material_moves_since(cursor) == ()
     epoch["value"] = 23
     CLB.chat_lane_bundle(persona, session_id="chat-cp7-delta")
-    assert CLB.key_material_moves_since(cursor) == ("registry_epoch",)
+    assert CLB.key_material_moves_since(cursor) == ("registry_content",)
 
 
 def test_the_explicit_invalidation_hatch_drops_every_bundle():

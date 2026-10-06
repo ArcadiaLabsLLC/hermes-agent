@@ -341,11 +341,15 @@ serve boot, on a chat where nothing had changed (turn `2026-08-23T14:34:57Z`).
 `chat_lane_bundle` resolves the lane ONCE and memoizes the **composition** — never the probes. The
 key is the lane's own identity: persona revision, chat root + a fresh permission fingerprint (mode,
 source, expiry, remaining turns, mode blocks), root + active `config.yaml` `(mtime_ns, size)`,
-runtime root, entry-point lane, and `tools.registry.registry_epoch()` — a single integer that moves
-on every registration/MCP refresh (`registry.generation`) *and* on every `invalidate_check_fn_cache`
-(the availability half, added with this stage). The `check_fn` grace machinery is untouched, and a
+runtime root, entry-point lane, and the **registry content** the composition reads
+(`chat_lane_bundle._registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
+`tools.registry.check_fn_epoch()`, which moves on every `invalidate_check_fn_cache`). Content, not
+`registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
+so the generation moved on every MCP-admitting turn while the content did not, and every such turn
+rebuilt (`visibility_bundle_rebuild_component_registry_epoch=1` on every turn from 2026-09-08 until
+lane h-bundle-epoch). The `check_fn` grace machinery is untouched, and a
 down backend still loses its TOOLS at construction because `registry.get_definitions` re-probes on
-its own TTL; what can go stale is the toolset NAME in the lane's accounting until the epoch moves.
+its own TTL; what can go stale is the toolset NAME in the lane's accounting until the key moves.
 `invalidate_chat_lane_bundles()` is the explicit hatch. A bundle whose best-effort components
 faulted is served to that turn and never stored. Scope is the turn path only — the preview lane,
 snapshot builder and `persona_prewarm`'s memo warm still resolve live, because those are routinely

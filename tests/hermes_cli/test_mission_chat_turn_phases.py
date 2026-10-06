@@ -867,7 +867,51 @@ def test_a_bundle_rebuild_names_the_component_that_moved(
         "the epoch bump must actually have forced a rebuild, or this row proves "
         "nothing about naming one"
     )
-    assert block["visibility_bundle_rebuild_component_registry_epoch"] == 1
+    assert block["visibility_bundle_rebuild_component_registry_content"] == 1
+
+
+def test_an_admission_shaped_register_and_teardown_between_turns_rebuilds_nothing(
+    monkeypatch, capsys, isolate_agent_runtime_root, scripted_marks  # noqa: F811
+):
+    """lane h-bundle-epoch, through the real handler: MCP admission registers a
+    run's tools and tears them down after it, leaving the registry as it found
+    it. Every live turn since 2026-09-08 still reported
+    ``visibility_bundle_rebuild_component_registry_epoch=1`` because the key
+    read the registration generation. The second turn must name no component.
+
+    *Killing mutation:* key the bundle on ``registry_epoch()`` again — the
+    second turn names a moved component.
+    """
+
+    from tools.registry import registry
+
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_pair_first",
+    )
+    registry.register(
+        name="mcp_phases_pair_echo",
+        toolset="mcp-phases-pair",
+        schema={"name": "mcp_phases_pair_echo", "description": "x", "parameters": {"type": "object", "properties": {}}},
+        handler=lambda args, **_kw: "ok",
+    )
+    registry.register_toolset_alias("phases-pair", "mcp-phases-pair")
+    registry.deregister("mcp_phases_pair_echo")
+    _drive(
+        monkeypatch,
+        capsys,
+        _streaming_provider(profile_timing={"resident_actor_reused": 1}),
+        turn_id="phases_bundle_pair_second",
+    )
+    record = _record_on_disk(isolate_agent_runtime_root, "phases_bundle_pair_second")
+    moved = [
+        key
+        for key in record[TURN_PROFILE_TIMING_KEY]
+        if key.startswith("visibility_bundle_rebuild_component_")
+    ]
+    assert moved == [], moved
 
 
 def test_the_rebuild_receipt_carries_NAMES_and_never_VALUES(
