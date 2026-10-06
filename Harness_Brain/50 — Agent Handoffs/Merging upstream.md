@@ -37,20 +37,20 @@ The weekly merge of the latest `NousResearch/hermes-agent` RELEASE tag into the 
 6. `git push -u origin merge/upstream-<date>`. Report ≤ 30 lines.
 7. **Landing (operator or landing lane):** `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` (≥ 25 min) + the two contract dumps `--check` + `scripts/doc_cite_adjacency.py` in its ruled scope; then `git push origin merge/upstream-<date>:main` if fast-forward. Update the cursor, delete the queue row, remove the worktree.
 
-## The scheduled job (Codex cloud, weekly)
+## The scheduled job (GPT/Codex, daily; acts only on a new release)
 
 The job's whole description, pasted as its prompt — it runs the Steps above and nothing else ([[0006 — Upstream sync is a real merge, per-file reconciliation retired]]):
 
 ```
-Weekly upstream merge candidate for ArcadiaLabsLLC/hermes-agent.
-Read Harness_Brain/50 — Agent Handoffs/Merging upstream.md (the one page) and follow its Steps 1-6 exactly.
-1. Fetch origin and upstream (NousResearch/hermes-agent). Branch merge/upstream-<YYYY-MM-DD> from origin/main.
-0. Tag = gh release view --repo NousResearch/hermes-agent --json tagName -q .tagName; if git merge-base --is-ancestor <tag> origin/main, stop: nothing to merge.
-2. Configure the page's Step 1 regen merge driver, then git merge <tag> --no-ff (history-preserving; never cherry-pick or copy single files; never rebase).
-3. Resolve every conflict by the page's rules; after pyproject.toml, run uv lock and scripts/gen_gateway_contracts.py (then --check) and stage the three generated files; commit "merge: upstream <tag> into main (<date>)", body = each conflicted file + the rule applied.
-4. Run the supersession pass (Upstream Sync, "Each merge"), then scripts/run_tests.sh on the validated scope named on the page.
-5. Push merge/upstream-<date>. Never push main, never force-push, never open a PR.
-6. Report (<= 30 lines): upstream tag merged, conflicts per file + rule, supersession rows retired/kept, the [up-fp] line before/after, suite counts with reds marked merge-caused / pre-existing (re-run on origin/main).
+Upstream release merge for ArcadiaLabsLLC/hermes-agent. Runs daily; does nothing unless upstream has published a release the fork has not merged.
+Read Harness_Brain/50 — Agent Handoffs/Merging upstream.md (the one page) and follow its Steps 0-6 exactly.
+0. Fetch origin and upstream (https://github.com/NousResearch/hermes-agent) with --tags. Tag = the latest release: `gh release view --repo NousResearch/hermes-agent --json tagName -q .tagName`, or without gh, the highest `v<year>.<month>.<day>` tag by version sort (`git tag -l 'v20*' --sort=-v:refname | head -1`; never an `abandoned-rc*` tag). If `git merge-base --is-ancestor <tag> origin/main` exits 0, stop and report "nothing to merge: <tag> already in main".
+1. Branch merge/upstream-<tag> from origin/main. Configure the page's Step 1 regen merge driver.
+2. Size it: git merge-tree --write-tree origin/main <tag>; list the conflicted files.
+3. git merge <tag> --no-ff --no-commit (history-preserving; never cherry-pick, copy single files or rebase). Resolve every conflict by the page's rules; after pyproject.toml, run uv lock and python scripts/gen_gateway_contracts.py (then --check) and stage the three generated files. Commit "merge: upstream <tag> into main (<date>)", body = each conflicted file + the rule applied.
+4. Run the supersession pass (Upstream Sync, "Each merge"), then the tests that import a conflicted module (page Step 5).
+5. Push merge/upstream-<tag>. Never push main, never force-push, never open a PR. If merge/upstream-<tag> already exists on origin, stop and report it instead of redoing the merge.
+6. Report (<= 30 lines): upstream tag merged, conflicts per file + rule, supersession rows retired/kept, the [up-fp] line before/after, test counts with reds marked merge-caused / pre-existing (re-run on origin/main).
 ```
 
 Retired with the old method: the per-file "reconcile X with upstream" prompt, its cumulative `automation/upstream-sync` branch, and `docs/agent-runtime-harness/planned/upstream-sync-automation.md` (deleted with this section).
