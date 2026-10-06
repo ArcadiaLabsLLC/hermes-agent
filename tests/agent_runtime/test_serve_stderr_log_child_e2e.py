@@ -54,6 +54,7 @@ E2E_TEST_TIMEOUT_SECONDS = 300
 _REAL_CHILD_SPAWN = pytest.mark.live_system_guard_bypass
 
 pytestmark = [
+    pytest.mark.e2e_child,
     _REAL_CHILD_SPAWN,
     pytest.mark.timeout(E2E_TEST_TIMEOUT_SECONDS),
 ]

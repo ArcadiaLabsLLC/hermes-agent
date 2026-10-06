@@ -842,6 +842,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
         "pins hold (applied by id from tests/_downstream/id_markers/).",
     )
+    config.addinivalue_line(
+        "markers",
+        "e2e_child: the file boots real serve/gateway CHILD processes (suite-speed "
+        "Stage 4A's class); a label for the tail report and the scheduler, never a filter.",
+    )
 
 
 @pytest.fixture(autouse=True)

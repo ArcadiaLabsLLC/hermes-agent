@@ -58,6 +58,11 @@ from tests.agent_runtime.test_gateway_peer_two_roots_e2e import (
     _REAL_CHILD_SPAWN,
 )
 
+#: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
+#: processes. It selects nothing and skips nothing; it lets the runner's tail
+#: report name the class and a scheduler start these files first.
+pytestmark = pytest.mark.e2e_child
+
 
 #: Dialled from install A's environment. Resolves the `@install/target` spelling
 #: through the SAME functions the tool uses, dials with the SAME `dial_peer` the

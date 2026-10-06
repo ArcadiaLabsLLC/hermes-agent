@@ -66,6 +66,8 @@ import hashlib
 import pathlib
 from collections import defaultdict
 
+import pytest
+
 HERMES_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = HERMES_ROOT / "agent_runtime"
 
@@ -191,10 +193,24 @@ def _duplicate_keys() -> set[tuple[str, ...]]:
     }
 
 
-def test_no_new_duplicate_helper_bodies_in_agent_runtime():
+@pytest.fixture(scope="module")
+def agent_runtime_duplicates() -> set[tuple[str, ...]]:
+    """The agent_runtime walk, ONCE for this module's two tests.
+
+    Each test used to call :func:`_duplicate_keys` itself, so the same
+    unchanged tree was parsed and hashed twice per run — and the fork-wide
+    pair below likewise: four walks of 8-14 s where two answer every
+    assertion (suite-speed 2026-10-05 §2.3, Stage 4B(iii)). Module scope, not
+    session: the result is dropped when this file finishes.
+    """
+
+    return _duplicate_keys()
+
+
+def test_no_new_duplicate_helper_bodies_in_agent_runtime(agent_runtime_duplicates):
     """Two module-level functions with the same body are one function."""
 
-    unexpected = sorted(_duplicate_keys() - set(_GRANDFATHERED))
+    unexpected = sorted(agent_runtime_duplicates - set(_GRANDFATHERED))
     assert unexpected == [], (
         "these agent_runtime functions have byte-identical bodies (docstrings "
         "stripped, names normalized) — fold them onto ONE authority, or add a "
@@ -203,14 +219,14 @@ def test_no_new_duplicate_helper_bodies_in_agent_runtime():
     )
 
 
-def test_the_grandfathered_baseline_still_describes_the_code():
+def test_the_grandfathered_baseline_still_describes_the_code(agent_runtime_duplicates):
     """A fixed group must LOSE its row, so the baseline can only shrink.
 
     Without this half, folding a grandfathered pair leaves a frozen claim that
     the code contradicts, and the next reader trusts it.
     """
 
-    live = _duplicate_keys()
+    live = agent_runtime_duplicates
     stale = sorted(group for group in _GRANDFATHERED if group not in live)
     assert stale == [], (
         "these _GRANDFATHERED groups are no longer duplicates — delete their "
@@ -262,13 +278,20 @@ def test_alpha_renaming_collides_a_renamed_clone():
     assert _probe.normalized_body_hash(one) != _probe.normalized_body_hash(other), "a default is behaviour"
 
 
-def test_no_new_duplicate_anywhere_in_the_fork():
-    bodies, names = _fork_wide_drift()
+@pytest.fixture(scope="module")
+def fork_wide_drift() -> tuple[_probe.Drift, _probe.Drift]:
+    """The fork-wide walk, ONCE for the two tests that read it (as above)."""
+
+    return _fork_wide_drift()
+
+
+def test_no_new_duplicate_anywhere_in_the_fork(fork_wide_drift):
+    bodies, names = fork_wide_drift
     assert not bodies.new, "fold these onto ONE authority (rule 15):\n" + bodies.render()
     assert not names.new, "one private helper name, two owners — fold or rename:\n" + names.render()
 
 
-def test_the_fork_wide_baseline_still_describes_the_code():
-    bodies, names = _fork_wide_drift()
+def test_the_fork_wide_baseline_still_describes_the_code(fork_wide_drift):
+    bodies, names = fork_wide_drift
     assert not bodies.stale, "delete these groups — they no longer duplicate:\n" + bodies.render()
     assert not names.stale, "delete these name rows — the collision is gone:\n" + names.render()

@@ -392,6 +392,39 @@ class Claim(tuple):
         return self[3]
 
 
+#: The fields through which one statement CONTAINS another. A docstring owner
+#: (module, def, class) is a statement, and no expression ever contains a
+#: statement, so these are the only edges a walk to every owner must follow.
+_STATEMENT_FIELDS = frozenset({"body", "orelse", "finalbody", "handlers", "cases"})
+
+
+def _statement_walk(tree: ast.AST):
+    """``ast.walk``'s breadth-first order, restricted to statement containers.
+
+    ``ast.walk`` visits every expression node too — 8.2 million of them over
+    the corpus, 44 of the gate's 112 s under cProfile (2026-10-05, suite-speed
+    Stage 4B(ii)) — to reach the few thousand nodes that can carry a
+    docstring. Pruning subtrees that cannot contain a statement drops nodes
+    without reordering the survivors: each survivor keeps its depth and its
+    parent's field order, so the owners come out in exactly ``ast.walk``'s
+    order and the claim list is identical (proven against the full corpus in
+    the commit that introduced this).
+    """
+
+    queue = [tree]
+    index = 0
+    while index < len(queue):
+        node = queue[index]
+        index += 1
+        yield node
+        for field in node._fields:
+            if field not in _STATEMENT_FIELDS:
+                continue
+            children = getattr(node, field, None)
+            if isinstance(children, list):
+                queue.extend(child for child in children if isinstance(child, ast.AST))
+
+
 def _comment_and_docstring_lines(text: str) -> list[tuple[int, str]]:
     """(lineno, text) for comment lines and docstring lines only.
 
@@ -411,7 +444,7 @@ def _comment_and_docstring_lines(text: str) -> list[tuple[int, str]]:
             tree = ast.parse(text)
     except SyntaxError:
         return out
-    for node in ast.walk(tree):
+    for node in _statement_walk(tree):
         if not isinstance(
             node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
         ):
@@ -442,6 +475,14 @@ def _scan_lines(
     texts = [text for _, text in lines]
 
     for index, (lineno, line) in enumerate(lines):
+        # Every arm needs one of two literals ON THIS LINE: NAMED and its
+        # continuation (the only arms that move the anchor) match ``::``; PATH,
+        # BARE and MEMBER all match ``test_``. A line with neither yields no
+        # claim and changes no state, so the context window — built per line,
+        # and most of ``_scan_lines``' cost — is not built for it. It still
+        # serves as CONTEXT for its neighbours through ``texts``.
+        if "::" not in line and "test_" not in line:
+            continue
         prev_tail = texts[index - 1] if index else ""
         before = texts[max(0, index - _CONTEXT_BEFORE) : index]
         after = texts[index + 1 : index + _CONTEXT_AFTER + 1]

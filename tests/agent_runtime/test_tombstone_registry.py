@@ -4314,15 +4314,46 @@ def _spec_missing(dotted: str) -> bool:
 # -------------------------------------------------------------------------
 # THE GATE
 # -------------------------------------------------------------------------
+#
+# ONE TEST PER ROW FORM, every row checked inside it. Until 2026-10-05 each row
+# was its own parametrized item: 1,228 items whose own work is microseconds
+# (a find_spec, a hasattr, a substring test against the import-time render)
+# but each paying the suite's per-item floor — 35 autouse fixtures, a fresh
+# HERMES_HOME, the leak guards — measured at ~0.07 s, 84 of the file's 89 s
+# (``docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md`` §2.3,
+# Stage 4B(i)). The table stays the authority and every row is still checked
+# on every run; what changed is that a failure is reported as a list of row
+# labels in ONE assertion instead of one red item per row. A row that raises
+# anything (not only AssertionError) is collected, so one broken row can no
+# longer hide the rows after it.
 
 
-@pytest.mark.parametrize("row", MODULE_ROWS, ids=lambda row: row.label)
-def test_tombstoned_module_is_not_importable(row: Tombstone):
+def _assert_every_row(rows: tuple[Tombstone, ...], check) -> None:
+    """Run ``check`` on every row; fail once, naming every failing row."""
+
+    if not rows:
+        pytest.skip("no rows of this form in the table")
+    failures: list[str] = []
+    for row in rows:
+        try:
+            check(row)
+        except (Exception, pytest.fail.Exception) as exc:  # Failed is a BaseException
+            failures.append(f"[{row.label}] {type(exc).__name__}: {exc}")
+    assert failures == [], (
+        f"{len(failures)} of {len(rows)} rows failed {check.__name__}:\n"
+        + "\n".join(failures)
+    )
+
+
+def _row_tombstoned_module_is_not_importable(row: Tombstone):
     assert importlib.util.find_spec(row.text) is None, f"{row.label}: {row.reason}"
 
 
-@pytest.mark.parametrize("row", ATTR_ROWS, ids=lambda row: row.label)
-def test_tombstoned_attribute_is_gone(row: Tombstone):
+def test_tombstoned_module_is_not_importable():
+    _assert_every_row(MODULE_ROWS, _row_tombstoned_module_is_not_importable)
+
+
+def _row_tombstoned_attribute_is_gone(row: Tombstone):
     for dotted in row.scope:
         if _spec_missing(dotted):
             # A later wave may retire the whole owner module — a STRONGER
@@ -4340,8 +4371,11 @@ def test_tombstoned_attribute_is_gone(row: Tombstone):
         assert not hasattr(module, row.text), f"{dotted}.{row.text}: {row.reason}"
 
 
-@pytest.mark.parametrize("row", IMPORT_ROWS, ids=lambda row: row.label)
-def test_tombstoned_top_level_import_binding_is_gone(row: Tombstone):
+def test_tombstoned_attribute_is_gone():
+    _assert_every_row(ATTR_ROWS, _row_tombstoned_attribute_is_gone)
+
+
+def _row_tombstoned_top_level_import_binding_is_gone(row: Tombstone):
     for relative in row.scope:
         source = (HERMES_ROOT / relative).read_text(encoding="utf-8")
         assert row.text not in _top_level_import_bindings(source), (
@@ -4349,8 +4383,11 @@ def test_tombstoned_top_level_import_binding_is_gone(row: Tombstone):
         )
 
 
-@pytest.mark.parametrize("row", CLASS_ATTR_ROWS, ids=lambda row: row.label)
-def test_tombstoned_class_attribute_is_gone(row: Tombstone):
+def test_tombstoned_top_level_import_binding_is_gone():
+    _assert_every_row(IMPORT_ROWS, _row_tombstoned_top_level_import_binding_is_gone)
+
+
+def _row_tombstoned_class_attribute_is_gone(row: Tombstone):
     module_name, class_name, attr = row.text.rsplit(".", 2)
     dotted = f"{row.scope[0]}.{module_name}"
     if _spec_missing(dotted):
@@ -4379,8 +4416,11 @@ def test_tombstoned_class_attribute_is_gone(row: Tombstone):
     assert not hasattr(owner, attr), f"{row.text}: {row.reason}"
 
 
-@pytest.mark.parametrize("row", EVENT_ROWS, ids=lambda row: row.label)
-def test_tombstoned_event_type_is_deregistered(row: Tombstone):
+def test_tombstoned_class_attribute_is_gone():
+    _assert_every_row(CLASS_ATTR_ROWS, _row_tombstoned_class_attribute_is_gone)
+
+
+def _row_tombstoned_event_type_is_deregistered(row: Tombstone):
     from agent_runtime.decision_contract_registry import event_catalog
     from agent_runtime.events import Event, EventLog
     from hermes_time import now
@@ -4400,13 +4440,19 @@ def test_tombstoned_event_type_is_deregistered(row: Tombstone):
         )
 
 
-@pytest.mark.parametrize("row", PATH_ROWS, ids=lambda row: row.label)
-def test_tombstoned_path_does_not_exist(row: Tombstone):
+def test_tombstoned_event_type_is_deregistered():
+    _assert_every_row(EVENT_ROWS, _row_tombstoned_event_type_is_deregistered)
+
+
+def _row_tombstoned_path_does_not_exist(row: Tombstone):
     assert not (HERMES_ROOT / row.text).exists(), f"{row.label}: {row.reason}"
 
 
-@pytest.mark.parametrize("row", CODE_ROWS, ids=lambda row: row.label)
-def test_every_code_row_scope_resolves_to_something(row: Tombstone):
+def test_tombstoned_path_does_not_exist():
+    _assert_every_row(PATH_ROWS, _row_tombstoned_path_does_not_exist)
+
+
+def _row_every_code_row_scope_resolves_to_something(row: Tombstone):
     """The CODE arm of the S66 meta-invariant: an unresolvable scope must be
     COVERED, never SKIPPED.
 
@@ -4445,8 +4491,11 @@ def test_every_code_row_scope_resolves_to_something(row: Tombstone):
     )
 
 
-@pytest.mark.parametrize("row", CODE_ROWS, ids=lambda row: row.label)
-def test_tombstoned_name_is_absent_from_production_code(row: Tombstone):
+def test_every_code_row_scope_resolves_to_something():
+    _assert_every_row(CODE_ROWS, _row_every_code_row_scope_resolves_to_something)
+
+
+def _row_tombstoned_name_is_absent_from_production_code(row: Tombstone):
     offenders = code_offenders(row)
     assert offenders == [], f"{row.label} reappeared in {offenders}: {row.reason}"
 
@@ -4458,6 +4507,12 @@ def test_tombstoned_name_is_absent_from_production_code(row: Tombstone):
 #: ``_ROUND4_FIXTURE`` below, and this name survives only as the fixture's
 #: provenance and as the argument to :func:`_base_test_references`, which
 #: regenerates the fixture on a clone that still holds the pre-fold objects.
+
+
+def test_tombstoned_name_is_absent_from_production_code():
+    _assert_every_row(CODE_ROWS, _row_tombstoned_name_is_absent_from_production_code)
+
+
 _ROUND4_COVERAGE_BASE = "4a21f0779"
 #: ``git merge-base 4a21f0779 upstream/main`` -- the upstream point the base had
 #: merged. Frozen for the same reason: the merge-base cannot be computed without

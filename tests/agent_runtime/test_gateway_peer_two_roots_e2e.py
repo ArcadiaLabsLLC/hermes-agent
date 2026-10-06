@@ -62,6 +62,11 @@ from tests.agent_runtime._serve_fixtures import (  # noqa: F401 — two_installs
     two_installs,
 )
 
+#: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
+#: processes. It selects nothing and skips nothing; it lets the runner's tail
+#: report name the class and a scheduler start these files first.
+pytestmark = pytest.mark.e2e_child
+
 
 #: Two real serve boots plus five CLI invocations, each a cold interpreter start
 #: on Windows. The suite's global cap is 30s, which is right for a Python-level
