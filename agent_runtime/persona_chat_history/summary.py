@@ -50,6 +50,7 @@ def persona_chat_history_summary(
     omitted_session_ids: set[str] | None = None,
     only_instance_ids: frozenset[str] | None = None,
     only_session_ids: frozenset[str] | None = None,
+    omitted_ranked: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe persona chat-history rows for Harness snapshots.
 
@@ -96,6 +97,10 @@ def persona_chat_history_summary(
     named session the core's bound would omit yields NO row here and lands in
     ``omitted_session_ids`` — the full core's answer for it, by construction
     (the stream's ``persona_chat_turn`` overlay, plan h-turn1 §2 C0.3).
+
+    ``omitted_ranked``, when given, is filled with the same omitted ids in the
+    bound's own rank order, highest first: the rows nearest the bound, which a
+    newly active root pushes out (the overlay's ``evicted_roots``).
     """
 
     summary = HistorySummary(
@@ -107,6 +112,7 @@ def persona_chat_history_summary(
         omitted_session_ids=omitted_session_ids,
         only_instance_ids=only_instance_ids,
         only_session_ids=only_session_ids,
+        omitted_ranked=omitted_ranked,
     )
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
@@ -139,6 +145,7 @@ class HistorySummary:
     omitted_session_ids: set[str] | None
     only_instance_ids: frozenset[str] | None = None
     only_session_ids: frozenset[str] | None = None
+    omitted_ranked: list[str] | None = None
     bound_by_session: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
@@ -409,6 +416,12 @@ class HistorySummary:
         )
         if self.omitted_session_ids is not None:
             self.omitted_session_ids.update(
+                session_id
+                for _raw, _instance, session_id, _kind, _task_id in candidates[len(visible_candidates):]
+                if session_id
+            )
+        if self.omitted_ranked is not None:
+            self.omitted_ranked.extend(
                 session_id
                 for _raw, _instance, session_id, _kind, _task_id in candidates[len(visible_candidates):]
                 if session_id

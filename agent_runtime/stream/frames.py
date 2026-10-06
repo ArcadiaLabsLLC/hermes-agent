@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from collections.abc import Iterable
 from typing import Any
@@ -21,6 +22,7 @@ from ..running_work import build_running_work
 from ..serde import optional_text, section_rows, to_jsonable
 from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
+from ..turn_section_read import read_turn_sections
 
 from .build_policy import _log_snapshot_build
 from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, FRAME_PERSONA_CHAT_TURN, FRAME_RUNNING_WORK, STREAM_PERSONA_CHAT_TURN_SCHEMA_VERSION, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
@@ -255,7 +257,49 @@ def _turn_event_roots(event: Event) -> tuple[str, ...] | None:
     return None
 
 
-def batch_turn_roots(batch: list[tuple[int, Event]]) -> list[tuple[str, int]] | None:
+#: A new chat's open (``chat_binding._commit_chat_opened``): the instance's
+#: ``state.patched`` upsert, then ``persona_instance.chat_opened`` naming the new
+#: root. The overlay carries the instance's whole row and the root's, and
+#: ``evicted_roots`` names what the history bound dropped, so the open rides it —
+#: for a subscriber that declared :data:`~agent_runtime.patch_coverage.PERSONA_CHAT_OPEN_CAPABILITY`.
+_CHAT_OPENED_EVENT_TYPE = "persona_instance.chat_opened"
+
+
+def batch_opens_a_chat(batch: list[tuple[int, Event]]) -> bool:
+    """Whether ``batch`` carries a ``persona_instance.chat_opened``."""
+
+    return any(getattr(event, "type", None) == _CHAT_OPENED_EVENT_TYPE for _, event in batch)
+
+
+def _open_event_roots(event: Event, opened: set[str], patched: set[str]) -> tuple[str, ...] | None:
+    """An open's two events: ``chat_opened`` names its root and instance; the
+    instance's ``state.patched`` (a merge, never a create or a refresh) names no
+    root and must be an instance a ``chat_opened`` of the batch names."""
+
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    event_type = getattr(event, "type", None)
+    if event_type == _CHAT_OPENED_EVENT_TYPE:
+        root = optional_text(payload.get("session_id"))
+        instance_id = optional_text(payload.get("persona_instance_id"))
+        if not root or not instance_id:
+            return None
+        opened.add(instance_id)
+        return (root,)
+    if (
+        event_type == STATE_PATCHED_EVENT_TYPE
+        and payload.get("entity") == "persona_instance"
+        and payload.get("op") == "upsert"
+        and not payload.get("created")
+        and optional_text(payload.get("id"))
+    ):
+        patched.add(str(payload["id"]))
+        return ()
+    return None
+
+
+def batch_turn_roots(
+    batch: list[tuple[int, Event]], *, opens: bool = False
+) -> list[tuple[str, int]] | None:
     """The chat roots a batch made ONLY of turn events names, or ``None``.
 
     A TURN batch is one where every event is a turn publish carrying
@@ -271,144 +315,29 @@ def batch_turn_roots(batch: list[tuple[int, Event]]) -> list[tuple[str, int]] | 
     that order: a batch naming two roots ships two frames, chained so the first
     advances the watermark to its root's last event and the second applies from
     there (the client's gap gate holds across both).
+
+    ``opens`` (some subscriber declared the open token) also admits a new chat's
+    open (:func:`_open_event_roots`): its ``chat_opened`` names the new root, and
+    each ``state.patched`` persona_instance must be an instance some
+    ``chat_opened`` of the batch names, or the batch is refused.
     """
 
     if not batch:
         return None
     last_seen: dict[str, int] = {}
+    opened: set[str] = set()
+    patched: set[str] = set()
     for offset, event in batch:
         roots = _turn_event_roots(event)
+        if roots is None and opens:
+            roots = _open_event_roots(event, opened, patched)
         if roots is None:
             return None
         for root in roots:
             last_seen[root] = int(offset or 0)
-    if not last_seen:
+    if not last_seen or not patched <= opened:
         return None
     return sorted(last_seen.items(), key=lambda item: item[1])
-
-
-def _turn_instance(
-    root: str, batch: list[tuple[int, Event]], instances: list[Any]
-) -> Any | None:
-    """The persona instance whose chat ``root`` is: the turn publish names it,
-    else the instance bound to the session, else the mint's owner."""
-
-    from ..persona_assignments import chat_session_owner_instance_id
-
-    by_id = {str(getattr(item, "id", "") or ""): item for item in instances}
-    for _offset, event in batch:
-        payload = event.payload if isinstance(event.payload, dict) else {}
-        if (
-            getattr(event, "type", None) in _TURN_PUBLISH_EVENT_TYPES
-            and optional_text(payload.get("root_chat_session_id")) == root
-        ):
-            named = by_id.get(optional_text(payload.get("persona_instance_id")) or "")
-            if named is not None:
-                return named
-    for instance in instances:
-        if root in (
-            optional_text(getattr(instance, "default_chat_session_id", None)),
-            optional_text(getattr(instance, "session_id", None)),
-        ):
-            return instance
-    return by_id.get(chat_session_owner_instance_id(root) or "")
-
-
-def _channel_for_instance(channels: list[dict[str, Any]], instance_id: str) -> dict[str, Any] | None:
-    for channel in channels:
-        if not isinstance(channel, dict):
-            continue
-        if channel.get("persona_instance_id") == instance_id or instance_id in (
-            channel.get("source_instance_ids") or ()
-        ):
-            return channel
-    return None
-
-
-def _read_persona_chat_turn_sections(
-    root: str, batch: list[tuple[int, Event]]
-) -> tuple[dict[str, Any], dict[str, int]]:
-    """One root's turn sections, read NOW by the core's own builders.
-
-    The FULL instance list goes in everywhere attribution or ranking needs it —
-    the history bound ranks every candidate exactly as the core does and only
-    then narrows to the root (``only_session_ids``, plan §2 C0.3), and the
-    channel join takes every instance so display names and relationships are
-    the core's — so each row equals the row a full core built now would carry.
-    The roster is ``list_all`` (a read), never ``ensure_for_personas`` (it
-    writes). Raises when any read fails; the caller demotes.
-    """
-
-    from ..config import ensure_persisted_personas
-    from ..operator_channels import operator_channel_summary
-    from ..persona_assignments import PersonaInstanceStore, persona_instance_summary
-    from ..persona_chat_history import persona_chat_history_summary, persona_chat_trace_summary
-    from ..persona_chat_history.vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL
-    from ..persona_lifecycle import is_runtime_persona
-    from ..resolution import runtime_resolution_scope
-    from ..snapshot.details import persona_session_db_scope
-    from ..snapshot.receipts import _persona_chat_history_frame
-    from ..snapshot_turn_yield import snapshot_yield_point
-    from ..store import AgentStore
-
-    timings: dict[str, int] = {}
-    snapshot_yield_point()
-    with runtime_resolution_scope(), persona_session_db_scope() as session_db:
-        event_log = EventLog()
-        instances = PersonaInstanceStore(event_log=event_log).list_all()
-        instance = _turn_instance(root, batch, instances)
-        if instance is None:
-            raise LookupError(f"no persona instance owns chat root {root!r}")
-        started = time.perf_counter()
-        omitted: set[str] = set()
-        history = persona_chat_history_summary(
-            persona_instances=instances,
-            session_db=session_db,
-            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-            omitted_session_ids=omitted,
-            only_session_ids=frozenset({root}),
-        )
-        timings["history_ms"] = int((time.perf_counter() - started) * 1000)
-        snapshot_yield_point()
-        started = time.perf_counter()
-        trace = persona_chat_trace_summary(
-            persona_instances=[instance],
-            event_log=event_log,
-            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-        )
-        timings["trace_ms"] = int((time.perf_counter() - started) * 1000)
-        snapshot_yield_point()
-        channels = operator_channel_summary(
-            persona_instances=instances,
-            persona_chat_history=history,
-            persona_chat_trace=trace,
-            intentionally_omitted_history_session_ids=omitted,
-        )
-    channel = _channel_for_instance(channels, str(instance.id))
-    if channel is None:
-        raise LookupError(f"no operator channel for {instance.id!r}")
-    personas = {
-        str(getattr(agent, "id", "") or ""): agent
-        for agent in AgentStore().list_all()
-        if is_runtime_persona(agent)
-    }
-    history_rows = _persona_chat_history_frame(history)
-    snapshot_yield_point()
-    sections = {
-        "persona_instance_id": str(instance.id),
-        "persona_chat_history": to_jsonable(history_rows[0]) if history_rows else None,
-        "operator_channel": to_jsonable(channel),
-        "persona_instance": to_jsonable(
-            persona_instance_summary(
-                instance,
-                personas.get(str(getattr(instance, "persona_id", "") or "")),
-                roster=ensure_persisted_personas,
-            )
-        ),
-        "running_work": _redaction_safe_json(build_running_work()),
-        "omitted": root in omitted,
-    }
-    return sections, timings
 
 
 def persona_chat_turn_frames(
@@ -430,6 +359,10 @@ def persona_chat_turn_frames(
 
     The second subscriber of the same batch reuses the first's read
     (:mod:`agent_runtime.turn_section_reuse`), re-stamped with its own offsets.
+    The read runs in the resident snapshot worker when one is bound
+    (:func:`_read_turn_sections_standing_aside`); ``evicted_roots`` (present only
+    when non-empty) names the roots the history bound now omits that this
+    batch's roots may have pushed out (:func:`agent_runtime.turn_section_read.read_turn_sections`).
     ANY root whose read fails answers ``None`` for the whole batch, and the
     caller demotes it as before: the cost of a miss is the old core, never a
     wrong row. Not ``prompt_observability`` and not ``events`` (ruling C1-r1:
@@ -451,13 +384,16 @@ def persona_chat_turn_frames(
             sections = turn_section_reuse.await_inflight(
                 root, floor=stamp_offset, timeout_s=_TURN_SECTION_INFLIGHT_WAIT_S
             )
-        timings: dict[str, int] = {}
+        timings: dict[str, Any] = {}
         source = turn_section_reuse.SOURCE_REUSED
         if sections is None:
             source = turn_section_reuse.SOURCE_BUILT
-            sections, timings = _read_turn_sections_standing_aside(root, batch, caller=caller)
+            sections, timings = _read_turn_sections_standing_aside(
+                root, batch, caller=caller, evict=len(roots), floor=stamp_offset
+            )
             if sections is None:
                 return None
+            source = timings.pop("source", source)
         root_events = [event for _offset, event in batch if root in (_turn_event_roots(event) or ())]
         frame = {
             "type": FRAME_PERSONA_CHAT_TURN,
@@ -475,7 +411,7 @@ def persona_chat_turn_frames(
         }
         logger.info(
             "turn_section reason=%s root=%s waited_ms=%d history_ms=%s trace_ms=%s "
-            "yielded_ms=%s bytes=%d source=%s caller=%s offset=%d pid=%d",
+            "yielded_ms=%s bytes=%d source=%s caller=%s offset=%d executor=%s worker_pid=%s pid=%d",
             _turn_section_reason(root_events),
             root,
             int((time.monotonic() - started) * 1000),
@@ -486,6 +422,8 @@ def persona_chat_turn_frames(
             source,
             caller,
             stamp_offset,
+            timings.get("executor", "-"),
+            timings.get("worker_pid") or "-",
             os.getpid(),
         )
         frames.append(frame)
@@ -499,41 +437,83 @@ _TURN_SECTION_INFLIGHT_WAIT_S = 20.0
 
 
 def _read_turn_sections_standing_aside(
-    root: str, batch: list[tuple[int, Event]], *, caller: str
-) -> tuple[dict[str, Any] | None, dict[str, int]]:
-    """One root's read, off the turn's latency-critical windows.
+    root: str, batch: list[tuple[int, Event]], *, caller: str, evict: int = 0, floor: int | None = None
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """One root's read, off the serve's interpreter or off the turn's hot windows.
 
-    The overlay is 0.9–1.8 s of pure Python on the serve's interpreter (live
-    2026-10-06: history 308–818 ms, trace 470–552 ms), and a START batch's read
-    lands exactly where the turn assembles and dispatches its provider call. So
-    the read runs under the core build's own rule (:mod:`snapshot_turn_yield`,
-    the owner's 2026-10-03 ruling — a build running during a live turn's hot
-    window is a bug): it waits before it starts and pauses at each section
-    boundary while a turn is inside a hot window, within the same budget. The
-    sections are still read NOW by the core's own builders, so C1's equality
-    rule is untouched — standing aside only makes them newer than the batch,
-    the direction every reuse here already accepts.
+    The overlay is 0.9–1.8 s of pure Python (live 2026-10-06: history 308–818
+    ms, trace 470–552 ms). With a snapshot worker bound (lane h-overlay-worker)
+    it is read THERE, on its own thread beside any build, and the serve only
+    waits on the pipe — no stand-aside, because it holds no GIL the turn needs.
+    Unbound, or the worker lost, it is read here under the core build's own rule
+    (:mod:`snapshot_turn_yield`, the owner's 2026-10-03 ruling — a build running
+    during a live turn's hot window is a bug): it waits before it starts and
+    pauses at each section boundary while a turn is inside a hot window. Either
+    way the sections are read NOW by the core's own builders (C1), and
+    ``running_work`` is read HERE, last: its live lanes are this process's.
     """
 
     from .. import turn_section_reuse
     from ..parity import events_position
-    from ..snapshot_turn_yield import build_yield_scope, log_build_yield
+    from ..snapshot.build_log import EXECUTOR_IN_PROCESS
+    from ..snapshot_turn_yield import build_yield_scope, log_build_yield, snapshot_yield_point
+    from ..snapshot_worker.executor import bound_binding, execute_turn_section
+    from ..turn_section_read import named_instance_ids
 
-    position = events_position().get("event_offset")
-    key = turn_section_reuse.begin(root, position=position)
+    def bound_worker() -> bool:
+        binding = bound_binding()
+        return binding is not None and not binding.retired
+
+    key = turn_section_reuse.begin(root)
+    if key is None:
+        # Another lane's claim is in flight: if it is still standing aside, or
+        # reads at or past ``floor``, its sections are this frame's too.
+        held = turn_section_reuse.await_inflight(root, floor=floor, timeout_s=_TURN_SECTION_INFLIGHT_WAIT_S)
+        if held is not None:
+            return held, {"source": turn_section_reuse.SOURCE_REUSED}
+    named = named_instance_ids(root, batch)
+    position = None
     try:
-        with build_yield_scope() as standing_aside:
-            try:
-                sections, timings = _read_persona_chat_turn_sections(root, batch)
-            except Exception:
-                logger.debug("persona_chat_turn: section read failed root=%s", root, exc_info=True)
-                return None, {}
-        log_build_yield(standing_aside, caller=caller, generation="turn_section")
-        timings["yielded_ms"] = standing_aside.waited_ms if standing_aside is not None else 0
+        try:
+            if bound_worker():
+                position = events_position().get("event_offset")
+                turn_section_reuse.started(key, position)
+                execution = execute_turn_section(root, named=named, evict=evict)
+            else:
+                execution = None
+            if execution is not None:
+                sections, timings = execution.sections, dict(execution.timings)
+                timings.update(executor=execution.executor, worker_pid=execution.worker_pid)
+            else:
+                with build_yield_scope() as standing_aside:
+                    # Stand aside FIRST, then take the position: a second lane
+                    # whose batch closed during the wait is covered by this read.
+                    snapshot_yield_point()
+                    position = events_position().get("event_offset")
+                    turn_section_reuse.started(key, position)
+                    sections, timings = read_turn_sections(root, named=named, evict=evict)
+                log_build_yield(standing_aside, caller=caller, generation="turn_section")
+                timings["yielded_ms"] = standing_aside.waited_ms if standing_aside is not None else 0
+                timings["executor"] = EXECUTOR_IN_PROCESS
+            sections = _with_running_work(sections, _redaction_safe_json(build_running_work()))
+        except Exception:
+            logger.debug("persona_chat_turn: section read failed root=%s", root, exc_info=True)
+            return None, {}
         turn_section_reuse.remember(root, sections, position=position)
         return sections, timings
     finally:
         turn_section_reuse.finish(key)
+
+
+def _with_running_work(sections: dict[str, Any], running_work: Any) -> dict[str, Any]:
+    """The read's sections with the serve's ``running_work``, in the frame's key order."""
+
+    ordered = {key: value for key, value in sections.items() if key not in {"omitted", "evicted_roots"}}
+    ordered["running_work"] = running_work
+    ordered["omitted"] = bool(sections.get("omitted"))
+    if sections.get("evicted_roots"):
+        ordered["evicted_roots"] = list(sections["evicted_roots"])
+    return ordered
 
 
 def _turn_section_reason(root_events: list[Event]) -> str:
@@ -770,6 +750,12 @@ def resolve_fold_variant(
     return core if isinstance(core, dict) else frame
 
 
+#: The two in-process stream lanes (the hub and ``harness stream``) each run a
+#: watchdog: the tail(1) duplicate guard and the append are one step under this,
+#: so two lanes cannot both read "not yet reconciled" and both append.
+_RECONCILE_APPEND_LOCK = threading.Lock()
+
+
 def _append_state_reconciled(
     log: EventLog, fingerprint: str, attribution: dict[str, Any] | None = None
 ) -> bool:
@@ -780,34 +766,37 @@ def _append_state_reconciled(
     rows moved — what lets the turn rule cover the reconcile instead of
     demoting its batch.
 
-    Cross-process guard: if another stream consumer just reconciled the same
+    Duplicate guard: if another stream consumer just reconciled the same
     fingerprint, its event already advanced the offset — skip the duplicate
     and let the normal delta path deliver it, but only when that event claims
     at least as much as this one would (a narrower claim would let this lane's
-    batch be covered for less than moved). Best effort: a broken event log
+    batch be covered for less than moved). The check and the append are one
+    step under :data:`_RECONCILE_APPEND_LOCK`, so the guard is exact between
+    this process's lanes and best effort across processes. A broken event log
     degrades to plain heartbeats (bounded UI ageing), never a stream crash.
     """
 
     extra = dict(attribution or {})
     try:
-        tail = log.tail(1)
-        if (
-            tail
-            and tail[0].type == EVENT_STATE_RECONCILED
-            and tail[0].payload.get("fingerprint") == fingerprint
-            and _reconcile_claims_at_least(tail[0].payload, extra)
-        ):
-            return True
-        log.append(
-            Event(
-                now(),
-                EVENT_STATE_RECONCILED,
-                None,
-                None,
-                None,
-                {"fingerprint": fingerprint, "source": WATCHDOG_SOURCE, **extra},
+        with _RECONCILE_APPEND_LOCK:
+            tail = log.tail(1)
+            if (
+                tail
+                and tail[0].type == EVENT_STATE_RECONCILED
+                and tail[0].payload.get("fingerprint") == fingerprint
+                and _reconcile_claims_at_least(tail[0].payload, extra)
+            ):
+                return True
+            log.append(
+                Event(
+                    now(),
+                    EVENT_STATE_RECONCILED,
+                    None,
+                    None,
+                    None,
+                    {"fingerprint": fingerprint, "source": WATCHDOG_SOURCE, **extra},
+                )
             )
-        )
         return True
     except Exception:  # noqa: BLE001
         logger.warning("state.reconciled append failed", exc_info=True)

@@ -13,13 +13,13 @@ from ..core_cache.lane import REFUSAL_CORE_BEHIND_FRAME, close_cache_lane
 from ..core_cache.shadow import shadow_validate
 from ..models import Event
 from ..parity import core_event_offset
-from ..patch_coverage import PERSONA_CHAT_TURN_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
+from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
 from ..request_control import request_cancelled
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
-from .frames import batch_carries_patch_rows, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames
+from .frames import batch_carries_patch_rows, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames
 from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
 __layer__ = "lanes"
@@ -344,9 +344,12 @@ def _turn_batch_frames(
     the demote core, exactly today's frame.
     """
 
+    required = frozenset({PERSONA_CHAT_TURN_CAPABILITY})
+    if batch_opens_a_chat(batch):
+        required |= {PERSONA_CHAT_OPEN_CAPABILITY}
     roots = (
-        batch_turn_roots(batch)
-        if PERSONA_CHAT_TURN_CAPABILITY in promote
+        batch_turn_roots(batch, opens=PERSONA_CHAT_OPEN_CAPABILITY in required)
+        if required <= promote
         else None
     )
     overlays = (
@@ -354,7 +357,7 @@ def _turn_batch_frames(
         if roots
         else None
     )
-    if overlays and PERSONA_CHAT_TURN_CAPABILITY in accepted:
+    if overlays and required <= accepted:
         yield from overlays
         return
     demoted = _full_core_batch_frames(
@@ -367,7 +370,6 @@ def _turn_batch_frames(
     if not overlays:
         yield from demoted
         return
-    required = frozenset({PERSONA_CHAT_TURN_CAPABILITY})
     for frame in demoted:
         if frame.get("type") == FRAME_HEARTBEAT:
             yield frame
@@ -447,9 +449,11 @@ def _batch_frames_with_liveness(
                     patch=promoted, core=frame, required_tokens=required
                 )
             return
-    if delta_patches and not resync and not batch_carries_patch_rows(batch):
-        # A batch made ONLY of chat-turn events (plan h-turn1 §2 C2). Unreachable
-        # for anything carrying a patch row: those took the gate above first.
+    if delta_patches and not resync and (not batch_carries_patch_rows(batch) or batch_opens_a_chat(batch)):
+        # A batch made ONLY of chat-turn events (plan h-turn1 §2 C2), or a new
+        # chat's open beside its first turn (lane h-overlay-worker). A patch row
+        # reaches here only with an open the patch gate above could not fold;
+        # every other patch-carrying batch took that gate first.
         yield from _turn_batch_frames(
             batch,
             base_offset=base_offset,
