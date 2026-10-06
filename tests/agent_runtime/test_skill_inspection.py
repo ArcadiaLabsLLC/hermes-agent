@@ -53,11 +53,12 @@ def test_disabled_inspection_and_limits_do_not_grant_loading(tmp_path, monkeypat
 
 def test_ambiguous_skills_refuse_and_unknown_names_are_not_file_reads(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    put_skill(tmp_path, "duplicate", "one")
-    other = tmp_path / "external"
+    first = tmp_path / "external-one"
+    other = tmp_path / "external-two"
+    put_skill(first, "duplicate", "one")
     put_skill(other, "duplicate", "two")
     (tmp_path / "config.yaml").write_text(json.dumps({
-        "skills": {"external_dirs": [str(other / "skills")]}}), encoding="utf-8")
+        "skills": {"external_dirs": [str(first / "skills"), str(other / "skills")]}}), encoding="utf-8")
     reader = skill_inspection_reader()
     with pytest.raises(SkillInspectionError, match="unavailable"):
         reader.detail("duplicate", can_load=True)

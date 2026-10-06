@@ -255,7 +255,8 @@ def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
     the declared name, or the exact relative path for a same-tier duplicate. Shadowed and
     unloadable copies are left out. ``skip_disabled=True`` ignores disabled state (config UI)."""
     return [{"name": s["load_name"], "description": s["description"], "category": s["category"],
-             "identifier": f"{s['category']}/{s['load_name']}" if s["category"] else s["load_name"],
+             "identifier": (f"{s['category']}/{s['load_name']}"
+                            if s["category"] and s["status"] != "ambiguous" else s["load_name"]),
              "tags": s["tags"]}
             for s in _skill_catalog(skip_disabled=skip_disabled) if s["load_name"]]
 
