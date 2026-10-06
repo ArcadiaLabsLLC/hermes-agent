@@ -211,17 +211,17 @@ class EventLog:
         types: Collection[str] | None,
     ) -> list[Event]:
         """Newest-first reverse scan across slices (newest slice first), stopping
-        once ``limit`` matches are collected, returned oldest-first. Pristine
-        (single slice) is byte-identical to the old whole-file reverse scan; when
-        rotation is active the scan reaches back into sealed slices only as far as
-        the limit needs, so newest-N stays cheap."""
+        once ``limit`` matches are collected, returned oldest-first. Each slice is
+        read from its end in chunks (``_reversed_slice_lines``), so a scan whose
+        ``limit`` is met in the tail never reads the rest of an 11–81 MB slice;
+        ``limit <= 0`` still walks every line of every slice."""
 
         type_tokens = _type_json_tokens(types)
         selected: list[Event] = []
         for sl in event_rotation.reversed_slices():
             if not sl.path.exists():
                 continue
-            for line in reversed(sl.path.read_text(encoding="utf-8").splitlines()):
+            for line in _reversed_slice_lines(sl.path):
                 if token not in line:
                     continue
                 if type_tokens is not None and not any(t in line for t in type_tokens):
@@ -460,6 +460,46 @@ class CachedEventLog(EventLog):
             if current <= start or not line.strip():
                 continue
             yield current, from_jsonable(Event, json.loads(line))
+
+_REVERSE_READ_CHUNK_BYTES = 1 << 20
+
+
+def _reversed_slice_lines(path) -> Iterator[str]:
+    r"""Yield ``path``'s lines newest-first, reading the file from its end.
+
+    The same lines, in the same order, as
+    ``reversed(path.read_text(encoding="utf-8").splitlines())`` — including an
+    unterminated (torn) final line on a live slice and ``splitlines``' extra
+    breaks (``\r``, U+2028, U+0085 …) — without reading or decoding the bytes
+    before the point where the caller stops. The size is taken once at open: an
+    append racing the scan is not seen, as a finished ``read_text`` would not
+    have seen it. Each chunk is cut after its first ``\n`` so only whole lines
+    are decoded; the head carries into the next (earlier) chunk. ``\n`` never
+    occurs inside a UTF-8 multi-byte sequence, and every block but the file's
+    last ends in ``\n``, so ``splitlines`` of the blocks concatenates to
+    ``splitlines`` of the file. One divergence: undecodable bytes raise only if
+    the scan reaches them, not because they exist anywhere in the slice.
+    """
+
+    chunk_bytes = max(1, int(_REVERSE_READ_CHUNK_BYTES))
+    with open(path, "rb") as handle:
+        pos = handle.seek(0, os.SEEK_END)
+        carry = b""
+        while pos > 0:
+            step = min(chunk_bytes, pos)
+            pos -= step
+            handle.seek(pos)
+            block = handle.read(step) + carry
+            if pos > 0:
+                cut = block.find(b"\n")
+                if cut < 0:
+                    carry = block
+                    continue
+                carry, block = block[: cut + 1], block[cut + 1 :]
+            else:
+                carry = b""
+            yield from reversed(block.decode("utf-8").splitlines())
+
 
 def _task_id_json_token(task_id: str) -> str:
     encoded = json.dumps(str(task_id), ensure_ascii=False, separators=(",", ":"))
