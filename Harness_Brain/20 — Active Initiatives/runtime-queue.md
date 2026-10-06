@@ -356,6 +356,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-05 (lane h-prompt-tools)
 
+- [ ] **MCP admission's per-run register/teardown also moves `registry.generation`, which upstream `model_tools.get_tool_definitions`' memo keys on — every MCP-admitting turn likely drops that memo too (unmeasured; measure, then key the admission on content or stop the churn)** · seam / chat turn · evidence: lane h-bundle-epoch `bc43588550` body, `agent_runtime/mcp_admission/registration.py` · UNCLAIMED
 - [ ] **The chat lane's per-persona tool defer reaches upstream's tool_search bridge only through a rebound `load_config_readonly` (`tools/tool_search.py`, +2 lines) — wants an upstream per-agent defer door** · seam / `tools/tool_search.py` · evidence: `lane/h-prompt-tools` `a6db50294e` + ledger row · UNCLAIMED
 
 ### Filed on arrival — 2026-10-04 (lane hb-a)
