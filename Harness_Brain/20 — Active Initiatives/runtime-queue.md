@@ -25,6 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-06 (lane h-conn-pool)
 
+- [ ] **`hermes harness observe snapshot-builds` reads the CLI's sticky profile log (`profiles/alice/logs`), not the serve's home (`profiles/base`), so it reported `builds=0` while the serve's agent.log held 53 `snapshot_build_core` lines** · fork / snapshot observability · evidence: `--json` `window.files` 2026-10-06 00:35 vs `profiles/base/logs/agent.log`; workaround `--log` · lane: resolve the log from the live serve receipt's home (CLAUDE.md: read the serve receipt, never assume a home)
 - [ ] **Re-read turn 1 on the next prewarmed Neko chat after h-conn-pool lands: the pre-connect now warms the turn's own request client and the default config already shares one pool (offline + real-edge probe: turn 0 rides the HEAD's connection), so a turn-1 `tls_done` there means something else took or killed the warm connection between prewarm and turn — read `tls_done`, `client_built→request_sent` and `prewarm_first_turn_warmup_ms`** · fork / chat turn · evidence: lane h-conn-pool `3b0cbc20ab` body · UNCLAIMED
 
 ### Filed on arrival — 2026-10-06 (lane h-readiness)
