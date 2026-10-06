@@ -455,6 +455,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-06 (lane h-suite-tail-b)
+
+- [ ] **`plugins/dashboard_auth/basic` computes a scrypt `_DUMMY_HASH` at import time (~0.2 s), paid again on every plugin re-import (80–122 scrypt calls per test file in the profiles)** · upstream-owned · evidence: lane h-suite-tail-b profiles · an upstream issue or a caller-side memo, never an edit · UNCLAIMED
+
 ### Filed on arrival — 2026-10-05 (lane h-defer, name-set sweep)
 
 - [ ] **Upstream `agent/tool_guardrails.py::IDEMPOTENT_TOOL_NAMES` spells the filesystem MCP tools with the retired single-underscore prefix (`mcp_filesystem_read_file`, … 8 names) while the registry produces `mcp__filesystem__read_file` (`MCP_TOOL_NAME_PREFIX`, `tools/mcp_tool_schema.py`, #33533), so the no-progress guard never treats them as idempotent — derive the names with `mcp_prefixed_tool_name("filesystem", …)` (upstream PR)** · `upstream / agent` · evidence: `agent/tool_guardrails.py` lines 20-26; `ToolCallGuardrail` compares the raw registered name (`tool_name in self.config.idempotent_tools`) · UNCLAIMED
