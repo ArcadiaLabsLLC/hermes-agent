@@ -13,6 +13,12 @@ next build, at most :data:`RESPAWN_LIMIT` times per serve life; after that the
 binding retires (``op=retired``) and the serve builds in process for the rest of
 its life. A child whose BUILD raised is kept: the in-process retry raises the same
 error where the caller can see it.
+
+**Turn sections** (:func:`execute_turn_section`, lane h-overlay-worker) ride the
+same worker: ``None`` means "read it here" (nothing bound, or the worker was lost
+-- the same ``op=lost`` receipt and replacement rule as a build), and a read the
+worker raised on is :class:`TurnSectionFailed`, never re-read in process (the
+caller demotes, exactly as an in-process read that raised does).
 """
 
 from __future__ import annotations
@@ -38,6 +44,9 @@ logger = logging.getLogger(__name__)
 BUILD_TIMEOUT_SECONDS = 120.0
 #: Replacements of a lost worker per serve life; then in process for good.
 RESPAWN_LIMIT = 3
+#: How long a turn-section read waits for the worker. It runs beside any build on
+#: its own thread; measured 0.5-0.6 s warm and 4.6 s cold in process.
+TURN_SECTION_TIMEOUT_SECONDS = 30.0
 
 #: ``snapshot_worker`` receipts: one family, ``op=`` first, ``pid`` last (BO-3).
 WORKER_SPAWN_RECEIPT = "snapshot_worker op=spawn worker_pid=%d spawn_ms=%d respawns=%d pid=%d"
@@ -56,6 +65,26 @@ class BuildExecution:
     core: dict
     executor: str
     worker_pid: int | None = None
+
+
+@dataclass(frozen=True)
+class TurnSectionExecution:
+    """One root's turn sections (no ``running_work``), the read's timings, and who read them."""
+
+    sections: dict
+    timings: dict
+    executor: str
+    worker_pid: int | None = None
+
+
+class TurnSectionFailed(RuntimeError):
+    """The worker's read raised (an unowned root, an unreadable store): the caller demotes."""
+
+
+def _runtime_params() -> dict[str, Any] | None:
+    from agent_runtime.persona_chat_continuity.runtime_registry import export_runtime_observations
+
+    return export_runtime_observations()
 
 
 def _resolution_params() -> dict[str, Any]:
@@ -154,7 +183,7 @@ class WorkerBinding:
         from agent_runtime.snapshot.sections import running_work_for_worker
 
         params = {"resolution": _resolution_params(), "serve_pid": os.getpid(),
-                  "running_work": running_work_for_worker()}
+                  "running_work": running_work_for_worker(), "runtime": _runtime_params()}
         try:
             reply = peer.build(params, timeout=self.timeout)
         except WorkerLost as lost:
@@ -163,6 +192,25 @@ class WorkerBinding:
         _forward(reply["receipts"])
         self.builds += 1
         return BuildExecution(reply["core"], EXECUTOR_WORKER, peer.pid)
+
+    def turn_section(self, root: str, *, named: tuple[str, ...], evict: int) -> TurnSectionExecution | None:
+        """The worker's read of ``root``'s sections, or ``None`` when it must be read here."""
+
+        peer = self._live_peer()
+        if peer is None:
+            return None
+        params = {"resolution": _resolution_params(), "runtime": _runtime_params(),
+                  "root": root, "named": list(named), "evict": int(evict)}
+        try:
+            reply = peer.turn_section(params, timeout=TURN_SECTION_TIMEOUT_SECONDS)
+        except WorkerLost as lost:
+            if lost.loss is WorkerLoss.BUILD_ERROR:
+                raise TurnSectionFailed(root) from lost
+            self._lost(peer, lost.loss)
+            return None
+        _forward(reply["receipts"])
+        timings = reply.get("timings") if isinstance(reply.get("timings"), dict) else {}
+        return TurnSectionExecution(reply["sections"], dict(timings), EXECUTOR_WORKER, peer.pid)
 
     def _lost(self, peer, loss: WorkerLoss) -> None:
         logger.warning(WORKER_LOST_RECEIPT, loss.value, peer.pid, self.respawns, os.getpid())
@@ -242,3 +290,15 @@ def execute_build() -> BuildExecution:
     from agent_runtime.snapshot.build import _build_snapshot_uncoalesced
 
     return BuildExecution(_build_snapshot_uncoalesced(), EXECUTOR_IN_PROCESS, None)
+
+
+def execute_turn_section(root: str, *, named: tuple[str, ...] = (), evict: int = 0) -> TurnSectionExecution | None:
+    """``root``'s turn sections read by the bound worker; ``None`` = read them in process.
+
+    Raises :class:`TurnSectionFailed` when the worker's read raised.
+    """
+
+    binding = _binding
+    if binding is None:
+        return None
+    return binding.turn_section(root, named=named, evict=evict)

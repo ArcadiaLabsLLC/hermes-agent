@@ -1042,7 +1042,21 @@ instance list, so each equals the row a full core would carry. Not
 gets the overlay and the demote core in one `fold_variants` envelope; the two
 subscribers of one launcher share one read through `turn_section_reuse`
 (position-keyed, as `demote_core_reuse`). A read that fails demotes the batch
-as before. Receipt: `turn_section reason=<start|end|trace> root=… source=<built|reused>`.
+as before. Receipt: `turn_section reason=<start|end|trace> root=… source=<built|reused> … executor=<worker|in_process|-> worker_pid=…`.
+
+With the resident snapshot worker bound, the sections are read IN the worker
+(`snapshot.turn_section`, `turn_section_read.read_turn_sections`) on their own
+thread beside any build; the serve keeps `running_work` and sends its chat-runtime
+registry as an export (`runtime_registry.export_runtime_observations`), so a
+worker-built history row (overlay or core) carries the serve's `runtime_state`.
+A lost worker reads in process under `snapshot_turn_yield`, as before.
+
+A new chat's open (the instance's `state.patched` upsert, never `created`, plus
+`persona_instance.chat_opened`, beside the new root's turn) rides the overlay
+only for a subscriber that ALSO declared `persona_chat_open`
+(`patch_coverage.PERSONA_CHAT_OPEN_CAPABILITY`); every frame may carry
+`evicted_roots` (absent when empty) — the top-ranked roots the history bound now
+omits, one per root the batch names — which that client removes.
 
 `hydrate` carries `core`, `identity_map`, `watermark`, and the parity envelope's
 `completeness` / `drops` / `parity_warnings`. With the patch lane on it also

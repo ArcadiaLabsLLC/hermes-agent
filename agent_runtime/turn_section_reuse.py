@@ -27,6 +27,16 @@ the second lane's batch used to arrive mid-read, miss the memo and read the same
 root again. ``begin`` / ``finish`` bracket a read, and ``await_inflight`` lets
 that lane wait for a read whose position already covers its floor — the same
 position rule, applied before the read finishes instead of after.
+
+**Claimed before it reads (lane h-overlay-worker, 2026-10-06).** Live 01:25 test:
+every START section was read by BOTH lanes, each 2.4-3.6 s late, because the
+first lane captured its position BEFORE standing aside and the second lane's
+batch -- closing during that wait -- had a floor past it. A read is now claimed
+with ``begin(root)`` (no position: "standing aside, not reading yet") and its
+position recorded by :func:`started` when the read really begins. A lane that
+finds a claim still standing aside waits for it (its position will be taken
+after the second lane's batch closed); a claim already reading below the floor
+is not waited for, as before.
 """
 
 from __future__ import annotations
@@ -48,7 +58,8 @@ _MAX_ROOTS = 32
 
 _lock = threading.Lock()
 _entries: dict[tuple[str, str], tuple[int, dict[str, Any]]] = {}
-_inflight: dict[tuple[str, str], tuple[int, threading.Event]] = {}
+#: key -> [position or None while the claim is still standing aside, done event]
+_inflight: dict[tuple[str, str], list] = {}
 
 
 def remember(root: str, sections: dict[str, Any], *, position: int | None) -> bool:
@@ -85,19 +96,35 @@ def consult(root: str, *, floor: int | None) -> dict[str, Any] | None:
     return copy.deepcopy(sections)
 
 
-def begin(root: str, *, position: int | None) -> tuple[str, str] | None:
-    """Mark a read of ``root`` at ``position`` in flight; the key for :func:`finish`."""
+def begin(root: str, *, position: int | None = None) -> tuple[str, str] | None:
+    """Claim a read of ``root``; the key for :func:`started` / :func:`finish`.
+
+    ``position=None`` claims it before the read has a position (it may still
+    stand aside); :func:`started` records the position when it reads. ``None``
+    back means another claim already covers it -- :func:`await_inflight` it.
+    """
 
     store = _store_root()
-    if not root or position is None or store is None:
+    if not root or store is None:
         return None
     key = (store, root)
     with _lock:
         held = _inflight.get(key)
-        if held is not None and held[0] >= int(position):
+        if held is not None and (held[0] is None or position is None or held[0] >= int(position)):
             return None
-        _inflight[key] = (int(position), threading.Event())
+        _inflight[key] = [None if position is None else int(position), threading.Event()]
     return key
+
+
+def started(key: tuple[str, str] | None, position: int | None) -> None:
+    """The claimed read begins at ``position`` (captured just before it reads)."""
+
+    if key is None or position is None:
+        return
+    with _lock:
+        held = _inflight.get(key)
+        if held is not None:
+            held[0] = int(position)
 
 
 def finish(key: tuple[str, str] | None) -> None:
@@ -112,16 +139,18 @@ def finish(key: tuple[str, str] | None) -> None:
 
 
 def await_inflight(root: str, *, floor: int | None, timeout_s: float) -> dict[str, Any] | None:
-    """Wait for an in-flight read of ``root`` that covers ``floor``, then consult."""
+    """Wait for an in-flight read of ``root`` that covers ``floor`` -- or that has
+    not taken its position yet -- then consult."""
 
     store = _store_root()
     if not root or floor is None or store is None:
         return None
     with _lock:
         held = _inflight.get((store, root))
-    if held is None or held[0] < int(floor):
+        position, done = (held[0], held[1]) if held is not None else (None, None)
+    if done is None or (position is not None and position < int(floor)):
         return None
-    held[1].wait(max(0.0, float(timeout_s)))
+    done.wait(max(0.0, float(timeout_s)))
     return consult(root, floor=floor)
 
 

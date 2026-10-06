@@ -14,8 +14,9 @@ from agent_runtime.conversations.native_peer import NativePeer
 
 __layer__ = "lanes"
 
-#: The one method the worker answers.
+#: The worker's methods: a full core, and one chat root's ``persona_chat_turn`` sections.
 BUILD_METHOD = "snapshot.build"
+TURN_SECTION_METHOD = "snapshot.turn_section"
 
 
 class WorkerLoss(StrEnum):
@@ -44,16 +45,22 @@ class WorkerLost(RuntimeError):
 
 
 class SnapshotPeer(NativePeer):
-    """A :class:`NativePeer` whose one call is :meth:`build`."""
+    """A :class:`NativePeer` whose calls are :meth:`build` and :meth:`turn_section`."""
 
-    def build(self, params: dict, *, timeout: float) -> dict:
+    def _call(self, method: str, params: dict, timeout: float, body: str) -> dict:
         try:
-            result = self.call(BUILD_METHOD, params, timeout=timeout)
+            result = self.call(method, params, timeout=timeout)
         except ConversationError as exc:
             raise WorkerLost(_LOSS_BY_REFUSAL.get(exc.reason, WorkerLoss.BAD_REPLY)) from exc
-        if not isinstance(result.get("core"), dict) or not isinstance(result.get("receipts"), list):
+        if not isinstance(result.get(body), dict) or not isinstance(result.get("receipts"), list):
             raise WorkerLost(WorkerLoss.BAD_REPLY)
         return result
+
+    def build(self, params: dict, *, timeout: float) -> dict:
+        return self._call(BUILD_METHOD, params, timeout, "core")
+
+    def turn_section(self, params: dict, *, timeout: float) -> dict:
+        return self._call(TURN_SECTION_METHOD, params, timeout, "sections")
 
     @property
     def pid(self) -> int:

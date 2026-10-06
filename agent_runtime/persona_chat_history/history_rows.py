@@ -151,12 +151,10 @@ def _history_row(
     except Exception:
         pass
     try:
-        from ..persona_chat_continuity import (
-            native_lineage_summary,
-            persona_chat_runtime_registry,
-        )
+        from ..persona_chat_continuity import native_lineage_summary
+        from ..persona_chat_continuity.runtime_registry import persona_chat_runtime_observer
 
-        registry = persona_chat_runtime_registry()
+        registry = persona_chat_runtime_observer()
         lineage = native_lineage_summary(session_db, session_id)
         runtime = (
             registry.observation(session_id, owning_process=True)

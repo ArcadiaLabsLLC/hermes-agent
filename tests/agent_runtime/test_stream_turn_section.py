@@ -294,10 +294,10 @@ def test_the_second_subscriber_of_one_batch_reads_nothing(isolate_agent_runtime_
     roots = batch_turn_roots(batch)
     first = persona_chat_turn_frames(batch, roots, base_offset=start, caller="hub")
     reads = []
-    real = frames_module._read_persona_chat_turn_sections
+    real = frames_module.read_turn_sections
     monkeypatch.setattr(
         frames_module,
-        "_read_persona_chat_turn_sections",
+        "read_turn_sections",
         lambda *a, **k: reads.append(a) or real(*a, **k),
     )
     second = persona_chat_turn_frames(batch, roots, base_offset=start, caller="cli")

@@ -197,6 +197,15 @@ OFFICE_SURFACE_FOLD_CAPABILITY = "office_surface_fold"
 #: core; an old runtime ignores the string.
 PERSONA_CHAT_TURN_CAPABILITY = "persona_chat_turn"
 
+#: The FIFTH token, a widening of the fourth (lane h-overlay-worker, 2026-10-06).
+#: A new chat's open (the instance's ``state.patched`` upsert + ``persona_instance.chat_opened``
+#: + the new root's first turn) moves the history section's 50-row bound: the new
+#: root enters and the row ranked just below it leaves. A client that names this
+#: token beside ``persona_chat_turn`` removes every root in a frame's
+#: ``evicted_roots``, so the open's batch rides the overlay instead of a demote
+#: core. Without it the open keeps today's core.
+PERSONA_CHAT_OPEN_CAPABILITY = "persona_chat_open"
+
 #: Domain events that ride alongside their ``state.patched`` in the same
 #: coalesced batch (same chokepoint) and carry no fold state of their own — the
 #: launcher ignores them and folds the paired op. Each has a paired op:

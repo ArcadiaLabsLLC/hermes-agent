@@ -7,6 +7,8 @@ import os
 import threading
 import time
 from collections import OrderedDict
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable
 
@@ -263,6 +265,23 @@ class PersonaChatRuntimeRegistry:
                 "last_resumed_at": entry.last_resumed_at if entry else None,
             }
 
+    def export_observations(self) -> dict[str, Any]:
+        """Every root this registry would answer other than ``cold``, for a process
+        that builds rows on this one's behalf (:class:`RecordedRuntimeObserver`)."""
+
+        with self._lock:
+            roots: dict[str, dict[str, Any]] = {}
+            for root in set(self._entries) | set(self._transitions):
+                entry = self._entries.get(root)
+                transition = self._transitions.get(root) or {}
+                roots[root] = {
+                    "runtime_state": transition.get("state") or ("hot" if entry else "cold"),
+                    "last_runtime_transition": transition.get("transition"),
+                    "active_session_id": entry.active_session_id if entry else None,
+                    "last_resumed_at": entry.last_resumed_at if entry else None,
+                }
+        return {"observer_id": f"serve:{os.getpid()}", "roots": roots}
+
     def _record_transition(
         self, root_session_id: str, state: str, transition: str | None = None
     ) -> None:
@@ -307,3 +326,63 @@ def initialize_persona_chat_runtime_registry(
 
 def persona_chat_runtime_registry() -> PersonaChatRuntimeRegistry | None:
     return _REGISTRY
+
+
+class RecordedRuntimeObserver:
+    """The serve's registry as one export, answering :meth:`observation` exactly as
+    the serve would (its ``serve:<pid>`` observer, its states; ``cold`` for any root
+    it holds nothing for). The snapshot worker builds history rows with it: the
+    worker owns no resident chat, so its own registry would say nothing true."""
+
+    def __init__(self, recorded: dict[str, Any]) -> None:
+        self._observer_id = str(recorded.get("observer_id") or "")
+        roots = recorded.get("roots")
+        self._roots = dict(roots) if isinstance(roots, dict) else {}
+
+    def observation(self, root_session_id: str, *, owning_process: bool) -> dict[str, Any]:
+        if not owning_process:
+            return {
+                "runtime_state": "unknown",
+                "runtime_observer_id": "external_cli",
+                "runtime_observed_at": now_iso_micro(),
+            }
+        row = self._roots.get(root_session_id) or {}
+        return {
+            "runtime_state": row.get("runtime_state") or "cold",
+            "last_runtime_transition": row.get("last_runtime_transition"),
+            "runtime_observer_id": self._observer_id,
+            "runtime_observed_at": now_iso_micro(),
+            "active_session_id": row.get("active_session_id"),
+            "last_resumed_at": row.get("last_resumed_at"),
+        }
+
+
+_RECORDED_OBSERVER: ContextVar[RecordedRuntimeObserver | None] = ContextVar(
+    "persona_chat_recorded_runtime_observer", default=None
+)
+
+
+def export_runtime_observations() -> dict[str, Any] | None:
+    """This process's registry as a worker request carries it; ``None`` = no registry."""
+
+    registry = _REGISTRY
+    return None if registry is None else registry.export_observations()
+
+
+@contextmanager
+def recorded_runtime_registry(recorded: dict[str, Any] | None):
+    """Answer :func:`persona_chat_runtime_observer` from ``recorded`` (the worker's side)."""
+
+    token = _RECORDED_OBSERVER.set(RecordedRuntimeObserver(recorded) if isinstance(recorded, dict) else None)
+    try:
+        yield
+    finally:
+        _RECORDED_OBSERVER.reset(token)
+
+
+def persona_chat_runtime_observer() -> PersonaChatRuntimeRegistry | RecordedRuntimeObserver | None:
+    """Who answers a history row's runtime observation: the serve's export when a
+    worker build carries one, else this process's registry."""
+
+    recorded = _RECORDED_OBSERVER.get()
+    return recorded if recorded is not None else _REGISTRY
