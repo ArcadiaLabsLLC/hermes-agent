@@ -510,6 +510,12 @@
       "files": "172 -> 172: hermes_cli/main.py was already in the footprint",
       "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
       "reason": "no fork-side cut reaches upstream's ~430 parsers: argparse re-runs gettext.find per parser and, with LANG set (Git Bash, WSL), that is ~7,450 locale-dir probes, ~2.5 s of every non---version command on Windows (measured 2026-10-01). Upstream PR candidate (the memo + its two lines), or rides the ledger's planned main() pre_command hook"
+    },
+    {
+      "change": "lane h-conn-pool (2026-10-06): one guarded additive block in agent/auxiliary_client.py _CodexCompletionsAdapter.create drains the settled Responses stream (agent_runtime.stream_reuse) before it is closed",
+      "files": "173 -> 173: agent/auxiliary_client.py was already in the footprint",
+      "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
+      "reason": "the title call closed the process-shared pool's warm connection mid-body, so a chat's next turn paid a new TLS connection; the adapter's stream has no hook between consume and close. Held-PR row in the upstream footprint ledger"
     }
   ]
 }

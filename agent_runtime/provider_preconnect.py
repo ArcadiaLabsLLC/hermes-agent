@@ -21,6 +21,15 @@ stays in the pool the turn's per-request client shares
 (``agent/process_bootstrap.py::build_keepalive_http_client``). The receipt's
 ``kept`` says which happened.
 
+h-conn-pool: the request goes through the client the TURN checks out, not
+the actor's primary client. A codex / chat-completions turn sends on the
+per-request client ``agent._create_request_openai_client`` caches; the pre-connect
+builds that client and leaves it cached (released with a reuse reason), so the
+connection it warms sits in the pool of the very ``httpx.Client`` the turn's
+request rides -- one pool whether or not upstream's process-shared transport
+applies (a proxy, a full transport cache and the SDK-free client without a
+keep-alive client each give a client its own pool).
+
 What it does not do: send a body, call a model, or carry a credential (the SDK
 and the SDK-free client both add auth per request, never on the ``httpx.Client``,
 and :data:`IDENTITY_HEADERS` admits no other header);
@@ -59,8 +68,32 @@ STATUS_LOOPBACK = "skipped_loopback"
 STATUS_FAILED = "failed"
 
 
+#: API modes whose turn sends on ``agent._create_request_openai_client``'s cached client.
+REQUEST_CLIENT_API_MODES = frozenset({"codex_responses", "chat_completions"})
+
+
+def _turn_client(agent: Any) -> Any:
+    """The provider client the turn's request will go through.
+
+    For :data:`REQUEST_CLIENT_API_MODES`, the per-request client, built here and
+    released with a reuse reason so the turn's checkout finds it cached; any
+    failure falls back to the primary ``agent.client``.
+    """
+
+    create = getattr(agent, "_create_request_openai_client", None)
+    release = getattr(agent, "_close_request_openai_client", None)
+    if str(getattr(agent, "api_mode", "") or "") in REQUEST_CLIENT_API_MODES and callable(create) and callable(release):
+        try:
+            client = create(reason="prewarm_preconnect")
+            release(client, reason="request_complete")
+            return client
+        except Exception:
+            logger.debug("prewarm pre-connect could not check out the request client", exc_info=True)
+    return getattr(agent, "client", None)
+
+
 def _http_client(agent: Any) -> Any:
-    """The ``httpx.Client`` under the actor's provider client, or None.
+    """The ``httpx.Client`` under the turn's provider client, or None.
 
     ``openai.OpenAI._client`` and ``SdkFreeClient._client`` (``agent/transports/
     httpx_client.HttpCore``) are both the client the turn's request goes through.
@@ -70,7 +103,7 @@ def _http_client(agent: Any) -> Any:
         import httpx
     except Exception:
         return None
-    http = getattr(getattr(agent, "client", None), "_client", None)
+    http = getattr(_turn_client(agent), "_client", None)
     return http if isinstance(http, httpx.Client) else None
 
 
@@ -156,6 +189,7 @@ def preopen_provider_connection(agent: Any, timing: dict[str, Any]) -> str:
 
 __all__ = [
     "IDENTITY_HEADERS",
+    "REQUEST_CLIENT_API_MODES",
     "PRECONNECT_RECEIPT",
     "PREWARM_CONNECT_MS",
     "preopen_provider_connection",
