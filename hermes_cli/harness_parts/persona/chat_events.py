@@ -356,18 +356,32 @@ class _ChatProtocolV2Emitter:
             }
         )
 
+    def first_reply_text(self, delta: str | None) -> None:
+        """Mark ``provider_first_byte`` on the turn's FIRST reply-text delta; nothing else.
+
+        Not the provider's first byte, whatever the phase key says: reasoning,
+        tool calls and response headers all precede it. This is the earliest
+        REPLY site the turn owns. An empty delta is not reply text.
+
+        The whole of :meth:`delta`'s timing duty, split out so a turn that
+        streams no frames still gets the stamp: the run wires THIS as its
+        stream callback when the request did not ask for ``--stream``
+        (h-turn1-again: turn ``b00deebf`` ran on the argv fallback lane without
+        ``--stream``, so no callback reached the emitter and the record carried
+        no ``provider_first_byte`` though the codex stream logged its first
+        substantive progress).
+        """
+
+        if not delta or self._provider_first_byte_marked:
+            return
+        self._provider_first_byte_marked = True
+        if self._turn_phases is not None:
+            self._turn_phases.mark("provider_first_byte")
+
     def delta(self, delta: str | None) -> None:
         if not delta:
             return
-        if not self._provider_first_byte_marked:
-            # FIRST reply-text delta of the turn — not the provider's first
-            # byte, whatever the phase key says: reasoning, tool calls and
-            # response headers all precede it. Marked here because this is the
-            # earliest REPLY site the turn owns. An empty delta is not reply
-            # text — the guard above already returned.
-            self._provider_first_byte_marked = True
-            if self._turn_phases is not None:
-                self._turn_phases.mark("provider_first_byte")
+        self.first_reply_text(delta)
         segment = self._ensure_segment()
         text = str(delta)
         segment["text"] = str(segment.get("text") or "") + text

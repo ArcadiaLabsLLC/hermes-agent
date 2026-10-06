@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-06 (lane h-turn1-again)
+
+- [ ] **The serve's boot snapshot build (generation 1, `caller=prewarm reason=boot`) hung on the snapshot worker for 120 s (spawned 12:04:03.22, `snapshot_worker op=lost reason=timeout` 12:06:03.26, then 5.6 s in-process); a cold worker's first build never answered and the in-process fallback waited out the whole timeout** · fork / snapshot worker · evidence: base agent.log 2026-10-06 12:04:03–12:06:09 (`snapshot_build_core ... turns=` names all four turns of chat `…01af303d3501`; cli/hub riders `waited_ms=81325/83575`) · lane: snapshot worker
+- [ ] **A chat turn shares the four-worker serve pool with hydrate requests that park on a snapshot build: four `cli_stream` riders (12:04:04.112) held every worker, so Neko turn `b00deebf` queued 24 s before its handler (`chat_turn_accept_to_anchor request=chat-8920437299b64288 queue_ms=24111`), the launcher recycled the connection (`hung_request_chat_idle`, 16:04:43.9Z) and re-sent the turn on argv without `--stream`, and the original request still ran a second handler for the in-flight turn at 12:04:47.297; the launcher's `send_to_admit_ms=125` reads the ack, not the anchor** · fork / serve pool (launcher half: `send_to_admit_ms` source) · evidence: base agent.log 12:04:04–12:04:47, launcher diag 16:04:20–16:04:55Z · lane: chat turns get a pool slot a parked rider cannot take
+
 ### Filed on arrival — 2026-10-06 (lane h-newchat-t1)
 
 

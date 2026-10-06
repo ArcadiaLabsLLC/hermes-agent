@@ -47,19 +47,28 @@ def test_skill_catalog_memo_invalidates_when_walker_is_swapped(monkeypatch):
 
 
 def test_skill_catalog_memo_expires_after_ttl(monkeypatch):
+    """Past the TTL the read answers with the rows it has and the walk that
+    replaces them runs off the reader's thread (h-turn1-again)."""
+
     calls: list[int] = []
 
     def fake_walk(**_kwargs):
         calls.append(1)
-        return []
+        return [{"name": f"skill-{len(calls)}", "description": "", "category": "skills"}]
 
     monkeypatch.setattr(skills_tool, "_find_all_skills", fake_walk)
     monkeypatch.setattr(po.skills_resolver, "_SKILL_CATALOG_TTL_SECONDS", 0.0)
 
-    po.skills_context.available_skills_context()
-    po.skills_context.available_skills_context()
+    first = po.skills_context.available_skills_context()
+    second = po.skills_context.available_skills_context()
+    refresh = po.skills_resolver._catalog_refresh["thread"]
+    if refresh is not None:
+        refresh.join(5)
 
+    assert [row["name"] for row in first] == [row["name"] for row in second] == ["skill-1"]
     assert len(calls) == 2
+    monkeypatch.setattr(po.skills_resolver, "_SKILL_CATALOG_TTL_SECONDS", 60.0)
+    assert [row["name"] for row in po.skills_context.available_skills_context()] == ["skill-2"]
 
 
 def test_skill_catalog_memo_caches_empty_catalog(monkeypatch):
