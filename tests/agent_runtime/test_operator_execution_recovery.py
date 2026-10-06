@@ -39,6 +39,7 @@ def test_resolved_console_send_stops_without_tools_and_keeps_admission_identity(
                 return 1
             assert response["result"]["owner_observed"] is True
             assert stopped == ["Stopped by the user"]
+            assert call("status", {**target, "turn_request_id": "resolved-send"})["result"]["outcome"] == "stop_requested"
             assert call("read", target)["result"]["executions"][0]["outcome"] == "stop_requested"
             persist_mission_chat_turn(session_id=target["session_id"],
                 client_message_id="resolved-send", turn_id="resolved-send", state="interrupted",
@@ -53,6 +54,7 @@ def test_resolved_console_send_stops_without_tools_and_keeps_admission_identity(
     assert "result" in responses[0], responses[0]
     assert read_chat_turn_receipt("resolved-send").exit_code == 130
     assert execution_status(target["session_id"], "resolved-send")["outcome"] == "stopped"
+    assert call("status", {**target, "turn_request_id": "resolved-send"})["result"]["outcome"] == "stopped"
     receipt = read_chat_turn_receipt("resolved-send")
     assert receipt.session_scope == original.session_scope
     assert receipt.payload_fingerprint == original.payload_fingerprint
@@ -85,6 +87,7 @@ def test_resolved_stop_requires_exact_journal_evidence(tmp_path, monkeypatch, ev
     assert not read_chat_turn_receipt("guarded").stop_requested
     requested = call("read", {**target, "turn_request_id": "guarded"})
     assert requested["error"]["data"]["reason"] == reason
+    assert call("status", {**target, "turn_request_id": "guarded"})["error"]["data"]["reason"] == reason
 
 
 def test_missing_admission_never_claims_or_creates_a_stop(tmp_path, monkeypatch):
@@ -93,6 +96,23 @@ def test_missing_admission_never_claims_or_creates_a_stop(tmp_path, monkeypatch)
     result = lane.rpc(STOP, {**target, "turn_request_id": "never-admitted"})
     assert result["error"]["data"]["reason"] == "execution_not_admitted"
     assert read_chat_turn_receipt("never-admitted") is None
+
+
+def test_status_is_read_only_and_does_not_load_transcripts_or_interrupt(tmp_path, monkeypatch):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    monkeypatch.setattr("agent_runtime.persona_chat_history.messages._safe_curated_messages",
+                       lambda *a, **kw: pytest.fail("Status must not load transcript history"))
+    lane = OperatorLane(tmp_path / "home", lambda _: 0)
+    params = {**target, "turn_request_id": "observed", "message": "Work"}
+    assert lane.rpc(SEND, params)["result"]["accepted"]
+    original = read_chat_turn_receipt("observed")
+    result = call("status", params)["result"]
+    assert result["turn_request_id"] == "observed" and result["outcome"] == "unsettled"
+    assert read_chat_turn_receipt("observed") == original
+    assert call("status", {**params, "workspace_id": "other"})["error"]["data"]["reason"] == "workspace_changed"
+    missing = call("status", {**params, "turn_request_id": "missing"})["result"]
+    assert missing["admitted"] is False and missing["outcome"] == "unsettled"
+    assert read_chat_turn_receipt("missing") is None
 
 
 def test_queued_stop_lost_ack_repeated_stop_and_newer_turn_are_isolated(tmp_path, monkeypatch):

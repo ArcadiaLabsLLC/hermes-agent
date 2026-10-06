@@ -5,7 +5,7 @@ from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
     validate_operator_conversation,
 )
-from agent_runtime.operator_execution import stop_operator_execution
+from agent_runtime.operator_execution import execution_status, stop_operator_execution
 from agent_runtime.chat_turn_reservations import ChatTurnReservationError
 from .protocol import DEFERRED, RpcContext, deferred_reply, err, ok
 from .registry import method
@@ -58,3 +58,14 @@ def stop(rid, params: dict, context: RpcContext | None = None) -> dict:
     except (OperatorConversationRefused, ChatTurnReservationError) as exc:
         reason = exc.reason if isinstance(exc, OperatorConversationRefused) else exc.code
         return err(rid, 4090, "This turn could not be stopped.", {"reason": reason})
+
+
+@method("runtime.operator.conversation.status", tier=TIER_CONSOLE)
+def status(rid, params: dict, context: RpcContext | None = None) -> dict:
+    """Read the named execution receipt without loading its transcript or stopping it."""
+    try:
+        validate_operator_conversation(params)
+        return ok(rid, execution_status(params["session_id"], params.get("turn_request_id")))
+    except (OperatorConversationRefused, ChatTurnReservationError) as exc:
+        reason = exc.reason if isinstance(exc, OperatorConversationRefused) else exc.code
+        return err(rid, 4090, "This turn's status could not be read.", {"reason": reason})
