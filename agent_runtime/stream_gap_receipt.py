@@ -184,10 +184,11 @@ class StreamGapReceipt:
     def on_event(self, event: Any) -> None:
         now = self.clock()
         kind = str(_field(event, "type") or "?")
+        text = kind == TEXT_DELTA_TYPE and bool(_field(event, "delta"))
         if kind == REASONING_SUMMARY_DELTA_TYPE:
             self.reasoning_summary_chars += len(str(_field(event, "delta") or ""))
         if self.reply_at is None and self.first_event_at is not None and (
-                kind == FUNCTION_ARGS_DELTA_TYPE or (kind == TEXT_DELTA_TYPE and _field(event, "delta"))):
+                kind == FUNCTION_ARGS_DELTA_TYPE or text):
             self.reply_at = now
         if kind in TERMINAL_TYPES:
             self.terminal_at = now
@@ -196,7 +197,7 @@ class StreamGapReceipt:
             return
         lag_ms = None if self.last_chunk_at is None else max(0.0, (now - self.last_chunk_at) * 1000.0)
         if self.first_event_at is None:
-            if kind == TEXT_DELTA_TYPE and _field(event, "delta"):
+            if text:
                 self.reply_at = now
             # The first event's lag is reported apart: it opens the window and,
             # on a cold process, carries the SDK's one-off event-model build.
@@ -208,7 +209,7 @@ class StreamGapReceipt:
                 self.probe.start()
         elif lag_ms is not None:
             self.max_lag_ms = lag_ms if self.max_lag_ms is None else max(self.max_lag_ms, lag_ms)
-        if kind == TEXT_DELTA_TYPE and _field(event, "delta"):
+        if text:
             self.text_at, self.text_lag_ms, self.end = now, lag_ms, "text"
             self.text_chunk_at = self.last_chunk_at
             if self.window_chunks and self.window_chunks[-1][0] == self.text_chunk_at:
