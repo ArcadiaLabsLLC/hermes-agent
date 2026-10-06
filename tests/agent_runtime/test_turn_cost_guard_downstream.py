@@ -39,6 +39,13 @@ Killing mutations: ``PRECONNECT_CONNECTIONS = 1`` (the title takes the one socke
 prewarm's ``_instance_as_the_send_path_stamps_it`` dropped (the actor is discarded); the
 ``defer_prewarmed_turn_persist`` seam answering False (no deferred-persist receipt).
 
+h-prep-contention: three stream readers of the chat (one ``hub``, two ``cli``, as live 2026-10-06
+19:03) poll and build their frames beside every turn, and another prewarmed actor's keep-warm chain
+fires every 50 ms. The readers share ONE turn-section read per section; no keep-warm refresh starts
+once the process has sent its first turn (at most one in flight); the warm budget holds. Killing
+mutation: ``provider_preconnect._keep_warm``'s ``_PROCESS_REQUEST_SENT`` check dropped (recorded in
+the commit).
+
 h-prereq-window: every turn writes ONE ``send_prep_receipt`` (anchor -> request_sent split into
 its phase marks), and a warm turn sends within the ABSOLUTE ``WARM_ANCHOR_TO_REQUEST_SENT_MS``,
 so a regression that slows every turn alike goes red (the turn-0-vs-warm budget cannot see it).
@@ -364,6 +371,65 @@ def _stream_gate(start: int, builds: _BuildCounter) -> tuple[list[str], int, int
     return types, builds.calls - before, batch[-1][0]
 
 
+class _Readers:
+    """h-prep-contention: the live serve's three stream readers of one chat (one ``hub``, two
+    ``cli`` -- 2026-10-06 19:03), each polling the log and building its frames for every new batch
+    while the turns run, as the serve's producers do."""
+
+    CALLERS = ("hub", "cli", "cli")
+    POLL_S = 0.1
+
+    def __init__(self, offset: int) -> None:
+        import agent_runtime.snapshot_turn_yield  # noqa: F401  (the readers' lazy imports)
+        import agent_runtime.turn_section_read  # noqa: F401
+        from agent_runtime.running_work import build_running_work
+
+        build_running_work()  # live readers were attached long before the chat; their imports are paid
+        self.stop = threading.Event()
+        self.frames: list[str] = []
+        self.threads = [threading.Thread(target=self._read, args=(caller, offset), daemon=True,
+                                         name=f"stream-reader-{index}-{caller}")
+                        for index, caller in enumerate(self.CALLERS)]
+        for thread in self.threads:
+            thread.start()
+
+    def _read(self, caller: str, offset: int) -> None:
+        from agent_runtime.patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY
+        from agent_runtime.stream.build import _batch_frames_with_liveness
+
+        while not self.stop.wait(self.POLL_S):
+            batch = _batch_since(offset)
+            if not batch:
+                continue
+            for frame in _batch_frames_with_liveness(
+                batch, base_offset=offset, delta_patches=True, resync=False, heartbeat_interval_seconds=60,
+                fold_entities=sorted(set(DECLARING) | {PERSONA_CHAT_OPEN_CAPABILITY}), caller=caller,
+            ):
+                self.frames.append(str(frame.get("type")))
+            offset = batch[-1][0]
+
+    def close(self) -> None:
+        self.stop.set()
+        for thread in self.threads:
+            thread.join(30)
+
+
+def _arm_other_actor_keepwarm(monkeypatch, base_url: str):
+    """Another prewarmed actor's keep-warm chain (live: eight chains from one prewarm pass),
+    firing every 50 ms instead of every 15 s so it is inside every turn's window."""
+
+    import httpx
+
+    from agent_runtime import provider_preconnect
+
+    monkeypatch.setattr(provider_preconnect, "KEEPWARM_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(provider_preconnect, "KEEPWARM_MAX_REFRESHES", 10_000)
+    http = httpx.Client()
+    other = SimpleNamespace(session_api_calls=0, _api_call_count=0)
+    provider_preconnect._keep_warm(other, http, base_url, "other-actor", {}, (0, 0))
+    return http
+
+
 def _await_prewarm(log: _Log, root: str) -> str:
     deadline = time.monotonic() + 120
     while True:
@@ -435,6 +501,7 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
         warm_worker = threading.Thread(target=executor_mod.bound_binding().turn_section, args=(ROOT,),
                                        kwargs={"named": (INSTANCE,), "evict": 1}, daemon=True)
         warm_worker.start()
+        readers = keepwarm_http = None
         serve = _Serve(monkeypatch, capsys)
         try:
             # ── the new chat ──────────────────────────────────────────────────
@@ -455,6 +522,12 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                 violations.append(f"chat open: {cores} full snapshot core(s), frames {types}")
             if outcome != "warmed":
                 violations.append(f"chat open: prewarm outcome={outcome}")
+
+            # h-prep-contention: three readers of the chat and another actor's keep-warm run
+            # beside every turn, as they did live.
+            provider_preconnect._PROCESS_REQUEST_SENT.clear()
+            keepwarm_http = _arm_other_actor_keepwarm(monkeypatch, provider.base_url)
+            readers = _Readers(offset)
 
             # ── three turns ───────────────────────────────────────────────────
             sections_seen = len(log.receipts("turn_section "))
@@ -481,7 +554,12 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     violations.append(f"turn {index}: {cores} full snapshot core(s), frames {types}")
                 sections = log.receipts("turn_section ")[sections_seen:]
                 sections_seen += len(sections)
-                executors = [_fields(s).get("executor") for s in sections]
+                built = [_fields(s) for s in sections if _fields(s).get("source") == "built"]
+                executors = [b.get("executor") for b in built]
+                offsets = [b.get("offset") for b in built]
+                if len(offsets) != len(set(offsets)):
+                    violations.append(f"turn {index}: {len(offsets)} turn-section reads for offsets {offsets} "
+                                      f"({len(_Readers.CALLERS)} readers of one root share one read per section)")
                 if not executors or set(executors) != {"worker"}:
                     violations.append(f"turn {index}: turn-section read on the stream thread: {executors}")
                 if index == 0 and timing.get("visibility_bundle_builds") != 0:
@@ -542,6 +620,16 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                 if not isinstance(sent, int) or sent > bound:
                     budgets.append(f"turn {index}: anchor->request_sent {sent} ms > {bound}")
 
+            # h-prep-contention: no keep-warm refresh once the process has sent a turn.
+            readers.close()
+            first_sent = next((i for i, line in enumerate(log.lines) if line.startswith("send_prep_receipt ")), None)
+            late = [m for m in log.lines[first_sent or 0:] if m.startswith("persona_chat_actor_prewarm_keepwarm ")]
+            # One refresh may have been in flight when the first request left; none may start after it.
+            if first_sent is None or len(late) > 1:
+                violations.append(f"{len(late)} keep-warm refresh(es) after the process sent its first turn")
+            if "persona_chat_turn" not in readers.frames:
+                violations.append(f"the attached readers built no turn frames: {readers.frames}")
+
             warm = [sent_by_turn[i] for i in range(1, TURNS) if i in sent_by_turn]
             if 0 in sent_by_turn and warm and sent_by_turn[0] > max(warm) + FIRST_TURN_OVER_WARM_MS:
                 budgets.append(f"turn 0: anchor->request_sent {sent_by_turn[0]} ms > the slowest warm turn "
@@ -560,6 +648,10 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
             violations.extend(_prefix_breaks(bodies))
         finally:
             serve.close()
+            if readers is not None:
+                readers.close()
+            if keepwarm_http is not None:
+                keepwarm_http.close()
             executor_mod.unbind()
             # Process state a bundled run's next file must not inherit.
             initialize_persona_chat_runtime_registry(enabled=False)

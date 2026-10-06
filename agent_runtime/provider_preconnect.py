@@ -46,6 +46,15 @@ re-uses them every :data:`KEEPWARM_INTERVAL_SECONDS` (under the transport's
 :data:`KEEPWARM_MAX_REFRESHES` times -- an operator who reads before typing
 still finds them warm.
 
+h-prep-contention (2026-10-06): the keep-warm also stops once ANY turn in the process has
+sent its request (:func:`note_process_request_sent`, marked with ``request_sent``). Live
+19:03 the open's prewarm pass warmed eight actors, and their chains (8 x 15 s, two ``HEAD``
+each) fired 30 refreshes in the minute the operator chatted with ONE of them -- three inside
+one turn's anchor -> ``request_sent`` window (``elapsed_ms`` up to 667 on a pooled
+connection: the thread starved beside the turn). The first-in-process handshake the
+pre-connect exists to move has been paid by then, and a chatting operator's own turns keep the
+process-shared pool warm.
+
 What it does not do: send a body, call a model, or carry a credential (the SDK
 and the SDK-free client both add auth per request, never on the ``httpx.Client``,
 and :data:`IDENTITY_HEADERS` admits no other header);
@@ -96,6 +105,16 @@ STATUS_NO_CLIENT = "no_client"
 STATUS_NO_URL = "no_base_url"
 STATUS_LOOPBACK = "skipped_loopback"
 STATUS_FAILED = "failed"
+
+
+#: Set by the first ``request_sent`` in this process; every keep-warm chain stops on it.
+_PROCESS_REQUEST_SENT = threading.Event()
+
+
+def note_process_request_sent() -> None:
+    """A turn's request left this process: no actor's keep-warm refreshes again."""
+
+    _PROCESS_REQUEST_SENT.set()
 
 
 #: API modes whose turn sends on ``agent._create_request_openai_client``'s cached client.
@@ -219,7 +238,7 @@ def _keep_warm(agent: Any, http: Any, url: str, host: str, headers: dict[str, st
     """Arm one keep-warm refresh; it re-arms itself until the first request or the cap."""
 
     def fire() -> None:
-        if getattr(http, "is_closed", False) or _first_request_seen(agent) != seen:
+        if getattr(http, "is_closed", False) or _first_request_seen(agent) != seen or _PROCESS_REQUEST_SENT.is_set():
             return
         started = time.perf_counter()
         try:
@@ -280,5 +299,6 @@ __all__ = [
     "REQUEST_CLIENT_API_MODES",
     "PRECONNECT_RECEIPT",
     "PREWARM_CONNECT_MS",
+    "note_process_request_sent",
     "preopen_provider_connection",
 ]
