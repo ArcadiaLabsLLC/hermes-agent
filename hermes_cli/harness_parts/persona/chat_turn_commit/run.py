@@ -590,7 +590,15 @@ class _RunPhases:
                 # wire shape per token). Deltas ride the v2 `segment.delta` frame
                 # only; the emitter runs every frame inside the captured request
                 # context, so worker-thread deltas keep their serve request id.
-                stream_callback=stream_emitter.delta if getattr(args, "stream", False) else None,
+                # A turn that streams no frames still hands the runner a
+                # callback: the first-reply-text stamp, and nothing else. Without
+                # it a non-``--stream`` turn (the argv fallback lane) recorded no
+                # ``provider_first_byte`` (h-turn1-again).
+                stream_callback=(
+                    stream_emitter.delta
+                    if getattr(args, "stream", False)
+                    else stream_emitter.first_reply_text
+                ),
                 # C8: pre-trace acks are presentation-only. The emitter turns the
                 # payload into a v2 `turn.ack` stream frame — never a SessionDB
                 # row, never a turn-store element; replay never shows it.

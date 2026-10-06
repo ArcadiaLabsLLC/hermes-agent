@@ -117,7 +117,9 @@ reload) into `profile_timing` beside the context sub-spans.
 provider_first_byte` is client init + network + provider + whatever precedes the first reply-text
 delta (`:352-375`). **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
 turn's FIRST REPLY-TEXT DELTA, not the provider's first byte, so reasoning and tool rounds land
-inside it; `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
+inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner the emitter's
+`first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
+turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
 flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
@@ -151,7 +153,9 @@ themselves and return a `timings` mapping the handler folds beside `session_db_o
 `context_skill_preload_ms` / `context_hud_ms` / `context_signature_ms` from
 `agent_runtime/mission_chat_turn_context.py`, and `observability_skill_rows_ms` /
 `observability_catalog_walk_ms` / `observability_shared_catalog_ms` plus the 0/1
-`observability_catalog_cached` from `agent_runtime/prompt_observability.py`. The three in each
+`observability_catalog_cached` from `agent_runtime/prompt_observability.py` (`1` = no read on the
+turn's thread walked the catalog; past its 15 s TTL the memo answers stale and refreshes on a
+`skill-catalog-refresh` thread, so only a cold memo walks inline — h-turn1-again). The three in each
 group are disjoint (the walks are subtracted out of the block they run inside), so a group sums to
 its phase span rather than past it, and the mapping never reaches a persisted observability row —
 the handler pops it and `persist_prompt_observability_context` drops it again. Beside them ride
