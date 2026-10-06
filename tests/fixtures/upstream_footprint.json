@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-06",
   "base": "ee5f49b943",
-  "files": 176,
+  "files": 175,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h-mergeprep: AGENTS.md fork pointer removed; AGENTS.md is byte-identical to the merge base ee5f49b943",
+      "files": "176 -> 175: AGENTS.md (2 added, 0 deleted) leaves the footprint; its carry-permanent ledger row is gone",
+      "deleted_lines": "883 -> 883; heavy unchanged at 4",
+      "reason": "owner 2026-10-06: pointer conflicted at EOF and under the title; Claude reads CLAUDE.md, the GPT merge job's prompt names the runbook"
+    },
     {
       "change": "lane h-upgaps (fork-hygiene row: footprint 172->175 red + ledger gaps): baseline the three MCP job-wake seams that landed unledgered (d9bb0469d2, owner ruling 2026-10-03)",
       "files": "173 -> 176: tools/mcp_tool_handlers.py (3 added, 0 deleted), tools/mcp_tool_health.py (2 added, 0 deleted), tools/process_registry_notifications.py (3 added, 0 deleted) — red on main since d9bb0469d2, named and not baselined by the h-turn1-tail row",

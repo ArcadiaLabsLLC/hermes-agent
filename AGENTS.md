@@ -1,7 +1,5 @@
 # Hermes Agent - Development Guide
 
-**Fork (ArcadiaLabs):** also read [docs/downstream-development.md](docs/downstream-development.md) (downstream contract, fork landing gate) and [CLAUDE.md](CLAUDE.md) (session rules) before working here.
-
 Instructions for AI coding assistants and developers working on the hermes-agent codebase.
 This root file holds only what applies everywhere. Each area has its own `AGENTS.md` (aim for
 ~8k chars; `agent/subdirectory_hints.py` delivers up to 32k and truncates head/tail with a warning
