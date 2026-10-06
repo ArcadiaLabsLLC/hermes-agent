@@ -23,8 +23,9 @@ The weekly merge of `NousResearch/hermes-agent:main` into the fork. Rule: [[0006
    - `pyproject.toml` / `uv.lock`: the fork's pair (`coverage==7.16.0`, `pytest-timeout==2.4.0`, the `exclude-newer-package` exemptions, `--timeout=30` in `addopts`) plus any NEW upstream rows.
 4. Commit: `merge: upstream/main <sha> into main (<date>)`, body = each conflicted file + the rule applied.
 5. Touched tests directly (files that import a conflicted module), background, log, unpiped exit code. Fix merge-caused reds as `fix(merge): …`; name pre-existing reds by running the one test on `main`.
+   5b. **Re-check the skip list** (`tests/fixtures/upstream_skip_list.txt`, plan `docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md` §3 Stage 1). Name every `env` / `upstream` row's file on one `scripts/run_tests_bundled.sh --scope full <file> <file> …` run (a named file always runs), background, log, unpiped exit code. A file green on the merge candidate leaves the list in the merge commit; a file still red keeps its row with the SHA advanced to the incoming upstream tip. `P0` rows are NOT run here: they run only under the watchdog/VM the fork-hygiene P0 row names, and keep their SHA.
 6. `git push -u origin merge/upstream-<date>`. Report ≤ 30 lines.
-7. **Landing (operator or landing lane):** `scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` (≥ 25 min) + the two contract dumps `--check` + `scripts/doc_cite_adjacency.py` in its ruled scope; then `git push origin merge/upstream-<date>:main` if fast-forward. Update the cursor, delete the queue row, remove the worktree.
+7. **Landing (operator or landing lane):** `scripts/run_tests_bundled.sh --scope full tests` (the skip list applies; never on a workstation while the fork-hygiene P0 row is open) + the two contract dumps `--check` + `scripts/doc_cite_adjacency.py` in its ruled scope; then `git push origin merge/upstream-<date>:main` if fast-forward. Update the cursor, delete the queue row, remove the worktree.
 
 ## The scheduled job (Codex cloud, weekly)
 

@@ -33,12 +33,22 @@ source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it import
 a changed module, or a ``conftest.py`` above it changed. The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits. ``full`` runs everything discovered — the weekly upstream
-merge lane, where the inherited set is the thing under test.
+merge lane, where the inherited set is the thing under test. In BOTH scopes a
+file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
+P0 freeze files) does not run unless it is named on the command line.
 
 Membership is mechanical: files are grouped by their top-level test directory
-(``tests/<dir>``), sorted by path, and cut into consecutive chunks. Files named
-in the unbundled list run alone. Bundles are submitted longest-first by their
-members' cached durations.
+(``tests/<dir>``), sorted by path, and cut into consecutive bundles of at most
+``--bundle-size`` files and ``--bundle-seconds`` of cached duration. Files named
+in the unbundled list, and files cached slower than ``--solo-seconds``, run
+alone and are submitted FIRST; bundles follow, longest-first.
+
+After the Summary line the run prints what it cost (``=== Run cost ===``:
+utilization, start-up, re-run seconds, the critical path, the idle tail) and
+appends it, with every red file's failing node ids, to
+``.pytest_cache/hermes_bundled_runs.jsonl``. A red member whose failing set is
+identical to that record's is reported from its bundle (``known-red``), not
+re-run alone. ``scripts/run_tests_bundled_plan.py`` owns all four.
 
 The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``, ``members_to_rerun``,
 ``bundle_timeout``, ``run``) names no fork path, so it can be lifted into
@@ -93,6 +103,7 @@ def _load_sibling(name: str):
 
 
 rtp = _load_sibling("run_tests_parallel")
+plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 
 
 # ── Membership ──────────────────────────────────────────────────────────────
@@ -131,27 +142,35 @@ def assign_bundles(
     repo_root: Path,
     bundle_size: int,
     unbundled: Iterable[str] = (),
+    *,
+    durations: Optional[Dict[str, float]] = None,
+    bundle_seconds: float = 0.0,
+    solo_seconds: float = 0.0,
 ) -> Tuple[List[List[Path]], List[Path]]:
     """Split ``files`` into ``(bundles, solos)``.
 
     Every file lands in exactly one bundle or in ``solos``. Solos are the files
-    named in ``unbundled``; with ``bundle_size < 2`` every file is a solo.
-    Bundles never cross a top-level test directory and keep path order."""
+    named in ``unbundled``, and (``solo_seconds > 0``) every file whose CACHED
+    duration exceeds it; with ``bundle_size < 2`` every file is a solo.
+    Bundles never cross a top-level test directory and keep path order; each
+    closes at ``bundle_size`` members or, with ``bundle_seconds > 0``, before
+    its Σ estimate would pass that budget (``plan.cut_by_budget``)."""
 
     skip = set(unbundled)
+    durations = durations or {}
     by_rel = sorted(((_rel(f, repo_root), f) for f in files), key=lambda item: item[0])
     solos: List[Path] = []
     groups: Dict[Tuple[str, ...], List[Path]] = {}
     for rel, path in by_rel:
-        if bundle_size < 2 or rel in skip:
+        slow = solo_seconds > 0 and float(durations.get(rtp._format_file(path, repo_root)) or 0.0) > solo_seconds
+        if bundle_size < 2 or rel in skip or slow:
             solos.append(path)
             continue
         groups.setdefault(_group_key(rel), []).append(path)
     bundles: List[List[Path]] = []
     for key in sorted(groups):
-        members = groups[key]
-        for start in range(0, len(members), bundle_size):
-            bundles.append(members[start : start + bundle_size])
+        sized = [(m, _estimate(m, repo_root, durations)) for m in groups[key]]
+        bundles.extend(plan.cut_by_budget(sized, bundle_seconds, bundle_size))
     return bundles, solos
 
 
@@ -277,12 +296,14 @@ class ScopeSelection:
     importer: List[Path] = field(default_factory=list)  # it imports a changed module
     conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
     named: List[Path] = field(default_factory=list)  # named explicitly on the command line
+    full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
     excluded: List[Path] = field(default_factory=list)
+    skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
 
     @property
     def selected(self) -> List[Path]:
         return sorted(
-            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.named,
+            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.named + self.full,
             key=lambda p: str(p),
         )
 
@@ -293,20 +314,31 @@ def select_scope(
     inherited: set[str],
     changed: set[str],
     named: Iterable[Path] = (),
+    skipped: Iterable[str] = (),
+    full: bool = False,
 ) -> ScopeSelection:
     """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
     manifest), plus each inherited file the change could reach — the file
     itself changed, the source its name maps to changed, it imports a changed
     module, or a ``conftest.py`` in one of its directories changed. Files named
-    explicitly (not found by walking a directory) always run."""
+    explicitly (not found by walking a directory) always run.
+
+    A file on the upstream skip list (``skipped``) goes to ``skipped_red`` and
+    nowhere else, in both scopes, unless it is named (owner ruling O1: skip
+    wins over reach). ``full=True`` puts every other file in ``full``."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
     changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
+    skipped = set(skipped)
     sel = ScopeSelection()
     for path in files:
         rel = _rel(path, repo_root)
-        if rel not in inherited:
+        if rel in skipped and path.resolve() not in named_real:
+            sel.skipped_red.append(path)
+        elif full:
+            (sel.named if path.resolve() in named_real else sel.full).append(path)
+        elif rel not in inherited:
             sel.fork_only.append(path)
         elif path.resolve() in named_real:
             sel.named.append(path)
@@ -382,6 +414,7 @@ class RunResult:
     reruns: int
     deaths: List["Death"] = field(default_factory=list)
     rebundles: int = 0
+    ledger: Optional["plan.RunLedger"] = None
 
 
 @dataclass
@@ -410,18 +443,30 @@ def run(
     flat_timeout: float,
     retries: int,
     durations: Dict[str, float],
+    bundle_seconds: float = 0.0,
+    solo_seconds: float = 0.0,
+    known_reds: Optional[Dict[str, frozenset]] = None,
     bundle_runner: Optional[BundleRunner] = None,
     solo_runner: Optional[SoloRunner] = None,
     on_outcome: Optional[Callable[[FileOutcome], None]] = None,
 ) -> RunResult:
     """Run ``files`` as bundles plus solos; return one outcome per file.
 
+    Solos are submitted first, then bundles longest-first. A red member of a
+    finished bundle whose failing set is in ``known_reds`` unchanged is
+    reported from the bundle (``via="known-red"``), not re-run alone.
     ``bundle_runner`` / ``solo_runner`` default to the per-file runner's
     ``_run_one_file_once`` / ``_run_one_file``; tests inject fakes."""
 
     bundle_runner = bundle_runner or rtp._run_one_file_once
     solo_runner = solo_runner or rtp._run_one_file
-    bundles, solos = assign_bundles(files, repo_root, bundle_size, unbundled)
+    bundles, solos = assign_bundles(
+        files, repo_root, bundle_size, unbundled,
+        durations=durations, bundle_seconds=bundle_seconds, solo_seconds=solo_seconds,
+    )
+    known_reds = known_reds or {}
+    ledger = plan.RunLedger()
+    solo_seq = iter(range(1 << 30))
 
     lock = threading.Lock()
     outcomes: List[FileOutcome] = []
@@ -441,7 +486,18 @@ def run(
 
     def _solo(path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
         timeout = rtp._effective_file_timeout(path, repo_root, flat_timeout, durations)
-        fpath, rc, output, summary, wall = solo_runner(path, pytest_args, repo_root, timeout, retries)
+        events_path = scratch / f"solo-{next(solo_seq):05d}.jsonl"
+        args = list(pytest_args) + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        t0 = time.time()
+        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, retries)
+        lines, rel = _read_lines(events_path), _rel(path, repo_root)
+        first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
+        with lock:
+            startup = None if first.session_start is None else max(0.0, first.session_start - t0)
+            ledger.processes.append(plan.Process(via, [rel], t0, time.time(), startup))
+            if tally is not None:
+                ledger.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
+            ledger.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
         if via == "rerun" and rc == 0 and leak_info is not None:
             with lock:
                 leaks.append(leak_info)
@@ -458,17 +514,13 @@ def run(
         timeout = bundle_timeout(members, repo_root, flat_timeout, durations)
         started = time.time()
         _first, rc, output, _summary, wall = bundle_runner(members[0], args, repo_root, timeout)
-        try:
-            lines = events_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            lines = []
-        events = tally_events(lines)
+        events = tally_events(_read_lines(events_path))
+        rels = [_rel(m, repo_root) for m in members]
+        startup = None if events.session_start is None else max(0.0, events.session_start - started)
         with lock:
             bundle_walls.append((index, wall, rc))
-        rels = [_rel(m, repo_root) for m in members]
-        startup_share = 0.0
-        if events.session_start is not None:
-            startup_share = max(0.0, events.session_start - started) / len(members)
+            ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
+        startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
         stopped_in = None
         unreached: List[Path] = []
@@ -480,12 +532,21 @@ def run(
                 deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
-            if rel not in rerun:
-                seconds = startup_share + tally.collect_seconds + tally.test_seconds
-                _record(FileOutcome(member, 0, "", tally.summary(), seconds, "bundle", index))
+            work = tally.collect_seconds + tally.test_seconds
+            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds)
+            if rel not in rerun or known:
+                with lock:
+                    ledger.file_seconds[rel], ledger.failed[rel] = work, list(tally.failed_nodeids)
+                    if known:
+                        ledger.known_red.append(rel)
+                note = _known_red_output(index, rel, tally, output) if known else ""
+                via = "known-red" if known else "bundle"
+                _record(FileOutcome(member, 1 if known else 0, note, tally.summary(), startup_share + work, via, index))
                 continue
             if member in unreached:
                 continue  # never started: re-bundled below, not run alone
+            with lock:
+                ledger.first_attempt_seconds += work
             leak = Leak(
                 member,
                 index,
@@ -518,11 +579,11 @@ def run(
             key=lambda i: sum(_estimate(f, repo_root, durations) for f in bundles[i]),
             reverse=True,
         )
-        with lock:
-            for i in order:
-                futures.append(executor.submit(_bundle, i, bundles[i], executor))
+        with lock:  # solos first (Stage 3: the slow files start before the bundles fill the pool)
             for path in sorted(solos, key=lambda p: _estimate(p, repo_root, durations), reverse=True):
                 futures.append(executor.submit(_solo, path, "solo", None))
+            for i in order:
+                futures.append(executor.submit(_bundle, i, bundles[i], executor))
         # Re-runs are submitted from inside bundle jobs, so drain until the
         # list stops growing.
         seen = 0
@@ -543,14 +604,35 @@ def run(
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
+        t0 = time.time()
         fpath, rc, output, summary, wall = solo_runner(outcome.file, pytest_args, repo_root, flat_timeout, 0)
+        ledger.processes.append(plan.Process("retry", [_rel(outcome.file, repo_root)], t0, time.time()))
         outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
 
+    ledger.ended = time.time()
     return RunResult(
-        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles
+        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
     )
+
+
+def _read_lines(path: Path) -> List[str]:
+    try:
+        return path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+
+def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str) -> str:
+    """What a member reported red from its bundle prints: why it was not run
+    alone, its failing ids, and the bundle's short-summary lines for it."""
+
+    lines = [f"red in bundle #{index}, failing set identical to the last recorded run ({plan.RUNS_FILE}); "
+             "not re-run alone (owner ruling O5). Run it alone: scripts/run_tests.sh " + rel]
+    lines += [f"  {nodeid}" for nodeid in tally.failed_nodeids]
+    lines += [ln for ln in bundle_output.splitlines() if ln.startswith(("FAILED " + rel, "ERROR " + rel))]
+    return "\n".join(lines)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
@@ -558,6 +640,7 @@ def run(
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--manifest",
+    "--bundle-seconds", "--solo-seconds", "--skip-list",
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -586,7 +669,9 @@ def _split_argv(argv: List[str]) -> Tuple[List[str], List[str]]:
     return ours, passthrough + explicit
 
 
-def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, elapsed: float, jobs: int) -> int:
+def _print_summary(
+    result: RunResult, files: Sequence[Path], repo_root: Path, elapsed: float, jobs: int, cost: Optional[dict] = None
+) -> int:
     totals = {k: 0 for k in _CATEGORIES}
     failures = [o for o in result.outcomes if o.rc != 0]
     for outcome in result.outcomes:
@@ -607,6 +692,9 @@ def _print_summary(result: RunResult, files: Sequence[Path], repo_root: Path, el
         for index, wall, rc in walls[:10]:
             first = _rel(result.bundles[index][0], repo_root)
             print(f"    {wall:>7.1f}s  rc={rc}  #{index} ({len(result.bundles[index])} files from {first})")
+    if cost:
+        print()
+        print("\n".join(plan.render(cost)))
     leaks = [leak for leak in result.leaks if leak.kind == "leak"]
     unreached = [leak for leak in result.leaks if leak.kind == "unreached"]
     if leaks:
@@ -668,7 +756,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         "-j", "--jobs", type=int,
         default=int(os.environ.get("HERMES_TEST_WORKERS") or rtp._adaptive_default_jobs(os.cpu_count())),
     )
-    parser.add_argument("--bundle-size", type=int, default=DEFAULT_BUNDLE_SIZE)
+    parser.add_argument("--bundle-size", type=int, default=DEFAULT_BUNDLE_SIZE, help="most files per bundle")
+    parser.add_argument(
+        "--bundle-seconds", type=float, default=plan.DEFAULT_BUNDLE_SECONDS,
+        help="close a bundle before its Σ cached seconds would pass this (0: count only)",
+    )
+    parser.add_argument(
+        "--solo-seconds", type=float, default=plan.DEFAULT_SOLO_SECONDS,
+        help="a file cached slower than this runs alone, submitted first (0: off)",
+    )
+    parser.add_argument("--skip-list", type=Path, default=None, help=f"upstream-red skip list (default {plan.SKIP_LIST})")
     parser.add_argument(
         "--file-timeout", type=float,
         default=float(os.environ.get("HERMES_TEST_FILE_TIMEOUT", rtp._DEFAULT_FILE_TIMEOUT_SECONDS)),
@@ -703,7 +800,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not files:
         print("No test files to run", file=sys.stderr)
         return 1
-    if args.scope == SCOPE_FORK:
+    try:
+        skip_rows = plan.load_skip_list(args.skip_list or repo_root / plan.SKIP_LIST)
+    except (OSError, ValueError) as exc:
+        print(f"error: cannot read the upstream skip list: {exc}", file=sys.stderr)
+        return 2
+    named = [r for r in roots if r.is_file()]
+    if args.scope == SCOPE_FULL:
+        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, full=True)
+        files = sel.selected
+    else:
         manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
         try:
             inherited = load_manifest(manifest)
@@ -715,7 +821,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        sel = select_scope(files, repo_root, inherited, changed, named=[r for r in roots if r.is_file()])
+        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows)
         print(
             f"Scope fork (since {args.since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
@@ -725,9 +831,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             flush=True,
         )
         files = sel.selected
-        if not files:
-            print("No test files in scope", file=sys.stderr)
-            return 1
+    for path in sel.skipped_red:  # a run says what it did not run, and why
+        rel = _rel(path, repo_root)
+        print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")
+    if not files:
+        print("No test files in scope", file=sys.stderr)
+        return 1
 
     # Constant for the whole run, so setting it before any worker starts is
     # race-free: every bundle child can then load the plugin by name.
@@ -736,9 +845,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     durations = rtp._load_durations(repo_root)
     unbundled = load_unbundled(args.unbundled_list)
+    known_reds = plan.load_known_reds(repo_root)
     print(
-        f"Bundled runner: {len(files)} test files, bundle size {args.bundle_size}, "
-        f"{len(unbundled)} listed unbundled, -j {args.jobs}",
+        f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
+        f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
         flush=True,
     )
 
@@ -769,9 +879,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         flat_timeout=args.file_timeout,
         retries=args.file_retries,
         durations=durations,
+        bundle_seconds=args.bundle_seconds,
+        solo_seconds=args.solo_seconds,
+        known_reds=known_reds,
         on_outcome=_progress,
     )
     elapsed = time.monotonic() - started
+    cost = result.ledger.summary(args.jobs)
+    final_rc = {_rel(o.file, repo_root): o.rc for o in result.outcomes}
+    plan.record_run(repo_root, cost, final_rc, result.ledger.failed, known_reds)
 
     failures = [(o.file, o.output, o.summary) for o in result.outcomes if o.rc != 0]
     leaked = {leak.file for leak in result.leaks}
@@ -780,7 +896,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if clean:
         rtp._save_durations(clean, repo_root)
         print(f"  Durations cached to {rtp._DURATIONS_FILE} ({len(clean)} files)")
-    return _print_summary(result, files, repo_root, elapsed, args.jobs)
+    return _print_summary(result, files, repo_root, elapsed, args.jobs, cost)
 
 
 if __name__ == "__main__":

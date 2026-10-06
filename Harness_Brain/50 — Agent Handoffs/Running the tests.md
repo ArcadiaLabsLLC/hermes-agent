@@ -15,6 +15,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 ```bash
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
+scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
@@ -41,6 +42,34 @@ with nothing else running. If a scope is in doubt, list what it will run before 
 interrupted log's last lines before re-running; re-running the remainder without excluding what was
 in flight is how the second freeze happened.
 
+**The upstream skip list.** `tests/fixtures/upstream_skip_list.txt` names upstream-owned test files
+the bundled runner does NOT run, in either scope: the four P0 freeze files today, and upstream reds
+as they are proven (one row per file: `path · why · upstream SHA`, `why` starting `P0`, `env` or
+`upstream`). A listed file runs only when NAMED on the command line — reaching it by import, source
+or conftest does not (owner ruling O1); the run prints every file it skipped and why. A fork file is
+never listed (fork reds are fixed): `tests/scripts/test_upstream_skip_list.py` refuses one. A row is
+added only after the file was run once, bare, and seen red on `origin/main`; the weekly merge lane
+re-checks the `env`/`upstream` rows (`Merging upstream.md` step 5b). The P0 four on the list do not
+lift the workstation ban on `--scope full` above; that waits on the P0 row.
+
+**What a run prints about itself.** After the Summary line, `=== Run cost (Stage 0) ===`: processes
+by kind, worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
+start-up seconds, the seconds spent re-running red members, the critical-path process, the idle tail
+and the 20 slowest files. The same numbers, with every red file's failing node ids, are appended as
+one JSON line to `.pytest_cache/hermes_bundled_runs.jsonl` (git-ignored, per checkout). Quote that
+line in a landing report instead of reconstructing timings from the log.
+
+**Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
+cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
+alone, and solos are submitted before bundles. Both read `test_durations.json`, so a fresh
+worktree's first run plans by count; pass `0` to either flag to switch it off.
+
+**A red is not paid for twice** (owner ruling O5). A bundle member red with the SAME failing node
+set as the last recorded run is reported from its bundle (`known-red` in the progress line; its
+failure output says why), not re-run alone. A new red, or one whose failing set changed, is still
+re-run alone and an isolation leak is still named. To see a known red alone:
+`scripts/run_tests.sh <file>`.
+
 **Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
 `git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout on
 2026-08-01. The runners isolate files in hermetic subprocesses, find the shared test venv, and run
@@ -58,7 +87,8 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   excluded on this box.
 - A failure seen only in a parallel or bundled run is compared as a SET against a serial
   `scripts/run_tests.sh` run of that file before it is believed (the bundled runner names an
-  isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`).
+  isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A
+  `known-red` line was NOT run alone this time; it is not evidence of a leak either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
 
 ## How to run a heavy command (measured — do not improvise)

@@ -1,0 +1,21 @@
+# Upstream-owned test files scripts/run_tests_bundled.py does NOT run unless the
+# file is named on the command line (owner ruling 2026-10-05; plan
+# docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md §3 Stage 1, O1).
+#
+# One row per file: `path · why · upstream SHA`, the three fields separated by
+# " · ". `why` starts with a class word the weekly merge lane keys its re-check
+# on (Harness_Brain/50 — Agent Handoffs/Merging upstream.md, step 5b):
+#   P0       — a freeze candidate: re-run only under the watchdog/VM the P0 row names
+#   env      — environmental (provider-network hang, WSL bash shadow, missing acp/ripgrep): re-run bare
+#   upstream — an upstream bug, with its issue/PR link: re-run bare, drop when green
+# `upstream SHA` is the upstream/main tip the red was recorded against.
+#
+# Every path is in tests/fixtures/upstream_manifest.txt. A FORK file is never
+# listed — fork reds are fixed, not skipped (tests/scripts/test_upstream_skip_list.py).
+# A row is evidence, not a memory: an `env`/`upstream` row is added only after
+# the file was run once, bare, and seen red on origin/main.
+
+tests/hermes_cli/test_source_check.py · P0: in flight at both 2026-10-05 workstation hard freezes (fork-hygiene-queue P0 row); run only under a watchdog/VM · ee5f49b943
+tests/hermes_cli/test_source_launcher_publication.py · P0: same freeze set; republishes the running hermes.exe (h10-fhrel verdict) · ee5f49b943
+tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f49b943
+tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
