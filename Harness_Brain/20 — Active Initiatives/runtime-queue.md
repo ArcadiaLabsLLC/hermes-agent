@@ -28,6 +28,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **The serve's boot snapshot build (generation 1, `caller=prewarm reason=boot`) hung on the snapshot worker for 120 s (spawned 12:04:03.22, `snapshot_worker op=lost reason=timeout` 12:06:03.26, then 5.6 s in-process); a cold worker's first build never answered and the in-process fallback waited out the whole timeout** · fork / snapshot worker · evidence: base agent.log 2026-10-06 12:04:03–12:06:09 (`snapshot_build_core ... turns=` names all four turns of chat `…01af303d3501`; cli/hub riders `waited_ms=81325/83575`) · lane: snapshot worker
 - [ ] **A chat turn shares the four-worker serve pool with hydrate requests that park on a snapshot build: four `cli_stream` riders (12:04:04.112) held every worker, so Neko turn `b00deebf` queued 24 s before its handler (`chat_turn_accept_to_anchor request=chat-8920437299b64288 queue_ms=24111`), the launcher recycled the connection (`hung_request_chat_idle`, 16:04:43.9Z) and re-sent the turn on argv without `--stream`, and the original request still ran a second handler for the in-flight turn at 12:04:47.297; the launcher's `send_to_admit_ms=125` reads the ack, not the anchor** · fork / serve pool (launcher half: `send_to_admit_ms` source) · evidence: base agent.log 12:04:04–12:04:47, launcher diag 16:04:20–16:04:55Z · lane: chat turns get a pool slot a parked rider cannot take
 
+### Filed on arrival — 2026-10-06 (lane h-model-pick)
+
+- [ ] **`mission_chat_runtime_signature_components` reads `model_selection["effective_reasoning_effort"]`, a key `_chat_effective_model_payload` never writes (always None); the effort reaches the resident key only through `instance_revision`, and the cascade-source rule is spelled twice (`chat_model_source`, `operator_session_models._reasoning_effort_facts` / `resident_actor.log_turn_effort`)** · fork / chat model selection · evidence: `agent_runtime/mission_chat_turn_context.py`, `agent_runtime/persona_chat_session.py` · lane: one model+effort selection record (tiers + sources) built once per turn and read by facts, signature and receipts
+- [ ] **`_chat_effective_model_payload` falls back to `persona.model` then the agent_runtime config's `default_model`; a run with neither falls to the PROFILE's `model.default` inside the runner, so `conversation.models` can name a different (or no) model than the turn runs (not hit by Neko: its persona pins gpt-5.6-luna)** · fork / chat model selection · evidence: `agent_runtime/persona_chat_session.py::_chat_effective_model_payload`, `agent_runtime/profile_runner/execute.py::construct_agent` · lane: resolve the profile tier in the payload, in the persona's profile scope
+
 ### Filed on arrival — 2026-10-06 (lane h-newchat-t1)
 
 
@@ -381,6 +386,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-10-06 (lane h-model-pick)
+
+- [ ] **The `API call #N` INFO line (`agent/turn_usage.py`) names model and provider but not the reasoning effort the request carried; the fork's `chat_turn_effort` receipt is per run, so a per-call effort (fallback re-resolve, mid-turn switch) is still unlogged** · seam · evidence: Neko 12:18–12:19 turns (chat `…391ce2958eea`) could not be proven low from the log · lane: additive `effort=` field as a held upstream PR row in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`
 
 ### Filed on arrival — 2026-10-06 (lane h-conn-pool)
 

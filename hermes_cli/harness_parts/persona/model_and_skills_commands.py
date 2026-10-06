@@ -24,7 +24,7 @@ from .chat_coordinator import (
     _coordinator_confirm_payload,
     _coordinator_scope_from_args,
 )
-from agent_runtime.persona_chat_session import _safe_chat_model_override_value
+from agent_runtime.persona_chat_session import _safe_chat_model_override_value, log_model_selection
 from .chat_target import _persona_by_id
 
 __layer__ = "lanes"
@@ -235,6 +235,10 @@ def _cmd_persona_instance_set_model(args) -> int:
             else "refresh Harness snapshot; this agent's future chat turns and mission runs use the instance override unless a chat-session override is active"
         ),
     }
+    log_model_selection(verb="persona.instance.set_model", target=updated.id, scope="agent_instance",
+                        chosen="default" if request["use_default"] else
+                        f"model={request['model'] or '-'},effort={request['reasoning_effort'] or '-'}",
+                        outcome=status, saved="persona_instance_store")
     print(emit_json(data) if args.json else f"{status}: {updated.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0
 
@@ -377,6 +381,9 @@ def _cmd_persona_set_model(args) -> int:
             else "refresh Harness snapshot; instances without their own override inherit this default live"
         ),
     }
+    log_model_selection(verb="persona.set_model", target=str(target.id), scope="agent_default",
+                        chosen="default" if request["use_default"] else request["model"],
+                        outcome=status if changed or status != "applied" else "unchanged", saved="agent_store")
     print(emit_json(data) if args.json else f"{status}: {target.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0
 

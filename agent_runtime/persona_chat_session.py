@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from agent_runtime.cli_format import emit_json
 from agent_runtime.persona_assignments import (
@@ -22,8 +23,15 @@ from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 
 __layer__ = "stores"
 __all__ = [
+    "MODEL_SELECTION_RECEIPT",
+    "TURN_MODEL_RECEIPT",
     "_chat_effective_model_payload",
     "_chat_model_override_from_config",
+    "_resolve_turn_model_selection",
+    "chat_model_source",
+    "TURN_EFFORT_RECEIPT",
+    "log_model_selection",
+    "reasoning_effort_label",
     "_persona_chat_bound_owner",
     "_persona_chat_native_history",
     "_persona_chat_native_revision",
@@ -36,6 +44,19 @@ __all__ = [
 
 
 # Session creation and durability belong to ``persona_chat_durability``.
+
+_logger = logging.getLogger(__name__)
+
+#: One INFO line per admitted chat turn: the model it runs and the cascade tier
+#: that chose it (``override`` = this chat's session override, ``instance`` =
+#: the agent's instance override, ``profile`` = the persona/profile default).
+TURN_MODEL_RECEIPT = "chat_turn_model root=%s provider=%s model=%s source=%s"
+
+#: One INFO line per model write verb, applied or refused: which verb, which
+#: target, the scope asked for, the choice, and the store the choice landed in.
+MODEL_SELECTION_RECEIPT = (
+    "model_selection verb=%s target=%s scope=%s chosen=%s outcome=%s saved=%s"
+)
 
 
 _CHAT_MODEL_OVERRIDE_CONFIG_KEY = "mission_control_chat_model_override"
@@ -251,6 +272,65 @@ def _chat_effective_model_payload(
         "model_is_instance_override": bool(instance_provider or instance_model),
         "scope": "mission_control_chat_session",
     }
+
+
+def chat_model_source(selection: dict[str, object]) -> str:
+    """The cascade tier that chose ``effective_model``: override | instance | profile."""
+
+    if selection.get("chat_provider") or selection.get("chat_model"):
+        return "override"
+    if selection.get("instance_provider") or selection.get("instance_model"):
+        return "instance"
+    return "profile"
+
+
+def _resolve_turn_model_selection(
+    *,
+    session_db,
+    session_id: str | None,
+    requested_override: dict[str, object] | None,
+    persona,
+    config,
+    instance,
+) -> dict[str, object]:
+    """The model ONE chat turn runs: apply the turn's own override request, read
+    the session's stored one, fold the cascade, and receipt the result."""
+
+    override = _resolve_chat_model_override(
+        session_db=session_db, session_id=session_id, requested_override=requested_override,
+    )
+    selection = _chat_effective_model_payload(
+        persona=persona, config=config, override=override, instance=instance,
+    )
+    _logger.info(
+        TURN_MODEL_RECEIPT, session_id or "-", selection.get("effective_provider") or "-",
+        selection.get("effective_model") or "-", chat_model_source(selection),
+    )
+    return selection
+
+
+#: One INFO line per run that holds an agent: the effort its next request
+#: carries, read off the agent itself (so a reused or prewarmed actor whose
+#: config disagrees with ``requested`` shows the disagreement).
+TURN_EFFORT_RECEIPT = (
+    "chat_turn_effort root=%s turn=%s model=%s requested=%s effort=%s source=%s actor=%s"
+)
+
+
+def reasoning_effort_label(config) -> str | None:
+    """``{"enabled": .., "effort": ..}`` as the one word the wire carries; None = no config."""
+
+    if not isinstance(config, dict):
+        return None
+    if config.get("enabled") is False:
+        return "none"
+    return str(config.get("effort") or "") or None
+
+
+def log_model_selection(*, verb: str, target: str | None, scope: str, chosen: str | None,
+                        outcome: str, saved: str | None) -> None:
+    _logger.info(MODEL_SELECTION_RECEIPT, verb, target or "-", scope, chosen or "-",
+                 outcome, saved or "-")
 
 
 def _persona_chat_native_tip(session_db, root_session_id: str) -> str:
