@@ -23,6 +23,7 @@ runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
 usage_commands = lazy_module("hermes_cli.harness_parts.usage.commands")
 verify_commands = lazy_module("hermes_cli.harness_parts.verify_commands")
 builds_commands = lazy_module("hermes_cli.harness_parts.builds_commands")
+observe_commands = lazy_module("hermes_cli.harness_parts.observe_commands")
 work_commands = lazy_module("hermes_cli.harness_parts.work_commands")
 
 __layer__ = "wiring"
@@ -391,6 +392,15 @@ def add_observe(subs) -> None:
     observe = subs.add_parser("observe", help="Show redaction-safe Mission Control observability")
     observe.add_argument("--json", action="store_true")
     observe.set_defaults(func=runtime_commands._cmd_observe)
+    observe_subs = observe.add_subparsers(dest="observe_command")
+    builds = observe_subs.add_parser(
+        "snapshot-builds",
+        help="Summarise snapshot builds from agent.log receipts: by trigger, time, executor, turns affected",
+    )
+    builds.add_argument("--since", default="1h", help="Window back from now: 90s, 30m, 2h, 1d (default 1h)")
+    builds.add_argument("--log", default=None, help="agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)")
+    builds.add_argument("--json", action="store_true")
+    builds.set_defaults(func=observe_commands._cmd_observe_snapshot_builds)
 
 
 def add_contracts(subs) -> None:

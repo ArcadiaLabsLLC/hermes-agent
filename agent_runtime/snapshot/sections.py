@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any
 
 from hermes_time import now
 from agent_runtime.board_store import BoardStore
@@ -64,6 +67,8 @@ __all__ = [
     "SECTIONS",
     "SnapshotFrameBuild",
     "_build_snapshot_in_runtime_scope",
+    "precomputed_running_work",
+    "running_work_for_worker",
 ]
 
 
@@ -260,11 +265,24 @@ class SnapshotFrameBuild:
             self.offices_section = _keyed(self.offices_projection.offices, "workspace_id")
 
     def running_work(self) -> None:
-        """The running-work projection with its accountant, timed."""
+        """The running-work projection with its accountant, timed.
 
-        self.running_work_accountant = ProjectionAccountant("running_work")
-        with _timed_section(self.sections_ms, "running_work"):
-            self.running_work_section = build_running_work(self.running_work_accountant)
+        In the snapshot worker the section arrives PRECOMPUTED by the serve
+        (:func:`precomputed_running_work`): its live lanes read the in-memory
+        registries of the process that owns the work -- terminal processes,
+        delegations, the cron scheduler -- and in the worker those are empty, so a
+        worker-built section would silently lose its live rows.
+        """
+
+        recorded = _PRECOMPUTED_RUNNING_WORK.get()
+        if recorded is not None:
+            self.running_work_accountant = _RecordedAccountant(recorded)
+            self.sections_ms["running_work"] = self.sections_ms.get("running_work", 0) + int(recorded["ms"])
+            self.running_work_section = recorded["section"]
+        else:
+            self.running_work_accountant = ProjectionAccountant("running_work")
+            with _timed_section(self.sections_ms, "running_work"):
+                self.running_work_section = build_running_work(self.running_work_accountant)
         # The detected build source's cost on every frame (build plan §1, owner call 7):
         # measured inside the scan, so it is the scan's own ms, never a re-timing.
         detected = (((self.running_work_section.get("sources") or {}).get("build") or {}).get("sub") or {}).get("detected") or {}
@@ -463,6 +481,56 @@ class SnapshotFrameBuild:
             snapshot_yield_point()
             phase(self)
         return self.data
+
+
+_PRECOMPUTED_RUNNING_WORK: ContextVar[dict | None] = ContextVar(
+    "snapshot_precomputed_running_work", default=None
+)
+
+
+class _RecordedAccountant:
+    """The serve's running-work accountant, as the two reads ``parity`` makes of it."""
+
+    __slots__ = ("_summary", "_drop_samples")
+
+    def __init__(self, recorded: dict) -> None:
+        self._summary = dict(recorded["summary"])
+        self._drop_samples = list(recorded["drop_samples"])
+
+    def summary(self) -> dict[str, Any]:
+        return dict(self._summary)
+
+    def drop_samples(self) -> list[dict[str, Any]]:
+        return list(self._drop_samples)
+
+
+def running_work_for_worker() -> dict:
+    """The running-work section built HERE, in the serve, for a worker build to carry."""
+
+    from agent_runtime.serde import to_jsonable
+
+    accountant = ProjectionAccountant("running_work")
+    sink: dict[str, int] = {}
+    with _timed_section(sink, "running_work"):
+        section = build_running_work(accountant)
+    return {
+        "section": to_jsonable(section),
+        "summary": to_jsonable(accountant.summary()),
+        "drop_samples": to_jsonable(accountant.drop_samples()),
+        "ms": sink["running_work"],
+    }
+
+
+@contextmanager
+def precomputed_running_work(recorded: dict | None):
+    """Build with the serve's running-work section (the worker's side); ``None`` = build it."""
+
+    valid = isinstance(recorded, dict) and {"section", "summary", "drop_samples", "ms"} <= set(recorded)
+    token = _PRECOMPUTED_RUNNING_WORK.set(recorded if valid else None)
+    try:
+        yield
+    finally:
+        _PRECOMPUTED_RUNNING_WORK.reset(token)
 
 
 #: The frame's phases, IN ORDER (each reads what the ones before it set). The

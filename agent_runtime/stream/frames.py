@@ -69,7 +69,7 @@ def hydrate_frame(
     # appended after the shared build arrives as the first delta instead.
     # Requiring a newer build would make the launcher's boot hydrate wait for
     # the prewarm AND then pay a second build — strictly worse than no prewarm.
-    build_info: dict[str, Any] = {"caller": caller}
+    build_info: dict[str, Any] = {"caller": caller, "reason": "hydrate"}
     if snapshot is not None:
         snap = snapshot
         waited_ms: int | None = None

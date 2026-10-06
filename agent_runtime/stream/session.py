@@ -320,7 +320,7 @@ class StreamSession:
         # it because its watermark comes from the snapshot itself and the tail below
         # resumes from exactly that offset). A job without it would make every boot
         # wait for the prewarm and THEN pay a second full build.
-        boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True)
+        boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True, reason="hydrate")
         for liveness in _build_with_liveness(
             boot_job,
             # No applied core exists yet, so there is no position to advertise. See

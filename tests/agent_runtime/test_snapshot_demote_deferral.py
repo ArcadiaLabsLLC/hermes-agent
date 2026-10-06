@@ -633,7 +633,7 @@ def test_the_demote_lane_actually_calls_the_deferral_before_it_builds(monkeypatc
         return 0
 
     class _FakeJob:
-        def __init__(self, caller, accept_inflight=False):
+        def __init__(self, caller, accept_inflight=False, reason=None):
             order.append("job")
             self.snapshot = {"schema_version": 1, "sections": {}}
             self.error = None
