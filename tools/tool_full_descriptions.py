@@ -9,11 +9,11 @@ REVERT CONTRACT: this file is intentionally independent of the description-trim
 commit. A ``git revert`` of the trims restores the full text to the schemas while
 this mirror keeps serving the same originals — the full docs are never lost.
 
-Every tool briefed in ``tools.downstream_schema.BRIEF_DESCRIPTIONS`` has no entry
-here: the registry keeps upstream's live text (the brief rides only the wire, via
-the eternia-harness ``llm_request`` middleware), so ``full_tool_description``
-returns None for it and ``tool_describe`` serves the registry schema. Other
-entries retain the following snapshot contract.
+Every tool is collapsed to one line on the wire (``tools.downstream_schema``, lane
+h-prompt-brief) while the registry keeps its live text, so a tool with no row here
+returns None and ``tool_describe`` serves the registry schema. A row here wins over
+the registry (``skill_view`` has both a row and a hand-written wire line). The rows
+retain the following snapshot contract.
 
 MIRROR DISCIPLINE: this is a snapshot of the descriptions as they shipped before
 the T6b trims. If a tool's genuine documentation changes, update BOTH the brief
@@ -86,11 +86,8 @@ def full_tool_description(name: str) -> Optional[str]:
 
     Values may be plain strings or zero-arg callables (for profile-aware text).
     """
-    from tools.downstream_schema import BRIEF_DESCRIPTIONS
-
-    if name in BRIEF_DESCRIPTIONS:
-        # The registry holds upstream's live text; the brief rides only the wire.
-        return None
+    # A tool without a mirror row (every upstream tool the wire collapses) returns None:
+    # the registry holds its live text and tool_describe serves that.
     value = FULL_TOOL_DESCRIPTIONS.get(name)
     if value is None:
         return None

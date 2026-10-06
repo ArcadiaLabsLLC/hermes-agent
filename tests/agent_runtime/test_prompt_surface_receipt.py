@@ -42,10 +42,15 @@ def _record(agent):
         agent=agent, request=AgentRunRequest(profile="neko", user_message=f"hi\n{_HUD}"))
 
 
+#: The weight rides a parameter: the wire collapses every description to one line
+#: (lane h-prompt-brief) but carries parameter schemas whole.
+_HEAVY_PARAMS = {"payload": {"type": "string", "description": "x" * 2000}}
+
+
 def _tools():
     return [
         _td("read_file", "Read a file."),
-        _td("heavy_tool", "x" * 2000),
+        _td("heavy_tool", "Heavy.", _HEAVY_PARAMS),
         _td(_PROMOTED, "Composed Stage C workflow: launch, gate and navigate in one call. " + "More. " * 300),
         _td("tool_search", "Search 2 additional tools.\n\nEvery deferred capability is listed below.\n\n- memory\n- patch"),
     ]
@@ -56,7 +61,7 @@ def test_the_heaviest_tool_heads_the_per_tool_map_at_its_wire_size():
     per_tool = record["tool_schema"]["per_tool_chars"]
 
     assert next(iter(per_tool)) == "heavy_tool", per_tool
-    heavy = _td("heavy_tool", "x" * 2000)
+    heavy = _td("heavy_tool", "Heavy.", _HEAVY_PARAMS)
     assert per_tool["heavy_tool"] == len(json.dumps(heavy, ensure_ascii=False, separators=(",", ":")))
     assert list(per_tool.values()) == sorted(per_tool.values(), reverse=True)
 
