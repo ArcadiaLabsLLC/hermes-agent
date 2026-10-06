@@ -471,6 +471,8 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
 
     from . import paths
     from .chat_lane_bundle import chat_lane_bundle
+    from .cache_routing import persona_cache_scope_id
+    from .chat_lane_skill_index import chat_lane_index_skills
     from .config import load_agent_runtime_config
     from .mcp_admission import LANE_MISSION_CHAT
     from .mission_chat_turn_context import (
@@ -587,7 +589,9 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         skill_surface="mission_chat",
         skill_root_node_mode=False,
         session_id=active_session_id,
-        cache_scope_id=root,
+        # h-prompt S6: the same instance scope the turn passes (one setter).
+        cache_scope_id=persona_cache_scope_id(getattr(instance, "id", None), root),
+        chat_lane_index_skills=chat_lane_index_skills(persona, lane_bundle.operating_skills),
         tool_execution_scope_id=root,
         root_chat_session_id=root,
         persona_chat_runtime_registry=persona_chat_runtime_registry(),

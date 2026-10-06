@@ -1272,8 +1272,8 @@ def test_mission_chat_reply_sets_cache_scope_id_but_keeps_session_none(tmp_path,
     )
 
     request = captured["request"]
-    # The header-only cache scope is the stable chat session identity…
-    assert request.cache_scope_id == "chat-neko-stable-1"
+    # The header-only cache scope is the persona INSTANCE (h-prompt S6, ruling R5)…
+    assert request.cache_scope_id == "persona_chat:pi-neko-1"
     # …and the transcript/session-load key is left None (no re-bake).
     assert request.session_id is None
     invocation = captured["invocation"]

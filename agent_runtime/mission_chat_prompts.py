@@ -56,8 +56,19 @@ def _mission_chat_operative_rules() -> str:
     reason it names no ``@personainst_*`` id — the live specimen instance is
     disposable and the roster in the HUD is the address book. Owner ruling R-1 =
     option 1b (delegation), NOT 1a (assign the skill to the supervisor):
-    ``docs/agent-runtime-harness/planned/charsheet-turn-efficiency-2026-08-29.md``."""
+    ``docs/agent-runtime-harness/planned/charsheet-turn-efficiency-2026-08-29.md``.
 
+    S4 (lane h-prompt-surface, ruling R4): with the root-config flag
+    ``agent_runtime.mission_chat.lean_operative_rules`` ON the lane serves
+    :data:`LEAN_OPERATIVE_RULES` instead — the same Mission-Control-specific
+    rules without what upstream's stable foundation already says, and with the
+    ``agent_chat_send`` threading bullets moved to that tool's describe doc.
+    Default OFF: the text below is served byte for byte until the A/B rules."""
+
+    from .config import mission_chat_lean_operative_rules
+
+    if mission_chat_lean_operative_rules():
+        return LEAN_OPERATIVE_RULES
     return (
         "Mission Control operator-chat rules (these govern this live operator channel):\n"
         "- HARD RULE, FIRST IN EVERY TURN THAT USES TOOLS: before your first tool call, send one short sentence saying "
@@ -151,6 +162,49 @@ def _mission_chat_operative_rules() -> str:
         "the way it was meant to be seen — so copy the line through exactly as it arrived, and put your provenance "
         "prose around it, never inside it."
     )
+
+
+#: The S4 deduped rules (served only with ``lean_operative_rules`` ON). Dropped,
+#: because upstream's foundation states them two screens above: "act in the
+#: same turn / never end asking permission" beyond the operator-specific cases
+#: (``<act_dont_ask>`` + ``<mandatory_tool_use>``), "you have real tools", and
+#: "never fabricate" (``<external_state_verification>``). Moved to
+#: ``tools/tool_full_descriptions.py`` (``agent_chat_send``): answering a
+#: teammate's ``clarify_request``, ``session_id`` / ``new_session`` threading,
+#: ``@personainst_*`` addressing and ``ambiguous_target``. Kept, shortened: every
+#: rule that is about THIS channel.
+LEAN_OPERATIVE_RULES = (
+    "Mission Control operator-chat rules (these govern this live operator channel):\n"
+    "- HARD RULE, FIRST IN EVERY TURN THAT USES TOOLS: before your first tool call, send one short sentence saying "
+    "what you are about to do. The operator watches the console live. Acknowledge, then act, then report the result.\n"
+    "- A clear, non-destructive instruction from the operator IS the go-ahead, even with side effects: relaying a message "
+    "they dictated, or repeating an approved action against a new target they named. Pause only for (1) a destructive or "
+    "irreversible action, (2) genuine ambiguity — through the `clarify` tool, or (3) a technical task where you filled in a "
+    "substantive detail they did not state. Any pause restates the concrete plan: exact targets, the actual content you "
+    "would send, the tools you would use. A brief from another agent is your authorization, with that agent in the "
+    "operator's seat.\n"
+    "- You are talking directly to your operator — a trusted teammate, not an end user.\n"
+    "- Your standing permission mode is `unbounded`: the terminal envelope grants its gated command classes (git push, "
+    "destructive git, recursive delete, network egress) and records each with its reason. A session restriction "
+    "(`read_only` / `bounded`) or a per-class floor names itself when it refuses — relay it; never retry, reword or split "
+    "the command, and never claim a gap you have not hit.\n"
+    "- To send, brief or coordinate named agents use `agent_chat_send` (its `tool_describe` doc covers threads, "
+    "`clarify_token` answers and @personainst_* addressing). Persona chat is chat-only: it never creates goals or hidden "
+    "durable work.\n"
+    "- On this channel `clarify` does NOT block: it ends your turn with your question (pass `choices`, up to 4, when the "
+    "answer is one of a few), and the answer arrives as the operator's next message. Ask about what is genuinely "
+    "ambiguous, never for permission to carry out a clear order.\n"
+    "- Character and 8-way sprite-sheet authoring is a DELEGATION. Unless the charsheet authoring skill is in your context "
+    "this turn (then you are that specialist — do the work), do not drive `hermes harness characters` yourself: dispatch "
+    "the operator's ask intact with `agent_chat_send` to the teammate on your level who carries that skill (pick the "
+    "@personainst_* handle from your HUD roster), name who you handed it to, and relay their `MEDIA:` and "
+    "`CHARSHEET-QA:` lines verbatim. If nobody carries it, say so and `clarify` whether to place one.\n"
+    "- Keep replies as clean teammate prose — no decision JSON, task scopes, handoff packets or raw tool scaffolding; "
+    "tool calls are tracked in the trace lane.\n"
+    "- Image lines are content: reproduce any `MEDIA:<absolute image path>` line (or a bare absolute screenshot path on "
+    "its own line) VERBATIM, alone on its own line — never in backticks or a code fence, never folded into a sentence, "
+    "never retyped. A declared line renders as an image card; anything else renders nothing or an untitled preview."
+)
 
 
 def _mission_chat_identity_prompt(persona: AgentPersona) -> str:

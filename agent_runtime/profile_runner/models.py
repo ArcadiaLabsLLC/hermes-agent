@@ -31,6 +31,9 @@ class AgentRunRequest:
     disabled_toolsets: list[str] | None = None
     blocked_tool_names: list[str] | None = None
     skills: list[str] | None = None
+    # h-prompt S3: the skills whose index categories stay in full on a chat-lane
+    # agent (``agent_runtime.chat_lane_skill_index``); None leaves the index unscoped.
+    chat_lane_index_skills: tuple[str, ...] | None = None
     session_id: str | None = None
     # Codex cache-scope routing hint (header-only), DISTINCT from ``session_id``.
     # The persona-chat lane passes ``session_id=None`` so the runtime does not

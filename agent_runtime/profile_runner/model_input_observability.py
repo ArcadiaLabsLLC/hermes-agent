@@ -441,6 +441,12 @@ def _rendered_skills_prompt_chars(agent) -> int | None:
             )
         except Exception:
             compact = None
+        # h-prompt S3: the same persona-scoped demotion the seam unions in.
+        from agent_runtime.chat_lane_skill_index import COMPACT_ATTR
+
+        scoped = getattr(agent, COMPACT_ATTR, None)
+        if isinstance(scoped, frozenset) and scoped:
+            compact = frozenset(compact or ()) | scoped
         rendered = prompt_builder.build_skills_system_prompt(
             available_tools=valid,
             available_toolsets=avail_toolsets,

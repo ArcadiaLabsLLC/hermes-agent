@@ -111,6 +111,34 @@ def mission_chat_clarify_token_binding(cfg: AgentRuntimeConfig | None = None) ->
     return _root_knob(cfg, "clarify_token_binding", bool)
 
 
+#: The S4 A/B flag (lane h-prompt-surface, ruling R4): the ROOT ``config.yaml`` key
+#: ``agent_runtime.mission_chat.lean_operative_rules``. Read RAW, not through
+#: ``MissionChatConfig``: that dataclass rides the ``runtime_config`` wire via
+#: ``asdict(cfg)``, and an A/B switch is not a snapshot field.
+LEAN_OPERATIVE_RULES_KEY = ("agent_runtime", "mission_chat", "lean_operative_rules")
+
+
+def mission_chat_lean_operative_rules() -> bool:
+    """Whether the chat lane serves the deduped operative rules. Default False.
+
+    Off is today's prompt byte for byte. On drops the rules the upstream
+    foundation already states and moves the ``agent_chat_send`` threading
+    bullets to that tool's describe doc (``tools/tool_full_descriptions.py``).
+    Harness-wide, so ROOT config only; a fault reads as off.
+    """
+
+    try:
+        from ..parse_cache import cached_yaml_file
+
+        node: Any = cached_yaml_file(harness_root_config_path(), default=None)
+        for key in LEAN_OPERATIVE_RULES_KEY:
+            node = node.get(key) if isinstance(node, dict) else None
+        return node is True
+    except Exception:  # pragma: no cover - defensive; a config fault must not change the prompt
+        logger.debug("lean_operative_rules load failed; serving the full rules", exc_info=True)
+        return False
+
+
 def mission_chat_dispatch_session_policy(cfg: AgentRuntimeConfig | None = None) -> str:
     """Which thread a dispatch lands in when the caller names none.
 

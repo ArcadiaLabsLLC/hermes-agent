@@ -37,6 +37,25 @@ def persona_content_cache_key(instructions: str, tools: Optional[List[Dict[str, 
     digest = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()[:24]
     return f"pck_{digest}"
 
+#: Prefix of a persona-instance cache scope (lane h-prompt-surface S6, ruling R5).
+PERSONA_CACHE_SCOPE_PREFIX = "persona_chat:"
+
+
+def persona_cache_scope_id(persona_instance_id: Any, fallback: Any) -> Any:
+    """The chat lane's ``cache_scope_id``: ``persona_chat:<persona_instance_id>``.
+
+    Scoped to the persona INSTANCE (ruling R5), never wider: two chats of one
+    instance send byte-identical ``instructions + tools`` and now share the Codex
+    ``session_id`` / ``x-client-request-id`` headers, so a new chat's first turn can
+    reuse the bucket the previous chat filled. An instance belongs to exactly one
+    persona, so two personas never share a scope. With no instance id the scope
+    stays ``fallback`` (the chat session id), the pre-S6 routing.
+    """
+
+    instance = str(persona_instance_id or "").strip()
+    return f"{PERSONA_CACHE_SCOPE_PREFIX}{instance}" if instance else fallback
+
+
 def _cache_routing_fingerprint(value: Any) -> str | None:
     """One-way fingerprint for a cache-routing value.
 
