@@ -186,7 +186,9 @@ class SnapshotFrameBuild:
                 snapshot_yield_point()
                 return profile_readiness_for_persona(agent, skill_resolver=self.skill_resolver)
 
-            with _timed_section(self.readiness_split, "walk_ms"):
+            from hermes_cli.runtime_environment import runtime_environment_status_scope
+
+            with _timed_section(self.readiness_split, "walk_ms"), runtime_environment_status_scope():
                 self.readiness_by_persona_id = {
                     str(getattr(agent, "id", "") or ""): _readiness(agent)
                     for agent in self.agents

@@ -27,7 +27,10 @@ This module is the half that makes a missing package actionable: it names the
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
+from typing import Iterator
 
 from hermes_cli.venv_integrity import (
     canonical_distribution,
@@ -127,7 +130,42 @@ def _integrity_scan_distributions(packages: list[str]) -> list[str]:
     return scanned
 
 
+#: h-readiness: one answer per package list for the width of a scope. The
+#: snapshot's readiness walk asks once per persona, and every persona on one
+#: provider asks the same question of the same interpreter; each ask lists and
+#: stats the whole site-packages tree (~20 ms on the operator's venv).
+_STATUS_SCOPE: ContextVar[dict[tuple[str, ...], RuntimeEnvironmentStatus] | None] = ContextVar(
+    "hermes_runtime_environment_status_scope", default=None
+)
+
+
+@contextmanager
+def runtime_environment_status_scope() -> Iterator[None]:
+    """Answer :func:`runtime_environment_status` once per package list inside this scope.
+
+    For a bounded read that treats the interpreter as fixed while it runs (one
+    snapshot build). Never wrap a span that installs packages.
+    """
+
+    token = _STATUS_SCOPE.set({})
+    try:
+        yield
+    finally:
+        _STATUS_SCOPE.reset(token)
+
+
 def runtime_environment_status(packages: list[str]) -> RuntimeEnvironmentStatus:
+    memo = _STATUS_SCOPE.get()
+    if memo is None:
+        return _runtime_environment_status(packages)
+    key = tuple(packages)
+    status = memo.get(key)
+    if status is None:
+        status = memo[key] = _runtime_environment_status(packages)
+    return status
+
+
+def _runtime_environment_status(packages: list[str]) -> RuntimeEnvironmentStatus:
     availability = {package: module_available(import_name_for(package)) for package in packages}
     issues = [
         {
