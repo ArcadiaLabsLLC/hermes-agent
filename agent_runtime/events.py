@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import bisect
+import itertools
 import json
 import logging
 import os
@@ -31,23 +33,24 @@ _INDEXED_EVENT_ID_TOKEN_RE = re.compile(
 _ROTATION_CAP_ENV = "HERMES_EVENT_LOG_ROTATION_CAP_BYTES"
 _ROTATION_CAP_CACHE: dict[str, int] = {}
 
-# Process-local immutable event views keyed by the exact ordered rotation-slice
-# fingerprint. Snapshot/status builders intentionally create a fresh
-# CachedEventLog, but unchanged serve recomputations can safely reuse the same
-# raw lines and id index. Any append/rotation changes one source stamp and
-# creates a new point-in-time view.
-_EVENT_VIEW_CACHE: dict[
-    tuple[tuple[str, int, int], ...], tuple[list[str], dict[str, list[str]]]
-] = {}
+# The one process-wide event view per store (keyed by the oldest slice's path).
+# Sealed slices are immutable; the live slice only grows, so a view whose slice
+# list and sealed stats still match reads just the bytes appended since its last
+# refresh and indexes only those lines. The view's lists only ever grow in place:
+# each CachedEventLog pins a line COUNT when it materializes, so a reader never
+# sees lines appended after it started (a point-in-time view without a copy).
+# A new slice, a moved sealed stat, or a live slice that shrank (or was rewritten
+# at the same size) rebuilds the view whole, into fresh lists.
+_EVENT_VIEWS: dict[str, "_EventView"] = {}
 _EVENT_VIEW_CACHE_LOCK = threading.Lock()
 _EVENT_VIEW_CACHE_MAX = 8
 
 
 def _event_view_cache_clear() -> None:
-    """Test hook — clear reusable immutable event-log views."""
+    """Test hook — drop every process-wide event view."""
 
     with _EVENT_VIEW_CACHE_LOCK:
-        _EVENT_VIEW_CACHE.clear()
+        _EVENT_VIEWS.clear()
 
 
 def _rotation_cap_bytes() -> int:
@@ -329,59 +332,37 @@ class CachedEventLog(EventLog):
     call (the dominant repeated cost). This caches the split lines once and keeps
     the base's *selective* parse (substring pre-filter → ``json.loads`` only on
     matching lines), so it dedupes the file I/O without paying to parse every
-    event. It is a point-in-time view: each builder gets its own object, while
-    identical source fingerprints reuse an immutable process-local view. Appends
+    event. It is a point-in-time view: each builder gets its own object pinned to
+    a line count of the one process-wide view per store (``_EVENT_VIEWS``). Appends
     made elsewhere during a build are intentionally not reflected; the next
-    builder observes the changed size/mtime and loads a fresh view.
+    builder observes the live slice's new size and the view reads ONLY the
+    appended bytes (whole lines; a torn final line waits for the next refresh)
+    and indexes only those lines. A rotation, a moved sealed stat or a live slice
+    that shrank rebuilds the view whole.
 
     Rotation (C6a): the cache concatenates every slice oldest-first (rotated
     archive slices + live). Slices are contiguous in logical-offset space and the
     first slice starts at logical 0, so the flat concatenation's cumulative byte
     position IS the logical offset — ``iter_from_offset`` keeps resolving watermark
-    cursors unchanged. Pristine (single live slice) reads only ``events.jsonl``,
-    exactly one ``read_text``, as before.
+    cursors unchanged. Pristine (single live slice) reads only ``events.jsonl``.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self._lines: list[str] | None = None
-        self._lines_by_id_token: dict[str, list[str]] | None = None
+        self._positions_by_id_token: dict[str, list[int]] | None = None
+        self._line_count = 0
 
     def _cached_lines(self) -> list[str]:
-        if self._lines is None:
-            sources = list(event_rotation.ordered_line_sources())
-            fingerprint: list[tuple[str, int, int]] = []
-            for source in sources:
-                try:
-                    stat = source.stat()
-                    fingerprint.append((str(source), stat.st_mtime_ns, stat.st_size))
-                except OSError:
-                    fingerprint.append((str(source), -1, -1))
-            cache_key = tuple(fingerprint)
-            with _EVENT_VIEW_CACHE_LOCK:
-                cached = _EVENT_VIEW_CACHE.get(cache_key)
-            if cached is not None:
-                self._lines, self._lines_by_id_token = cached
-                return self._lines
+        """Pin this reader's point-in-time view of the process-wide event view.
 
-            lines: list[str] = []
-            for source in sources:
-                if source.exists():
-                    lines.extend(source.read_text(encoding="utf-8").splitlines())
-            self._lines = lines
-            indexed: dict[str, list[str]] = {}
-            for line in lines:
-                # One line per token bucket regardless of how many times the token
-                # appears in the line — a payload echoing its own id (lane.created
-                # repeats task_id inside payload) must not double the event. Two
-                # DIFFERENT tokens on one line still index it once each.
-                for token in {match.group(0) for match in _INDEXED_EVENT_ID_TOKEN_RE.finditer(line)}:
-                    indexed.setdefault(token, []).append(line)
-            self._lines_by_id_token = indexed
-            with _EVENT_VIEW_CACHE_LOCK:
-                if len(_EVENT_VIEW_CACHE) >= _EVENT_VIEW_CACHE_MAX:
-                    _EVENT_VIEW_CACHE.clear()
-                _EVENT_VIEW_CACHE[cache_key] = (lines, indexed)
+        Returns the view's shared, append-only line list; only its first
+        ``self._line_count`` lines belong to this reader — every read below
+        bounds itself by that count, never by ``len()``.
+        """
+
+        if self._lines is None:
+            self._lines, self._positions_by_id_token, self._line_count = _acquire_event_view()
         return self._lines
 
     def _scan(
@@ -395,9 +376,12 @@ class CachedEventLog(EventLog):
     ) -> list[Event]:
         type_tokens = _type_json_tokens(types)
         selected: list[Event] = []
-        self._cached_lines()
-        candidates = (self._lines_by_id_token or {}).get(token, ())
-        for line in reversed(candidates):
+        lines = self._cached_lines()
+        positions = (self._positions_by_id_token or {}).get(token, ())
+        # Positions ascend; the ones at or past this reader's count were indexed
+        # by a later refresh and are not part of this point-in-time view.
+        for at in range(bisect.bisect_left(positions, self._line_count) - 1, -1, -1):
+            line = lines[positions[at]]
             if token not in line:
                 continue
             if type_tokens is not None and not any(type_token in line for type_token in type_tokens):
@@ -449,17 +433,138 @@ class CachedEventLog(EventLog):
     def tail(self, n: int) -> list[Event]:
         if n <= 0:
             return []
-        return [from_jsonable(Event, json.loads(line)) for line in self._cached_lines()[-n:] if line.strip()]
+        lines = self._cached_lines()
+        count = self._line_count
+        return [from_jsonable(Event, json.loads(line)) for line in lines[max(0, count - n):count] if line.strip()]
 
     def iter_from_offset(self, offset: int) -> Iterator[tuple[int, Event]]:
+        # Whole-view semantics kept: the logical offset is the cumulative byte
+        # position of the flat concatenation, so this walks from the first line.
         current = 0
         start = max(0, int(offset or 0))
-        for line in self._cached_lines():
+        lines = self._cached_lines()
+        for line in itertools.islice(lines, self._line_count):
             raw = (line + "\n").encode("utf-8")
             current += len(raw)
             if current <= start or not line.strip():
                 continue
             yield current, from_jsonable(Event, json.loads(line))
+
+
+class _EventView:
+    """One store's event log as split lines plus an id-token index of positions.
+
+    ``consumed`` is the live slice's byte count already split into ``lines`` —
+    always just past a ``\\n``, so a torn final line is left for the next refresh.
+    """
+
+    __slots__ = ("sources", "sealed_stamps", "live_stamp", "consumed", "lines", "positions")
+
+    def __init__(self, sources, sealed_stamps, live_stamp, consumed, lines, positions) -> None:
+        self.sources: tuple[str, ...] = sources
+        self.sealed_stamps: tuple[tuple[int, int, int], ...] = sealed_stamps
+        self.live_stamp: tuple[int, int, int] = live_stamp
+        self.consumed: int = consumed
+        self.lines: list[str] = lines
+        self.positions: dict[str, list[int]] = positions
+
+
+def _stamp(path) -> tuple[int, int, int]:
+    """``(inode, mtime_ns, size)``: a slice replaced by a new file is a new slice."""
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return (-1, -1, -1)
+    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+
+
+def _read_live_from(path, start: int) -> bytes:
+    """The live slice's bytes from ``start`` to its end — the one live-slice read."""
+
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(start)
+            return handle.read()
+    except FileNotFoundError:
+        return b""
+
+
+def _whole_lines(data: bytes) -> tuple[list[str], int]:
+    """Split ``data`` up to its last ``\\n``; return the lines and the bytes used."""
+
+    used = data.rfind(b"\n") + 1
+    return data[:used].decode("utf-8").splitlines(), used
+
+
+def _index_lines(lines: list[str], positions: dict[str, list[int]], start: int) -> None:
+    for at in range(start, len(lines)):
+        # One position per token bucket regardless of how many times the token
+        # appears in the line — a payload echoing its own id must not double the
+        # event. Two DIFFERENT tokens on one line still index it once each.
+        for token in {match.group(0) for match in _INDEXED_EVENT_ID_TOKEN_RE.finditer(lines[at])}:
+            positions.setdefault(token, []).append(at)
+
+
+def _build_event_view(sources, sealed, sealed_stamps, live, live_stamp) -> _EventView:
+    lines: list[str] = []
+    for source in sealed:
+        if source.exists():
+            lines.extend(source.read_text(encoding="utf-8").splitlines())
+    appended, consumed = _whole_lines(_read_live_from(live, 0))
+    lines.extend(appended)
+    positions: dict[str, list[int]] = {}
+    _index_lines(lines, positions, 0)
+    return _EventView(sources, sealed_stamps, live_stamp, consumed, lines, positions)
+
+
+def _append_to_event_view(view: _EventView, sources, sealed_stamps, live, live_stamp) -> bool:
+    """Bring ``view`` up to date in place by reading only the live slice's
+    appended bytes. False when it cannot: the slice list or a sealed stat moved
+    (a rotation, an edit), or the live slice shrank, was replaced, or was
+    rewritten."""
+
+    if view.sources != sources or view.sealed_stamps != sealed_stamps:
+        return False
+    if live_stamp == view.live_stamp:
+        return True
+    inode, _mtime, size = live_stamp
+    if inode != view.live_stamp[0] or size < view.consumed or size <= view.live_stamp[2]:
+        return False
+    # Re-read the byte before ``consumed``: it must still be the ``\n`` the last
+    # refresh stopped after, or the consumed prefix was rewritten.
+    start = view.consumed - 1 if view.consumed else 0
+    data = _read_live_from(live, start)
+    if view.consumed:
+        if data[:1] != b"\n":
+            return False
+        data = data[1:]
+    appended, used = _whole_lines(data)
+    first_new = len(view.lines)
+    view.lines.extend(appended)
+    _index_lines(view.lines, view.positions, first_new)
+    view.consumed += used
+    view.live_stamp = live_stamp
+    return True
+
+
+def _acquire_event_view() -> tuple[list[str], dict[str, list[int]], int]:
+    """The current view's lines, index and line count, refreshed under the lock."""
+
+    slice_paths = list(event_rotation.ordered_line_sources())
+    *sealed, live = slice_paths
+    sources = tuple(str(path) for path in slice_paths)
+    sealed_stamps = tuple(_stamp(path) for path in sealed)
+    live_stamp = _stamp(live)
+    with _EVENT_VIEW_CACHE_LOCK:
+        view = _EVENT_VIEWS.get(sources[0])
+        if view is None or not _append_to_event_view(view, sources, sealed_stamps, live, live_stamp):
+            view = _build_event_view(sources, sealed, sealed_stamps, live, live_stamp)
+            if sources[0] not in _EVENT_VIEWS and len(_EVENT_VIEWS) >= _EVENT_VIEW_CACHE_MAX:
+                _EVENT_VIEWS.clear()
+            _EVENT_VIEWS[sources[0]] = view
+        return view.lines, view.positions, len(view.lines)
+
 
 _REVERSE_READ_CHUNK_BYTES = 1 << 20
 
