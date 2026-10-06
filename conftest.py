@@ -40,6 +40,26 @@ import pytest
 
 _TESTS = Path(__file__).resolve().parent / "tests"
 
+# The operator's home leaves the environment BEFORE ``tests/conftest.py`` runs,
+# so a bare ``python -m pytest`` from a live shell starts where the runner's
+# ``env -i`` starts and every child inherits the session sandbox, never the
+# live home (``tests/_downstream/session_home.py`` says why; lane h-suite-hermetic).
+from tests._downstream import session_home as _session_home  # noqa: E402
+
+_SPAWNED_BY_TEST = bool(os.environ.get(_session_home.ISOLATION_ENV))
+_session_home.detach_operator_home(os.environ)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionstart(session):  # noqa: D401 — pytest hook
+    """Refuse to run a session whose HERMES_HOME is a real install."""
+    home = _session_home.ensure_session_home(os.environ)
+    refusal = _session_home.live_home_refusal(
+        home, _session_home.real_roots(os.environ), check_markers=not _SPAWNED_BY_TEST
+    )
+    if refusal:
+        raise pytest.UsageError(f"hermetic session home refused: {refusal}")
+
 #: upstream conftest (relative to ``tests/``) -> fork module that rides it.
 _ROOT_PLUGIN = "tests._downstream.conftest_plugin"
 _DIRECTORY_PLUGINS = {
