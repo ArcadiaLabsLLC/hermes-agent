@@ -28,7 +28,7 @@ import copy
 import threading
 from typing import Any
 
-from . import paths
+from .demote_core_reuse import _store_root  # one owner: the held core and the held sections are about the same store
 
 __layer__ = "stores"
 
@@ -41,13 +41,6 @@ _MAX_ROOTS = 32
 
 _lock = threading.Lock()
 _entries: dict[tuple[str, str], tuple[int, dict[str, Any]]] = {}
-
-
-def _store_root() -> str | None:
-    try:
-        return str(paths.store_root())
-    except Exception:  # noqa: BLE001 — an optimisation; a miss costs a read
-        return None
 
 
 def remember(root: str, sections: dict[str, Any], *, position: int | None) -> bool:

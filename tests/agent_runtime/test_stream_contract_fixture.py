@@ -173,7 +173,10 @@ def _live_generated_frames() -> dict[str, dict]:
     _generator_module()._seed_running_work_owner()
     owner_hydrate = hydrate_frame()
     running_work_section = _generator_module()._build_running_work_section_frame(owner_hydrate)
-    persona_chat_turn = _generator_module()._build_persona_chat_turn_frame(owner_hydrate)
+    gen = _generator_module()
+    persona_chat_turn = gen.build_persona_chat_turn_frame(
+        owner_hydrate, gen.FIXTURE_PERSONA_ID, gen.FIXTURE_INSTANCE_ID, gen.OWNED_CHAT_SESSION
+    )
     # LAST, and again through the generator's own function: this one converges a
     # persisted core and pays for a gated rebuild, so running it earlier would
     # rebuild every frame above against a store it had moved.
