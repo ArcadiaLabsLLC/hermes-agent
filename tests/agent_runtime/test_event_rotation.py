@@ -269,3 +269,51 @@ def test_event_log_health_accounts_rotation(isolate_agent_runtime_root, monkeypa
     assert health["log_end_offset"] == event_rotation.log_end_offset()
     assert health["exists"] is True
 
+
+
+def test_cached_event_view_rebuilds_on_rotation_and_on_a_sealed_slice_rewrite(isolate_agent_runtime_root, monkeypatch):
+    # S1 (h-snap-events): the appending view is keyed on the slice LIST and the
+    # sealed slices' (mtime, size); either moving rebuilds it whole.
+    from agent_runtime import events as events_module
+
+    reads: list[int] = []
+    real_read = events_module._read_live_from
+
+    def counting_read(path, start):
+        reads.append(start)
+        return real_read(path, start)
+
+    monkeypatch.setattr(events_module, "_read_live_from", counting_read)
+
+    def fresh_lines():
+        events_module._event_view_cache_clear()
+        view = CachedEventLog()
+        return view._cached_lines()[: view._line_count]
+
+    base = EventLog()
+    for i in range(3):
+        base.append(_evt(i))
+    CachedEventLog().tail(1)
+
+    # A rotation: the next append seals the live slice and opens a new one.
+    monkeypatch.setenv(_CAP_ENV, "1")
+    base.append(_evt(3))
+    assert event_rotation.slice_count() == 2
+    reads.clear()
+    rotated = CachedEventLog()
+    assert _run_ids(rotated.tail(9)) == ["r0", "r1", "r2", "r3"]
+    assert reads == [0]
+    assert rotated._cached_lines()[: rotated._line_count] == fresh_lines()
+
+    # A sealed slice rewritten in place at the same size with a new mtime.
+    CachedEventLog().tail(1)
+    sealed = event_rotation.ordered_line_sources()[0]
+    stat = sealed.stat()
+    sealed.write_bytes(sealed.read_bytes().replace(b'"r1"', b'"rX"'))
+    os.utime(sealed, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+    assert sealed.stat().st_size == stat.st_size
+    reads.clear()
+    rewritten = CachedEventLog()
+    assert _run_ids(rewritten.tail(9)) == ["r0", "rX", "r2", "r3"]
+    assert reads == [0]
+    assert rewritten._cached_lines()[: rewritten._line_count] == fresh_lines()

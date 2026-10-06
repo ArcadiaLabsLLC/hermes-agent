@@ -160,29 +160,32 @@ def test_cached_event_log_matches_base_and_reads_once(isolate_agent_runtime_root
     assert [e.type for e in cached.tail(2)] == [e.type for e in base.tail(2)]
     assert len(list(cached.iter_from_offset(0))) == len(list(base.iter_from_offset(0)))
 
-    # The file is read exactly once regardless of how many reads happen.
-    reads = {"n": 0}
-    real_read_text = type(paths.events_path()).read_text
+    # The live slice is read exactly once regardless of how many reads happen.
+    from agent_runtime import events as events_module
 
-    def counting_read_text(self, *a, **k):
-        reads["n"] += 1
-        return real_read_text(self, *a, **k)
+    reads: list[int] = []
+    real_read = events_module._read_live_from
 
-    monkeypatch.setattr(type(paths.events_path()), "read_text", counting_read_text)
+    def counting_read(path, start):
+        reads.append(start)
+        return real_read(path, start)
+
+    monkeypatch.setattr(events_module, "_read_live_from", counting_read)
     _event_view_cache_clear()
     fresh = CachedEventLog()
     fresh.for_task("task_a")
     fresh.for_session("chat_z")
     fresh.tail(1)
-    assert reads["n"] == 1
+    assert reads == [0]
 
-    # A new build-scoped object reuses the immutable process view while the
-    # source fingerprint is unchanged.
+    # A new build-scoped object reuses the process view while the live slice
+    # is unchanged.
     CachedEventLog().tail(1)
-    assert reads["n"] == 1
+    assert reads == [0]
 
-    # An append changes the source size/mtime and forces the next build to read
-    # a fresh point-in-time view.
+    # An append moves the live slice's size: the next build reads only from the
+    # last consumed newline on, and sees the new row.
+    consumed = paths.events_path().stat().st_size
     base.append(
         Event(
             ts=now(),
@@ -194,7 +197,7 @@ def test_cached_event_log_matches_base_and_reads_once(isolate_agent_runtime_root
         )
     )
     assert CachedEventLog().tail(1)[0].run_id == "r-new"
-    assert reads["n"] == 2
+    assert reads == [0, consumed - 1]
 
 
 def test_event_log_for_task_type_filter_counts_matches_not_raw_rows(isolate_agent_runtime_root):
@@ -426,3 +429,174 @@ def test_event_log_rejects_payloads_over_4kb_and_does_not_write(isolate_agent_ru
         log.append(event)
 
     assert not (isolate_agent_runtime_root / "events.jsonl").exists()
+
+
+# ── S1 (h-snap-events): the appending event view ─────────────────────────────
+
+
+def _view_of(cached):
+    """A reader's pinned view: its lines and its id-token index, by line text."""
+
+    lines = cached._cached_lines()[: cached._line_count]
+    index = {
+        token: [lines[at] for at in positions if at < cached._line_count]
+        for token, positions in (cached._positions_by_id_token or {}).items()
+    }
+    return lines, {token: rows for token, rows in index.items() if rows}
+
+
+def _fresh_view():
+    from agent_runtime.events import CachedEventLog, _event_view_cache_clear
+
+    _event_view_cache_clear()
+    return _view_of(CachedEventLog())
+
+
+def _append_rows(log, start, count, *, session_id="chat_s1"):
+    for index in range(start, start + count):
+        log.append(
+            Event(
+                ts=now(),
+                type="run.tool.started",
+                task_id=f"task_{index % 3}",
+                run_id=f"r{index}",
+                persona_id="dev",
+                payload={"tool_name": "x"},
+                session_id=session_id if index % 2 else None,
+            )
+        )
+
+
+@pytest.fixture
+def live_reads(monkeypatch):
+    from agent_runtime import events as events_module
+
+    reads: list[tuple[int, int]] = []
+    real_read = events_module._read_live_from
+
+    def counting_read(path, start):
+        data = real_read(path, start)
+        reads.append((start, len(data)))
+        return data
+
+    monkeypatch.setattr(events_module, "_read_live_from", counting_read)
+    return reads
+
+
+def test_appended_view_equals_a_fresh_full_read_and_reads_only_the_append(isolate_agent_runtime_root, live_reads):
+    from agent_runtime.events import CachedEventLog
+
+    log = EventLog()
+    _append_rows(log, 0, 6)
+    before = CachedEventLog()
+    before_view = _view_of(before)
+    consumed = paths.events_path().stat().st_size
+
+    _append_rows(log, 6, 4)
+    grown = paths.events_path().stat().st_size
+    live_reads.clear()
+    after = CachedEventLog()
+    after_view = _view_of(after)
+    # One seek-read of exactly the appended bytes (plus the guard newline).
+    assert live_reads == [(consumed - 1, grown - consumed + 1)]
+    # A second append refreshes from where the FIRST refresh stopped.
+    _append_rows(log, 10, 2)
+    final = paths.events_path().stat().st_size
+    live_reads.clear()
+    again = CachedEventLog()
+    again_view = _view_of(again)
+    assert live_reads == [(grown - 1, final - grown + 1)]
+    # Token-for-token the same view a whole re-read builds; the earlier reader
+    # holds exactly that view's prefix.
+    assert again_view == _fresh_view()
+    assert after_view[0] == again_view[0][: len(after_view[0])]
+    # Every reader agrees with the whole-file base log.
+    assert [e.run_id for e in again.for_task("task_1", limit=0)] == [e.run_id for e in log.for_task("task_1", limit=0)]
+    assert [e.run_id for e in again.for_session("chat_s1", limit=0)] == [e.run_id for e in log.for_session("chat_s1", limit=0)]
+    assert [e.run_id for e in again.tail(20)] == [e.run_id for e in log.tail(20)]
+    assert [o for o, _e in again.iter_from_offset(0)] == [o for o, _e in log.iter_from_offset(0)]
+    assert [e.run_id for e in after.tail(20)] == [f"r{i}" for i in range(10)]
+    # The reader pinned before the append still answers from its own moment.
+    assert _view_of(before) == before_view
+    assert [e.run_id for e in before.tail(20)] == [f"r{i}" for i in range(6)]
+    assert [e.run_id for e in before.for_task("task_0", limit=0)] == ["r0", "r3"]
+    assert len(list(before.iter_from_offset(0))) == 6
+
+
+def test_a_torn_final_line_waits_for_its_newline(isolate_agent_runtime_root, live_reads):
+    from agent_runtime.events import CachedEventLog
+
+    log = EventLog()
+    _append_rows(log, 0, 3)
+    CachedEventLog().tail(1)
+    line = json.dumps(
+        {"ts": now().isoformat().replace("+00:00", "Z"), "type": "run.progress", "task_id": "task_torn",
+         "run_id": "r-torn", "persona_id": "dev", "payload": {"summary": "torn"}},
+        separators=(",", ":"),
+    )
+    live = paths.events_path()
+    consumed = live.stat().st_size
+    with open(live, "ab") as handle:
+        handle.write(line[:17].encode("utf-8"))
+    torn = CachedEventLog()
+    assert [e.run_id for e in torn.tail(5)] == ["r0", "r1", "r2"]
+    assert _view_of(torn) == _fresh_view()
+
+    with open(live, "ab") as handle:
+        handle.write((line[17:] + "\n").encode("utf-8"))
+    live_reads.clear()
+    whole = CachedEventLog()
+    assert [e.run_id for e in whole.tail(1)] == ["r-torn"]
+    # The completed line is read from the consumed newline on, not from 0.
+    assert live_reads == [(consumed - 1, len(line) + 2)]
+    assert _view_of(whole) == _fresh_view()
+
+
+def test_a_live_slice_that_shrank_or_was_rewritten_rebuilds_the_view(isolate_agent_runtime_root, live_reads):
+    from agent_runtime.events import CachedEventLog
+
+    log = EventLog()
+    _append_rows(log, 0, 5)
+    CachedEventLog().tail(1)
+    live = paths.events_path()
+    rows = live.read_bytes().splitlines(keepends=True)
+
+    # Truncated below the consumed size.
+    live.write_bytes(b"".join(rows[:2]))
+    live_reads.clear()
+    shrunk = CachedEventLog()
+    assert [e.run_id for e in shrunk.tail(9)] == ["r0", "r1"]
+    assert [start for start, _n in live_reads] == [0]
+    assert _view_of(shrunk) == _fresh_view()
+
+    # Grown again, but the consumed prefix was rewritten (the guard newline moved).
+    CachedEventLog().tail(1)
+    live.write_bytes(rows[0][:-1] + b" \n" + b"".join(rows[1:]))
+    live_reads.clear()
+    rewritten = CachedEventLog()
+    assert [e.run_id for e in rewritten.tail(9)] == [f"r{i}" for i in range(5)]
+    # The guard read at the consumed newline found the prefix moved: whole re-read.
+    assert [start for start, _n in live_reads][-1] == 0
+    assert _view_of(rewritten) == _fresh_view()
+
+
+def test_a_live_slice_replaced_by_a_new_file_rebuilds_the_view(isolate_agent_runtime_root, live_reads):
+    # The replacement keeps a newline at the consumed boundary, so only the
+    # slice's identity (its inode) tells the view its prefix is not its own.
+    import os
+
+    from agent_runtime.events import CachedEventLog
+
+    log = EventLog()
+    _append_rows(log, 0, 3)
+    CachedEventLog().tail(1)
+    live = paths.events_path()
+    rows = live.read_bytes().splitlines(keepends=True)
+    replacement = live.with_name("events.replacement")
+    replacement.write_bytes(rows[0].replace(b'"r0"', b'"rZ"') + b"".join(rows[1:]) + rows[2].replace(b'"r2"', b'"r3"'))
+    os.replace(replacement, live)
+    live_reads.clear()
+    replaced = CachedEventLog()
+    assert [e.run_id for e in replaced.tail(9)] == ["rZ", "r1", "r2", "r3"]
+    assert [start for start, _n in live_reads] == [0]
+    assert _view_of(replaced) == _fresh_view()
