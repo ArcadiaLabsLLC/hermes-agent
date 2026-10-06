@@ -11,6 +11,10 @@ tags: [queue, program/fork-hygiene]
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.
 
+## Filed on arrival — 2026-10-05 (owner ask: a usable suite)
+
+- [ ] **Owner ask: make the partial (fork-scope) and full test suites fast enough to use — the fork gate ran 872 files / ~13k tests in ~18 min wall at 8 workers (per-file seconds summed 5,977; slowest file 233 s), ~13 tests/s, against the launcher's Flutter suite at ~40,000 tests in 8 min (~83 tests/s); the full scope is 6,066 files and on hold for the P0 freeze. Measure where the time goes (interpreter + import cost per process, conftest/fixtures, hermetic env setup, the slow tail, timeouts, Defender, worker count) and write a staged plan** · `fork / suite` · evidence: landing h-turn1 wave 2 gate log (2026-10-05 20:22–20:40 local) · **TAKEN 2026-10-05 Opus 5.5 (owner session, lane h-suite-speed)**
+
 ## Filed on arrival — 2026-10-05 (lane h-turn1-title)
 
 - [ ] **`test_stream_contract_fixture::test_committed_goldens_are_the_generators_bytes` reds in a combined in-process run (`hydrate.json` byte 3123 `_`≠`t`) yet passes alone — an isolation leak present on main** · `fork / suite` · evidence: lane h-turn1-c logs, branch and merge-base (also seen by lane h-eventlog-tail) · UNCLAIMED
