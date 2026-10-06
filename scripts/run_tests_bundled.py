@@ -574,7 +574,7 @@ def run(
         with lock:
             futures.extend(executor.submit(_solo, path, "solo", None) for path in solo_order)
             futures.extend(executor.submit(_bundle, i, bundles[i], executor) for i in bundle_order)
-        _drain(futures, lock)
+        _drain_futures(futures, lock)
 
     shutil.rmtree(scratch, ignore_errors=True)
     _retry_timeout_stragglers(outcomes, pytest_args, repo_root, flat_timeout, solo_runner, ledger, on_outcome)
@@ -612,7 +612,7 @@ def _first_pass_order(
     return solo_order, bundle_order
 
 
-def _drain(futures: List[Future], lock: threading.Lock) -> None:
+def _drain_futures(futures: List[Future], lock: threading.Lock) -> None:
     """Wait on every future. Re-runs are submitted from inside bundle jobs, so
     drain until the list stops growing."""
 
