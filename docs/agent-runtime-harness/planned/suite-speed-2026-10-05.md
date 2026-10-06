@@ -140,7 +140,7 @@ All from `X:/Eternia/worktrees/hermes-suite-speed` under the worktree's own acti
 
 ### 2.2 M2 — worker curve (`m2_workers.py`): 48 files sampled (seed 7) from the 247 `tests/agent_runtime` files whose gate line read 0.5–4 s, i.e. the median population, NOT the tail; `--file-retries 0`.
 
-<!-- filled from m2.log -->
+The table is §1.2; the per-run logs are `m2-<label>.log` (scratch). The 12-worker rows are NOT a 12-worker measurement of the gate — eight bundles cannot load twelve workers — and the load-flake they surfaced (`test_work_service.py::test_concurrent_retry_admits_one_native_task`, red in two different bundle compositions at 12, green at 8 in both shapes) is rowed in the report.
 
 ### 2.3 M3 — the slow tail, one file per process, serial, `--durations=40 --durations-min=0.3` (`m3_slowtail.sh`)
 
