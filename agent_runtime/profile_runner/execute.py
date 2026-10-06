@@ -44,6 +44,8 @@ from agent_runtime.profile_runner.budget import (
     _ToolBudgetGuard,
 )
 from agent_runtime.profile_runner.resident_actor import (
+    log_turn_effort,
+    turn_reasoning_config,
     _finish_resident_persona_chat_agent,
     _prepare_resident_persona_chat_agent,
     stage_persona_chat_user_row_marker,
@@ -337,6 +339,7 @@ class AgentRunExecution:
             self.admit_mcp()
             self.build_turn_state()
             self.acquire_agent()
+            log_turn_effort(self.request, self.agent, reused=bool(self.timing.get("resident_actor_reused")))
             if self.request.prewarm_only:
                 # Everything above this line is what a real turn does before it
                 # has an agent; everything below is what it does WITH one. A
@@ -517,16 +520,11 @@ class AgentRunExecution:
 
     def build_turn_state(self) -> None:
         request, budget_guard = self.request, self.budget_guard
-        # Per-run reasoning override → agent reasoning_config. Only passed
-        # when explicitly requested so an unset run keeps the current
-        # behavior (transport reads the global agent.reasoning_effort). The
-        # transport reads params["reasoning_config"] = {"enabled": .., "effort": ..}.
-        if request.reasoning_effort:
-            from hermes_constants import parse_reasoning_effort
-
-            reasoning_config = parse_reasoning_effort(request.reasoning_effort)
-            if reasoning_config is not None:
-                self.reasoning_kwargs["reasoning_config"] = reasoning_config
+        # The run's reasoning_config: the instance's effort, else the profile's
+        # (``turn_reasoning_config``). The transport reads params["reasoning_config"].
+        reasoning_config = turn_reasoning_config(request, self.runtime.get("model") or request.model)
+        if reasoning_config is not None:
+            self.reasoning_kwargs["reasoning_config"] = reasoning_config
         # T3 (2026-08-09): the turn-scoped state a RESIDENT actor needs
         # refreshed, resolved from the REQUEST rather than read back off a
         # throwaway agent. This is what makes the construction below lazy:
@@ -649,6 +647,8 @@ class AgentRunExecution:
         )
         if reused:
             _prepare_resident_persona_chat_agent(entry.agent, self.turn_state)
+            # The effort is per RUN, not per actor: a reused actor sends this run's.
+            entry.agent.reasoning_config = self.reasoning_kwargs.get("reasoning_config")
         self.agent = entry.agent
         timing["resident_actor_reused"] = 1 if reused else 0
         if rebuild_reason:

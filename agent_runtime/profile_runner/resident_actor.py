@@ -4,6 +4,7 @@ row marker a chat turn stages.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from agent_runtime._upstream_doors import sanitize_surrogates
@@ -12,6 +13,8 @@ from agent_runtime.profile_runner.models import AgentRunRequest
 __layer__ = "lanes"
 
 __all__ = [
+    "log_turn_effort",
+    "turn_reasoning_config",
     "_finish_resident_persona_chat_agent",
     "_prepare_resident_persona_chat_agent",
     "_sanitized_user_message_text",
@@ -130,3 +133,41 @@ def stage_persona_chat_user_row_marker(
     }
     agent._pending_cli_user_message = staged
     return staged
+
+
+_logger = logging.getLogger(__name__)
+
+
+def turn_reasoning_config(request: AgentRunRequest, model: str | None) -> dict | None:
+    """The instance's effort when the request carries one, else the ACTIVE profile's
+    ``agent.reasoning_effort`` (per-model override first) — the chokepoint every
+    upstream surface uses. Before this, a run without an instance effort passed
+    nothing and the codex transport sent its own ``medium`` whatever the profile said.
+    Runs inside the persona's profile scope, so ``load_config`` is that profile's."""
+
+    from hermes_constants import parse_reasoning_effort
+
+    if request.reasoning_effort:
+        return parse_reasoning_effort(request.reasoning_effort)
+    try:
+        from hermes_cli.config import load_config
+        from hermes_constants import resolve_reasoning_config
+
+        return resolve_reasoning_config(load_config() or {}, model or "")
+    except Exception:
+        _logger.debug("profile reasoning effort unreadable", exc_info=True)
+        return None
+
+
+def log_turn_effort(request: AgentRunRequest, agent: Any, *, reused: bool) -> None:
+    """Receipt the reasoning effort this run's agent will send, and where it came from."""
+
+    from agent_runtime.persona_chat_session import TURN_EFFORT_RECEIPT, reasoning_effort_label
+
+    model = getattr(agent, "model", None) or request.model
+    effort = reasoning_effort_label(getattr(agent, "reasoning_config", None))
+    source = "instance" if request.reasoning_effort else ("profile" if effort else "default")
+    actor = "prewarm" if request.prewarm_only else ("reused" if reused else "built")
+    _logger.info(TURN_EFFORT_RECEIPT, request.root_chat_session_id or request.session_id or "-",
+                 request.turn_id or "-", model or "-", request.reasoning_effort or "-",
+                 effort or "-", source, actor)

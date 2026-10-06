@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-06 (lane h-model-pick)
+
+- [ ] **`mission_chat_runtime_signature_components` reads `model_selection["effective_reasoning_effort"]`, a key `_chat_effective_model_payload` never writes (always None); the effort reaches the resident key only through `instance_revision`, and the cascade-source rule is spelled twice (`chat_model_source`, `operator_session_models._reasoning_effort_facts` / `resident_actor.log_turn_effort`)** · fork / chat model selection · evidence: `agent_runtime/mission_chat_turn_context.py`, `agent_runtime/persona_chat_session.py` · lane: one model+effort selection record (tiers + sources) built once per turn and read by facts, signature and receipts
+- [ ] **`_chat_effective_model_payload` falls back to `persona.model` then the agent_runtime config's `default_model`; a run with neither falls to the PROFILE's `model.default` inside the runner, so `conversation.models` can name a different (or no) model than the turn runs (not hit by Neko: its persona pins gpt-5.6-luna)** · fork / chat model selection · evidence: `agent_runtime/persona_chat_session.py::_chat_effective_model_payload`, `agent_runtime/profile_runner/execute.py::construct_agent` · lane: resolve the profile tier in the payload, in the persona's profile scope
+
 ### Filed on arrival — 2026-10-06 (lane h-newchat-t1)
 
 
@@ -372,6 +377,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-10-06 (lane h-model-pick)
+
+- [ ] **The `API call #N` INFO line (`agent/turn_usage.py`) names model and provider but not the reasoning effort the request carried; the fork's `chat_turn_effort` receipt is per run, so a per-call effort (fallback re-resolve, mid-turn switch) is still unlogged** · seam · evidence: Neko 12:18–12:19 turns (chat `…391ce2958eea`) could not be proven low from the log · lane: additive `effort=` field as a held upstream PR row in `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`
 
 ### Filed on arrival — 2026-10-06 (lane h-conn-pool)
 
