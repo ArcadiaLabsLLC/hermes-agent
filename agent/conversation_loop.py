@@ -35,6 +35,7 @@ from agent.surface_switch import (
 )
 from agent_runtime.conversation_observability import _emit_conversation_timing, _emit_phase_marker
 from agent_runtime.prewarmed_system_prompt import take_prewarmed_system_prompt  # fork seam: h-turn1 A3
+from agent_runtime.prewarmed_system_prompt import defer_prewarmed_turn_persist  # fork seam: h-turn1-conn
 from agent_runtime.conversation_observability import (
     CONVERSATION_PREFLIGHT_DONE_STEP, CONVERSATION_REQUEST_BUILT_STEP, CONVERSATION_STARTED_STEP,
     CONVERSATION_TURN_CONTEXT_BUILT_STEP,
@@ -895,6 +896,9 @@ def _restore_or_build_system_prompt(agent, system_message, conversation_history)
     except Exception:
         logger.debug("cold-start credits seed failed (fail-open)", exc_info=True)
 
+    if defer_prewarmed_turn_persist(agent, _prewarmed, lambda: _persist_system_prompt(  # fork seam: h-turn1-conn
+            agent, "Session DB update_system_prompt failed for session %s: %s (deferred).", persist_tools=True)):
+        return
     _persist_system_prompt(
         agent,
         "Session DB update_system_prompt failed for session %s: %s. Subsequent turns will "

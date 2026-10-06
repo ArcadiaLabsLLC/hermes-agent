@@ -34,6 +34,19 @@ turns:
   other readers) run in the snapshot worker process. The memo is process-wide,
   so the prewarm reads it once (the caller's ``skill_catalog`` step, ``profile_runner.execute``).
 
+h-turn1-conn adds the response side: the SDK's first parse of a streamed
+Responses event (``openai._models.construct_type`` building the
+``ResponseStreamEvent`` discriminated union and each variant's model) landed
+between turn 1's first byte and its first event -- ``send_window_receipt
+first_event_lag_ms`` 21.5-23.0 ms on the turn-cost guard's turn 0 against
+0.4 on every later turn, 277.6 / 334.2 ms in a cold test process.
+:func:`_warm_sdk_event_parse` feeds one synthetic event of each kind a text
+or reasoning turn sees through the SDK's own ``Stream`` over an in-memory
+``httpx.Response``: nothing is sent. Two more first-turn lazy imports,
+stack-sampled in the guard's turn 0: ``agent_runtime.gateway_targets`` (via
+the ambient HUD block, before ``context_built``) and
+``agent_runtime.chat_live_log`` (the write-ahead's first mirror).
+
 :func:`warm_first_turn_paths` runs each once, under the prewarm's own scopes (the
 catalog is keyed by the profile home the turn will run in), so the first turn
 finds them cached. It sends nothing anywhere and never raises.
@@ -71,6 +84,8 @@ FIRST_TURN_MODULES = (
     "hermes_cli.observability.shared_metrics_process", "agent_runtime.skill_publishability",
     "agent_runtime.skills_inventory", "agent_runtime.transport_phase_trace",
     "agent.chat_completion_nonstream", "agent.reasoning_timeouts",
+    "agent_runtime.stream_gap_receipt", "agent_runtime.send_window_receipt",
+    "agent_runtime.gateway_targets", "agent_runtime.chat_live_log",
 )
 
 
@@ -99,10 +114,67 @@ def _warm_sdk_request_build(agent: Any) -> None:
     getattr(client, "responses", None)
 
 
+def _synthetic_stream_events() -> list[dict[str, Any]]:
+    """One event of each kind a reasoning-then-text Responses turn streams, in order."""
+
+    response = {"id": "resp_warmup", "object": "response", "created_at": 0, "model": "warmup",
+                "status": "in_progress", "output": [], "parallel_tool_calls": True, "tool_choice": "auto",
+                "tools": []}
+    reasoning = {"type": "reasoning", "id": "rs_warmup", "summary": [], "encrypted_content": "x"}
+    part = {"type": "output_text", "text": "", "annotations": []}
+    message = {"type": "message", "id": "msg_warmup", "role": "assistant", "status": "in_progress",
+               "content": []}
+    done_message = {**message, "status": "completed", "content": [{**part, "text": "ok"}]}
+    usage = {"input_tokens": 1, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 1,
+             "output_tokens_details": {"reasoning_tokens": 0}, "total_tokens": 2}
+    text = {"item_id": "msg_warmup", "output_index": 1, "content_index": 0}
+    events = [
+        {"type": "response.created", "response": response},
+        {"type": "response.in_progress", "response": response},
+        {"type": "response.output_item.added", "output_index": 0, "item": reasoning},
+        {"type": "response.reasoning_summary_part.added", "item_id": "rs_warmup", "output_index": 0,
+         "summary_index": 0, "part": {"type": "summary_text", "text": ""}},
+        {"type": "response.reasoning_summary_text.delta", "item_id": "rs_warmup", "output_index": 0,
+         "summary_index": 0, "delta": "x"},
+        {"type": "response.output_item.done", "output_index": 0, "item": reasoning},
+        {"type": "response.output_item.added", "output_index": 1, "item": message},
+        {"type": "response.content_part.added", **text, "part": part},
+        {"type": "response.output_text.delta", **text, "delta": "ok", "logprobs": []},
+        {"type": "response.output_text.done", **text, "text": "ok", "logprobs": []},
+        {"type": "response.content_part.done", **text, "part": {**part, "text": "ok"}},
+        {"type": "response.output_item.done", "output_index": 1, "item": done_message},
+        {"type": "response.completed",
+         "response": {**response, "status": "completed", "output": [reasoning, done_message], "usage": usage}},
+    ]
+    return [{**event, "sequence_number": index} for index, event in enumerate(events)]
+
+
+def _warm_sdk_event_parse(agent: Any) -> None:
+    """The SDK's process-wide first-event parse, through its own ``Stream`` and nothing on the wire."""
+
+    import json
+
+    import httpx
+    import openai
+    from openai.types.responses import ResponseStreamEvent
+
+    client = getattr(agent, "client", None)
+    if not isinstance(client, openai.OpenAI):
+        return
+    body = b"".join(
+        f"event: {event['type']}\ndata: {json.dumps(event)}\n\n".encode() for event in _synthetic_stream_events()
+    )
+    response = httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body,
+                              request=httpx.Request("POST", "https://warmup.invalid/responses"))
+    for _ in openai.Stream(cast_to=ResponseStreamEvent, response=response, client=client):
+        pass
+
+
 _STEPS = (
     ("spinner_catalog", lambda agent: _warm_spinner_catalog()),
     ("request_modules", lambda agent: _warm_request_modules()),
     ("sdk_request_build", _warm_sdk_request_build),
+    ("sdk_event_parse", _warm_sdk_event_parse),
 )
 
 

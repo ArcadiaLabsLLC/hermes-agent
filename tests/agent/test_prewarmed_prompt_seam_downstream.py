@@ -41,8 +41,13 @@ class TestPrewarmedPromptSeam:
         assert agent._cached_system_prompt == self.PREWARMED
         assert "conversation_system_prompt_prewarmed" in self._steps(agent)
         assert "conversation_system_prompt_build" not in self._steps(agent)
-        # The first-turn tail still runs: the adopted prompt is persisted.
+        # h-turn1-conn: the adopted prompt's persist is held until the request is sent, then runs once.
+        from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist
+
+        db.update_system_prompt.assert_not_called()
+        assert run_deferred_turn_persist(agent) is True
         db.update_system_prompt.assert_called_once_with(agent.session_id, self.PREWARMED)
+        assert run_deferred_turn_persist(agent) is False, "held once, run once"
         assert "_prewarmed_system_prompt" not in vars(agent), "consumed exactly once"
 
     def test_a_stash_for_another_runtime_is_rebuilt(self):

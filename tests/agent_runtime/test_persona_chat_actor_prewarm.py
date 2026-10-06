@@ -327,6 +327,13 @@ def _live_chat_root(persona_id: str = "dev") -> tuple[str, object, object]:
         title="warm",
         required=True,
     )
+    # h-turn1-conn: the instance as the send path reads it -- after its
+    # ``ensure_for_personas`` re-stamps the canonical row's ``display_name``.
+    from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+
+    store = PersonaInstanceStore()
+    store.ensure_for_personas(ensure_persisted_personas(load_agent_runtime_config()))
+    instance = store.get(instance.id)
     return instance.default_chat_session_id, instance, session_db
 
 
@@ -1421,7 +1428,10 @@ def test_a_prewarm_opens_the_provider_connection_through_the_actors_own_client(s
     with caplog.at_level("INFO"):
         timing = runner.prewarm(_request(prewarm_only=True, registry=registry))
 
-    assert [(m, u) for m, u, _ in transport.requests] == [("HEAD", "https://provider.example.test/v1")]
+    from agent_runtime.provider_preconnect import PRECONNECT_CONNECTIONS
+
+    # h-turn1-conn: one HEAD per connection turn 1 needs (its request and its title upgrade).
+    assert [(m, u) for m, u, _ in transport.requests] == [("HEAD", "https://provider.example.test/v1")] * PRECONNECT_CONNECTIONS
     assert "authorization" not in {k.lower() for k in transport.requests[0][2]}
     assert timing["prewarm_connect_ms"] >= 0
     assert any("persona_chat_actor_prewarm_connect host=provider.example.test status=404" in r.getMessage()
@@ -1429,7 +1439,7 @@ def test_a_prewarm_opens_the_provider_connection_through_the_actors_own_client(s
 
     result = runner.run(_request(prewarm_only=False, registry=registry))
     assert result.profile_timing["resident_actor_reused"] == 1
-    assert len(transport.requests) == 1, "a real turn never pre-opens"
+    assert len(transport.requests) == PRECONNECT_CONNECTIONS, "a real turn never pre-opens"
 
 
 def test_a_loopback_provider_is_never_pre_opened(stub_runtime):
@@ -1526,11 +1536,11 @@ def _pooled_agent_factory(transport):
 
 
 def test_a_prewarmed_actors_first_turn_opens_no_connection(stub_runtime, caplog):
-    """The connection the prewarm opened is the one turn 1 rides: one connect in all.
+    """A connection the prewarm opened is the one turn 1 rides: no connect past the pre-opened ones.
 
     *Killing mutation:* send the pre-connect without the actor's identity headers
     (``headers=_identity_headers(agent)`` -> no headers): the edge answers
-    ``Connection: close``, the pool drops the socket, turn 1 connects again -> 2.
+    ``Connection: close``, the pool drops the socket, turn 1 connects again -> 3.
     """
 
     import httpx
@@ -1542,13 +1552,15 @@ def test_a_prewarmed_actors_first_turn_opens_no_connection(stub_runtime, caplog)
     runner = ProfileAgentRunner(agent_factory=_pooled_agent_factory(transport))
     with caplog.at_level("INFO"):
         runner.prewarm(_request(prewarm_only=True, registry=registry))
-    assert edge.connects == 1
+    from agent_runtime.provider_preconnect import PRECONNECT_CONNECTIONS
+
+    assert edge.connects == PRECONNECT_CONNECTIONS
 
     result = runner.run(_request(prewarm_only=False, registry=registry))
 
     assert result.profile_timing["resident_actor_reused"] == 1
-    assert edge.connects == 1, "turn 1 opened its own connection beside the pre-opened one"
-    assert any("status=404 kept=1" in r.getMessage() for r in caplog.records)
+    assert edge.connects == PRECONNECT_CONNECTIONS, "turn 1 opened its own connection beside the pre-opened ones"
+    assert any(f"status=404 kept={PRECONNECT_CONNECTIONS}" in r.getMessage() for r in caplog.records)
 
 
 def test_the_pre_connect_carries_identity_and_never_a_credential():
@@ -1559,8 +1571,9 @@ def test_the_pre_connect_carries_identity_and_never_a_credential():
     agent._client_kwargs = {"api_key": "secret", "default_headers": dict(_IDENTITY, Authorization="Bearer x")}
     preopen_provider_connection(agent, {})
 
-    [(_, _, headers)] = transport.requests
-    sent = {k.lower(): v for k, v in headers.items()}
-    assert sent["user-agent"] == "HermesAgent/test" and sent["originator"] == "hermes-agent"
-    assert "authorization" not in sent and "chatgpt-account-id" not in sent
-    assert "secret" not in str(sent)
+    assert transport.requests
+    for _, _, headers in transport.requests:
+        sent = {k.lower(): v for k, v in headers.items()}
+        assert sent["user-agent"] == "HermesAgent/test" and sent["originator"] == "hermes-agent"
+        assert "authorization" not in sent and "chatgpt-account-id" not in sent
+        assert "secret" not in str(sent)

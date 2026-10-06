@@ -6,6 +6,12 @@
   "heavy": 4,
   "reasons": [
     {
+      "change": "lane h-turn1-conn (runtime-queue row: turn 0 still ~110 ms behind warm): a turn that adopted a prewarmed system prompt writes the prompt and its tools pin after request_sent",
+      "files": "unchanged: agent/conversation_loop.py was already counted (4 added: one import, a guarded early return before the first-turn _persist_system_prompt, `# fork seam: h-turn1-conn`)",
+      "deleted_lines": "883 -> 883: the seam is additive; heavy unchanged at 4",
+      "reason": "No fork door: the first-turn tail persists inline, before build_turn_context returns, and nothing outside _restore_or_build_system_prompt can hold it. agent_runtime.prewarmed_system_prompt.defer_prewarmed_turn_persist keeps the call only when _prewarmed was adopted (every other turn persists as upstream does); the transport trace's request_sent (or the run's end) runs it. Held PR row in upstream-footprint-ledger.md."
+    },
+    {
       "change": "lane h-mergeprep: AGENTS.md fork pointer removed; AGENTS.md is byte-identical to the merge base ee5f49b943",
       "files": "176 -> 175: AGENTS.md (2 added, 0 deleted) leaves the footprint; its carry-permanent ledger row is gone",
       "deleted_lines": "883 -> 883; heavy unchanged at 4",
