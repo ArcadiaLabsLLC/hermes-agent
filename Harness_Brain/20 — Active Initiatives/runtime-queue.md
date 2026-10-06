@@ -61,6 +61,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (owner live turns, "turns still feel slow")
 
+- [ ] **Turns still force full snapshot cores: in a 2-minute five-turn Neko test (2026-10-06 00:14–00:16) the serve ran 6 led `reason=demote` cores (10.2/8.0/5.9/8.4/3.8/2.9 s, `events=2…11`, callers hub and cli) plus `turn_section` overlay builds of 0.9–1.8 s at each turn start/end — ~39 s of serve Python in ~50 s, inflating headers→first-text to ~1.9 s every turn; census which event kinds in those batches fall outside the turn set (title metadata, persona_instance updates, run.*), cover them in the overlay or a patch, and run the overlay build off the stream thread / in the snapshot worker** · fork / snapshot + stream · evidence: base `agent.log` 2026-10-06 00:14:53–00:15:46 `snapshot_build`/`turn_section` lines; turn records `838075fa1cc1` · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-demote-census)**
+
 - [ ] **Prompt-cache regression after wave 3: before (2026-10-05 21:23) a new Neko chat's turn 2 hit the provider cache (94–97%); after `f779903ba7` (22:51 and 2026-10-06 00:14) turns 1 AND 2 miss and hits start at turn 3 (91–95%), and S6's instance-scoped key gives turn 1 no hit either — suspect the prewarm-built system prompt turn 1 adopts is not byte-identical to the prompt turn 2 sends (or the request prefix/tool order moves between turn 1 and 2); find the first differing byte between turn 1's and turn 2's request prefix and make them one** · fork / prompt surface · evidence: neko `agent.log` `API call #1 … cache=` lines 2026-10-05 21:23, 22:51, 2026-10-06 00:14 · **TAKEN 2026-10-06 Opus 5.5 (owner session, lane h-cache-hit)**
 
 
