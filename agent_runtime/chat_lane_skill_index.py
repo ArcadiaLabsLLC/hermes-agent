@@ -29,11 +29,6 @@ __layer__ = "stores"
 #: The agent attribute the ``_skills_prompt`` seam reads.
 COMPACT_ATTR = "_chat_lane_compact_skill_categories"
 
-#: Upstream's org-mirror directory (``agent.prompt_builder.ORG_MIRROR_DIR_NAME``),
-#: whose categories are labelled ``org:<id>``.
-_ORG_MIRROR_DIR = "_org"
-
-
 def chat_lane_index_skills(persona: Any, operating_skills: Iterable[str] = ()) -> tuple[str, ...] | None:
     """The skills whose categories stay in full on this persona's chat lane, or None.
 
@@ -54,8 +49,6 @@ def _top_category(manifest: Path, root: Path) -> str:
     ``_build_snapshot_entry`` rule, cut at the first ``/`` as the demotion is."""
 
     parts = manifest.relative_to(root).parts
-    if len(parts) >= 3 and parts[0] == _ORG_MIRROR_DIR:
-        return f"org:{parts[1]}"
     # Upstream: ``general`` for a bare file, the skill's own directory name for an
     # uncategorised ``<name>/SKILL.md``, else the category path.
     return "general" if len(parts) < 2 else parts[0]

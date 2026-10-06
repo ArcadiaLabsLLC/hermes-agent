@@ -265,7 +265,7 @@ def _descend_following_links(entry: os.DirEntry, seen_links: set[str]) -> bool:
 
 
 def _skill_root_signature(root: Path) -> tuple[tuple[str, int | None, int | None], ...]:
-    """Every ``*.md`` under *root* plus the active-org marker, as (path, mtime_ns, size).
+    """Every ``*.md`` under *root*, as (path, mtime_ns, size).
 
     The registry's validation key (h-chatperf, 2026-10-03). It used to be the
     registry's own candidate list -- ``iter_skill_index_files`` plus an
@@ -281,13 +281,11 @@ def _skill_root_signature(root: Path) -> tuple[tuple[str, int | None, int | None
     under the root (this walk follows directory symlinks, as
     ``iter_skill_index_files`` does, and prunes nothing, as ``rglob`` does not),
     and the two filters only ask whether some ``SKILL.md`` exists -- also a
-    ``*.md`` file here. The org marker is the one non-markdown input (it gates
-    which org mirror is walked), so it is stamped explicitly. An add, delete,
+    ``*.md`` file here. Upstream retired org-token gating, so no non-markdown
+    marker participates in the scan. An add, delete,
     rename or content write of any input moves this tuple; a change to a file
     the registry ignores costs one rebuild and nothing else.
     """
-    from agent import skill_utils as _skills
-
     stamps: list[tuple[str, int | None, int | None]] = []
     seen_links: set[str] = set()
     stack = [str(root)]
@@ -297,12 +295,6 @@ def _skill_root_signature(root: Path) -> tuple[tuple[str, int | None, int | None
                 stack.append(entry.path)
             elif entry.name.endswith(".md"):
                 stamps.append((entry.path, *_entry_stat(entry)))
-    marker = root / _skills.ORG_MIRROR_DIR_NAME / _skills.ORG_ACTIVE_MARKER
-    try:
-        marker_stat = marker.stat()
-        stamps.append((str(marker), marker_stat.st_mtime_ns, marker_stat.st_size))
-    except OSError:
-        stamps.append((str(marker), None, None))
     stamps.sort()
     return tuple(stamps)
 
@@ -311,7 +303,7 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     """Return the candidate registry for one physical skill root.
 
     Validated by :func:`_skill_root_signature` (every markdown file under the
-    root plus the active-org marker). A changed root rebuilds only its own
+    root). A changed root rebuilds only its own
     registry; unchanged roots reuse parsed frontmatter across profiles, turns
     and snapshot builds.
 

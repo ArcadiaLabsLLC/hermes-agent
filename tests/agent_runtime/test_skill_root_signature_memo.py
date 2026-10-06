@@ -93,11 +93,11 @@ def test_every_input_edit_rebuilds_the_registry(root, edit):
         assert "gamma" in second.manifests_by_alias
 
 
-def test_the_org_marker_is_part_of_the_signature(root):
-    marker = _write(root / skill_utils.ORG_MIRROR_DIR_NAME / skill_utils.ORG_ACTIVE_MARKER, "org-1")
+def test_retired_org_marker_does_not_change_the_signature(root):
+    marker = _write(root / "_org" / ".active_org", "org-1")
     first = sr._skill_root_registry(root)
     marker.write_text("org-22", encoding="utf-8")  # an org switch: no markdown moved
-    assert sr._skill_root_registry(root) is not first
+    assert sr._skill_root_registry(root) is first
 
 
 def test_the_turn_scope_reaches_a_resolver_that_takes_no_map(root, monkeypatch):
