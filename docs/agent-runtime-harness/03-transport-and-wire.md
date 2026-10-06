@@ -996,6 +996,14 @@ declines while DRAINING — a drain is waiting for that pool to empty — and a
 handler that finds it absent (a test-built context, a transport with no pool)
 answers on its own thread.
 
+**The ten `runtime.realm.*` verbs ride the same seam (2026-10-06, lane h-newchat-t1).**
+`status` fetches the realm remote and walks every store for drift; inline, the launcher's
+periodic poll held the reader loop from 01:25:01 to 01:25:04 local and the operator's first
+chat send of a new chat was accepted only after it (`send_to_admit_ms=2564`, turn
+`5377d205`). `agent_runtime/serve_rpc/realm.py` now offers each verb to `spawn_reply` and
+runs them one at a time among themselves (`_REALM_VERB_LOCK`), which is the serialization the
+inline lane used to give them for free.
+
 ## 3. The mission-control stream
 
 `agent_runtime/stream/session.py::stream_frames` (the whole function at `:1221`) is the single producer body.

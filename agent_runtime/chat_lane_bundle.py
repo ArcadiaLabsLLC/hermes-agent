@@ -79,6 +79,8 @@ The key is the bundle's own inputs — not a clock:
   every explicit ``invalidate_check_fn_cache`` moves. CONTENT, not the
   registration generation: a register/deregister pair that leaves the registry
   as it was (every MCP-admitting turn's admission + teardown) is not a change.
+  Admission-scoped ``mcp-*`` registrations are left out entirely: they belong
+  to whichever run admitted them, and the composition never reads them.
 
 **The instance revision is deliberately absent**, and that is not an oversight:
 no component here reads the persona INSTANCE. An instance edit (``set-model``,
@@ -393,8 +395,26 @@ def _registry_content_revision() -> str:
 
     from tools.registry import check_fn_epoch, registry
 
-    tools = sorted((str(e.name), str(e.toolset)) for e in registry.get_all_entries())
-    aliases = sorted(registry.get_registered_toolset_aliases().items())
+    from .mcp_admission.vocabulary import _MCP_TOOLSET_PREFIX
+
+    # An admission scope's ``mcp-*`` registrations are another RUN's, live only
+    # while that run holds them, and the composition never reads them: the
+    # enabled set is the profile's declaration scoped to THIS persona's resolved
+    # admission (``scope_toolsets_to_admission`` strips every registered
+    # ``mcp-*`` it did not admit). Keyed on them, a turn that overlapped a
+    # chat-open prewarm's admission rebuilt twice -- once as the scope came up,
+    # once as it went down (live 2026-10-06 01:25, new chat turn ``5377d205``:
+    # ``rt_bundle_builds=2``, ``visibility_bundle_rebuild_component_registry_content``).
+    tools = sorted(
+        (str(e.name), str(e.toolset))
+        for e in registry.get_all_entries()
+        if not str(e.toolset).startswith(_MCP_TOOLSET_PREFIX)
+    )
+    aliases = sorted(
+        (str(alias), str(target))
+        for alias, target in registry.get_registered_toolset_aliases().items()
+        if not str(target).startswith(_MCP_TOOLSET_PREFIX)
+    )
     return _revision(
         {"tools": tools, "aliases": aliases, "check_fn_epoch": int(check_fn_epoch())}
     )

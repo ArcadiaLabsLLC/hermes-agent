@@ -29,16 +29,19 @@ verb here moves the machine owner's session pointer.
 
 from __future__ import annotations
 
+import threading
 from typing import Any, Callable
 
 from agent_runtime.call_authorization import TIER_CONSOLE
 
 from agent_runtime.serve_rpc.protocol import (
+    DEFERRED,
     ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
     RpcContext,
+    deferred_reply,
     err,
     ok,
 )
@@ -248,10 +251,27 @@ REALM_METHODS: dict[str, Callable[[dict], dict]] = {
 }
 
 
+#: Realm verbs run OFF the reader loop (``RpcContext.spawn_reply``) and one at a
+#: time among themselves. ``status`` fetches the realm remote and walks every
+#: store for drift: live 2026-10-06 01:25:01-04:18 local, one inline status held
+#: the dispatcher 2.5 s and the operator's first chat send queued behind it
+#: (``send_to_admit_ms=2564``, the chat-turn lock written 50 ms after the status
+#: sidecar). The lock keeps what the inline lane gave for free: two realm verbs
+#: never share the sync repo at once.
+_REALM_VERB_LOCK = threading.Lock()
+
+
 def _register(name: str, body: Callable[[dict], dict]) -> None:
     @method(name, tier=TIER_CONSOLE)
     def _handler(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-        return _run(rid, lambda: body(_params(params)))
+        def _answer() -> dict:
+            with _REALM_VERB_LOCK:
+                return _run(rid, lambda: body(_params(params)))
+
+        build = deferred_reply(rid, name, _answer)
+        if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
+            return DEFERRED
+        return build()
 
     _handler.__name__ = "_runtime_" + name.removeprefix("runtime.").replace(".", "_")
     _handler.__doc__ = f"``{name}`` — the argv verb's envelope; see :mod:`agent_runtime.realm_verbs`."

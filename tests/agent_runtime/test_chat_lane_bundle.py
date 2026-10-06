@@ -325,21 +325,30 @@ def test_a_tool_added_or_removed_rebuilds_the_bundle():
     assert CLB.chat_lane_bundle(persona, session_id="chat-content") is not added
 
 
-def test_an_admitted_mcp_server_still_rebuilds_while_its_scope_is_registered():
-    """A server admitted (its ``mcp-*`` tools and bare alias registered) is a
-    real content change for any lookup made while the scope is live."""
+def test_another_runs_live_admission_scope_does_not_rebuild_the_bundle():
+    """lane h-newchat-t1: a server admitted by ANOTHER run (its ``mcp-*`` tools
+    and bare alias registered while that run holds them) is not this chat's
+    content. Live 2026-10-06 01:25: a new chat's turn 1 overlapped the chat-open
+    prewarm's admission and rebuilt twice, as the scope came up and went down.
+
+    *Killing mutation:* key on every ``(tool, toolset)`` pair again -- the
+    lookup inside the live scope is a new bundle.
+    """
 
     from tools.registry import registry
 
     persona = _persona("dev-mcp-admitted")
     _warm_the_lane(persona)
     before = CLB.chat_lane_bundle(persona, session_id="chat-mcp")
+    builds = CLB.bundle_builds_this_thread()
     _register_scratch_tool("mcp_bundle_admitted_echo", "mcp-bundle-admitted")
     registry.register_toolset_alias("bundle-admitted", "mcp-bundle-admitted")
     try:
-        assert CLB.chat_lane_bundle(persona, session_id="chat-mcp") is not before
+        assert CLB.chat_lane_bundle(persona, session_id="chat-mcp") is before
     finally:
         _deregister_scratch_tool("mcp_bundle_admitted_echo")
+    assert CLB.chat_lane_bundle(persona, session_id="chat-mcp") is before
+    assert CLB.bundle_builds_this_thread() == builds
 
 
 def test_an_availability_invalidation_rebuilds_the_bundle():
