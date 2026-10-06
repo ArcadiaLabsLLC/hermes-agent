@@ -129,6 +129,11 @@ five habits cost about 390 minutes a day.
 
 ## What a landing runs, once
 
+**One whole-tree gate per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a
+15–18 minute gate for a single lane). A finished lane waits for the batch; the landing merges every ready
+lane, then runs the gate once. A lane that finishes while a gate is running joins the next batch unless it
+touches nothing the running batch touches.
+
 Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh tests` in the one heavy slot;
 (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
 `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`, the
