@@ -482,6 +482,7 @@ def _unseamed(attempts: list[dict]) -> list[dict]:
     return out
 
 
+@pytest.mark.slow_native
 @pytest.mark.timeout(300)  # the phone case stages the wheel first (the packager's walk, ~40 s)
 @pytest.mark.parametrize("wheel", ["phone", "full"])
 def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_history(tmp_path, wheel):

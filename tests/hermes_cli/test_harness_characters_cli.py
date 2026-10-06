@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -1593,19 +1595,66 @@ def test_an_uninstalled_slug_is_an_error_with_the_slug_echoed_back(capsys):
     assert "not installed" in payload["error"]
 
 
-def _installed_slug(capsys, base_image) -> str:
-    """One composed, installed character through the CLI — the sprite verb's subject."""
+@pytest.fixture(scope="module")
+def _installed_home(tmp_path_factory):
+    """One composed, installed character through the CLI — the sprite verb's subject.
 
-    draft_id = to_rows(capsys, base_image)
-    run(["harness", "characters", "rows", "--draft", draft_id, "--json"], capsys)
-    code, composed = run(["harness", "characters", "compose", "--draft", draft_id, "--json"], capsys)
-    assert (code, composed["ok"]) == (0, True)
-    return composed["slug"]
+    Module-scoped and shared READ-ONLY, the shape `_installed` already has in
+    `tests/agent/test_charsheet_draft.py`: the sprite verb only reads, and the
+    four verbs that build the character (start, turnaround, approve, rows,
+    compose) are the same deterministic run for every reader, ~2.5 s each time
+    (suite-speed Stage 4E). The verbs still run through the real parser and
+    their handlers; only capsys is replaced, because it is function-scoped.
+    """
+    root = tmp_path_factory.mktemp("installed")
+
+    def call(argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            args = parser().parse_args(argv)
+            code = args.func(args)
+        payload = one_json_object(out.getvalue())
+        assert (code, payload["ok"]) == (0, True), (argv, payload)
+        return payload
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("HERMES_HOME", str(root / "home"))
+        patch.setattr(
+            pipeline.provider,
+            "_generate_image",
+            FakeDraftsman(
+                root / "generated",
+                strip_size=(STRIP_W, STRIP_H),
+                square_px=SQUARE_PX,
+                glyph_px=GLYPH_PX,
+            ),
+        )
+        base = root / "src" / "base.png"
+        base.parent.mkdir(parents=True, exist_ok=True)
+        square_image("s").save(base, format="PNG")
+        draft_id = call([
+            "harness", "characters", "start",
+            "--concept", "an arrow knight",
+            "--slug", "arrow-knight",
+            "--states", STATES_FLAG,
+            "--directions", DIRECTIONS_FLAG,
+            "--base-image", str(base),
+            "--json",
+        ])["draft"]
+        for verb in (["turnaround"], ["approve-direction", "--all"], ["rows"]):
+            call(["harness", "characters", verb[0], "--draft", draft_id, *verb[1:], "--json"])
+        composed = call(["harness", "characters", "compose", "--draft", draft_id, "--json"])
+    return {"home": root / "home", "slug": composed["slug"]}
 
 
-def test_no_sheet_hands_back_the_path_instead_of_half_a_megabyte_of_base64(
-    fake, base_image, capsys
-):
+@pytest.fixture
+def installed_slug(_installed_home, monkeypatch):
+    """The shared installed character's slug, with HERMES_HOME pointed at it."""
+    monkeypatch.setenv("HERMES_HOME", str(_installed_home["home"]))
+    return _installed_home["slug"]
+
+
+def test_no_sheet_hands_back_the_path_instead_of_half_a_megabyte_of_base64(installed_slug, capsys):
     """The flag on the verb, at the join — not just on `sprite_payload`.
 
     ANTI-VACUITY: the two payloads are taken from ONE installed character in one
@@ -1616,7 +1665,7 @@ def test_no_sheet_hands_back_the_path_instead_of_half_a_megabyte_of_base64(
     the missing base64 it replaced.
     """
 
-    slug = _installed_slug(capsys, base_image)
+    slug = installed_slug
 
     code, full = run(["harness", "characters", "sprite", slug, "--json"], capsys)
     assert (code, full["ok"]) == (0, True)
@@ -1645,9 +1694,7 @@ def test_no_sheet_hands_back_the_path_instead_of_half_a_megabyte_of_base64(
     assert saved > 0
 
 
-def test_the_default_sprite_envelope_carries_exactly_the_keys_it_always_did(
-    fake, base_image, capsys
-):
+def test_the_default_sprite_envelope_carries_exactly_the_keys_it_always_did(installed_slug, capsys):
     """The additive claim, checked rather than asserted.
 
     The launcher's `HermesCharacterClient.sprite` passes no flag and reads this
@@ -1664,7 +1711,7 @@ def test_the_default_sprite_envelope_carries_exactly_the_keys_it_always_did(
     `tests/agent/test_charsheet_draft.py`.
     """
 
-    slug = _installed_slug(capsys, base_image)
+    slug = installed_slug
 
     code, sprite = run(["harness", "characters", "sprite", slug, "--json"], capsys)
     character = sprite["character"]
@@ -1689,9 +1736,7 @@ def test_the_default_sprite_envelope_carries_exactly_the_keys_it_always_did(
     }
 
 
-def test_the_human_line_says_where_the_sheet_is_when_it_is_not_carrying_it(
-    fake, base_image, capsys
-):
+def test_the_human_line_says_where_the_sheet_is_when_it_is_not_carrying_it(installed_slug, capsys):
     """Without `--json` the operator gets a line, and it must be actionable.
 
     A metadata-only read whose human rendering says nothing about the file has
@@ -1699,7 +1744,7 @@ def test_the_human_line_says_where_the_sheet_is_when_it_is_not_carrying_it(
     line is unchanged — that negative is the second half of the same claim.
     """
 
-    slug = _installed_slug(capsys, base_image)
+    slug = installed_slug
 
     def line(*extra: str) -> str:
         args = parser().parse_args(["harness", "characters", "sprite", slug, *extra])
