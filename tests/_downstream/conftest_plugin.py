@@ -758,6 +758,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
+        "slow_native: a real native-turn test whose wall is the turn itself (tens of seconds); "
+        "the scheduler runs it first and alone rather than under suite CPU load "
+        "(docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md, Stage 4C)",
+    )
+    config.addinivalue_line(
+        "markers",
         f"{_ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK}: allow a test to "
         "exercise the real ~/.claude/.credentials.json reader/writer. The "
         "test MUST also point Path.home() at its own tmpdir — the marker "

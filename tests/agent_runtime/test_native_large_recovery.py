@@ -10,6 +10,7 @@ from agent_runtime.conversations.service import ConversationService
 from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
 
 
+@pytest.mark.slow_native
 @pytest.mark.timeout(180)
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
 def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_path, compute):

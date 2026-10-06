@@ -133,6 +133,7 @@ def settled(service, run):
     return view if any(e["kind"] == "room.activity" for e in view["log"]["events"]) else None
 
 
+@pytest.mark.slow_native
 def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_history(engine):
     service, ctx = engine
     run = begin(service, 12)

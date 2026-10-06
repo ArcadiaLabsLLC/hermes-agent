@@ -56,6 +56,12 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 from tests._downstream.persona_source import package_source
+from tests.agent_runtime._session_db_template import (  # noqa: F401 — fixtures
+    _session_db_template,
+    session_db_from_template,
+)
+
+pytestmark = pytest.mark.usefixtures("session_db_from_template")
 
 
 @pytest.fixture(autouse=True)

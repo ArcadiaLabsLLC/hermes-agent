@@ -10,7 +10,7 @@ import pytest
 from agent_runtime.conversations.model import ConversationScope
 from agent_runtime.conversations.service import ConversationService
 
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120), pytest.mark.slow_native]
 
 
 class Provider(BaseHTTPRequestHandler):
