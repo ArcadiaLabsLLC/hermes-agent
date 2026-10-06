@@ -1033,6 +1033,12 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
 | `persona_chat_turn` | `persona_chat_turn_frames` (`stream/frames.py`) | 2 | **no** — one chat root's turn sections |
 
+The chat lane's per-request protocol-v2 frames (`turn.start`, `segment.*`, `tool.*`,
+`reasoning.summary`, `turn.end`, then `chat.final`) are not stream frames and have no row here;
+their one additive turn-end pair — `reasoning_tokens` / `reasoning_ms` on `turn.end` and
+`chat.final`, and on each history-replay `thinking_summary` message carried in the core's
+operator-channel conversation — is doc 05 §2b.
+
 `persona_chat_turn` (plan h-turn1 §2 C1/C2) replaces the demote core of a batch
 made ONLY of chat-turn events (`batch_turn_roots`: the three `persona_chat.*`
 publishes and the chat-trace `run.*`; anything else in the batch, including

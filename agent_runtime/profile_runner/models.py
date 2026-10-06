@@ -157,6 +157,11 @@ class AgentRunResult:
     # which is the only honest source for Mission Control's context budget.
     # Collected per API call by agent_runtime.usage_ledger (bound around run_conversation).
     usage_ledger: list[dict[str, Any]] = field(default_factory=list)
+    # The turn's ``reasoning_tokens`` / ``reasoning_ms`` from the stream-gap
+    # window (``stream_gap_receipt.TurnReasoning.fields``): ``{}`` when the
+    # provider reported no reasoning count. Unlike ``reasoning_tokens`` above it
+    # tells "reported zero" from "not reported" -- the Thinking row reads this.
+    reasoning_window: dict[str, int] = field(default_factory=dict)
     latency_ms: int | None = None
     # Mostly ``_ms`` / ``_count`` integers, plus the one structured entry
     # ``run_budget`` (the accounting block from ``run_budget.RunBudgetLedger``).

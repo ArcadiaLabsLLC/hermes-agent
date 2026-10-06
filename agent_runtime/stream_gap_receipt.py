@@ -37,6 +37,15 @@ request splits them.
 
 All window times are milliseconds from the first parsed event.
 
+**The turn's reasoning (h-think-tokens).** The same window feeds the Thinking
+row: :func:`bind_turn_reasoning` opens a :class:`TurnReasoning` tally on the
+agent for one turn, and every request that reaches its terminal event folds in
+its ``reasoning_tokens`` and its reasoning time -- first event to the first
+reply output (output text, or a function call's arguments on a tool round),
+the terminal event when neither came. ``fields()`` is ``{}`` when no request
+reported a reasoning count, so a provider that reports none leaves the turn's
+fields ABSENT, and a reported zero stays ``0``.
+
 **Cost and failure.** A few attribute writes per chunk and per event, one
 short-lived thread per request, one ``INFO`` line per request. Every entry
 point is fail-open: an instrument is never the reason a request fails.
@@ -48,6 +57,7 @@ import logging
 import threading
 import time
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 
@@ -61,9 +71,14 @@ logger = logging.getLogger(__name__)
 
 STREAM_GAP_RECEIPT = "stream_gap_receipt"
 TEXT_DELTA_TYPE = "response.output_text.delta"
+FUNCTION_ARGS_DELTA_TYPE = "response.function_call_arguments.delta"
 REASONING_SUMMARY_DELTA_TYPE = "response.reasoning_summary_text.delta"
 TERMINAL_TYPES = frozenset({"response.completed", "response.incomplete", "response.failed"})
 STALL_INTERVAL_S = 0.01
+#: The ``run.progress`` step of the ONE stored event that carries a turn's
+#: reasoning counts (``ChatProgressSink.record_reasoning_usage``); the trace
+#: projection folds it onto the turn's Thinking rows.
+REASONING_USAGE_STEP = "reasoning_usage"
 STALL_REPORT_FLOOR_MS = 50.0
 
 _AGENT_ATTR = "_hermes_stream_gap_receipt"
@@ -73,6 +88,7 @@ _AGENT_ATTR = "_hermes_stream_gap_receipt"
 #: rebuilt actor), and a hook bound to that first agent stamped a finished
 #: receipt while the live one read ``chunks=0``.
 _CLIENT_ATTR = "_hermes_open_stream_gap_receipt"
+_TURN_ATTR = "_hermes_turn_reasoning"
 _HOOK_MARK = "_hermes_stream_gap_hook"
 
 
@@ -143,6 +159,8 @@ class StreamGapReceipt:
     output_tokens: int | None = None
     reasoning_tokens: int | None = None
     end: str | None = None
+    reply_at: float | None = None
+    terminal_at: float | None = None
     logged: bool = False
     probe: _StallProbe | None = None
     #: h-send-window: the request's send window (request start -> first event).
@@ -168,12 +186,18 @@ class StreamGapReceipt:
         kind = str(_field(event, "type") or "?")
         if kind == REASONING_SUMMARY_DELTA_TYPE:
             self.reasoning_summary_chars += len(str(_field(event, "delta") or ""))
+        if self.reply_at is None and self.first_event_at is not None and (
+                kind == FUNCTION_ARGS_DELTA_TYPE or (kind == TEXT_DELTA_TYPE and _field(event, "delta"))):
+            self.reply_at = now
         if kind in TERMINAL_TYPES:
+            self.terminal_at = now
             self._read_usage(_field(event, "response"))
         if self.text_at is not None:
             return
         lag_ms = None if self.last_chunk_at is None else max(0.0, (now - self.last_chunk_at) * 1000.0)
         if self.first_event_at is None:
+            if kind == TEXT_DELTA_TYPE and _field(event, "delta"):
+                self.reply_at = now
             # The first event's lag is reported apart: it opens the window and,
             # on a cold process, carries the SDK's one-off event-model build.
             self.first_event_at, self.first_lag_ms = now, lag_ms
@@ -213,6 +237,13 @@ class StreamGapReceipt:
         if self.first_event_at is None or self.text_at is None:
             return None
         return (self.text_at - self.first_event_at) * 1000.0
+
+    def reasoning_ms(self) -> float | None:
+        """First event -> first reply output (or the terminal event when none came)."""
+        end = self.reply_at if self.reply_at is not None else self.terminal_at
+        if self.first_event_at is None or end is None:
+            return None
+        return max(0.0, (end - self.first_event_at) * 1000.0)
 
     def fields(self) -> dict[str, Any]:
         origin = self.first_event_at
@@ -268,6 +299,46 @@ class StreamGapReceipt:
         text = self.line(request_id=request_id, model=model)
         logger.info("%s", text)
         return text
+
+
+@dataclass
+class TurnReasoning:
+    """One turn's reasoning, summed over the requests that reached a terminal event."""
+
+    tokens: int | None = None
+    ms: float = 0.0
+
+    def fold(self, receipt: StreamGapReceipt) -> None:
+        if receipt.terminal_at is None:
+            return  # an abandoned attempt: no usage, no closed window
+        if receipt.reasoning_tokens is not None:
+            self.tokens = (self.tokens or 0) + receipt.reasoning_tokens
+        self.ms += receipt.reasoning_ms() or 0.0
+
+    def fields(self) -> dict[str, int]:
+        """``reasoning_tokens`` / ``reasoning_ms``, or ``{}`` when no request reported a count."""
+        if self.tokens is None:
+            return {}
+        return {"reasoning_tokens": self.tokens, "reasoning_ms": int(round(self.ms))}
+
+
+@contextmanager
+def bind_turn_reasoning(agent: Any) -> Iterator[TurnReasoning]:
+    """Tally this turn's reasoning on *agent* for the life of the block."""
+
+    tally = TurnReasoning()
+    try:
+        setattr(agent, _TURN_ATTR, tally)
+    except Exception:
+        logger.debug("turn reasoning tally not bound", exc_info=True)
+    try:
+        yield tally
+    finally:
+        if getattr(agent, _TURN_ATTR, None) is tally:
+            try:
+                delattr(agent, _TURN_ATTR)
+            except Exception:
+                pass
 
 
 class _TimedByteStream(httpx.SyncByteStream):
@@ -371,15 +442,21 @@ def observe_stream_event(agent: Any, event: Any) -> None:
                         model=getattr(agent, "model", None))
         kind = _field(event, "type")
         if kind in TERMINAL_TYPES:
+            tally = getattr(agent, _TURN_ATTR, None)
+            if isinstance(tally, TurnReasoning) and not receipt.logged:
+                tally.fold(receipt)
             _finish_agent_receipt(agent, "no_text")
     except Exception:
         logger.debug("stream gap event observe failed", exc_info=True)
 
 
 __all__ = [
+    "REASONING_USAGE_STEP",
     "STREAM_GAP_RECEIPT",
     "StreamGapReceipt",
     "begin_send_window",
+    "TurnReasoning",
     "begin_stream_gap_receipt",
+    "bind_turn_reasoning",
     "observe_stream_event",
 ]

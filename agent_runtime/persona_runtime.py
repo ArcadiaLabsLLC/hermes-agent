@@ -215,6 +215,13 @@ class GPTPersonaRuntime:
             permission_mode=lane_bundle.permission_mode,
         )
         from .workspace_slot_overlay import slot_env_scope
+        trace_sink = _chat_trace_sink(
+            session_id=perm_session_id,
+            persona=persona,
+            turn_id=turn_id,
+            before_first_trace=pre_trace_callback,
+            on_trace=trace_callback,
+        )
         with slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
                 "operator", root_chat_session_id or perm_session_id, turn_id,
                 persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
@@ -294,17 +301,13 @@ class GPTPersonaRuntime:
                     # session_id=None (the transcript is already baked into the
                     # message) but the permission/session lineage lives on
                     # perm_session_id, which is also the persona instance's session.
-                    progress_callback=_chat_trace_callback(
-                        session_id=perm_session_id,
-                        persona=persona,
-                        turn_id=turn_id,
-                        before_first_trace=pre_trace_callback,
-                        on_trace=trace_callback,
-                    ),
+                    progress_callback=trace_sink.callback() if trace_sink is not None else None,
                     runtime_root=paths.store_root(),
                     workdir=Path(workdir.path) if workdir.grounded else None,
                 )
             )
+        if trace_sink is not None:
+            trace_sink.record_reasoning_usage(getattr(result, "reasoning_window", None))
         ChatToolPermissionStore().consume_turn(persona_id=persona.id, session_id=perm_session_id)
         if clarify_capture.requested and isinstance(result.raw, dict):
             result.raw["clarify_request"] = clarify_capture.request
@@ -427,16 +430,17 @@ def _mission_chat_user_message(
     return "\n\n".join(part for part in parts if part)
 
 
-def _chat_trace_callback(
+def _chat_trace_sink(
     *,
     session_id: str | None,
     persona: AgentPersona,
     turn_id: str | None = None,
     before_first_trace: Callable[[dict], None] | None = None,
     on_trace: Callable[[dict], None] | None = None,
-) -> Callable[[dict], None] | None:
-    """Build a runner ``progress_callback`` that records a chat turn's tool
-    calls as redaction-safe trace events keyed on the chat session.
+) -> ChatProgressSink | None:
+    """Build the sink whose ``callback()`` is the runner ``progress_callback``: it
+    records a chat turn's tool calls as redaction-safe trace events keyed on
+    the chat session.
 
     ``turn_id`` is the turn's canonical identity (the operator's
     ``client_message_id`` token); it is stamped on every recorded event so the
@@ -444,16 +448,17 @@ def _chat_trace_callback(
 
     Returns ``None`` when there is no session to key on (e.g. a sandbox run with
     no durable chat), which leaves the chat turn's telemetry exactly as it was
-    before — no run row is created, nothing is persisted.
+    before — no run row is created, nothing is persisted. The turn keeps the
+    sink to store the turn-end reasoning counts
+    (``ChatProgressSink.record_reasoning_usage``).
     """
 
     if not session_id and on_trace is None:
         return None
-    sink = ChatProgressSink(
+    return ChatProgressSink(
         session_id=session_id or "",
         persona_id=getattr(persona, "id", None),
         turn_id=turn_id,
         before_first_trace=before_first_trace,
         on_trace=on_trace,
     )
-    return sink.callback()

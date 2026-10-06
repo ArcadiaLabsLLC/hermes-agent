@@ -10,6 +10,7 @@ from .events import EventLog
 from .models import Event
 from .redaction import scrub_secret_values
 from .redaction_mode import redaction_observe_enabled
+from .stream_gap_receipt import REASONING_USAGE_STEP
 
 __layer__ = "lanes"
 
@@ -20,6 +21,7 @@ _SAFE_PROGRESS_KEYS = {
     "proof_count", "decision_type", "validation_status", "error_class", "next_expected",
     "repo_label", "context_loaded", "patch_summary", "code_summary", "file_summary",
     "changed_files", "files_touched", "reasoning_summary", "tool_call_count",
+    "reasoning_tokens", "reasoning_ms",
     "read_search_count", "patch_count", "test_count", "loop_warning",
     "has_patch_progress", "has_test_progress", "has_proof_progress",
     "envelope_id", "decision_count", "continuation_count", "model_invocation_count",
@@ -136,6 +138,10 @@ _TYPED_TOOL_CALL_FIELDS: dict[str, Callable[[Any], bool]] = {
     "outcome": _typed_outcome,
     "timed_out": _typed_timed_out,
     "timeout_seconds": _typed_timeout_seconds,
+    # Not tool-call fields: the turn's reasoning counts (h-think-tokens), the
+    # same non-negative int shape, so the same check.
+    "reasoning_tokens": _typed_timeout_seconds,
+    "reasoning_ms": _typed_timeout_seconds,
 }
 
 _CHAT_TRACE_EVENT_TYPES = {"run.tool.started", "run.tool.finished", "run.progress"}
@@ -343,6 +349,48 @@ class ChatProgressSink:
         except Exception:
             return None
         return None
+
+    def record_reasoning_usage(self, fields: dict[str, Any] | None) -> None:
+        """Store the turn's ``reasoning_tokens`` / ``reasoning_ms`` as ONE event, at turn end.
+
+        The Thinking rows are appended while the model streams; the counts exist
+        only once the provider's usage block arrives, so they cannot ride those
+        rows without delaying them. This is the one update instead: a
+        ``run.progress`` event with step ``reasoning_usage`` that the trace
+        projection folds onto the turn's Thinking rows
+        (``persona_chat_history.trace``). Appended straight to the log: it is no
+        live frame (the ``turn.end`` frame carries the counts) and no trace
+        payload of the handler's. Nothing is written when the provider reported
+        no count (``fields`` empty). Best-effort, like every sink write.
+        """
+
+        try:
+            if not fields or not self.session_id:
+                return None
+            safe = _safe_progress_payload(
+                "run.progress",
+                {
+                    "type": "run.progress", "phase": "thinking_process", "step": REASONING_USAGE_STEP,
+                    "status": "completed", "summary": "Agent thinking process usage", **fields,
+                },
+            )
+            if safe.get("reasoning_tokens") is None:
+                return None
+            _append_bounded_event(
+                self.event_log,
+                Event(
+                    ts=now(),
+                    type="run.progress",
+                    task_id=None,
+                    run_id=self.run_id,
+                    persona_id=self.persona_id,
+                    payload=safe,
+                    session_id=self.session_id,
+                    turn_id=self.turn_id,
+                ),
+            )
+        except Exception:
+            return None
 
     def callback(self) -> "Callable[[dict[str, Any]], None]":
         """Adapter matching the runner's ``progress_callback`` contract."""

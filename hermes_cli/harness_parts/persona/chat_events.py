@@ -487,7 +487,12 @@ class _ChatProtocolV2Emitter:
         input_tokens: object = None,
         output_tokens: object = None,
         total_tokens: object = None,
+        reasoning: dict[str, int] | None = None,
     ) -> None:
+        # ``reasoning`` is the turn's ``reasoning_tokens`` / ``reasoning_ms``
+        # (h-think-tokens): additive keys on ``turn.end``, the live half of the
+        # one turn-end update -- the Thinking frames went out before the
+        # provider's usage block existed. Absent when the provider reported none.
         # Idempotent: a crash-path caller may reach finish() after the success
         # path already finished — a second turn.end frame would corrupt the
         # stream protocol. on_update is suppressed for the whole finish window:
@@ -511,6 +516,7 @@ class _ChatProtocolV2Emitter:
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
+                    **(reasoning or {}),
                 }
             )
         finally:
