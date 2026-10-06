@@ -348,6 +348,10 @@ semantics (keep the observe-only no-mutation guard). Org-mirror token gating was
 upstream in `64ad33e32d`; the fork's skill-root fingerprint and category projection follow
 that removal, with the existing signature test retained and adapted. Skill inspection follows
 the new `(tier, root)` resolver API. No fork-only test file was deleted.
+The fork-only phone stand-in for `plugins.memory.honcho.client` is retired because
+`7e53b3ef82` removed that bundled provider; the stand-in table's existing test is retained.
+Upstream's new environment-file lock also requires `HostSecretFile.with_name` for
+its non-secret sibling lock path; credential contents continue through the secure-store seam.
 
 Before: `[up-fp] files=175 deleted_lines=883 heavy=4`.
 After: `[up-fp] files=175 deleted_lines=964 heavy=5`. The regenerated lockfile accounts
