@@ -201,6 +201,23 @@ def brief_tool_descriptions(request=None, **_context):
     return {"request": current, "source": "eternia-harness", "reason": " + ".join(reasons)}
 
 
+def settle_turn_tools(session_id=None, **_context):
+    """``pre_llm_call`` hook: the persona's tool form, settled BEFORE the turn's first request.
+
+    Upstream's between-turns refresh (``agent/turn_context.py::_refresh_mcp_tools_between_turns``)
+    re-derives the profile-wide eager list and appends the persona's deferred tools at the tail;
+    the ``llm_request`` re-prune runs only after that request was built, so turn 1 shipped the
+    deferred tools eager AND the bridge the actor was built with (a prewarm's catalog), while
+    turn 2 shipped the bridge the re-prune re-assembled: two prompt-cache keys, turn 2 cold
+    (lane h-cache-hit). This hook runs after the refresh and before the request is assembled,
+    so every turn's wire is the same re-assembly of the same catalog.
+    """
+    from agent_runtime.tool_blocks import reprune_turn_agent
+
+    reprune_turn_agent(session_id)
+    return None
+
+
 def refuse_blocked_tool(tool_name=None, session_id="", **_context):
     """``pre_tool_call`` hook: refuse a tool the run blocked, ``tool_call``-unwrapped names included."""
     from agent_runtime.tool_blocks import blocked_call_message
@@ -334,6 +351,7 @@ def register(ctx) -> None:
     ctx.register_middleware("llm_request", brief_tool_descriptions)
     ctx.register_middleware("tool_request", default_background_notify)
     ctx.register_middleware("llm_execution", time_provider_dispatch)
+    ctx.register_hook("pre_llm_call", settle_turn_tools)
     ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     # The on_stream_* receipt observers register only while a persona turn runs: any
