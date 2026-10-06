@@ -357,7 +357,11 @@ runtime root, entry-point lane, and the **registry content** the composition rea
 `registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
 so the generation moved on every MCP-admitting turn while the content did not, and every such turn
 rebuilt (`visibility_bundle_rebuild_component_registry_epoch=1` on every turn from 2026-09-08 until
-lane h-bundle-epoch). The `check_fn` grace machinery is untouched, and a
+lane h-bundle-epoch). Admission-scoped `mcp-*` registrations are left out of the content
+altogether (lane h-newchat-t1): they belong to whichever run admitted them, the composition
+never reads them, and a new chat's turn 1 that overlapped the chat-open prewarm's admission
+rebuilt twice, as the scope came up and as it went down (turn `5377d205`, 2026-10-06,
+`rt_bundle_builds=2`). The `check_fn` grace machinery is untouched, and a
 down backend still loses its TOOLS at construction because `registry.get_definitions` re-probes on
 its own TTL; what can go stale is the toolset NAME in the lane's accounting until the key moves.
 `invalidate_chat_lane_bundles()` is the explicit hatch. A bundle whose best-effort components

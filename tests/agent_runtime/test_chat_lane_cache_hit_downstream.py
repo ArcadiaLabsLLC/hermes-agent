@@ -134,3 +134,36 @@ def test_two_chats_of_one_instance_send_one_prefix_one_key_and_one_scope(chat):
     assert a["prompt_cache_key_fingerprint"] == b["prompt_cache_key_fingerprint"]
     assert a["session_header_fingerprint"] == b["session_header_fingerprint"]
     assert a["cache_scope_source"] == b["cache_scope_source"] == "cache_scope_id"
+
+
+def test_two_new_chats_turn_one_differ_first_inside_the_user_turn(chat):
+    """S6 (lane h-newchat-t1): turn 1 of two chats of one instance sends one prefix up to the
+    first per-chat byte, and that byte is inside ``input`` -- never in the tools, never in the
+    instructions the turn's own builder composes -- under one body key and one Codex header.
+
+    Live 2026-10-06: the 01:25 chat's turn 1 (``1de60c28``) missed the 00:15 chat's bucket
+    (``9c7f8b9d``) because the serve between them changed the wire tools (h-cache-hit: the five
+    ``browser_vault_*`` stopped riding eager, tools JSON offset 34687), not on a per-chat byte.
+
+    *Killing mutation:* scope the cache by the chat (``persona_cache_scope_id`` returns its
+    fallback, the pre-S6 routing) -- the two chats' headers differ.
+    """
+    from agent_runtime.persona_runtime import _mission_chat_surface_message
+    from tests.agent_runtime.persona_samples import sample_personas
+
+    neko = next(p for p in sample_personas() if p.id == "neko_supervisor")
+    new_actor, turn, _raw = chat
+    wires = []
+    for root, text in (("persona_chat_personainst_neko_1_aaaa", "hi"),
+                       ("persona_chat_personainst_neko_1_bbbb", "hello there")):
+        tools, observability = turn(new_actor(root))
+        body = {"tools": tools, "instructions": _mission_chat_surface_message(neko, ""),
+                "input": [{"role": "user", "content": text}]}
+        wires.append((_bytes(body), _bytes({"tools": tools, "instructions": body["instructions"]})[:-1],
+                      observability))
+    (a, a_prefix, a_obs), (b, b_prefix, b_obs) = wires
+    first = next(i for i, (x, y) in enumerate(zip(a, b)) if x != y)
+    assert a_prefix == b_prefix and first >= len(a_prefix), (first, a[first - 40:first + 40])
+    assert a[len(a_prefix):].startswith(',"input":')
+    assert a_obs["prompt_cache_key_fingerprint"] == b_obs["prompt_cache_key_fingerprint"]
+    assert a_obs["session_header_fingerprint"] == b_obs["session_header_fingerprint"]
