@@ -9,10 +9,90 @@ from agent_runtime.mission_chat_turns.journal import transition_mission_chat_tur
 from agent_runtime.mission_chat_turns.states import MissionChatTurnPersistOutcome
 from agent_runtime.operator_execution import execution_status
 from tests.agent_runtime.operator_lane_fixture import OperatorLane
-from tests.agent_runtime.test_operator_conversation_attachment import fixture
+from tests.agent_runtime.test_operator_conversation_attachment import call, fixture
 
 SEND = "runtime.chat.message"
 STOP = "runtime.operator.conversation.stop"
+
+
+@pytest.mark.parametrize("instance_pin", [True, False])
+def test_resolved_console_send_stops_without_tools_and_keeps_admission_identity(
+        tmp_path, monkeypatch, instance_pin):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    send = {**target, "turn_request_id": "resolved-send", "message": "Ordinary reply"}
+    send.pop("session_id")  # The console's continue-this-thread wire shape.
+    if not instance_pin:
+        send.pop("persona_instance_id")
+    stopped = []
+    responses = []
+
+    def dispatch(argv):
+        persist_mission_chat_turn(session_id=target["session_id"],
+            client_message_id="resolved-send", turn_id="resolved-send", state="running",
+            elements=[], metadata={"root_chat_session_id": target["session_id"],
+                                  "persona_instance_id": target["persona_instance_id"]})
+        agent = SimpleNamespace(hard_interrupt=lambda reason, **kw: stopped.append(reason))
+        with track_in_interrupt_scope(agent):
+            response = lane.rpc(STOP, {**target, "turn_request_id": "resolved-send"})
+            responses.append(response)
+            if "result" not in response:
+                return 1
+            assert response["result"]["owner_observed"] is True
+            assert stopped == ["Stopped by the user"]
+            assert call("read", target)["result"]["executions"][0]["outcome"] == "stop_requested"
+            persist_mission_chat_turn(session_id=target["session_id"],
+                client_message_id="resolved-send", turn_id="resolved-send", state="interrupted",
+                elements=[], metadata={"root_chat_session_id": target["session_id"],
+                                      "persona_instance_id": target["persona_instance_id"]})
+        return 130
+
+    lane = OperatorLane(tmp_path / "home", dispatch)
+    assert lane.rpc(SEND, send)["result"]["accepted"]
+    original = read_chat_turn_receipt("resolved-send")
+    lane.advance()
+    assert "result" in responses[0], responses[0]
+    assert read_chat_turn_receipt("resolved-send").exit_code == 130
+    assert execution_status(target["session_id"], "resolved-send")["outcome"] == "stopped"
+    receipt = read_chat_turn_receipt("resolved-send")
+    assert receipt.session_scope == original.session_scope
+    assert receipt.payload_fingerprint == original.payload_fingerprint
+    assert lane.rpc(SEND, send)["result"]["idempotent_replay"]
+    assert lane.jobs == []
+
+
+@pytest.mark.parametrize("evidence, reason", [
+    ("missing", "execution_scope_unresolved"),
+    ("other-instance", "turn_request_conflict"),
+    ("other-root", "turn_request_conflict"),
+    ("explicit-other-root", "turn_request_conflict"),
+])
+def test_resolved_stop_requires_exact_journal_evidence(tmp_path, monkeypatch, evidence, reason):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    send = {**target, "turn_request_id": "guarded", "message": "Work"}
+    send.pop("session_id")
+    if evidence == "explicit-other-root":
+        send["session_id"] = "different-root"
+    lane = OperatorLane(tmp_path / "home", lambda _: pytest.fail("Refusal must not dispatch"))
+    assert lane.rpc(SEND, send)["result"]["accepted"]
+    if evidence != "missing":
+        persist_mission_chat_turn(session_id=target["session_id"], client_message_id="guarded",
+            turn_id="guarded", state="running", elements=[], metadata={
+                "root_chat_session_id": "different-root" if evidence == "other-root" else target["session_id"],
+                "persona_instance_id": "different-instance" if evidence == "other-instance" else target["persona_instance_id"],
+            })
+    result = lane.rpc(STOP, {**target, "turn_request_id": "guarded"})
+    assert result["error"]["data"]["reason"] == reason
+    assert not read_chat_turn_receipt("guarded").stop_requested
+    requested = call("read", {**target, "turn_request_id": "guarded"})
+    assert requested["error"]["data"]["reason"] == reason
+
+
+def test_missing_admission_never_claims_or_creates_a_stop(tmp_path, monkeypatch):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    lane = OperatorLane(tmp_path / "home", lambda _: 0)
+    result = lane.rpc(STOP, {**target, "turn_request_id": "never-admitted"})
+    assert result["error"]["data"]["reason"] == "execution_not_admitted"
+    assert read_chat_turn_receipt("never-admitted") is None
 
 
 def test_queued_stop_lost_ack_repeated_stop_and_newer_turn_are_isolated(tmp_path, monkeypatch):

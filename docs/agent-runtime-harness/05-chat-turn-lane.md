@@ -44,6 +44,17 @@ Automated recovery and isolation evidence is in the
 [landing record](archive/operator-conversation-handoff-2026-09-28.md).
 Native desktop acceptance remains open in the Launcher queue.
 
+`operator_execution.operator_execution_reservation` joins instance/persona
+admissions to their resolved session using the exact turn journal's
+`root_chat_session_id` and `persona_instance_id`. Admission scope and payload
+fingerprint stay immutable for resend deduplication. It refuses unresolved
+or conflicting roots before persisting Stop intent; the instance's current
+default pointer is not execution evidence. Stop and attachment reads share
+this join. `test_operator_execution_recovery` covers the console's omitted
+`session_id` path, hard interrupt without tools, replay and conflicting journal
+evidence. Launcher `operator_native_test` exercises that wire shape through
+the Dart adapter against the native dispatcher, including a lost Stop ack.
+
 ## 1. Send admission — the turn's identity and its thread
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as

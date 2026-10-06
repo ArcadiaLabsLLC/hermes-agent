@@ -25,8 +25,9 @@ def _read_reply(rid, params: dict, context: RpcContext | None) -> dict:
     try:
         return ok(rid, read_operator_conversation(params,
                   can_interrupt=context is not None and context.interrupt_operator is not None))
-    except OperatorConversationRefused as exc:
-        return err(rid, 4090, "This conversation could not be attached.", {"reason": exc.reason})
+    except (OperatorConversationRefused, ChatTurnReservationError) as exc:
+        reason = exc.reason if isinstance(exc, OperatorConversationRefused) else exc.code
+        return err(rid, 4090, "This conversation could not be attached.", {"reason": reason})
 
 
 @method("runtime.operator.conversation.message", tier=TIER_CONSOLE)
