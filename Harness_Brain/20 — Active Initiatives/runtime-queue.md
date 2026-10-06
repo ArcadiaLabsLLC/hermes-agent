@@ -408,6 +408,12 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-06 (upstream sync planning; AFTER the next release merge)
+
+- [ ] **Native conversation recovery lives inside ~15 upstream `tui_gateway/` files and is the top repeat merge conflict (`session_workdir`, `session_lifecycle`, `methods_session`, `event_replay`, `rpc_dispatch`, `server_requests`, `contracts/sessions` conflicted in the 2026-09-29 merge and/or the 2026-10-06 dry run): move the logic into fork modules, leave one-line call sites. Start only after the next release merge lands** · `seams / tui_gateway` · ledger `carry` rows "native conversation recovery"; `Merging upstream.md` · UNCLAIMED
+- [ ] **Four upstream door PRs would retire 23 fork-edited upstream files (optional-module 6, SDK fallback 3, secret-file store 7+2, provider access 5): the design is on branch `h-doors` (`d3d91edc7f`, `docs/agent-runtime-harness/planned/upstream-doors-2026-10-06.md`, not on main). Owner go needed before the Opus build lanes; land the plan with the first lane; open no upstream PR without the owner's OK** · `seams / upstream doors` · `h-doors` · UNCLAIMED
+- [ ] **When a door PR lands upstream and reaches a release: delete the fork hunks it retires, file by file, per the plan's "fork deletion" section, and lower `tests/fixtures/upstream_footprint.json`** · `seams / upstream doors` · `upstream-doors-2026-10-06.md` · UNCLAIMED
+
 ### Filed on arrival — 2026-10-06 (lane h-prereq-window)
 
 - [ ] **CLASS (third instance: turn-1 `conn=new`, turn-1 375 ms stream-gap stall, the turns 1–3 pre-request window): the turn-start title upgrade (`agent/title_generator.maybe_auto_title`, started by `agent/turn_context.py`) runs on turns 1–3 INSIDE anchor→request_sent — live 17:05 it logged 600–850 ms after the anchor, 60–180 ms before `request_sent`, and `request_built` read 95/162 ms on titled turns vs 46–55 untitled; structural answer: hold the upgrade unstarted (upstream's own `_deferred_title_upgrade` path) via one additive seam and start it from the fork's `request_sent` hook (`transport_phase_trace` → `run_deferred_turn_persist`'s neighbour); supersedes the h-turn1-conn title row** · seam (`agent/turn_context.py`, ledger row) · evidence: `send_prep_receipt` `title_threads=` + `request_built_ms`; lane h-prereq-window report · lane: seam + guard check that no `auto-title` thread is alive at turn N's `request_sent` **TAKEN 2026-10-06 h-title-defer**
