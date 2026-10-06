@@ -23,6 +23,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-06 (lane h-readiness)
+
+- [ ] **The serve's `SnapshotBuildContext.skill_root_registries` keeps registries for the serve's life and never re-checks them, so the argv read lane misses skill edits until a restart** · fork / snapshot · evidence: `resolve_skills`/`resolve_skill` use the explicit `_root_registries` map without signature validation; the map is created once in `hermes_cli/harness_parts/serve/session.py` · UNCLAIMED
+- [ ] **Other fork callers still call `get_all_skills_dirs` per profile and hit upstream's one-entry config cache (5 ruamel parses per build): `core_cache/fingerprint.py`, the default roots in `skill_resolution.resolve_skill(s)`, `skill_publishability.py`, `skill_view_result.py` — route them through `skill_resolution.skill_search_roots`** · fork / skills · evidence: lane h-readiness `8a02dfb03e` body · UNCLAIMED
+
 ### Filed on arrival — 2026-10-06 (lane h-snapshot-offproc)
 
 - [ ] **`CachedEventLog` re-reads and re-indexes every slice per snapshot build (`events` section 0.7–2.3 s; the read itself is 80 ms of a 92 MB log) — append from the live slice's consumed size** · fork / snapshot · evidence: `planned/snapshot-offproc-2026-10-06.md` (branch `plan/h-snapshot-offproc` `a6ada7e13a`) stage S1 · UNCLAIMED
@@ -353,6 +358,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+### Filed on arrival — 2026-10-06 (lane h-readiness)
+
+- [ ] **Upstream `agent/skill_utils._load_raw_config` caches one entry and clears it on every new key, so it thrashes in a process that switches profiles — a held upstream PR row for a bounded multi-entry cache** · upstream-owned / `agent/skill_utils.py` · evidence: lane h-readiness `8a02dfb03e` body · UNCLAIMED
 
 ### Filed on arrival — 2026-10-05 (lane h-prompt-tools)
 
