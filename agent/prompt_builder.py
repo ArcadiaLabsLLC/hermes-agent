@@ -1093,6 +1093,9 @@ def _bot_screen_hint() -> str:
     Pure reads (``published_env`` + the lease file); never raises — a missing/unimportable
     bot_desktop module or an unreadable lease must not break prompt construction. ``""`` when
     no screen is running, so the block simply drops out of the environment hints."""
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel has no Bot Screen.
+    if not shipped("tools.bot_desktop"):
+        return ""
     try:
         from tools.bot_desktop import lease as _bd_lease, runtime as _bd_runtime
         return bot_screen_note(True, _bd_runtime.published_env().get("DISPLAY"), _bd_lease.get().holder)

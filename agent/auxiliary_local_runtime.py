@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Optional, Tuple
 
-from hermes_cli.local_runtime.endpoint import LLAMACPP_ALIASES
+try:
+    from hermes_cli.local_runtime.endpoint import LLAMACPP_ALIASES
+except ModuleNotFoundError as exc:  # fork seam: phone wheel ships no managed local runtime.
+    if exc.name not in {"hermes_cli.local_runtime", "hermes_cli.local_runtime.endpoint"}:
+        raise
+    LLAMACPP_ALIASES = frozenset()
 
 
 def bare_llamacpp_endpoint(provider: Optional[str], base_url: Optional[str],

@@ -178,10 +178,11 @@ def forget_session(sid: str) -> None:
 def checkpoint(sid: str, last_seen: int, *, include_events: bool = True) -> dict:
     """Read one replay position and page under the same lock."""
     with _replay_lock:
-        events = [event for seq, event, _ in _replay_buffers.get(sid, ()) if seq > last_seen] if include_events else []
-        return {"events": events, "latest_seq": _replay_next_seq.get(sid, 0),
-                "epoch": _REPLAY_EPOCH,
-                "truncated": last_seen < _replay_evicted_through.get(sid, 0)}
+        snapshots = [(seq, payload) for seq, payload, _ in _replay_buffers.get(sid, ())
+                     if seq > last_seen] if include_events else []
+        position = {"latest_seq": _replay_next_seq.get(sid, 0), "epoch": _REPLAY_EPOCH,
+                    "truncated": last_seen < _replay_evicted_through.get(sid, 0)}
+    return {"events": [_thaw_params(payload, seq) for seq, payload in snapshots], **position}
 
 
 def replay_stats() -> dict:
