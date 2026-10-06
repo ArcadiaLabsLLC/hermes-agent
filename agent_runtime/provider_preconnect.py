@@ -9,8 +9,21 @@ on record, every later one 21-56 ms). One ``HEAD`` to the provider's base URL
 through the actor's OWN transport, right after the prewarm built it, moves that
 first-in-process cost here.
 
+The request carries the actor's IDENTITY headers (``User-Agent``, ``originator``
+-- :data:`IDENTITY_HEADERS`) and nothing else. A bare ``HEAD`` is what the edge
+in front of ``chatgpt.com`` challenges: it answered ``403`` with
+``cf-mitigated: challenge`` and ``Connection: close`` (probed 2026-10-05), so
+httpcore dropped the connection it had just opened and turn 1 still handshook
+(``request_built -> tls_done`` 712 ms on the 23:16Z Neko chat, 3 s after a
+``status=403`` pre-connect). With the identity the edge passes the request to
+the origin, which answers ``404 Connection: keep-alive`` and the connection
+stays in the pool the turn's per-request client shares
+(``agent/process_bootstrap.py::build_keepalive_http_client``). The receipt's
+``kept`` says which happened.
+
 What it does not do: send a body, call a model, or carry a credential (the SDK
-and the SDK-free client both add auth per request, never on the ``httpx.Client``);
+and the SDK-free client both add auth per request, never on the ``httpx.Client``,
+and :data:`IDENTITY_HEADERS` admits no other header);
 keep anything open beyond the transport's own ``keepalive_expiry`` (upstream's
 value, unchanged by ruling A4-r1); touch a loopback provider (a local router has
 no handshake worth moving). Fail-open: a refusal or a timeout is a receipt, never
@@ -29,7 +42,11 @@ __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
 
-PRECONNECT_RECEIPT = "persona_chat_actor_prewarm_connect host=%s status=%s elapsed_ms=%d"
+PRECONNECT_RECEIPT = "persona_chat_actor_prewarm_connect host=%s status=%s kept=%d elapsed_ms=%d"
+
+#: The only headers the pre-connect copies from the actor's client: who is
+#: calling, never on whose account. Lower-case names; matched case-insensitively.
+IDENTITY_HEADERS = ("user-agent", "originator")
 
 #: ``profile_timing`` key the prewarm writes when it opened a connection.
 PREWARM_CONNECT_MS = "prewarm_connect_ms"
@@ -64,6 +81,36 @@ def _base_url(agent: Any) -> str:
     return url
 
 
+def _identity_headers(agent: Any) -> dict[str, str]:
+    """The actor client's :data:`IDENTITY_HEADERS`, from the first source that has them.
+
+    ``agent._client_kwargs["default_headers"]`` is what every client of the actor
+    is built from (the turn's per-request client included); the SDK's own
+    ``_custom_headers`` / the SDK-free ``_default_headers`` and the SDK's
+    ``user_agent`` cover an actor built some other way.
+    """
+
+    client = getattr(agent, "client", None)
+    kwargs = getattr(agent, "_client_kwargs", None)
+    sources = (
+        kwargs.get("default_headers") if isinstance(kwargs, dict) else None,
+        getattr(client, "_custom_headers", None),
+        getattr(client, "_default_headers", None),
+    )
+    headers: dict[str, str] = {}
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for name, value in source.items():
+            key = str(name).lower()
+            if key in IDENTITY_HEADERS and key not in headers and isinstance(value, str) and value:
+                headers[key] = value
+    user_agent = getattr(client, "user_agent", None)
+    if "user-agent" not in headers and isinstance(user_agent, str) and user_agent:
+        headers["user-agent"] = user_agent
+    return headers
+
+
 def _is_loopback(host: str) -> bool:
     if host in ("localhost", "") or host.endswith(".localhost"):
         return True
@@ -74,7 +121,7 @@ def _is_loopback(host: str) -> bool:
 
 
 def preopen_provider_connection(agent: Any, timing: dict[str, Any]) -> str:
-    """One credential-free ``HEAD`` to ``agent``'s base URL. Returns a status.
+    """One credential-free ``HEAD`` to ``agent``'s base URL, under the actor's identity. Returns a status.
 
     The status is the response code as a string, or one of the ``STATUS_*``
     tokens. Writes :data:`PREWARM_CONNECT_MS` only when a request was sent.
@@ -90,20 +137,25 @@ def preopen_provider_connection(agent: Any, timing: dict[str, Any]) -> str:
     if _is_loopback(host):
         return STATUS_LOOPBACK
     started = time.perf_counter()
+    kept = 0
     try:
-        response = http.request("HEAD", url, timeout=PRECONNECT_TIMEOUT_SECONDS)
+        response = http.request(
+            "HEAD", url, headers=_identity_headers(agent), timeout=PRECONNECT_TIMEOUT_SECONDS,
+        )
         status = str(response.status_code)
+        kept = int(str(response.headers.get("connection", "")).strip().lower() != "close")
         response.close()
     except Exception:
         logger.debug("prewarm provider pre-connect failed for %s", host, exc_info=True)
         status = STATUS_FAILED
     elapsed_ms = max(0, int((time.perf_counter() - started) * 1000))
     timing[PREWARM_CONNECT_MS] = elapsed_ms
-    logger.info(PRECONNECT_RECEIPT, host, status, elapsed_ms)
+    logger.info(PRECONNECT_RECEIPT, host, status, kept, elapsed_ms)
     return status
 
 
 __all__ = [
+    "IDENTITY_HEADERS",
     "PRECONNECT_RECEIPT",
     "PREWARM_CONNECT_MS",
     "preopen_provider_connection",

@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-02",
   "base": "ee5f49b943",
-  "files": 172,
+  "files": 173,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h-turn1-tail A5 (turn-latency-h-turn1-2026-10-05.md): sub-stamps inside build_api_request split the first-turn preflight_done -> request_built span",
+      "files": "172 -> 173: agent/turn_api_request.py (8 added, 0 deleted: one import, seven marked _laps lines). Only this lane's file is counted here; the tree's three other unledgered files (tools/mcp_tool_handlers.py, tools/mcp_tool_health.py, tools/process_registry_notifications.py) are red on main already and not baselined",
+      "deleted_lines": "883 -> 883; heavy unchanged at 4",
+      "reason": "The span is 0.57-2.3 s on every first turn and 30-96 ms after, and its steps run inside one upstream function with no hook between them; the DOORS-A removal (bfee7eb896) had no consumer, this one has the A5 row. Held PR row in upstream-footprint-ledger.md (PHASE-PR)."
+    },
     {
       "change": "lane h-turn1-prewarm A3 (owner ruling A3-r1, turn-latency-h-turn1-2026-10-05.md): a prewarmed chat's first turn adopts the system prompt the prewarm built",
       "files": "unchanged: agent/conversation_loop.py was already counted (8 added: one import, the guarded adopt block)",
