@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-02",
+  "measured_at": "2026-10-06",
   "base": "ee5f49b943",
-  "files": 173,
+  "files": 176,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h-upgaps (fork-hygiene row: footprint 172->175 red + ledger gaps): baseline the three MCP job-wake seams that landed unledgered (d9bb0469d2, owner ruling 2026-10-03)",
+      "files": "173 -> 176: tools/mcp_tool_handlers.py (3 added, 0 deleted), tools/mcp_tool_health.py (2 added, 0 deleted), tools/process_registry_notifications.py (3 added, 0 deleted) — red on main since d9bb0469d2, named and not baselined by the h-turn1-tail row",
+      "deleted_lines": "883 -> 883: all three seams are additive; heavy unchanged at 4",
+      "reason": "None can move to a fork module without an upstream edit: the wake needs the caller's routing read on the MCP tool worker thread plus the raw CallToolResult (no stock door; post_tool_call carries the capped handler JSON), the server's notifications/message (the logging callback is a private closure), and a renderer for a new completion_queue event type in the formatter the upstream CLI/TUI/gateway drains call. Each is a one-line call into tools/mcp_job_wake.py; the ledger rows are `hook` and name the door each wants."
+    },
     {
       "change": "lane h-turn1-tail A5 (turn-latency-h-turn1-2026-10-05.md): sub-stamps inside build_api_request split the first-turn preflight_done -> request_built span",
       "files": "172 -> 173: agent/turn_api_request.py (8 added, 0 deleted: one import, seven marked _laps lines). Only this lane's file is counted here; the tree's three other unledgered files (tools/mcp_tool_handlers.py, tools/mcp_tool_health.py, tools/process_registry_notifications.py) are red on main already and not baselined",
