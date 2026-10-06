@@ -4,6 +4,11 @@ The root ``conftest.py`` detaches the shell's home before ``tests/conftest.py``
 runs (``tests/_downstream/session_home.py``) and refuses a session whose home
 is a real install. Driven end to end through a nested bare ``python -m pytest``
 launched with a stand-in "live" home, never the operator's.
+
+It lives at ``tests/``, not ``tests/hermes_cli/``: its subject is the root conftest,
+and that directory's gateway fence refuses any argv naming the real store root,
+which the test venv's own interpreter path does on a workstation whose venv sits
+under that root.
 """
 
 import os
@@ -16,7 +21,7 @@ import pytest
 from tests._downstream import session_home
 from tests._downstream.session_home import detach_operator_home, live_home_refusal
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[1]
 _PROBE = "tests/_downstream/hermetic_probe.py"
 #: Markers a test-spawned process inherits; a shell an operator types in has none.
 _TEST_MARKERS = (session_home.ISOLATION_ENV, session_home.REAL_ROOT_ENV, session_home.SANDBOX_ENV,

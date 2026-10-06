@@ -1,7 +1,7 @@
 """A child spawned with the SESSION's environment, run only as an explicit path.
 
 Not a ``test_*`` file, so the suite never collects it; it is driven by
-``tests/hermes_cli/test_conftest_session_home_downstream.py`` as a nested bare
+``tests/test_conftest_session_home_downstream.py`` as a nested bare
 ``python -m pytest`` launched from a shell carrying a stand-in "live" home.
 """
 

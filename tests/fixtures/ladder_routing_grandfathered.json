@@ -207,7 +207,7 @@
   },
   {
    "arms": 4,
-   "site": "scripts/run_tests_bundled.py|tally_events|ladder|kind"
+   "site": "scripts/run_tests_bundled_events.py|tally_events|ladder|kind"
   },
   {
    "arms": 3,

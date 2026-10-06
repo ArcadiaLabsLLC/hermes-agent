@@ -522,12 +522,8 @@ def run(
             ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
         startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
-        stopped_in = None
-        unreached: List[Path] = []
-        if effective_bundle_rc(events, rc) != 0 and events.session_end is None:
-            ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
-            stopped_in = ran[-1] if ran else rels[0]
-            unreached = [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]
+        stopped_in, unreached = _where_it_died(members, rels, events, rc)
+        if stopped_in is not None:
             with lock:
                 deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
         for position, (member, rel) in enumerate(zip(members, rels)):
@@ -573,34 +569,77 @@ def run(
                 reruns += 1
                 futures.append(executor.submit(_solo, unreached[0], "rerun", index, None))
 
+    solo_order, bundle_order = _first_pass_order(bundles, solos, repo_root, durations)
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
-        order = sorted(
-            range(len(bundles)),
-            key=lambda i: sum(_estimate(f, repo_root, durations) for f in bundles[i]),
-            reverse=True,
-        )
-        with lock:  # solos first (Stage 3: the slow files start before the bundles fill the pool)
-            for path in sorted(solos, key=lambda p: _estimate(p, repo_root, durations), reverse=True):
-                futures.append(executor.submit(_solo, path, "solo", None))
-            for i in order:
-                futures.append(executor.submit(_bundle, i, bundles[i], executor))
-        # Re-runs are submitted from inside bundle jobs, so drain until the
-        # list stops growing.
-        seen = 0
-        while True:
-            with lock:
-                pending = futures[seen:]
-                seen = len(futures)
-            if not pending:
-                break
-            for fut in pending:
-                fut.result()
+        with lock:
+            futures.extend(executor.submit(_solo, path, "solo", None) for path in solo_order)
+            futures.extend(executor.submit(_bundle, i, bundles[i], executor) for i in bundle_order)
+        _drain(futures, lock)
 
     shutil.rmtree(scratch, ignore_errors=True)
+    _retry_timeout_stragglers(outcomes, pytest_args, repo_root, flat_timeout, solo_runner, ledger, on_outcome)
+    ledger.ended = time.time()
+    return RunResult(
+        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
+    )
 
-    # The per-file runner's straggler rule, unchanged: a file whose failure is
-    # timeout-shaped (contention, not an assertion) gets one serial retry at
-    # 1-worker isolation after the pool drains.
+
+def _where_it_died(
+    members: List[Path], rels: List[str], events: BundleEvents, rc: int
+) -> Tuple[Optional[str], List[Path]]:
+    """``(stopped_in, unreached)`` for a bundle process that died before its
+    session ended: the member it died in and the members queued behind it,
+    which never started. ``(None, [])`` for a bundle that finished."""
+
+    if effective_bundle_rc(events, rc) == 0 or events.session_end is not None:
+        return None, []
+    ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
+    stopped_in = ran[-1] if ran else rels[0]
+    return stopped_in, [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]
+
+
+def _first_pass_order(
+    bundles: List[List[Path]], solos: List[Path], repo_root: Path, durations: Dict[str, float]
+) -> Tuple[List[Path], List[int]]:
+    """Solos longest-first, then bundle indices longest-first; solos are
+    submitted first (Stage 3: the slow files start before the bundles fill the pool)."""
+
+    def estimate(path: Path) -> float:
+        return _estimate(path, repo_root, durations)
+
+    solo_order = sorted(solos, key=estimate, reverse=True)
+    bundle_order = sorted(range(len(bundles)), key=lambda i: sum(estimate(f) for f in bundles[i]), reverse=True)
+    return solo_order, bundle_order
+
+
+def _drain(futures: List[Future], lock: threading.Lock) -> None:
+    """Wait on every future. Re-runs are submitted from inside bundle jobs, so
+    drain until the list stops growing."""
+
+    seen = 0
+    while True:
+        with lock:
+            pending = futures[seen:]
+            seen = len(futures)
+        if not pending:
+            return
+        for fut in pending:
+            fut.result()
+
+
+def _retry_timeout_stragglers(
+    outcomes: List[FileOutcome],
+    pytest_args: List[str],
+    repo_root: Path,
+    flat_timeout: float,
+    solo_runner: SoloRunner,
+    ledger: "plan.RunLedger",
+    on_outcome: Optional[Callable[[FileOutcome], None]],
+) -> None:
+    """The per-file runner's straggler rule, unchanged: a file whose failure is
+    timeout-shaped (contention, not an assertion) gets one serial retry at
+    1-worker isolation after the pool drains. Replaces its outcome in place."""
+
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
@@ -610,11 +649,6 @@ def run(
         outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
-
-    ledger.ended = time.time()
-    return RunResult(
-        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
-    )
 
 
 def _read_lines(path: Path) -> List[str]:

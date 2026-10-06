@@ -124,11 +124,6 @@
    "depth": 2,
    "lines": 220,
    "unit": "scripts/generate_agent_runtime_stream_fixtures.py|_build_agent_create_frames"
-  },
-  {
-   "depth": 3,
-   "lines": 152,
-   "unit": "scripts/run_tests_bundled.py|run"
   }
  ],
  "max_depth": 4,
