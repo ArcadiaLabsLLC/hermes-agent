@@ -67,12 +67,9 @@ def ensure_session_home(environ: MutableMapping[str, str]) -> str:
 def real_roots(environ: MutableMapping[str, str]) -> list[Path]:
     """Every root the session home must stay out of: the recorded one and the defaults."""
     candidates: list[str | Path] = [environ.get(REAL_ROOT_ENV, "").strip()]
-    try:
-        from hermes_state_guard import _real_platform_state_root
-
-        candidates.append(_real_platform_state_root() or "")
-    except Exception:
-        pass
+    local_app_data = environ.get("LOCALAPPDATA", "").strip()
+    if local_app_data:  # the native-Windows install root
+        candidates.append(Path(local_app_data) / "hermes")
     candidates.append(Path(os.path.expanduser("~")) / ".hermes")
     roots: list[Path] = []
     for candidate in candidates:
