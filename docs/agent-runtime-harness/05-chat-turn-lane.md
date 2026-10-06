@@ -294,6 +294,13 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
   therefore present on a default turn because `harness_core` names them; a *bounded* persona
   restores what the cost policy cut via
   `agent_runtime.personas.<id>.chat_lane_restore_toolsets`.
+- The per-persona DEFER (`agent_runtime.personas.<id>.chat_lane_defer_tools`, root config,
+  `agent_runtime/chat_lane_defer.py`) is posture-independent: the listed tools leave the eager array
+  for the `tool_search` listing on every posture, `unbounded` included, and stay callable through
+  `tool_call` (the turn binds the list for the bridge's config reads,
+  `tools/tool_search_downstream.py::scoped_turn_defer`). Deferring is never a grant. Each turn's
+  model-input record carries `tool_schema.per_tool_chars` and `prompt_surface` (chars of the wire
+  form, by part), and a first turn logs one `prompt_surface …` line.
 - `agent_chat`, `board` and `clarify` are unconditional chat capabilities
   (`_CHAT_CAPABILITY_TOOLSETS`, `:902`) regardless of the persona's configured list; `clarify` is
   additionally un-blocked by name on the bounded lane (`:603`), which has a clarify bridge.
@@ -322,8 +329,10 @@ upstream's `TOOLSETS` by `ensure_harness_core`) is a composite of 15 member
 toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
 `browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
 to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the cost policy, which drops by name, still
-sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld,
-`model_tool_tokens` 1149** (was 79 / 17 / 2142). The per-persona `AgentPersona.toolsets` list is
+sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld**
+(was 79 / 17). `model_tool_tokens` read 1149 then, a names-only envelope (~12 tokens a tool); since
+lane h-prompt-tools (2026-10-05) it is measured from each registered schema as the wire carries it,
+chars/4 (`tool_visibility._estimate_model_tool_tokens`): 13,372 for today's 45, every tool eager. The per-persona `AgentPersona.toolsets` list is
 LEGACY DISPLAY: it is reported as `persona_toolsets` / `toolset_declaration.persona_list` with
 `persona_toolsets_in_force: false` and admits nothing.
 

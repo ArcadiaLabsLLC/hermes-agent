@@ -30,6 +30,9 @@ class AgentRunRequest:
     enabled_toolsets: list[str] | None = None
     disabled_toolsets: list[str] | None = None
     blocked_tool_names: list[str] | None = None
+    #: The chat lane's per-persona defer list (``agent_runtime.chat_lane_defer``): tools
+    #: re-assembled off the eager array onto the bridge listing. None/empty on every other lane.
+    chat_lane_defer_tools: list[str] | None = None
     skills: list[str] | None = None
     session_id: str | None = None
     # Codex cache-scope routing hint (header-only), DISTINCT from ``session_id``.

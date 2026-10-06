@@ -371,7 +371,7 @@ def resolve_tool_visibility(
         "model_tool_token_estimate": {
             "value": token_estimate,
             "exact": False,
-            "method": "tool_name_envelope_v1",
+            "method": "registry_wire_chars_v1",
         },
         "blocked_tool_names": [entry["name"] for entry in blocked_entries],
         "blocked_tools": blocked_entries,
@@ -524,9 +524,33 @@ def _tool_names_for_toolsets(toolsets: list[str], *, blocked_tool_names: list[st
 
 
 def _estimate_model_tool_tokens(tool_names: list[str]) -> int:
-    # Cheap HUD estimate: each name implies a schema envelope even when we do
-    # not materialize the full provider payload on this path.
-    return sum(max(8, (len(name) + 96) // 4) for name in tool_names)
+    """Tokens of the named tools' schemas as the wire carries them, by the chars/4 rule.
+
+    Measured from each tool's registered schema with the fork's wire brief applied
+    (``tools.downstream_schema.wire_tool_chars``) — the callable set BEFORE tool-search
+    deferral, so it is the cost of shipping every one eager. It replaced a names-only
+    envelope (``(len(name) + 96) // 4``, ~12 tokens a tool) that read 1,149 for a lane whose
+    request carried ~16.6k (lane h-prompt-tools S0). A name the registry does not hold
+    keeps that envelope, since no schema is there to measure.
+    """
+    import math
+
+    from tools.downstream_schema import wire_tool_chars
+    from tools.registry import registry
+    from tools.tool_search_catalog import CHARS_PER_TOKEN
+
+    _ensure_tool_registry_populated()  # an unpopulated registry would measure nothing
+    defs: list[dict[str, Any]] = []
+    unmeasured = 0
+    for name in tool_names:
+        entry = registry.get_entry(name)
+        schema = getattr(entry, "schema", None)
+        if isinstance(schema, dict):
+            defs.append({"type": "function", "function": {**schema, "name": name}})
+        else:
+            unmeasured += max(8, (len(name) + 96) // 4)
+    measured = sum(wire_tool_chars(defs).values())
+    return int(math.ceil(measured / CHARS_PER_TOKEN)) + unmeasured
 
 
 def _profile_readiness_for_visibility(persona: AgentPersona) -> dict[str, Any]:

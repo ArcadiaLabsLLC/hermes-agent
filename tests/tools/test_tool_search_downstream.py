@@ -81,10 +81,11 @@ class TestConfigParsing:
 _LAUNCHER_QA_CORE_VERBS = (
     "mcp_launcher_qa_open_app_tab",
     "mcp_launcher_qa_screenshot_window",
-    "mcp_launcher_qa_capture_screenshot",
     "mcp_launcher_qa_launch_or_attach",
 )
 _LAUNCHER_QA_CONTROL_VERB = "mcp_launcher_qa_click_button"
+#: Promoted until ruling R2 (lane h-prompt-tools, 2026-10-05): zero calls on record.
+_LAUNCHER_QA_DEMOTED_VERB = "mcp_launcher_qa_capture_screenshot"
 
 
 @contextmanager
@@ -100,7 +101,8 @@ def _launcher_qa_registration():
 
     server = MCPServerTask("launcher_qa")
     server._tools = [SimpleNamespace(name=verb, description="launcher_qa verb.", inputSchema=None)
-                     for verb in (*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB)]
+                     for verb in (*_LAUNCHER_QA_CORE_VERBS, _LAUNCHER_QA_CONTROL_VERB,
+                                  _LAUNCHER_QA_DEMOTED_VERB)]
     server.session = MagicMock()
     fresh = ToolRegistry()
     with patch("tools.registry.registry", fresh):
@@ -230,6 +232,9 @@ class TestClassification:
         assert is_deferrable_tool_name(control, config=cfg), (
             f"control '{control}' must defer — the fixture never reached the MCP branch"
         )
+        demoted = next(n for n in registered if n.endswith(f"__{_LAUNCHER_QA_DEMOTED_VERB}"))
+        assert is_deferrable_tool_name(demoted, config=cfg), (
+            f"R2: '{demoted}' rides the listing; it must defer")
         core = [by_verb[verb] for verb in _LAUNCHER_QA_CORE_VERBS]
         deferred = [n for n in core if is_deferrable_tool_name(n, config=cfg)]
         assert deferred == [], (
@@ -492,3 +497,56 @@ class TestCatalogListing:
         assert "agent_chat_send" not in set(parsed["results"][0]["matches"]), (
             "promoted tool is still searchable through the bridge catalog"
         )
+
+
+class TestPromotedMcpBrief:
+    """Lane h-prompt-tools S2: a promoted MCP tool's wire text is a brief; ``tool_describe``
+    still serves the server's whole manual and parameter reference from the registry."""
+
+    _MANUAL = ("Composed Stage C workflow: launch-or-attach, runtime gate, auth check and "
+               "navigation verification in one call. " + "Every option explained at length. " * 120)
+
+    def _open_app_tab(self):
+        from tools.mcp_tool_schema import mcp_prefixed_tool_name
+
+        name = mcp_prefixed_tool_name("launcher_qa", "mcp_launcher_qa_open_app_tab")
+        params = {"type": "object", "properties": {
+            "tab": {"type": "string", "enum": ["home", "news"], "description": "The tab. " * 60},
+            "screenshot": {"type": "boolean"}}, "required": ["tab"]}
+        return name, {"type": "function", "function": {
+            "name": name, "description": self._MANUAL, "parameters": params}}
+
+    def test_the_wire_carries_a_brief_and_describe_serves_the_manual(self):
+        from tools.downstream_schema import PROMOTED_BRIEF_SUFFIX, brief_request_tools
+        from tools.tool_search import dispatch_tool_describe
+
+        name, full = self._open_app_tab()
+        wired = brief_request_tools({"tools": [full]})["tools"][0]["function"]
+        assert len(wired["description"]) <= 600, wired["description"]
+        assert wired["description"].endswith(PROMOTED_BRIEF_SUFFIX)
+        assert wired["description"].startswith("Composed Stage C workflow")
+        assert len(wired["parameters"]["properties"]["tab"]["description"]) <= 120
+        assert wired["parameters"]["properties"]["tab"]["enum"] == ["home", "news"]
+        assert wired["parameters"]["required"] == ["tab"]
+        assert full["function"]["description"] == self._MANUAL, "the brief must not mutate the registry copy"
+
+        described = json.loads(dispatch_tool_describe({"names": [name]}, current_tool_defs=[full]))
+        assert described["tools"][name]["description"] == self._MANUAL
+        assert described["tools"][name]["parameters"] == full["function"]["parameters"]
+
+    def test_the_brief_is_idempotent_and_leaves_unpromoted_tools_alone(self):
+        from tools.downstream_schema import brief_request_tools
+
+        _name, full = self._open_app_tab()
+        once = brief_request_tools({"tools": [full]})
+        assert brief_request_tools(once) is None, "a second pass rewrote an already-briefed tool"
+        other = _td("mcp__launcher_qa__mcp_launcher_qa_click_button", self._MANUAL)
+        assert brief_request_tools({"tools": [other]}) is None
+
+    def test_the_responses_shape_is_briefed_too(self):
+        from tools.downstream_schema import brief_request_tools
+
+        _name, full = self._open_app_tab()
+        flat = {"type": "function", **full["function"]}
+        wired = brief_request_tools({"tools": [flat]})["tools"][0]
+        assert len(wired["description"]) <= 600 and "function" not in wired

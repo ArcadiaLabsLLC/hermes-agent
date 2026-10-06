@@ -227,6 +227,7 @@ class GPTPersonaRuntime:
                     mcp_admission=admission,
                     enabled_toolsets=list(lane_bundle.enabled_toolsets),
                     blocked_tool_names=list(lane_bundle.blocked_tool_names),
+                    chat_lane_defer_tools=list(lane_bundle.defer_tools),
                     quiet_mode=True,
                     # Respect the persona's workspace-context opt-in. Isolated
                     # personas get repo context through skills or explicit reads.

@@ -73,6 +73,7 @@ def _safe_final_model_input(value: dict[str, Any] | None) -> dict[str, Any] | No
         # dropped them, which is why the context budget could not see (or
         # estimate) them at all.
         "tool_schema": _safe_tool_schema(value.get("tool_schema")),
+        "prompt_surface": _safe_prompt_surface(value.get("prompt_surface")),
         "cache_routing": _safe_cache_routing(value.get("cache_routing")),
         # T4: the wire-vs-composed receipt for this turn's user row. Tiny, typed,
         # and load-bearing — without it a reader cannot tell whether the captured
@@ -178,9 +179,36 @@ def _safe_system_prompt_sections(value: Any) -> list[dict[str, Any]]:
                 "end_char": end,
                 "chars": chars,
                 "truncated": item.get("truncated") is True,
+                # Only when the record has them: older records keep their shape.
+                **({"blocks": _safe_prompt_blocks(item["blocks"])} if "blocks" in item else {}),
             }
         )
     return result
+
+
+def _safe_prompt_blocks(value: Any) -> list[dict[str, Any]]:
+    """A section's ``(heading, chars)`` blocks (lane h-prompt-tools S0): heading text and a count."""
+    if not isinstance(value, list):
+        return []
+    blocks: list[dict[str, Any]] = []
+    for item in value[:200]:
+        if isinstance(item, dict) and (chars := non_negative_int(item.get("chars"))) is not None:
+            blocks.append({"heading": safe_assignment_text(item.get("heading"), limit=80) or "", "chars": chars})
+    return blocks
+
+
+#: ``prompt_surface`` fields (``profile_runner.model_input_observability._prompt_surface``):
+#: counts only, so the whitelist is the field list.
+_PROMPT_SURFACE_FIELDS = (
+    "schema_version", "tools", "tool_chars", "promoted_mcp_chars", "listing_chars",
+    "system_chars", "skills_entries", "hud_chars", "user_chars", "chars_per_token",
+)
+
+
+def _safe_prompt_surface(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    return {key: non_negative_int(value.get(key)) for key in _PROMPT_SURFACE_FIELDS}
 
 
 def _safe_cache_routing(value: Any) -> dict[str, Any] | None:
@@ -320,6 +348,12 @@ def _safe_tool_schema(value: Any) -> dict[str, Any] | None:
         "final_model_tools": names,
         "tool_count": non_negative_int(value.get("tool_count")),
         "json_bytes": non_negative_int(value.get("json_bytes")),
+        # Names and counts only (lane h-prompt-tools S0), never a schema body.
+        "per_tool_chars": {
+            token: chars
+            for name, raw in list((value.get("per_tool_chars") or {}).items())[:_SAFE_TOOL_NAME_LIMIT]
+            if (token := safe_assignment_token(name)) and (chars := non_negative_int(raw)) is not None
+        } if isinstance(value.get("per_tool_chars"), dict) else {},
     }
 
 

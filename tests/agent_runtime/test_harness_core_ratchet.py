@@ -50,7 +50,11 @@ DECLARED_TOOL_COUNT = 45
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
 # re-measured 1190 -> 1217 (+27), the price of retiring a 907 KB snapshot
 # call from every lookup turn.
-DECLARED_TOKEN_ESTIMATE = 1217
+# Lane h-prompt-tools S0 (2026-10-05): the figure is MEASURED now — each tool's
+# registered schema as the wire carries it, chars/4 — where it was a names-only
+# envelope (~12 tokens a tool). Same 45 tools: 1217 -> 13372, the number the
+# envelope hid (the recorded first request carried ~16.6k tokens of tools[]).
+DECLARED_TOKEN_ESTIMATE = 13372
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 
@@ -74,6 +78,12 @@ def _persona(persona_id: str):
 
 
 def _preview(persona, **options):
+    # The plugin tools (``skill_search``) register into the ACTIVE home's scope; each test
+    # runs in a fresh home, so discover for it, as the inventory emitter does — the measured
+    # token figure counts a tool only when its schema is registered.
+    from hermes_cli.plugins import discover_plugins
+
+    discover_plugins()
     return resolve_tool_visibility(
         persona, ToolVisibilityOptions(permission_mode="unbounded", permission_source="test", **options)
     )

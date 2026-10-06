@@ -122,6 +122,7 @@ ROOT_ONLY_CONFIG_KEYS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("read_model", "delta_patches"), "agent_runtime.state_patches.delta_patches_enabled"),
     (("mcp_admission",), "agent_runtime.mcp_admission.admission_config"),
     (("personas", "*", "chat_lane_restore_toolsets"), "agent_runtime.config.chat_lane_restore_toolsets"),
+    (("personas", "*", "chat_lane_defer_tools"), "agent_runtime.config.chat_lane_defer_tools"),
     (("personas", "*", "workdir"), "agent_runtime.config.mission_chat_workdir"),
 )
 

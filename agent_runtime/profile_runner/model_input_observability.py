@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from typing import Any
 import re
 
@@ -15,6 +16,8 @@ from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 from agent_runtime.profile_runner.models import AgentRunRequest
 
 __layer__ = "stores"
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CHAT_COMPACTION_RECEIPT_KIND",
@@ -28,6 +31,8 @@ __all__ = [
     "_current_turn_user_row",
     "_message_preview",
     "_model_input_observability",
+    "_prompt_block_receipts",
+    "_prompt_surface",
     "_redact_prompt_text",
     "_rendered_skills_prompt_chars",
     "_system_prompt_section_receipts",
@@ -202,6 +207,19 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
         _message_preview("user", wire_user_message, source="mission_chat_user_message")
     )
     cache_routing = _agent_cache_routing_observability(agent)
+    per_tool_chars = _agent_wire_tool_chars(agent)
+    surface = _prompt_surface(
+        agent=agent,
+        per_tool_chars=per_tool_chars,
+        system_prompt=str(system_prompt or ""),
+        user_message=wire_user_message,
+    )
+    if _is_first_turn(agent):
+        logger.info(
+            "prompt_surface tools=%d tool_chars=%d promoted_mcp_chars=%d listing_chars=%d "
+            "system_chars=%d skills_entries=%d hud_chars=%d",
+            *(surface[key] for key in _PROMPT_SURFACE_LOG_KEYS),
+        )
     return {
         # Typed provenance for the row above: which copy it is, how the composed
         # and wire sizes compare, and — when they differ — that the boundary
@@ -233,7 +251,14 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
             # Names alone hid the largest fixed slice of the prompt from the
             # context inspector. Same measurement as `hermes prompt-size`.
             "json_bytes": _agent_tools_json_bytes(agent),
+            # Per tool, the compact-JSON chars of its definition AS THE WIRE CARRIES IT
+            # (the fork's wire briefs applied), largest first: what each tool costs a
+            # turn, so a cut lands against a number (lane h-prompt-tools S0). Tokens
+            # are chars/4 — upstream's rule — never a tokenizer the venv lacks.
+            "per_tool_chars": per_tool_chars,
         },
+        # The first-turn composition by part, in chars (names and counts only).
+        "prompt_surface": surface,
         **({"cache_routing": cache_routing} if cache_routing is not None else {}),
         "skip_context_files": bool(request.skip_context_files),
         "skip_memory": bool(request.skip_memory),
@@ -380,6 +405,7 @@ def _system_prompt_section_receipts(
                     "end_char": captured_end,
                     "chars": len(value),
                     "truncated": captured_end < end,
+                    "blocks": _prompt_block_receipts(value),
                 }
             )
         cursor = end + 2
@@ -451,6 +477,100 @@ def _rendered_skills_prompt_chars(agent) -> int | None:
         return len(rendered)
     except Exception:
         return None
+
+
+#: The ``prompt_surface`` log line's fields, in order — one spelling for the line and its test.
+_PROMPT_SURFACE_LOG_KEYS = (
+    "tools", "tool_chars", "promoted_mcp_chars", "listing_chars",
+    "system_chars", "skills_entries", "hud_chars",
+)
+
+_BLOCK_HEAD_RE = re.compile(r"^(#{1,2} \S.*|<([A-Za-z_][\w-]*)[^>/]*>)\s*$")
+_SKILL_ENTRY_RE = re.compile(r"^    - \S", re.MULTILINE)
+_HUD_RE = re.compile(r"<runtime_context>.*?</runtime_context>", re.DOTALL)
+
+
+def _prompt_block_receipts(text: str) -> list[dict[str, Any]]:
+    """``[{heading, chars}]`` for each ``#`` / ``##`` heading or opening ``<tag>`` line's block.
+
+    A block runs from its heading line to the next one; text before the first heading is
+    ``(preamble)``. Lines inside an open ``<tag>`` block never start a new one, so the
+    skills index (``<available_skills>`` holding its own lines) is ONE block."""
+
+    blocks: list[dict[str, Any]] = []
+    heading, chars, open_tag = "(preamble)", 0, None
+    for line in str(text or "").splitlines(keepends=True):
+        match = None if open_tag else _BLOCK_HEAD_RE.match(line.rstrip("\r\n"))
+        if match:
+            if chars:
+                blocks.append({"heading": heading, "chars": chars})
+            heading, chars = match.group(1)[:80], 0
+            tag = match.group(2)
+            open_tag = tag if tag and f"</{tag}>" not in line else None
+        elif open_tag and f"</{open_tag}>" in line:
+            open_tag = None
+        chars += len(line)
+    if chars:
+        blocks.append({"heading": heading, "chars": chars})
+    return blocks
+
+
+def _prompt_surface(
+    *, agent: Any, per_tool_chars: dict[str, int], system_prompt: str, user_message: str
+) -> dict[str, Any]:
+    """What this turn's request is made of, by part, in chars (lane h-prompt-tools S0)."""
+
+    from tools.tool_search_catalog import TOOL_SEARCH_NAME
+    from tools.tool_search_downstream import PROMOTED_MCP_TOOLS
+
+    listing_chars = 0
+    for tool in list(getattr(agent, "tools", None) or []):
+        function = tool.get("function") if isinstance(tool, dict) else None
+        if isinstance(function, dict) and function.get("name") == TOOL_SEARCH_NAME:
+            # The description's first paragraph is the bridge's own text; the rest is the
+            # embedded deferred-tool listing and its framing sentence.
+            _, _, listing = str(function.get("description") or "").partition("\n\n")
+            listing_chars = len(listing)
+    index = re.search(r"<available_skills>.*?</available_skills>", system_prompt, re.DOTALL)
+    hud = _HUD_RE.search(user_message or "")
+    return {
+        "schema_version": 1,
+        "tools": len(per_tool_chars),
+        "tool_chars": sum(per_tool_chars.values()),
+        "promoted_mcp_chars": sum(
+            chars for name, chars in per_tool_chars.items() if name in PROMOTED_MCP_TOOLS
+        ),
+        "listing_chars": listing_chars,
+        "system_chars": len(system_prompt),
+        "skills_entries": len(_SKILL_ENTRY_RE.findall(index.group(0))) if index else 0,
+        "hud_chars": len(hud.group(0)) if hud else 0,
+        "user_chars": len(user_message or ""),
+        "chars_per_token": 4,
+    }
+
+
+def _is_first_turn(agent: Any) -> bool:
+    """True when no assistant row precedes this turn's user row (the uncached turn)."""
+
+    row, _ = _current_turn_user_row(agent)
+    if row is None:
+        return False
+    messages = agent.messages
+    return not any(
+        isinstance(item, dict) and str(item.get("role") or "") == "assistant"
+        for item in messages[: agent._persist_user_message_idx]
+    )
+
+
+def _agent_wire_tool_chars(agent) -> dict[str, int]:
+    """``{name: chars}`` of the agent's tools as the wire carries them, largest first."""
+    try:
+        from tools.downstream_schema import wire_tool_chars
+
+        measured = wire_tool_chars(list(getattr(agent, "tools", None) or []))
+    except Exception:
+        return {}
+    return dict(sorted(measured.items(), key=lambda item: (-item[1], item[0])))
 
 
 def _agent_tools_json_bytes(agent) -> int | None:
