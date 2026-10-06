@@ -851,10 +851,9 @@ WALK_E_POSES = [
     (1684, 1877),
     (1927, 2116),
 ]
-WALK_E_STRIP = Path(
-    r"X:\Eternia\.hermes\shared\characters\.drafts\20260828-212742-2f3ec6"
-    r"\revisions\row@walk-e\attempt-1.png"
-)
+# The shipped walk-e strip (draft 20260828-212742-2f3ec6, row@walk-e attempt 1),
+# vendored so the test never reads the operator's real home.
+WALK_E_STRIP = Path(__file__).resolve().parent / "fixtures" / "charsheet" / "walk_e_strip.png"
 
 
 def pose_columns(cell, *, field):
