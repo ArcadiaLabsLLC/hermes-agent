@@ -33,6 +33,8 @@ argv_lane           lanes   ``_ArgvRequest``, the parser binding, ``dispatch_arg
 gateway_listener    lanes   listen config, listener start, hello authenticator
 boot                lanes   fingerprint, prewarms, skill install, boot fault
 drain               lanes   ``_DrainState``, deadline policy, ``DrainLane``
+request_pool        lanes   ``RequestPool`` (the shared and the chat-turn lane),
+                            ``TurnClaims`` (one handler per client message id)
 lanes               lanes   ``ArgvLanes``: ``_run`` and the two pool seams
 subscriptions       lanes   ``SubscriptionLanes``: stream hub, fold room, sockets
 handle_message      lanes   ``MessageHandling`` and the ``OP_HANDLERS`` table

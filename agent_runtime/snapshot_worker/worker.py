@@ -33,8 +33,7 @@ def start_worker(home: Path) -> SnapshotPeer:
         **options,
     )
     try:
-        peer = SnapshotPeer(process, receive=lambda _frame: None, lost=lambda: None,
-                            containment=containment)
+        peer = SnapshotPeer(process, containment=containment)
     except Exception:
         if containment is not None:
             containment.close()
