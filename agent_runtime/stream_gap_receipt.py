@@ -11,9 +11,13 @@ request splits them.
 
 **What is measured, and where.**
 
-* *Byte arrival* -- a response event hook wraps the SSE response's
-  ``httpx.SyncByteStream``; each chunk is stamped the moment the read returns
-  in the consuming thread (the closest Python gets to the socket).
+* *Byte arrival* -- a response event hook wraps the byte stream of the first
+  response after the receipt opened (h-send-window: any content type -- the
+  live Codex stream never matched a ``text/event-stream`` test, so every live
+  receipt read ``chunks=0``); each chunk is stamped the moment the read returns
+  in the consuming thread (the closest Python gets to the socket). The same
+  stamp feeds the request's ``send_window_receipt``
+  (:mod:`agent_runtime.send_window_receipt`).
 * *Parse* -- ``observe_stream_event`` is called from the Codex consume loop's
   ``on_event`` (one fork seam line in ``agent/codex_runtime.py``) when the SDK
   hands over a parsed event.
@@ -49,6 +53,8 @@ from typing import Any, Callable, Iterator
 
 import httpx
 
+from agent_runtime.send_window_receipt import SendWindow
+
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
@@ -61,6 +67,12 @@ STALL_INTERVAL_S = 0.01
 STALL_REPORT_FLOOR_MS = 50.0
 
 _AGENT_ATTR = "_hermes_stream_gap_receipt"
+#: The receipt of the request about to go out on an httpx client. The hooks read
+#: it from the CLIENT, never from an agent captured when the hook was installed:
+#: a client outlives the agent that first hooked it (the request-client slot, a
+#: rebuilt actor), and a hook bound to that first agent stamped a finished
+#: receipt while the live one read ``chunks=0``.
+_CLIENT_ATTR = "_hermes_open_stream_gap_receipt"
 _HOOK_MARK = "_hermes_stream_gap_hook"
 
 
@@ -123,12 +135,20 @@ class StreamGapReceipt:
     end: str | None = None
     logged: bool = False
     probe: _StallProbe | None = None
+    #: h-send-window: the request's send window (request start -> first event).
+    send: SendWindow | None = None
+    #: The byte wrap goes on the FIRST response after this receipt opened (the
+    #: stream it was opened for), whatever its content type: the live Codex
+    #: backend's stream never matched the old ``text/event-stream`` test.
+    wrap_armed: bool = True
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     # -- byte side ---------------------------------------------------------
     def on_chunk(self, size: int) -> None:
         now = self.clock()
         self.last_chunk_at = now
+        if self.send is not None and self.send.first_byte_at is None:
+            self.send.first_byte_at = now
         if self.first_event_at is not None and self.text_at is None:
             self.window_chunks.append((now, size))
 
@@ -147,6 +167,8 @@ class StreamGapReceipt:
             # The first event's lag is reported apart: it opens the window and,
             # on a cold process, carries the SDK's one-off event-model build.
             self.first_event_at, self.first_lag_ms = now, lag_ms
+            if self.send is not None:
+                self.send.on_first_event(lag_ms)
             if self.probe_factory is not None:
                 self.probe = self.probe_factory()
                 self.probe.start()
@@ -265,8 +287,30 @@ class _TimedByteStream(httpx.SyncByteStream):
 def _finish_agent_receipt(agent: Any, end: str) -> None:
     receipt = getattr(agent, _AGENT_ATTR, None)
     if isinstance(receipt, StreamGapReceipt):
-        receipt.finish(end=end, request_id=getattr(agent, "_current_api_request_id", None),
-                       model=getattr(agent, "model", None))
+        request_id, model = getattr(agent, "_current_api_request_id", None), getattr(agent, "model", None)
+        if receipt.send is not None:
+            receipt.send.finish(end=end, request_id=request_id, model=model)
+        receipt.finish(end=end, request_id=request_id, model=model)
+
+
+def begin_send_window(http_client: Any, request: Any) -> SendWindow | None:
+    """Open the send window of the request the client's open receipt was opened for. Never raises.
+
+    ``None`` when there is no open receipt or it already has a window (a second
+    request on one receipt -- a redirect -- keeps the first request's window).
+    """
+
+    try:
+        receipt = getattr(http_client, _CLIENT_ATTR, None)
+        if not isinstance(receipt, StreamGapReceipt) or receipt.send is not None:
+            return None
+        window = SendWindow(probe_factory=receipt.probe_factory)
+        receipt.send = window
+        window.begin(request)
+        return window
+    except Exception:
+        logger.debug("send window not opened", exc_info=True)
+        return None
 
 
 def begin_stream_gap_receipt(agent: Any, client: Any) -> None:
@@ -278,22 +322,26 @@ def begin_stream_gap_receipt(agent: Any, client: Any) -> None:
 
     try:
         _finish_agent_receipt(agent, "abandoned")
-        setattr(agent, _AGENT_ATTR, StreamGapReceipt())
+        receipt = StreamGapReceipt()
+        setattr(agent, _AGENT_ATTR, receipt)
         http_client = getattr(client, "_client", None)
         hooks = getattr(http_client, "event_hooks", None)
         if not isinstance(hooks, dict):
             return
+        setattr(http_client, _CLIENT_ATTR, receipt)
         if any(getattr(hook, _HOOK_MARK, False) for hook in hooks.get("response", ())):
             return
 
         def _on_response(response: Any) -> None:
             try:
-                receipt = getattr(agent, _AGENT_ATTR, None)
-                content_type = str(response.headers.get("content-type", ""))
+                receipt = getattr(http_client, _CLIENT_ATTR, None)
+                if not isinstance(receipt, StreamGapReceipt) or not receipt.wrap_armed:
+                    return
+                receipt.wrap_armed = False
+                if receipt.send is not None:
+                    receipt.send.content_type = str(response.headers.get("content-type", "")) or None
                 stream = response.stream
-                if (isinstance(receipt, StreamGapReceipt) and "text/event-stream" in content_type
-                        and isinstance(stream, httpx.SyncByteStream)
-                        and not isinstance(stream, _TimedByteStream)):
+                if isinstance(stream, httpx.SyncByteStream) and not isinstance(stream, _TimedByteStream):
                     response.stream = _TimedByteStream(stream, receipt)
             except Exception:
                 logger.debug("stream gap byte stamps not attached", exc_info=True)
@@ -312,6 +360,10 @@ def observe_stream_event(agent: Any, event: Any) -> None:
         if not isinstance(receipt, StreamGapReceipt):
             return
         receipt.on_event(event)
+        send = receipt.send
+        if send is not None and send.first_event_at is not None and not send.logged:
+            send.finish(request_id=getattr(agent, "_current_api_request_id", None),
+                        model=getattr(agent, "model", None))
         kind = _field(event, "type")
         if kind in TERMINAL_TYPES:
             _finish_agent_receipt(agent, "no_text")
@@ -322,6 +374,7 @@ def observe_stream_event(agent: Any, event: Any) -> None:
 __all__ = [
     "STREAM_GAP_RECEIPT",
     "StreamGapReceipt",
+    "begin_send_window",
     "begin_stream_gap_receipt",
     "observe_stream_event",
 ]

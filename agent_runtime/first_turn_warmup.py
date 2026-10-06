@@ -16,6 +16,24 @@ offline, both are one-time process work, not the agent's:
   ``platform_headers()`` (``platform.platform()`` -> two WMI queries on Windows,
   ~300 ms, cached for the process) and its ``client.responses`` resource import.
 
+h-send-window (2026-10-06) adds two more, from the Neko turn-1 records ``c1cfc36c``
+/ ``3e412f30`` (each the first chat turn of its serve process) against their warm
+turns:
+
+* ``provider_request_started -> conversation_started`` 422 / 111 ms (warm 5-12):
+  ``agent/turn_facade.py::run_conversation``'s lazy imports -- the Relay binding
+  (``nemo_relay`` and its ~20 submodules, via ``relay_runtime._load_nemo_relay``),
+  ``relay_shared_metrics`` and its ``shared_metrics*`` family, the turn lease and
+  its neighbours; then ``build_turn_context``'s (title generator, native
+  persistence, bot-mode DM, MCP tool names). Offline (the turn-cost guard
+  scenario, a stack sampler between the marks) 129 ms against 16 warm, every
+  sample inside an import.
+* ``context_built -> observability_built`` 484 / 518 ms (warm 60-150):
+  ``observability_catalog_walk_ms=312 / 330`` -- the serve's skill-catalog memo
+  is COLD on its first chat turn, because the hub's snapshot builds (the only
+  other readers) run in the snapshot worker process. The memo is process-wide,
+  so the prewarm reads it once (:func:`_warm_skill_catalog`).
+
 :func:`warm_first_turn_paths` runs each once, under the prewarm's own scopes (the
 catalog is keyed by the profile home the turn will run in), so the first turn
 finds them cached. It sends nothing anywhere and never raises.
@@ -37,8 +55,23 @@ PREWARM_FIRST_TURN_WARMUP_MS = "prewarm_first_turn_warmup_ms"
 
 #: Modules a turn imports lazily on its way to the provider request:
 #: the loop and its phases, the ``_build_api_kwargs`` target, the dispatch's
-#: stream wrapper.
-FIRST_TURN_MODULES = ("agent.conversation_loop", "agent.chat_completion_helpers", "agent.relay_llm")
+#: stream wrapper; then (h-send-window) the turn facade's entry imports, the
+#: Relay binding and the turn-context builder's. Each is imported on its own and
+#: a missing one (``nemo_relay`` is an optional install) is skipped.
+FIRST_TURN_MODULES = (
+    "agent.conversation_loop", "agent.chat_completion_helpers", "agent.relay_llm",
+    "agent.turn_facade", "agent.turn_facade_lease", "agent.turn_liveness", "agent.periodic_scheduler",
+    "agent.aux_accounting", "agent.relay_cwd", "agent.review_idle_queue", "agent.subagent_lifecycle",
+    "nemo_relay", "hermes_cli.observability.relay_shared_metrics",
+    "hermes_cli.observability.shared_metrics_send_config", "hermes_cli.moa_config",
+    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger",
+    "agent.title_generator", "agent_runtime.native_persistence", "tools.bot_mode_dm", "tools.mcp_tool_agent",
+    "hermes_cli.build_info", "hermes_cli.lifecycle",
+    "agent.opencode_affinity", "agent.plugin_stream_hooks", "agent.replay_cleanup",
+    "hermes_cli.observability.shared_metrics_process", "agent_runtime.skill_publishability",
+    "agent_runtime.skills_inventory", "agent_runtime.transport_phase_trace",
+    "agent.chat_completion_nonstream", "agent.reasoning_timeouts",
+)
 
 
 def _warm_spinner_catalog() -> None:
@@ -50,7 +83,18 @@ def _warm_spinner_catalog() -> None:
 
 def _warm_request_modules() -> None:
     for name in FIRST_TURN_MODULES:
-        importlib.import_module(name)
+        try:
+            importlib.import_module(name)
+        except Exception:
+            logger.debug("first-turn module %s not importable", name, exc_info=True)
+
+
+def _warm_skill_catalog() -> None:
+    """Fill the process-wide skill-catalog memo the turn's observability row reads."""
+
+    from agent_runtime.prompt_observability.skills_resolver import _installed_skill_catalog
+
+    _installed_skill_catalog()
 
 
 def _warm_sdk_request_build(agent: Any) -> None:
@@ -66,6 +110,7 @@ def _warm_sdk_request_build(agent: Any) -> None:
 _STEPS = (
     ("spinner_catalog", lambda agent: _warm_spinner_catalog()),
     ("request_modules", lambda agent: _warm_request_modules()),
+    ("skill_catalog", lambda agent: _warm_skill_catalog()),
     ("sdk_request_build", _warm_sdk_request_build),
 )
 

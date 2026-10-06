@@ -22,12 +22,19 @@ Killing mutations (positive control, recorded in the CHANGE commit): ``batch_tur
 ``None`` (a demote core per turn); ``_installed_skill_catalog`` walks inline past its TTL (a
 turn-path catalog walk); ``submit_accepted`` puts a chat turn on the shared lane (a rider holds
 the turn's worker).
+
+h-send-window: the open starts with the serve's skill-catalog memo COLD (its first chat), and
+no turn -- turn 0 included -- may walk the catalog or import a module between ``agent_ready``
+and ``request_sent``. Killing mutations: ``FIRST_TURN_MODULES`` back to its first three names
+(turn 0 imports the Relay binding and ~25 modules); the warm-up's ``skill_catalog`` step
+dropped (turn 0 walks the catalog inline).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -188,6 +195,35 @@ class _Serve:
         self.pool.shutdown(wait=True)
 
 
+class _SendPathImports:
+    """Modules first imported between a turn's ``agent_ready`` and ``request_sent`` marks.
+
+    Count, not time: every one is a lazy import the chat-open prewarm could have paid
+    (``agent_runtime.first_turn_warmup.FIRST_TURN_MODULES``); live turn 1 paid 111-422 ms
+    of them (h-send-window).
+    """
+
+    def __init__(self, monkeypatch) -> None:
+        from agent_runtime.mission_chat_phases import TurnPhaseMarks
+
+        self.turns: dict[int, list[str]] = {}
+        self._open: dict[int, set[str]] = {}
+        self._turn = 0
+        real = TurnPhaseMarks.mark
+
+        def mark(marks, name):
+            value = real(marks, name)
+            if name == "agent_ready":
+                self._open[id(marks)] = set(sys.modules)
+            elif name == "request_sent" and id(marks) in self._open:
+                self.turns[self._turn] = sorted(set(sys.modules) - self._open.pop(id(marks)))
+            elif name == "projected":
+                self._turn += 1
+            return value
+
+        monkeypatch.setattr(TurnPhaseMarks, "mark", mark)
+
+
 def _stream_gate(start: int, builds: _BuildCounter) -> tuple[list[str], int, int]:
     """The hub's frames for every event since ``start``, for a room that declared the turn and
     open overlays: ``(frame types, build bodies run, last offset)``."""
@@ -252,6 +288,7 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
     root_logger.addHandler(log)
     root_logger.setLevel(logging.INFO)
     builds = _BuildCounter(monkeypatch)
+    send_imports = _SendPathImports(monkeypatch)
     violations: list[str] = []
     budgets: list[str] = []
     spans: list[str] = []
@@ -273,6 +310,9 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
         serve = _Serve(monkeypatch, capsys)
         try:
             # ── the new chat ──────────────────────────────────────────────────
+            # The serve's catalog memo is COLD on its first chat: the hub's builds, its only other
+            # reader, run in the snapshot worker process (h-send-window: live turn 1 walked 312 ms).
+            skills_resolver._skill_catalog_memo.update(at=0.0, rows=None, walker=None)
             start = _log_end()
             assert serve.run("open-1", [
                 "harness", "persona", "instance", "open-chat", "--persona", "dev",
@@ -318,7 +358,10 @@ def test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard(
                     violations.append("turn 0: the prewarmed actor was not reused")
                 turn_thread = serve.handlers[f"m-{index}"][0]
                 inline = [name for name in serve.walks if name == turn_thread]
-                if index and inline:
+                if send_imports.turns.get(index):
+                    violations.append(f"turn {index}: imported {send_imports.turns[index]} between agent_ready "
+                                      "and request_sent (the prewarm's first-turn warm-up owns them)")
+                if inline:
                     violations.append(f"turn {index}: {len(inline)} inline catalog walk(s) on the turn's thread")
 
                 anchor = [_fields(m) for m in log.receipts(f"chat_turn_accept_to_anchor request=turn-{index} ")]
