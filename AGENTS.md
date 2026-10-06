@@ -1,5 +1,7 @@
 # Hermes Agent - Development Guide
 
+**Fork (ArcadiaLabs):** also read [docs/downstream-development.md](docs/downstream-development.md) (downstream contract, fork landing gate) and [CLAUDE.md](CLAUDE.md) (session rules) before working here.
+
 Instructions for AI coding assistants and developers working on the hermes-agent codebase.
 This root file holds only what applies everywhere. Each area has its own `AGENTS.md` (aim for
 ~8k chars; `agent/subdirectory_hints.py` delivers up to 32k and truncates head/tail with a warning
@@ -522,5 +524,3 @@ Long-form background lives in `website/docs/developer-guide/` (agent-loop, promp
 context-compression-and-caching, gateway-internals, tools-runtime, plugins/, cron-internals,
 session-storage, ...). Workflow rules (PR/issue/review/salvage process) live in the
 `hermes-agent-dev` skill, not here.
-
-**Fork (ArcadiaLabs):** also read [docs/downstream-development.md](docs/downstream-development.md) (downstream contract, fork landing gate) and [CLAUDE.md](CLAUDE.md) (session rules) before working here.
