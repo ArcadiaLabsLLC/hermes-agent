@@ -49,6 +49,7 @@ def persona_chat_history_summary(
     persona_assignments: Iterable[Any] | None = None,
     omitted_session_ids: set[str] | None = None,
     only_instance_ids: frozenset[str] | None = None,
+    only_session_ids: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe persona chat-history rows for Harness snapshots.
 
@@ -82,6 +83,14 @@ def persona_chat_history_summary(
     in, because attribution needs it: a session is matched to its own instance
     before the narrowing, so passing one instance alone would let its persona
     fallback adopt a sibling instance's session.
+
+    ``only_session_ids`` narrows AFTER the creation-order bound, where
+    ``only_instance_ids`` narrows before it: every candidate is ranked exactly as
+    the full core ranks it, ``omitted_session_ids`` is filled from that whole
+    ranking, and only then are the visible rows cut to the named sessions. So a
+    named session the core's bound would omit yields NO row here and lands in
+    ``omitted_session_ids`` — the full core's answer for it, by construction
+    (the stream's ``persona_chat_turn`` overlay, plan h-turn1 §2 C0.3).
     """
 
     summary = HistorySummary(
@@ -92,6 +101,7 @@ def persona_chat_history_summary(
         persona_assignments=persona_assignments,
         omitted_session_ids=omitted_session_ids,
         only_instance_ids=only_instance_ids,
+        only_session_ids=only_session_ids,
     )
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
@@ -123,6 +133,7 @@ class HistorySummary:
     persona_assignments: Iterable[Any] | None
     omitted_session_ids: set[str] | None
     only_instance_ids: frozenset[str] | None = None
+    only_session_ids: frozenset[str] | None = None
     bound_by_session: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
@@ -364,6 +375,14 @@ class HistorySummary:
                 for _raw, _instance, session_id, _kind, _task_id in candidates[len(visible_candidates):]
                 if session_id
             )
+        if self.only_session_ids is not None:
+            # AFTER the truncation and the omitted fill: the bound is decided
+            # over every candidate, so the narrowed answer is the full one's.
+            visible_candidates = [
+                candidate
+                for candidate in visible_candidates
+                if candidate[2] in self.only_session_ids
+            ]
         visible: list[dict[str, Any]] = []
         for raw, instance, session_id, kind, task_id in visible_candidates:
             row = _history_row(

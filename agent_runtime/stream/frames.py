@@ -1,16 +1,19 @@
 """One frame each: hydrate, heartbeat, delta, delta batch, patch batch, the
-``running_work`` section frame and the fold-variants envelope (with its
+``running_work`` section frame, the ``persona_chat_turn`` root overlay and the
+fold-variants envelope (with its
 per-subscriber resolution), plus the watchdog's ``state.reconciled`` append,
 the delta op and the identity map."""
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from collections.abc import Iterable
 from typing import Any
 
 from hermes_time import now
-from ..chat_turn_presence import EVENT_TURN_ENDED
+from ..chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED
 from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import normalize_fold_entities
@@ -20,7 +23,7 @@ from ..snapshot.build import build_snapshot
 from ..state_patches.models import STATE_PATCHED_EVENT_TYPE
 
 from .build_policy import _log_snapshot_build
-from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, FRAME_RUNNING_WORK, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
+from .vocabulary import EVENT_RUN_PROGRESS, EVENT_STATE_RECONCILED, FRAME_DELTA, FRAME_HEARTBEAT, FRAME_HYDRATE, FRAME_PATCH, FRAME_PERSONA_CHAT_TURN, FRAME_RUNNING_WORK, STREAM_PERSONA_CHAT_TURN_SCHEMA_VERSION, logger, DEFAULT_STREAM_CALLER, FOLD_VARIANTS_FRAME_TYPE, STREAM_PATCH_SCHEMA_VERSION, STREAM_SCHEMA_VERSION, first_text, _redaction_safe_json
 
 __layer__ = "lanes"
 
@@ -187,6 +190,267 @@ def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
         "as_of_offset": None if as_of_offset is None else int(as_of_offset),
         "running_work": _redaction_safe_json(section),
     }
+
+
+#: The events one chat turn appends, and nothing else (plan h-turn1 §2 C0.1):
+#: the turn's three publishes and its chat-trace lane
+#: (``persona_chat_history.vocabulary._TRACE_EVENT_TYPES``).
+_TURN_PUBLISH_EVENT_TYPES = frozenset(
+    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, "persona_chat.projected"}
+)
+_TURN_TRACE_EVENT_TYPES = frozenset(
+    {EVENT_RUN_PROGRESS, "run.tool.started", "run.tool.finished"}
+)
+
+
+def _turn_event_root(event: Event) -> str | None:
+    """The chat root ``event`` belongs to, or ``None`` when it is not a turn event."""
+
+    event_type = getattr(event, "type", None)
+    if event_type in _TURN_PUBLISH_EVENT_TYPES:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        return optional_text(payload.get("root_chat_session_id"))
+    if event_type in _TURN_TRACE_EVENT_TYPES:
+        # A ``run.*`` with no session is a task-run trace, not a chat turn's.
+        return optional_text(event.session_id)
+    return None
+
+
+def batch_turn_roots(batch: list[tuple[int, Event]]) -> list[tuple[str, int]] | None:
+    """The chat roots a batch made ONLY of turn events names, or ``None``.
+
+    A TURN batch is one where every event is a turn publish carrying
+    ``payload.root_chat_session_id`` or a chat-trace ``run.*`` carrying a
+    ``session_id``. Anything else in it — a ``state.patched`` of any entity,
+    ``gateway.peer.updated`` (ruling C2-r3), ``state.reconciled``,
+    ``persona_instance.chat_opened``, a session-less ``run.*`` — answers
+    ``None`` and the batch takes today's lanes unchanged.
+
+    Each root is paired with the offset of ITS last event, and the list is in
+    that order: a batch naming two roots ships two frames, chained so the first
+    advances the watermark to its root's last event and the second applies from
+    there (the client's gap gate holds across both).
+    """
+
+    if not batch:
+        return None
+    last_seen: dict[str, int] = {}
+    for offset, event in batch:
+        root = _turn_event_root(event)
+        if not root:
+            return None
+        last_seen[root] = int(offset or 0)
+    return sorted(last_seen.items(), key=lambda item: item[1])
+
+
+def _turn_instance(
+    root: str, batch: list[tuple[int, Event]], instances: list[Any]
+) -> Any | None:
+    """The persona instance whose chat ``root`` is: the turn publish names it,
+    else the instance bound to the session, else the mint's owner."""
+
+    from ..persona_assignments import chat_session_owner_instance_id
+
+    by_id = {str(getattr(item, "id", "") or ""): item for item in instances}
+    for _offset, event in batch:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        if (
+            getattr(event, "type", None) in _TURN_PUBLISH_EVENT_TYPES
+            and optional_text(payload.get("root_chat_session_id")) == root
+        ):
+            named = by_id.get(optional_text(payload.get("persona_instance_id")) or "")
+            if named is not None:
+                return named
+    for instance in instances:
+        if root in (
+            optional_text(getattr(instance, "default_chat_session_id", None)),
+            optional_text(getattr(instance, "session_id", None)),
+        ):
+            return instance
+    return by_id.get(chat_session_owner_instance_id(root) or "")
+
+
+def _channel_for_instance(channels: list[dict[str, Any]], instance_id: str) -> dict[str, Any] | None:
+    for channel in channels:
+        if not isinstance(channel, dict):
+            continue
+        if channel.get("persona_instance_id") == instance_id or instance_id in (
+            channel.get("source_instance_ids") or ()
+        ):
+            return channel
+    return None
+
+
+def _read_persona_chat_turn_sections(
+    root: str, batch: list[tuple[int, Event]]
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """One root's turn sections, read NOW by the core's own builders.
+
+    The FULL instance list goes in everywhere attribution or ranking needs it —
+    the history bound ranks every candidate exactly as the core does and only
+    then narrows to the root (``only_session_ids``, plan §2 C0.3), and the
+    channel join takes every instance so display names and relationships are
+    the core's — so each row equals the row a full core built now would carry.
+    The roster is ``list_all`` (a read), never ``ensure_for_personas`` (it
+    writes). Raises when any read fails; the caller demotes.
+    """
+
+    from ..config import ensure_persisted_personas
+    from ..operator_channels import operator_channel_summary
+    from ..persona_assignments import PersonaInstanceStore, persona_instance_summary
+    from ..persona_chat_history import persona_chat_history_summary, persona_chat_trace_summary
+    from ..persona_chat_history.vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL
+    from ..persona_lifecycle import is_runtime_persona
+    from ..resolution import runtime_resolution_scope
+    from ..snapshot.details import persona_session_db_scope
+    from ..snapshot.receipts import _persona_chat_history_frame
+    from ..store import AgentStore
+
+    timings: dict[str, int] = {}
+    with runtime_resolution_scope(), persona_session_db_scope() as session_db:
+        event_log = EventLog()
+        instances = PersonaInstanceStore(event_log=event_log).list_all()
+        instance = _turn_instance(root, batch, instances)
+        if instance is None:
+            raise LookupError(f"no persona instance owns chat root {root!r}")
+        started = time.perf_counter()
+        omitted: set[str] = set()
+        history = persona_chat_history_summary(
+            persona_instances=instances,
+            session_db=session_db,
+            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+            omitted_session_ids=omitted,
+            only_session_ids=frozenset({root}),
+        )
+        timings["history_ms"] = int((time.perf_counter() - started) * 1000)
+        started = time.perf_counter()
+        trace = persona_chat_trace_summary(
+            persona_instances=[instance],
+            event_log=event_log,
+            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+        )
+        timings["trace_ms"] = int((time.perf_counter() - started) * 1000)
+        channels = operator_channel_summary(
+            persona_instances=instances,
+            persona_chat_history=history,
+            persona_chat_trace=trace,
+            intentionally_omitted_history_session_ids=omitted,
+        )
+    channel = _channel_for_instance(channels, str(instance.id))
+    if channel is None:
+        raise LookupError(f"no operator channel for {instance.id!r}")
+    personas = {
+        str(getattr(agent, "id", "") or ""): agent
+        for agent in AgentStore().list_all()
+        if is_runtime_persona(agent)
+    }
+    history_rows = _persona_chat_history_frame(history)
+    sections = {
+        "persona_instance_id": str(instance.id),
+        "persona_chat_history": to_jsonable(history_rows[0]) if history_rows else None,
+        "operator_channel": to_jsonable(channel),
+        "persona_instance": to_jsonable(
+            persona_instance_summary(
+                instance,
+                personas.get(str(getattr(instance, "persona_id", "") or "")),
+                roster=ensure_persisted_personas,
+            )
+        ),
+        "running_work": _redaction_safe_json(build_running_work()),
+        "omitted": root in omitted,
+    }
+    return sections, timings
+
+
+def persona_chat_turn_frames(
+    batch: list[tuple[int, Event]],
+    roots: list[tuple[str, int]],
+    *,
+    base_offset: int,
+    caller: str = DEFAULT_STREAM_CALLER,
+) -> list[dict[str, Any]] | None:
+    """One ``persona_chat_turn`` frame per root of a turn batch, or ``None``.
+
+    Each frame carries everything a chat turn moves for its root — the history
+    row (``null`` when the core's bound omits the root, with ``omitted: true``),
+    the operator channel, the persona-instance row, and ``running_work`` — and
+    ``base_offset`` / ``watermark`` exactly as :func:`patch_batch_frame` does,
+    because the declaring subscriber CONSUMES the batch with it. Frames are
+    chained in ``roots`` order: frame k applies from frame k-1's watermark and
+    the last one ends at the batch's last offset.
+
+    The second subscriber of the same batch reuses the first's read
+    (:mod:`agent_runtime.turn_section_reuse`), re-stamped with its own offsets.
+    ANY root whose read fails answers ``None`` for the whole batch, and the
+    caller demotes it as before: the cost of a miss is the old core, never a
+    wrong row. Not ``prompt_observability`` and not ``events`` (ruling C1-r1:
+    they wait for the next full core). No size cap (ruling C1-r2).
+    """
+
+    from .. import turn_section_reuse
+    from ..parity import events_position
+
+    if not batch or not roots:
+        return None
+    last_offset, last_event = batch[-1]
+    frames: list[dict[str, Any]] = []
+    applies_from = int(base_offset or 0)
+    for index, (root, root_last) in enumerate(roots):
+        stamp_offset = int(last_offset or 0) if index == len(roots) - 1 else int(root_last)
+        started = time.monotonic()
+        sections = turn_section_reuse.consult(root, floor=stamp_offset)
+        timings: dict[str, int] = {}
+        source = turn_section_reuse.SOURCE_REUSED
+        if sections is None:
+            source = turn_section_reuse.SOURCE_BUILT
+            position = events_position().get("event_offset")
+            try:
+                sections, timings = _read_persona_chat_turn_sections(root, batch)
+            except Exception:
+                logger.debug("persona_chat_turn: section read failed root=%s", root, exc_info=True)
+                return None
+            turn_section_reuse.remember(root, sections, position=position)
+        root_events = [event for _offset, event in batch if _turn_event_root(event) == root]
+        frame = {
+            "type": FRAME_PERSONA_CHAT_TURN,
+            "schema_version": STREAM_PERSONA_CHAT_TURN_SCHEMA_VERSION,
+            "generated_at": now(),
+            "base_offset": applies_from,
+            "watermark": {
+                "event_offset": stamp_offset,
+                "last_event_ts": (root_events[-1] if root_events else last_event).ts,
+                "captured_at": now(),
+            },
+            "coalesced_count": len(batch),
+            "root_chat_session_id": root,
+            **sections,
+        }
+        logger.info(
+            "turn_section reason=%s root=%s waited_ms=%d history_ms=%s trace_ms=%s "
+            "bytes=%d source=%s caller=%s offset=%d pid=%d",
+            _turn_section_reason(root_events),
+            root,
+            int((time.monotonic() - started) * 1000),
+            timings.get("history_ms", "-"),
+            timings.get("trace_ms", "-"),
+            len(json.dumps(frame, default=str)),
+            source,
+            caller,
+            stamp_offset,
+            os.getpid(),
+        )
+        frames.append(frame)
+        applies_from = stamp_offset
+    return frames
+
+
+def _turn_section_reason(root_events: list[Event]) -> str:
+    types = {getattr(event, "type", None) for event in root_events}
+    if EVENT_TURN_ENDED in types:
+        return "end"
+    if EVENT_TURN_STARTED in types:
+        return "start"
+    return "trace"
 
 
 def _delta_entity(event: Event) -> dict[str, Any]:

@@ -803,3 +803,43 @@ def test_no_committed_patch_fixture_is_refused_by_the_new_builder_guard():
         if frame.get("type") != "patch":
             continue
         assert frame["patches"], f"{path.name} would now be unbuildable"
+
+
+def test_the_persona_chat_turn_token_gates_a_frame_not_a_covered_event():
+    """Plan h-turn1 §2 C2: the turn's events stay UNCOVERED — the token buys the
+    ``persona_chat_turn`` overlay, never patch-lane coverage — so a batch of them
+    still answers ``None`` here and a subscriber that never declared the token is
+    handed the core exactly as before.
+
+    *Killing mutation:* add ``persona_chat.turn_started`` to the covered set (or
+    gate it on the token) → ``batch_required_fold_tokens`` stops answering
+    ``None`` → red.
+    """
+
+    from agent_runtime.patch_coverage import (
+        LIVE_COVERED_DOMAIN_EVENT_TYPES,
+        PERSONA_CHAT_TURN_CAPABILITY,
+        batch_required_fold_tokens,
+    )
+
+    assert PERSONA_CHAT_TURN_CAPABILITY == "persona_chat_turn"
+    turn_types = (
+        "persona_chat.turn_started",
+        "persona_chat.projected",
+        "persona_chat.turn_ended",
+        "run.progress",
+    )
+    assert not set(turn_types) & LIVE_COVERED_DOMAIN_EVENT_TYPES
+    events = [
+        Event(
+            ts=datetime.now(timezone.utc),
+            type=event_type,
+            task_id=None,
+            run_id=None,
+            persona_id="dev",
+            payload={"root_chat_session_id": "persona_chat_personainst_dev_0123456789ab"},
+            session_id="persona_chat_personainst_dev_0123456789ab",
+        )
+        for event_type in turn_types
+    ]
+    assert batch_required_fold_tokens(events) is None

@@ -384,8 +384,11 @@ _LIVENESS_FRAME_TYPES = frozenset({"heartbeat"})
 #: Carries state, but none an office canvas folds: the ``running_work`` section
 #: alone, shipped when a chat turn ends. Taught here rather than left to the
 #: unknown-type branch, which would resync every office subscriber (and restart
-#: the shared producer) once per finished turn.
-_NON_OFFICE_STATE_FRAME_TYPES = frozenset({"running_work"})
+#: the shared producer) once per finished turn. ``persona_chat_turn`` (one chat
+#: root's turn sections, plan h-turn1 §2 C1) for the same reason: it replaces the
+#: turn batch's ``delta``, which this lane already skipped as touching no
+#: workspace, so skipping it here is exactly today's behaviour for that batch.
+_NON_OFFICE_STATE_FRAME_TYPES = frozenset({"running_work", "persona_chat_turn"})
 
 
 def office_subscription_key(connection_key: str | None, workspace_id: str) -> str:

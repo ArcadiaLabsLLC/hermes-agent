@@ -2183,3 +2183,62 @@ def test_the_history_rows_persona_spelling_is_the_vocabularys_one_public_functio
     one = vocabulary.canonical_chat_persona_id
     assert summary.canonical_chat_persona_id is one
     assert trace.canonical_chat_persona_id is one
+
+
+def test_only_session_ids_narrows_after_the_bound_so_an_omitted_root_stays_omitted():
+    """The ``persona_chat_turn`` overlay's history rule (plan h-turn1 §2 C0.3).
+
+    The narrowed read ranks every candidate exactly as the full core does and
+    cuts to the named session only AFTER the creation-order bound: a root the
+    bound keeps is the full read's row byte for byte; a root it omits yields no
+    row and lands in ``omitted_session_ids`` — the full core's answer.
+
+    *Killing mutations:* narrow BEFORE the bound (filter ``candidates``) → the
+    omitted root hydrates → red; drop the omitted fill → the root is missing
+    from ``omitted`` → red.
+    """
+
+    instance_id = "personainst_neko_supervisor"
+    sessions = [
+        {
+            "id": f"chat_{index}",
+            "source": "agent_runtime_persona_chat",
+            "title": f"Chat {index}",
+            "started_at": f"2026-07-0{index + 1}T00:00:00Z",
+            "last_active": f"2026-07-0{index + 1}T00:30:00Z",
+            "model_config": json.dumps({"persona_instance_id": instance_id}),
+        }
+        for index in range(3)
+    ]
+    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_0")
+    full_omitted: set[str] = set()
+    full = persona_chat_history_summary(
+        persona_instances=[instance],
+        session_db=FakeHistorySessionDB(sessions, messages=[]),
+        limit=2,
+        omitted_session_ids=full_omitted,
+    )
+    assert [row["session_id"] for row in full] == ["chat_2", "chat_1"]
+    assert full_omitted == {"chat_0"}
+
+    kept_omitted: set[str] = set()
+    kept = persona_chat_history_summary(
+        persona_instances=[instance],
+        session_db=FakeHistorySessionDB(sessions, messages=[]),
+        limit=2,
+        omitted_session_ids=kept_omitted,
+        only_session_ids=frozenset({"chat_1"}),
+    )
+    assert kept == [full[1]]
+    assert kept_omitted == full_omitted
+
+    outside_omitted: set[str] = set()
+    outside = persona_chat_history_summary(
+        persona_instances=[instance],
+        session_db=FakeHistorySessionDB(sessions, messages=[]),
+        limit=2,
+        omitted_session_ids=outside_omitted,
+        only_session_ids=frozenset({"chat_0"}),
+    )
+    assert outside == []
+    assert "chat_0" in outside_omitted
