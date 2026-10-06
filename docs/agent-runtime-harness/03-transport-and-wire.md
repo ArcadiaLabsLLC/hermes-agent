@@ -1033,8 +1033,9 @@ publishes and the chat-trace `run.*`; anything else in the batch, including
 One frame per root, chained: `base_offset` / `watermark` exactly as `patch`
 carries them, so the client consumes the batch with it behind its gap gate. It
 carries the root's `persona_chat_history` row (`null` with `omitted: true` when
-the core's 50-row creation-order bound leaves the root out — `only_session_ids`
-narrows AFTER that bound), its `operator_channel`, its `persona_instance` row
+the core's 50-row bound leaves the root out — `only_session_ids` narrows AFTER
+that bound; the bound ranks by activity with every instance's bound chat pinned,
+and emits the kept rows in creation order, `HistorySummary.activity_key`), its `operator_channel`, its `persona_instance` row
 and `running_work`, each built by the core's own section builders over the full
 instance list, so each equals the row a full core would carry. Not
 `prompt_observability`, not `events`: they wait for the next core. A mixed room

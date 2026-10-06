@@ -48,7 +48,9 @@ def _list_sessions(
     include_children: bool,
     source: str | None = None,
     exclude_sources: list[str] | None = None,
+    order_by_last_active: bool = False,
 ) -> list[dict[str, Any]]:
+    """One page of SessionDB rows; ``order_by_last_active`` picks WHICH rows, never their emitted order."""
     try:
         return list(
             db.list_sessions_rich(
@@ -57,9 +59,10 @@ def _list_sessions(
                 limit=limit,
                 include_children=include_children,
                 min_message_count=0,
-                # Chat History is a conversation directory, not an inbox.
-                # Creation order is immutable; activity must not reshuffle it.
-                order_by_last_active=False,
+                # The page is chosen by activity when the caller bounds by
+                # activity (``HistorySummary``); the rows it emits are still
+                # creation-ordered there, so activity never reshuffles the directory.
+                order_by_last_active=order_by_last_active,
                 include_archived=True,
             )
             or []

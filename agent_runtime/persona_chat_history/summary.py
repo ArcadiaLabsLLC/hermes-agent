@@ -76,7 +76,7 @@ def persona_chat_history_summary(
 
     Built by :class:`HistorySummary`: index the instances, then the candidates
     from the session pools, the bound sessions and the live missions, then the
-    creation-order bound.
+    activity bound.
 
     ``only_instance_ids`` narrows the HYDRATED rows to those instances (the
     harness query core's per-instance read). The FULL instance list still goes
@@ -84,7 +84,12 @@ def persona_chat_history_summary(
     before the narrowing, so passing one instance alone would let its persona
     fallback adopt a sibling instance's session.
 
-    ``only_session_ids`` narrows AFTER the creation-order bound, where
+    The bound keeps ``limit`` rows ranked by activity (:meth:`HistorySummary.activity_key`):
+    every instance's bound chat and live mission first, then the most recently
+    active, so a chat in use is never omitted for being old. The kept rows are
+    still EMITTED in creation order — the directory's order contract.
+
+    ``only_session_ids`` narrows AFTER the activity bound, where
     ``only_instance_ids`` narrows before it: every candidate is ranked exactly as
     the full core ranks it, ``omitted_session_ids`` is filled from that whole
     ranking, and only then are the visible rows cut to the named sessions. So a
@@ -138,11 +143,14 @@ class HistorySummary:
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
     # Candidate discovery/accounting stays lightweight. Message tails, lineage,
-    # and runtime observations are hydrated only after the creation-order bound
+    # and runtime observations are hydrated only after the activity bound
     # is applied; on a busy runtime this avoids reading every historical chat to
     # render the newest 50.
     candidates: list[Candidate] = field(default_factory=list)
     seen: set[str] = field(default_factory=set)
+    # Root session id -> freshest activity of its compression descendants, folded
+    # from the pool rows the candidate loop already skips (no extra read).
+    activity_by_root: dict[str, str] = field(default_factory=dict)
     # The retirement archive listing, read AT MOST ONCE per build and only when an
     # unresolved binding actually appears: a healthy runtime with no orphans pays
     # nothing, and a runtime with fifty orphans still pays one listing, never one
@@ -184,11 +192,16 @@ class HistorySummary:
             limit=pool_size,
             include_children=False,
         )
+        # The persona-chat pool is the freshest ``pool_size`` by activity: a
+        # creation-ordered page left an old chat in daily use out of the
+        # candidates altogether (297 persona-chat sessions on the live store,
+        # pool 200). Measured +0 ms against the creation-ordered page there.
         source_sessions = _list_sessions(
             db,
             source=PERSONA_CHAT_SESSION_SOURCE,
             limit=pool_size,
             include_children=True,
+            order_by_last_active=True,
         )
         try:
             return list(source_sessions) + list(broad_sessions)
@@ -204,8 +217,13 @@ class HistorySummary:
                 continue
             is_source_chat = safe_assignment_token(raw.get("source")) == PERSONA_CHAT_SESSION_SOURCE
             root_meta = _model_config(raw.get("model_config")).get("mission_chat_root_id")
-            if root_meta and safe_assignment_text(root_meta, limit=200) != session_id:
-                # Compression descendants are projected through their stable root.
+            root_id = safe_assignment_text(root_meta, limit=200) if root_meta else None
+            if root_id and root_id != session_id:
+                # Compression descendants are projected through their stable root;
+                # their activity is the root's activity.
+                activity = _raw_activity(raw)
+                if activity and activity > self.activity_by_root.get(root_id, ""):
+                    self.activity_by_root[root_id] = activity
                 self.seen.add(session_id)
                 continue
             # Only persona-chat sessions and sessions bound to a live instance are
@@ -350,6 +368,22 @@ class HistorySummary:
             if self.accountant is not None:
                 self.accountant.consider(1)
 
+    def activity_key(self, candidate: Candidate) -> tuple[bool, str, tuple[bool, str, str]]:
+        """The bound's rank: pinned first, then freshest activity, then creation order.
+
+        Pinned is an instance's bound chat (its ``default_chat_session_id``) or a
+        live mission row: the chat an operator channel renders is never omitted,
+        however idle (live 2026-10-05: the ``personainst_base`` and
+        ``personainst_backend_dev`` bound chats ranked 67th and 100th of 100 by
+        activity). Activity is the freshest of the row's own ``last_active`` /
+        ``ended_at`` / ``started_at`` and its compression descendants'.
+        """
+
+        raw, _instance, session_id, kind, _task_id = candidate
+        pinned = kind == "mission" or session_id in self.bound_by_session
+        activity = max(_raw_activity(raw) or "", self.activity_by_root.get(session_id, ""))
+        return (pinned, activity, _persona_chat_candidate_sort_key(candidate))
+
     def rows(self, db: Any) -> list[dict[str, Any]]:
         candidates = self.candidates
         if self.only_instance_ids is not None:
@@ -359,16 +393,20 @@ class HistorySummary:
                 if safe_assignment_text(getattr(candidate[1], "id", None), limit=160)
                 in self.only_instance_ids
             ]
-        # The directory contract is creation order, not activity order. Opening or
-        # continuing an older chat may advance ``updated_at`` but must never move it
-        # above a conversation created later. Resolve every eligible row first, then
-        # sort and truncate so an active old chat cannot crowd a newer chat out of
-        # the bounded projection. Session id is the deterministic tie-breaker for
-        # legacy rows whose creation timestamp is missing. Candidate fields are the
-        # same fields ``_history_row`` projects into the final row, so selection is
-        # byte-equivalent while hydration is bounded to the visible slice.
-        candidates.sort(key=_persona_chat_candidate_sort_key, reverse=True)
-        visible_candidates = candidates[: max(0, self.limit)]
+        # WHICH rows are kept is decided by activity (``activity_key``): an old
+        # chat in use must never be omitted for a newer idle one. The ORDER they
+        # are emitted in stays creation order — the directory contract: continuing
+        # an older chat never moves it above a conversation created later. Resolve
+        # every eligible row first, rank, truncate, then re-sort the kept slice.
+        # Session id is the deterministic tie-breaker in both keys. Candidate
+        # fields are the same fields ``_history_row`` projects, so hydration is
+        # bounded to the visible slice.
+        candidates.sort(key=self.activity_key, reverse=True)
+        visible_candidates = sorted(
+            candidates[: max(0, self.limit)],
+            key=_persona_chat_candidate_sort_key,
+            reverse=True,
+        )
         if self.omitted_session_ids is not None:
             self.omitted_session_ids.update(
                 session_id
@@ -401,11 +439,17 @@ class HistorySummary:
             self.accountant.include(len(visible))
             omitted = len(candidates) - len(visible)
             if omitted > 0:
-                # Deliberate bound: the directory keeps the newest ``limit`` rows by
-                # creation order and every omitted row stays fetchable per-session.
+                # Deliberate bound: the directory keeps the ``limit`` most active rows
+                # (bound chats pinned) and every omitted row stays fetchable per-session.
                 # A busy runtime drops here on EVERY build — steady state, not a
                 # symptom — so it is declared by-design; a reader that counts it as
                 # an anomaly pins its health pill amber forever.
                 self.accountant.drop("limit", count=omitted, by_design=True)
                 self.accountant.mark_truncated()
         return visible
+
+
+def _raw_activity(raw: dict[str, Any]) -> str | None:
+    """A pool row's freshest activity as ISO ``Z``: ``last_active``, else ``ended_at``, else ``started_at``."""
+
+    return iso_timestamp(raw.get("last_active") or raw.get("ended_at") or raw.get("started_at"))
