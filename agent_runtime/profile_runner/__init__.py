@@ -59,6 +59,7 @@ from agent_runtime.profile_runner import (  # noqa: F401 — every family, in th
     model_input_observability,
 )
 from agent_runtime.profile_runner.errors import (
+    PrewarmYielded,
     ProfileRunnerError,
     RunBudgetExceeded,
 )
@@ -111,6 +112,7 @@ __layer__ = "lanes"
 __all__ = [
     "AgentRunRequest",
     "AgentRunResult",
+    "PrewarmYielded",
     "ProfileAgentRunner",
     "ProfileRunnerError",
     "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",

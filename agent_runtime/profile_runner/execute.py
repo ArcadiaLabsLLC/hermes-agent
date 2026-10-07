@@ -37,6 +37,7 @@ from agent_runtime.prewarmed_system_prompt import (
 from agent_runtime.serde import positive_float, positive_int
 from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
+    PrewarmYielded,
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
 )
@@ -357,35 +358,17 @@ class AgentRunExecution:
     def run(self) -> tuple[Any, Any, dict[str, Any]]:
         with self.scopes() as mcp_scope:
             self.mcp_scope = mcp_scope
+            self.yield_point("lock_acquired")
             self.resolve_runtime()
             self.arm_wall_checkpoint()
+            self.yield_point("runtime_resolved")
             self.admit_mcp()
+            self.yield_point("mcp_admitted")
             self.build_turn_state()
             self.acquire_agent()
             log_turn_effort(self.request, self.agent, reused=bool(self.timing.get("resident_actor_reused")))
             if self.request.prewarm_only:
-                # Everything above this line is what a real turn does before it
-                # has an agent; everything below is what it does WITH one. A
-                # prewarm stops exactly here — no turn-scoped attributes, no
-                # compression threshold, no MCP steer notice, no `agent_ready`
-                # callback and no conversation. The `with` block still unwinds
-                # normally on the way out, so this run's admitted MCP scope is
-                # torn down while it still holds `_WORKDIR_LOCK`, exactly as a
-                # real run's is.
-                #
-                # `_finish_resident_persona_chat_agent` detaches the (already
-                # empty) prewarm-local handles, so a resident actor is handed to
-                # its first real turn in the same state a completed turn leaves
-                # it in — one state for a warm actor, not two.
-                #
-                # h-turn1 A3: the first turn's system prompt is built HERE, under
-                # the same scopes, and adopted by that turn's
-                # `_restore_or_build_system_prompt` instead of rebuilt there.
-                stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
-                # h-conn-pool: the first turn's one-time process costs (spinner catalog, lazy imports, SDK headers).
-                warm_first_turn_paths(self.agent, self.timing, _FIRST_TURN_STORE_STEPS)
-                _finish_resident_persona_chat_agent(self.agent)
-                return None, self.agent, self.timing
+                return self.finish_prewarm()
             self.bind_chat_root()
             mcp_scope.enter_context(bound_tool_block(
                 _blocked_tool_names_for_run(self.request),
@@ -405,6 +388,59 @@ class AgentRunExecution:
             if max_wall_seconds is None:
                 return self.converse(agent_ready_cleanup)
             return self.converse_under_wall(max_wall_seconds, agent_ready_cleanup)
+
+    def finish_prewarm(self) -> tuple[Any, Any, dict[str, Any]]:
+        """A ``prewarm_only`` run's tail, with the agent acquired; still under the scopes.
+
+        Everything before this is what a real turn does before it has an agent;
+        everything after ``run``'s prewarm return is what it does WITH one. A prewarm
+        stops here -- no turn-scoped attributes, no compression threshold, no MCP
+        steer notice, no ``agent_ready`` callback and no conversation. The ``with``
+        block still unwinds normally on the way out, so this run's admitted MCP scope
+        is torn down while it still holds ``_WORKDIR_LOCK``, exactly as a real run's is.
+
+        ``_finish_resident_persona_chat_agent`` detaches the (already empty)
+        prewarm-local handles, so a resident actor is handed to its first real turn in
+        the same state a completed turn leaves it in -- one state for a warm actor, not
+        two. It runs on the yield path too: the actor is registered by then.
+
+        h-turn1 A3: the first turn's system prompt is built HERE, under the same
+        scopes, and adopted by that turn's ``_restore_or_build_system_prompt``.
+        h-conn-pool: then the first turn's one-time process costs (spinner catalog,
+        lazy imports, SDK headers), each step a yield point (h-turn-wait).
+        """
+
+        try:
+            self.yield_point("agent_acquired")
+            stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
+            self.yield_point("system_prompt_stashed")
+            warm_first_turn_paths(self.agent, self.timing, _FIRST_TURN_STORE_STEPS,
+                                  should_stop=self._prewarm_should_yield)
+        finally:
+            _finish_resident_persona_chat_agent(self.agent)
+        return None, self.agent, self.timing
+
+    def _prewarm_should_yield(self) -> Any:
+        """The request's ``prewarm_yield`` answer on a prewarm, else ``None``. Never raises."""
+
+        request = self.request
+        if not request.prewarm_only or request.prewarm_yield is None:
+            return None
+        try:
+            return request.prewarm_yield()
+        except Exception:  # pragma: no cover - a gauge read never fails a prewarm
+            return None
+
+    def yield_point(self, phase: str) -> None:
+        """h-turn-wait: a prewarm holding ``_WORKDIR_LOCK`` stands down for a turn.
+
+        Raises :class:`PrewarmYielded`; the scope stack unwinds (MCP teardown first)
+        and the lock passes to the waiting turn. A no-op on a real run.
+        """
+
+        reason = self._prewarm_should_yield()
+        if reason:
+            raise PrewarmYielded(phase, reason)
 
     @contextmanager
     def scopes(self):

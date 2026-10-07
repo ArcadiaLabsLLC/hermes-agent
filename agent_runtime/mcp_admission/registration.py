@@ -33,8 +33,14 @@ def admit_mcp_servers(
     register: Callable[[Mapping[str, Mapping[str, Any]]], Any] | None = None,
     timeout_seconds: float | None = None,
     on_budget_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None = None,
+    abandon: Callable[[], Any] | None = None,
 ) -> McpAdmissionOutcome:
     """Register the admitted servers' tools for this run. Bounded, single-flight.
+
+    ``abandon`` (h-turn-wait; a prewarm's yield gauge) is polled while the caller
+    waits: a truthy answer stops the WAIT early and the outcome reads as a timeout
+    (the registrar keeps running, as it does past the budget). A prewarm waits here
+    inside ``_WORKDIR_LOCK``; a turn behind it must not wait out a 20 s spawn.
 
     Returns an outcome rather than raising: a capability probe must never be able
     to fail a turn. Every degradation is typed —
@@ -69,7 +75,13 @@ def admit_mcp_servers(
         register=register,
         timeout_seconds=timeout_seconds,
         on_budget_exhausted=on_budget_exhausted,
+        abandon=abandon,
     ).run()
+
+
+#: How often a waiting admission asks its ``abandon`` gauge (h-turn-wait): the most a
+#: turn waits on a prewarm parked here, beyond the unwind.
+_ABANDON_POLL_SECONDS = 0.05
 
 
 def _mcp_client_enabled() -> bool:
@@ -131,10 +143,12 @@ class Admission:
         register: Callable[[Mapping[str, Mapping[str, Any]]], Any] | None,
         timeout_seconds: float | None,
         on_budget_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None,
+        abandon: Callable[[], Any] | None = None,
     ) -> None:
         self.admission = admission
         self.register = register
         self.on_budget_exhausted = on_budget_exhausted
+        self.abandon = abandon
         self.budget = positive_float(timeout_seconds) or admission.connect_timeout_seconds
         self.servers = dict(admission.server_configs)
         self.started = time.perf_counter()
@@ -235,7 +249,13 @@ class Admission:
             _ADMISSION_LOCK.release()
             logger.warning("MCP admission could not start its registration thread", exc_info=True)
             return None
-        return self.done.wait(self.budget)
+        if self.abandon is None:
+            return self.done.wait(self.budget)
+        deadline = time.perf_counter() + self.budget
+        while not self.done.wait(min(_ABANDON_POLL_SECONDS, max(0.0, deadline - time.perf_counter()))):
+            if time.perf_counter() >= deadline or self.abandon():
+                return False
+        return True
 
     def timed_out(self, duration_ms: int) -> McpAdmissionOutcome:
         budget = self.budget
