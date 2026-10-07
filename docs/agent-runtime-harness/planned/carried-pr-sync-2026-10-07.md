@@ -49,7 +49,7 @@ PR `121646` is closed and no longer belongs to the open-PR checker inventory.
 ## Checker evidence and limits
 
 Using the same reviewed manifest and current ledger, the pinned-main comparison
-reports **34 drift, 0 errors**; the refreshed working tree reports **0 drift, 0
+reports **35 drift, 0 errors**; the refreshed working tree reports **0 drift, 0
 errors**. Both cover **106 distinct PR/file pairs: 65 checked and 41 deferred**.
 The 65 checked pairs comprise **42 full reverse-patch checks** and **23 partial
 addition-fragment checks**. The count deduplicates repeated ledger references.
@@ -63,30 +63,64 @@ an altered carried hunk and requiring drift exit status 1.
 A zero exit status means **no detected drift in reviewed selections**, not that
 all upstream PRs have been adopted. Fragment checks validate exact lines against
 current PR additions before comparing the fork; reviewed helper-name mappings
-and relocated files are explicit. They do not verify removed/unselected lines,
-function placement, or behavioral equivalence. Deferred surfaces remain
+and relocated files are explicit. They now require exact occurrence counts within the named Python functions/classes
+selected by PR addition locations; explicit reviewed scope mappings cover moved
+helpers. Non-Python fragments use module-wide counts. Unselected changes and
+within-symbol control flow/behavioral equivalence remain manual-review limits. Deferred surfaces remain
 unverified by this checker and require their recorded review and applicable
 behavioral tests. The command is offline: it does not discover or fetch newer
 remote heads itself.
 
+## Checker review correction
+
+Review found that the original existence-only fragment check could accept a changed
+occurrence when another identical line remained. Three whole-repository mutation
+probes used the actual conversation-loop default, its forwarding argument, and a
+doctor home-setting statement. The checker from `e343bd3d0c` returned **0** for each;
+the corrected checker returns **1** and identifies the affected named scope for each.
+The probes used temporary Git indexes; the real index remained unchanged.
+
+The repaired comparison derives selected scopes from exact added-line coordinates
+in the pinned PR, then checks every occurrence count in those scopes, including
+unchanged duplicates that could otherwise mask a removed carried line. Separate
+fork functions and unrelated insertions remain permitted. The two extracted memory
+helpers have explicit scope mappings; call-site checks remain independent.
+
+This exposed **16 missed #125260 doctor fixture updates**, now carried from the
+unchanged reviewed PR head. The independent fork Honcho mock remains. The newly
+passing vendor-slug assertion retired its one obsolete strict-xfail marker; no
+assertion was weakened. The original main file passes with that case xfailed.
+The child-snapshot helper was aligned to the PR's equivalent structure in a
+separate behavior-preserving commit, allowing its whole body to be checked with
+an explicit cache-variable rename.
+
+All 53 PR entries now pin the reviewed merge base as well as the head. Advanced
+bases, disappeared ledger pairs, missing refs and invalid fork refs fail closed.
+The checker remains offline and requires caller fetches; this correction does not
+claim automatic remote freshness. The parent reviewer verified all 53 live PR
+heads still matched and were open. Deferred coverage remains explicit.
+
+Focused follow-up: **12 explicit files, 154 passed, zero failed, 13 skipped**,
+including **29 checker regressions**. Unaffected expensive tests were not rerun.
+
 ## Tests and baseline evidence
 
 The [exact selections and comparisons](carried-pr-sync-2026-10-07-tests.json)
-record **1,555 distinct files** invoked through `scripts/run_tests.sh`, never a
+record **1,556 distinct files** invoked through `scripts/run_tests.sh`, never a
 bare/default/full-tree selection. Each invocation validated nonempty explicit
 files and freeze-risk exclusions, used isolated homes and immutable logs, and
 bounded each file to 180 seconds and its enclosing process group to 30 minutes.
 Python was 3.14.7. Initial optional-dependency errors were retried after installing
 the repository versions; later installer retries used runbook uv 0.12.3.
 
-Latest per-file outcomes, deduplicating retries: **20,995 passed, 91 failed,
-141 errors, 344 skipped, 17 xfailed**. Two successful files lacked parsed
+Latest per-file outcomes, deduplicating retries: **21,008 passed, 91 failed,
+141 errors, 347 skipped, 16 xfailed**. Two successful files lacked parsed
 individual outcome counts; those outcomes are not guessed or included in these
 totals. Off-host and opt-in skips do not establish Windows/macOS/live coverage.
 
 **44 red files have every reported failure/error ID reproduced on pinned main
 (224 distinct IDs); seven timeout-bound files remain unverified.** The baseline
-comparison ran 64 distinct explicit files. Counts of error outcomes and unique
+comparison ran 65 distinct explicit files. Counts of error outcomes and unique
 IDs differ because collection/fixture errors can represent multiple outcomes.
 This is not a green-suite claim. Installer, sandbox/home-path and dependency
 failures remain coverage limits even where the same failure reproduces on main.
@@ -110,11 +144,11 @@ Confirmed refresh issues repaired and rechecked:
   explicit local commits, branches, uncommitted work and no-backup warning;
   **15 uninstall files, 74 passed, four skipped**.
 
-The checker regression file passed **18 tests**, including an altered carried
+The checker regression file passed **29 tests**, including an altered carried
 hunk producing exit 1, missing refs, advanced heads, empty coverage and explicit
 deferrals. The new runner retry regression passed; its file's existing grandchild
 cleanup failure also reproduces on main. Final undefined-name checks passed for
-all **69 changed Python files**; no obsolete `config.config_switch` imports remain.
+all changed Python files; no obsolete `config.config_switch` imports remain.
 
 ### Remaining baseline-matched red files
 

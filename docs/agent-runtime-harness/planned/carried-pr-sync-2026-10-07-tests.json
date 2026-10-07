@@ -3,13 +3,13 @@
   "command": "scripts/run_tests.sh <explicit files> --file-timeout 180 --file-retries 0 --timeout=180",
   "python": "3.14.7",
   "summary": {
-    "\u2713": 20995,
+    "\u2713": 21008,
     "\u2717": 91,
-    "s": 344,
+    "s": 347,
     "e": 141,
-    "xf": 17,
+    "xf": 16,
     "xp": 0,
-    "files": 1555,
+    "files": 1556,
     "red_files": 51,
     "timeout_files": 7,
     "unparsed_green_files": 2
@@ -1343,6 +1343,7 @@
     "tests/test_harness_usage.py",
     "tests/test_hermes_bootstrap.py",
     "tests/test_hermes_logging.py",
+    "tests/test_id_markers_downstream.py",
     "tests/test_live_system_guard.py",
     "tests/test_live_system_guard_backend_arm_downstream.py",
     "tests/test_live_system_guard_downstream.py",
@@ -1608,6 +1609,7 @@
     "tests/hermes_cli/test_auth_codex_self_heal.py",
     "tests/hermes_cli/test_config_lkg_backup.py",
     "tests/hermes_cli/test_custom_provider_extra_headers.py",
+    "tests/hermes_cli/test_doctor.py",
     "tests/hermes_cli/test_gateway_spawn_fence.py",
     "tests/hermes_cli/test_home_directory_diagnostics.py",
     "tests/hermes_cli/test_isolated_serve_ledger_marker.py",
@@ -2609,5 +2611,54 @@
   "unparsed_successful_files": [
     "tests/e2e/core/live/test_live_providers.py",
     "tests/e2e/core/windows_update/test_git_and_holders.py"
-  ]
+  ],
+  "checker_review_followup": {
+    "selection": [
+      "tests/hermes_cli/test_doctor.py",
+      "tests/hermes_cli/test_doctor_downstream.py",
+      "tests/scripts/test_check_carried_prs_downstream.py",
+      "tests/test_git_safety_boundary.py",
+      "tests/test_id_markers_downstream.py",
+      "tests/test_live_system_guard.py",
+      "tests/test_live_system_guard_backend_arm_downstream.py",
+      "tests/test_live_system_guard_downstream.py",
+      "tests/test_live_system_guard_self_test.py",
+      "tests/test_live_system_guard_self_test_downstream.py",
+      "tests/test_live_system_guard_setup_cost.py",
+      "tests/test_windows_process_safety.py"
+    ],
+    "passed": 154,
+    "failed": 0,
+    "skipped": 13,
+    "checker_regressions": 29,
+    "production_mutations": [
+      {
+        "mutation": "turn-default",
+        "file": "agent/conversation_loop.py",
+        "old_exit": 0,
+        "new_exit": 1,
+        "diagnostic": "DRIFT PR #124210 agent/conversation_loop.py: carried lines differ from fb0122d52f7950e0954973fa04e981269a55edc2 [reviewed addition fragments in agent/conversation_loop.py; exact occurrence counts per named scope; deletions/unselected changes not checked: All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review.]; _run_conversation_turn -> _run_conversation_turn: expected 1 occurrences, found 0"
+      },
+      {
+        "mutation": "turn-forward",
+        "file": "agent/conversation_loop.py",
+        "old_exit": 0,
+        "new_exit": 1,
+        "diagnostic": "DRIFT PR #124210 agent/conversation_loop.py: carried lines differ from fb0122d52f7950e0954973fa04e981269a55edc2 [reviewed addition fragments in agent/conversation_loop.py; exact occurrence counts per named scope; deletions/unselected changes not checked: All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review.]; _run_conversation_turn -> _run_conversation_turn: expected 1 occurrences, found 0"
+      },
+      {
+        "mutation": "doctor-home",
+        "file": "tests/hermes_cli/test_doctor.py",
+        "old_exit": 0,
+        "new_exit": 1,
+        "diagnostic": "DRIFT PR #125260 tests/hermes_cli/test_doctor.py: carried lines differ from 238f779fd9a810be7d2fdbd022065970493f77f1 [reviewed addition fragments in tests/hermes_cli/test_doctor.py; exact occurrence counts per named scope; deletions/unselected changes not checked: All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review.]; TestDoctorEnvFileEncoding.test_doctor_reads_env_as_utf8_even_when_locale_is_not_utf8 -> TestDoctorEnvFileEncoding.test_doctor_reads_env_as_utf8_even_when_locale_is_not_utf8: expected 1 occurrences, found 0"
+      }
+    ],
+    "baseline_doctor": {
+      "passed": 59,
+      "skipped": 8,
+      "xfailed": 1
+    },
+    "doctor_missing_carried_updates": 16
+  }
 }

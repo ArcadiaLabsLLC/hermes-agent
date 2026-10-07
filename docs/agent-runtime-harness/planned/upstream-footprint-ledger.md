@@ -364,3 +364,10 @@ See [refresh evidence](carried-pr-sync-2026-10-07.md).
 #125264 keeps the fork's quoted Windows-path delivery: a closing quote terminates
 the path; the stricter trailing boundary applies to bare paths only. The checker
 records this regex-grouping adaptation and behavioral regressions cover it.
+
+Checker review follow-up: named-scope occurrence checks exposed 16 missing #125260
+doctor test home-setting updates, now applied; the independently recorded Honcho
+mock remains. Retired the now-passing vendor-slug strict-xfail marker. Reviewed
+head/base pins remain unchanged. Exact-count scope checks replace existence-only
+fragment matching; moved memory helpers are explicitly mapped, and the live-system
+guard snapshot body is checked with its fork cache-variable rename.
