@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ORDER = ['session_transports', 'session_reaper', 'session_lifecycle', 'session_workdir', 'compute_host_bridge', 'model_switch', 'session_compression', 'change_watcher', 'tool_progress', 'session_notifications', 'prompt_attachments', 'session_history', 'agent_callbacks', 'session_auto_continue', 'plugin_inject', 'rpc_dispatch', 'methods_complete_helpers', 'methods_slash', 'methods_voice', 'methods_browser', 'methods_browser_control', 'methods_session', 'methods_prompt', 'methods_pdf', 'methods_config', 'methods_config_set', 'methods_complete', 'methods_tools', 'methods_profiles', 'methods_images', 'methods_bot_relay', 'prompt_turn', 'billing_view', 'methods_projects', 'methods_session_foreign', 'methods_session_control', 'methods_subagents', 'methods_vault', 'methods_free_tier', 'methods_connectors', 'methods_connectors_account', 'methods_display', 'methods_display_watch', 'methods_onboarding', 'methods_i18n', 'methods_shared_metrics', 'session_recovery', 'session_retirement']
 
 
-def registration(monkeypatch, failure=None):
+def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
     source = (ROOT / "tui_gateway/server.py").read_text(encoding="utf-8")
     source = source[source.index("# ── Split @method handler modules"):]
     server = ModuleType("tui_gateway._job2_registration_test")
@@ -24,6 +24,9 @@ def registration(monkeypatch, failure=None):
         if name == "tui_gateway" or (not name and level == 1):
             modules = {}
             for child in fromlist:
+                if inspect_pdf_import and child == "methods_pdf":
+                    assert hasattr(server, "_methods_connectors")
+                    assert hasattr(server, "_methods_connectors_account")
                 if failure and child == failure[0]:
                     raise ImportError("fixture omitted dependency", name=failure[1])
                 def register(owner, child=child):
@@ -45,7 +48,7 @@ def registration(monkeypatch, failure=None):
 
 
 def test_registration_order_and_server_aliases_are_preserved(monkeypatch):
-    server = registration(monkeypatch)
+    server = registration(monkeypatch, inspect_pdf_import=True)
     assert server.calls == ORDER
     assert server._CONNECTOR_RPC_METHODS == frozenset({"connectors.fixture"})
     for name in ("methods_connectors", "methods_connectors_account", "methods_pdf", "session_recovery", "session_retirement"):

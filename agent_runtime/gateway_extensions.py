@@ -21,6 +21,8 @@ def prepare(server) -> None:
         _methods_connectors = _methods_connectors_account = SimpleNamespace(register=_no_connector_rpcs)
         server.SimpleNamespace = SimpleNamespace
         server._no_connector_rpcs = _no_connector_rpcs
+    server._methods_connectors = _methods_connectors
+    server._methods_connectors_account = _methods_connectors_account
     try:
         from tui_gateway import methods_pdf as _methods_pdf
     except ImportError as _pdf_exc:  # a bundle that starts no process (the phone) serves no pdf.attach
@@ -32,8 +34,6 @@ def prepare(server) -> None:
 
         _methods_pdf = SimpleNamespace(register=lambda server: None)
         server.SimpleNamespace = SimpleNamespace
-    server._methods_connectors = _methods_connectors
-    server._methods_connectors_account = _methods_connectors_account
     server._methods_pdf = _methods_pdf
 
 
