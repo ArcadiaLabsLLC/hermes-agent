@@ -45,3 +45,38 @@ def test_request_sent_logs_one_receipt_keyed_on_the_turn(caplog):
     assert len(lines) == 1
     assert " turn=m-7 anchored_at=2026-10-06T21:05:00Z total_ms=500 " in lines[0]
     assert lines[0].endswith("agent_ready_ms=200 request_sent_ms=300")
+
+
+def test_the_receipt_names_the_sibling_thread_that_burned_cpu_inside_the_window():
+    """h-prep-contention: ``cpu_ms`` over ``total_ms`` says a sibling was busy; ``top_threads`` says which."""
+
+    import threading
+    import time
+
+    from agent_runtime.send_prep_receipt import CpuAnchor, contention_fields
+
+    go, done, release = threading.Event(), threading.Event(), threading.Event()
+
+    def burn() -> None:
+        go.wait(10)
+        until = time.monotonic() + 0.25
+        while time.monotonic() < until:
+            pass
+        done.set()
+        release.wait(10)  # alive at the far end, as a stream reader is
+
+    sibling = threading.Thread(target=burn, name="keep warm sibling", daemon=True)
+    sibling.start()
+    anchor = CpuAnchor()
+    go.set()
+    assert done.wait(10)
+    fields = contention_fields(anchor, (time.process_time() - anchor.process) * 1000.0)
+    release.set()
+    sibling.join(10)
+
+    assert fields["top_threads"].startswith("keep_warm_sibling:"), fields
+    assert int(fields["top_threads"].split(",")[0].split(":")[1]) >= 150, fields
+    assert fields["own_cpu_ms"] is not None and fields["unattributed_ms"] is not None
+    line = send_prep_line({"request_sent": 300}, PHASE_ORDER, turn="m-1", anchored_at="t", cpu_ms=310,
+                          title_threads=0, contention=fields)
+    assert f" top_threads={fields['top_threads']} " in line and line.endswith("request_sent_ms=300")
