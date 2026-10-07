@@ -100,6 +100,61 @@ def parse_launcher(line: str) -> dict[str, Any] | None:
             "spans": {k: v for k, v in spans.items() if v is not None}}
 
 
+def _turn(state: dict[str, Any], turn_id: str) -> dict[str, Any]:
+    return state["turns"].setdefault(turn_id, {"turn_id": turn_id, "anchor": None, "chat": None, "end": None,
+                                               "spans": {}, "launcher_send": None})
+
+
+def _on_accept(state: dict[str, Any], row: dict[str, Any]) -> None:
+    fields = row["fields"]
+    if not fields.get("turn"):
+        return
+    entry = _turn(state, fields["turn"])
+    entry["anchor"] = row["at"]
+    entry["chat"] = entry["chat"] or row["chat"]
+    if _num(fields.get("total_ms")) is not None:
+        entry["spans"]["accept_to_anchor"] = _num(fields["total_ms"])
+
+
+def _on_prep(state: dict[str, Any], row: dict[str, Any]) -> None:
+    fields = row["fields"]
+    if not fields.get("turn"):
+        return
+    entry = state["open_prep"] = _turn(state, fields["turn"])
+    if entry["anchor"] is None:
+        entry["anchor"] = _utc(fields.get("anchored_at", "")) or row["at"]
+    if _num(fields.get("total_ms")) is not None:
+        entry["spans"]["send_prep_total"] = _num(fields["total_ms"])
+
+
+def _on_window(state: dict[str, Any], row: dict[str, Any]) -> None:
+    entry, fields = state["open_prep"], row["fields"]
+    if entry is None:
+        return
+    state["open_prep"] = None
+    request = fields.get("request", "")
+    state["requests"][request] = entry
+    entry["chat"] = entry["chat"] or (request.split(":", 1)[0] or None)
+    entry["spans"]["conn"] = fields.get("conn")
+    if _num(fields.get("server_wait_ms")) is not None:
+        entry["spans"]["server_wait"] = _num(fields["server_wait_ms"])
+    entry["end"] = row["at"]
+
+
+def _on_gap(state: dict[str, Any], row: dict[str, Any]) -> None:
+    fields = row["fields"]
+    entry = state["requests"].pop(fields.get("request"), None)
+    if entry is None:
+        return
+    if fields.get("end") == "text" and _num(fields.get("gap_ms")) is not None:
+        entry["spans"]["first_event_to_text"] = _num(fields["gap_ms"])
+    entry["end"] = row["at"]
+
+
+#: Receipt kind (``_MARKERS``) -> its handler; one row per kind, no ladder.
+_RECEIPT_HANDLERS = {"accept": _on_accept, "prep": _on_prep, "window": _on_window, "gap": _on_gap}
+
+
 def collect_turns(log_sources: Iterable[Iterable[str]], launcher_lines: Iterable[str]) -> list[dict[str, Any]]:
     """Every turn a hermes receipt names, oldest first, with its spans joined.
 
@@ -108,45 +163,10 @@ def collect_turns(log_sources: Iterable[Iterable[str]], launcher_lines: Iterable
     """
 
     turns: dict[str, dict[str, Any]] = {}
-
-    def turn(turn_id: str) -> dict[str, Any]:
-        return turns.setdefault(turn_id, {"turn_id": turn_id, "anchor": None, "chat": None, "end": None,
-                                          "spans": {}, "launcher_send": None})
-
     for lines in log_sources:
-        open_prep: dict[str, Any] | None = None
-        requests: dict[str, dict[str, Any]] = {}
-        for line in lines:
-            row = parse_receipt(line)
-            if row is None:
-                continue
-            fields, kind = row["fields"], row["kind"]
-            if kind == "accept" and fields.get("turn"):
-                entry = turn(fields["turn"])
-                entry["anchor"] = row["at"]
-                entry["chat"] = entry["chat"] or row["chat"]
-                if _num(fields.get("total_ms")) is not None:
-                    entry["spans"]["accept_to_anchor"] = _num(fields["total_ms"])
-            elif kind == "prep" and fields.get("turn"):
-                entry = open_prep = turn(fields["turn"])
-                if entry["anchor"] is None:
-                    entry["anchor"] = _utc(fields.get("anchored_at", "")) or row["at"]
-                if _num(fields.get("total_ms")) is not None:
-                    entry["spans"]["send_prep_total"] = _num(fields["total_ms"])
-            elif kind == "window" and open_prep is not None:
-                entry, open_prep = open_prep, None
-                request = fields.get("request", "")
-                requests[request] = entry
-                entry["chat"] = entry["chat"] or (request.split(":", 1)[0] or None)
-                entry["spans"]["conn"] = fields.get("conn")
-                if _num(fields.get("server_wait_ms")) is not None:
-                    entry["spans"]["server_wait"] = _num(fields["server_wait_ms"])
-                entry["end"] = row["at"]
-            elif kind == "gap" and fields.get("request") in requests:
-                entry = requests.pop(fields["request"])
-                if fields.get("end") == "text" and _num(fields.get("gap_ms")) is not None:
-                    entry["spans"]["first_event_to_text"] = _num(fields["gap_ms"])
-                entry["end"] = row["at"]
+        state = {"turns": turns, "open_prep": None, "requests": {}}
+        for row in filter(None, map(parse_receipt, lines)):
+            _RECEIPT_HANDLERS[row["kind"]](state, row)
     for row in filter(None, map(parse_launcher, launcher_lines)):
         if row["turn"] in turns:
             entry = turns[row["turn"]]
