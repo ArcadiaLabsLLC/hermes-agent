@@ -52,3 +52,51 @@ def test_read_skill_name_prefers_frontmatter_then_fallback(tmp_path):
     bare.write_text("no frontmatter\n", encoding="utf-8")
     assert skill_usage.read_skill_name(named, "fallback") == "from-frontmatter"
     assert skill_usage.read_skill_name(bare, "fallback") == "fallback"
+
+
+# Overriding a public name must reach the module's own callers: they call the
+# public spelling, so a plugin that swaps one in changes the tool's behaviour.
+
+
+def test_overriding_find_all_skills_and_sort_skills_reaches_skills_list(monkeypatch):
+    import json
+
+    monkeypatch.setattr(skills_tool, "find_all_skills",
+                        lambda **_kw: [{"name": "from-override", "description": "d", "category": None}])
+    assert "from-override" in [s["name"] for s in json.loads(skills_tool.skills_list())["skills"]]
+    monkeypatch.setattr(skills_tool, "sort_skills", lambda _skills: [{"name": "sorted-by-override"}])
+    assert json.loads(skills_tool.skills_list())["skills"] == [{"name": "sorted-by-override"}]
+
+
+def test_overriding_skill_lookup_path_error_reaches_skill_view(monkeypatch):
+    import json
+
+    monkeypatch.setattr(skills_tool, "skill_lookup_path_error", lambda _name: "refused-by-override")
+    result = json.loads(skills_tool.skill_view("plain-name"))
+    assert result["success"] is False and "refused-by-override" in result["error"]
+
+
+def test_overriding_skill_search_dirs_and_locate_skill_reaches_skill_view(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_locate(name, local_category_name, roots):
+        seen["roots"] = roots
+        return '{"success": false, "error": "located-by-override"}', None, None
+
+    monkeypatch.setattr(skills_tool, "skill_search_dirs", lambda: ([(0, tmp_path)], tmp_path))
+    monkeypatch.setattr(skills_tool, "locate_skill", fake_locate)
+    assert "located-by-override" in skills_tool.skill_view("plain-name")
+    assert seen["roots"] == [(0, tmp_path)]
+
+
+def test_overriding_dir_hash_reaches_origin_hash_check(monkeypatch, tmp_path):
+    monkeypatch.setattr(skills_sync, "dir_hash", lambda _d, **_kw: "hash-from-override")
+    assert skills_sync._matches_origin_hash(tmp_path, "hash-from-override")
+
+
+def test_overriding_read_skill_name_reaches_skill_dir_match(monkeypatch, tmp_path):
+    skill_md = tmp_path / "dir-name" / "SKILL.md"
+    skill_md.parent.mkdir()
+    skill_md.write_text("---\nname: declared\n---\n", encoding="utf-8")
+    monkeypatch.setattr(skill_usage, "read_skill_name", lambda _md, fallback: "name-from-override")
+    assert skill_usage._match_skill_dir([skill_md], "name-from-override") == skill_md.parent

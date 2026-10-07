@@ -199,7 +199,7 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
         TIER_PROJECT, is_disabled_entry, iter_project_skill_files, iter_skill_index_files, resolve_skill_catalog)
     cache_key = ("with_disabled" if skip_disabled else "filtered", include_hidden)
     disabled = set() if skip_disabled else _get_disabled_skill_names()
-    roots, _ = _skill_search_dirs()
+    roots, _ = skill_search_dirs()
     signature = _skills_scan_signature([d for _t, d in roots], disabled)
     now = time.monotonic()
     cached = _SKILLS_CACHE.get(cache_key)
@@ -261,7 +261,7 @@ def skills_list(category: str = None, task_id: str = None) -> str:
     """Tier 1 listing: name + description (+ category) only; ``task_id`` is handler parity."""
     try:
         _skills_dir().mkdir(parents=True, exist_ok=True)
-        all_skills = _find_all_skills()
+        all_skills = find_all_skills()
         try:
             from hermes_cli.plugins import discover_plugins, get_plugin_manager
             discover_plugins()
@@ -277,7 +277,7 @@ def skills_list(category: str = None, task_id: str = None) -> str:
                           "message": "No skills found in skills/ directory."})
         if category:
             all_skills = [s for s in all_skills if s.get("category") == category]
-        all_skills = _sort_skills(all_skills)
+        all_skills = sort_skills(all_skills)
         categories = sorted({s.get("category") for s in all_skills if s.get("category")})
         return _json({
             "success": True, "skills": all_skills, "categories": categories,
@@ -529,7 +529,7 @@ def locate_skill(name: str, local_category_name: Optional[str], roots):
                 hint="Inspect the skill in the repo checkout, or untrust the repo with "
                 "`hermes skills untrust`."), None, None
     if not skill_md or not skill_md.exists():
-        available = [s["name"] for s in _sort_skills(_find_all_skills())[:20]]
+        available = [s["name"] for s in sort_skills(find_all_skills())[:20]]
         return _fail(f"Skill '{name}' not found.", available_skills=available,
                      hint="Use skills_list to see all available skills"), None, None
     return None, skill_dir, skill_md
@@ -571,7 +571,7 @@ def skill_view(
     try:
         # Validate before the ':' dispatch so a Windows drive path (C:\skills\foo) can't be
         # reinterpreted as a plugin namespace.
-        if lookup_error := _skill_lookup_path_error(name):
+        if lookup_error := skill_lookup_path_error(name):
             return _fail(lookup_error, hint=_LOOKUP_HINT)
         local_category_name: str | None = None
         if ":" in name:  # plugin registry; bare names use the flat-tree scan below
@@ -580,11 +580,11 @@ def skill_view(
                 return served
         # The fall-through form (namespace/bare) joins onto each search dir too; re-validate it
         # since `bare` is not namespace-checked.
-        if local_category_name and (lookup_error := _skill_lookup_path_error(local_category_name)):
+        if local_category_name and (lookup_error := skill_lookup_path_error(local_category_name)):
             return _fail(lookup_error, hint=_LOOKUP_HINT)
-        roots, active_skills_dir = _skill_search_dirs()
+        roots, active_skills_dir = skill_search_dirs()
         all_dirs = [d for _t, d in roots]
-        error, skill_dir, skill_md = _locate_skill(name, local_category_name, roots)
+        error, skill_dir, skill_md = locate_skill(name, local_category_name, roots)
         if error is not None:
             return error
         try:  # read once — reused for platform check and main content
