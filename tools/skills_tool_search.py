@@ -7,10 +7,13 @@ stays ``hermes skills install``.
 """
 
 import json
+import logging
 from typing import Any, Dict, List
 
 from tools.registry import tool_error
 from tools.skills_tool_plugin import MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH
+
+logger = logging.getLogger(__name__)
 
 # "installed" plus every hub SOURCE_ID ``create_source_router`` builds except "url", which
 # resolves a direct link rather than answering a query.
@@ -130,4 +133,5 @@ def skill_search(query: str, source: str = "all", limit: int = 10,
                      "install with `hermes skills install <identifier>`."),
         }, ensure_ascii=False)
     except Exception as e:
+        logger.exception("skill_search failed for query %r", query)
         return tool_error(str(e), success=False)
