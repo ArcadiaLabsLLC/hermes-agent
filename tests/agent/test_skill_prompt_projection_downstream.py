@@ -37,7 +37,7 @@ def test_snapshot_runtime_projection_preserves_scan_decisions(tmp_path, metadata
 def test_prompt_explicit_values_override_ambient_defaults(tmp_path, monkeypatch, surface, mode, expected):
     from agent import skill_utils
     monkeypatch.setattr(pb, "get_skills_dir", lambda: tmp_path)
-    monkeypatch.setattr(pb, "get_all_skills_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(pb, "get_skill_search_roots", lambda *args: [(skill_utils.TIER_LOCAL, tmp_path)])
     monkeypatch.setattr(skill_utils, "get_project_skills_dirs", lambda: [])
     monkeypatch.setattr(pb, "_build_skills_system_prompt_inner", lambda *args: args[-2:])
     with skill_runtime_scope(surface="mission_worker", root_node_mode=True):
