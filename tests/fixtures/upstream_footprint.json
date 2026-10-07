@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-06",
   "base": "ee5f49b943",
-  "files": 175,
+  "files": 176,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane h-title-defer (runtime-queue Seams CLASS row: the turn-start title upgrade runs inside anchor->request_sent on turns 1-3): the auto-title upgrade starts at the turn's request_sent",
+      "files": "175 -> 176: agent/title_generator.py (3 added, 0 deleted: one import, a guarded early return in maybe_auto_title, `# fork seam: h-title-defer`)",
+      "deleted_lines": "883 -> 883: the seam is additive; heavy unchanged at 4",
+      "reason": "No fork door: maybe_auto_title creates AND starts the upgrade thread in one call, and upstream holds it unstarted only for a self-hosted endpoint (title_upgrade_must_wait_for_turn). The seam asks agent_runtime.title_upgrade_defer.hold_title_upgrade, which holds it on the codex_responses path (the one whose request_sent the fork observes); turn_context's existing _deferred_title_upgrade carries it, the transport trace starts it at request_sent, finalize_turn is upstream's fallback. Held PR row in upstream-footprint-ledger.md."
+    },
     {
       "change": "lane h-turn1-conn (runtime-queue row: turn 0 still ~110 ms behind warm): a turn that adopted a prewarmed system prompt writes the prompt and its tools pin after request_sent",
       "files": "unchanged: agent/conversation_loop.py was already counted (4 added: one import, a guarded early return before the first-turn _persist_system_prompt, `# fork seam: h-turn1-conn`)",

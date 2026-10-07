@@ -46,6 +46,7 @@ from agent_runtime.conversation_observability import (
 )
 from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist
 from agent_runtime.send_window_receipt import SendWindow
+from agent_runtime.title_upgrade_defer import start_held_title_upgrade
 from agent_runtime.stream_gap_receipt import begin_send_window, begin_stream_gap_receipt
 
 __layer__ = "policy"
@@ -94,6 +95,8 @@ def phase_trace_for(
         if step == TRANSPORT_REQUEST_SENT_STEP and agent is not None:
             # h-turn1-conn: the first turn's held persist writes, now that the request is out.
             run_deferred_turn_persist(agent)
+            # h-title-defer: the turn-start title upgrade, held until the request is out.
+            start_held_title_upgrade(agent)
 
     return _trace
 
