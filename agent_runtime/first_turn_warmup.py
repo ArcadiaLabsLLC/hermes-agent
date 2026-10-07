@@ -178,11 +178,19 @@ _STEPS = (
 )
 
 
-def warm_first_turn_paths(agent: Any, timing: dict[str, Any], extra_steps: tuple = ()) -> None:
-    """Run every warm-up step for *agent* (plus a higher layer's *extra_steps*); record the total in *timing*. Never raises."""
+def warm_first_turn_paths(
+    agent: Any, timing: dict[str, Any], extra_steps: tuple = (), *, should_stop: Any = None
+) -> None:
+    """Run every warm-up step for *agent* (plus a higher layer's *extra_steps*); record the total in *timing*. Never raises.
+
+    *should_stop* (h-turn-wait) is asked before each step; a truthy answer skips the
+    rest -- the prewarm runs these inside ``_WORKDIR_LOCK`` and a turn is waiting.
+    """
 
     started = time.perf_counter()
     for name, step in _STEPS + tuple(extra_steps):
+        if should_stop is not None and should_stop():
+            break
         try:
             step(agent)
         except Exception:

@@ -204,6 +204,9 @@ class ProfileAgentRunner:
                 on_budget_exhausted=lambda denial, snapshot: _on_mcp_budget_exhausted(
                     request, denial, snapshot, ledger=ledger
                 ),
+                # h-turn-wait: a prewarm waits here inside `_WORKDIR_LOCK`; it stops
+                # waiting when a turn arrives and yields at the next phase boundary.
+                abandon=request.prewarm_yield if request.prewarm_only else None,
             )
         except Exception:  # pragma: no cover - admit_mcp_servers already swallows
             timing["mcp_admission_ms"] = _emit_request_timing(

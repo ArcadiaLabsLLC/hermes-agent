@@ -117,8 +117,11 @@ covers the same-root case by construction: when any turn is admitted this
 stands down, the same-root prewarm included. That is the NO-OP case, now taken
 deliberately instead of raced — the turn would have built this exact actor
 itself, and instead finds it. Constructions are serialized one at a time on a
-single daemon worker, so at most one is ever in flight; the residual race, a
-turn arriving DURING a construction, is bounded by that one construction.
+single daemon worker, so at most one is ever in flight. A turn arriving DURING
+a construction (h-turn-wait) is no longer bounded by the whole construction: the
+run asks ``_stand_down_outcome`` at each phase boundary inside ``_WORKDIR_LOCK``
+and while MCP admission waits, and unwinds (``persona_chat_actor_prewarm_yielded``)
+so the turn takes the lock within one phase step.
 
 Triggers
 --------
@@ -303,6 +306,13 @@ CHAT_ACTOR_PREWARM_PASS_RECEIPT = (
     "persona_chat_actor_prewarm pass candidates=%d queued=%d skipped=%d elapsed_ms=%d"
 )
 
+#: h-turn-wait: a prewarm stood down INSIDE the run lock for a turn; ``phase`` names
+#: the boundary (``lock_acquired`` .. ``system_prompt_stashed``), ``reason`` the outcome
+#: the worker reports for the item.
+CHAT_ACTOR_PREWARM_YIELDED_RECEIPT = (
+    "persona_chat_actor_prewarm_yielded root=%s phase=%s reason=%s"
+)
+
 #: An actor was constructed and is now resident for this chat root.
 OUTCOME_WARMED = "warmed"
 
@@ -424,8 +434,19 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         stand_down = _stand_down_outcome()
         if stand_down is not None:
             return stand_down
+        # h-turn-wait: both reads above sit BEFORE the run lock. Live 2026-10-06
+        # 20:23:58 a turn on another root was accepted after them and its
+        # `agent_ready` waited 18.5 s on `_WORKDIR_LOCK` while this prewarm sat in a
+        # 20 s MCP admission. The run asks the same gauge at every phase boundary
+        # inside the lock (and while admission waits) and unwinds when it answers.
+        from .profile_runner.errors import PrewarmYielded
+
+        request.prewarm_yield = _stand_down_outcome
         try:
             timing = runner.prewarm(request)
+        except PrewarmYielded as yielded:
+            logger.info(CHAT_ACTOR_PREWARM_YIELDED_RECEIPT, root, yielded.phase, yielded.reason)
+            return str(yielded.reason)
         except Exception:
             logger.debug(
                 "chat-actor prewarm construction failed for %s", root, exc_info=True
@@ -437,9 +458,12 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         # h-prewarm-order: every phase the run timed, so a silent span between
         # two log lines (5.3 s on 2026-10-06 01:24:59) is named by the receipt.
         logger.info(
-            "persona_chat_actor_prewarm_first_turn root=%s system_prompt_build_ms=%s connect_ms=%s"
+            "persona_chat_actor_prewarm_first_turn root=%s runtime_resolve_ms=%s mcp_admission_ms=%s"
+            " system_prompt_build_ms=%s connect_ms=%s"
             " construct_ms=%s first_turn_warmup_ms=%s mcp_teardown_ms=%s",
             root,
+            timing.get("runtime_resolve_ms", "absent"),
+            timing.get("mcp_admission_ms", "absent"),
             timing.get("prewarm_system_prompt_build_ms", "absent"),
             timing.get("prewarm_connect_ms", "absent"),
             timing.get("agent_construct_ms", "absent"),

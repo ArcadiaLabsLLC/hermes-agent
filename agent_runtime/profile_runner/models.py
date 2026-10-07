@@ -121,6 +121,12 @@ class AgentRunRequest:
     # signature the next turn does not reproduce is discarded on arrival.
     # Reached through `ProfileAgentRunner.prewarm`, never through `run`.
     prewarm_only: bool = False
+    # h-turn-wait: asked by a ``prewarm_only`` run at each phase boundary and while
+    # it waits on MCP admission -- all INSIDE ``_WORKDIR_LOCK``. A truthy answer (the
+    # reason) raises ``PrewarmYielded`` and the unwind hands the lock to the turn
+    # (live 2026-10-06 20:23:58: a turn on another root waited 18.5 s behind a
+    # prewarm parked in a 20 s MCP admission). Ignored on a real run.
+    prewarm_yield: Callable[[], Any] | None = None
     # Lane/role identity for the terminal safety envelope
     # (agent_runtime.terminal_envelope.TerminalEnvelopeScope). Set ONLY by
     # lanes the envelope grant policy governs — mission-chat today. Left None

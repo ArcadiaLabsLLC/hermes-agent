@@ -6,7 +6,7 @@ from typing import Any
 
 __layer__ = "models"
 
-__all__ = ["ProfileRunnerError", "RunBudgetExceeded", "_NO_WALL_BUDGET_SECONDS"]
+__all__ = ["PrewarmYielded", "ProfileRunnerError", "RunBudgetExceeded", "_NO_WALL_BUDGET_SECONDS"]
 
 
 class ProfileRunnerError(RuntimeError):
@@ -32,6 +32,20 @@ class RunBudgetExceeded(ProfileRunnerError):
         self.session_id = session_id
         self.wall_budget = wall_budget
         self.run_budget = run_budget
+
+
+class PrewarmYielded(ProfileRunnerError):
+    """A ``prewarm_only`` run stood down INSIDE the run lock (h-turn-wait).
+
+    Raised by ``AgentRunExecution`` when the request's ``prewarm_yield`` answers a
+    reason; unwinding the scope stack releases ``_WORKDIR_LOCK`` to the turn that
+    is waiting for it. ``phase`` is where it stood down, ``reason`` what it yielded to.
+    """
+
+    def __init__(self, phase: str, reason: Any):
+        super().__init__(f"prewarm yielded at {phase}: {reason}")
+        self.phase = phase
+        self.reason = reason
 
 
 # Unbounded runs keep the same checkpoint shape without arming a timer.
