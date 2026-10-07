@@ -776,12 +776,14 @@ def skill_runtime_compatibility(
     *,
     surface: str,
     root_node_mode: bool = False,
+    preparation_epoch=None,
 ) -> dict[str, Any]:
     """Evaluate declared surface/mode compatibility for a resolved skill."""
 
     if candidate is None:
         return {"compatible": False, "reason": "unresolved"}
-    frontmatter = _cached_skill_frontmatter(candidate.skill_md)
+    frontmatter = (preparation_epoch.frontmatter(candidate.skill_md)
+                   if preparation_epoch is not None else _cached_skill_frontmatter(candidate.skill_md))
     return skill_frontmatter_runtime_compatibility(
         frontmatter,
         surface=surface,
@@ -813,6 +815,8 @@ def required_preload_skill_ids(
             resolution.candidate,
             surface=surface,
             root_node_mode=root_node_mode,
+            preparation_epoch=(_root_registries.preparation_epoch
+                               if isinstance(_root_registries, TurnRootRegistries) else None),
         )
         if (
             resolution.status == "resolved"

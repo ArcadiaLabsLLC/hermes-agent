@@ -248,10 +248,12 @@ def _cmd_mission_chat_message(args) -> int:
     _session_db_open_ms = max(
         0, int((time.monotonic() - _session_db_open_started) * 1000)
     )
-    instance_store = PersonaInstanceStore()
+    from agent_runtime.preparation_reads import InstanceReadEpoch
+    instance_read_epoch = InstanceReadEpoch()
+    instance_store = PersonaInstanceStore(preparation_epoch=instance_read_epoch)
     from agent_runtime.auxiliary_chat import is_auxiliary_chat
     if not is_auxiliary_chat(getattr(args, "persona_instance_id", None), getattr(args, "session_id", None)):
-        instance_store.ensure_for_personas(ensure_persisted_personas(cfg))
+        instance_store.ensure_for_personas(ensure_persisted_personas(cfg), read_epoch=instance_read_epoch)
     # Auxiliary sessions were admitted against an existing exact instance.
     # They must not run the catalog's repairing projection writer (including
     # display/profile fields) while another operator may be editing that row.
@@ -381,7 +383,10 @@ def _cmd_mission_chat_message(args) -> int:
         session_id=session_id,
         relay_chain=turn_relay_chain,
         requested_by_session=requested_by_session,
+        instance_read_epoch=instance_read_epoch,
     )
+    # Target projection reuse ends before authoritative admission/binding.
+    instance_read_epoch.close()
     if not target_decision.allowed:
         data = {
             "ok": False,

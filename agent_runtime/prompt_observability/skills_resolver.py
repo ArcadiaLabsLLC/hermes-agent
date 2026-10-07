@@ -51,6 +51,8 @@ class _SkillObservabilityResolver:
         self._shared_catalog: dict[str, dict[str, Any]] | None = None
         self._realm_rows: list[dict[str, Any]] | None = None
         self._root_registries = root_registries if root_registries is not None else {}
+        self.preparation_epoch = (root_registries.preparation_epoch
+                                  if isinstance(root_registries, TurnRootRegistries) else None)
 
     def skill_context(
         self, key: tuple[Any, ...]
@@ -249,7 +251,8 @@ def _accessible_skills_context(
             continue
         selected = resolution.candidate
         compatibility = skill_runtime_compatibility(
-            selected, surface="mission_chat", root_node_mode=False
+            selected, surface="mission_chat", root_node_mode=False,
+            preparation_epoch=(getattr(skill_resolver, "preparation_epoch", None)),
         )
         assignment_policy = (
             "instance_override"

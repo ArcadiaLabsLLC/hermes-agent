@@ -496,6 +496,10 @@ class _RunPhases:
 
     def _run_model(self) -> None:
         """The model turn itself, under the relay chain's shared deadline. Marks ``stream_done``."""
+        # Prepared manifest snapshots must never serve later tool authorization.
+        preparation_epoch = getattr(getattr(self, "turn_root_registries", None), "preparation_epoch", None)
+        if preparation_epoch is not None:
+            preparation_epoch.close()
 
         args = self.args
         turn_context = self.turn_context
