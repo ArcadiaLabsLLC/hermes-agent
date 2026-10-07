@@ -183,3 +183,33 @@ def test_restart_cannot_turn_uncertain_execution_into_confirmed_stop(tmp_path, m
     assert restarted.rpc(SEND, params)["result"]["idempotent_replay"]
     assert restarted.jobs == []
     assert execution_status(target["session_id"], "uncertain")["outcome"] == "stop_requested"
+
+
+def test_admission_and_status_own_observation_guidance(tmp_path, monkeypatch):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    lane = OperatorLane(tmp_path / "home", lambda _: 0)
+    ack = lane.rpc(SEND, {**target, "turn_request_id": "observe", "message": "Work"})["result"]
+    active = execution_status(target["session_id"], "observe")
+    assert ack["next_check_after_ms"] == active["next_check_after_ms"] > 0
+    assert ack["observation_budget_ms"] == active["observation_budget_ms"]
+    assert ack["observation_expiry_action"] == active["observation_expiry_action"] == "detach"
+    assert not active["stop_requested"]
+    lane.advance()
+    settled = execution_status(target["session_id"], "observe")
+    assert settled["outcome"] == "finished"
+    assert settled["next_check_after_ms"] is None
+
+
+def test_busy_refusal_carries_retry_guidance_without_admission(monkeypatch):
+    from hermes_cli.harness_parts.persona import chat_admission
+    rows = []
+    monkeypatch.setattr(chat_admission, "_publish_persona_chat_send_refused_event", lambda **kw: None)
+    send = SimpleNamespace(args=SimpleNamespace(payload_sink=rows.append),
+        session_id="chat", exc=SimpleNamespace(owner="other"),
+        client_message_id="unsent", normalized_persona="persona", persona_instance_id="instance")
+    assert chat_admission._busy_refused(send) == 2
+    row = rows[0]
+    assert row["error_kind"] == "chat_busy"
+    assert row["retry_after_ms"] > 0
+    assert row["client_message_id"] == "unsent"
+    assert "accepted" not in row

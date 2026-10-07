@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import contextmanager
 
+from agent_runtime.chat_observation_policy import chat_observation_guidance
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from agent_runtime.chat_turn_reservations import (
     ChatTurnReservationError, STATE_SETTLED, read_chat_turn_receipt, reserve_chat_turn,
@@ -64,7 +65,8 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
     else:
         outcome = "stop_requested" if receipt.stop_requested else "unsettled"
     return {"turn_request_id": turn_id, "outcome": outcome,
-            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested}
+            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested,
+            **chat_observation_guidance(terminal=outcome in {"stopped", "finished"})}
 
 
 def stop_operator_execution(session_id: str, turn_id: str,

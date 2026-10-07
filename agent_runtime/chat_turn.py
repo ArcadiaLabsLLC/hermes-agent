@@ -71,6 +71,8 @@ from .chat_turn_reservations import (
     reserve_chat_turn,
 )
 
+from agent_runtime.chat_observation_policy import chat_observation_guidance
+
 __layer__ = "lanes"
 
 #: The two method names, spelled once so the manifest test, the serve wiring and
@@ -755,6 +757,7 @@ def perform_chat_turn(
             ack: dict[str, Any] = {
                 "turn_request_id": request.turn_request_id,
                 "accepted": True,
+                **chat_observation_guidance(),
                 "state": STATE_ACCEPTED,
                 "verb": request.verb,
             }

@@ -810,3 +810,16 @@ def test_cli_instance_set_model_stores_llamacpp(monkeypatch, capsys):
     stored = store.get(second.id)
     assert (stored.provider, stored.model) == ("llamacpp", model)
     assert not any(w["code"] == "provider_credentials_not_detected" for w in data["warnings"])
+
+
+def test_instance_summary_inherits_runtime_default(monkeypatch):
+    import agent_runtime.config as config_module
+    persona = _persona(model=None, provider=None)
+    instance, _ = _two_instances(PersonaInstanceStore(), persona)
+    monkeypatch.setattr(config_module, "load_agent_runtime_config", _cfg)
+    summary = persona_instance_summary(instance, persona)
+    selected = chat_session._chat_effective_model_payload(
+        persona=persona, config=_cfg(), override=None, instance=instance)
+    assert (summary["effective_provider"], summary["effective_model"]) == (
+        selected["effective_provider"], selected["effective_model"])
+    assert summary["model"] is None
