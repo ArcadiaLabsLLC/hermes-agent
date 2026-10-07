@@ -230,12 +230,16 @@ def _resolve_request_runtime(
             if timing is not None:
                 timing["runtime_resolve_cached"] = 1
             return dict(cached[1])
-    runtime = resolve_runtime_provider(requested=request.provider, target_model=request.model)
-    resolved = {
-        key_name: value
-        for key_name, value in runtime.items()
-        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
-    }
+    resolved = _resolved_fields(resolve_runtime_provider(requested=request.provider, target_model=request.model))
+    _store_resolved(key, now, resolved)
+    if timing is not None:
+        timing["runtime_resolve_cached"] = 0
+    return resolved
+
+
+def _store_resolved(key: tuple, at: float, resolved: dict[str, Any]) -> None:
+    """The memo's one write path."""
+
     with _RUNTIME_RESOLVE_CACHE_LOCK:
         # Bounded: one entry per live (profile, provider, model, config) tuple,
         # and the set of those is small. Evict the oldest wholesale rather than
@@ -243,10 +247,15 @@ def _resolve_request_runtime(
         # process.
         if len(_RUNTIME_RESOLVE_CACHE) >= 64:
             _RUNTIME_RESOLVE_CACHE.clear()
-        _RUNTIME_RESOLVE_CACHE[key] = (now, dict(resolved))
-    if timing is not None:
-        timing["runtime_resolve_cached"] = 0
-    return resolved
+        _RUNTIME_RESOLVE_CACHE[key] = (at, dict(resolved))
+
+
+def _resolved_fields(runtime: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key_name: value
+        for key_name, value in runtime.items()
+        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
+    }
 
 
 def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], None] | None:

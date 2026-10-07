@@ -208,8 +208,9 @@ def _first_request_seen(agent: Any) -> tuple[int, int]:
     return (int(getattr(agent, "session_api_calls", 0) or 0), int(getattr(agent, "_api_call_count", 0) or 0))
 
 
-def _open_connections(http: Any, url: str, headers: dict[str, str]) -> tuple[str, int]:
-    """:data:`PRECONNECT_CONNECTIONS` ``HEAD`` requests, each held open until all are answered.
+def _open_connections(http: Any, url: str, headers: dict[str, str],
+                      count: int = PRECONNECT_CONNECTIONS) -> tuple[str, int]:
+    """``count`` (:data:`PRECONNECT_CONNECTIONS`) ``HEAD`` requests, each held open until all are answered.
 
     A held response keeps its connection checked out, so each ``HEAD`` takes a
     connection of its own (an idle one first, then a new one). Returns the first
@@ -219,7 +220,7 @@ def _open_connections(http: Any, url: str, headers: dict[str, str]) -> tuple[str
     statuses: list[str] = []
     kept = 0
     with contextlib.ExitStack() as held:
-        for _ in range(PRECONNECT_CONNECTIONS):
+        for _ in range(count):
             response = held.enter_context(
                 http.stream("HEAD", url, headers=headers, timeout=PRECONNECT_TIMEOUT_SECONDS)
             )

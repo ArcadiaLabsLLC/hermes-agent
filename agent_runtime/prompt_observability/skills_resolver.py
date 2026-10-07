@@ -408,17 +408,22 @@ def _refresh_skill_catalog(walker, stale_rows: list) -> None:
     """
 
     try:
-        started = time.monotonic()
-        rows = _walk_skill_catalog(walker)
-        if (
-            _skill_catalog_memo["rows"] is stale_rows
-            and _skill_catalog_memo["walker"] is walker
-        ):
-            _skill_catalog_memo["rows"] = rows
-            _skill_catalog_memo["at"] = started
+        _replace_catalog_rows(walker, stale_rows)
     finally:
         with _catalog_refresh_lock:
             _catalog_refresh["thread"] = None
+
+
+def _replace_catalog_rows(walker, stale_rows: list) -> bool:
+    """Walk now, on this thread, and write the rows over ``stale_rows`` only; True when written."""
+
+    started = time.monotonic()
+    rows = _walk_skill_catalog(walker)
+    if _skill_catalog_memo["rows"] is stale_rows and _skill_catalog_memo["walker"] is walker:
+        _skill_catalog_memo["rows"] = rows
+        _skill_catalog_memo["at"] = started
+        return True
+    return False
 
 
 def _schedule_skill_catalog_refresh(walker, stale_rows: list) -> None:
