@@ -58,6 +58,27 @@ citation violation lines also match, not merely their failing verdicts.
 Residuals remain in the existing fork-hygiene classification row; no baseline,
 exemption, skip list or workstation policy was expanded.
 
+After merging main `c6f5f7b178`, only the common contract/architecture gates
+and final connection-scope file ran, still with one worker. Incoming changes
+did not touch this repair's Python modules. All five connection-scope tests
+passed, including the added control that an inherited caller connection is
+explicitly hidden during boot construction and restored afterward.
+
+```text
+=== Summary: 12 files (5 bundles + 0 re-bundled, 0 solo, 0 re-run alone), 204 tests passed, 6 failed, 0 errors, 11 skipped in 80.6s (1 workers) ===
+processes: 5 bundles, 0 solos, 0 re-runs alone, 0 straggler retries
+worker-seconds 80.6s; busy 80.6s = 100% utilization
+```
+
+The three known-red files were then run through the per-file authority to
+print their actual violation lists, not merely the cached failing-node set:
+duplicate helpers, function legibility and live-canon doc citations. Their
+34 normalized drift/citation lines match the unchanged-main receipt exactly;
+none name this repair. Ruff again passes the five touched Python files.
+Raw `console-harness-final-checks.log` and `console-harness-final-drift.log`
+are retained in the calling workspace. No full/upstream suite, updater tests
+or workstation-freeze candidates ran.
+
 ## Remaining native acceptance
 
 These checks do not prove provider compliance or interactive JavaScript in the

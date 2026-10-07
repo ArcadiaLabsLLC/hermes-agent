@@ -26,6 +26,7 @@ from agent_runtime import persona_chat_actor_prewarm as prewarm
 from agent_runtime import persona_chat_continuity
 from agent_runtime.chat_lane_bundle import ChatLaneBundle
 from agent_runtime.launcher_invocation import launcher_invocation
+from agent_runtime.launcher_link_prewarm import launcher_link_prewarm_scope
 from agent_runtime.persona_chat_continuity import PersonaChatRuntimeRegistry
 from agent_runtime.profile_runner import ProfileAgentRunner
 from tools.registry import registry
@@ -237,3 +238,18 @@ def test_a_preempted_boot_item_keeps_a_late_open_link_for_its_retry(worker, monk
     assert tools[1], "the retried opening must offer its Launcher tool"
     assert prewarm._links == {}
     assert app.current_launcher_link() is None
+
+
+def test_boot_scope_refuses_an_inherited_connection_and_restores_its_caller(worker):
+    """Boot isolation must be explicit even when the caller already has a link."""
+    link = app.LauncherLink(_Launcher(tools=[_CREATE]), app.ORIGIN_LOCAL)
+    app.refresh_app_function_tools(link)
+    token = app.bind_launcher_link(link)
+    try:
+        assert registry.get_definitions({_CREATE["name"]}, quiet=True)
+        with launcher_link_prewarm_scope(None, timeout=0):
+            assert app.current_launcher_link() is None
+            assert registry.get_definitions({_CREATE["name"]}, quiet=True) == []
+        assert app.current_launcher_link() is link
+    finally:
+        app.reset_launcher_link(token)
