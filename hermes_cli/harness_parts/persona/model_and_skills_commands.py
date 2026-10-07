@@ -5,6 +5,8 @@ Separate because both are compare-and-set writes with their own typed error payl
 
 from __future__ import annotations
 
+from agent_runtime.operation_result import emit_operation_result
+
 from datetime import datetime, timezone
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
@@ -159,14 +161,14 @@ def _cmd_persona_instance_set_model(args) -> int:
     persona_instance_id = safe_assignment_token(args.persona_instance_id)
     if not persona_instance_id:
         data = {"ok": False, "error_code": "persona_not_found", "error": "persona_instance_id is required"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     store = PersonaInstanceStore()
     try:
         target = store.get(persona_instance_id)
     except Exception:
         data = {"ok": False, "error_code": "persona_not_found", "error": f"persona instance not found: {persona_instance_id}"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
@@ -175,13 +177,13 @@ def _cmd_persona_instance_set_model(args) -> int:
         auth = review_coordinator_budget("persona.instance.set_model", scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.set_model", coordinator_id, auth)
-            print(emit_json(data) if args.json else data["status"])
+            emit_operation_result(args, data, data["status"])
             return 2
     try:
         request = _validated_set_model_request(args)
     except _SetModelRequestError as exc:
         data = _set_model_error_payload(exc, persona_instance_id=persona_instance_id, scope="agent_instance")
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     status = "applied"
     try:
@@ -200,7 +202,7 @@ def _cmd_persona_instance_set_model(args) -> int:
         status = "superseded"
     except ValueError as exc:
         data = {"ok": False, "error_code": "invalid_value", "error": safe_assignment_text(str(exc), limit=320), "persona_instance_id": persona_instance_id}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     try:
         persona = _persona_by_id(cfg, updated.persona_id)
@@ -239,7 +241,7 @@ def _cmd_persona_instance_set_model(args) -> int:
                         chosen="default" if request["use_default"] else
                         f"model={request['model'] or '-'},effort={request['reasoning_effort'] or '-'}",
                         outcome=status, saved="persona_instance_store")
-    print(emit_json(data) if args.json else f"{status}: {updated.id} model={data['effective_model']} provider={data['effective_provider']}")
+    emit_operation_result(args, data, f"{status}: {updated.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0
 
 
@@ -301,13 +303,13 @@ def _cmd_persona_set_model(args) -> int:
         persona = None
     if persona is None:
         data = {"ok": False, "error_code": "persona_not_found", "error": f"unknown persona: {safe_assignment_token(raw_id)}"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     try:
         request = _validated_set_model_request(args)
     except _SetModelRequestError as exc:
         data = _set_model_error_payload(exc, persona_id=str(getattr(persona, "id", "") or raw_id), scope="agent_default")
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     if request["reasoning_effort"] is not None:
         # Reasoning effort is a per-agent-instance override for now (AgentPersona
@@ -321,13 +323,13 @@ def _cmd_persona_set_model(args) -> int:
             persona_id=str(getattr(persona, "id", "") or raw_id),
             scope="agent_default",
         )
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     store = AgentStore()
     persona_id = str(getattr(persona, "id", "") or "")
     target, refusal = _template_write_store_target(store, persona_id, what="agent defaults")
     if target is None:
-        print(emit_json(refusal) if args.json else refusal["error"])
+        emit_operation_result(args, refusal, refusal["error"])
         return 2
     status = "applied"
     issued_at = request["issued_at"]
@@ -384,7 +386,7 @@ def _cmd_persona_set_model(args) -> int:
     log_model_selection(verb="persona.set_model", target=str(target.id), scope="agent_default",
                         chosen="default" if request["use_default"] else request["model"],
                         outcome=status if changed or status != "applied" else "unchanged", saved="agent_store")
-    print(emit_json(data) if args.json else f"{status}: {target.id} model={data['effective_model']} provider={data['effective_provider']}")
+    emit_operation_result(args, data, f"{status}: {target.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0
 
 
@@ -562,3 +564,21 @@ def _unresolvable_skill_ids(skills: list[str]) -> list[str]:
         for name in skills
         if str(getattr(resolutions.get(name), "status", "missing")) != "resolved"
     ]
+
+
+def model_operation_result(params: dict, *, instance: bool) -> dict:
+    """Same validation, replay guard and stores as the CLI; no stdout capture."""
+    from types import SimpleNamespace
+    rows = []
+    args = SimpleNamespace(persona_id=params.get("persona_id"),
+        persona_instance_id=params.get("persona_instance_id"),
+        provider=params.get("provider"), model=params.get("model"),
+        reasoning_effort=params.get("reasoning_effort"),
+        use_default=params.get("use_default", False),
+        use_profile_default=params.get("use_default", False),
+        issued_at=params.get("issued_at"), requested_by="operator", json=True,
+        operation_result_sink=rows.append)
+    (_cmd_persona_instance_set_model if instance else _cmd_persona_set_model)(args)
+    if len(rows) != 1:
+        raise RuntimeError("model operation did not produce exactly one result")
+    return rows[0]
