@@ -14,7 +14,7 @@ import asyncio
 from collections.abc import Mapping
 from typing import Any, Dict
 
-from openai import OpenAI
+from agent.process_bootstrap import OpenAI  # lazy proxy: isinstance works, SDK-fallback aware
 
 
 def async_api_key(sync_client: Any) -> Any:

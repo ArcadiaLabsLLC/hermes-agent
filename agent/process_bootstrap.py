@@ -9,17 +9,25 @@ runs sync httpx connects through the process-wide Happy Eyeballs racer
 
 from __future__ import annotations
 
+import logging
 import socket
 import sys
 import threading
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from hermes_bootstrap import _happy_eyeballs_create_connection
 from utils import base_url_hostname, normalize_proxy_url
 from agent.proxy_bypass import first_proxy_env_value, should_bypass_proxy
 
 
+logger = logging.getLogger(__name__)
+
 _OPENAI_CLS_CACHE = None
+_ASYNC_OPENAI_CLS_CACHE = None
+
+# package name -> zero-arg provider of a module-like stand-in, consulted only when
+# importing the real SDK fails (see register_sdk_fallback).
+_SDK_FALLBACKS: dict[str, Callable[[], Any]] = {}
 
 # Process-wide pool of sync ``httpx.HTTPTransport`` objects shared by every
 # keepalive client with the same (verify, proxy, happy-eyeballs) identity.
@@ -106,12 +114,57 @@ def enable_happy_eyeballs_on_client(client) -> None:
         _enable_happy_eyeballs(transport, proxy_pool_types)
 
 
-def _load_openai_cls() -> type:
-    """Import and cache ``openai.OpenAI``."""
+def register_sdk_fallback(package: str, provider: Callable[[], Any]) -> None:
+    """Supply a stand-in for a provider SDK ("openai" | "anthropic") that is not installed.
+
+    ``provider()`` returns a module-like object used in place of *package* only when
+    importing it fails; an installed SDK always wins. For "openai" it exposes ``OpenAI``
+    and ``AsyncOpenAI`` classes taking the SDK constructor kwargs; for "anthropic" the
+    names ``agent.anthropic_adapter`` reads (``Anthropic``, ``AsyncAnthropic``, the error
+    classes). One registration per package; a second replaces the first with a warning.
+    """
+    if package in _SDK_FALLBACKS:
+        logger.warning("SDK fallback for %r replaced by a second registration", package)
+    _SDK_FALLBACKS[package] = provider
+
+
+def sdk_fallback(package: str) -> Any | None:
+    """The registered fallback object for *package*, or None when nothing is registered."""
+    provider = _SDK_FALLBACKS.get(package)
+    return provider() if provider is not None else None
+
+
+def load_openai_cls() -> type:
+    """Import and cache ``openai.OpenAI``; the registered "openai" fallback's when the SDK is absent."""
     global _OPENAI_CLS_CACHE
     if _OPENAI_CLS_CACHE is None:
-        from openai import OpenAI as _OPENAI_CLS_CACHE
+        try:
+            from openai import OpenAI as _cls
+        except ImportError:
+            fallback = sdk_fallback("openai")
+            if fallback is None:
+                raise
+            _cls = fallback.OpenAI
+        _OPENAI_CLS_CACHE = _cls
     return _OPENAI_CLS_CACHE
+
+
+def load_async_openai_cls() -> type:
+    """Import and cache ``openai.AsyncOpenAI``; the registered "openai" fallback's when the SDK is absent."""
+    global _ASYNC_OPENAI_CLS_CACHE
+    if _ASYNC_OPENAI_CLS_CACHE is None:
+        try:
+            from openai import AsyncOpenAI as _cls
+        except ImportError:
+            fallback = sdk_fallback("openai")
+            if fallback is None:
+                raise
+            _cls = fallback.AsyncOpenAI
+        _ASYNC_OPENAI_CLS_CACHE = _cls
+    return _ASYNC_OPENAI_CLS_CACHE
+
+
+_load_openai_cls = load_openai_cls  # historical private spelling
 
 
 class _OpenAIProxy:
@@ -337,7 +390,8 @@ OpenAI = _OpenAIProxy()
 
 
 __all__ = [
-    "OpenAI", "_OpenAIProxy", "_load_openai_cls", "_SafeWriter", "_install_safe_stdio", "_get_proxy_from_env",
+    "OpenAI", "_OpenAIProxy", "_load_openai_cls", "load_openai_cls", "load_async_openai_cls",
+    "register_sdk_fallback", "sdk_fallback", "_SafeWriter", "_install_safe_stdio", "_get_proxy_from_env",
     "_get_proxy_for_base_url", "build_keepalive_http_client", "close_shared_transports",
     "enable_happy_eyeballs_on_client",
 ]

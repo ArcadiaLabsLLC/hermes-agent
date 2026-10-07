@@ -48,16 +48,10 @@ from agent.sdk_transform_bypass import bypass_chat_sdk_request_transform
 if TYPE_CHECKING:
     from openai import OpenAI  # noqa: F401 — type hints only
 
-_OPENAI_CLS_CACHE: Optional[type] = None
-
-
 def _load_openai_cls() -> type:
-    """Import and cache ``openai.OpenAI``."""
-    global _OPENAI_CLS_CACHE
-    if _OPENAI_CLS_CACHE is None:
-        from openai import OpenAI as _cls
-        _OPENAI_CLS_CACHE = _cls
-    return _OPENAI_CLS_CACHE
+    """``openai.OpenAI`` via ``process_bootstrap`` (one cache, SDK-fallback aware)."""
+    from agent.process_bootstrap import load_openai_cls
+    return load_openai_cls()
 
 
 class _OpenAIProxy:
@@ -4714,7 +4708,8 @@ def _effective_provider_for_client(client: Any, fallback: str) -> str:
 
 def _to_async_client(sync_client, model: str, is_vision: bool = False):
     """Sync client → async counterpart, preserving Codex routing (``is_vision`` adds the Copilot vision header)."""
-    from openai import AsyncOpenAI
+    from agent.process_bootstrap import load_async_openai_cls
+    AsyncOpenAI = load_async_openai_cls()
     if isinstance(sync_client, _AuxProbeClientStub):
         return sync_client, model
     if isinstance(sync_client, CodexAuxiliaryClient):

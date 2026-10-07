@@ -43,6 +43,14 @@ def _get_anthropic_sdk():
     """Return the ``anthropic`` SDK module, importing lazily. None if not installed."""
     global _anthropic_sdk, _anthropic_install_error
     if _anthropic_sdk is ...:
+        from agent.process_bootstrap import sdk_fallback
+        if (fallback := sdk_fallback("anthropic")) is not None:  # never lazily installed over
+            try:
+                import anthropic as _sdk
+            except ImportError:
+                _sdk = fallback
+            _anthropic_sdk = _sdk
+            return _anthropic_sdk
         try:
             from pm import ensure_import
             ensure_import("anthropic")
