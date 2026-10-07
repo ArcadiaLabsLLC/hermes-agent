@@ -15,12 +15,16 @@ import os
 import pytest
 
 from tools.environments import local
-from tools.environments.local import (
-    _WINDOWS_PATH_SEP,
-    _augment_windows_system_path,
-    _find_bash,
-    _windows_system_path_dirs,
+from tools.environments.local import _find_bash
+from agent_runtime.windows_system_path import (
+    WINDOWS_PATH_SEP as _WINDOWS_PATH_SEP,
+    augment_windows_system_path,
+    windows_system_path_dirs as _windows_system_path_dirs,
 )
+
+
+def _augment_windows_system_path(path):
+    return augment_windows_system_path(path, is_windows=local._IS_WINDOWS)
 
 
 class TestFindWindowsGitBash:
