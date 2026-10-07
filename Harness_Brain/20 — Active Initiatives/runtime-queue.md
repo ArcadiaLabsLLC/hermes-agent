@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-07 (native turn anchor carrier)
+
+- [ ] **Expose the identity-matched handler anchor on native turn frames and status.** · fork / turn timing · evidence: `agent_runtime/mission_chat_phases.py::TurnPhaseMarks.snapshot` contains `anchored_at`, while `turn_timing_block` drops it and `hermes_cli/harness_parts/persona/chat_events.py` does not export it on `turn.start`; prerequisite for Launcher C020 send-to-anchor timing. Export the same sanitized handler stamp on `turn.start`, terminal timing and the exact admitted turn's operator conversation status; preserve replay identity and omit absent/invalid anchors rather than substituting acknowledgement or emitter time. Prove delayed handler/emitter clocks, two turn identities, old records and native wire/status parity. · **TAKEN 2026-10-07 sol-runtime**
+
 ### Filed on arrival — 2026-10-07 (latency source recheck)
 
 - [ ] **Avoid constructing and sorting full turn records merely to exclude abandoned messages from native history.** · runtime / turn preparation · evidence: `hermes_cli/harness_parts/persona/chat_turn_commit/run.py::_RunPhases._build_context` → `agent_runtime/mission_chat_turns/reads.py::mission_chat_turn_records` · **Action:** add a narrow, validated abandoned-ID read; preserve exact-ID and colon-suffix matching without the history×abandoned-ID nested comparison. **Done when:** differential tests preserve malformed/legacy-record and overlapping-ID behavior, the production path no longer projects/sorts full records for this question, and representative long-session preparation improves. Keep authoritative native history; do not claim the underlying session-file decoding disappeared. · **UNCLAIMED; live saving unmeasured.** · **TAKEN 2026-10-07 sol-runtime**
