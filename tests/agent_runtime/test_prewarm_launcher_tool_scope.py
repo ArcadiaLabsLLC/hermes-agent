@@ -176,3 +176,37 @@ def test_a_linked_item_does_not_leak_its_connection_into_boot_work(worker, monke
     assert observed[0][2], "the linked construction must offer its tool"
     assert observed[1] == ("boot", None, [])
     assert app.current_launcher_link() is None
+
+
+def test_reopening_a_running_chat_does_not_retain_its_link_for_later_boot(worker, monkeypatch):
+    """A duplicate open may refresh tools, but cannot lend its link to boot work."""
+    _, finished, drain = worker
+    launcher = _Launcher(tools=[_CREATE])
+    link = app.LauncherLink(launcher, app.ORIGIN_LOCAL)
+    observed = []
+
+    def construct(root):
+        observed.append((root, app.current_launcher_link(),
+                         registry.get_definitions({_CREATE["name"]}, quiet=True)))
+        if len(observed) == 1:
+            assert prewarm.request_chat_actor_prewarm(root, launcher_link=link) == "already_running"
+            late_preparation = prewarm._links[root]
+            late_preparation.refresh.join(2)
+            assert not late_preparation.refresh.is_alive(), "catalog refresh leaked from the fixture"
+        finished.set()
+        return prewarm.OUTCOME_WARMED
+
+    monkeypatch.setattr(prewarm, "prewarm_chat_actor", construct)
+    assert prewarm.request_chat_actor_prewarm("reopened", launcher_link=link) == "started"
+    drain()
+    prewarm._queue.join()
+    finished.clear()
+
+    assert prewarm.request_chat_actor_prewarm("reopened", priority=prewarm.PRIORITY_BOOT) == "started"
+    assert finished.wait(10), "later boot work did not complete"
+    prewarm._queue.join()
+    assert observed[0][1] is link
+    assert observed[0][2], "positive control: linked construction offers its tool"
+    assert observed[1] == ("reopened", None, [])
+    assert prewarm._links == {}, "completed work must release even a late opening link"
+    assert app.current_launcher_link() is None

@@ -805,6 +805,9 @@ def _drain() -> None:
                 _queue.put((priority, next(_sequence), root))
             else:
                 _pending.pop(root, None)
+                # An open during construction can leave a late preparation.
+                # It belongs to this completed item, never a later boot pass.
+                _links.pop(root, None)
         _queue.task_done()
 
 
