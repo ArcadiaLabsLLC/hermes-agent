@@ -23,9 +23,15 @@ __all__ = ["bind_mission_chat_door"]
 
 
 def _mission_chat_turn_via_cli(args) -> int:
+    from agent_runtime.profile_context import process_home_scope
+    from agent_runtime.profile_home import get_hermes_head_home
     from hermes_cli.harness_parts.persona import chat_turn_message
 
-    return chat_turn_message._cmd_mission_chat_message(args)
+    # Inline relays arrive inside the sender's profile. Admission belongs to
+    # the runtime head; the chosen persona binds its own profile for execution.
+    # This context-local scope restores the sender even when admission refuses.
+    with process_home_scope(get_hermes_head_home()):
+        return chat_turn_message._cmd_mission_chat_message(args)
 
 
 def _open_chat_via_cli(args) -> int:

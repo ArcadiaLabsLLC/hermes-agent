@@ -65,6 +65,20 @@ and baseline qualification; live cancellation latency remains unmeasured.
 
 ## 1. Send admission — the turn's identity and its thread
 
+**Inline relay admission uses the runtime head, not the sender's profile.**
+`hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
+enters `profile_context.process_home_scope(get_hermes_head_home())` around the
+canonical handler. A sender's execution profile cannot replace the runtime's
+configured persona roster or defaults. The selected target still declares its
+execution profile through `GPTPersonaRuntime.mission_chat_reply`; the sender's
+context is restored on success, refusal or exception. The two roster reads in
+`tools/agent_chat/threads.py` load that same head's config. This does not merge
+profile catalogs or change workspace, exact-instance, session or relay guards.
+`tests/agent_runtime/test_agent_chat_runtime_roster.py` exercises the actual
+inline registry/handler and stores with two sender homes and sibling targets;
+only model execution is stubbed. Live relay and thread-opening acceptance is
+tracked separately in the Launcher's console live-contract audit.
+
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
