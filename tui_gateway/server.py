@@ -3525,26 +3525,8 @@ from . import (  # noqa: E402
     methods_display as _methods_display, methods_display_watch as _methods_display_watch,
     methods_onboarding as _methods_onboarding, methods_i18n as _methods_i18n,
     methods_shared_metrics as _methods_shared_metrics)
-try:
-    from . import methods_connectors as _methods_connectors  # noqa: E402
-    from . import methods_connectors_account as _methods_connectors_account  # noqa: E402
-except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic contracts) are not shipped
-    from types import SimpleNamespace
-
-    def _no_connector_rpcs(server):  # rpc_dispatch reads the set; no connector method is served
-        server._CONNECTOR_RPC_METHODS = frozenset()
-
-    _methods_connectors = _methods_connectors_account = SimpleNamespace(register=_no_connector_rpcs)
-try:
-    from . import methods_pdf as _methods_pdf  # noqa: E402
-except ImportError as _pdf_exc:  # a bundle that starts no process (the phone) serves no pdf.attach
-    # `from . import x` reports a missing submodule as ImportError(name=<package>); anything
-    # methods_pdf itself fails to import carries another name and still raises.
-    if _pdf_exc.name not in (__package__, f"{__package__}.methods_pdf"):
-        raise
-    from types import SimpleNamespace
-
-    _methods_pdf = SimpleNamespace(register=lambda server: None)
+from agent_runtime import gateway_extensions as _gateway_extensions  # noqa: E402
+_gateway_extensions.prepare(sys.modules[__name__])
 
 for _m in (
     _session_transports, _session_reaper, _session_lifecycle, _session_workdir, _compute_host_bridge, _model_switch,
@@ -3560,7 +3542,4 @@ for _m in (
     _m.register(sys.modules[__name__])
 del _m
 
-from . import session_recovery as _session_recovery  # noqa: E402
-_session_recovery.register(sys.modules[__name__])
-from . import session_retirement as _session_retirement  # noqa: E402
-_session_retirement.register(sys.modules[__name__])
+_gateway_extensions.register(sys.modules[__name__])
