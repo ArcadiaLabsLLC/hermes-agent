@@ -83,7 +83,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-05 (lane h-prompt-design; h-turn1-c)
 
-- [ ] **Vendored `tests/agent_runtime/fixtures/launcher_qa_profile_allowlists.yaml` lacks `mcp_launcher_qa_get_tool_manual` in alice/pm/reviewer; re-vendor from the launcher when `l-qa-brief` lands** · fork / fixtures · evidence: launcher `de077f4cb9` `docs/stages/qa-reboot/launcher_qa_profile_allowlists.yaml` · UNCLAIMED · **TAKEN 2026-10-07 sol-runtime**
 - [ ] **After the one-line collapse, parameter schemas are 79% of the eager tools' wire (7,143 of 9,058 tokens per persona) and per-parameter prose is 4,133 of that (agent_chat_send 620, terminal 500, delegate_task 424, launcher_qa open_app_tab 400 lead); decide whether per-parameter prose may move behind `tool_describe` the way descriptions did** · fork / prompt surface · evidence: `lane/h-prompt-brief` `0e76c59b20` commit body table · UNCLAIMED
 - [ ] **With `lean_operative_rules` on, the threading and `clarify_token` rules reach the agent only through `agent_chat_send`'s describe doc, and an eager tool is rarely described; the R4 A/B must check one teammate clarify answer goes back on its `clarify_token`, or the bullets move into `harness-mission-lead` (operator-home skill)** · fork / chat lane · evidence: lane h-prompt-surface `ba499069be` · lane: R4 A/B · UNCLAIMED
 

@@ -155,7 +155,7 @@ _PARKED_WAKE_TIMEOUT_SECONDS = 5.0
 #: resolved ALLOW set of the ``reviewer`` row of the launcher's own per-profile
 #: allowlist, ``EterniaLauncher docs/stages/qa-reboot/launcher_qa_profile_allowlists.yaml``
 #: (v1, 2026-05-17, + the Stage 19 / VOICE_QA §5.E / batched-drill amendments —
-#: snapshot pinned at launcher ``3e3feff0``, a 26-tool surface).
+#: snapshot pinned at launcher ``de077f4cb9``, a 36-tool surface).
 #:
 #: Positive, not negative, deliberately: a tool the launcher's QA server grows
 #: LATER is denied to ``read_only`` by default instead of silently inheriting it.
@@ -171,12 +171,15 @@ _PARKED_WAKE_TIMEOUT_SECONDS = 5.0
 #: hash-recorded snapshot of that YAML — see the fixture's refresh instructions.
 READ_ONLY_INCLUDED_TOOLS: Mapping[str, tuple[str, ...]] = {
     "launcher_qa": (
+        "mcp_launcher_qa_build_status",
         "mcp_launcher_qa_get_auth_state",
         "mcp_launcher_qa_get_buttons",
         "mcp_launcher_qa_get_feed_fixture_state",
         "mcp_launcher_qa_get_media_playback_state",
         "mcp_launcher_qa_get_navigation_state",
+        "mcp_launcher_qa_get_render_profile",
         "mcp_launcher_qa_get_runtime_state",
+        "mcp_launcher_qa_get_tool_manual",
         "mcp_launcher_qa_get_voice_state",
         "mcp_launcher_qa_get_widget_state",
         "mcp_launcher_qa_get_window_metrics",
@@ -211,16 +214,23 @@ READ_ONLY_EXCLUDED_TOOLS: Mapping[str, tuple[str, ...]] = {
         "mcp_launcher_qa_begin_pkce_login",
         "mcp_launcher_qa_capture_screenshot",
         "mcp_launcher_qa_click_button",
+        "mcp_launcher_qa_dev_login",
         "mcp_launcher_qa_dismiss_hashtag_onboarding",
         "mcp_launcher_qa_kill_launcher",
         "mcp_launcher_qa_launch_or_attach",
         "mcp_launcher_qa_open_app_tab",
+        "mcp_launcher_qa_pointer_drag",
+        "mcp_launcher_qa_prebuild",
+        "mcp_launcher_qa_record_video",
+        "mcp_launcher_qa_resize_window",
         "mcp_launcher_qa_run_actions",
         "mcp_launcher_qa_screenshot_window",
         "mcp_launcher_qa_scroll",
         "mcp_launcher_qa_scroll_to",
         "mcp_launcher_qa_scroll_to_fixture",
+        "mcp_launcher_qa_set_dpi",
         "mcp_launcher_qa_set_tab",
+        "mcp_launcher_qa_set_text",
         "mcp_launcher_qa_wait_for_state",
     ),
 }
