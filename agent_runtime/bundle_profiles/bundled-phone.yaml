@@ -394,7 +394,6 @@ packaging:
     - tools.bot_desktop
     - tools.working_diff
     - tools.self_repo_guard
-    - tools.tirith_security
     # Spawning modules the phone never runs, reached lazily or only from one another (phone-gate
     # plan 2026-09-30, bucket D1). Each starts a process a phone cannot start. A D1 module the phone
     # turn path still imports, or a kept module imports at module level, stays kept and is named

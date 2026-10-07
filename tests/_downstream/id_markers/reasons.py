@@ -33,7 +33,6 @@ CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
-TIRITH_CONFIG_VALUE_UNDER_TEST_MARK = "tirith_config_value_under_test"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
 SPAWNS_GATEWAY_LOOKALIKE_MARK = "spawns_gateway_lookalike"
@@ -90,7 +89,6 @@ _FORK_SPAWN_DETACHED = (
 
 _CREDENTIALS_FILE = getattr(pytest.mark, ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK)
 _REAL_PAUSE = getattr(pytest.mark, REAL_PAUSE_MARK)
-_TIRITH_CONFIG_VALUE = getattr(pytest.mark, TIRITH_CONFIG_VALUE_UNDER_TEST_MARK)
 _NO_LIVE_GATEWAY = getattr(pytest.mark, NO_LIVE_GATEWAY_MARK)
 _NO_REAL_ORPHAN_REAP = getattr(pytest.mark, NO_REAL_ORPHAN_REAP_MARK)
 
@@ -106,10 +104,6 @@ def _posix_only(detail: str) -> pytest.MarkDecorator:
 
 _CONFIG_READ_THROUGH = getattr(pytest.mark, CONFIG_READS_THROUGH_LOAD_CONFIG_MARK)
 _LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
-_TIRITH_NO_BUILD = _posix_only(
-    "tirith ships no Windows build: _detect_target() is None and every entry "
-    "point short-circuits to allow before the behaviour under test"
-)
 
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane

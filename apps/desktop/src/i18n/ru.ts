@@ -3,7 +3,10 @@ import { defineFieldCopy } from '@/app/settings/field-copy'
 import { defineLocale } from './define-locale'
 import { ruAuxTasks } from './ru_aux_tasks'
 import { ruModelMenu } from './ru_model_menu'
+import { ruNotices } from './ru_notices'
 import { ruPluginSettings } from './ru_plugins'
+import { ruProjects } from './ru_projects'
+import { ruSharedMetrics } from './ru_shared_metrics'
 
 // RU_PLURAL: (count, one, few, many) — русские формы сущ. падежа
 // RU_NOUN: (count, one, few, many) — формы род. множественного
@@ -27,42 +30,7 @@ const RU_NOUN = (count: number | string, one: string, few: string, many: string)
 }
 
 export const ru = defineLocale({
-  sharedMetrics: {
-    consentTitle: 'Помочь улучшить Hermes?',
-    consentBody:
-      'Общие метрики — это только ограниченные счётчики. Никаких запросов, файлов, путей или текстов ошибок. Сбор идёт локально. Отправка в Nous — отдельное согласие.',
-    whatIsCollected: 'Что собирается',
-    collectedIntro: 'Только ограниченные счётчики:',
-    collectedActivity: 'Активность, длительность сеансов, результаты и классы ошибок, включая причину из фиксированного списка, когда запись в память или сжатие контекста отклонены, не удались или пропущены',
-    collectedModels: 'Маршруты моделей и суммы токенов',
-    collectedNames: 'Названия встроенных инструментов, команд и элементов каталога',
-    collectedMilestones: 'Сгруппированные счётчики настройки',
-    collectedReliability:
-      'Результаты и длительность обновлений, сбои, скорость запуска и ответа, состояние мессенджер-платформ',
-    collectedUsage:
-      'Как используется Hermes: точность и эффективность агента (успешные правки, зацикливания, восстановление после ошибок, токены и вызовы инструментов на задачу, сбросы кэша), активное время по интерфейсам и режимам Desktop, какие разделы, действия и настройки приложения используются, быстро закрываются или отключаются, и итоги настройки провайдеров',
-    collectedMachine:
-      'Общие сведения о машине: диапазон ОЗУ, тип GPU, возраст и канал версии Hermes, число пропущенных обновлений, используется ли локальный сервер моделей',
-    installId:
-      'При отправке ежедневный пакет загружается в сервис телеметрии Nous. Пакеты содержат идентификатор установки этого профиля — постоянный случайный UUID без личных данных; он сбрасывается удалением каталога общих метрик.',
-    consentWindow:
-      'Отправляются только пакеты, весь период сбора которых попадает в записанное окно согласия: данные до согласия и за время, когда отправка была выключена, остаются на этом компьютере. Отправку можно снова выключить в любой момент.',
-    readDocs: 'Подробнее',
-    share: 'Собирать и отправлять в Nous',
-    local: 'Собирать только локально',
-    off: 'Нет, спасибо',
-    changeLater: 'Это можно изменить в любой момент в разделе Настройки → Безопасность.',
-    saveFailed: 'Не удалось сохранить выбор',
-    collectLabel: 'Собирать статистику использования',
-    collectDesc: 'Ограниченные счётчики хранятся на этом устройстве. Без запросов, файлов, путей и текстов ошибок.',
-    sendLabel: 'Отправлять статистику в Nous',
-    sendDesc:
-      'Загружать ежедневный пакет в сервис телеметрии Nous. Отправляются только данные из окна согласия. Требует включённого сбора.',
-    unavailable: 'Обновите бэкенд Hermes, чтобы изменить этот параметр.',
-    stripBody: 'Только ограниченные счётчики, никаких промптов и файлов.',
-    stripChoices: { share: 'Отправлять в Nous', local: 'Только локально', off: 'Нет, спасибо' },
-    stripDetails: 'Подробнее'
-  },
+  sharedMetrics: ruSharedMetrics,
   sessionImport: {
     title: 'Продолжить из другого приложения',
     subtitle: 'Перенесите разговор в Hermes и продолжите с того места, где остановились.',
@@ -293,10 +261,7 @@ export const ru = defineLocale({
       creditsTitle: 'Кредиты'
     }
   },
-  remoteDisplayBanner: {
-    message: reason =>
-      `Включён программный рендеринг — обнаружен удалённый дисплей (${reason}). GPU-ускорение отключено, чтобы избежать мерцания.`
-  },
+  ...ruNotices,
 
   billingBlock: {
     titleNous: 'Кредиты Nous закончились',
@@ -2647,85 +2612,7 @@ export const ru = defineLocale({
     projectLoadFailed: 'Не удалось загрузить сеансы',
     noSessions: 'Сеансов пока нет',
     noFilterMatches: 'Нет сеансов по этим фильтрам',
-    projects: {
-      showAllSessions: 'Показать все сессии',
-      sectionLabel: 'Проекты',
-      home: 'Главная',
-      newButton: 'Новый проект',
-      createTitle: 'Новый проект',
-      createDesc: 'Назовите рабочее пространство и добавьте одну или несколько папок.',
-      renameTitle: 'Переименовать проект',
-      addFolderTitle: 'Добавить папку',
-      namePlaceholder: 'например, Skunkworks',
-      foldersLabel: 'Папки',
-      ideaLabel: 'Идея',
-      ideaPlaceholder: 'О чём этот проект? (сохраняется в IDEA.md)',
-      ideaGenerate: 'Сгенерировать идею',
-      ideaGenerating: 'Генерация…',
-      ideaShuffle: 'Перемешать шаблоны',
-      noFolders: 'Папки ещё не добавлены.',
-      addFolder: 'Добавить папку',
-      primaryBadge: 'основная',
-      removeFolder: 'Удалить',
-      create: 'Создать',
-      menu: 'Действия',
-      menuRename: 'Переименовать',
-      menuAppearance: 'Внешний вид',
-      noColor: 'Без цвета',
-      menuAddFolder: 'Добавить папку',
-      menuSetActive: 'Сделать активным',
-      menuDelete: 'Удалить',
-      moveToProject: 'Переместить в проект',
-      movedTo: name => `Перемещено в ${name}`,
-      moveFailed: 'Не удалось переместить сеанс',
-      moveNoFolder: 'У этого проекта нет папки для перемещения',
-      moveNoProjects: 'Нет других проектов',
-      reveal: 'Показать в папке',
-      copyPath: 'Копировать путь',
-      removeFromSidebar: 'Скрыть из боковой панели',
-      createdInPreviousContext:
-        'Проект создан в прежнем подключении или профиле. Вернитесь к нему; файл IDEA.md не был записан.',
-      createFailed: 'Не удалось создать проект',
-      staleBackend:
-        'Обновите бэкенд Hermes, чтобы создавать проекты — ваш бэкенд старше этого desktop-приложения (Настройки → Обновления → Бэкенд).',
-      deleteConfirm: 'Это удалит сохранённый проект из Hermes. Файлы, git-репозитории и worktrees не пострадают.',
-      startWork: 'Новый worktree',
-      newWorktreeTitle: 'Новый worktree',
-      newWorktreeDesc: 'Назовите ветку для этого worktree.',
-      branchPlaceholder: 'например, my-feature',
-      branchOff: () => ({ after: '', before: 'от ветки ' }),
-      baseBranchPlaceholder: 'Поиск веток…',
-      baseBranchNone: 'Ветки не найдены',
-      startWorkFailed: 'Не удалось создать worktree',
-      worktreeStaleBackend:
-        'Обновите бэкенд Hermes, чтобы создавать worktrees по этому удалённому соединению — он старше git worktree API.',
-      worktreeProjectLabel: 'Проект',
-      worktreeProjectPlaceholder: 'Поиск проектов…',
-      worktreeProjectNone: 'Нет проектов с папкой',
-      convertBranch: 'Преобразовать ветку…',
-      convertBranchTitle: 'Преобразовать ветку',
-      convertBranchDesc: 'Откройте закоммиченные ветки или создайте worktree для свободной ветки.',
-      convertBranchPlaceholder: 'Поиск веток…',
-      convertBranchInstead: 'Преобразовать существующую ветку',
-      branchOpenExisting: 'открыть',
-      branchSwitchHome: 'сменить home',
-      branchCreateWorktree: 'новый worktree',
-      branchTrackRemote: 'отслеживать удалённую',
-      branchesLoading: 'Загрузка веток…',
-      noBranches: 'Ветки не найдены',
-      removeWorktree: 'Удалить worktree',
-      removeWorktreeFailed: 'Не удалось удалить worktree (есть незакоммиченные изменения?)',
-      removeWorktreeConfirm:
-        'Удалить из git (сотрёт каталог worktree; ветка останется) или просто скрыть лану из боковой панели, оставив worktree на диске.',
-      removeWorktreeDirty:
-        'В этом worktree есть незакоммиченные изменения. Удалить принудительно (сбросит эти изменения) или просто скрыть лану и оставить на диске.',
-      forceRemove: 'Удалить принудительно',
-      enter: label => `Открыть ${label}`,
-      reorder: label => `Изменить порядок ${label}`,
-      toggle: (label, open) => `${open ? 'Показать' : 'Скрыть'} сеансы ${label}`,
-      showAllCount: count => `Показать все сессии (${count})`,
-      back: 'Все проекты'
-    },
+    projects: ruProjects,
     newSessionIn: label => `Новый сеанс в ${label}`,
     showMoreIn: (count, label) => `Показать ещё ${count} в ${label}`,
     loading: 'Загрузка…',

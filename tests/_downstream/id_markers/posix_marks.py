@@ -21,7 +21,6 @@ from tests._downstream.id_markers.reasons import (
     _posix_only,
     _posix_xfail,
     _TCC_POSIX_VENV,
-    _TIRITH_NO_BUILD,
     _WIN,
     _WSL_FAKE,
 )
@@ -152,24 +151,6 @@ if _WIN:
                 "test_keygen_readonly_env_degrades_to_warning_not_boot_abort",
                 "test_keygen_warns_on_weak_container_env_key",
                 "test_keygen_weak_env_key_warning_suppressed_when_env_file_key_wins",
-            )
-        },
-        **{
-            f"tests/tools/test_tirith_security.py::{cls}": (_TIRITH_NO_BUILD,)
-            for cls in (
-                "TestExitCodeMapping",
-                "TestJsonParseFailure",
-                "TestOSErrorFailOpen",
-                "TestTimeoutFailOpen",
-                "TestUnknownExitCode",
-                "TestCaps",
-                "TestProgrammingErrors",
-                "TestEnsureInstalled",
-                "TestBackgroundInstall",
-                "TestSpawnWarningDedup",
-                "TestAppTldSuppression",
-                "TestCircuitBreakerHalfOpen",
-                "TestEmojiVariationSelectorSuppression",
             )
         },
         "tests/tools/test_voice_wsl_pipewire.py::test_wsl_without_forwarding_still_blocks": (

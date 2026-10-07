@@ -313,12 +313,6 @@ def _get_unattended_approval_mode() -> str:
     return _binary_approval_mode("unattended_mode")
 
 
-def _tirith_fail_open() -> bool:
-    """Use the shared downstream policy, including environment overrides."""
-    from hermes_cli.tirith_config import fail_open_when_scanner_unavailable
-    return fail_open_when_scanner_unavailable()
-
-
 def _get_approval_transport_config() -> tuple[str, str | None]:
     """Return explicitly selected transport and fail-closed fallback mode."""
     try:

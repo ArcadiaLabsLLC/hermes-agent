@@ -41,7 +41,6 @@ from tests._downstream.id_markers.reasons import (
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
-    TIRITH_CONFIG_VALUE_UNDER_TEST_MARK as _TIRITH_CONFIG_VALUE_UNDER_TEST_MARK,
 )
 
 # Process-wide, at import: no test in this process writes the real Windows registry.
@@ -813,12 +812,6 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "exercise the real ~/.claude/.credentials.json reader/writer. The "
         "test MUST also point Path.home() at its own tmpdir — the marker "
         "alone hands back the operator's live Claude Code login.",
-    )
-    config.addinivalue_line(
-        "markers",
-        f"{_TIRITH_CONFIG_VALUE_UNDER_TEST_MARK}: the test pins tirith's config.yaml value, so "
-        "the fork's tools conftest drops the suite-wide TIRITH_* env for it "
-        "(applied by id from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

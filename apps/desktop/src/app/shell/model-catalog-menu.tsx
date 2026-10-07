@@ -1189,7 +1189,7 @@ const LOCAL_PROVIDER_SLUG = 'llamacpp'
 
 // Heading for every row group in the list (Favorites, providers, downloads).
 const catalogGroupLabel =
-  'px-2 pb-0.5 pt-0.5 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-tertiary)'
+  'px-2 pb-0.5 pt-0.5 text-[0.625rem] font-semibold uppercase tracking-wider text-(--ui-text-secondary)'
 
 // A provider inside a mixed Favorites section: the group heading's ink, set
 // in normal case and indented to the model names it labels, so it reads as
@@ -1319,7 +1319,20 @@ function groupModels(
   const groups: ProviderGroup[] = []
 
   for (const provider of providers) {
-    const allFamilies = collapseModelFamilies(provider.models ?? [])
+    let allFamilies = collapseModelFamilies(provider.models ?? [])
+
+    // The catalog row is a hint, not the authority: an OpenRouter current
+    // model the returned catalog omits must still render and stay selectable,
+    // or the picker has no active-model row at all (#57534). The backend
+    // injects current_model into the row when it can, but the renderer cannot
+    // rely on that — the row may arrive from a cache that predates the switch.
+    if (
+      catalogProviderMatches(provider, current.provider) &&
+      current.model &&
+      !allFamilies.some(family => family.id === current.model || family.fastId === current.model)
+    ) {
+      allFamilies = [{ fastId: null, id: current.model }, ...allFamilies]
+    }
 
     if (allFamilies.length === 0) {
       continue

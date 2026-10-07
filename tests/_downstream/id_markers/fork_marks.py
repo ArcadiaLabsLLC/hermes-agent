@@ -30,7 +30,6 @@ from tests._downstream.id_markers.reasons import (
     _REAL_PAUSE,
     _SCOPED_UNDO,
     _STRIP_REAL_HOME_PATH,
-    _TIRITH_CONFIG_VALUE,
     _WIN,
 )
 
@@ -69,12 +68,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # still stands behind it (upstream renamed the seven it replaced, 2026-09-25).
     "tests/hermes_cli/test_update_concurrent_quarantine.py::"
     "test_pause_stops_launcher_after_worker_drain": (_REAL_PAUSE,),
-    # The fork's hermes_cli.tirith_config lets TIRITH_* env win over config.yaml;
-    # this upstream test pins the config value (fixture: tools_conftest).
-    "tests/tools/test_approval.py::TestTirithImportErrorFailOpenPolicy::"
-    "test_fail_open_false_escalates_to_approval_on_import_error": (
-        _TIRITH_CONFIG_VALUE,
-    ),
     # The fork runner's 30s default is below the child PowerShell's own 30s
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
@@ -126,11 +119,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_spawn_detached_warns_and_marks_no_breakaway_fallback",
         )
     },
-    # The fork resolves tirith's flags through hermes_cli.tirith_config (env wins).
-    "tests/tools/test_cron_approval_mode.py::TestCronDenyModeAllGuards::"
-    "test_tirith_import_error_fail_closed_blocks_in_cron_deny": (
-        _TIRITH_CONFIG_VALUE,
-    ),
     # Readers the fork moved to load_config_readonly; upstream patches load_config.
     **{
         node: (_CONFIG_READ_THROUGH,)
