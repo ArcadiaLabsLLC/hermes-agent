@@ -68,7 +68,9 @@ and baseline qualification; live cancellation latency remains unmeasured.
 **Inline relay admission uses the runtime head, not the sender's profile.**
 `hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
 enters `profile_context.process_home_scope(get_hermes_head_home())` around the
-canonical handler. A sender's execution profile cannot replace the runtime's
+canonical handler only when the current home differs. An already-head caller
+gets no synthetic override; an existing unbound override still fails the
+transcript durability guard. A sender's execution profile cannot replace the runtime's
 configured persona roster or defaults. The selected target still declares its
 execution profile through `GPTPersonaRuntime.mission_chat_reply`; the sender's
 context is restored on success, refusal or exception. The two roster reads in

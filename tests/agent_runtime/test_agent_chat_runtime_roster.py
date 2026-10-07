@@ -7,8 +7,12 @@ import pytest
 
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.profile_context import persona_profile_scope
-from agent_runtime.profile_home import PersonaProfileBinding, get_hermes_head_home
+from agent_runtime.profile_context import persona_profile_scope, process_home_scope
+from agent_runtime.profile_home import (
+    PersonaProfileBinding,
+    get_hermes_head_home,
+    hermes_head_home_is_authoritative,
+)
 from agent_runtime.profile_runner import AgentRunResult, ProfileAgentRunner
 from hermes_cli.config import atomic_config_write
 from hermes_constants import get_hermes_home
@@ -153,6 +157,9 @@ def test_inline_head_scope_keeps_target_and_relay_refusals(relay_runtime, monkey
         assert not unknown["ok"] and unknown["error_kind"] == "unsupported_persona"
         ambiguous = _send("dev")
         assert not ambiguous["ok"] and ambiguous["error_kind"] == "ambiguous_target"
+        assert {row["persona_instance_id"] for row in ambiguous["candidates"]} == {
+            target.id for target in siblings
+        }
         token = RELAY_CHAIN.set(("dev",))
         try:
             cycle = _send(siblings[0].id)
@@ -170,3 +177,40 @@ def test_inline_head_scope_keeps_target_and_relay_refusals(relay_runtime, monkey
     assert {
         target.id: store.get(target.id).default_chat_session_id for target in siblings
     } == original_sessions
+
+
+def test_plain_head_caller_keeps_ambiguity_and_exact_handle_admission(
+    relay_runtime, monkeypatch,
+):
+    head, _homes, _store, siblings, executed = relay_runtime
+    monkeypatch.delenv("HERMES_HEAD_HOME")
+    assert get_hermes_home() == head
+    assert not hermes_head_home_is_authoritative()
+
+    ambiguous = _send("dev")
+    assert ambiguous["error_kind"] == "ambiguous_target"
+    assert {row["persona_instance_id"] for row in ambiguous["candidates"]} == {
+        target.id for target in siblings
+    }
+    assert not executed
+    for target in siblings:
+        result = _send(target.id)
+        assert result["ok"], result
+        assert result["persona_instance_id"] == target.id
+    assert len(executed) == 2
+    assert get_hermes_home() == head
+    assert not hermes_head_home_is_authoritative()
+
+
+def test_unbound_home_override_still_refuses_transcript_creation(
+    relay_runtime, monkeypatch,
+):
+    head, _homes, _store, siblings, executed = relay_runtime
+    monkeypatch.delenv("HERMES_HEAD_HOME")
+    with process_home_scope(head):
+        assert not hermes_head_home_is_authoritative()
+        result = _send(siblings[0].id)
+        assert not result["ok"]
+        assert result["error_kind"] == "chat_session_db_unavailable"
+        assert get_hermes_home() == head
+    assert not executed
