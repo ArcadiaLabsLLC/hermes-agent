@@ -150,6 +150,8 @@ import threading
 import time
 from typing import Any
 
+from .launcher_link_prewarm import LauncherLinkPreparation, launcher_link_prewarm_scope
+
 __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
@@ -772,68 +774,14 @@ _sequence = itertools.count()
 _running_root: str | None = None
 _running_priority: int | None = None
 _worker: threading.Thread | None = None
-#: root -> the refresh of the Launcher link the open-chat gesture arrived on
-#: (h-chatperf; started at the gesture since h-prewarm-order). The worker waits
-#: for it BEFORE it prepares, so the actor is built against the tool registry
-#: the chat's first turn will see.
-_links: dict[str, Any] = {}
-
-
-def _refresh_launcher_app_functions(link: Any) -> None:
-    """Register the opening connection's app functions, as the first turn would.
-
-    The first chat turn on a Launcher connection asks it for its app-function
-    catalog (``serve.lanes._bind_launcher_link``) and registers ~10 tools under
-    ``launcher_app_functions`` -- which ``_augment_chat_capabilities`` then adds
-    to the chat lane's toolsets. A prewarm that ran before that turn composed
-    its tool contract WITHOUT them, so the turn's signature differed and the
-    prewarmed actor was discarded (``resident_signature_diff
-    components=tool_contract``, 61 vs 71 deferred tools, 2026-10-03). Asking
-    here moves the one-per-connection wire round trip off the turn as well; the
-    turn's own refresh then re-syncs the held catalog idempotently and moves no
-    registry epoch. On this worker thread, never the reader loop: the request
-    waits for a reply that the reader delivers.
-    """
-
-    if link is None:
-        return
-    try:
-        from .launcher_app_functions import refresh_app_function_tools
-
-        refresh_app_function_tools(link)
-    except Exception:
-        logger.debug("chat-actor prewarm could not refresh launcher app functions", exc_info=True)
-
-
 #: How long the worker waits for an open's app-function refresh before it
 #: prepares anyway (the reply normally lands in one round trip).
 LINK_REFRESH_WAIT_SECONDS = 10.0
 
 
-def _start_link_refresh(link: Any) -> threading.Thread:
-    """Ask the opening connection for its app functions NOW, on a thread of its own.
-
-    h-prewarm-order: the ask used to wait for this item to reach the worker, so
-    a send that arrived first paid the round trip in its own accept -> anchor
-    span (``lanes._bind_launcher_link``; 2026-10-06 01:25: ack 04.305, anchor
-    04.909, the open's item started 04.731). Started at the gesture, the
-    catalog is held by the time the turn binds the same connection.
-    """
-
-    thread = threading.Thread(
-        target=_refresh_launcher_app_functions, args=(link,), name="persona-chat-open-link", daemon=True
-    )
-    thread.start()
-    return thread
-
-
-def _await_link_refresh(refresh: Any) -> None:
-    """The item's refresh, finished before it prepares: the actor's tool contract is the turn's."""
-
-    if isinstance(refresh, threading.Thread):
-        refresh.join(LINK_REFRESH_WAIT_SECONDS)
-    else:
-        _refresh_launcher_app_functions(refresh)
+#: Both the opening connection and its discovery, not just the discovery
+#: thread: availability is checked in the worker's construction context.
+_links: dict[str, LauncherLinkPreparation] = {}
 
 
 def _drain() -> None:
@@ -857,8 +805,8 @@ def _drain() -> None:
             link = _links.pop(root, None)
         started = time.monotonic()
         try:
-            _await_link_refresh(link)
-            outcome = prewarm_chat_actor(root)
+            with launcher_link_prewarm_scope(link, timeout=LINK_REFRESH_WAIT_SECONDS):
+                outcome = prewarm_chat_actor(root)
         except Exception:
             outcome = OUTCOME_SKIPPED_CONSTRUCT_FAILED
             logger.warning(
@@ -881,6 +829,9 @@ def _drain() -> None:
                 _queue.put((priority, next(_sequence), root))
             else:
                 _pending.pop(root, None)
+                # An open during construction can leave a late preparation.
+                # It belongs to this completed item, never a later boot pass.
+                _links.pop(root, None)
         _queue.task_done()
 
 
@@ -931,7 +882,7 @@ def request_chat_actor_prewarm(
         return OUTCOME_SKIPPED_NO_CHAT_ROOT
     with _lock:
         if launcher_link is not None:
-            _links[root] = _start_link_refresh(launcher_link)
+            _links[root] = LauncherLinkPreparation.start(launcher_link)
         held = _pending.get(root)
         if held is not None and (priority >= held or root == _running_root):
             return "already_running"

@@ -324,7 +324,15 @@ class ChatLaneBundle:
         return copy.deepcopy(self._capability)
 
     def tool_contract(self) -> dict[str, Any]:
-        return copy.deepcopy(self._tool_contract)
+        contract = copy.deepcopy(self._tool_contract)
+        from .launcher_app_functions import APP_FUNCTIONS_TOOLSET, current_launcher_link
+
+        if APP_FUNCTIONS_TOOLSET in self.enabled_toolsets:
+            # Registration is global, availability is not. Read this at the
+            # boundary, never from the memo: a boot actor without a connection
+            # cannot substitute for a linked chat actor with the same toolsets.
+            contract["launcher_link_available"] = current_launcher_link() is not None
+        return contract
 
     def permission_state(self) -> dict[str, Any]:
         return copy.deepcopy(self._permission_state)
