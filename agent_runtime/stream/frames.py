@@ -435,6 +435,10 @@ def persona_chat_turn_frames(
 #: root: the read's whole stand-aside budget plus a cold read.
 _TURN_SECTION_INFLIGHT_WAIT_S = 20.0
 
+#: How many times a lane tries to claim a root's read before it reads unclaimed:
+#: each refusal waited for a covering claim that ended without this floor's sections.
+_TURN_SECTION_CLAIM_ATTEMPTS = 3
+
 
 def _read_turn_sections_standing_aside(
     root: str, batch: list[tuple[int, Event]], *, caller: str, evict: int = 0, floor: int | None = None
@@ -464,10 +468,14 @@ def _read_turn_sections_standing_aside(
         binding = bound_binding()
         return binding is not None and not binding.retired
 
-    key = turn_section_reuse.begin(root)
-    if key is None:
-        # Another lane's claim is in flight: if it is still standing aside, or
-        # reads at or past ``floor``, its sections are this frame's too.
+    key = None
+    for _attempt in range(_TURN_SECTION_CLAIM_ATTEMPTS):
+        key = turn_section_reuse.begin(root, floor=floor)
+        if key is not None:
+            break
+        # Another lane's claim covers ``floor`` (still standing aside, or reading
+        # at or past it): its sections are this frame's too. If it ends without
+        # them (failed, or read below ``floor`` after all), claim again.
         held = turn_section_reuse.await_inflight(root, floor=floor, timeout_s=_TURN_SECTION_INFLIGHT_WAIT_S)
         if held is not None:
             return held, {"source": turn_section_reuse.SOURCE_REUSED}

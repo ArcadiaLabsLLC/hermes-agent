@@ -751,3 +751,21 @@ def test_the_second_lane_waits_for_the_first_lanes_read(isolate_agent_runtime_ro
     assert turn_section_reuse.await_inflight(ROOT, floor=201, timeout_s=5.0) is None
     turn_section_reuse.finish(key)
     turn_section_reuse.clear()
+
+
+def test_a_lane_below_an_inflight_claim_claims_its_own_read(isolate_agent_runtime_root):
+    """h-section-dup: a claim below the floor does not stop a lane claiming; the
+    next lane at that floor waits for that lane's read instead of reading again."""
+
+    turn_section_reuse.clear()
+    low = turn_section_reuse.begin(ROOT, position=100)
+    assert low is not None
+    second = turn_section_reuse.begin(ROOT, floor=200)
+    assert second is not None, "the lane above the low claim read unclaimed"
+    assert turn_section_reuse.begin(ROOT, floor=200) is None, "a third lane at the floor would read again"
+    turn_section_reuse.started(second, 210)
+    turn_section_reuse.remember(ROOT, {"persona_instance_id": INSTANCE}, position=210)
+    turn_section_reuse.finish(second)
+    assert turn_section_reuse.await_inflight(ROOT, floor=200, timeout_s=0.1) == {"persona_instance_id": INSTANCE}
+    turn_section_reuse.finish(low)
+    turn_section_reuse.clear()
