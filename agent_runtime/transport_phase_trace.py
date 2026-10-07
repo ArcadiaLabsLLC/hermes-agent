@@ -44,7 +44,7 @@ from agent_runtime.conversation_observability import (
     TRANSPORT_TLS_DONE_STEP,
     _emit_phase_marker,
 )
-from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist
+from agent_runtime.prewarmed_system_prompt import run_deferred_turn_persist, deferred_turn_persist_duration_ms
 from agent_runtime.send_window_receipt import SendWindow
 from agent_runtime.title_upgrade_defer import start_held_title_upgrade
 from agent_runtime.stream_gap_receipt import begin_send_window, begin_stream_gap_receipt
@@ -79,24 +79,31 @@ def phase_trace_for(
     """
 
     def _trace(event_name: str, info: Any) -> None:
-        if chained is not None:
-            try:
-                chained(event_name, info)
-            except Exception:
-                logger.debug("chained transport trace raised", exc_info=True)
         if window is not None:
             try:
                 window.on_trace(event_name)
             except Exception:
                 logger.debug("send window trace stamp failed", exc_info=True)
-        step = TRACE_EVENT_STEPS.get(event_name)
-        if step is not None:
-            _emit_phase_marker(agent, step)
-        if step == TRANSPORT_REQUEST_SENT_STEP and agent is not None:
-            # h-turn1-conn: the first turn's held persist writes, now that the request is out.
-            run_deferred_turn_persist(agent)
-            # h-title-defer: the turn-start title upgrade, held until the request is out.
-            start_held_title_upgrade(agent)
+        started = window.clock() if window is not None else None
+        try:
+            if chained is not None:
+                try:
+                    chained(event_name, info)
+                except Exception:
+                    logger.debug("chained transport trace raised", exc_info=True)
+            step = TRACE_EVENT_STEPS.get(event_name)
+            if step is not None:
+                _emit_phase_marker(agent, step)
+            if step == TRANSPORT_REQUEST_SENT_STEP and agent is not None:
+                # h-turn1-conn: the first turn's held persist writes, now that the request is out.
+                if run_deferred_turn_persist(agent) and window is not None:
+                    window.persist_ms = deferred_turn_persist_duration_ms(agent)
+                # h-title-defer: the turn-start title upgrade, held until the request is out.
+                start_held_title_upgrade(agent)
+        finally:
+            if window is not None and started is not None:
+                window.callback_ms += max(0.0, (window.clock() - started) * 1000.0)
+                window.callback_count += 1
 
     return _trace
 

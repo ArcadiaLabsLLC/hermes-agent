@@ -228,3 +228,18 @@ def test_an_effort_change_moves_the_resident_actor_key():
     base = PersonaInstance(**{**fields, "id": "i", "persona_id": "p"})
     assert identity_revision(base, INSTANCE_IDENTITY_FIELDS) != identity_revision(
         replace(base, reasoning_effort="low"), INSTANCE_IDENTITY_FIELDS)
+
+
+def test_selected_model_facts_never_walk_inventory(placed_agent, monkeypatch):
+    from agent_runtime import operator_session_models as models
+    from agent_runtime.serve_rpc.operator_inspection import model_facts
+    def forbidden(*args, **kwargs):
+        raise AssertionError("facts-only must not load picker inventory")
+    monkeypatch.setattr(models, "operator_model_inventory", forbidden)
+    reply = model_facts("facts", target(placed_agent["persona_instance_id"]))
+    assert "result" in reply
+    result = reply["result"]
+    assert "models" not in result["facts"]
+    assert result["facts"]["reasoning_effort"] == result["model"]["effective_reasoning_effort"]
+    from agent_runtime.serve_rpc.registry import method_tier
+    assert method_tier("runtime.operator.conversation.model.facts") == "console"

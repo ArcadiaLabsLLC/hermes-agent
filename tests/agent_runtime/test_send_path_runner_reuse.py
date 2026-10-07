@@ -555,3 +555,29 @@ def test_resetting_the_memo_forces_a_re_resolve(stub_runtime):
     runner.run(_request())
 
     assert len(stub_runtime) == 2
+
+
+def test_native_auth_owners_invalidate_rotation_and_signout(tmp_path, monkeypatch):
+    from hermes_cli import auth
+    profile = tmp_path / "profile" / "auth.json"
+    shared = tmp_path / "shared" / "auth.json"
+    profile.parent.mkdir(); shared.parent.mkdir()
+    monkeypatch.setattr(auth, "_auth_file_path", lambda: profile)
+    monkeypatch.setattr(auth, "_global_auth_file_path", lambda: shared)
+    request = _request()
+    previous = _runtime_resolve_cache_key(request)
+    for path in (profile, shared):
+        path.write_text("first", encoding="utf-8")
+        current = _runtime_resolve_cache_key(request)
+        assert current != previous
+        previous = current
+        replacement = path.with_suffix(".new")
+        replacement.write_text("rotated credential", encoding="utf-8")
+        replacement.replace(path)
+        current = _runtime_resolve_cache_key(request)
+        assert current != previous
+        previous = current
+        path.unlink()
+        current = _runtime_resolve_cache_key(request)
+        assert current != previous
+        previous = current

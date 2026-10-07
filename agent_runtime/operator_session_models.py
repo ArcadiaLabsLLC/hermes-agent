@@ -68,7 +68,8 @@ def operator_model_facts(params: dict) -> dict:
         inventory = operator_model_inventory(instance)
     settings = inspect_operator_settings(params)
     model = settings["model"]
-    effort = _reasoning_effort_facts(instance, model["effective_model"])
+    effort = {"reasoning_effort": model["effective_reasoning_effort"],
+              "reasoning_effort_source": model["reasoning_effort_source"]}
     provider, name = model["agent_provider"], model["agent_model"]
     projected = facts(params["session_id"], {"info": {
         "provider": model["effective_provider"], "model": model["effective_model"],
@@ -80,17 +81,23 @@ def operator_model_facts(params: dict) -> dict:
     }}
 
 
-def _reasoning_effort_facts(instance, model: str | None) -> dict:
-    """The effort the next turn sends: the runner's own resolver over the instance's
-    effort (what ``chat_turn_commit.run`` passes), in the turn's profile."""
-    from .profile_runner.models import AgentRunRequest
-    from .profile_runner.resident_actor import turn_reasoning_config
-
-    request = AgentRunRequest(profile=None, model=model, reasoning_effort=instance.reasoning_effort)
-    with _model_profile(instance):
-        effort = reasoning_effort_label(turn_reasoning_config(request, model))
-    source = "instance" if instance.reasoning_effort else ("profile" if effort else "default")
-    return {"reasoning_effort": effort, "reasoning_effort_source": source}
+def operator_selected_model_facts(params: dict) -> dict:
+    """Current and inherited selection facts without a provider inventory walk."""
+    from hermes_cli.config import is_managed
+    settings = inspect_operator_settings(params)
+    model = settings["model"]
+    provider, name = model["effective_provider"], model["effective_model"]
+    default_provider, default_name = model["agent_provider"], model["agent_model"]
+    return {**settings, "facts": {
+        "session_id": params["session_id"],
+        "current_model_id": model_key(provider, name) if provider and name else None,
+        "default_model_id": model_key(default_provider, default_name)
+                            if default_provider and default_name else None,
+        "can_save_model_default": not is_managed(),
+        "default_affects_inherited_sessions": True,
+        "reasoning_effort": model["effective_reasoning_effort"],
+        "reasoning_effort_source": model["reasoning_effort_source"],
+    }}
 
 
 def _require_idle(session_id: str) -> None:

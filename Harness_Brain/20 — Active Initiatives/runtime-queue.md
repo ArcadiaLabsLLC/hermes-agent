@@ -59,8 +59,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-06 (lane h-model-pick)
 
-- [ ] **`mission_chat_runtime_signature_components` reads `model_selection["effective_reasoning_effort"]`, a key `_chat_effective_model_payload` never writes (always None); the effort reaches the resident key only through `instance_revision`, and the cascade-source rule is spelled twice (`chat_model_source`, `operator_session_models._reasoning_effort_facts` / `resident_actor.log_turn_effort`)** · fork / chat model selection · evidence: `agent_runtime/mission_chat_turn_context.py`, `agent_runtime/persona_chat_session.py` · lane: one model+effort selection record (tiers + sources) built once per turn and read by facts, signature and receipts · **TAKEN 2026-10-07 sol-runtime**
-- [ ] **`_chat_effective_model_payload` falls back to `persona.model` then the agent_runtime config's `default_model`; a run with neither falls to the PROFILE's `model.default` inside the runner, so `conversation.models` can name a different (or no) model than the turn runs (not hit by Neko: its persona pins gpt-5.6-luna)** · fork / chat model selection · evidence: `agent_runtime/persona_chat_session.py::_chat_effective_model_payload`, `agent_runtime/profile_runner/execute.py::construct_agent` · lane: resolve the profile tier in the payload, in the persona's profile scope · **TAKEN 2026-10-07 sol-runtime**
 
 ### Filed on arrival — 2026-10-06 (lane h-newchat-t1)
 
@@ -68,7 +66,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-06 (lane h-cache-hit)
 
 - [ ] **OWED: read `stream_gap_receipt` on ≥5 live Neko turns once h-stream-gap is live — `chunks=0` ⇒ provider silence; many `kinds` with lag≈0 ⇒ provider frames (thinking); large `max_lag_ms`/`stall_over50_ms` ⇒ local stall; plus `reasoning_tokens` vs `gap_ms`** · fork / turn latency · evidence: neko agent.log 2026-10-06 12:04–12:20 (gap 2.9–5.0 s) · operator serve
-- [ ] **`runtime.operator.conversation.models` builds the full model inventory just to report the current model and effort; the launcher pill (l-model-pill) reads it after every pick and every snapshot move, so it wants a light facts-only verb** · fork / chat model selection · evidence: `agent_runtime/operator_session_models.py::operator_model_facts`, launcher lane l-model-pill `4cdd61a37b` · UNCLAIMED · **TAKEN 2026-10-07 sol-runtime**
 - [ ] **The 2026-10-06 duplicate watchdog reconcile is unverified against the lock fix: its two events are 5 min apart with out-of-order ts, which a check-then-append race does not explain; re-read live offsets 92973189–92974049** · fork / stream · evidence: `c30a123440`, `a317870c7f` · UNCLAIMED
 - [ ] **The persona chat's tool form has three writers per turn — upstream's between-turns refresh (re-appends the persona's deferred tools, keeps the BUILT bridge), the fork's re-assembly (`chat_lane_defer.reapply_chat_lane_defer`, now in `pre_llm_call` AND `llm_request`), and the session pin restore — and the pin persists the refresh's 30-tool form, not the wire's; one owner should produce the turn's tools once, after the refresh, and pin what it ships** · fork / chat lane tools · evidence: lane h-cache-hit commit body · UNCLAIMED · **TAKEN 2026-10-07 sol-runtime**
 
@@ -115,7 +112,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **A queue-only commit on the primary checkout restarts the live serve and stalls the Launcher ~27 s: each of three docs-only commits (`fb5a186264`, `0ed627cea0`, `4adeb0f116`) was followed by a drain whose old serve never proved an exit inside 20 s (`serve_drain proven=no polls=13–14 waited_ms=20503/20848`, pids 28592, 28456), opens deferred behind it (`serve_spawn_deferred reason=drain_in_flight` up to 19,844 ms), an open answered at `+26817 ms`, then a 15.4 s first snapshot build; the code identity should ignore commits that touch no shipped code, and the drain should end the old serve inside its budget** · fork / serve lifecycle (the restart door is the Launcher's `MissionServe`; file its half in `mission-control-queue.md` once this side says what the identity covers) · evidence: base `agent.log` 14:54:08.535 `home maintenance: code changed to 4adeb0f116d1`; `%TEMP%\eternia_launcher_diag.log` 18:48:10 / 18:54:00 / 18:54:15 `MissionServe`/`MissionOpenChat` lines · **TAKEN 2026-10-05 Opus 5.5 (owner session, lane h-turn1)** · **LANDED 2026-10-05 hermes `c87f8ed59e` + launcher `0d377ec6b3` (D1–D4); OWED live proof: a vault-only commit on the primary draws no `[MissionServe] drain`, and the next real restart logs `serve_drain proven=yes`.**
 
-- [ ] **Separate observed request/response durations from local callback and interference attribution.** · runtime / chat-turn observability · evidence: `agent_runtime/send_window_receipt.py::SendWindow.fields`, `transport_phase_trace.py::phase_trace_for`, `prewarmed_system_prompt.py::run_deferred_turn_persist` · **Action:** measure the transport callback and receive-start boundary, including phase listeners/chained callbacks; join the existing persistence-duration receipt. Treat `wait_on=server` as a heuristic and `pool_ms` as pre-first-trace time unless actual pool acquisition is measured. **Done when:** an injected slow local callback is visible even without sampler lateness, and overlapping local/network intervals are never added or subtracted as independent causes. Preserve existing phase marks and absent values. · **UNCLAIMED.** · **TAKEN 2026-10-07 sol-runtime**
 
 ### Filed on arrival — 2026-10-05 (owner screenshot, "screenshot posts" 13:05)
 
@@ -138,7 +134,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-03 (resident identity audit)
 
-- [ ] **Invalidate the resolved-provider memo when its native authentication owner changes, not just profile config/`.env`: `auth.json` changes are otherwise hidden for up to its 30-second TTL. Reuse native auth ownership; prove rotation/sign-out across profile and shared credentials before changing the memo.** · `fork / runtime` · `profile_runner/execute.py::_runtime_resolve_cache_key` · [Source audit; live impact unmeasured](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#resident-identity-repair-october-3) · UNCLAIMED · **TAKEN 2026-10-07 sol-runtime**
 
 ### Filed on arrival — 2026-10-03 (lane h-fence)
 

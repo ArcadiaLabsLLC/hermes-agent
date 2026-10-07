@@ -197,6 +197,7 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
     """
 
     from hermes_constants import get_hermes_home
+    from hermes_cli.auth import authentication_owner_stamps
 
     home = Path(get_hermes_home())
     stamps = []
@@ -213,6 +214,7 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
         str(request.provider or ""),
         str(request.model or ""),
         tuple(stamps),
+        authentication_owner_stamps(),
     )
 
 

@@ -823,3 +823,27 @@ def test_instance_summary_inherits_runtime_default(monkeypatch):
     assert (summary["effective_provider"], summary["effective_model"]) == (
         selected["effective_provider"], selected["effective_model"])
     assert summary["model"] is None
+
+
+def test_selection_profile_fallback_and_effort_are_one_authority(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from contextlib import nullcontext
+    from agent_runtime import persona_chat_session as selection
+    from agent_runtime import profile_context, config
+    monkeypatch.setattr(profile_context, "resolve_persona_profile",
+        lambda persona: SimpleNamespace(readiness="ready"))
+    monkeypatch.setattr(profile_context, "persona_profile_scope", lambda binding: nullcontext())
+    monkeypatch.setattr(config, "load_agent_runtime_config",
+        lambda: SimpleNamespace(default_model="profile-model", default_provider="profile-provider"))
+    persona = SimpleNamespace(model=None, provider=None)
+    cfg = SimpleNamespace(default_model=None, default_provider=None)
+    instance = SimpleNamespace(model=None, provider=None, reasoning_effort="high")
+    result = selection._chat_effective_model_payload(persona=persona, config=cfg,
+        instance=instance, override=None)
+    assert result["effective_model"] == "profile-model"
+    assert result["effective_provider"] == "profile-provider"
+    assert result["effective_reasoning_effort"] == "high"
+    assert result["reasoning_effort_source"] == "instance"
+    result = selection._chat_effective_model_payload(persona=persona, config=cfg,
+        instance=instance, override={"model":"session-model"})
+    assert result["effective_model"] == "session-model"
