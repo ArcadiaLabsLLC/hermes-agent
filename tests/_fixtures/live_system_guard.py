@@ -106,16 +106,13 @@ def _live_system_guard(request, monkeypatch):
     def _own_children() -> set:
         nonlocal _children_cache
         if _children_cache is None:
-            if _psutil is None:
+            try:
+                _children_cache = {
+                    c.pid
+                    for c in _real_children(_real_process(test_pid), recursive=True)
+                } if _psutil is not None else set()
+            except Exception:
                 _children_cache = set()
-            else:
-                try:
-                    _children_cache = {
-                        c.pid
-                        for c in _real_children(_real_process(test_pid), recursive=True)
-                    }
-                except Exception:
-                    _children_cache = set()
         return _children_cache
 
     def _is_own_subtree(pid: int) -> bool:
