@@ -318,7 +318,13 @@ def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[st
             run_deferred_turn_persist(agent, RAN_ON_RUN_END)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
-        raw_result["reasoning_window"] = reasoning.fields()
+        window = reasoning.fields()
+        reported = sum(row.get("reasoning_tokens", 0) for row in usage_ledger)
+        if reported > 0:
+            raw_result["reasoning_tokens"] = reported
+            if not window:
+                window = {"reasoning_tokens": reported}
+        raw_result["reasoning_window"] = window
     return raw_result
 
 

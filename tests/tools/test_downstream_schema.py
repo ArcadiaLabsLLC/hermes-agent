@@ -108,3 +108,29 @@ def test_plugin_registers_the_middleware_and_returns_the_rewrite():
     result = callback(request=request, session_id="s", api_mode="anthropic_messages")
     assert result["request"]["tools"][0]["description"] == BRIEF_DESCRIPTIONS["clarify"]
     assert callback(request={"messages": []}) is None
+
+
+def test_final_wire_tool_metrics_survive_post_turn_agent_refresh():
+    import json
+    from types import SimpleNamespace
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+    from agent_runtime.profile_runner.model_input_observability import (
+        _agent_tool_names, _agent_tools_json_bytes, _agent_wire_tool_chars,
+    )
+    agent = SimpleNamespace(tools=[])
+    request = {"model": "m", "tools": [
+        {"type": "function", "function": {"name": "clarify", "description": _FULL, "parameters": _PARAMS}},
+        {"type": "function", "function": {"name": "tool_search", "description": "Search.\n\nActual listing"}},
+    ]}
+    with bind_persona_turn_agent(agent):
+        changed = _plugin().brief_tool_descriptions(request=request)
+        wire = changed["request"] if changed else request
+        agent.tools = [{"type": "function", "function": {"name": "post_turn_only"}}]
+        assert _agent_tool_names(agent) == ["clarify", "tool_search"]
+        assert _agent_tools_json_bytes(agent) == len(json.dumps(wire["tools"], ensure_ascii=False, default=str).encode("utf-8"))
+        expected = {tool["function"]["name"]: len(json.dumps(tool, ensure_ascii=False, separators=(",", ":"), default=str)) for tool in wire["tools"]}
+        assert _agent_wire_tool_chars(agent) == expected
+        _plugin().brief_tool_descriptions(request={"tools": []})
+        assert _agent_tool_names(agent) == ["clarify", "tool_search"]
+    with bind_persona_turn_agent(agent):
+        assert _agent_tool_names(agent) == ["post_turn_only"]
