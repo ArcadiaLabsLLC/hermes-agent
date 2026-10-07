@@ -254,10 +254,12 @@ def _chat_effective_model_payload(
     from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
     from agent_runtime.profile_runner.models import AgentRunRequest
     from agent_runtime.profile_runner.resident_actor import turn_reasoning_config
-    binding = resolve_persona_profile(persona)
+    # An instance whose persona left the roster still gets a summary; it has no
+    # profile to scope into, so only the instance and config tiers apply.
+    binding = resolve_persona_profile(persona) if persona is not None else None
     effort = getattr(instance, "reasoning_effort", None)
     reasoning = None
-    if binding.readiness == "ready":
+    if binding is not None and binding.readiness == "ready":
         with persona_profile_scope(binding):
             if not default_model or not default_provider:
                 from agent_runtime.config import load_agent_runtime_config
