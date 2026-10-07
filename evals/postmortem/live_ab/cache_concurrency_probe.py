@@ -102,19 +102,16 @@ class _Ctx:
     def __exit__(self, *a): return self.mgr.__exit__(*a)
     def __getattr__(self, n): return getattr(self.mgr, n)
 
+def _sha(obj):
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:10]
+
 def patched_stream(self, **kw):
     msgs = kw.get("messages") or []
-    first = msgs[0] if msgs else {}
-    content = first.get("content") or ""
-    text = content if isinstance(content, str) else "".join(
-        block.get("text", "") for block in content if isinstance(block, dict)
-    )
-    m = re.search(r"\[probe-session (\d+)\]", text)
-    def sha(value):
-        return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()[:10]
-    sys_sha = sha(kw.get("system"))
-    tools_sha = sha(kw.get("tools"))
-    msg_shas = [sha(message) for message in msgs]
+    first = (msgs[0].get("content") if msgs else None) or ""
+    ftxt = first if isinstance(first, str) else "".join(b.get("text", "") for b in first if isinstance(b, dict))
+    m = re.search(r"\[probe-session (\d+)\]", ftxt)
+    sys_sha, tools_sha, msg_shas = _sha(kw.get("system")), _sha(kw.get("tools")), [_sha(x) for x in msgs]
+    # The tag can be gone from messages[0] (a compacted history leads with a placeholder turn).
     rec = dict(worker=int(m.group(1)) if m else WORKER.get(), call=len(msgs), t_start=time.time(), model=kw.get("model"),
                n_msgs=len(msgs), system_sha=sys_sha, tools_sha=tools_sha, msg_shas=msg_shas)
     if SETTLE_S > 0 and len(msgs) > 1:
