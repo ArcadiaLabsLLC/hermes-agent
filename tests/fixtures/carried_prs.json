@@ -1,0 +1,937 @@
+{
+  "version": 1,
+  "prs": {
+    "78571": {
+      "head_ref": "refs/carried-prs/78571/head",
+      "reviewed_head": "f3ee74fd19964f050b40e7f6f22638ade7abe829",
+      "base_ref": "upstream/main",
+      "files": {
+        ".gitattributes": {
+          "mode": "deferred",
+          "reason": "Third-party PR adds per-extension rules; fork carries only equivalent root text=auto eol=lf with different spacing, explicitly permanent per ledger. Not a byte-identical PR copy."
+        }
+      }
+    },
+    "87515": {
+      "head_ref": "refs/carried-prs/87515/head",
+      "reviewed_head": "5547891b2480bb20f55e1cfa7b4f96600b915e0a",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/agent_init.py": {
+          "mode": "deferred",
+          "reason": "Future global context-floor door; fork per-turn managed-local exemption is independently implemented, not a copied PR."
+        },
+        "agent/conversation_compression.py": {
+          "mode": "deferred",
+          "reason": "Future global context-floor door; fork per-turn managed-local exemption is independently implemented, not a copied PR."
+        }
+      }
+    },
+    "114578": {
+      "head_ref": "refs/carried-prs/114578/head",
+      "reviewed_head": "2acbb47e9454cb9c20fba1f31affeb684669d8f8",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/tool_search.py": {
+          "mode": "deferred",
+          "reason": "Future lazy tool search door; fork per-persona defer implementation is separately recorded."
+        }
+      }
+    },
+    "119069": {
+      "head_ref": "origin/fix/legacy-launchd-labels-pwd-import",
+      "reviewed_head": "3be47f27e761d64094868c6f3a3eaa2ac370fc20",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/gateway.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121219": {
+      "head_ref": "origin/up/win-conpty-line-wrap",
+      "reviewed_head": "7184a91be8ac11e55ceeecd7407cf4f50bc46216",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/hermes_cli/test_win_pty_bridge.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121224": {
+      "head_ref": "origin/up/win-path-spelling",
+      "reviewed_head": "4dbd8aa171dbde941308897a717cf811317ec294",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/hermes_cli/test_deleted_profile_tombstone.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121225": {
+      "head_ref": "origin/up/win-posix-only-apis",
+      "reviewed_head": "3c77ad9a2f2a1b1cc21877e19c4b1ae6d3149f97",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/hermes_cli/test_auth_nous_provider.py": {
+          "mode": "deferred",
+          "reason": "Current PR has no delta for this ledger path; stale attribution, existing Windows tests retained."
+        }
+      }
+    },
+    "121226": {
+      "head_ref": "origin/up/win-shell-invocation",
+      "reviewed_head": "ab4c8098d9e771d574f2e5620ad8e847bea26524",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/hermes_cli/test_setup_hermes_script.py": {
+          "mode": "hunks"
+        },
+        "tests/tools/test_execution_flag_detection.py": {
+          "mode": "hunks"
+        },
+        "tests/tools/test_file_tools_live.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121640": {
+      "head_ref": "origin/up/doc-accuracy",
+      "reviewed_head": "989f21fe3cd940c697795e27b40881e495a88018",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/service_manager.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/uninstall.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/worktree_ops.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121642": {
+      "head_ref": "origin/up/nous-login-inference-url",
+      "reviewed_head": "7faa143ac1a01f68bac44a9e235e2020e378af26",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/auth_nous.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121643": {
+      "head_ref": "origin/up/win-remote-posix-paths",
+      "reviewed_head": "acd91dfa42eaa5e02d47a04381d92eca672c4a42",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/credential_files.py": {
+          "mode": "deferred",
+          "reason": "Current PR targets newer generated-cache loop absent fork. Existing comprehension already uses .as_posix; equivalent local spelling retained, not a byte copy of new loop."
+        },
+        "tools/skills_hub_official.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "121645": {
+      "head_ref": "origin/up/win-posix-guard-forms",
+      "reviewed_head": "e19556f3d86dd1c22797e6a0aa9f37eb8b1de053",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/file_tools.py": {
+          "mode": "lines",
+          "fragments": [
+            "    forms = _posix_match_forms(path)\n    return any(\n        form in _BLOCKED_DEVICE_PATHS\n        or (form.startswith(\"/proc/\") and form.endswith(_BLOCKED_PROC_SUFFIXES))\n        for form in forms)",
+            "        if _is_blocked_device_path(target):\n            return True"
+          ],
+          "reason": "Reviewed proc/device guards carried; fork posix_match_forms/path_identity adapter and import spelling remain independently owned."
+        },
+        "tools/file_tools_write_guards.py": {
+          "mode": "deferred",
+          "reason": "Reviewed proc/device guards carried; fork posix_match_forms/path_identity adapter and import spelling remain independently owned. No exact added fragment survives adapter spelling; semantic coverage is in targeted importing tests."
+        }
+      }
+    },
+    "123890": {
+      "head_ref": "origin/fix/cache-concurrency-probe-nameerror",
+      "reviewed_head": "b6c5c1ca4b9463e733f25a9f169ebecc26a8afb0",
+      "base_ref": "upstream/main",
+      "files": {
+        "evals/postmortem/live_ab/cache_concurrency_probe.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "123891": {
+      "head_ref": "origin/fix/process-hermes-home-no-override-fallback",
+      "reviewed_head": "815c833d7920fd91d26a58c212ecbcbc59158322",
+      "base_ref": "upstream/main",
+      "files": {
+        "gateway/lifecycle_ledger.py": {
+          "mode": "hunks"
+        },
+        "gateway/shutdown_watchdog.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "123892": {
+      "head_ref": "origin/fix/shell-hook-script-path-os-sep",
+      "reviewed_head": "b9bb7aa3b1150475c513b2881dfcf0060db17c68",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/shell_hooks.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "123977": {
+      "head_ref": "origin/widen/terminal-command-guard-hook",
+      "reviewed_head": "497a78b05856fece55b85e67ea4d0e88d8e03d02",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/terminal_tool.py": {
+          "mode": "deferred",
+          "reason": "Future approval/plugin dispatch door; fork direct terminal_policy wrapper remains, no carried generic hook."
+        }
+      }
+    },
+    "123978": {
+      "head_ref": "origin/widen/per-call-usage-record",
+      "reviewed_head": "a119e3691162572145978ed88e27819c3d500572",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/codex_runtime.py": {
+          "mode": "deferred",
+          "reason": "Future post_api_request door; fork direct usage-ledger seam is not a copied generic hook."
+        }
+      }
+    },
+    "123979": {
+      "head_ref": "origin/widen/register-toolset",
+      "reviewed_head": "ff5986263a9897868b666bedb29ffc8d6134f41d",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/registry.py": {
+          "mode": "deferred",
+          "reason": "Future register-toolset widening; _toolset_defs and registration API absent; newer plugins_toolsets split not carried."
+        }
+      }
+    },
+    "124190": {
+      "head_ref": "origin/up/store-home-override",
+      "reviewed_head": "5dfd9f30d27c2f7b230006517a10b7aa3275c691",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/auth.py": {
+          "mode": "deferred",
+          "reason": "Future get_store_home hook; fork directly owns profile/provider storage, generic contract not adopted."
+        },
+        "tools/async_delegation.py": {
+          "mode": "deferred",
+          "reason": "Future get_store_home hook; fork directly owns profile/provider storage, generic contract not adopted."
+        },
+        "tools/process_registry.py": {
+          "mode": "deferred",
+          "reason": "Future get_store_home hook; fork directly owns profile/provider storage, generic contract not adopted."
+        }
+      }
+    },
+    "124191": {
+      "head_ref": "origin/up/skills-extra-dirs",
+      "reviewed_head": "f54abc0034373f98268d28e71bb1c218340ce1d6",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/skill_utils.py": {
+          "mode": "deferred",
+          "reason": "Redesigned PR depends on upstream tiered roots/catalog absent from fork; writable shared-root seam retained. Job 2 reviews separately."
+        },
+        "tools/skills_tool.py": {
+          "mode": "deferred",
+          "reason": "Redesigned PR depends on upstream tiered roots/catalog absent from fork; writable shared-root seam retained. Job 2 reviews separately."
+        }
+      }
+    },
+    "124193": {
+      "head_ref": "origin/up/credential-pool-pick-and-rotate",
+      "reviewed_head": "2f2bba6345f12b856a0085a0a0d5b07d991203f7",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/credential_pool.py": {
+          "mode": "deferred",
+          "reason": "Future rotation seam; fork PoolRotationMixin cursor implementation is independent of PR _pick_and_rotate."
+        }
+      }
+    },
+    "124194": {
+      "head_ref": "origin/up/local-runtime-knobs",
+      "reviewed_head": "fd43b6fea3f0ad55082d7785142198e8ece2ab88",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/local_runtime/bootstrap.py": {
+          "mode": "deferred",
+          "reason": "Future local-runtime knobs; fork-owned adapter provides model/executable/preset parallel, PR knobs not copied."
+        },
+        "hermes_cli/local_runtime/presets.py": {
+          "mode": "deferred",
+          "reason": "Future local-runtime knobs; fork-owned adapter provides model/executable/preset parallel, PR knobs not copied."
+        }
+      }
+    },
+    "124195": {
+      "head_ref": "origin/up/public-drain-fd",
+      "reviewed_head": "5b6fe26fb8286bece6302b73ef4ab950ff54a3d5",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/environments/base_output.py": {
+          "mode": "deferred",
+          "reason": "Future public drain_fd; fork subprocess pump is independent recorded implementation."
+        }
+      }
+    },
+    "124210": {
+      "head_ref": "origin/up/persisted-row-hooks",
+      "reviewed_head": "fb0122d52f7950e0954973fa04e981269a55edc2",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/conversation_loop.py": {
+          "mode": "lines",
+          "fragments": [
+            "    reuse_current_user_message: bool = False,",
+            "            reuse_current_user_message=reuse_current_user_message,",
+            "    reuse_current_user_message: bool = False,",
+            "            reuse_current_user_message=reuse_current_user_message,"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        },
+        "agent/session_persistence.py": {
+          "mode": "deferred",
+          "reason": "Generic transform hook not adopted; direct native projector retained."
+        },
+        "agent/turn_context.py": {
+          "mode": "lines",
+          "fragments": [
+            "    *, reuse_current_user_message: bool = False,",
+            "        reuse_current_user_message=reuse_current_user_message,",
+            "    if reuse_current_user_message:\n        current_turn_user_idx = next(",
+            "        if current_turn_user_idx < 0:",
+            "        agent._persist_user_message_idx = len(messages)\n    else:\n        append_message(messages, user_msg)\n        current_turn_user_idx = len(messages) - 1\n        agent._persist_user_message_idx = current_turn_user_idx"
+          ],
+          "reason": "Reviewed reuse threading/durable persist anchor; fork nested display guards and native-specific error retained."
+        },
+        "agent/turn_facade.py": {
+          "mode": "lines",
+          "fragments": [
+            "        reuse_current_user_message: bool = False,",
+            "                        reuse_current_user_message=reuse_current_user_message,"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        },
+        "tools/mcp_tool_config.py": {
+          "mode": "deferred",
+          "reason": "Generic machine-root hook not adopted; fork direct runtime environment implementation retained."
+        },
+        "tools/mcp_tool_transport.py": {
+          "mode": "deferred",
+          "reason": "Generic runtime transform hook not adopted; direct runtime_env/progress/job-wake seam retained."
+        }
+      }
+    },
+    "125259": {
+      "head_ref": "origin/fix/readonly-config-reads",
+      "reviewed_head": "73e9a775a41196f72e6c411206e6ece5fb53c85b",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/config.py": {
+          "mode": "lines",
+          "fragments": [
+            "def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[str, Any]:",
+            "        # ``ensure_home=False`` is the read-only contract: loading config to\n        # LOOK at it must not scaffold the home directory tree (mkdirs +\n        # SOUL.md). Everything below already tolerates an absent home \u2014 the\n        # config stat handles FileNotFoundError and the cache is in-memory.\n        if ensure_home:\n            ensure_hermes_home()",
+            "                if ensure_home:\n                    from hermes_cli.config_backups import backup_config\n                    backup_config(config_path, \"good\")"
+          ],
+          "reason": "Readonly config optimization shares config object; backup write guard follows PR; independent fork loader paths retained."
+        },
+        "hermes_cli/plugins_discovery.py": {
+          "mode": "hunks"
+        },
+        "plugins/dashboard_auth/_shared.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "125260": {
+      "head_ref": "origin/fix/doctor-call-time-home",
+      "reviewed_head": "238f779fd9a810be7d2fdbd022065970493f77f1",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/doctor.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/doctor_config.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/doctor_platform.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/doctor_state.py": {
+          "mode": "hunks"
+        },
+        "tests/hermes_cli/test_doctor.py": {
+          "mode": "lines",
+          "fragments": [
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))",
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))",
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
+            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        }
+      }
+    },
+    "125261": {
+      "head_ref": "origin/fix/win-runtime-fixes",
+      "reviewed_head": "5c6e33a665ab9b3b13deb08961d1e6a554b9620f",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/environments/local.py": {
+          "mode": "lines",
+          "fragments": [
+            "\n\ndef _windows_system_path_dirs() -> \"list[str]\":\n    \"\"\"Windows dirs that host the native command tooling the agent may shell\n    out to from its bash terminal \u2014 ``cmd.exe``, ``powershell.exe`` (Windows\n    PowerShell 5.1), ``pwsh.exe`` (PowerShell 7), ``ssh``/``curl``, etc.\n\n    The agent's ``terminal`` runs through Git Bash; from there it reaches\n    Windows-native tooling by invoking these executables directly (e.g.\n    ``powershell.exe -NoProfile -Command ...``).  A gateway launched with a\n    minimal/sanitised PATH (service manager, restricted parent env) may not\n    carry these, so we append the ones that exist to the subprocess PATH \u2014\n    append-only, so a healthy native PATH keeps its original precedence.\n    \"\"\"\n    system_root = os.environ.get(\"SystemRoot\") or os.environ.get(\"windir\") or r\"C:\\Windows\"\n    system32 = os.path.join(system_root, \"System32\")\n    candidates = [\n        system32,\n        system_root,\n        os.path.join(system32, \"Wbem\"),  # wmic and friends\n        os.path.join(system32, \"WindowsPowerShell\", \"v1.0\"),  # powershell.exe\n        os.path.join(system32, \"OpenSSH\"),  # ssh/scp\n    ]\n    # PowerShell 7 (pwsh) installs outside System32.\n    for base in (\n        os.environ.get(\"ProgramFiles\", r\"C:\\Program Files\"),\n        os.environ.get(\"ProgramW6432\"),\n        os.environ.get(\"ProgramFiles(x86)\"),\n    ):\n        if base:\n            candidates.append(os.path.join(base, \"PowerShell\", \"7\"))\n    seen: set[str] = set()\n    dirs: list[str] = []\n    for candidate in candidates:\n        if not candidate:\n            continue\n        key = os.path.normcase(candidate)\n        if key in seen:\n            continue\n        seen.add(key)\n        if os.path.isdir(candidate):\n            dirs.append(candidate)\n    return dirs\n\n\ndef _augment_windows_system_path(existing_path: str) -> str:\n    \"\"\"Append missing Windows system tooling dirs to ``existing_path``.\n\n    Preserves the caller PATH verbatim (order + entries) and only appends the\n    system dirs from :func:`_windows_system_path_dirs` that aren't already\n    present (case-insensitive, separator-tolerant). No-op off Windows.\n    \"\"\"\n    if not _IS_WINDOWS:\n        return existing_path\n    entries = (\n        [e for e in existing_path.split(_WINDOWS_PATH_SEP) if e]\n        if existing_path\n        else []\n    )\n    present = {os.path.normcase(e.rstrip(\"\\\\/\")) for e in entries}\n    for directory in _windows_system_path_dirs():\n        if os.path.normcase(directory.rstrip(\"\\\\/\")) not in present:\n            entries.append(directory)\n    return _WINDOWS_PATH_SEP.join(entries)\n\n_WINDOWS_PATH_SEP = \";\""
+          ],
+          "reason": "Windows PATH augmentation pipeline equivalent with multiline lambda formatting; independent workspace and durable process seams retained."
+        },
+        "tools/process_registry.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "125262": {
+      "head_ref": "origin/fix/win-path-identity",
+      "reviewed_head": "d980890227debd9f672289c80f20bc7d3b1fd211",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/approval_detection.py": {
+          "mode": "hunks"
+        },
+        "tools/browser_tool_lifecycle.py": {
+          "mode": "hunks"
+        },
+        "tools/code_execution_env.py": {
+          "mode": "hunks"
+        },
+        "tools/terminal_tool_result.py": {
+          "mode": "hunks"
+        },
+        "tools/tts_tool_delivery.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "125263": {
+      "head_ref": "origin/fix/test-runner",
+      "reviewed_head": "a30866858c9f21d8b37cd32a1dbaa42d4fb34c53",
+      "base_ref": "upstream/main",
+      "files": {
+        "scripts/run_tests.sh": {
+          "mode": "lines",
+          "fragments": [
+            "RUNNER_PATH=\"$SCRIPT_DIR/run_tests_parallel.py\"\nif command -v cygpath >/dev/null 2>&1 && [[ \"$PYTHON\" == *.exe ]]; then\n  RUNNER_PATH=\"$(cygpath -w \"$RUNNER_PATH\")\"\nelif [[ \"$PYTHON\" == *.exe && \"$RUNNER_PATH\" =~ ^/mnt/([A-Za-z])/(.*)$ ]]; then\n  drive=\"${BASH_REMATCH[1]^^}\"\n  rest=\"${BASH_REMATCH[2]//\\//\\\\}\"\n  RUNNER_PATH=\"${drive}:\\\\${rest}\"\nfi",
+            "  \"$PYTHON\" \"$RUNNER_PATH\" \"$@\""
+          ],
+          "reason": "Reviewed conservative jobs, timeout formatting/retry and probe rooting; fork coverage/console isolation and docstring wrapping retained."
+        },
+        "scripts/run_tests_parallel.py": {
+          "mode": "lines",
+          "fragments": [
+            "subprocess per file, with bounded parallelism (default: ``min(os.cpu_count(), 8)``).",
+            "    HERMES_TEST_WORKERS  Override worker count (default: min(os.cpu_count(), 8))",
+            "        if _is_retryable_timeout_result(rc, output, summary):\n            break",
+            "        output = _format_timeout_output(output, file_timeout)",
+            "        output = (output or \"\") + \"\\n\"",
+            "\n_DEFAULT_MAX_WORKERS = 8",
+            "\n\ndef _adaptive_default_jobs(cpu_count: int | None) -> int:\n    \"\"\"Choose a conservative automatic worker count for import-heavy tests.\"\"\"\n    return min(cpu_count or 4, _DEFAULT_MAX_WORKERS)\n\n\ndef _format_timeout_output(output: str | None, file_timeout: float) -> str:\n    \"\"\"Render a timeout result even when ``communicate()`` returned ``None``.\"\"\"\n    captured = output or \"(captured output unavailable)\"\n    return (\n        f\"(timed out after {file_timeout:.0f}s; process tree terminated)\\n\"\n        f\"{captured}\"\n    )\n\n\ndef _is_retryable_timeout_result(\n    rc: int,\n    output: str,\n    summary: dict[str, int],\n) -> bool:\n    \"\"\"Return true only for a nonzero, timeout-shaped result without failures.\"\"\"\n    if rc == 0 or summary.get(\"failed\", 0) > 0:\n        return False\n    lowered = output.lower()\n    return rc == 124 or bool(re.search(r\"(?m)^\\++ Timeout \\++$\", output)) or lowered.startswith(\"(timed out after\")\n",
+            "        default=int(os.environ.get(\"HERMES_TEST_WORKERS\") or _adaptive_default_jobs(os.cpu_count())),\n        help=\"Parallel worker count (default: $HERMES_TEST_WORKERS or min(cpu_count, 8))\",",
+            "    jobs_was_explicit = any(\n        token == \"-j\"\n        or token.startswith(\"-j\")\n        or token == \"--jobs\"\n        or token.startswith(\"--jobs=\")\n        for token in our_args\n    )\n    if not jobs_was_explicit and not os.environ.get(\"HERMES_TEST_WORKERS\"):\n        print(\n            \"Adaptive worker default: \"\n            f\"cpu_count={os.cpu_count() or 4}, \"\n            f\"cap={_DEFAULT_MAX_WORKERS}, selected={args.jobs}\",\n            flush=True,\n        )\n",
+            "    # Duration cache for the timeout scaler: known-slow files get\n    # proportional headroom instead of a false timeout-kill under CI load\n    # (see _effective_file_timeout). Read once, before the pool, because the\n    # isolation retry below must grant the same bound the pool did.\n    timeout_durations = _load_durations(repo_root)",
+            "    # A file can trip pytest-timeout only because eight import-heavy subprocesses\n    # are contending at once. Retry timeout-shaped nonzero results exactly once,\n    # serially, after the pool drains. Assertion failures are never retried.\n    retryable = [\n        (file, output, summary)\n        for file, output, summary in failures\n        if _is_retryable_timeout_result(1, output, summary)\n    ]\n    if retryable:\n        print()\n        print(\n            f\"Retrying {len(retryable)} timeout-affected file\"\n            f\"{'s' if len(retryable) != 1 else ''} at 1-worker isolation \"\n            \"(single bounded retry):\",\n            flush=True,\n        )\n    for file, original_output, original_summary in retryable:\n        print(f\"  RETRY {_format_file(file, repo_root)}\", flush=True)\n        fpath, rc, output, summary, subproc_wall = _run_one_file(\n            file,\n            pytest_passthrough,\n            repo_root,\n            # Never tighter than the contended pool attempt it exists to rescue.\n            _effective_file_timeout(file, repo_root, args.file_timeout, timeout_durations),\n            # retries=0 on purpose: this IS the retry. The in-pool flake retry\n            # must not stack on top of the isolation re-run.\n            0,\n        )\n        file_times.append((fpath, subproc_wall))\n        failures.remove((file, original_output, original_summary))\n        fail_count -= 1\n        tests_passed += summary.get(\"passed\", 0)\n        tests_failed += summary.get(\"failed\", 0)\n        tests_skipped += summary.get(\"skipped\", 0)\n        # The straggler's outcomes count toward collection exactly as the\n        # pool's do. Without this the nothing-ran guard below can only ever see",
+            "        # as _on_done, for the same reason: an all-skipped platform-gated file\n        # DID collect.\n        tests_collected += sum(\n            summary.get(key, 0)\n            for key in (\"passed\", \"failed\", \"skipped\", \"errors\", \"xfailed\", \"xpassed\")\n        )\n        if rc == 0:\n            pass_count += 1\n            print(\n                f\"  RETRY PASS {_format_file(fpath, repo_root)} \"\n                f\"({subproc_wall:.1f}s at 1 worker)\",\n                flush=True,\n            )\n        else:\n            fail_count += 1\n            failures.append((fpath, output, summary))\n            print(\n                f\"  RETRY FAIL {_format_file(fpath, repo_root)} \"\n                f\"(exit {rc}, {subproc_wall:.1f}s at 1 worker)\",\n                flush=True,\n            )"
+          ],
+          "reason": "Reviewed conservative jobs, timeout formatting/retry and probe rooting; fork coverage/console isolation and docstring wrapping retained."
+        },
+        "tests/scripts/test_run_tests_parallel.py": {
+          "mode": "lines",
+          "fragments": [
+            "    (probe_dir / \"pytest.ini\").write_text(\"[pytest]\\n\", encoding=\"utf-8\")",
+            "    _root_the_probe(probe_dir)",
+            "def _root_the_probe(directory: Path) -> Path:\n    \"\"\"Give a probe tree its own ``pytest.ini``, and return the directory.\n\n    Without one, the inner pytest finds no ini file at or above the probe \u2014\n    ``tmp_path`` is under the system temp, which has none \u2014 and its rootdir\n    falls back ABOVE the probe. The collection tree is then rooted over the",
+            "    ``python -m pytest --collect-only <probe>`` cost 58.5 s and died with\n    ``FileNotFoundError`` on a sibling temp dir that vanished underneath the\n    walk, against 1.0 s with this file present. That is why this test FILE\n    could not finish inside its own budget \u2014 one inner invocation cost more\n    than the repo-wide per-test cap, so the file timed out at 8 workers and\n    passed only on the runner's 1-worker retry (185.8 s total, 111.8 s of it\n    the retry).\n\n    An empty ``[pytest]`` section is the entire content: what is wanted is a\n    rootdir anchor, not configuration. The probe deliberately does not inherit\n    this repo's ``addopts`` \u2014 it is a couple of trivial asserts, and the bound\n    that matters to it is the runner's own ``--file-timeout``.\n    \"\"\"\n\n    (directory / \"pytest.ini\").write_text(\"[pytest]\\n\", encoding=\"utf-8\")\n    return directory\n",
+            "    return _root_the_probe(probe_dir)",
+            "    # This probe is a bare file rather than a directory, so `tmp_path` itself is\n    # what the inner pytest has to root on.\n    probe = _root_the_probe(tmp_path) / \"test_flaky_probe.py\"",
+            "        encoding=\"utf-8\",\n        errors=\"replace\",",
+            "def test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips(tmp_path: Path) -> None:\n    \"\"\"The 1-worker retry gets the pool's scaled bound, and its skips are counted.\n\n    The cached 10 s duration scales the 2 s flat cap to 30 s.\n    The first (pool) attempt hangs and is killed at 30 s; the retry sleeps 3 s\n    (about 15 s of wall with interpreter start on a busy Windows box), which the\n    30 s bound survives and the 2 s flat cap cannot, and it skips one test.\n    \"\"\"\n    repo_root = _probe_root(tmp_path)\n    (repo_root / \"tests\").mkdir()\n    tests_dir = _root_the_probe(repo_root / \"tests\")\n    probe = tests_dir / \"test_straggler_probe.py\"\n    marker = tmp_path / \"first-attempt\"\n    probe.write_text(\n        textwrap.dedent(\n            f\"\"\"\n            import time\n            from pathlib import Path\n            import pytest\n\n            def test_straggler():\n                marker = Path({str(marker)!r})\n                if not marker.exists():\n                    marker.write_text(\"hung once\")\n                    time.sleep(120)\n                time.sleep(3)\n\n            @pytest.mark.skip(reason=\"counted by the retry\")\n            def test_skipped():\n                pass\n            \"\"\"\n        ),\n        encoding=\"utf-8\",\n    )\n    (repo_root / \"test_durations.json\").write_text(\n        json.dumps({str(Path(\"tests\") / probe.name): 10.0}), encoding=\"utf-8\"\n    )\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         \"--files\", str(probe), \"--file-timeout\", \"2\", \"--file-retries\", \"0\", \"-j\", \"1\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        encoding=\"utf-8\", errors=\"replace\", timeout=170,\n    )\n    assert marker.exists(), proc.stdout  # the pool attempt really ran first\n    assert \"RETRY PASS\" in proc.stdout, proc.stdout\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 skipped\" in proc.stdout, proc.stdout\n\n\ndef test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:\n    \"\"\"``file.py::test_alpha`` runs that test instead of discovering nothing.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60,\n    )\n    assert proc.returncode == 0, proc.stdout\n    assert \"No test files to run\" not in proc.stdout\n    assert \"node id\" in proc.stdout  # explains the translation\n    # Ran exactly the one selected test, not both in the file.\n    assert \"1 tests passed\" in proc.stdout\n\n\ndef test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:\n    \"\"\"A caller's own ``-k`` is not overridden by the node-id translation.\"\"\"\n    probe_dir = _make_probe_dir(tmp_path)\n    target = probe_dir / \"test_flagprobe.py\"\n    repo_root = Path(__file__).resolve().parent.parent.parent\n    proc = subprocess.run(\n        [sys.executable, str(repo_root / \"scripts\" / \"run_tests_parallel.py\"),\n         f\"{target}::test_alpha\", \"-k\", \"test_beta\",\n         \"-j\", \"1\", \"--file-timeout\", \"30\"],\n        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,\n        # Decode as UTF-8 like the runner emits (see _run_runner's note);\n        # text=True alone uses the locale codec and blows up on cp1252.\n        encoding=\"utf-8\", errors=\"replace\", timeout=60,\n    )\n    # -k test_beta wins: one test ran, and it wasn't filtered to nothing.\n    assert proc.returncode == 0, proc.stdout\n    assert \"1 tests passed\" in proc.stdout"
+          ],
+          "reason": "Reviewed conservative jobs, timeout formatting/retry and probe rooting; fork coverage/console isolation and docstring wrapping retained."
+        }
+      }
+    },
+    "125264": {
+      "head_ref": "origin/fix/media-path-hardening",
+      "reviewed_head": "e59e49cf9d3dd6ea88ba75156589658561b5ecea",
+      "base_ref": "upstream/main",
+      "files": {
+        "gateway/platforms/base.py": {
+          "mode": "lines",
+          "fragments": [
+            "from hermes_constants import get_default_hermes_root, get_hermes_dir, get_hermes_home, get_real_home",
+            "    # The native home (USERPROFILE on Windows), an operator ``$HOME`` that differs from it, AND the\n    # OS account's real home: a re-homed child (``HOME={HERMES_HOME}/home``) keeps the account home\n    # only in ``HERMES_REAL_HOME``, where ``~`` and ``$HOME`` both name the profile home.\n    real_home = _or_default(get_real_home, \"\", exc=(OSError, RuntimeError, ValueError))\n    homes = dict.fromkeys(Path(h) for h in (os.path.expanduser(\"~\"), os.environ.get(\"HOME\"), real_home) if h)",
+            "            *(home / sub for home in homes for sub in _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS),",
+            "    r'''(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\\.(?:\\s|$)|$|'''\n    # An escaped ``\\n`` / ``\\r`` / ``\\t`` (or a run of them) glued to the path ends it only when a\n    # real boundary follows the letter. Otherwise the backslash is a separator: in\n    # ``C:\\out\\a.png\\notes\\README`` or ``C:\\out\\album.png\\photo.jpg``, ``a.png`` is a directory.\n    r'''(?:\\\\[nrt])+(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''\n    r'''[`\"'*_]{0,3}\\.?''',",
+            "        dropped_nul = False",
+            "            nonlocal dropped_nul\n            if \"\\x00\" in path:\n                dropped_nul = True  # never delivered, but its tag still leaves the caption\n                return",
+            "        if media or dropped_nul:"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        }
+      }
+    },
+    "125265": {
+      "head_ref": "origin/fix/updater-fork-history",
+      "reviewed_head": "857f6bb83b1652b3b17de338acd165e7cb97c76a",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/update_cmd.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/update_inventory.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "128648": {
+      "head_ref": "origin/feat/plugin-cli-commands",
+      "reviewed_head": "9e86d299b2d88daedb8a7190ad04fff4dfadb095",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/main.py": {
+          "mode": "lines",
+          "fragments": [
+            "def _builtin_verb_subparsers(subparsers, parent: str):\n    \"\"\"The sub-verb action of built-in command ``parent`` (``auth`` \u2192 its ``add``/``list``/...), or None.\"\"\"\n    parent_parser = subparsers.choices.get(parent) if parent in _BUILTIN_SUBCOMMANDS else None\n    actions = getattr(parent_parser, \"_actions\", ())\n    return next((a for a in actions if isinstance(a, argparse._SubParsersAction)), None)\n\n",
+            "    \"\"\"Register one plugin-provided command from its descriptor: top-level, or under the built-in\n    named by ``cmd_info[\"parent\"]``.\"\"\"\n    if cmd_info.get(\"parent\"):\n        subparsers = _builtin_verb_subparsers(subparsers, cmd_info[\"parent\"])\n        if subparsers is None:\n            raise ValueError(f\"CLI command parent {cmd_info['parent']!r} is not a built-in command with sub-verbs\")",
+            "def _declared_cli_command_argv(subparsers) -> str | None:\n    \"\"\"The ``cli_command_key`` argv could name as a manifest-declared plugin command, else None: an\n    unknown first token (``hermes <verb>``) or an unknown sub-verb of a built-in (``hermes auth\n    <verb>``). Known built-in verbs return None and pay nothing.\"\"\"\n    from hermes_cli._parser import command_argv\n\n    args = command_argv(sys.argv[1:])\n    if not args:\n        return None\n    if args[0] not in _BUILTIN_SUBCOMMANDS:\n        return args[0]\n    verbs = _builtin_verb_subparsers(subparsers, args[0])\n    if verbs is None or len(args) < 2 or args[1] in verbs.choices:\n        return None\n    return f\"{args[0]} {args[1]}\"\n\n\ndef _attach_declared_plugin_cli_command(subparsers, key: str) -> bool:\n    \"\"\"Attach the ``plugin.yaml``-declared command spelled ``key``, importing only its plugin.\n\n    Found by reading manifests, never by importing plugins; ``key`` comes from\n    :func:`_declared_cli_command_argv`, so it never shadows a built-in. False when nothing declares\n    ``key`` or it failed to attach.\n    \"\"\"\n    log = logging.getLogger(__name__)\n    try:\n        from hermes_cli.plugins import cli_command_key, discover_declared_cli_commands\n\n        commands = discover_declared_cli_commands()\n    except Exception as exc:\n        log.warning(\"Declared plugin CLI scan failed: %s\", exc)\n        return False\n    for cmd_info in commands:\n        if cli_command_key(cmd_info[\"name\"], cmd_info[\"parent\"]) != key:\n            continue\n        try:\n            _attach_plugin_cli_command(subparsers, cmd_info)\n        except Exception as exc:\n            log.warning(\"Plugin CLI command %r failed to attach: %s\", key, exc)\n            return False\n        return True\n    return False\n\n",
+            "    \"\"\"Register plugin-provided commands (each plugin builds its own argparse tree).",
+            "    A manifest-declared command named by argv attaches first and imports only its own plugin.\n    Full discovery is skipped when the invocation targets a known built-in or a declared command\n    \u2014 eagerly importing every bundled plugin module costs 500-650ms.",
+            "    key = _declared_cli_command_argv(subparsers)\n    if key is not None and _attach_declared_plugin_cli_command(subparsers, key):\n        return",
+            "        from hermes_cli.plugins import cli_command_key, discover_plugins, get_plugin_manager",
+            "            if cli_command_key(cmd_info[\"name\"], cmd_info.get(\"parent\")) not in seen_plugin_commands:",
+            "    # Last, so a plugin command can attach under any built-in (``parent=``).\n    _register_plugin_cli_commands(subparsers)"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        },
+        "hermes_cli/plugins.py": {
+          "mode": "lines",
+          "fragments": [
+            "        description: str = \"\", parent: str | None = None,",
+            "        subparser; *handler_fn* becomes ``set_defaults(func=...)``.\n\n        *parent* attaches it under a built-in command instead (``hermes <parent> <name> ...``).\n        Built-in commands skip plugin discovery, so a parented command is reachable only when\n        ``plugin.yaml`` also declares it (``cli_commands: [{name, parent}]``).\"\"\"",
+            "            \"parent\": parent or None,",
+            "        key = cli_command_key(name, parent)\n        return self._register_entry(\"cli_command\", key, self._manager._cli_commands, entry,\n                                    \"Plugin %s registered CLI command: %s\", key)",
+            "def cli_command_key(name: str, parent: str | None = None) -> str:\n    \"\"\"``PluginManager._cli_commands`` key: the argv spelling, ``\"<parent> <name>\"`` or ``\"<name>\"``.\"\"\"\n    return f\"{parent} {name}\" if parent else name\n\n",
+            "    manager = get_plugin_manager()",
+            "        manager._load_plugin(manifest)",
+            "\n\ndef discover_declared_cli_commands() -> List[Dict[str, Any]]:\n    \"\"\"CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.\n\n    One ``register_cli_command``-shaped descriptor per row, for every directory manifest discovery\n    would load (same precedence and enable gate; ``HERMES_SAFE_MODE`` yields nothing). Each\n    ``setup_fn`` materialises only its own plugin, so running a declared command costs one plugin\n    import instead of :func:`discover_plugins`. Entry-point plugins have no manifest to read and\n    keep the discovery path.\n    \"\"\"\n    if _env_enabled(\"HERMES_SAFE_MODE\"):\n        return []\n    winners = {manifest_key(m): m for m in collect_directory_manifests()}",
+            "    commands: List[Dict[str, Any]] = []\n    for plugin_key, manifest in winners.items():\n        if gate_manifest(manifest, disabled, enabled).action not in (\"load\", \"load_now\"):\n            continue\n        for row in manifest.cli_commands:\n            key = cli_command_key(row[\"name\"], row[\"parent\"])\n            commands.append({\n                **row, \"parent\": row[\"parent\"] or None, \"help\": row[\"help\"] or manifest.description or \"\",\n                \"handler_fn\": None, \"plugin\": manifest.name, \"plugin_key\": plugin_key,\n                \"setup_fn\": lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser),\n            })\n    return commands\n"
+          ],
+          "reason": "Reviewed parented CLI descriptors and registration; fork readonly config, transient unload and extracted parser independently retained."
+        },
+        "hermes_cli/plugins_manifest.py": {
+          "mode": "lines",
+          "fork_path": "hermes_cli/plugins_manifest_cli_commands.py",
+          "fragments": [
+            "_CLI_COMMAND_NAME_RE = re.compile(r\"[a-z0-9][a-z0-9_-]{0,63}\")\n\n",
+            "    \"\"\"``{name, help, description, parent}`` from a cli_commands item; None when a name is invalid.\n\n    ``parent`` names a built-in command the verb attaches under (``hermes <parent> <name>``); empty\n    for a top-level ``hermes <name>``.\n    \"\"\"\n    if not isinstance(item, Mapping):\n        return None\n    name, parent = item.get(\"name\"), item.get(\"parent\") or \"\"\n    if not all(isinstance(v, str) and _CLI_COMMAND_NAME_RE.fullmatch(v) for v in (name, parent or \"x\")):\n        return None\n    return {\"name\": name, \"help\": str(item.get(\"help\") or \"\"),\n            \"description\": str(item.get(\"description\") or \"\"), \"parent\": parent}\n\n"
+          ],
+          "reason": "Reviewed name/parent validation and returned descriptor moved into fork-owned cli_command_entry; facade metadata/field wiring independently retained."
+        }
+      }
+    },
+    "128650": {
+      "head_ref": "origin/fix/pet-atlas-extraction",
+      "reviewed_head": "da0ccd09bbc2814e231dc5b958b29faff245dea1",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/pet/generate/atlas.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "128651": {
+      "head_ref": "origin/fix/memory-plugin-publish-module",
+      "reviewed_head": "c951d6051dc23aa8656393dfe9772c8251a011fe",
+      "base_ref": "upstream/main",
+      "files": {
+        "plugins/memory/__init__.py": {
+          "mode": "lines",
+          "fragments": [
+            {
+              "text": "            _publish_module(module_name, cli_mod)",
+              "replacements": {
+                "_publish_module": "publish_module"
+              }
+            },
+            {
+              "text": "                _unpublish_module(module_name)",
+              "replacements": {
+                "_unpublish_module": "unpublish_module"
+              }
+            },
+            "            try:\n                spec.loader.exec_module(cli_mod)\n            except Exception:",
+            "                raise",
+            {
+              "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 \u2014 a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
+              "fork_path": "plugins/memory/_module_publish.py"
+            },
+            {
+              "text": "    sys.modules.pop(full_name, None)\n    parent_name, _, child = full_name.rpartition(\".\")\n    parent = sys.modules.get(parent_name) if parent_name else None\n    if parent is None:\n        return\n    try:\n        delattr(parent, child)\n    except AttributeError:\n        pass",
+              "fork_path": "plugins/memory/_module_publish.py"
+            }
+          ],
+          "reason": "Exact publish/rollback calls with reviewed _publish_module/_unpublish_module identifier mapping, plus both helper bodies in fork-owned _module_publish.py; differing docstrings omitted."
+        }
+      }
+    },
+    "128652": {
+      "head_ref": "origin/fix/state-db-small-fixes",
+      "reviewed_head": "5125ad8683854fcc77dc69c0877a06f9010053e8",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_state_messages.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "128653": {
+      "head_ref": "origin/feat/plugin-session-info-tool-names",
+      "reviewed_head": "eea3343908d1534f306e54fe2de1d554e452e636",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/system_prompt.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "128654": {
+      "head_ref": "origin/refactor/oauth-flow-catalog",
+      "reviewed_head": "b1209f4ca45be109bb1021ab261f8f9382703132",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/web_routers/oauth.py": {
+          "mode": "lines",
+          "fragments": [
+            "    explicitly in tests; do not fake ``sys.platform``. The one authority is",
+            "    return disconnect_command_for(provider.get(\"id\", \"\"), provider.get(\"flow\", \"\"), platform)"
+          ],
+          "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
+        },
+        "hermes_cli/web_server_oauth.py": {
+          "mode": "lines",
+          "fragments": [
+            "_OAUTH_STATUS_FNS = {\n    \"copilot-acp\": _copilot_acp_status,\n    \"anthropic\": _anthropic_oauth_status,\n    \"claude-code\": _claude_code_only_status,\n}\n_OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = tuple(\n    {**row, \"status_fn\": _OAUTH_STATUS_FNS.get(row[\"id\"])} for row in OAUTH_FLOW_OVERRIDES"
+          ],
+          "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
+        }
+      }
+    },
+    "128840": {
+      "head_ref": "origin/fix/bytecode-sweep-lock",
+      "reviewed_head": "bbf8384d28aab7d2d00ea3389bf04a843fcb3b58",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/main_web_build.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "128841": {
+      "head_ref": "origin/fix/tool-registry-probe-cache",
+      "reviewed_head": "2f5249dbb6ae69f647a6811da8aed50f239bcf2d",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/registry.py": {
+          "mode": "lines",
+          "fragments": [
+            "_CHECK_FN_GRACE_REPROBE_SECONDS = 5.0",
+            "        (_check_fn_cache, 0.0, lambda v: v[2]),",
+            "            _check_fn_cache[cache_key] = (now, True, now + _CHECK_FN_TTL_SECONDS)",
+            "            _check_fn_cache[cache_key] = (now, True, min(\n                now + _CHECK_FN_GRACE_REPROBE_SECONDS,\n                last_good + _CHECK_FN_FAILURE_GRACE_SECONDS))",
+            "        _check_fn_cache[cache_key] = (now, False, now + _CHECK_FN_TTL_SECONDS)",
+            "    return cached[1] if cached is not None and now < cached[2] else None"
+          ],
+          "reason": "Reviewed tuple expiry/grace policy; fork _note_check_fn_probe instrumentation and comment formatting retained."
+        }
+      }
+    },
+    "128843": {
+      "head_ref": "origin/feat/config-switch-keys",
+      "reviewed_head": "146667c267fa147da43e226d872a70d112530ae0",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/tool_dispatch_helpers.py": {
+          "mode": "deferred",
+          "reason": "Ledger explicitly identifies caller as follow-up outside this PR; no current PR delta."
+        },
+        "gateway/run_adapters.py": {
+          "mode": "lines",
+          "fragments": [
+            "\n\ndef platform_adapters_allowed() -> bool:\n    \"\"\"Config ``gateway.platform_adapters`` (default on): may the messaging gateway start platform\n    adapters (Telegram, Discord, Slack, ...)? A distribution without messaging (an embedded desktop\n    host) turns it off. An unreadable config keeps today's behaviour (on).\"\"\"\n    from hermes_cli.config_switches import config_switch\n\n    return config_switch(\"gateway\", \"platform_adapters\")\n\n",
+            "        adapters can resolve inbound profile routes before handlers or connect()). None while\n        config ``gateway.platform_adapters`` is false: no platform starts, configured or not.\"\"\"\n        if not platform_adapters_allowed():\n            logger.warning(\"Platform '%s' not started: platform adapters are switched off \"\n                           \"(gateway.platform_adapters: false)\", platform.value)\n            return None"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        },
+        "hermes_cli/cli_voice_mixin.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/config.py": {
+          "mode": "lines",
+          "pr_path": "hermes_cli/config_switches.py",
+          "fork_path": "hermes_cli/config_switches.py",
+          "fragments": [
+            "\"\"\"``config_switch``: the one boolean reader behind the switches a distribution turns off.\"\"\"\n\nfrom __future__ import annotations\n\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef config_switch(*keys: str, default: bool = True) -> bool:\n    \"\"\"A boolean feature switch at ``keys`` in the cached merged config (``load_config_readonly``).\n\n    The one reader behind the switches a distribution turns off (``mcp.client``,\n    ``mcp.stdio_servers``, ``terminal.external_backends``, ``gateway.platform_adapters``,\n    ``voice.mode_enabled``, ``sessions.git_probe``): absent, ``null`` or an unreadable config is\n    ``default`` (today's behaviour), a truthy word is on, anything else is off. Never raises.\"\"\"\n    from hermes_cli import config as _config\n    from utils import is_truthy_value\n\n    try:\n        value = _config.cfg_get(_config.load_config_readonly(), *keys, default=default)\n    except Exception:  # health: allow BLE001 -- a switch never raises; an unreadable config is the default\n        logger.debug(\"config_switch %s: config unreadable; using default=%s\", \".\".join(keys), default,\n                     exc_info=True)\n        return default\n    return is_truthy_value(value, default=default)"
+          ],
+          "reason": "PR extracted config_switch into config_switches.py; ledger facade row maps to its moved implementation."
+        },
+        "hermes_cli/mcp_startup.py": {
+          "mode": "deferred",
+          "reason": "Current PR has no mcp_startup.py delta; fork switch consumer is independently carried follow-up, outside the PR source patch."
+        },
+        "hermes_cli/web_server_config.py": {
+          "mode": "lines",
+          "fragments": [
+            "def _wake_word_providers() -> Tuple[str, ...]:\n    \"\"\"The wake engines ``tools.wake_word`` prefers, imported lazily: a distribution that does not\n    package wake word (``voice.mode_enabled: false``) still loads the config schema, offering only\n    ``auto``.\"\"\"\n    try:\n        from tools.wake_word import _PROVIDER_PREFERENCE\n    except ImportError:\n        return ()\n    return tuple(_PROVIDER_PREFERENCE)\n\n",
+            "        \"auto\", *_wake_word_providers(),"
+          ],
+          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+        },
+        "tools/mcp_tool_common.py": {
+          "mode": "hunks"
+        },
+        "tools/terminal_tool_backends.py": {
+          "mode": "hunks"
+        },
+        "tui_gateway/git_probe.py": {
+          "mode": "hunks"
+        },
+        "tui_gateway/methods_voice.py": {
+          "mode": "hunks"
+        },
+        "hermes_cli/config_switches.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "129412": {
+      "head_ref": "origin/fix/process-identity-psutil-guard",
+      "reviewed_head": "1c69dcdb799ca4ee053474ef8ddebfc0085aa9e7",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/process_identity.py": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "129413": {
+      "head_ref": "origin/refactor/bootstrap-relaunch-in-venv-sync",
+      "reviewed_head": "1f18a33a351b72f4624429f644fd6c83049e5f9e",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_bootstrap.py": {
+          "mode": "deferred",
+          "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained. No exact added fragment survives adapter spelling; semantic coverage is in targeted importing tests."
+        },
+        "hermes_cli/venv_sync.py": {
+          "mode": "lines",
+          "fragments": [
+            "    \"\"\"The launch's relaunch step, run by ``hermes_bootstrap`` before dependency activation.\n\n    Finishes a pending source update and re-enters the managed interpreter when this one is",
+            "    \"\"\"\n    import sys\n",
+            "    from pm.environments import install_state_permission_message\n\n    try:\n        launch_python = prepare_launch(root, sys.argv[1:])\n        if launch_python is not None:",
+            "    except Exception as exc:\n        if isinstance(exc, PermissionError) and (message := install_state_permission_message(root, exc)):\n            print(f\"hermes: {message}\", file=sys.stderr)\n            raise SystemExit(1) from None\n        # Degrade, never brick the CLI: the previous dependency generation is still selected\n        # (a failed sync commits nothing), so an offline or half-finished update leaves a\n        # usable Hermes plus a warning. Activation after this is the real gate \u2014 a tree whose\n        # dependencies cannot load still exits with the repair remedy.\n        print(f\"hermes: source-update completion failed: {exc}; \"\n              \"running with the previous dependencies \u2014 run `hermes update` to finish it\",\n              file=sys.stderr)"
+          ],
+          "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained."
+        }
+      }
+    },
+    "129414": {
+      "head_ref": "origin/refactor/tui-gateway-methods-pdf",
+      "reviewed_head": "49cc32892e2eb562cda77f07f1b6abbde0631861",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/fixtures/resolution_allowlist.json": {
+          "mode": "hunks"
+        }
+      }
+    },
+    "129582": {
+      "head_ref": "origin/test/live-guard-lazy-children",
+      "reviewed_head": "47028bf43282f6b71aaa51494eb3f6af6a0bb1bb",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/_fixtures/live_system_guard.py": {
+          "mode": "lines",
+          "fragments": [
+            "        _real_process = _psutil.Process\n        _real_children = _psutil.Process.children",
+            "        _real_process = _real_children = None\n",
+            "\n    def _own_children() -> set:",
+            "            except Exception:",
+            "        if pid == test_pid or pid in _own_children():"
+          ],
+          "reason": "Reviewed real Process/children binding; fork console-event refusal and backend-spawn guard retained."
+        }
+      }
+    },
+    "129695": {
+      "head_ref": "origin/widen/mcp",
+      "reviewed_head": "b1405a264407323f7e8df8a050858702b3230645",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/mcp_tool.py": {
+          "mode": "deferred",
+          "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
+        },
+        "tools/mcp_tool_loop.py": {
+          "mode": "deferred",
+          "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
+        },
+        "tools/mcp_tool_registration.py": {
+          "mode": "deferred",
+          "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
+        },
+        "tools/mcp_tool_scope.py": {
+          "mode": "deferred",
+          "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
+        }
+      }
+    },
+    "129698": {
+      "head_ref": "origin/widen/skills",
+      "reviewed_head": "95c0e4c6c10d856adea21ab51d24260e9403b273",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/skills_sync.py": {
+          "mode": "deferred",
+          "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
+        },
+        "tools/skills_tool.py": {
+          "mode": "deferred",
+          "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
+        }
+      }
+    },
+    "129700": {
+      "head_ref": "origin/widen/pet",
+      "reviewed_head": "39ff513cbafcb1b4a7c4bf85acbdbb1d0b9f230e",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/pet/generate/atlas.py": {
+          "mode": "deferred",
+          "reason": "Future pet public-name widening, not adopted; underscore readers remain (distinct from carried atlas fix #128650)."
+        },
+        "agent/pet/generate/prompts.py": {
+          "mode": "deferred",
+          "reason": "Future pet public-name widening, not adopted; underscore readers remain (distinct from carried atlas fix #128650)."
+        }
+      }
+    },
+    "129702": {
+      "head_ref": "origin/widen/text-streaming",
+      "reviewed_head": "002f9ed2a7a25e0d6250c14ebb00eae9b09ba2c1",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/message_sanitization.py": {
+          "mode": "deferred",
+          "reason": "Future text/streaming public-name widening; aliases not adopted, private-reader seam retained."
+        },
+        "agent/turn_api_call.py": {
+          "mode": "deferred",
+          "reason": "Future text/streaming public-name widening; aliases not adopted, private-reader seam retained."
+        }
+      }
+    },
+    "129704": {
+      "head_ref": "origin/widen/codex-cache",
+      "reviewed_head": "712e98ccf7075675978e448d3e0aff42e4d75eb9",
+      "base_ref": "upstream/main",
+      "files": {
+        "agent/transports/codex.py": {
+          "mode": "deferred",
+          "reason": "Future cache public-name widening; private readers retained, public aliases not adopted."
+        }
+      }
+    },
+    "131902": {
+      "head_ref": "origin/widen/terminal",
+      "reviewed_head": "ec1abe3e6e70a1dd9cc2622dc1a55550ce156f1c",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/terminal_tool_guards.py": {
+          "mode": "deferred",
+          "reason": "Future terminal guard public-name widening; not adopted."
+        }
+      }
+    },
+    "131903": {
+      "head_ref": "origin/widen/processes",
+      "reviewed_head": "f5c1f1c87e04601022872473bcb7bc487343307a",
+      "base_ref": "upstream/main",
+      "files": {
+        "tools/process_registry.py": {
+          "mode": "deferred",
+          "reason": "Future public terminate_host_pid widening and new termination-module split; private-reader seam retained."
+        }
+      }
+    },
+    "131904": {
+      "head_ref": "origin/widen/misc",
+      "reviewed_head": "203baca0bccc24880be170e21c56b7826ee5a941",
+      "base_ref": "upstream/main",
+      "files": {
+        "gateway/run.py": {
+          "mode": "deferred",
+          "reason": "Future public sentinel/doctor/profile-reader widening; public aliases not adopted."
+        },
+        "hermes_cli/doctor_report.py": {
+          "mode": "deferred",
+          "reason": "Future public sentinel/doctor/profile-reader widening; public aliases not adopted."
+        },
+        "hermes_cli/profiles.py": {
+          "mode": "deferred",
+          "reason": "Future public sentinel/doctor/profile-reader widening; public aliases not adopted."
+        }
+      }
+    },
+    "131905": {
+      "head_ref": "origin/fix/win-test-lock-sweep-probe",
+      "reviewed_head": "940d8956a302a3a52b4011f086054b35f61a7ec3",
+      "base_ref": "upstream/main",
+      "files": {
+        "tests/conftest.py": {
+          "mode": "hunks"
+        }
+      }
+    }
+  }
+}
