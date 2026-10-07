@@ -900,15 +900,17 @@ def _heal_persisted_nous_inference_urls(store: Dict[str, Any]) -> None:
     for record in records:
         if not isinstance(record, dict):
             continue
-        stored = _optional_base_url(record.get("inference_base_url"))
-        if not stored or _validate_nous_inference_url_from_network(stored):
+        raw_url = record.get("inference_base_url")
+        stored = _validate_nous_inference_url_from_network(
+            _optional_base_url(record.get("inference_base_url")))
+        if not _optional_base_url(raw_url) or stored:
             continue
         healed = _nous_stored_inference_url({**record, "inference_base_url": None})
         # Log the raw rejected value, never a re-parse of it: the validator rejects strings
         # ``urlparse`` raises on (``https://[``), and a raise here would leave them unhealed.
         logger.warning(
             "auth: healing persisted nous inference_base_url %.120r (not allowed) -> %s",
-            stored, healed)
+            raw_url, healed)
         record["inference_base_url"] = healed
 
 

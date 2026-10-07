@@ -31,10 +31,9 @@ def _count_children_walks():
         _WALKS.append(self.pid)
         return real_children(self, *args, **kwargs)
 
-    patch = pytest.MonkeyPatch()
-    patch.setattr(psutil.Process, "children", _counting_children)
-    yield
-    patch.undo()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(psutil.Process, "children", _counting_children)
+        yield
 
 
 @pytest.fixture(autouse=True)
