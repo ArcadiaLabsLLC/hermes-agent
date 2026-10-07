@@ -431,7 +431,7 @@ def _kill_process_tree_windows(proc) -> None:
     (ParentId=null) once the direct child exits, so they must be reached through the tree."""
     try:
         import psutil
-    except ImportError:  # fork: a profile without psutil (the phone) has no process tree to walk
+    except ImportError:  # like every other psutil site here: without psutil there is no tree to walk
         return
 
     try:

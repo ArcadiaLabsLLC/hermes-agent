@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-07 (console live contract audit)
+
+- [ ] **Inline agent-chat target lookup reloads the sender-profile roster, rejecting a known runtime instance whose persona exists only in the base config** · fork / relay target resolution · evidence: `eternia_launcher/docs/mission_control/planned/CONSOLE_LIVE_CONTRACT_AUDIT_2026-10-07.md`, T1; `chat_turn_message._cmd_mission_chat_message`, `config.roster.ensure_persisted_personas` · lane: isolate runtime roster from sender profile, preserve admission guards, prove real inline relay before live thread acceptance · **TAKEN 2026-10-07 Codex console-relay-roster**
+
 ### Filed on arrival — 2026-10-07 (latency source recheck)
 
 

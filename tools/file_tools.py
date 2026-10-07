@@ -176,10 +176,10 @@ def _rewrite_v4a_patch_paths_for_host(patch: str, path_to_resolved: dict, path_t
 def _is_blocked_device_path(path: str) -> bool:
     """Return True for concrete device/fd/proc paths that can hang reads or leak process state."""
     forms = _posix_match_forms(path)
-    normalized = forms[-1]
-    if any(form in _BLOCKED_DEVICE_PATHS for form in forms):
-        return True
-    return normalized.startswith("/proc/") and normalized.endswith(_BLOCKED_PROC_SUFFIXES)
+    return any(
+        form in _BLOCKED_DEVICE_PATHS
+        or (form.startswith("/proc/") and form.endswith(_BLOCKED_PROC_SUFFIXES))
+        for form in forms)
 
 
 def _is_blocked_device(filepath: str, base_dir: str | Path | None = None) -> bool:
@@ -202,6 +202,9 @@ def _is_blocked_device(filepath: str, base_dir: str | Path | None = None) -> boo
             target = os.readlink(current)
         except OSError:
             break
+        # Check rooted targets before Windows drive-relative path joining hides the POSIX form.
+        if _is_blocked_device_path(target):
+            return True
         if not os.path.isabs(target):
             target = os.path.join(os.path.dirname(current), target)
         target = os.path.normpath(target)

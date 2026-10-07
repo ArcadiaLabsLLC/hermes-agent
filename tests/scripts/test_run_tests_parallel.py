@@ -467,6 +467,55 @@ def test_zero_collected_across_run_fails_and_says_so(tmp_path: Path) -> None:
     assert "NOT a pass" in proc.stdout
 
 
+def test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips(tmp_path: Path) -> None:
+    """The 1-worker retry gets the pool's scaled bound, and its skips are counted.
+
+    The cached 10 s duration scales the 2 s flat cap to 30 s.
+    The first (pool) attempt hangs and is killed at 30 s; the retry sleeps 3 s
+    (about 15 s of wall with interpreter start on a busy Windows box), which the
+    30 s bound survives and the 2 s flat cap cannot, and it skips one test.
+    """
+    repo_root = _probe_root(tmp_path)
+    (repo_root / "tests").mkdir()
+    tests_dir = _root_the_probe(repo_root / "tests")
+    probe = tests_dir / "test_straggler_probe.py"
+    marker = tmp_path / "first-attempt"
+    probe.write_text(
+        textwrap.dedent(
+            f"""
+            import time
+            from pathlib import Path
+            import pytest
+
+            def test_straggler():
+                marker = Path({str(marker)!r})
+                if not marker.exists():
+                    marker.write_text("hung once")
+                    time.sleep(120)
+                time.sleep(3)
+
+            @pytest.mark.skip(reason="counted by the retry")
+            def test_skipped():
+                pass
+            """
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "test_durations.json").write_text(
+        json.dumps({str(Path("tests") / probe.name): 10.0}), encoding="utf-8"
+    )
+    proc = subprocess.run(
+        [sys.executable, str(repo_root / "scripts" / "run_tests_parallel.py"),
+         "--files", str(probe), "--file-timeout", "2", "--file-retries", "0", "-j", "1"],
+        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        encoding="utf-8", errors="replace", timeout=170,
+    )
+    assert marker.exists(), proc.stdout  # the pool attempt really ran first
+    assert "RETRY PASS" in proc.stdout, proc.stdout
+    assert proc.returncode == 0, proc.stdout
+    assert "1 skipped" in proc.stdout, proc.stdout
+
+
 def test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:
     """``file.py::test_alpha`` runs that test instead of discovering nothing."""
     probe_dir = _make_probe_dir(tmp_path)

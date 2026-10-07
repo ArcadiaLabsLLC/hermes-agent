@@ -1075,6 +1075,8 @@ def build_turn_context(
         )
         if current_turn_user_idx < 0:
             raise ValueError("reuse_current_user_message requires a native user row")
+        # The reused history is durable; put the persist boundary after its last row.
+        agent._persist_user_message_idx = len(messages)
     else:
         append_message(messages, user_msg)
         current_turn_user_idx = len(messages) - 1

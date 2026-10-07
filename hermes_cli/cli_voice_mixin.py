@@ -476,7 +476,7 @@ class CLIVoiceMixin:
             _cprint(f"{_DIM}{t('cli.voice.already_enabled')}{_RST}")
             return
 
-        from hermes_cli.config import config_switch
+        from hermes_cli.config_switches import config_switch
         if not config_switch("voice", "mode_enabled"):
             _cprint(f"\n{_ACCENT}Voice mode is not available in this Hermes (voice.mode_enabled: false).{_RST}")
             return

@@ -40,7 +40,7 @@ SCHEMA_VERSION = 1
 
 #: Config keys Hermes reads with an in-code default and no DEFAULT_CONFIG entry.
 #: Each names its reader, so the exception is checkable. The distribution switches
-#: (default on = today's behaviour) are read through ``hermes_cli.config.config_switch``
+#: (default on = today's behaviour) are read through ``hermes_cli.config_switches.config_switch``
 #: and live here rather than in upstream's DEFAULT_CONFIG, so the fork adds no lines
 #: to that file.
 KEYS_READ_OUTSIDE_DEFAULTS = {

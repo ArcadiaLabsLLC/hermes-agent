@@ -20,8 +20,8 @@ def test_setup_hermes_script_is_valid_shell():
     bash = shutil.which("bash")
     if bash is None:
         pytest.skip("no bash on PATH — cannot syntax-check a shell script")
-    # as_posix(), not str(): str(Path) yields "X:\wt\..." and bash consumes
-    # each backslash as an escape, so the argument arrives as "X:wt..." — a
+    # as_posix(), not str(): str(Path) yields "C:\work\hermes-agent\..." and bash consumes
+    # each backslash as an escape, so the argument arrives as "C:workhermes-agent..." — a
     # path-spelling artifact that reads exactly like a syntax failure.
     result = subprocess.run(
         [bash, "-n", SETUP_SCRIPT.as_posix()], capture_output=True, text=True

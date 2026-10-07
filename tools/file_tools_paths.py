@@ -45,6 +45,12 @@ def _expand_tilde(path: str) -> str:
     return os.path.expanduser(path)
 
 
+def _posix_match_forms(path: str) -> tuple[str, ...]:
+    """Match POSIX guards through the fork's shared path-identity primitive."""
+    from tools.path_identity import posix_match_forms
+    return posix_match_forms(_expand_tilde(path))
+
+
 def _terminal_env_type_for_task(task_id: str = "default") -> str:
     """Best-effort terminal backend type for path-resolution decisions."""
     try:

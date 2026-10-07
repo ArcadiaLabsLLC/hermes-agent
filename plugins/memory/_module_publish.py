@@ -58,3 +58,24 @@ def publish_module(full_name: str, module) -> None:
         setattr(parent, child, module)
     except Exception:  # noqa: BLE001 — a binding failure must never fail a load
         logger.debug("could not bind %s on %s", child, parent_name, exc_info=True)
+
+
+def unpublish_module(full_name: str) -> None:
+    """Undo :func:`publish_module` — BOTH halves.
+
+    The rollback has to be symmetric or the fix trades one inconsistency for
+    another: a provider whose ``exec_module`` raised used to leave nothing
+    behind, and would now leave a parent attribute pointing at a half-executed
+    module that ``sys.modules`` no longer holds — which is the same
+    two-answers-for-one-name defect, aimed at the failure path.
+    """
+
+    sys.modules.pop(full_name, None)
+    parent_name, _, child = full_name.rpartition(".")
+    parent = sys.modules.get(parent_name) if parent_name else None
+    if parent is None:
+        return
+    try:
+        delattr(parent, child)
+    except AttributeError:
+        pass

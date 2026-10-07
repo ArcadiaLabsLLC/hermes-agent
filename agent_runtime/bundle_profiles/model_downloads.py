@@ -44,7 +44,7 @@ OFFLINE_ENV = "HF_HUB_OFFLINE"
 
 def model_downloads_enabled() -> bool:
     """``local_models.downloads`` from the merged config; absent or unreadable = on (today)."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch(*KEY, default=True)
 

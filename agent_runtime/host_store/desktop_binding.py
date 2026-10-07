@@ -53,7 +53,7 @@ NOUS_SHARED_FILE = "nous_auth.json"
 
 def os_secure_store_enabled() -> bool:
     """``auth.os_secure_store`` — default off (full Hermes keeps upstream's files)."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch(*SWITCH, default=False)
 

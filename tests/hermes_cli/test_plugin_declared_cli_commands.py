@@ -123,7 +123,7 @@ def test_cli_commands_is_a_manifest_field_and_invalid_rows_are_skipped(tmp_path)
         """), encoding="utf-8")
     manifest = parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "")
 
-    assert manifest.cli_commands == [{"name": "gamma", "help": "", "description": "long form"}]
+    assert manifest.cli_commands == [{"name": "gamma", "help": "", "description": "long form", "parent": ""}]
     # Positive control: with no cli_commands key the field is empty, not absent.
     (plugin / "plugin.yaml").write_text("name: gamma\n", encoding="utf-8")
     assert parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "").cli_commands == []

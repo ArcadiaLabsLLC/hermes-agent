@@ -198,10 +198,10 @@ def _run_doctor(args):
     return int(bool(total.issues or total.manual_issues))
 
 
-#: Home-derived names upstream binds at module scope. The fork resolves the home at CALL time
-#: (a module constant freezes it at import and drifts the moment ``HERMES_HOME`` moves), but
-#: upstream's tests patch ``doctor.HERMES_HOME`` / ``doctor._DHH`` with ``raising=True``, which
-#: needs the NAME to exist. PEP 562 gives both: the attribute answers, and it answers live.
+#: Home-derived names this module used to bind at module scope. It now resolves the home at CALL
+#: time (a module constant freezes it at import and drifts the moment ``HERMES_HOME`` moves), but
+#: tests patch ``doctor.HERMES_HOME`` / ``doctor._DHH`` with ``raising=True``, which needs the
+#: NAME to exist. PEP 562 gives both: the attribute answers, and it answers live.
 #: ``monkeypatch.setattr`` still shadows it with a real attribute, so isolation keeps working.
 _LIVE_HOME_NAMES = {
     'HERMES_HOME': lambda: get_hermes_home(),

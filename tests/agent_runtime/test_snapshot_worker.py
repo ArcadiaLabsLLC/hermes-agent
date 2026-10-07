@@ -285,7 +285,7 @@ def test_the_switch_follows_conversations_by_default(monkeypatch):
         seen[keys] = default
         return default
 
-    monkeypatch.setattr("hermes_cli.config.config_switch", switch)
+    monkeypatch.setattr("hermes_cli.config_switches.config_switch", switch)
     monkeypatch.setattr("agent_runtime.conversations.worker.subprocess_worker_enabled", lambda: False)
     assert worker.subprocess_worker_enabled() is False
     assert seen[("snapshot", "subprocess_worker")] is False
