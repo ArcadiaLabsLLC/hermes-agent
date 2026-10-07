@@ -55,6 +55,12 @@ connection: the thread starved beside the turn). The first-in-process handshake 
 pre-connect exists to move has been paid by then, and a chatting operator's own turns keep the
 process-shared pool warm.
 
+h-idle-turn (2026-10-07): once the keep-warm has stopped, the pool reaps the last connection 20 s
+after a turn, and the first turn after a pause handshook (``conn=new``). The pre-connect remembers
+each actor's client, URL and identity (:func:`_remember_idle_target`), and between turns the idle
+keeper (``agent_runtime.idle_turn_keeper``) sends ONE ``HEAD`` on the most recently active chat's
+connection (:func:`refresh_idle_connection`).
+
 What it does not do: send a body, call a model, or carry a credential (the SDK
 and the SDK-free client both add auth per request, never on the ``httpx.Client``,
 and :data:`IDENTITY_HEADERS` admits no other header);
@@ -72,6 +78,7 @@ import ipaddress
 import logging
 import threading
 import time
+import weakref
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -208,8 +215,9 @@ def _first_request_seen(agent: Any) -> tuple[int, int]:
     return (int(getattr(agent, "session_api_calls", 0) or 0), int(getattr(agent, "_api_call_count", 0) or 0))
 
 
-def _open_connections(http: Any, url: str, headers: dict[str, str]) -> tuple[str, int]:
-    """:data:`PRECONNECT_CONNECTIONS` ``HEAD`` requests, each held open until all are answered.
+def _open_connections(http: Any, url: str, headers: dict[str, str],
+                      count: int = PRECONNECT_CONNECTIONS) -> tuple[str, int]:
+    """``count`` (:data:`PRECONNECT_CONNECTIONS`) ``HEAD`` requests, each held open until all are answered.
 
     A held response keeps its connection checked out, so each ``HEAD`` takes a
     connection of its own (an idle one first, then a new one). Returns the first
@@ -219,7 +227,7 @@ def _open_connections(http: Any, url: str, headers: dict[str, str]) -> tuple[str
     statuses: list[str] = []
     kept = 0
     with contextlib.ExitStack() as held:
-        for _ in range(PRECONNECT_CONNECTIONS):
+        for _ in range(count):
             response = held.enter_context(
                 http.stream("HEAD", url, headers=headers, timeout=PRECONNECT_TIMEOUT_SECONDS)
             )
@@ -275,6 +283,7 @@ def preopen_provider_connection(agent: Any, timing: dict[str, Any]) -> str:
     if _is_loopback(host):
         return STATUS_LOOPBACK
     headers = _identity_headers(agent)
+    _remember_idle_target(agent, http, url, host, headers)
     started = time.perf_counter()
     kept = 0
     try:
@@ -290,7 +299,50 @@ def preopen_provider_connection(agent: Any, timing: dict[str, Any]) -> str:
     return status
 
 
+#: h-idle-turn: what the pre-connect resolved for each prewarmed actor, ``id(agent) -> (agent ref,
+#: http, url, host, headers)``, so the idle keeper re-uses the same connection without
+#: checking out the actor's request client again.
+_IDLE_TARGETS: dict[int, tuple[Any, Any, str, str, dict[str, str]]] = {}
+_IDLE_TARGETS_LOCK = threading.Lock()
+IDLE_KEEPWARM_RECEIPT = "persona_chat_idle_keepwarm host=%s status=%s kept=%d elapsed_ms=%d"
+STATUS_NO_TARGET = "no_target"
+
+
+def _remember_idle_target(agent: Any, http: Any, url: str, host: str, headers: dict[str, str]) -> None:
+    try:
+        ref = weakref.ref(agent)
+    except TypeError:
+        return
+    with _IDLE_TARGETS_LOCK:
+        for key in [k for k, v in _IDLE_TARGETS.items() if v[0]() is None or getattr(v[1], "is_closed", False)]:
+            _IDLE_TARGETS.pop(key, None)
+        _IDLE_TARGETS[id(agent)] = (ref, http, url, host, headers)
+
+
+def refresh_idle_connection(agent: Any) -> str:
+    """h-idle-turn: ONE ``HEAD`` on ``agent``'s pre-connected connection, between turns. Returns a status.
+
+    Only an actor the pre-connect reached (its client, URL and identity are remembered; a loopback
+    provider never is). One connection: an after-idle turn has no title upgrade racing it.
+    """
+
+    with _IDLE_TARGETS_LOCK:
+        target = _IDLE_TARGETS.get(id(agent))
+    if target is None or target[0]() is not agent or getattr(target[1], "is_closed", False):
+        return STATUS_NO_TARGET
+    _ref, http, url, host, headers = target
+    started = time.perf_counter()
+    try:
+        status, kept = _open_connections(http, url, headers, count=1)
+    except Exception:
+        logger.debug("idle keep-warm failed for %s", host, exc_info=True)
+        status, kept = STATUS_FAILED, 0
+    logger.info(IDLE_KEEPWARM_RECEIPT, host, status, kept, max(0, int((time.perf_counter() - started) * 1000)))
+    return status
+
+
 __all__ = [
+    "IDLE_KEEPWARM_RECEIPT",
     "IDENTITY_HEADERS",
     "KEEPWARM_INTERVAL_SECONDS",
     "KEEPWARM_MAX_REFRESHES",
@@ -301,4 +353,5 @@ __all__ = [
     "PREWARM_CONNECT_MS",
     "note_process_request_sent",
     "preopen_provider_connection",
+    "refresh_idle_connection",
 ]

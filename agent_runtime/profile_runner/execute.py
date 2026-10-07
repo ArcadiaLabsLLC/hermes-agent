@@ -7,15 +7,18 @@ and the usage-ledger wrapper.
 
 from __future__ import annotations
 
+import contextvars
+import functools
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from threading import Event, RLock, Timer
 import time
 from typing import Any, Callable
 
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
-from agent_runtime import live_turns, turn_budget
+from agent_runtime import idle_turn_keeper, live_turns, turn_budget
 from agent_runtime.persona_chat_identity import resolved_runtime_revision
 from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
@@ -230,23 +233,57 @@ def _resolve_request_runtime(
             if timing is not None:
                 timing["runtime_resolve_cached"] = 1
             return dict(cached[1])
-    runtime = resolve_runtime_provider(requested=request.provider, target_model=request.model)
-    resolved = {
-        key_name: value
-        for key_name, value in runtime.items()
-        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
-    }
+    resolved = _resolved_fields(resolve_runtime_provider(requested=request.provider, target_model=request.model))
+    # h-idle-turn: between turns the idle keeper re-resolves this entry before it lapses, in this
+    # turn's context (the profile binding), so the next turn after a pause reads it warm.
+    idle_turn_keeper.register_refresh(
+        f"runtime_resolve:{key[0]}|{key[1]}|{key[2]}",
+        functools.partial(contextvars.copy_context().run, _idle_refresh_runtime_resolve,
+                          str(request.provider or ""), str(request.model or "")),
+    )
+    _store_resolved(key, now, resolved)
+    if timing is not None:
+        timing["runtime_resolve_cached"] = 0
+    return resolved
+
+
+def _store_resolved(key: tuple, at: float, resolved: dict[str, Any], *, replace_only: bool = False) -> None:
+    """The memo's one write path (a turn's resolve; the idle keeper's, ``replace_only``)."""
+
     with _RUNTIME_RESOLVE_CACHE_LOCK:
+        if replace_only and key not in _RUNTIME_RESOLVE_CACHE:
+            return
         # Bounded: one entry per live (profile, provider, model, config) tuple,
         # and the set of those is small. Evict the oldest wholesale rather than
         # keep an LRU — a cold re-resolve costs one turn 0.3 s, a leak costs the
         # process.
         if len(_RUNTIME_RESOLVE_CACHE) >= 64:
             _RUNTIME_RESOLVE_CACHE.clear()
-        _RUNTIME_RESOLVE_CACHE[key] = (now, dict(resolved))
-    if timing is not None:
-        timing["runtime_resolve_cached"] = 0
-    return resolved
+        _RUNTIME_RESOLVE_CACHE[key] = (at, dict(resolved))
+
+
+def _resolved_fields(runtime: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key_name: value
+        for key_name, value in runtime.items()
+        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
+    }
+
+
+def _idle_refresh_runtime_resolve(provider: str, model: str) -> bool:
+    """h-idle-turn: re-resolve one warm memo entry that would lapse before the keeper's next tick."""
+
+    request = SimpleNamespace(provider=provider, model=model)
+    key = _runtime_resolve_cache_key(request)  # type: ignore[arg-type]
+    with _RUNTIME_RESOLVE_CACHE_LOCK:
+        cached = _RUNTIME_RESOLVE_CACHE.get(key)
+    lapse_after = max(0.0, RUNTIME_RESOLVE_CACHE_TTL_SECONDS - idle_turn_keeper.KEEPER_INTERVAL_SECONDS)
+    if cached is None or time.monotonic() - cached[0] < lapse_after:
+        return False  # gone (a config edit moved the key) or still fresh
+    started = time.monotonic()
+    _store_resolved(key, started, _resolved_fields(resolve_runtime_provider(requested=provider, target_model=model)),
+                    replace_only=True)
+    return True
 
 
 def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], None] | None:
@@ -383,6 +420,7 @@ class AgentRunExecution:
                 persona_instance_id=self.request.persona_instance_id or "",
                 agent=self.agent,
             ))
+            idle_turn_keeper.note_active_agent(self.agent)  # h-idle-turn: the chat whose socket stays warm
             agent_ready_cleanup = _notify_agent_ready(self.request, self.agent)
             max_wall_seconds = positive_float(self.request.max_wall_seconds)
             if max_wall_seconds is None:
