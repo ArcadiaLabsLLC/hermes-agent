@@ -25,9 +25,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-07 (latency source recheck)
 
-- [ ] **Avoid constructing and sorting full turn records merely to exclude abandoned messages from native history.** · runtime / turn preparation · evidence: `hermes_cli/harness_parts/persona/chat_turn_commit/run.py::_RunPhases._build_context` → `agent_runtime/mission_chat_turns/reads.py::mission_chat_turn_records` · **Action:** add a narrow, validated abandoned-ID read; preserve exact-ID and colon-suffix matching without the history×abandoned-ID nested comparison. **Done when:** differential tests preserve malformed/legacy-record and overlapping-ID behavior, the production path no longer projects/sorts full records for this question, and representative long-session preparation improves. Keep authoritative native history; do not claim the underlying session-file decoding disappeared. · **UNCLAIMED; live saving unmeasured.** · **TAKEN 2026-10-07 sol-runtime**
 
-- [ ] **Stop loading a session’s messages merely to retain its last eight for prompt observability.** · runtime / prompt observability · evidence: `agent_runtime/prompt_observability/safe_views.py::_chat_history_context`, called by `MissionChatObservability.bind` · **Action:** use an equivalent public SessionDB latest-eight read, verifying ordering and active-row semantics first. Preserve the current **slice-before-content-filter** behavior, previews, and timestamps. **Done when:** only the needed rows are materialized, output matches across compression/empty-content/read-failure cases, and execution’s full active-tip lineage remains unchanged. If the required public read is missing, record an additive Seams prerequisite rather than bypassing SessionDB with ad hoc SQL. · **UNCLAIMED; live saving unmeasured.** · **TAKEN 2026-10-07 sol-runtime**
 
 ### Filed on arrival — 2026-10-06 (lane h-slim-prompt)
 

@@ -26,10 +26,11 @@ from agent_runtime.mission_chat_turns.journal import (
     persist_mission_chat_turn,
     transition_mission_chat_turn,
 )
-from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
+from agent_runtime.mission_chat_turns.reads import (
+    abandoned_mission_chat_message_ids, is_abandoned_mission_chat_message,
+)
 from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
-    TURN_STATE_ABANDONED,
     TURN_STATE_EXECUTING,
     TURN_STATE_PENDING,
 )
@@ -121,24 +122,13 @@ class _RunPhases:
         _history_started = time.monotonic()
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_history = _persona_chat_native_history(session_db, active_session_id)
-        abandoned_ids = {
-            str(record.get("client_message_id") or "")
-            for record in mission_chat_turn_records(session_id=session_id)
-            if record.get("state") == TURN_STATE_ABANDONED
-        }
-        native_history = safe_native_history(
-            [
-                item
-                for item in (native_history or [])
-                if not any(
-                    str(item.get("platform_message_id") or "") == abandoned_id
-                    or str(item.get("platform_message_id") or "").startswith(
-                        f"{abandoned_id}:"
-                    )
-                    for abandoned_id in abandoned_ids
-                )
-            ]
-        )
+        abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
+        native_history = safe_native_history([
+            item for item in (native_history or [])
+            if not is_abandoned_mission_chat_message(
+                str(item.get("platform_message_id") or ""), abandoned_ids,
+            )
+        ])
         self.active_session_id = active_session_id
         self.native_history = native_history
         self.pre_admit_timings.update(

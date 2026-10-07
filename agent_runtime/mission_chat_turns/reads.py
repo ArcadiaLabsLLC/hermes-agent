@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.serde import safe_assignment_text
+from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
 from agent_runtime.mission_chat_turns.records import _safe_elements, _safe_record
-from agent_runtime.mission_chat_turns.states import INFLIGHT_TURN_STATES, _record_state
+from agent_runtime.mission_chat_turns.states import INFLIGHT_TURN_STATES, TURN_STATE_ABANDONED, _record_state
 from agent_runtime.mission_chat_turns.storage import (
     _iter_session_files,
     _migrate_legacy_if_present,
@@ -82,6 +82,31 @@ def mission_chat_turn_records(
             str(item.get("started_at") or item.get("updated_at") or ""),
             str(item.get("client_message_id") or ""),
         ),
+    )
+
+
+def abandoned_mission_chat_message_ids(*, session_id: str | None) -> frozenset[str]:
+    """Validated abandoned IDs without projecting elements or sorting turn records."""
+    session_key = safe_assignment_text(session_id, limit=240)
+    if not session_key:
+        return frozenset()
+    records = _read_session(session_key)
+    if not isinstance(records, dict):
+        return frozenset()
+    return frozenset(
+        safe_key
+        for key, record in records.items()
+        if isinstance(record, dict) and _record_state(record) == TURN_STATE_ABANDONED
+        and (safe_key := safe_assignment_text(key, limit=240))
+        and (safe_assignment_token(record.get("turn_id")) or safe_assignment_token(safe_key))
+    )
+
+
+def is_abandoned_mission_chat_message(message_id: str, abandoned_ids: frozenset[str]) -> bool:
+    """Match exact IDs and every colon prefix, including overlapping/legacy IDs."""
+    return message_id in abandoned_ids or any(
+        message_id[:index] in abandoned_ids
+        for index, char in enumerate(message_id) if char == ":"
     )
 
 
