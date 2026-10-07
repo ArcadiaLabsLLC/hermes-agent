@@ -548,6 +548,18 @@ def _cmd_stream(args) -> int:
     from agent_runtime.stream import log_stream_attach, stream_frames
     from agent_runtime.serde import to_jsonable
 
+    from hermes_cli.harness_parts.serve.frames import current_serve_request_id
+
+    # A standalone process rides the live serve's build instead of paying a
+    # second cold core (h-boot-pileup; see ``stream_relay``). Inside the serve
+    # the request id is bound and the serve IS the builder.
+    if current_serve_request_id() is None:
+        from hermes_cli.harness_parts.stream_relay import relay_stream_via_serve
+
+        relayed = relay_stream_via_serve(args)
+        if relayed is not None:
+            return relayed
+
     # The third attachment path, named like the other two (EG-2.1). A terminal
     # tailing the stream is a full subscriber of the same producer, and it paid
     # for builds nobody could attribute to it: the serve child's log showed the
