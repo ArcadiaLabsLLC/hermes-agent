@@ -15,12 +15,16 @@ import os
 import pytest
 
 from tools.environments import local
-from tools.environments.local import (
-    _WINDOWS_PATH_SEP,
-    _augment_windows_system_path,
-    _find_bash,
-    _windows_system_path_dirs,
+from tools.environments.local import _find_bash
+from agent_runtime.windows_system_path import (
+    WINDOWS_PATH_SEP as _WINDOWS_PATH_SEP,
+    augment_windows_system_path,
+    windows_system_path_dirs as _windows_system_path_dirs,
 )
+
+
+def _augment_windows_system_path(path):
+    return augment_windows_system_path(path, is_windows=local._IS_WINDOWS)
 
 
 class TestFindWindowsGitBash:
@@ -131,3 +135,19 @@ class TestWindowsSystemPathAugmentation:
         even though every fake system dir exists and would otherwise be added."""
         monkeypatch.setattr(local, "_IS_WINDOWS", False)
         assert _augment_windows_system_path(r"C:\some\proj\bin") == r"C:\some\proj\bin"
+
+    @pytest.mark.platforms("windows")
+    def test_case_and_separator_variants_are_not_appended(self, fake_windows):
+        present = fake_windows["system32"].swapcase().replace("\\", "/") + "/"
+        result = _augment_windows_system_path(present + ";C:\\project\\bin")
+        normalized = [os.path.normcase(e.rstrip("\\/")) for e in result.split(_WINDOWS_PATH_SEP)]
+        assert normalized.count(os.path.normcase(fake_windows["system32"])) == 1
+        assert result.split(_WINDOWS_PATH_SEP)[0] == present
+
+    def test_caller_order_and_repeated_entries_keep_precedence(self, fake_windows):
+        original = [r"C:\custom\bin", fake_windows["psdir"], r"C:\custom\bin"]
+        result = _augment_windows_system_path(_WINDOWS_PATH_SEP.join(original))
+        entries = result.split(_WINDOWS_PATH_SEP)
+        assert entries[:len(original)] == original
+        assert entries.count(fake_windows["psdir"]) == 1
+        assert entries.index(fake_windows["system32"]) >= len(original)

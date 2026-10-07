@@ -46,6 +46,38 @@ def current_skill_runtime_context() -> tuple[str | None, bool]:
 
     return _SKILL_RUNTIME_SURFACE.get(), _SKILL_RUNTIME_ROOT_NODE_MODE.get()
 
+def skill_runtime_snapshot_metadata(frontmatter: dict) -> dict:
+    """Project the fork runtime metadata into the upstream skill snapshot."""
+    metadata = frontmatter.get("metadata") if isinstance(frontmatter, dict) else {}
+    hermes = metadata.get("hermes") if isinstance(metadata, dict) else {}
+    runtime = {}
+    if isinstance(hermes, dict):
+        surfaces = hermes.get("surfaces") or []
+        modes = hermes.get("modes") or []
+        if not isinstance(surfaces, (str, list, tuple, set)):
+            surfaces = []
+        if not isinstance(modes, (str, list, tuple, set)):
+            modes = []
+        runtime = {
+            "surfaces": [surfaces] if isinstance(surfaces, str) else list(surfaces),
+            "modes": [modes] if isinstance(modes, str) else list(modes),
+            "load_policy": str(hermes.get("load_policy") or "explicit"),
+        }
+    return runtime
+
+
+def resolve_skill_runtime_defaults(
+    skill_surface: str | None, skill_root_node_mode: bool | None,
+) -> tuple[str | None, bool]:
+    """Fill only unset prompt arguments from the current skill scope."""
+    ambient_surface, ambient_mode = current_skill_runtime_context()
+    if skill_surface is None:
+        skill_surface = ambient_surface
+    if skill_root_node_mode is None:
+        skill_root_node_mode = ambient_mode
+    return skill_surface, skill_root_node_mode
+
+
 @dataclass(frozen=True, slots=True)
 class SkillResolutionCandidate:
     """One filesystem skill candidate returned by the canonical resolver."""
