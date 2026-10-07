@@ -239,7 +239,7 @@ def external_backends_allowed() -> bool:
     """Config ``terminal.external_backends`` (default on): may a terminal run anywhere but ``local``
     (Docker, SSH, Modal, Daytona, Singularity, Vercel, plugin backends)? An unreadable config keeps
     today's behaviour (on)."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("terminal", "external_backends")
 
