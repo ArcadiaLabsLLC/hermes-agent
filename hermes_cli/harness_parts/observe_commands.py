@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 __layer__ = "wiring"
-__all__ = ["_cmd_observe_snapshot_builds", "_cmd_observe_turn_timing"]
+__all__ = ["_cmd_observe_snapshot_builds", "_cmd_observe_turn_check", "_cmd_observe_turn_timing"]
 
 
 def _cmd_observe_snapshot_builds(args) -> int:
@@ -40,6 +40,9 @@ def _cmd_observe_turn_timing(args) -> int:
     never this CLI's sticky profile: the two differ whenever the Launcher spawned the
     serve on another profile. ``--log`` overrides it.
     """
+
+    if getattr(args, "check", False):
+        return _cmd_observe_turn_check(args)
 
     import json
     from datetime import timezone
@@ -78,3 +81,45 @@ def _cmd_observe_turn_timing(args) -> int:
     report["baseline"]["path"] = str(baseline_path)
     print(emit_json(report) if getattr(args, "json", False) else format_report(report))
     return 0
+
+
+def _cmd_observe_turn_check(args) -> int:
+    """``turn-timing --check``: the last N turns' receipts against the committed latency budgets.
+
+    Reads the live serve's home log and every sibling profile's (a turn logs under the profile it
+    runs in), and the Launcher diag log when one exists. Exit 1 on any FAIL, 2 when nothing to judge.
+    """
+
+    from agent_runtime import paths
+    from agent_runtime.cli_format import emit_json
+    from agent_runtime.snapshot_build_census import default_log_path, read_lines
+    from agent_runtime.turn_latency_check import (
+        agent_logs, check, format_check, load_budgets, parse_local, serve_boots,
+    )
+    from agent_runtime.turn_timing_census import default_launcher_log, live_serve_home
+
+    try:
+        budgets = load_budgets(Path(args.budgets) if getattr(args, "budgets", None) else None)
+        start = parse_local(args.from_time) if getattr(args, "from_time", None) else None
+        end = parse_local(args.to_time) if getattr(args, "to_time", None) else None
+    except (OSError, ValueError) as exc:
+        print(f"turn-timing --check: {exc}", file=sys.stderr)
+        return 2
+    store_root = paths.store_root()
+    if getattr(args, "log", None):
+        logs = [Path(args.log)]
+    else:
+        home, _pid = live_serve_home(store_root)
+        logs = agent_logs(home) if home is not None else agent_logs(default_log_path().parent.parent)
+    launcher_path = Path(args.launcher_log) if getattr(args, "launcher_log", None) else default_launcher_log()
+    launcher_lines = (list(read_lines([launcher_path])) if launcher_path is not None and launcher_path.exists()
+                      else None)
+    report = check(log_sources=[read_lines([path]) for path in logs], launcher_lines=launcher_lines,
+                   boots=serve_boots(store_root), budgets=budgets, last=getattr(args, "last", 10) or 0,
+                   start=start, end=end)
+    report["logs"] = [str(path) for path in logs]
+    report["launcher_log_path"] = str(launcher_path) if launcher_lines is not None else None
+    print(emit_json(report) if getattr(args, "json", False) else format_check(report))
+    if report["result"] == "FAIL":
+        return 1
+    return 2 if report["result"] == "NO TURNS" else 0

@@ -265,6 +265,16 @@ walk on a warm turn, a request prefix that moved, a turn queued behind parked hy
 second handler for one client message id, or a span over its budget (accept -> anchor 600 ms,
 anchor -> request sent 2.5 s on turn 1 and 1.5 s warm).
 
+`hermes harness observe turn-timing --check [--last N] [--from T] [--to T] [--json]` is the live
+regression check (h-live-check, decision 0014): it reads the newest N turns' receipts —
+`chat_turn_accept_to_anchor` from the serve home's `agent.log`, `send_prep_receipt` and the
+`send_window_receipt` / `stream_gap_receipt` that follow it from every profile's `agent.log` (a turn
+logs under its persona's profile), and the Launcher's `[MissionChatTiming]` line when the diag log
+exists — groups them cold / after-idle / warm, and prints one PASS / FAIL line per span with the
+observed range, the budget and its baseline from `agent_runtime/turn_latency_budgets.json`; exit 1
+on any FAIL. Provider spans are reported, never failed (`agent_runtime/turn_latency_check.py`).
+Run it after any rebuild that touches the chat path.
+
 ### The core-cache family and its census
 
 `agent_runtime/core_cache/__init__.py:42-85` is **the authority** — a per-receipt

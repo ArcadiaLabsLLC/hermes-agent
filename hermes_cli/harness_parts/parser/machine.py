@@ -410,6 +410,12 @@ def add_observe(subs) -> None:
     timing.add_argument("--launcher-log", default=None, help="Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)")
     timing.add_argument("--baseline", default=None, help="Baseline JSON (default tests/fixtures/turn_timing_baseline.json)")
     timing.add_argument("--json", action="store_true")
+    timing.add_argument("--check", action="store_true",
+                        help="Judge the last N turns' receipts against agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL")
+    timing.add_argument("--last", type=int, default=10, help="--check: how many of the newest turns to judge (default 10)")
+    timing.add_argument("--from", dest="from_time", default=None, help="--check: only turns anchored at/after this local time (YYYY-MM-DD HH:MM[:SS])")
+    timing.add_argument("--to", dest="to_time", default=None, help="--check: only turns anchored at/before this local time")
+    timing.add_argument("--budgets", default=None, help="--check: budget JSON (default agent_runtime/turn_latency_budgets.json)")
     timing.set_defaults(func=observe_commands._cmd_observe_turn_timing)
 
 
