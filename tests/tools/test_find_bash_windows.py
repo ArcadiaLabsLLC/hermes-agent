@@ -131,3 +131,19 @@ class TestWindowsSystemPathAugmentation:
         even though every fake system dir exists and would otherwise be added."""
         monkeypatch.setattr(local, "_IS_WINDOWS", False)
         assert _augment_windows_system_path(r"C:\some\proj\bin") == r"C:\some\proj\bin"
+
+    @pytest.mark.platforms("windows")
+    def test_case_and_separator_variants_are_not_appended(self, fake_windows):
+        present = fake_windows["system32"].swapcase().replace("\\", "/") + "/"
+        result = _augment_windows_system_path(present + ";C:\\project\\bin")
+        normalized = [os.path.normcase(e.rstrip("\\/")) for e in result.split(_WINDOWS_PATH_SEP)]
+        assert normalized.count(os.path.normcase(fake_windows["system32"])) == 1
+        assert result.split(_WINDOWS_PATH_SEP)[0] == present
+
+    def test_caller_order_and_repeated_entries_keep_precedence(self, fake_windows):
+        original = [r"C:\custom\bin", fake_windows["psdir"], r"C:\custom\bin"]
+        result = _augment_windows_system_path(_WINDOWS_PATH_SEP.join(original))
+        entries = result.split(_WINDOWS_PATH_SEP)
+        assert entries[:len(original)] == original
+        assert entries.count(fake_windows["psdir"]) == 1
+        assert entries.index(fake_windows["system32"]) >= len(original)
