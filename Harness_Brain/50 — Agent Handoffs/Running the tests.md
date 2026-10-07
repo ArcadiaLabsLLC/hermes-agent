@@ -143,6 +143,24 @@ gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.d
 import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
 commit touches a file the batch touches.
 
+## After a landing that touches the chat path: the live latency check
+
+Offline guards pass on small fixtures while live chat regresses on real-sized stores and a real
+launcher (2026-10-06: the pre-request window went 0.4 → 1.2 s and the launcher rebuilt the whole page
+per turn, with every gate green). So after any landing that touches the chat-turn path (admission,
+prewarm, prompt/context build, the provider client, the stream, or the launcher's chat surfaces),
+the operator rebuilds, waits about 2 minutes after boot, sends a few turns, and someone runs:
+
+```
+hermes harness observe turn-timing --check
+```
+
+It reads the last turns' receipts (and the launcher's `[MissionChatTiming]` lines when present),
+groups them cold / after-idle / warm, and prints PASS or FAIL per span against the committed budgets
+and the 2026-10-07 baseline (exit 1 on any FAIL). Provider spans are reported, never failed. A FAIL
+is a regression to row before the next landing, not a number to loosen. The baseline, budgets and
+groups are Decision 0014.
+
 ## Calling a red pre-existing
 
 `main` is not green: on 2026-10-05 the whole-tree gate read 70 failing tests in 35 files on `main`
