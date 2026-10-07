@@ -321,6 +321,10 @@ def initialize_persona_chat_runtime_registry(
         if enabled
         else None
     )
+    # h-idle-turn: the idle keeper (policy) asks this store whether resident chats are on.
+    from agent_runtime import idle_turn_keeper
+
+    idle_turn_keeper.bind_registry_live(lambda: persona_chat_runtime_registry() is not None)
     return _REGISTRY
 
 
