@@ -29,7 +29,7 @@ independent native conversations, with failure and queues scoped per participant
 `agent_runtime/operator_conversation.py` attaches another view to an exact
 operator session, without minting history or changing its default pointer.
 Reads reuse SessionDB, `mission_chat_turns`, admission receipts and clarify
-tickets. Send and Stop validate ownership without loading transcript history.
+tickets. Send, Stop and execution status validate ownership without loading transcript history.
 Launcher observes live journal output every two seconds while visible; this is
 not token-by-token fan-out and does not replace the original frame consumer.
 
@@ -43,6 +43,25 @@ fingerprints reject changed payloads; old receipts remain replay-only evidence.
 Automated recovery and isolation evidence is in the
 [landing record](archive/operator-conversation-handoff-2026-09-28.md).
 Native desktop acceptance remains open in the Launcher queue.
+
+`operator_execution.operator_execution_reservation` joins instance/persona
+admissions to their resolved session using the exact turn journal's
+`root_chat_session_id` and `persona_instance_id`. Admission scope and payload
+fingerprint stay immutable for resend deduplication. It refuses unresolved
+or conflicting roots before persisting Stop intent; the instance's current
+default pointer is not execution evidence. Stop and attachment reads share
+this join. `test_operator_execution_recovery` covers the console's omitted
+`session_id` path, hard interrupt without tools, replay and conflicting journal
+evidence. Launcher `operator_native_test` exercises that wire shape through
+the Dart adapter against the native dispatcher, including a lost Stop ack.
+
+`serve_rpc.operator_conversation.status` reads the exact execution's native
+receipt and terminal journal state without requesting Stop or reading its
+transcript. Launcher uses bounded status reads after one Stop write, including
+a lost acknowledgement. Only native `stopped` or `finished` confirms the
+result; absent owners and disconnected reads remain unconfirmed. The
+[Stop audit](../downstream/operator-stop-audit-2026-10-06.md) records regression
+and baseline qualification; live cancellation latency remains unmeasured.
 
 ## 1. Send admission — the turn's identity and its thread
 
