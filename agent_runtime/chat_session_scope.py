@@ -668,8 +668,13 @@ def open_chat_session_db(
     except Exception:
         return None
     if not read:
-        _purge_retired_scratch_once(db, resolved.db_path)
+        prepare_chat_session_writer(db, resolved)
     return db
+
+
+def prepare_chat_session_writer(db: Any, scope: ChatSessionScope) -> None:
+    """Apply the existing writer-only preparation to a bare or leased writer."""
+    _purge_retired_scratch_once(db, scope.db_path)
 
 
 def chat_session_store_exists(scope: ChatSessionScope | None = None) -> bool:

@@ -736,13 +736,31 @@ class AgentRunExecution:
         # so `agent_construct_ms` is ABSENT rather than reporting the
         # cost of work that was thrown away — `resident_actor_reused`
         # says why, so the absence is typed, never silent.
+        from ..chat_session_writer import current_chat_session_writer_owner
+        from ..persona_chat_continuity.runtime_registry import OwnedResidentActor
+
+        writer = getattr(self.runner, "_session_db", None)
+        owner = current_chat_session_writer_owner()
+        def owned_factory():
+            if writer is None:
+                return self.construct_agent()
+            if owner is None:
+                raise RuntimeError("resident constructor writer has no request owner")
+            pin = owner.resident_pin(writer)
+            try:
+                return OwnedResidentActor(self.construct_agent(), pin)
+            except BaseException:
+                pin.close()
+                raise
+
         entry, reused, rebuild_reason, signature_diff = (
             request.persona_chat_runtime_registry.acquire(
                 root_session_id=request.root_chat_session_id,
                 active_session_id=active_id,
                 signature=f"{request.persona_chat_runtime_signature or 'default'}:{runtime_revision}",
                 revision=request.persona_chat_native_revision or "unknown",
-                factory=self.construct_agent,
+                factory=owned_factory,
+                writer_generation=writer,
                 signature_components={
                     **(request.persona_chat_runtime_signature_components or {}),
                     "resolved_runtime": runtime_revision,

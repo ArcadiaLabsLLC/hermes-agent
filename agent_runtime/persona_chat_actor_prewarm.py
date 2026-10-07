@@ -150,6 +150,7 @@ import threading
 import time
 from typing import Any
 
+from .chat_session_writer import with_chat_session_writer_owner
 from .launcher_link_prewarm import LauncherLinkPreparation, launcher_link_prewarm_scope
 
 __layer__ = "lanes"
@@ -361,6 +362,7 @@ OUTCOME_SKIPPED_CONSTRUCT_FAILED = "skipped_construct_failed"
 # ── the unit of work ─────────────────────────────────────────────────────────
 
 
+@with_chat_session_writer_owner
 def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
     """Construct and register one chat root's resident actor. Returns an outcome.
 
