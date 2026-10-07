@@ -25,18 +25,32 @@ The weekly merge of the latest `NousResearch/hermes-agent` RELEASE tag into the 
    ```
    The config and attributes live in the shared clone and stay (set once; the lines are idempotent).
 2. Size it first: `git merge-tree --write-tree main <tag>` lists the conflicts without touching the tree (it ignores merge drivers, so it still lists the three regen files); count hunks per file (`git show <tree>:<file> | grep -c '^<<<<<<<'`).
+2b. **Replay the daily branch's resolutions** (see "Daily integration branch" below): `git config rerere.autoUpdate false`, then `sh scripts/rerere_train.sh origin/main..origin/integration/upstream-daily`. It re-runs each daily merge, records its committed resolution, and leaves the worktree where it started. In Step 3, rerere pre-fills every conflict the daily branch already solved; read each one (`git rerere diff`) before staging it — the cache is shared by every worktree of the clone.
 3. `git merge <tag> --no-ff --no-commit`, then resolve by rule:
    - additive on both sides → keep both;
    - upstream logic changed → upstream's version, the fork's addition re-applied on top;
    - the seams survive: `_downstream_cli.build_downstream_parsers`, upstream's `_apply_profile_override` block with the fork's three in-place deltas (entrypoint gate from `_profile_bootstrap`, `harness agent set-profile` exemption, resolution receipt), `_boot_clock`, `"harness"` in the console list, `process_registry.restore_durable_completions`, profile scoping in `hermes_constants` / `profiles.py`;
    - never drop a fork test (move it if upstream deleted its anchor);
    - `pyproject.toml`: the fork's pair (`coverage==7.16.0`, `pytest-timeout==2.4.0`, the `exclude-newer-package` exemptions, `--timeout=30` in `addopts`) plus any NEW upstream rows;
-   - generated files (`uv.lock`, the two `apps/shared/src/gateway-contract.*` files) arrive as upstream's copy via the `regen` driver; after `pyproject.toml` is resolved run `uv lock`, then `python scripts/gen_gateway_contracts.py`, then `python scripts/gen_gateway_contracts.py --check`, and stage the three files.
+   - generated files (`uv.lock`, the two `apps/shared/src/gateway-contract.*` files) arrive as upstream's copy via the `regen` driver; after `pyproject.toml` is resolved run `uv lock` (with the repository-pinned uv, `uv` 0.12.3 as of 2026-10-06; a newer host uv cannot resolve upstream's Android/playwright split), then `python scripts/gen_gateway_contracts.py`, then `python scripts/gen_gateway_contracts.py --check`, and stage the three files.
 4. Commit: `merge: upstream <tag> into main (<date>)`, body = each conflicted file + the rule applied.
+4b. Bring over the daily branch's own fork-side fixes that apply at this tag: `git log --reverse --format='%h %s' --grep='^fix(merge)' origin/main..origin/integration/upstream-daily`, then `git cherry-pick -x <sha>` for each that touches code present at `<tag>`. One that conflicts on upstream code newer than the tag is skipped and named in the report. (These are the fork's own commits; upstream content still arrives only through the merge.)
 5. Touched tests directly (files that import a conflicted module), background, log, unpiped exit code. Fix merge-caused reds as `fix(merge): …`; name pre-existing reds by running the one test on `main`.
    5b. **Re-check the skip list** (`tests/fixtures/upstream_skip_list.txt`, plan `docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md` §3 Stage 1). Name every `env` / `upstream` row's file on one `scripts/run_tests_bundled.sh --scope full <file> <file> …` run (a named file always runs), background, log, unpiped exit code. A file green on the merge candidate leaves the list in the merge commit; a file still red keeps its row with the SHA advanced to the incoming upstream tip. `P0` rows are NOT run here: they run only under the watchdog/VM the fork-hygiene P0 row names, and keep their SHA.
 6. `git push -u origin merge/upstream-<date>`. Report ≤ 30 lines.
 7. **Landing (operator or landing lane):** `scripts/run_tests_bundled.sh --scope full tests` (the skip list applies; never on a workstation while the fork-hygiene P0 row is open) + the two contract dumps `--check` + `scripts/doc_cite_adjacency.py` in its ruled scope; then `git push origin merge/upstream-<date>:main` if fast-forward. Update the cursor, delete the queue row, remove the worktree.
+
+## Daily integration branch (owner, 2026-10-06)
+
+`integration/upstream-daily` absorbs upstream a day at a time so a release merge replays known answers instead of solving ~3,000 commits cold. It is never landed: it carries upstream commits past the release.
+
+Each day, in a worktree on `integration/upstream-daily` (create it from `origin/main` the first time):
+1. `git merge origin/main --no-ff` (the fork's newest work), then `git merge upstream/main --no-ff` with the Step 1 regen driver configured. History-preserving merges only; never rebase, never reset the branch.
+2. Resolve by the Step 3 rules; regenerate the three generated files; commit `integrate: upstream/main <sha> (<date>)`, body = each conflicted file + the rule applied.
+3. A fork-side repair the merge needs is its own commit, subject `fix(merge): …` — Step 4b looks for exactly that prefix.
+4. Run the tests that import a conflicted module; push the branch. Report conflicts per file, the fixes, and the test counts.
+
+When a release tag appears, the release merge (Steps 0–7) starts fresh from `origin/main`, merges only `<tag>`, and uses Step 2b (replay the resolutions) and Step 4b (carry the `fix(merge)` commits). That branch is the one the operator lands. Proven 2026-10-06 on GPT's rehearsal `merge/upstream-main-206102314a81`: see the commit that added this section.
 
 ## The scheduled job (GPT/Codex, daily; acts only on a new release)
 
