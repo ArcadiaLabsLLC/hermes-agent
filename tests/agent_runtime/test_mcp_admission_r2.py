@@ -66,12 +66,12 @@ from tests._downstream.split_package_source import patch_where_bound
 #: changing this constant without re-checking the parity assertions below is
 #: exactly the silent drift the fixture exists to prevent.
 _LAUNCHER_ALLOWLIST_SHA256 = (
-    "4aad31d0467eaa807b2cf6295c25ec4645923d8495b88120dc4ecc63389591aa"
+    "05edade189582f6f5781bc705a1628071a43c711f3a6c7a7394a4b29b4f1c291"
 )
 #: Tool count of the launcher's Stage C QA surface at the snapshot above
 #: (`kStageCQaMcpTools`). The reviewer row must partition it exactly — that is
 #: the hermes-side half of the launcher's own Stage 22 drift test.
-_LAUNCHER_QA_TOOL_COUNT = 26
+_LAUNCHER_QA_TOOL_COUNT = 36
 _LAUNCHER_ALLOWLIST_FIXTURE = (
     Path(__file__).parent / "fixtures" / "launcher_qa_profile_allowlists.yaml"
 )
@@ -574,10 +574,13 @@ def test_the_fixture_parses_into_the_profiles_the_launcher_documents(launcher_al
     assert {"launcher-qa", "launcher-qa-direct", "alice", "pm", "reviewer"} <= set(
         launcher_allowlist
     )
-    # Full-capability rows are a single glob — which is why profile_default
-    # compiles NO include filter rather than a 25-name list that a new launcher
-    # tool would silently fall out of.
-    assert launcher_allowlist["launcher-qa"]["allowed"] == ["mcp_launcher_qa_*"]
+    # The tool glob and the separately named semantic-control scopes are both
+    # pinned. Semantic controls are not MCP tools and never enter the include set.
+    assert launcher_allowlist["launcher-qa"]["allowed"] == [
+        "mcp_launcher_qa_*", "shell.*", "blocking_modal*", "posts.*", "studio.*",
+        "settings.*", "account.*", "voice.*", "mission_control.*", "library.*",
+        "education.*", "communities.*",
+    ]
     assert launcher_allowlist["launcher-qa"]["denied"] == []
 
 
@@ -637,6 +640,9 @@ def test_read_only_registers_the_reviewer_row_and_nothing_else(qa_profile):
     include = admission.server_configs["launcher_qa"]["tools"]["include"]
     assert set(include) == set(READ_ONLY_INCLUDED_TOOLS["launcher_qa"])
     assert "mcp_launcher_qa_kill_launcher" not in include
+    assert "mcp_launcher_qa_get_tool_manual" in include
+    assert "mcp_launcher_qa_build_status" in include
+    assert "mcp_launcher_qa_get_render_profile" in include
     # …and the same names stay in the model-list backstop for a resident actor
     # whose cached tool definitions predate this turn's registration.
     assert (
@@ -1190,3 +1196,18 @@ def test_a_persona_that_declares_no_server_still_pays_nothing():
 
     assert render_mcp_admission_line(nothing) == ""
     assert render_mcp_admission_line(None) == ""
+
+
+@pytest.mark.parametrize("profile", ["alice", "pm", "reviewer"])
+def test_restricted_profiles_read_manual_without_driving_its_tools(launcher_allowlist, profile):
+    surface = {
+        "mcp_launcher_qa_get_tool_manual", "mcp_launcher_qa_build_status",
+        "mcp_launcher_qa_run_actions", "mcp_launcher_qa_prebuild",
+        "mcp_launcher_qa_record_video", "mcp_launcher_qa_dev_login",
+        "mcp_launcher_qa_set_text", "mcp_launcher_qa_resize_window",
+        "mcp_launcher_qa_set_dpi", "mcp_launcher_qa_pointer_drag",
+        "mcp_launcher_qa_future_mutator",
+    }
+    assert _resolve_allow_set(launcher_allowlist[profile], surface) == {
+        "mcp_launcher_qa_get_tool_manual", "mcp_launcher_qa_build_status",
+    }

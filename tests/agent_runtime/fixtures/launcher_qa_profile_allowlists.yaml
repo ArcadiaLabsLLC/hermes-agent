@@ -11,14 +11,16 @@
 #   profiles:
 #     <profile_name>:
 #       description: <one-line role>
-#       allowed:                  # array of tool names or globs
+#       allowed:                  # array of tool/control names or globs
 #         - mcp_launcher_qa_*    # glob: every tool
 #         - mcp_launcher_qa_get_*  # glob: every read-only get_*
 #         - mcp_launcher_qa_set_tab  # literal
+#         - shell.nav.*          # semantic controls on the app rail
+#         - studio.*             # Eternia Studio semantic controls
 #       denied:                   # array — denied wins over allowed
 #         - mcp_launcher_qa_kill_launcher
 #
-# Resolution rule per tool name:
+# Resolution rule per tool or semantic-control name:
 #   1. If any pattern in `denied` matches → DENIED.
 #   2. Else if any pattern in `allowed` matches → ALLOWED.
 #   3. Else → DENIED (default-deny when profile is in this file).
@@ -40,12 +42,40 @@ profiles:
     description: Reference profile; full QA capability.
     allowed:
       - mcp_launcher_qa_*
+      # Semantic-control scopes. See note 10 — this list used to be
+      # `shell.nav.*` + `studio.*`, which was the whole vocabulary when it was
+      # written and is two of its thirty scopes now.
+      - shell.*
+      - blocking_modal*
+      - posts.*
+      - studio.*
+      - settings.*
+      - account.*
+      - voice.*
+      - mission_control.*
+      - library.*
+      - education.*
+      - communities.*
     denied: []
 
   launcher-qa:
     description: Generic Launcher QA worker; mirrors launcher-qa-direct.
     allowed:
       - mcp_launcher_qa_*
+      # Semantic-control scopes. See note 10 — this list used to be
+      # `shell.nav.*` + `studio.*`, which was the whole vocabulary when it was
+      # written and is two of its thirty scopes now.
+      - shell.*
+      - blocking_modal*
+      - posts.*
+      - studio.*
+      - settings.*
+      - account.*
+      - voice.*
+      - mission_control.*
+      - library.*
+      - education.*
+      - communities.*
     denied: []
 
   # Worker profiles (one per shape). Same capability as launcher-qa.
@@ -53,12 +83,40 @@ profiles:
     description: GPT-shaped Launcher worker.
     allowed:
       - mcp_launcher_qa_*
+      # Semantic-control scopes. See note 10 — this list used to be
+      # `shell.nav.*` + `studio.*`, which was the whole vocabulary when it was
+      # written and is two of its thirty scopes now.
+      - shell.*
+      - blocking_modal*
+      - posts.*
+      - studio.*
+      - settings.*
+      - account.*
+      - voice.*
+      - mission_control.*
+      - library.*
+      - education.*
+      - communities.*
     denied: []
 
   claude_launcher_qa:
     description: Claude-shaped Launcher worker.
     allowed:
       - mcp_launcher_qa_*
+      # Semantic-control scopes. See note 10 — this list used to be
+      # `shell.nav.*` + `studio.*`, which was the whole vocabulary when it was
+      # written and is two of its thirty scopes now.
+      - shell.*
+      - blocking_modal*
+      - posts.*
+      - studio.*
+      - settings.*
+      - account.*
+      - voice.*
+      - mission_control.*
+      - library.*
+      - education.*
+      - communities.*
     denied: []
 
   # Reserved for future Spark lane.
@@ -66,6 +124,20 @@ profiles:
     description: Spark-shaped Launcher worker (future).
     allowed:
       - mcp_launcher_qa_*
+      # Semantic-control scopes. See note 10 — this list used to be
+      # `shell.nav.*` + `studio.*`, which was the whole vocabulary when it was
+      # written and is two of its thirty scopes now.
+      - shell.*
+      - blocking_modal*
+      - posts.*
+      - studio.*
+      - settings.*
+      - account.*
+      - voice.*
+      - mission_control.*
+      - library.*
+      - education.*
+      - communities.*
     denied: []
 
   # ---------------------------------------------------------------------
@@ -86,9 +158,19 @@ profiles:
       - mcp_launcher_qa_run_redaction_scan
       - mcp_launcher_qa_read_artifact_index
       - mcp_launcher_qa_read_trace
+      # QA build job (2026-10-03): build_status only READS the job (and
+      # may wait on it); it never starts a build. See note 11.
+      - mcp_launcher_qa_build_status
+      # Manual reader (lane l-qa-brief, 2026-10-06): reads documentation
+      # held by the server; never touches the Launcher.
+      - mcp_launcher_qa_get_tool_manual
       - mcp_launcher_qa_get_window_metrics
       - mcp_launcher_qa_get_buttons
     denied:
+      # In-app recorder (2026-10-02): opt-in video costs many tokens and
+      # holds the fixture mutex for the whole burst. PM / Alice verify a
+      # card with screenshots; a worker records when a row asks for video.
+      - mcp_launcher_qa_record_video
       - mcp_launcher_qa_launch_or_attach
       - mcp_launcher_qa_open_app_tab
       - mcp_launcher_qa_set_tab
@@ -98,6 +180,10 @@ profiles:
       - mcp_launcher_qa_dismiss_hashtag_onboarding
       - mcp_launcher_qa_begin_pkce_login
       - mcp_launcher_qa_kill_launcher
+      # QA build job (2026-10-03): prebuild STARTS a 5-6 min build under
+      # the machine-wide heavy-run slot. A verify/review persona never
+      # spends that; the orchestrator runs it after a landing. Note 11.
+      - mcp_launcher_qa_prebuild
       # Stage 19 (t_c07ef450, 2026-05-17 — granular control / semantic
       # buttons): click_button is a mutator (dispatches an onPressed
       # against the live shell). PM driver verifies state, doesn't
@@ -110,6 +196,33 @@ profiles:
       # by construction; the restricted profiles keep calling the
       # single read-only tools they are allowed.
       - mcp_launcher_qa_run_actions
+      # Debug-only dev sign-in (2026-09-02). dev_login signs the
+      # Launcher in as the dev player without Keycloak. It is a
+      # mutator twice over — it moves auth AND the shell resets nav to
+      # home on the signed-in edge — and PM driver verifies state
+      # rather than establishing it. Denied.
+      - mcp_launcher_qa_dev_login
+      # Mission Control chat input (2026-08-03, dd34ff11f — landed
+      # WITHOUT this entry; see note 7). set_text writes freeform
+      # operator text into a declared semantic text target, takes the
+      # fixture mutex (`serialised: true`), and is the input half of a
+      # two-step send: set_text then click_button
+      # mission_control.agent_chat.send. Same class as click_button /
+      # set_tab — it drives the live shell — and PM driver verifies,
+      # doesn't drive. Denied.
+      - mcp_launcher_qa_set_text
+      # Window-scale lane (2026-09-02). resize_window moves the OS
+      # window and set_dpi moves the app's display scale — both change
+      # the geometry every OTHER profile's screenshots are taken at,
+      # from a profile whose whole job is to photograph a final state
+      # it did not establish. A PM who resizes the window has changed
+      # the evidence, not verified it. Denied.
+      - mcp_launcher_qa_resize_window
+      - mcp_launcher_qa_set_dpi
+      # Pointer lane (2026-09-28). pointer_drag dispatches a real gesture
+      # on the Edit World canvas — it places and moves level geometry.
+      # A mutator like click_button. Denied.
+      - mcp_launcher_qa_pointer_drag
 
   pm:
     description: PM hat; same convention as alice.
@@ -123,9 +236,19 @@ profiles:
       - mcp_launcher_qa_run_redaction_scan
       - mcp_launcher_qa_read_artifact_index
       - mcp_launcher_qa_read_trace
+      # QA build job (2026-10-03): build_status only READS the job (and
+      # may wait on it); it never starts a build. See note 11.
+      - mcp_launcher_qa_build_status
+      # Manual reader (lane l-qa-brief, 2026-10-06): reads documentation
+      # held by the server; never touches the Launcher.
+      - mcp_launcher_qa_get_tool_manual
       - mcp_launcher_qa_get_window_metrics
       - mcp_launcher_qa_get_buttons
     denied:
+      # In-app recorder (2026-10-02): opt-in video costs many tokens and
+      # holds the fixture mutex for the whole burst. PM / Alice verify a
+      # card with screenshots; a worker records when a row asks for video.
+      - mcp_launcher_qa_record_video
       - mcp_launcher_qa_launch_or_attach
       - mcp_launcher_qa_open_app_tab
       - mcp_launcher_qa_set_tab
@@ -135,6 +258,10 @@ profiles:
       - mcp_launcher_qa_dismiss_hashtag_onboarding
       - mcp_launcher_qa_begin_pkce_login
       - mcp_launcher_qa_kill_launcher
+      # QA build job (2026-10-03): prebuild STARTS a 5-6 min build under
+      # the machine-wide heavy-run slot. A verify/review persona never
+      # spends that; the orchestrator runs it after a landing. Note 11.
+      - mcp_launcher_qa_prebuild
       # Stage 19 (t_c07ef450, 2026-05-17): same rationale as alice —
       # click_button mutates the live shell.
       - mcp_launcher_qa_click_button
@@ -145,6 +272,22 @@ profiles:
       # by construction; the restricted profiles keep calling the
       # single read-only tools they are allowed.
       - mcp_launcher_qa_run_actions
+      # Debug-only dev sign-in (2026-09-02): same rationale as alice —
+      # dev_login establishes a session and resets the shell's nav.
+      - mcp_launcher_qa_dev_login
+      # Mission Control chat input (2026-08-03, dd34ff11f): same
+      # rationale as alice — set_text mutates the live shell and is the
+      # input half of an agent-chat send.
+      - mcp_launcher_qa_set_text
+      # Window-scale lane (2026-09-02): same rationale as alice —
+      # resize_window / set_dpi change the geometry the evidence is
+      # captured at.
+      - mcp_launcher_qa_resize_window
+      - mcp_launcher_qa_set_dpi
+      # Pointer lane (2026-09-28). pointer_drag dispatches a real gesture
+      # on the Edit World canvas — it places and moves level geometry.
+      # A mutator like click_button. Denied.
+      - mcp_launcher_qa_pointer_drag
 
   # ---------------------------------------------------------------------
   # Reviewer — post-hoc evidence review against captured artifacts.
@@ -168,8 +311,18 @@ profiles:
       # VOICE_QA_MCP_PLAN_2026-07-12 §5.E: read-only redaction-safe
       # voice-session snapshot. Reviewer may inspect voice state.
       - mcp_launcher_qa_get_voice_state
+      # VOXEL_3D_PRESENTATION_PLAN_2026-08-12 V4: read-only render
+      # profile dump (timings + leak gauges, no user data). Reviewer
+      # may inspect the numbers behind a captured screenshot.
+      - mcp_launcher_qa_get_render_profile
       - mcp_launcher_qa_read_artifact_index
       - mcp_launcher_qa_read_trace
+      # QA build job (2026-10-03): build_status only READS the job (and
+      # may wait on it); it never starts a build. See note 11.
+      - mcp_launcher_qa_build_status
+      # Manual reader (lane l-qa-brief, 2026-10-06): reads documentation
+      # held by the server; never touches the Launcher.
+      - mcp_launcher_qa_get_tool_manual
       - mcp_launcher_qa_run_redaction_scan
     denied:
       - mcp_launcher_qa_launch_or_attach
@@ -184,6 +337,11 @@ profiles:
       # foreground + PrintWindow against an attached Launcher). Reviewer
       # inspects captured PNGs via read_artifact_index instead.
       - mcp_launcher_qa_screenshot_window
+      # In-app recorder (2026-10-02): a bounded burst of captureFrame
+      # against a live Launcher, held under the fixture mutex — the same
+      # rationale as screenshot_window. Reviewer reads a recording's
+      # manifest via read_artifact_index instead.
+      - mcp_launcher_qa_record_video
       # wait_for_state: read-only by contract but drives a live polling
       # loop against a running Launcher and counts against the fixture
       # mutex's queue depth from a non-worker profile. Reviewer uses
@@ -192,6 +350,10 @@ profiles:
       - mcp_launcher_qa_dismiss_hashtag_onboarding
       - mcp_launcher_qa_begin_pkce_login
       - mcp_launcher_qa_kill_launcher
+      # QA build job (2026-10-03): prebuild STARTS a 5-6 min build under
+      # the machine-wide heavy-run slot. A verify/review persona never
+      # spends that; the orchestrator runs it after a landing. Note 11.
+      - mcp_launcher_qa_prebuild
       # Stage 19 (t_c07ef450, 2026-05-17): click_button mutates state.
       - mcp_launcher_qa_click_button
       # Stage C batched-drill addendum (2026-07-26): run_actions is a
@@ -201,6 +363,24 @@ profiles:
       # by construction; the restricted profiles keep calling the
       # single read-only tools they are allowed.
       - mcp_launcher_qa_run_actions
+      # Debug-only dev sign-in (2026-09-02): reviewer is strictly
+      # read-only probes + artifact reads. Signing a Launcher in is the
+      # furthest thing from reading a captured artifact. Denied.
+      - mcp_launcher_qa_dev_login
+      # Mission Control chat input (2026-08-03, dd34ff11f): reviewer is
+      # strictly read-only probes + artifact reads. set_text writes into
+      # a live composer — the furthest thing from a post-hoc artifact
+      # read. Denied.
+      - mcp_launcher_qa_set_text
+      # Window-scale lane (2026-09-02): reviewer reads what others
+      # captured. Resizing the window or changing its display scale
+      # alters the very thing under review. Denied.
+      - mcp_launcher_qa_resize_window
+      - mcp_launcher_qa_set_dpi
+      # Pointer lane (2026-09-28). pointer_drag dispatches a real gesture
+      # on the Edit World canvas — it places and moves level geometry.
+      # A mutator like click_button. Denied.
+      - mcp_launcher_qa_pointer_drag
 
 # Notes:
 #
@@ -246,3 +426,78 @@ profiles:
 #    `mcp_launcher_qa_*` glob. Destructive / confirmation-contract
 #    verbs (kill_launcher) and the process-spawning composers are not
 #    batchable at all — the server refuses the whole batch.
+#
+# 7. set_text (2026-08-03, dd34ff11f) landed in `kStageCQaMcpTools`
+#    without touching this file, which left the Stage 22 drift guard
+#    (`test/profile_tool_surface_test.dart`) RED for twelve days —
+#    unnoticed because nothing in CI runs `dart test` inside
+#    tool/stagec_qa_mcp_server (`flutter test` does not reach it). It is
+#    now DENIED in all three restricted profiles: it mutates the live
+#    shell (`serialised: true`, takes the fixture mutex) and is the
+#    input half of a two-step agent-chat send. Its non-batchability
+#    (`BatchPolicy.sensitiveInput`) is a SEPARATE gate — run_actions
+#    refusing a verb says nothing about whether a profile may call it
+#    directly.
+#
+# 8. get_render_profile (2026-08-12, 7e0ea8389) DID update this file —
+#    explicitly allowed for reviewer. alice / pm cover it through their
+#    `mcp_launcher_qa_get_*` glob, which is why note 4's drift test
+#    passes for them without a literal entry. WEAKNESS worth naming:
+#    that glob makes "starts with get_" the security predicate for the
+#    PM lane, so any future `get_*` tool is auto-allowed there with no
+#    conscious review — exactly what the drift test exists to force.
+#    Replacing the glob with the eleven literal `get_*` names would
+#    close it; that is a deliberate change, not a drive-by.
+
+# 9. dev_login (2026-09-02) — the debug-only sign-in lane. A
+#    `stagec-smoke` session was a GUEST, and a guest reaches no
+#    auth-gated surface at all (studioEnabledProvider is false without a
+#    playerPublicId, so Studio renders Home and says nothing), while the
+#    only sign-in verb on the bus arms an external browser against the
+#    staging realm. dev_login calls AuthService.devLogin() — the same
+#    call the guest sign-in view's "Dev Login" button makes — mints no
+#    token and contacts no realm. Full-access profiles reach it through
+#    the `mcp_launcher_qa_*` glob; it is DENIED in alice / pm / reviewer
+#    because it mutates auth AND navigation. Its batchability
+#    (`BatchPolicy.batchable`, movesAuth + movesNavigation) is a
+#    SEPARATE gate, exactly as note 7 records for set_text.
+
+# 10. Semantic-control scopes in the full-access profiles (2026-09-22).
+#     Resolution rule 3 is default-DENY for a profile listed in this file, and
+#     that applies to semantic controls exactly as it does to tool names. The
+#     five full-access profiles carried `shell.nav.*` and `studio.*` and
+#     nothing else, so every OTHER control the marionette registers — the
+#     whole `mission_control.*` cockpit lane, `library.*`, `education.*`,
+#     `posts.nav`, `voice.*`, `settings.audio`, `shell.scroll`,
+#     `blocking_modal` — resolved to DENIED. Twenty-eight of thirty scopes,
+#     denied for a reason nobody had decided rather than one anybody had: that
+#     pair was the entire vocabulary when this file was written in 2026-05, and
+#     the vocabulary grew without it.
+#
+#     The fix is per-FAMILY globs rather than thirty literals, because the
+#     grammar here only supports a trailing `*` and a family is the unit these
+#     profiles are described in ("full QA capability"). It is not a widening of
+#     intent: these five already hold `mcp_launcher_qa_*`, which includes
+#     `click_button`, `set_text` and `run_actions`, so nothing here grants a
+#     VERB they did not have — it stops the control-name half of the same
+#     decision from silently contradicting the tool half.
+#
+#     The restricted profiles (alice / pm / reviewer) are deliberately
+#     UNCHANGED. They deny `click_button`, `set_text` and `run_actions`
+#     outright, so no control name is reachable from them and adding scopes
+#     would be decoration.
+#
+#     Keep this list against `StageCQaScopes` in
+#     `lib/core/qa/stagec_qa_scopes.dart`, which is the vocabulary both the
+#     marionette hooks and the command bus now name. A new FAMILY needs a line
+#     here; a new scope inside an existing family does not.
+#
+# 11. The QA build job (2026-10-03, owner ruling: a QA rebuild is a
+#     background job). Two tools joined the catalog. `build_status` reads a
+#     job and may wait on it; it starts nothing, so it is ALLOWED in alice /
+#     pm / reviewer — a verifier whose launch answered
+#     `launch_qa_build_rebuilding` needs it to know when to look again.
+#     `prebuild` starts a 5-6 min build under the machine-wide heavy-run
+#     slot; it is the orchestrator's post-landing step, so it is DENIED in
+#     the restricted profiles and reached by the full-access ones through
+#     their `mcp_launcher_qa_*` glob.
