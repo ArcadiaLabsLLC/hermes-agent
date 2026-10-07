@@ -30,7 +30,7 @@ __all__ = ["contract_registry", "pydantic_contracts_enabled", "registry"]
 
 def pydantic_contracts_enabled() -> bool:
     """``tui_gateway.pydantic_contracts`` — off in a profile that ships no pydantic."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("tui_gateway", "pydantic_contracts", default=True)
 

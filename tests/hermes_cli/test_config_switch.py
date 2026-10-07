@@ -1,4 +1,4 @@
-"""``hermes_cli.config.config_switch`` and the distribution switches it reads.
+"""``hermes_cli.config_switches.config_switch`` and the distribution switches it reads.
 
 Each switch test carries a POSITIVE CONTROL: the same call under the default config (no
 ``config.yaml``) takes today's path, so "refused" is never the subject simply not reaching the
@@ -38,7 +38,7 @@ def _switch_off(section: str, key: str) -> None:
      ("yes", False, True), (True, False, True), ("garbage", True, False)],
 )
 def test_config_switch_reads_a_boolean_with_default(value, default, expected):
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     _write_config({"feature": {"flag": value}})
     assert config_switch("feature", "flag", default=default) is expected
@@ -46,16 +46,17 @@ def test_config_switch_reads_a_boolean_with_default(value, default, expected):
 
 def test_config_switch_absent_key_and_unreadable_config_are_the_default(monkeypatch):
     from hermes_cli import config
+    from hermes_cli.config_switches import config_switch
 
-    assert config.config_switch("feature", "missing") is True
-    assert config.config_switch("feature", "missing", default=False) is False
+    assert config_switch("feature", "missing") is True
+    assert config_switch("feature", "missing", default=False) is False
 
     def _boom():
         raise OSError("unreadable")
 
     monkeypatch.setattr(config, "load_config_readonly", _boom)
-    assert config.config_switch("feature", "flag") is True
-    assert config.config_switch("feature", "flag", default=False) is False
+    assert config_switch("feature", "flag") is True
+    assert config_switch("feature", "flag", default=False) is False
 
 
 def test_stdio_mcp_servers_off_keeps_http_servers():

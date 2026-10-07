@@ -51,7 +51,7 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
 
 def subprocess_worker_enabled() -> bool:
     """``conversations.subprocess_worker`` — off in a profile that may start no subprocess."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("conversations", "subprocess_worker", default=True)
 

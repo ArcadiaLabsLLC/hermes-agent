@@ -867,6 +867,20 @@ def _sync_nous_pool_from_auth_store() -> None:
         logger.debug("Failed to sync Nous credential pool from auth store: %s", exc)
 
 
+def _nous_stored_inference_url(state: Dict[str, Any]) -> str:
+    """The persisted inference URL of *state*, re-validated as network provenance.
+
+    A guest never falls back to the paid host: the gateway cross-refuses an anonymous JWT there
+    (400 naming the welcome host), so an absent or disallowed URL heals to the welcome literal.
+    """
+    from hermes_cli.auth import _optional_base_url
+    from hermes_cli.anon_auth import is_guest_state
+    return (
+        _validate_nous_inference_url_from_network(
+            _optional_base_url(state.get("inference_base_url")))
+        or (DEFAULT_NOUS_WELCOME_URL if is_guest_state(state) else DEFAULT_NOUS_INFERENCE_URL))
+
+
 def _nous_effective_routing(state: Dict[str, Any]) -> tuple[str, str, str, str]:
     """``(portal_url, stored_inference_url, effective_inference_url, client_id)`` from *state*.
 
@@ -892,13 +906,7 @@ def _nous_effective_routing(state: Dict[str, Any]) -> tuple[str, str, str, str]:
                 "(host %r or scheme not allowed), using default",
                 portal_url, portal_host)
             portal_url = DEFAULT_NOUS_PORTAL_URL
-    # A guest never falls back to the paid host: the gateway cross-refuses an anonymous JWT there
-    # (400 naming the welcome host), so an absent or disallowed URL heals to the welcome literal.
-    from hermes_cli.anon_auth import is_guest_state
-    stored_inference_url = (
-        _validate_nous_inference_url_from_network(
-            _optional_base_url(state.get("inference_base_url")))
-        or (DEFAULT_NOUS_WELCOME_URL if is_guest_state(state) else DEFAULT_NOUS_INFERENCE_URL))
+    stored_inference_url = _nous_stored_inference_url(state)
     return (
         portal_url, stored_inference_url, _nous_inference_env_override() or stored_inference_url,
         str(state.get("client_id") or DEFAULT_NOUS_CLIENT_ID))
