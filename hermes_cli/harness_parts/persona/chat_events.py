@@ -15,6 +15,7 @@ import uuid
 from agent_runtime.cli_format import emit_json
 from agent_runtime.clock import elapsed_ms
 from agent_runtime.events import EventLog
+from agent_runtime.mission_chat_phases import safe_handler_anchor
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
@@ -308,7 +309,7 @@ class _ChatProtocolV2Emitter:
         # The turn's phase timeline, or None for callers that do not keep one
         # (tests, and any future emitter user outside the chat handler). The
         # emitter takes exactly ONE mark from it — `provider_first_byte` — and
-        # never reads a mark back. The name is historical and pinned (it is the
+        # exports its handler wall anchor on turn.start. The name is historical and pinned (it is the
         # persisted phase key and the source of the wire's
         # `provider_first_byte_ms`): what it marks is the FIRST REPLY-TEXT
         # DELTA, which on a reasoning or tool-using turn lands well after the
@@ -347,12 +348,16 @@ class _ChatProtocolV2Emitter:
         self.elements: list[dict[str, object]] = []
         # RW3: `tool.progress` beats while a tool runs — streamed turns only.
         self._heartbeat = ToolHeartbeat(self) if self._emit_frames else None
+        anchored_at = safe_handler_anchor(
+            getattr(self._turn_phases, "anchored_at", None)
+        )
         self._emit_chat_frame(
             {
                 "type": "turn.start",
                 "protocol_version": 2,
                 "turn_id": self.turn_id,
                 "client_message_id": self.client_message_id,
+                **({"anchored_at": anchored_at} if anchored_at is not None else {}),
             }
         )
 

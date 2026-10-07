@@ -25,7 +25,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-07 (native turn anchor carrier)
 
-- [ ] **Expose the identity-matched handler anchor on native turn frames and status.** · fork / turn timing · evidence: `agent_runtime/mission_chat_phases.py::TurnPhaseMarks.snapshot` contains `anchored_at`, while `turn_timing_block` drops it and `hermes_cli/harness_parts/persona/chat_events.py` does not export it on `turn.start`; prerequisite for Launcher C020 send-to-anchor timing. Export the same sanitized handler stamp on `turn.start`, terminal timing and the exact admitted turn's operator conversation status; preserve replay identity and omit absent/invalid anchors rather than substituting acknowledgement or emitter time. Prove delayed handler/emitter clocks, two turn identities, old records and native wire/status parity. · **TAKEN 2026-10-07 sol-runtime**
 
 ### Filed on arrival — 2026-10-07 (latency source recheck)
 

@@ -56,6 +56,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from datetime import datetime
 from typing import Any, Callable
 
 from agent_runtime.clock import now_iso_micro
@@ -531,6 +532,22 @@ def mark_from_trace_payload(marks: TurnPhaseMarks, payload: Any) -> None:
     marks.mark(_trace_marker_steps()[step])
 
 
+def safe_handler_anchor(value: Any) -> str | None:
+    """One bounded timezone-aware ISO handler wall stamp, never a clock fallback."""
+    if not isinstance(value, str) or len(value) > _ANCHORED_AT_MAX_CHARS:
+        return None
+    text = value.strip()
+    if not text or "T" not in text:
+        return None
+    try:
+        stamp = datetime.fromisoformat(text)
+        if stamp.tzinfo is None or stamp.utcoffset() is None:
+            return None
+    except (ValueError, OverflowError):
+        return None
+    return text
+
+
 def safe_turn_phases(value: Any) -> dict[str, Any] | None:
     """Sanitize a ``phases`` block for the durable record. ``None`` = no block.
 
@@ -544,11 +561,9 @@ def safe_turn_phases(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     block: dict[str, Any] = {}
-    anchored_at = value.get(_ANCHORED_AT_KEY)
-    if isinstance(anchored_at, str):
-        text = anchored_at.strip()[:_ANCHORED_AT_MAX_CHARS]
-        if text:
-            block[_ANCHORED_AT_KEY] = text
+    anchored_at = safe_handler_anchor(value.get(_ANCHORED_AT_KEY))
+    if anchored_at is not None:
+        block[_ANCHORED_AT_KEY] = anchored_at
     for key in _BLOCK_ORDER:
         if key not in value:
             continue
@@ -716,6 +731,7 @@ TURN_TIMING_ORDER: tuple[str, ...] = (
     "request_sent_ms",
     "response_headers_ms",
     "provider_returned_ms",
+    _ANCHORED_AT_KEY,
 )
 
 
@@ -742,6 +758,9 @@ def turn_timing_block(
     marks = phases if isinstance(phases, dict) else {}
     timing = profile_timing if isinstance(profile_timing, dict) else {}
     collected: dict[str, Any] = {}
+    anchored_at = safe_handler_anchor(marks.get(_ANCHORED_AT_KEY))
+    if anchored_at is not None:
+        collected[_ANCHORED_AT_KEY] = anchored_at
     for wire_key, source_key in _TIMING_FROM_PHASES:
         value = _timing_int(
             marks.get(source_key),

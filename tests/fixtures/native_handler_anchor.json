@@ -1,0 +1,91 @@
+{
+  "source": "test_real_handler_start_terminal_and_native_status_share_anchor; real handler, scripted provider transport, native operator RPC",
+  "handler_anchor": "2026-10-07T12:00:00.123456Z",
+  "ack": {
+    "turn_request_id": "handler-anchor",
+    "accepted": true,
+    "next_check_after_ms": 5000,
+    "observation_budget_ms": 1800000,
+    "observation_expiry_action": "detach",
+    "state": "accepted",
+    "verb": "runtime.chat.message",
+    "idempotent_replay": false,
+    "settled": false
+  },
+  "turn.start": {
+    "type": "turn.start",
+    "protocol_version": 2,
+    "turn_id": "handler-anchor",
+    "client_message_id": "handler-anchor",
+    "anchored_at": "2026-10-07T12:00:00.123456Z"
+  },
+  "chat.final": {
+    "type": "chat.final",
+    "turn_id": "handler-anchor",
+    "client_message_id": "handler-anchor",
+    "persona_instance_id": "personainst_dev",
+    "root_chat_session_id": "persona_chat_personainst_dev_123456abcdef",
+    "timing": {
+      "request_assembled_ms": 0,
+      "provider_first_byte_ms": 0,
+      "context_built_ms": 0,
+      "observability_built_ms": 0,
+      "write_ahead_ms": 0,
+      "agent_ready_ms": 0,
+      "visibility_bundle_builds": 2,
+      "conversation_started_ms": 0,
+      "turn_context_built_ms": 0,
+      "preflight_done_ms": 0,
+      "request_built_ms": 0,
+      "client_built_ms": 0,
+      "tls_done_ms": 0,
+      "request_sent_ms": 0,
+      "response_headers_ms": 0,
+      "provider_returned_ms": 0,
+      "anchored_at": "2026-10-07T12:00:00.123456Z"
+    }
+  },
+  "status_running": {
+    "turn_request_id": "handler-anchor",
+    "outcome": "unsettled",
+    "timing": {
+      "context_built_ms": 0,
+      "observability_built_ms": 0,
+      "write_ahead_ms": 0,
+      "anchored_at": "2026-10-07T12:00:00.123456Z"
+    },
+    "admitted": true,
+    "stop_requested": false,
+    "next_check_after_ms": 5000,
+    "observation_budget_ms": 1800000,
+    "observation_expiry_action": "detach"
+  },
+  "status_terminal": {
+    "turn_request_id": "handler-anchor",
+    "outcome": "finished",
+    "timing": {
+      "request_assembled_ms": 0,
+      "provider_first_byte_ms": 0,
+      "context_built_ms": 0,
+      "observability_built_ms": 0,
+      "write_ahead_ms": 0,
+      "agent_ready_ms": 0,
+      "visibility_bundle_builds": 2,
+      "conversation_started_ms": 0,
+      "turn_context_built_ms": 0,
+      "preflight_done_ms": 0,
+      "request_built_ms": 0,
+      "client_built_ms": 0,
+      "tls_done_ms": 0,
+      "request_sent_ms": 0,
+      "response_headers_ms": 0,
+      "provider_returned_ms": 0,
+      "anchored_at": "2026-10-07T12:00:00.123456Z"
+    },
+    "admitted": true,
+    "stop_requested": false,
+    "next_check_after_ms": null,
+    "observation_budget_ms": 1800000,
+    "observation_expiry_action": "detach"
+  }
+}
