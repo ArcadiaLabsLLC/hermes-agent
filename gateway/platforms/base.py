@@ -1277,16 +1277,18 @@ _MEDIA_EXT_ALTERNATION = "|".join(sorted((e.lstrip(".") for e in MEDIA_DELIVERY_
 # attachment is silently dropped (#88038).
 _MEDIA_CJK_TERMINATORS = "（）〈〉《》：，。；！？、\u201c\u201d\u2018\u2019【】"
 
+# A closing quote/backtick already terminates its path. Apply the trailing boundary
+# check only to bare paths, where a backslash can still begin another directory.
 MEDIA_TAG_CLEANUP_RE = re.compile(
     r'''[`"'*_]{0,3}MEDIA:\s*'''
     r'''(?P<path>`[^`\n]+?`|"[^"\n]+?"|'[^'\n]+?'|'''
-    r'''(?:~/|/|[A-Za-z]:[/\\])\S+?(?:[^\S\n]+\S+?)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r'''))'''
+    r'''(?:~/|/|[A-Za-z]:[/\\])\S+?(?:[^\S\n]+\S+?)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r''')'''
     r'''(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\.(?:\s|$)|$|'''
     # An escaped ``\n`` / ``\r`` / ``\t`` (or a run of them) glued to the path ends it only when a
     # real boundary follows the letter. Otherwise the backslash is a separator: in
     # ``C:\out\a.png\notes\README`` or ``C:\out\album.png\photo.jpg``, ``a.png`` is a directory.
     r'''(?:\\[nrt])+(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''
-    r'''[`"'*_]{0,3}\.?''',
+    r''')[`"'*_]{0,3}\.?''',
     re.IGNORECASE)
 
 # Extension-less (Caddyfile) / unknown-ext (.py, .log) tags deliver only after

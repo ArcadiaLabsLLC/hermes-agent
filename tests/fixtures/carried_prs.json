@@ -502,12 +502,12 @@
             "from hermes_constants import get_default_hermes_root, get_hermes_dir, get_hermes_home, get_real_home",
             "    # The native home (USERPROFILE on Windows), an operator ``$HOME`` that differs from it, AND the\n    # OS account's real home: a re-homed child (``HOME={HERMES_HOME}/home``) keeps the account home\n    # only in ``HERMES_REAL_HOME``, where ``~`` and ``$HOME`` both name the profile home.\n    real_home = _or_default(get_real_home, \"\", exc=(OSError, RuntimeError, ValueError))\n    homes = dict.fromkeys(Path(h) for h in (os.path.expanduser(\"~\"), os.environ.get(\"HOME\"), real_home) if h)",
             "            *(home / sub for home in homes for sub in _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS),",
-            "    r'''(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\\.(?:\\s|$)|$|'''\n    # An escaped ``\\n`` / ``\\r`` / ``\\t`` (or a run of them) glued to the path ends it only when a\n    # real boundary follows the letter. Otherwise the backslash is a separator: in\n    # ``C:\\out\\a.png\\notes\\README`` or ``C:\\out\\album.png\\photo.jpg``, ``a.png`` is a directory.\n    r'''(?:\\\\[nrt])+(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''\n    r'''[`\"'*_]{0,3}\\.?''',",
+            "    r'''(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\\.(?:\\s|$)|$|'''\n    # An escaped ``\\n`` / ``\\r`` / ``\\t`` (or a run of them) glued to the path ends it only when a\n    # real boundary follows the letter. Otherwise the backslash is a separator: in\n    # ``C:\\out\\a.png\\notes\\README`` or ``C:\\out\\album.png\\photo.jpg``, ``a.png`` is a directory.\n    r'''(?:\\\\[nrt])+(?=[\\s`\"'*_,;:)\\]}\\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''",
             "        dropped_nul = False",
             "            nonlocal dropped_nul\n            if \"\\x00\" in path:\n                dropped_nul = True  # never delivered, but its tag still leaves the caption\n                return",
             "        if media or dropped_nul:"
           ],
-          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
+          "reason": "Current PR additions except the regex grouping boundary: fork preserves closing-quote termination for quoted Windows paths by applying the boundary only to bare paths. Covered by test_platform_base_downstream and test_media_path_hardening; grouping, context and removed lines require manual review."
         }
       }
     },
