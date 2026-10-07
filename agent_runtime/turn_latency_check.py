@@ -56,7 +56,7 @@ def _num(value: Any) -> float | None:
         return None
 
 
-def _utc(text: str) -> datetime | None:
+def _parse_local_stamp(text: str) -> datetime | None:
     try:
         stamp = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
     except ValueError:
@@ -96,7 +96,7 @@ def parse_launcher(line: str) -> dict[str, Any] | None:
     stamp = _LAUNCHER_STAMP.match(line)
     spans = {key: _num(fields.get(f"{key}_ms")) for key in _LAUNCHER_KEYS}
     return {"turn": fields["turn_id"], "send": fields.get("send"),
-            "at": _utc(stamp.group(1)) if stamp else None,
+            "at": _parse_local_stamp(stamp.group(1)) if stamp else None,
             "spans": {k: v for k, v in spans.items() if v is not None}}
 
 
@@ -122,7 +122,7 @@ def _on_prep(state: dict[str, Any], row: dict[str, Any]) -> None:
         return
     entry = state["open_prep"] = _turn(state, fields["turn"])
     if entry["anchor"] is None:
-        entry["anchor"] = _utc(fields.get("anchored_at", "")) or row["at"]
+        entry["anchor"] = _parse_local_stamp(fields.get("anchored_at", "")) or row["at"]
     if _num(fields.get("total_ms")) is not None:
         entry["spans"]["send_prep_total"] = _num(fields["total_ms"])
 
@@ -303,7 +303,7 @@ def serve_boots(store_root: Path) -> list[datetime]:
         if path.name.endswith(".ended.json"):
             continue
         try:
-            stamp = _utc(json.loads(path.read_text(encoding="utf-8")).get("started_at", ""))
+            stamp = _parse_local_stamp(json.loads(path.read_text(encoding="utf-8")).get("started_at", ""))
         except (OSError, ValueError, AttributeError):
             stamp = None
         if stamp:
@@ -315,8 +315,8 @@ def serve_boots(store_root: Path) -> list[datetime]:
         except OSError:
             continue
         match = re.search(r"started=(\S+)", head)
-        if match and _utc(match.group(1)):
-            boots.append(_utc(match.group(1)))
+        if match and _parse_local_stamp(match.group(1)):
+            boots.append(_parse_local_stamp(match.group(1)))
     return sorted(set(boots))
 
 

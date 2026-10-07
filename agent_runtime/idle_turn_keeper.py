@@ -147,7 +147,7 @@ def arm() -> threading.Thread | None:
             if thread is not None and thread.is_alive():
                 return thread
             stop_event = threading.Event()
-            thread = threading.Thread(target=_run, args=(stop_event,), name=KEEPER_THREAD_NAME, daemon=True)
+            thread = threading.Thread(target=_keeper_loop, args=(stop_event,), name=KEEPER_THREAD_NAME, daemon=True)
             _STATE.update(thread=thread, stop=stop_event)
         thread.start()
         return thread
@@ -164,7 +164,7 @@ def stop() -> None:
         _STATE["thread"] = None
 
 
-def _run(stop_event: threading.Event) -> None:
+def _keeper_loop(stop_event: threading.Event) -> None:
     while not stop_event.wait(KEEPER_INTERVAL_SECONDS):
         with _LOCK:
             if _STATE["ticks"] >= KEEPER_MAX_TICKS or not _enabled():

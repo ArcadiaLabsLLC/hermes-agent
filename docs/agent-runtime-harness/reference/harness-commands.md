@@ -3417,7 +3417,8 @@ options:
 ```text
 usage: hermes harness observe turn-timing [-h] [--since SINCE] [--log LOG]
                                           [--launcher-log LAUNCHER_LOG] [--baseline BASELINE]
-                                          [--json]
+                                          [--json] [--check] [--last LAST] [--from FROM_TIME]
+                                          [--to TO_TIME] [--budgets BUDGETS]
 
 options:
   -h, --help            show this help message and exit
@@ -3427,6 +3428,13 @@ options:
                         Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)
   --baseline BASELINE   Baseline JSON (default tests/fixtures/turn_timing_baseline.json)
   --json
+  --check               Judge the last N turns' receipts against
+                        agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL
+  --last LAST           --check: how many of the newest turns to judge (default 10)
+  --from FROM_TIME      --check: only turns anchored at/after this local time (YYYY-MM-DD
+                        HH:MM[:SS])
+  --to TO_TIME          --check: only turns anchored at/before this local time
+  --budgets BUDGETS     --check: budget JSON (default agent_runtime/turn_latency_budgets.json)
 ```
 
 ## hermes harness contracts
