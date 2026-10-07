@@ -397,6 +397,7 @@ def _merge_related_boxes(boxes: list[tuple[int, int, int, int]]) -> list[tuple[i
     """Merge disconnected parts of one subject (capes, tails, props) on the same row.
 
     Merges when vertical spans overlap and the horizontal gap is tiny relative to component size; never bridges the larger gaps between separate poses.
+    Vertically it merges only an x-nested fragment much shorter than its neighbour, so 2D-grid rows stay separate.
     """
     def related(a, b) -> bool:
         (al, at, ar, ab), (bl, bt, br, bb) = a, b
@@ -404,8 +405,14 @@ def _merge_related_boxes(boxes: list[tuple[int, int, int, int]]) -> list[tuple[i
         gap, min_w = max(0, max(al, bl) - min(ar, br)), max(1, min(ar - al, br - bl))
         h_overlap = max(0, min(ar, br) - max(al, bl))
         y_gap = max(0, max(at, bt) - min(ab, bb))
+        # A detached part (head over body) is x-nested in, and much shorter than, the box it joins; grid
+        # neighbours (the pose above/below) are whole poses of similar height, so they never merge vertically.
+        narrow, wide = (a, b) if ar - al <= br - bl else (b, a)
+        tol = max(4, min_w * 0.1)
+        nested = narrow[0] >= wide[0] - tol and narrow[2] <= wide[2] + tol
+        fragment = min_h <= max(ab - at, bb - bt) * 0.6
         return ((v_overlap >= min_h * 0.45 and gap <= max(14, min_w * 0.22))
-                or (h_overlap >= min_w * 0.45 and y_gap <= max(14, min_h * 0.22)))
+                or (nested and fragment and h_overlap >= min_w * 0.45 and y_gap <= max(14, min_h * 0.22)))
 
     boxes = list(boxes)
     changed = True

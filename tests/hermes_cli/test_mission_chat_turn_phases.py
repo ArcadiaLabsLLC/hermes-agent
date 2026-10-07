@@ -65,7 +65,7 @@ from agent_runtime.mission_chat_phases import (
     safe_turn_phases,
 )
 from agent_runtime.mission_chat_turns import TURN_PROFILE_TIMING_KEY
-from agent_runtime.persona_runtime import _chat_trace_callback
+from agent_runtime.persona_runtime import _chat_trace_sink
 from agent_runtime.profile_runner import AgentRunRequest, _profile_status_callback
 from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 
@@ -170,12 +170,12 @@ def _streaming_provider(*, profile_timing=None, deltas=("hello ", "world")):
             # transport keeps that hole closed.
             trace = kwargs.get("trace_callback")
             if trace is not None:
-                progress_callback = _chat_trace_callback(
+                progress_callback = _chat_trace_sink(
                     session_id=kwargs.get("permission_session_id") or _SESSION_ID,
                     persona=args[0] if args else SimpleNamespace(id="dev"),
                     turn_id=kwargs.get("turn_id"),
                     on_trace=trace,
-                )
+                ).callback()
                 request = AgentRunRequest(
                     profile=None,
                     provider="openai-codex",

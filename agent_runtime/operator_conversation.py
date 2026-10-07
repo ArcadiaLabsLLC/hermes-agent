@@ -15,8 +15,8 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
 from agent_runtime.workspace_scope import effective_workspace_id
-from agent_runtime.chat_turn_reservations import reserve_chat_turn, unsettled_chat_receipts
-from agent_runtime.operator_execution import execution_status
+from agent_runtime.chat_turn_reservations import unsettled_chat_receipts
+from agent_runtime.operator_execution import execution_status, operator_execution_reservation
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from tools.agent_chat.lane import session_belongs_to_chat_lane
 from agent_runtime.serde import safe_assignment_token
@@ -75,8 +75,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
     requested = params.get("turn_request_id")
     receipt = None
     if requested is not None:
-        with reserve_chat_turn(turn_request_id=requested, verb=CHAT_MESSAGE_METHOD,
-                               session_scope=session) as reservation:
+        with operator_execution_reservation(session, requested) as reservation:
             receipt = reservation.record.state
     recorded = any(turn["client_message_id"] == requested for turn in turns)
     journal_ids = {turn["client_message_id"] for turn in turns}

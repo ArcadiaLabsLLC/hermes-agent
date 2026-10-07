@@ -7,15 +7,18 @@ and the usage-ledger wrapper.
 
 from __future__ import annotations
 
+import contextvars
+import functools
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from threading import Event, RLock, Timer
 import time
 from typing import Any, Callable
 
 from hermes_cli.runtime_provider import resolve_runtime_provider
 
-from agent_runtime import live_turns, turn_budget
+from agent_runtime import idle_turn_keeper, live_turns, turn_budget
 from agent_runtime.persona_chat_identity import resolved_runtime_revision
 from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
@@ -29,10 +32,15 @@ from agent_runtime.run_budget import (
 )
 
 from agent_runtime.first_turn_warmup import warm_first_turn_paths
-from agent_runtime.prewarmed_system_prompt import stash_prewarmed_system_prompt
+from agent_runtime.prewarmed_system_prompt import (
+    RAN_ON_RUN_END,
+    run_deferred_turn_persist,
+    stash_prewarmed_system_prompt,
+)
 from agent_runtime.serde import positive_float, positive_int
 from agent_runtime.tool_blocks import bound_tool_block
 from agent_runtime.profile_runner.errors import (
+    PrewarmYielded,
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
 )
@@ -44,6 +52,8 @@ from agent_runtime.profile_runner.budget import (
     _ToolBudgetGuard,
 )
 from agent_runtime.profile_runner.resident_actor import (
+    log_turn_effort,
+    turn_reasoning_config,
     _finish_resident_persona_chat_agent,
     _prepare_resident_persona_chat_agent,
     stage_persona_chat_user_row_marker,
@@ -66,6 +76,18 @@ from agent_runtime.profile_runner.model_input_observability import (
 )
 
 __layer__ = "lanes"
+
+
+def _warm_skill_catalog(agent) -> None:
+    """Fill the process-wide skill-catalog memo the turn's observability row reads (h-send-window)."""
+
+    from agent_runtime.prompt_observability.skills_resolver import _installed_skill_catalog
+
+    _installed_skill_catalog()
+
+
+#: Warm-up steps that read a store; ``first_turn_warmup`` is policy and may not import one.
+_FIRST_TURN_STORE_STEPS = (("skill_catalog", _warm_skill_catalog),)
 
 __all__ = [
     "AgentRunExecution",
@@ -211,23 +233,57 @@ def _resolve_request_runtime(
             if timing is not None:
                 timing["runtime_resolve_cached"] = 1
             return dict(cached[1])
-    runtime = resolve_runtime_provider(requested=request.provider, target_model=request.model)
-    resolved = {
-        key_name: value
-        for key_name, value in runtime.items()
-        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
-    }
+    resolved = _resolved_fields(resolve_runtime_provider(requested=request.provider, target_model=request.model))
+    # h-idle-turn: between turns the idle keeper re-resolves this entry before it lapses, in this
+    # turn's context (the profile binding), so the next turn after a pause reads it warm.
+    idle_turn_keeper.register_refresh(
+        f"runtime_resolve:{key[0]}|{key[1]}|{key[2]}",
+        functools.partial(contextvars.copy_context().run, _idle_refresh_runtime_resolve,
+                          str(request.provider or ""), str(request.model or "")),
+    )
+    _store_resolved(key, now, resolved)
+    if timing is not None:
+        timing["runtime_resolve_cached"] = 0
+    return resolved
+
+
+def _store_resolved(key: tuple, at: float, resolved: dict[str, Any], *, replace_only: bool = False) -> None:
+    """The memo's one write path (a turn's resolve; the idle keeper's, ``replace_only``)."""
+
     with _RUNTIME_RESOLVE_CACHE_LOCK:
+        if replace_only and key not in _RUNTIME_RESOLVE_CACHE:
+            return
         # Bounded: one entry per live (profile, provider, model, config) tuple,
         # and the set of those is small. Evict the oldest wholesale rather than
         # keep an LRU — a cold re-resolve costs one turn 0.3 s, a leak costs the
         # process.
         if len(_RUNTIME_RESOLVE_CACHE) >= 64:
             _RUNTIME_RESOLVE_CACHE.clear()
-        _RUNTIME_RESOLVE_CACHE[key] = (now, dict(resolved))
-    if timing is not None:
-        timing["runtime_resolve_cached"] = 0
-    return resolved
+        _RUNTIME_RESOLVE_CACHE[key] = (at, dict(resolved))
+
+
+def _resolved_fields(runtime: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key_name: value
+        for key_name, value in runtime.items()
+        if key_name in {"provider", "model", "api_mode", "base_url", "api_key"} and value
+    }
+
+
+def _idle_refresh_runtime_resolve(provider: str, model: str) -> bool:
+    """h-idle-turn: re-resolve one warm memo entry that would lapse before the keeper's next tick."""
+
+    request = SimpleNamespace(provider=provider, model=model)
+    key = _runtime_resolve_cache_key(request)  # type: ignore[arg-type]
+    with _RUNTIME_RESOLVE_CACHE_LOCK:
+        cached = _RUNTIME_RESOLVE_CACHE.get(key)
+    lapse_after = max(0.0, RUNTIME_RESOLVE_CACHE_TTL_SECONDS - idle_turn_keeper.KEEPER_INTERVAL_SECONDS)
+    if cached is None or time.monotonic() - cached[0] < lapse_after:
+        return False  # gone (a config edit moved the key) or still fresh
+    started = time.monotonic()
+    _store_resolved(key, started, _resolved_fields(resolve_runtime_provider(requested=provider, target_model=model)),
+                    replace_only=True)
+    return True
 
 
 def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], None] | None:
@@ -244,18 +300,25 @@ def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], No
 def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[str, Any]) -> Any:
     """Run the turn with a per-call usage ledger, the persona agent bound for plugin
     middleware (dispatch timing, cache routing) and the provider stream observers armed;
-    a dict result carries the ledger as ``usage_ledger``."""
+    a dict result carries the ledger as ``usage_ledger`` and the turn's reasoning
+    (``stream_gap_receipt.TurnReasoning``) as ``reasoning_window``."""
     from agent_runtime.chat_lane_defer import turn_defer_tools
     from agent_runtime.codex_observability import stream_observers_armed
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+    from agent_runtime.stream_gap_receipt import bind_turn_reasoning
     from agent_runtime.usage_ledger import bind_usage_ledger
     from tools.tool_search_downstream import scoped_turn_defer
 
     # The persona's defer reaches the bridge's reads (search catalog, tool_call resolve) here.
-    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)):
-        raw_result = agent.run_conversation(**conversation_kwargs)
+    with bind_usage_ledger() as usage_ledger, bind_persona_turn_agent(agent), stream_observers_armed(),             scoped_turn_defer(turn_defer_tools(agent)), bind_turn_reasoning(agent) as reasoning:
+        try:
+            raw_result = agent.run_conversation(**conversation_kwargs)
+        finally:
+            # h-turn1-conn: a held first-turn persist whose request never went out runs now.
+            run_deferred_turn_persist(agent, RAN_ON_RUN_END)
     if isinstance(raw_result, dict):
         raw_result["usage_ledger"] = list(usage_ledger)
+        raw_result["reasoning_window"] = reasoning.fields()
     return raw_result
 
 
@@ -332,34 +395,17 @@ class AgentRunExecution:
     def run(self) -> tuple[Any, Any, dict[str, Any]]:
         with self.scopes() as mcp_scope:
             self.mcp_scope = mcp_scope
+            self.yield_point("lock_acquired")
             self.resolve_runtime()
             self.arm_wall_checkpoint()
+            self.yield_point("runtime_resolved")
             self.admit_mcp()
+            self.yield_point("mcp_admitted")
             self.build_turn_state()
             self.acquire_agent()
+            log_turn_effort(self.request, self.agent, reused=bool(self.timing.get("resident_actor_reused")))
             if self.request.prewarm_only:
-                # Everything above this line is what a real turn does before it
-                # has an agent; everything below is what it does WITH one. A
-                # prewarm stops exactly here — no turn-scoped attributes, no
-                # compression threshold, no MCP steer notice, no `agent_ready`
-                # callback and no conversation. The `with` block still unwinds
-                # normally on the way out, so this run's admitted MCP scope is
-                # torn down while it still holds `_WORKDIR_LOCK`, exactly as a
-                # real run's is.
-                #
-                # `_finish_resident_persona_chat_agent` detaches the (already
-                # empty) prewarm-local handles, so a resident actor is handed to
-                # its first real turn in the same state a completed turn leaves
-                # it in — one state for a warm actor, not two.
-                #
-                # h-turn1 A3: the first turn's system prompt is built HERE, under
-                # the same scopes, and adopted by that turn's
-                # `_restore_or_build_system_prompt` instead of rebuilt there.
-                stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
-                # h-conn-pool: the first turn's one-time process costs (spinner catalog, lazy imports, SDK headers).
-                warm_first_turn_paths(self.agent, self.timing)
-                _finish_resident_persona_chat_agent(self.agent)
-                return None, self.agent, self.timing
+                return self.finish_prewarm()
             self.bind_chat_root()
             mcp_scope.enter_context(bound_tool_block(
                 _blocked_tool_names_for_run(self.request),
@@ -374,11 +420,65 @@ class AgentRunExecution:
                 persona_instance_id=self.request.persona_instance_id or "",
                 agent=self.agent,
             ))
+            idle_turn_keeper.note_active_agent(self.agent)  # h-idle-turn: the chat whose socket stays warm
             agent_ready_cleanup = _notify_agent_ready(self.request, self.agent)
             max_wall_seconds = positive_float(self.request.max_wall_seconds)
             if max_wall_seconds is None:
                 return self.converse(agent_ready_cleanup)
             return self.converse_under_wall(max_wall_seconds, agent_ready_cleanup)
+
+    def finish_prewarm(self) -> tuple[Any, Any, dict[str, Any]]:
+        """A ``prewarm_only`` run's tail, with the agent acquired; still under the scopes.
+
+        Everything before this is what a real turn does before it has an agent;
+        everything after ``run``'s prewarm return is what it does WITH one. A prewarm
+        stops here -- no turn-scoped attributes, no compression threshold, no MCP
+        steer notice, no ``agent_ready`` callback and no conversation. The ``with``
+        block still unwinds normally on the way out, so this run's admitted MCP scope
+        is torn down while it still holds ``_WORKDIR_LOCK``, exactly as a real run's is.
+
+        ``_finish_resident_persona_chat_agent`` detaches the (already empty)
+        prewarm-local handles, so a resident actor is handed to its first real turn in
+        the same state a completed turn leaves it in -- one state for a warm actor, not
+        two. It runs on the yield path too: the actor is registered by then.
+
+        h-turn1 A3: the first turn's system prompt is built HERE, under the same
+        scopes, and adopted by that turn's ``_restore_or_build_system_prompt``.
+        h-conn-pool: then the first turn's one-time process costs (spinner catalog,
+        lazy imports, SDK headers), each step a yield point (h-turn-wait).
+        """
+
+        try:
+            self.yield_point("agent_acquired")
+            stash_prewarmed_system_prompt(self.agent, self.request.system_message, self.timing)
+            self.yield_point("system_prompt_stashed")
+            warm_first_turn_paths(self.agent, self.timing, _FIRST_TURN_STORE_STEPS,
+                                  should_stop=self._prewarm_should_yield)
+        finally:
+            _finish_resident_persona_chat_agent(self.agent)
+        return None, self.agent, self.timing
+
+    def _prewarm_should_yield(self) -> Any:
+        """The request's ``prewarm_yield`` answer on a prewarm, else ``None``. Never raises."""
+
+        request = self.request
+        if not request.prewarm_only or request.prewarm_yield is None:
+            return None
+        try:
+            return request.prewarm_yield()
+        except Exception:  # pragma: no cover - a gauge read never fails a prewarm
+            return None
+
+    def yield_point(self, phase: str) -> None:
+        """h-turn-wait: a prewarm holding ``_WORKDIR_LOCK`` stands down for a turn.
+
+        Raises :class:`PrewarmYielded`; the scope stack unwinds (MCP teardown first)
+        and the lock passes to the waiting turn. A no-op on a real run.
+        """
+
+        reason = self._prewarm_should_yield()
+        if reason:
+            raise PrewarmYielded(phase, reason)
 
     @contextmanager
     def scopes(self):
@@ -517,16 +617,11 @@ class AgentRunExecution:
 
     def build_turn_state(self) -> None:
         request, budget_guard = self.request, self.budget_guard
-        # Per-run reasoning override → agent reasoning_config. Only passed
-        # when explicitly requested so an unset run keeps the current
-        # behavior (transport reads the global agent.reasoning_effort). The
-        # transport reads params["reasoning_config"] = {"enabled": .., "effort": ..}.
-        if request.reasoning_effort:
-            from hermes_constants import parse_reasoning_effort
-
-            reasoning_config = parse_reasoning_effort(request.reasoning_effort)
-            if reasoning_config is not None:
-                self.reasoning_kwargs["reasoning_config"] = reasoning_config
+        # The run's reasoning_config: the instance's effort, else the profile's
+        # (``turn_reasoning_config``). The transport reads params["reasoning_config"].
+        reasoning_config = turn_reasoning_config(request, self.runtime.get("model") or request.model)
+        if reasoning_config is not None:
+            self.reasoning_kwargs["reasoning_config"] = reasoning_config
         # T3 (2026-08-09): the turn-scoped state a RESIDENT actor needs
         # refreshed, resolved from the REQUEST rather than read back off a
         # throwaway agent. This is what makes the construction below lazy:
@@ -649,6 +744,8 @@ class AgentRunExecution:
         )
         if reused:
             _prepare_resident_persona_chat_agent(entry.agent, self.turn_state)
+            # The effort is per RUN, not per actor: a reused actor sends this run's.
+            entry.agent.reasoning_config = self.reasoning_kwargs.get("reasoning_config")
         self.agent = entry.agent
         timing["resident_actor_reused"] = 1 if reused else 0
         if rebuild_reason:

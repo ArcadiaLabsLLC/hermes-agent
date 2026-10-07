@@ -25,7 +25,9 @@ def test_dry_run_warns_git_history_not_backed_up(monkeypatch, tmp_path, capsys):
     )
 
     output = capsys.readouterr().out
-    assert "git history" in output.lower()
+    # Current carried PR names the irreplaceable checkout contents explicitly.
+    assert "local commits, branches" in output.lower()
+    assert "uncommitted work" in output.lower()
     assert "not backed up" in output.lower() or "without backup" in output.lower()
 
 
@@ -52,5 +54,7 @@ def test_interactive_preamble_warns_git_history_not_backed_up(
     uninstall.run_uninstall(SimpleNamespace(dry_run=False, yes=False, full=False))
 
     output = capsys.readouterr().out
-    assert "git history" in output.lower()
+    # Current carried PR names the irreplaceable checkout contents explicitly.
+    assert "local commits, branches" in output.lower()
+    assert "uncommitted work" in output.lower()
     assert "not backed up" in output.lower() or "without backup" in output.lower()

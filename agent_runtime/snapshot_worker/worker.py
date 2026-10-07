@@ -33,8 +33,7 @@ def start_worker(home: Path) -> SnapshotPeer:
         **options,
     )
     try:
-        peer = SnapshotPeer(process, receive=lambda _frame: None, lost=lambda: None,
-                            containment=containment)
+        peer = SnapshotPeer(process, containment=containment)
     except Exception:
         if containment is not None:
             containment.close()
@@ -52,7 +51,7 @@ def subprocess_worker_enabled() -> bool:
     snapshot subprocess either, and builds in process exactly as before.
     """
 
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     from agent_runtime.conversations.worker import subprocess_worker_enabled as conversations_on
 

@@ -187,7 +187,9 @@ what the fixture mirror below enforces.
 |---|---|---|
 | `snapshot_build_core role=… caller=… generation=… build_ms=… offset=… sections_top=… reason=… executor=… turns=… worker_pid=… pid=…` | `agent_runtime/snapshot/build_log.py::_log_snapshot_build_core`, called from `snapshot/build.py::_lead_build_now` | operator grep (`role=led` is the build count); `hermes harness observe snapshot-builds`; `tests/agent_runtime/test_snapshot_build_logging.py` pins the prefix and `pid` last |
 | `snapshot_build_shadow caller=… reason=shadow build_ms=… offset=… sections_top=… executor=… turns=… worker_pid=… pid=…` | const `SNAPSHOT_BUILD_SHADOW_RECEIPT` (`snapshot/build_log.py`), emitted by `snapshot/build.py::_shadow_build` | the cache-hit boot's shadow validation build, which had no line; NOT `role=led` (it holds no coalescer slot and is not in `builds_overlapped`); `observe snapshot-builds`; `tests/agent_runtime/test_snapshot_worker.py` |
-| `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
+| `snapshot_worker op=spawn/lost/retired/off/close …` (`lost` carries `reason=` one of `exited`, `silent` (no `snapshot.ready` within 20 s of the spawn, or no beat for 5 s), `idle` (the request's thread burned no CPU for 15 s), `timeout`, `build_error`, `bad_reply`, `spawn_failed`, then `fallback=in_process`) | consts in `agent_runtime/snapshot_worker/executor.py` (`WORKER_*_RECEIPT`) | the resident snapshot worker's life; `op=lost` lines are `observe snapshot-builds`' `worker_fallbacks`; `tests/agent_runtime/test_snapshot_worker.py` |
+| `chat_turn_duplicate_refused request= twin= verb= client_message_id=` | `DUPLICATE_REFUSED_RECEIPT` in `hermes_cli/harness_parts/serve/request_pool.py` | a chat turn presented again (same `--client-message-id`) while another worker of this serve runs it: no handler ran, the request was answered `chat_turn_duplicate_in_flight` (exit 2); `tests/agent_runtime/test_pool_starve_downstream.py` |
+| `chat_turn_accept_to_anchor request=… queue_ms=… link_ms=… dispatch_ms=… total_ms=… turn=…` | `ACCEPT_TO_ANCHOR_RECEIPT` in `agent_runtime/turn_activity.py`, emitted by `admitted_turn` at the handler anchor | one line per turn that came through the serve's pool: where accept -> anchor went (`queue` behind other work, `link` the Launcher app-function bind, `dispatch` the argv parse and imports). `turn=` (h-perf-guard) is the client message id; a line written before it joins its turn record on the anchor instant. `hermes harness observe turn-timing`; `tests/agent_runtime/test_turn_timing_census_downstream.py`, `test_pool_starve_downstream.py` |
 | `snapshot_build reason=… waited_ms=… elapsed_ms=… build_ms=… role=… caller=… generation=… offset=… events=…` (+`sections_top=`, +`core_source=`, then `pid=` last) | `agent_runtime/stream/build_policy.py::_log_snapshot_build` | operator grep; a launcher in the field still parses `elapsed_ms` (`agent_runtime/stream/frames.py`); `tests/agent_runtime/test_stream_build_timing_log.py` |
 | `snapshot_agents_readiness walk_ms=… tool_visibility_ms=… pid=…` | const `snapshot/build_log.py:178-180`, emitted in `_log_agents_readiness_split` (`:183`) | joins `snapshot_build_core` on `pid`; pinned by regex at `tests/agent_runtime/test_agents_readiness_attribution.py:51` |
 | `stream_attach op=… purpose=… … pid=…` | `agent_runtime/stream/build_policy.py::log_stream_denied` | boot-investigation join (third `pid=`-bearing family) |
@@ -200,6 +202,8 @@ what the fixture mirror below enforces.
 | `agent_create_phases persona=… instance_ms=… phases=… pid=…` | const `agent_create_phases.py:88-90`, emitted `:232-237` | drop-latency attribution; pinned at `tests/agent_runtime/test_agent_create_subphases.py:152` |
 | `harness serve boot timeline: <k=v …>` | `hermes_cli/harness_parts/serve/boot_phases.py::_announce_ready`, line built by `BootTimeline.log_line` (`agent_runtime/boot_timeline.py`) | operator grep; the same method also puts the timeline on the `ready` frame |
 | `API call #N: model=… provider=… in=… out=… total=… latency=…s[ cache=…][ ttfb=…s]` | `agent/conversation_loop.py:3473-3479` | provider-vs-hermes attribution; `tests/run_agent/test_api_call_ttfb.py` |
+| `stream_gap_receipt request=… model=… end=… gap_ms=… events=… kinds=… chunks=… bytes=… first_chunk_ms=… last_chunk_ms=… text_chunk_ms=… parse_first_ms=… parse_last_ms=… first_lag_ms=… max_lag_ms=… text_lag_ms=… stall_samples=… stall_max_ms=… stall_over50_ms=… output_tokens=… reasoning_tokens=… reasoning_summary_chars=… gap_ms_per_reasoning_token=…` | `agent_runtime/stream_gap_receipt.py` (`STREAM_GAP_RECEIPT`), one line per streamed Codex request on its terminal event (just ahead of `API call #N`); byte stamps ride `install_transport_phase_trace` (the wrap goes on the first response after the receipt opens, any content type, and every hook reads the receipt off the httpx client -- h-send-window: all live receipts before it read `chunks=0`), parse stamps the fork seam in `run_codex_stream`'s `_on_event` | splits the first-event → first-text gap: no bytes in the window (`chunks=0`, late `text_chunk_ms`) is provider silence; counted `kinds` with ~0 lag is provider frames that are not reply text; large `max_lag_ms` or `stall_max_ms`/`stall_over50_ms` is this process (a GIL-starved reader or a slow parse). Window times are ms from the first parsed event; lag is a lower bound. `first_lag_ms` is the first event's own (a cold process pays the SDK's event-model build there). Offline cases in `tests/agent_runtime/test_stream_gap_receipt.py` |
+| `send_window_receipt request=… model=… end=… conn=new/reused http=… body_bytes=… content_type=… pool_ms=… connect_ms=… tls_ms=… upload_ms=… request_sent_ms=… server_wait_ms=… response_headers_ms=… first_byte_ms=… first_event_ms=… first_event_lag_ms=… stall_samples=… stall_max_ms=… stall_over50_ms=… wait_on=local/network/server` | `agent_runtime/send_window_receipt.py` (`SEND_WINDOW_RECEIPT`), one line per streamed Codex request on its first parsed event (ahead of its `stream_gap_receipt`); the httpx request hook opens it, httpcore's trace events, the byte wrap and the `_on_event` seam stamp it | splits request start → first event. Times are ms from the httpx request hook. `conn=reused` with `connect_ms=na tls_ms=na` is a pooled connection; `server_wait_ms` (body sent → response headers) is the network round trip plus the provider; `stall_*` is a sampler thread's wake-up lateness over the whole window -- a GIL-starved or stalled serve shows there, and also inflates the httpcore stamps taken on the sending thread, so read `connect_ms`/`upload_ms` against it. `first_event_lag_ms` is the SDK parse of the first event (a cold process pays its event-model build). `wait_on` names the largest share. Offline cases in `tests/agent_runtime/test_send_window_receipt.py` |
 | turn-record `phases` block (schema v3) | `agent_runtime/mission_chat_phases.py`; the key lands via `_safe_journal_metadata` (`mission_chat_turns.py::_safe_journal_metadata`) → `mission_chat_phases.py::safe_turn_phases` | `tool/mission_chat_latency_audit.dart` |
 | `[MissionChatTiming]` / `[MissionChatOutcome]` / `[MissionDropTiming]` | launcher — see the launcher section below | `tool/mission_chat_latency_audit.dart`; drop line read by eye |
 | `[MissionAgentCreate] lane=… gesture=… correlation=… …` and `[MissionOfficeWrite] <ws> retire lane: …` | launcher — see the launcher section below | the placement verb's two lanes, read by eye; the ADOPT line is also read by `mission_office_placement_instance_key_test.dart` |
@@ -242,6 +246,34 @@ read-only, from `agent.log` and its rotations: builds (led / shadow), total and 
 `build_ms`, builds by trigger (`caller/reason`), the executor split (`unknown` for a
 line written before these fields existed), worker fallbacks, and the distinct turns
 affected (`agent_runtime/snapshot_build_census.py::census_builds`).
+
+`hermes harness observe turn-timing --since 2h [--json] [--log PATH] [--launcher-log PATH]
+[--baseline PATH]` joins, read-only and per turn on the client message id, the turn record's
+`phases` (cut into consecutive segments: anchor -> write-ahead -> agent ready -> request sent ->
+headers -> first byte -> stream done -> projected, plus anchor -> request sent), the
+`chat_turn_accept_to_anchor` receipt and the Launcher's `[MissionChatTiming]` spans, and names
+every span over 1.5x (and 25 ms over) the committed baseline `tests/fixtures/turn_timing_baseline.json`
+(seeded from the 2026-10-06 operator turns); a count (`visibility_bundle_builds`,
+`builds_overlapped`, `prewarm_overlapped`) is regressed when it is over its baseline at all, and the
+two provider segments are named apart. The agent.log it reads is the LIVE serve's
+(`serve_instances/<pid>.json` `hermes_home`), never the CLI's sticky profile
+(`agent_runtime/turn_timing_census.py`). Its test-side twin is the fork-gate guard
+`tests/agent_runtime/test_turn_cost_guard_downstream.py`: a new chat and three turns through the
+serve's lanes against a loopback provider, failing on any full snapshot core on the open or a turn,
+a turn-section read off the worker, a turn-1 bundle build or un-reused prewarm, an inline catalog
+walk on a warm turn, a request prefix that moved, a turn queued behind parked hydrate riders, a
+second handler for one client message id, or a span over its budget (accept -> anchor 600 ms,
+anchor -> request sent 2.5 s on turn 1 and 1.5 s warm).
+
+`hermes harness observe turn-timing --check [--last N] [--from T] [--to T] [--json]` is the live
+regression check (h-live-check, decision 0014): it reads the newest N turns' receipts —
+`chat_turn_accept_to_anchor` from the serve home's `agent.log`, `send_prep_receipt` and the
+`send_window_receipt` / `stream_gap_receipt` that follow it from every profile's `agent.log` (a turn
+logs under its persona's profile), and the Launcher's `[MissionChatTiming]` line when the diag log
+exists — groups them cold / after-idle / warm, and prints one PASS / FAIL line per span with the
+observed range, the budget and its baseline from `agent_runtime/turn_latency_budgets.json`; exit 1
+on any FAIL. Provider spans are reported, never failed (`agent_runtime/turn_latency_check.py`).
+Run it after any rebuild that touches the chat path.
 
 ### The core-cache family and its census
 

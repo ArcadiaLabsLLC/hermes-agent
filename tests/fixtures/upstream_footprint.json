@@ -1,16 +1,21 @@
 {
   "measured_at": "2026-10-06",
-  "base": "206102314a",
-  "files": 178,
-  "deleted_lines": 965,
-  "heavy": 5,
+  "base": "ee5f49b943",
+  "files": 176,
+  "deleted_lines": 883,
+  "heavy": 4,
   "reasons": [
     {
-      "change": "merge upstream/main 206102314a811b01abb27d24ca6d05fdd1b977b5; regenerate with pinned uv 0.12.3; keep 175 existing ledger rows, add 3 compatibility rows, retire 1 fork-only Honcho stand-in",
-      "files": "175 -> 178: API shutdown test budget setup, phone checkout-bound model guard, and optional managed-runtime alias import",
-      "deleted_lines": "883 -> 965: uv.lock +83 (13 -> 96), all other files net -1",
-      "heavy": "4 -> 5: regenerated uv.lock (332 changed lines)",
-      "reason": "The immediate-run instruction explicitly retains coverage==7.16.0 and pytest-timeout==2.4.0 in pyproject, their exclude-newer-package exemptions, and --timeout=30, plus fork speech extras and higher httpx2 pins. Required lock regeneration accounts for the increase; The checkout-bound code-skew guard and optional managed-runtime import preserve the SDK-optional phone wheel; the API test setup follows upstream's new cron/API drain floor. These are explicit compatibility costs. Upstream supersedes replay eviction and skill ranking; the remaining fork seams are kept."
+      "change": "lane h-title-defer (runtime-queue Seams CLASS row: the turn-start title upgrade runs inside anchor->request_sent on turns 1-3): the auto-title upgrade starts at the turn's request_sent",
+      "files": "175 -> 176: agent/title_generator.py (3 added, 0 deleted: one import, a guarded early return in maybe_auto_title, `# fork seam: h-title-defer`)",
+      "deleted_lines": "883 -> 883: the seam is additive; heavy unchanged at 4",
+      "reason": "No fork door: maybe_auto_title creates AND starts the upgrade thread in one call, and upstream holds it unstarted only for a self-hosted endpoint (title_upgrade_must_wait_for_turn). The seam asks agent_runtime.title_upgrade_defer.hold_title_upgrade, which holds it on the codex_responses path (the one whose request_sent the fork observes); turn_context's existing _deferred_title_upgrade carries it, the transport trace starts it at request_sent, finalize_turn is upstream's fallback. Held PR row in upstream-footprint-ledger.md."
+    },
+    {
+      "change": "lane h-turn1-conn (runtime-queue row: turn 0 still ~110 ms behind warm): a turn that adopted a prewarmed system prompt writes the prompt and its tools pin after request_sent",
+      "files": "unchanged: agent/conversation_loop.py was already counted (4 added: one import, a guarded early return before the first-turn _persist_system_prompt, `# fork seam: h-turn1-conn`)",
+      "deleted_lines": "883 -> 883: the seam is additive; heavy unchanged at 4",
+      "reason": "No fork door: the first-turn tail persists inline, before build_turn_context returns, and nothing outside _restore_or_build_system_prompt can hold it. agent_runtime.prewarmed_system_prompt.defer_prewarmed_turn_persist keeps the call only when _prewarmed was adopted (every other turn persists as upstream does); the transport trace's request_sent (or the run's end) runs it. Held PR row in upstream-footprint-ledger.md."
     },
     {
       "change": "lane h-mergeprep: AGENTS.md fork pointer removed; AGENTS.md is byte-identical to the merge base ee5f49b943",

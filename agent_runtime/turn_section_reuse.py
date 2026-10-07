@@ -37,6 +37,13 @@ position recorded by :func:`started` when the read really begins. A lane that
 finds a claim still standing aside waits for it (its position will be taken
 after the second lane's batch closed); a claim already reading below the floor
 is not waited for, as before.
+
+**One claim per floor (lane h-section-dup, 2026-10-06).** A root held ONE claim,
+so a lane whose floor the claim did not cover was refused one and read
+UNCLAIMED; a third lane at that floor found only the low claim and read the same
+section again (the turn-cost guard: two reads at offset 9240 with three readers).
+Claims now sit side by side per root: a refused lane waits for the claim that
+covers its floor, and a lane no claim covers takes its own.
 """
 
 from __future__ import annotations
@@ -58,8 +65,29 @@ _MAX_ROOTS = 32
 
 _lock = threading.Lock()
 _entries: dict[tuple[str, str], tuple[int, dict[str, Any]]] = {}
-#: key -> [position or None while the claim is still standing aside, done event]
-_inflight: dict[tuple[str, str], list] = {}
+#: key -> every claim of that root still in flight (h-section-dup: one per floor, not one per root)
+_inflight: dict[tuple[str, str], list["_Claim"]] = {}
+
+
+class _Claim:
+    """One claimed read: its position (``None`` while still standing aside) and its done event."""
+
+    __slots__ = ("key", "position", "done")
+
+    def __init__(self, key: tuple[str, str], position: int | None) -> None:
+        self.key = key
+        self.position = position
+        self.done = threading.Event()
+
+    def covers(self, floor: int | None) -> bool:
+        """A frame stamped at ``floor`` may take this read's sections: it has no position
+        yet (it will be taken after ``floor``'s batch closed) or reads at or past it."""
+
+        return self.position is None or (floor is not None and self.position >= int(floor))
+
+
+def _covering(key: tuple[str, str], floor: int | None) -> "_Claim | None":
+    return next((claim for claim in _inflight.get(key, ()) if claim.covers(floor)), None)
 
 
 def remember(root: str, sections: dict[str, Any], *, position: int | None) -> bool:
@@ -96,61 +124,66 @@ def consult(root: str, *, floor: int | None) -> dict[str, Any] | None:
     return copy.deepcopy(sections)
 
 
-def begin(root: str, *, position: int | None = None) -> tuple[str, str] | None:
-    """Claim a read of ``root``; the key for :func:`started` / :func:`finish`.
+def begin(root: str, *, position: int | None = None, floor: int | None = None) -> _Claim | None:
+    """Claim a read of ``root``; the handle for :func:`started` / :func:`finish`.
 
     ``position=None`` claims it before the read has a position (it may still
     stand aside); :func:`started` records the position when it reads. ``None``
-    back means another claim already covers it -- :func:`await_inflight` it.
+    back means a claim already in flight covers ``floor`` (or ``position``) --
+    :func:`await_inflight` it. A claim that does NOT cover it is no bar: the
+    new read is claimed BESIDE it, so a third lane at the same floor waits for
+    this read instead of starting its own (h-section-dup: the refused lane used
+    to read unclaimed, and the next lane at its floor read the same section again).
     """
 
     store = _store_root()
     if not root or store is None:
         return None
     key = (store, root)
+    wanted = position if position is not None else floor
     with _lock:
-        held = _inflight.get(key)
-        if held is not None and (held[0] is None or position is None or held[0] >= int(position)):
+        if _covering(key, wanted) is not None:
             return None
-        _inflight[key] = [None if position is None else int(position), threading.Event()]
-    return key
+        claim = _Claim(key, None if position is None else int(position))
+        _inflight.setdefault(key, []).append(claim)
+    return claim
 
 
-def started(key: tuple[str, str] | None, position: int | None) -> None:
+def started(claim: _Claim | None, position: int | None) -> None:
     """The claimed read begins at ``position`` (captured just before it reads)."""
 
-    if key is None or position is None:
+    if claim is None or position is None:
         return
     with _lock:
-        held = _inflight.get(key)
-        if held is not None:
-            held[0] = int(position)
+        claim.position = int(position)
 
 
-def finish(key: tuple[str, str] | None) -> None:
+def finish(claim: _Claim | None) -> None:
     """End the read ``begin`` marked (remembered or not); wakes its waiters."""
 
-    if key is None:
+    if claim is None:
         return
     with _lock:
-        held = _inflight.pop(key, None)
-    if held is not None:
-        held[1].set()
+        claims = _inflight.get(claim.key)
+        if claims is not None and claim in claims:
+            claims.remove(claim)
+            if not claims:
+                _inflight.pop(claim.key, None)
+    claim.done.set()
 
 
 def await_inflight(root: str, *, floor: int | None, timeout_s: float) -> dict[str, Any] | None:
     """Wait for an in-flight read of ``root`` that covers ``floor`` -- or that has
-    not taken its position yet -- then consult."""
+    not taken its position yet -- then consult. With none in flight, consult now:
+    a covering read may have finished between the caller's miss and this look."""
 
     store = _store_root()
     if not root or floor is None or store is None:
         return None
     with _lock:
-        held = _inflight.get((store, root))
-        position, done = (held[0], held[1]) if held is not None else (None, None)
-    if done is None or (position is not None and position < int(floor)):
-        return None
-    done.wait(max(0.0, float(timeout_s)))
+        claim = _covering((store, root), floor)
+    if claim is not None:
+        claim.done.wait(max(0.0, float(timeout_s)))
     return consult(root, floor=floor)
 
 
@@ -159,7 +192,7 @@ def clear() -> None:
 
     with _lock:
         _entries.clear()
-        waiting = list(_inflight.values())
+        waiting = [claim for claims in _inflight.values() for claim in claims]
         _inflight.clear()
-    for _position, event in waiting:
-        event.set()
+    for claim in waiting:
+        claim.done.set()

@@ -1156,6 +1156,8 @@ def run_codex_stream(agent, api_kwargs: dict, client: Any = None, on_first_delta
 
     def _on_event(event: Any) -> None:  # TTFB/activity touch — once per SSE event.
         now = time.time()
+        from agent_runtime.stream_gap_receipt import observe_stream_event  # fork seam: h-stream-gap receipt
+        observe_stream_event(agent, event)
         # Lifecycle frames can precede text, so the first accepted parsed event is the Responses
         # equivalent of Chat Completions' first chunk. Preserve the per-attempt reset; the ``_fenced``
         # wrapper around this callback already keeps a retired worker from overwriting a newer request.

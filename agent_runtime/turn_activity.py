@@ -45,12 +45,17 @@ inside a turn", asked by something that is about to spend the same GIL.
 from __future__ import annotations
 
 import itertools
+import logging
 import threading
+import time
+import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
 __layer__ = "policy"
+
+_logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
 _ADMITTED = 0
@@ -140,6 +145,99 @@ def chat_turns_admitted() -> int:
 
     with _LOCK:
         return _ADMITTED
+
+
+# ── accepted, not yet anchored (h-prewarm-order, 2026-10-06) ──────────────────
+#
+# A turn exists before its handler's anchor: the serve ACCEPTS it (the method
+# lane acks, the argv lane takes the request) and puts it on the pool, and only
+# the handler's first instruction admits it. Turn ``5377d205`` was accepted at
+# 01:25:04.23 and anchored at 04.909; a prewarm reading ``chat_turns_admitted()``
+# at 04.73 saw nothing. :class:`AcceptedTurn` is that window: counted from the
+# pool submit until :func:`admitted_turn` takes the turn over (or the request
+# ends without reaching a handler), and it carries the stamps the
+# accept-to-anchor receipt reads.
+
+#: Live holds. Weak, so a request that never reached a worker (a cancelled
+#: future, a test's fake pool) stops counting once it is collected.
+_ACCEPTED: "weakref.WeakSet[AcceptedTurn]" = weakref.WeakSet()
+_CURRENT_ACCEPT: ContextVar["AcceptedTurn | None"] = ContextVar("hermes_accepted_turn", default=None)
+
+#: One INFO line per anchored turn that came through the serve's pool: where the
+#: span between the accept and the handler's ``TurnPhaseMarks()`` went.
+#: ``queue`` is submit -> the worker's first instruction, ``link`` the Launcher
+#: app-function bind (a wire round trip when the connection's catalog is not
+#: held yet), ``dispatch`` the rest (argv parse, the handler's own imports).
+#: ``turn`` is the client message id, the key the turn record and the Launcher's
+#: ``[MissionChatTiming]`` line carry (``observe turn-timing`` joins on it).
+ACCEPT_TO_ANCHOR_RECEIPT = (
+    "chat_turn_accept_to_anchor request=%s queue_ms=%d link_ms=%d dispatch_ms=%d total_ms=%d turn=%s"
+)
+
+
+class AcceptedTurn:
+    """One chat turn from its pool submit to its anchor. ``release`` is idempotent."""
+
+    __slots__ = ("request_id", "submitted", "started", "link_bound", "_held", "__weakref__")
+
+    def __init__(self, request_id: str = "") -> None:
+        self.request_id = request_id
+        self.submitted = time.monotonic()
+        self.started: float | None = None
+        self.link_bound: float | None = None
+        with _LOCK:
+            self._held = True
+            _ACCEPTED.add(self)
+
+    def release(self) -> None:
+        with _LOCK:
+            self._release_locked()
+
+    def _release_locked(self) -> None:
+        self._held = False
+        _ACCEPTED.discard(self)
+
+    def receipt_args(self, anchored: float) -> tuple:
+        started = self.started if self.started is not None else self.submitted
+        bound = self.link_bound if self.link_bound is not None else started
+
+        def ms(a: float, b: float) -> int:
+            return max(0, int((b - a) * 1000))
+
+        return (
+            self.request_id or "-", ms(self.submitted, started), ms(started, bound),
+            ms(bound, anchored), ms(self.submitted, anchored),
+        )
+
+
+def _turn_name(turn_id) -> str:
+    """``admitted_turn``'s ``turn_id`` (a string or a zero-argument callable) as a receipt value."""
+
+    try:
+        value = turn_id() if callable(turn_id) else turn_id
+    except Exception:
+        value = None
+    return str(value).split()[0] if value and str(value).strip() else "-"
+
+
+def chat_turns_accepted() -> int:
+    """How many chat turns are accepted and not yet anchored (or ended) RIGHT NOW."""
+
+    with _LOCK:
+        return len(_ACCEPTED)
+
+
+@contextmanager
+def accepted_turn_scope(accepted: "AcceptedTurn | None") -> Iterator[None]:
+    """Bind *accepted* for the worker's run; release it on the way out, whatever the path."""
+
+    token = _CURRENT_ACCEPT.set(accepted)
+    try:
+        yield
+    finally:
+        _CURRENT_ACCEPT.reset(token)
+        if accepted is not None:
+            accepted.release()
 
 
 # ── which turns a span overlapped (h-snap-worker, 2026-10-06) ─────────────────
@@ -242,11 +340,20 @@ def admitted_turn(turn_id=None):
 
     global _ADMITTED
     token = next(_ENTRY_TOKENS)
+    accepted = _CURRENT_ACCEPT.get()
+    anchored = time.monotonic()
     with _LOCK:
         _ADMITTED += 1
         _ENTRIES[token] = turn_id
         for watch in _WATCHES:
             watch._entries[token] = turn_id
+        # The hand-over: admitted is counted before accepted is released, under
+        # one lock, so a reader never sees the turn in neither count.
+        if accepted is not None:
+            accepted._release_locked()
+    if accepted is not None:
+        _CURRENT_ACCEPT.set(None)
+        _logger.info(ACCEPT_TO_ANCHOR_RECEIPT, *accepted.receipt_args(anchored), _turn_name(turn_id))
     in_turn = _IN_TURN.set(True)
     window = HotWindow()
     window.open()
@@ -263,8 +370,12 @@ def admitted_turn(turn_id=None):
 
 
 __all__ = [
+    "ACCEPT_TO_ANCHOR_RECEIPT",
+    "AcceptedTurn",
     "HotWindow",
+    "accepted_turn_scope",
     "admitted_turn",
+    "chat_turns_accepted",
     "chat_turns_admitted",
     "current_hot_window",
     "hot_turn_windows",

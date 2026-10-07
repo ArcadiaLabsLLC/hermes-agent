@@ -46,7 +46,7 @@ def platform_adapters_allowed() -> bool:
     """Config ``gateway.platform_adapters`` (default on): may the messaging gateway start platform
     adapters (Telegram, Discord, Slack, ...)? A distribution without messaging (an embedded desktop
     host) turns it off. An unreadable config keeps today's behaviour (on)."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("gateway", "platform_adapters")
 

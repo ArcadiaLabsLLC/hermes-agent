@@ -55,3 +55,75 @@ def test_load_config_still_ensures_the_home(tmp_path, monkeypatch):
 
     assert isinstance(config, dict) and config
     assert home.is_dir(), "load_config() must keep ensuring the home"
+
+
+def _existing_home_with_config(tmp_path, monkeypatch, name):
+    home = tmp_path / name
+    home.mkdir()
+    (home / "config.yaml").write_text("model:\n  default: probe-model\n", encoding="utf-8")
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.delenv("HERMES_HEAD_HOME", raising=False)
+    return home
+
+
+def test_load_config_readonly_writes_nothing_into_an_existing_home(tmp_path, monkeypatch):
+    """With the home present and config.yaml parsing, a read-only load still writes nothing
+    (no last-known-good copy under ``backups/``)."""
+    home = _existing_home_with_config(tmp_path, monkeypatch, "present_ro")
+    before = sorted(p.relative_to(home) for p in home.rglob("*"))
+
+    from hermes_cli.config import load_config_readonly
+
+    assert load_config_readonly()["model"]["default"] == "probe-model"
+    assert sorted(p.relative_to(home) for p in home.rglob("*")) == before
+
+
+def test_load_config_still_keeps_a_last_known_good_copy(tmp_path, monkeypatch):
+    """Positive control for the test above: the same home under ``load_config()`` does get
+    its ``backups/`` copy, so the read-only case is not passing for want of a backup path."""
+    home = _existing_home_with_config(tmp_path, monkeypatch, "present_rw")
+
+    from hermes_cli.config import load_config
+    from hermes_cli.config_backups import list_config_backups
+
+    assert load_config()["model"]["default"] == "probe-model"
+    assert list_config_backups(home / "config.yaml", "good")
+
+
+def test_writable_load_after_readonly_cache_keeps_raw_good_copy(tmp_path, monkeypatch):
+    """An import-time reader must not consume the mutable loader's backup obligation."""
+    home = _existing_home_with_config(tmp_path, monkeypatch, "readonly_then_writable")
+    config_path = home / "config.yaml"
+    raw = "model:\n  default: ${CARRIED_CONFIG_MODEL}\n"
+    config_path.write_text(raw, encoding="utf-8")
+    monkeypatch.setenv("CARRIED_CONFIG_MODEL", "expanded-model")
+    before = sorted(p.relative_to(home) for p in home.rglob("*"))
+
+    from hermes_cli.config import load_config, load_config_readonly
+    from hermes_cli.config_backups import list_config_backups
+
+    assert load_config_readonly()["model"]["default"] == "expanded-model"
+    assert load_config_readonly()["model"]["default"] == "expanded-model"
+    assert sorted(p.relative_to(home) for p in home.rglob("*")) == before
+    assert load_config()["model"]["default"] == "expanded-model"
+    assert load_config()["model"]["default"] == "expanded-model"
+    good = list_config_backups(config_path, "good")
+    assert len(good) == 1
+    assert good[0].read_text(encoding="utf-8") == raw
+
+
+def test_cached_parse_failure_is_never_promoted_to_a_good_copy(tmp_path, monkeypatch):
+    home = _existing_home_with_config(tmp_path, monkeypatch, "failed_cache")
+    config_path = home / "config.yaml"
+    raw = config_path.read_text(encoding="utf-8")
+
+    from hermes_cli.config import load_config
+    from hermes_cli.config_backups import list_config_backups
+
+    assert load_config()["model"]["default"] == "probe-model"
+    config_path.write_text("model: [unclosed\n", encoding="utf-8")
+    assert load_config()["model"]["default"] == "probe-model"
+    assert load_config()["model"]["default"] == "probe-model"
+    good = list_config_backups(config_path, "good")
+    assert len(good) == 1
+    assert good[0].read_text(encoding="utf-8") == raw

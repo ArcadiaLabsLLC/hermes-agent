@@ -6,11 +6,17 @@ behind one TTL memo.
 
 from __future__ import annotations
 
+import contextvars
+import functools
 import json
+import threading
+import time
 from typing import Any, Iterable
 
+from .. import idle_turn_keeper
 from .._upstream_doors import skills_walker
 from ..persona_assignments import safe_assignment_token
+from ..skill_root_freshness import TurnRootRegistries, queue_after_request_sent
 from .context_budget import _profile_snapshot_skill_names
 from .spans import _SPAN_CATALOG_WALK, _SPAN_SHARED_CATALOG, _accumulate_span, _note_catalog_walk
 
@@ -70,6 +76,9 @@ class _SkillObservabilityResolver:
         root.  ``build_shared_catalog`` walks + content-hashes every shared skill;
         without this memo it re-ran once per projected persona (measured 12× per
         build, 2026-07-23).  Read-only for callers — the same dict is shared."""
+        if self._shared_catalog is None and isinstance(self._root_registries, TurnRootRegistries):
+            # h-warm-phases: a turn reads the process memo and rebuilds it after its request_sent.
+            self._shared_catalog = _turn_shared_catalog()
         if self._shared_catalog is None:
             catalog: list[dict[str, Any]] = []
             # Stage 6 item 2: the content-hash walk, billed where it runs. On a
@@ -322,11 +331,61 @@ def _persona_skill_assignment_removals(persona: Any) -> list[str]:
 # asks once per persona chat session (15+ times per build). A short TTL memo
 # collapses that to one walk per build. Observability rows only — never
 # authority — so a skill installed/removed mid-window simply appears on the
-# first core built after the TTL lapses.
+# first read after the refresh the lapsed TTL started.
+#
+# STALE-WHILE-REVALIDATE (h-turn1-again). A read past the TTL answers with the
+# rows it has and refreshes them on a thread of its own; only a COLD memo (no
+# rows yet, or a swapped walker) walks on the caller's thread. The memo used
+# to walk inline on every read past the TTL, and a chat turn reads it inside
+# its write-ahead span: 2026-10-06 turns 1, 2 and 4 of one Neko chat paid
+# 522 / 336 / 76 ms of ``observability_catalog_walk_ms`` before their request
+# left, the one inside the TTL paid 0.
+#
+# h-idle-turn: a refresh started at a read INSIDE a turn's anchor -> request_sent window ran beside
+# that turn (the first turn after an idle pause: the walk held the GIL through turn_context_built).
+# Such a read queues the refresh to the turn's request_sent instead, and between turns the idle
+# keeper (``agent_runtime.idle_turn_keeper``) re-walks the memo before it lapses.
 _SKILL_CATALOG_TTL_SECONDS = 15.0
 
 
+#: h-warm-phases: the turn lane's shared-catalog rows, ``shared skills root -> {slug: row}``. A turn
+#: built them inline (a listing, a frontmatter parse and a stat per file of every shared skill:
+#: 40-80 ms a turn on the operator's 186-directory root) for its observability row -- a record, not
+#: part of the request. A turn now reads this memo and rebuilds it after its ``request_sent``
+#: (``agent_runtime.skill_root_freshness``); only a cold process builds inline.
+_TURN_SHARED_CATALOG: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def _rebuild_turn_shared_catalog(key: str) -> dict[str, dict[str, Any]]:
+    rows = _SkillObservabilityResolver().shared_catalog()
+    _TURN_SHARED_CATALOG[key] = rows
+    return rows
+
+
+def _turn_shared_catalog() -> dict[str, dict[str, Any]] | None:
+    """The memo's rows for this home's shared root (refresh queued), else a build; None to build as before."""
+
+    try:
+        from ..profile_home import get_shared_skills_dir
+
+        root = get_shared_skills_dir()
+    except Exception:
+        return None
+    if root is None:
+        return None
+    key = str(root)
+    rows = _TURN_SHARED_CATALOG.get(key)
+    if rows is None:
+        return _rebuild_turn_shared_catalog(key)
+    queue_after_request_sent(f"shared_catalog:{key}", functools.partial(_rebuild_turn_shared_catalog, key))
+    return rows
+
+
 _skill_catalog_memo: dict[str, Any] = {"at": 0.0, "rows": None, "walker": None}
+
+#: The one refresh in flight, if any. ``thread`` is kept for a test to join.
+_catalog_refresh_lock = threading.Lock()
+_catalog_refresh: dict[str, Any] = {"thread": None}
 
 
 def _resolve_skill_walker():
@@ -336,33 +395,107 @@ def _resolve_skill_walker():
         return None
 
 
+def _walk_skill_catalog(walker) -> list:
+    if walker is None:
+        return []
+    try:
+        installed = walker()
+    except Exception:
+        return []
+    return installed if isinstance(installed, list) else []
+
+
+def _refresh_skill_catalog(walker, stale_rows: list) -> None:
+    """Walk the catalog off the reader's thread and replace ``stale_rows``.
+
+    Writes only over the rows it was started to replace: a memo reset (a test's
+    hygiene fixture) or a synchronous walk that landed first wins, and this
+    walk's rows are dropped rather than written over newer ones.
+    """
+
+    try:
+        _replace_catalog_rows(walker, stale_rows)
+    finally:
+        with _catalog_refresh_lock:
+            _catalog_refresh["thread"] = None
+
+
+def _replace_catalog_rows(walker, stale_rows: list) -> bool:
+    """Walk now, on this thread, and write the rows over ``stale_rows`` only; True when written."""
+
+    started = time.monotonic()
+    rows = _walk_skill_catalog(walker)
+    if _skill_catalog_memo["rows"] is stale_rows and _skill_catalog_memo["walker"] is walker:
+        _skill_catalog_memo["rows"] = rows
+        _skill_catalog_memo["at"] = started
+        return True
+    return False
+
+
+def _idle_refresh_skill_catalog() -> bool:
+    """h-idle-turn: the idle keeper's refresh -- rebuild a warm memo that would lapse before its next tick."""
+
+    walker = _resolve_skill_walker()
+    rows = _skill_catalog_memo["rows"]
+    if rows is None or _skill_catalog_memo["walker"] is not walker:
+        return False  # cold: the next reader walks, as before
+    lapse_after = max(0.0, _SKILL_CATALOG_TTL_SECONDS - idle_turn_keeper.KEEPER_INTERVAL_SECONDS)
+    if time.monotonic() - _skill_catalog_memo["at"] < lapse_after:
+        return False
+    return _replace_catalog_rows(walker, rows)
+
+
+def _schedule_skill_catalog_refresh(walker, stale_rows: list) -> None:
+    """Start the one background refresh, unless one is already running.
+
+    The thread runs in a COPY of the reader's context, so the walk sees the
+    same context-local profile binding a synchronous walk on the reader's
+    thread would have seen.
+    """
+
+    with _catalog_refresh_lock:
+        if _catalog_refresh["thread"] is not None:
+            return
+        thread = threading.Thread(
+            target=contextvars.copy_context().run,
+            args=(_refresh_skill_catalog, walker, stale_rows),
+            name="skill-catalog-refresh",
+            daemon=True,
+        )
+        _catalog_refresh["thread"] = thread
+    try:
+        thread.start()
+    except Exception:
+        with _catalog_refresh_lock:
+            _catalog_refresh["thread"] = None
+
+
 def _installed_skill_catalog() -> list:
     """Memo keyed on BOTH the TTL and the walker's identity: a monkeypatched
     or hot-reloaded `skills_tool._find_all_skills` invalidates the memo
-    immediately instead of being masked for a TTL window."""
-    import time
+    immediately instead of being masked for a TTL window. Past the TTL it
+    answers stale and refreshes off-thread (see the block comment above)."""
 
     walker = _resolve_skill_walker()
     now = time.monotonic()
-    if (
-        _skill_catalog_memo["rows"] is not None
-        and _skill_catalog_memo["walker"] is walker
-        and now - _skill_catalog_memo["at"] < _SKILL_CATALOG_TTL_SECONDS
-    ):
-        return _skill_catalog_memo["rows"]
-    # A MISS. Timed here rather than at the call sites because there are three
-    # of them and only one of them is in this module's turn-lane builder — see
-    # the Stage 6 note at the top of this file.
-    rows: list = []
+    rows = _skill_catalog_memo["rows"]
+    if rows is not None and _skill_catalog_memo["walker"] is walker:
+        idle_turn_keeper.register_refresh(
+            "skill_catalog", functools.partial(contextvars.copy_context().run, _idle_refresh_skill_catalog))
+        if now - _skill_catalog_memo["at"] >= _SKILL_CATALOG_TTL_SECONDS:
+            if idle_turn_keeper.turn_window_open():
+                # h-idle-turn: a walk started here ran beside the turn (it held the GIL through
+                # ``turn_context_built``); the turn's ``request_sent`` starts it instead.
+                queue_after_request_sent("skill_catalog", functools.partial(_replace_catalog_rows, walker, rows))
+            else:
+                _schedule_skill_catalog_refresh(walker, rows)
+        return rows
+    # A COLD miss. Timed here rather than at the call sites because there are
+    # three of them and only one of them is in this module's turn-lane builder
+    # — see the Stage 6 note at the top of this file.
     _note_catalog_walk()
     with _accumulate_span(_SPAN_CATALOG_WALK):
-        if walker is not None:
-            try:
-                installed = walker()
-                if isinstance(installed, list):
-                    rows = installed
-            except Exception:
-                rows = []
+        rows = _walk_skill_catalog(walker)
     _skill_catalog_memo["rows"] = rows
     _skill_catalog_memo["at"] = now
     _skill_catalog_memo["walker"] = walker

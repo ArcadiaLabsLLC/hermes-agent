@@ -85,8 +85,12 @@ def _live_system_guard(request, monkeypatch):
     lookalike_ok = request.node.get_closest_marker(_GATEWAY_LOOKALIKE_MARK) is not None
     try:
         import psutil as _psutil
+        # Bind before test mocks can widen the lazy descendant allowlist.
+        _real_process = _psutil.Process
+        _real_children = _psutil.Process.children
     except Exception:
         _psutil = None
+        _real_process = _real_children = None
 
     # The children snapshot is a fast-path allowlist, not the authority — the
     # live parents() walk in _is_own_subtree is. Capturing it eagerly here paid
@@ -102,16 +106,13 @@ def _live_system_guard(request, monkeypatch):
     def _own_children() -> set:
         nonlocal _children_cache
         if _children_cache is None:
-            if _psutil is None:
+            try:
+                _children_cache = {
+                    c.pid
+                    for c in _real_children(_real_process(test_pid), recursive=True)
+                } if _psutil is not None else set()
+            except Exception:
                 _children_cache = set()
-            else:
-                try:
-                    _children_cache = {
-                        c.pid
-                        for c in _psutil.Process(test_pid).children(recursive=True)
-                    }
-                except Exception:
-                    _children_cache = set()
         return _children_cache
 
     def _is_own_subtree(pid: int) -> bool:

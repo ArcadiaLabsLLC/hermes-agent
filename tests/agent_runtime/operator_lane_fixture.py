@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
+from hermes_cli.harness_parts.serve.request_pool import TurnClaims
 
 
 class OperatorLane(MessageHandling, ArgvLanes):
@@ -17,7 +18,8 @@ class OperatorLane(MessageHandling, ArgvLanes):
         self.jobs, self.output = [], []
         self.frames = SimpleNamespace(emit=self.output.append)
         self.stdout_proxy = self.stderr_proxy = SimpleNamespace(flush_request=lambda _: None)
-        self.pool = SimpleNamespace(submit=self.submit)
+        self.pool = SimpleNamespace(submit=self.submit, submit_turn=self.submit)
+        self.turn_claims = TurnClaims()
 
     def submit(self, function, *args):
         future = Future()

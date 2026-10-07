@@ -802,7 +802,7 @@ def test_the_WHOLE_live_chain_carries_the_marker_from_the_loop_to_the_mark(
     ENDS agreed, by handing the payload straight to the handler's callback. The
     live lane runs
     ``conversation_loop._emit_request_assembled_marker → agent.status_callback →
-    profile_runner._profile_status_callback → persona_runtime._chat_trace_callback
+    profile_runner._profile_status_callback → persona_runtime._chat_trace_sink
     (a real ChatProgressSink) → on_trace → mark_from_trace_payload``,
     and the sink in the middle silently ate the payload for weeks. This row
     walks the real chain with only the transport faked, so the middle can never
@@ -813,16 +813,16 @@ def test_the_WHOLE_live_chain_carries_the_marker_from_the_loop_to_the_mark(
 
     from agent_runtime.conversation_observability import _emit_request_assembled_marker
     from agent_runtime.mission_chat_phases import TurnPhaseMarks, mark_from_trace_payload
-    from agent_runtime.persona_runtime import _chat_trace_callback
+    from agent_runtime.persona_runtime import _chat_trace_sink
     from agent_runtime.profile_runner import AgentRunRequest, _profile_status_callback
 
     marks = TurnPhaseMarks()
-    progress_callback = _chat_trace_callback(
+    progress_callback = _chat_trace_sink(
         session_id="chat_1",
         persona=SimpleNamespace(id="dev"),
         turn_id="turn_1",
         on_trace=lambda payload: mark_from_trace_payload(marks, payload),
-    )
+    ).callback()
     request = AgentRunRequest(
         profile=None,
         provider="openai-codex",

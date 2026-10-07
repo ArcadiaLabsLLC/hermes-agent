@@ -2,7 +2,7 @@
 type: program
 program: mission-control
 status: active
-cursor: "2026-09-28 — shared Discussion setup, optional conclusion and atomic shutdown admission are implemented and native-qualified with Launcher. Hermes remains authoritative; one neutral client serves both Launcher surfaces. Broad suite and isolated host-safety investigations remain in fork-hygiene."
+cursor: "2026-10-07 — inline agent-chat admission and thread roster reads use the runtime head, not the sender profile; real inline-handler regression covers two sender homes and sibling targets. Live relay/thread-opening acceptance remains in the Launcher console audit. Earlier Discussion qualification is unchanged; broad suite and host-safety investigations remain in fork-hygiene."
 tags: [program/mission-control, program]
 ---
 

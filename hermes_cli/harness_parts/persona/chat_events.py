@@ -356,18 +356,32 @@ class _ChatProtocolV2Emitter:
             }
         )
 
+    def first_reply_text(self, delta: str | None) -> None:
+        """Mark ``provider_first_byte`` on the turn's FIRST reply-text delta; nothing else.
+
+        Not the provider's first byte, whatever the phase key says: reasoning,
+        tool calls and response headers all precede it. This is the earliest
+        REPLY site the turn owns. An empty delta is not reply text.
+
+        The whole of :meth:`delta`'s timing duty, split out so a turn that
+        streams no frames still gets the stamp: the run wires THIS as its
+        stream callback when the request did not ask for ``--stream``
+        (h-turn1-again: turn ``b00deebf`` ran on the argv fallback lane without
+        ``--stream``, so no callback reached the emitter and the record carried
+        no ``provider_first_byte`` though the codex stream logged its first
+        substantive progress).
+        """
+
+        if not delta or self._provider_first_byte_marked:
+            return
+        self._provider_first_byte_marked = True
+        if self._turn_phases is not None:
+            self._turn_phases.mark("provider_first_byte")
+
     def delta(self, delta: str | None) -> None:
         if not delta:
             return
-        if not self._provider_first_byte_marked:
-            # FIRST reply-text delta of the turn — not the provider's first
-            # byte, whatever the phase key says: reasoning, tool calls and
-            # response headers all precede it. Marked here because this is the
-            # earliest REPLY site the turn owns. An empty delta is not reply
-            # text — the guard above already returned.
-            self._provider_first_byte_marked = True
-            if self._turn_phases is not None:
-                self._turn_phases.mark("provider_first_byte")
+        self.first_reply_text(delta)
         segment = self._ensure_segment()
         text = str(delta)
         segment["text"] = str(segment.get("text") or "") + text
@@ -473,7 +487,12 @@ class _ChatProtocolV2Emitter:
         input_tokens: object = None,
         output_tokens: object = None,
         total_tokens: object = None,
+        reasoning: dict[str, int] | None = None,
     ) -> None:
+        # ``reasoning`` is the turn's ``reasoning_tokens`` / ``reasoning_ms``
+        # (h-think-tokens): additive keys on ``turn.end``, the live half of the
+        # one turn-end update -- the Thinking frames went out before the
+        # provider's usage block existed. Absent when the provider reported none.
         # Idempotent: a crash-path caller may reach finish() after the success
         # path already finished — a second turn.end frame would corrupt the
         # stream protocol. on_update is suppressed for the whole finish window:
@@ -497,6 +516,7 @@ class _ChatProtocolV2Emitter:
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
+                    **(reasoning or {}),
                 }
             )
         finally:

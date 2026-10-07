@@ -53,11 +53,15 @@ before this module is ever entered.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any, Callable
 
 from agent_runtime.clock import now_iso_micro
+from agent_runtime import idle_turn_keeper
+from agent_runtime.provider_preconnect import note_process_request_sent
+from agent_runtime.send_prep_receipt import CpuAnchor, emit_send_prep_receipt
 
 __layer__ = "policy"
 
@@ -169,6 +173,25 @@ _BLOCK_ORDER: tuple[str, ...] = (
 )
 
 _KNOWN_MARKS = frozenset(PHASE_ORDER)
+
+#: h-warm-phases: work a turn defers to its own ``request_sent`` (the request has left; the turn
+#: waits on the network). Registered by the module that owns the work, at its import.
+_REQUEST_SENT_LISTENERS: list[Callable[[], Any]] = []
+
+
+def on_request_sent(listener: Callable[[], Any]) -> None:
+    """Run ``listener`` at every turn's ``request_sent`` mark (once per listener; never raises into the turn)."""
+
+    if listener not in _REQUEST_SENT_LISTENERS:
+        _REQUEST_SENT_LISTENERS.append(listener)
+
+
+def _notify_request_sent() -> None:
+    for listener in tuple(_REQUEST_SENT_LISTENERS):
+        try:
+            listener()
+        except Exception:
+            logging.getLogger(__name__).debug("request_sent listener failed", exc_info=True)
 _KNOWN_FLAGS = frozenset(PHASE_FLAGS)
 _KNOWN_COUNTERS = frozenset(PHASE_COUNTERS)
 
@@ -204,6 +227,9 @@ class TurnPhaseMarks:
         "_counters",
         "_baselines",
         "_lock",
+        "_cpu_anchor",
+        "receipt_turn",
+        "__weakref__",
     )
 
     def __init__(
@@ -225,6 +251,12 @@ class TurnPhaseMarks:
         # acquisitions for a whole turn), not per delta, so first-mark-wins is
         # an actual guarantee rather than a benign-looking race.
         self._lock = threading.Lock()
+        # h-prereq-window: the near end of the ``send_prep_receipt``'s ``cpu_ms``, and the
+        # client message id it is keyed on (the handler stamps it once it has parsed args).
+        self._cpu_anchor = CpuAnchor()
+        self.receipt_turn: str | None = None
+        # h-idle-turn: no memo rebuild and no keep-warm while a turn is between here and request_sent.
+        idle_turn_keeper.note_window_opened(self)
 
     # ── reading ────────────────────────────────────────────────────────────
 
@@ -276,7 +308,15 @@ class TurnPhaseMarks:
                 return existing
             value = self._elapsed_ms_now()
             self._marks[name] = value
-            return value
+            marks = dict(self._marks) if name == "request_sent" else None
+        if marks is not None:
+            note_process_request_sent()  # h-prep-contention: the keep-warm chains stop here
+            idle_turn_keeper.note_window_closed(self)  # h-idle-turn: the idle keeper takes over
+            _notify_request_sent()
+            emit_send_prep_receipt(
+                marks, PHASE_ORDER, turn=self.receipt_turn, anchored_at=self._anchored_at, anchor=self._cpu_anchor,
+            )
+        return value
 
     def flag(self, name: str, value: bool | None) -> None:
         """Record a boolean qualifier, or record NOTHING when it is unknown.

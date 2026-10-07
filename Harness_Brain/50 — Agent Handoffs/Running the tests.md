@@ -129,6 +129,11 @@ five habits cost about 390 minutes a day.
 
 ## What a landing runs, once
 
+**One whole-tree gate per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a
+15–18 minute gate for a single lane). A finished lane waits for the batch; the landing merges every ready
+lane, then runs the gate once. A lane that finishes while a gate is running joins the next batch unless it
+touches nothing the running batch touches.
+
 Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh tests` in the one heavy slot;
 (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
 `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`, the
@@ -137,6 +142,24 @@ includes them; run them alone after a re-merge); (c) `changed_line_mutation_chec
 gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.dart` files that
 import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
 commit touches a file the batch touches.
+
+## After a landing that touches the chat path: the live latency check
+
+Offline guards pass on small fixtures while live chat regresses on real-sized stores and a real
+launcher (2026-10-06: the pre-request window went 0.4 → 1.2 s and the launcher rebuilt the whole page
+per turn, with every gate green). So after any landing that touches the chat-turn path (admission,
+prewarm, prompt/context build, the provider client, the stream, or the launcher's chat surfaces),
+the operator rebuilds, waits about 2 minutes after boot, sends a few turns, and someone runs:
+
+```
+hermes harness observe turn-timing --check
+```
+
+It reads the last turns' receipts (and the launcher's `[MissionChatTiming]` lines when present),
+groups them cold / after-idle / warm, and prints PASS or FAIL per span against the committed budgets
+and the 2026-10-07 baseline (exit 1 on any FAIL). Provider spans are reported, never failed. A FAIL
+is a regression to row before the next landing, not a number to loosen. The baseline, budgets and
+groups are Decision 0014.
 
 ## Calling a red pre-existing
 

@@ -20,7 +20,7 @@ from types import SimpleNamespace
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from hermes_cli.config import cfg_get
-from plugins.memory._module_publish import publish_module
+from plugins.memory._module_publish import publish_module, unpublish_module
 from plugins import plugin_loader as _loader
 
 if TYPE_CHECKING:
@@ -572,7 +572,12 @@ def discover_plugin_cli_commands() -> List[dict]:
                 return []
             cli_mod = importlib.util.module_from_spec(spec)
             publish_module(module_name, cli_mod)
-            spec.loader.exec_module(cli_mod)
+            try:
+                spec.loader.exec_module(cli_mod)
+            except Exception:
+                # Roll back both the registry entry and parent attribute.
+                unpublish_module(module_name)
+                raise
 
         register_cli = getattr(cli_mod, "register_cli", None)
         if not callable(register_cli):

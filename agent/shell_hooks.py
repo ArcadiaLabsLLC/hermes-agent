@@ -606,7 +606,11 @@ def revoke(command: str) -> int:
         return before - len(data["approvals"])
 
 
-_SCRIPT_EXTENSIONS: Tuple[str, ...] = (".sh", ".bash", ".zsh", ".fish", ".py", ".pyw", ".rb", ".pl", ".lua", ".js", ".mjs", ".cjs", ".ts")
+_SCRIPT_EXTENSIONS: Tuple[str, ...] = (".sh", ".bash", ".zsh", ".fish", ".py", ".pyw", ".rb", ".pl", ".lua", ".js", ".mjs", ".cjs", ".ts",
+                                      # Windows script hosts: resolved by extension, not by being the
+                                      # first backslash token, so a path-valued argument before
+                                      # ``-File`` cannot become the monitored script.
+                                      ".ps1", ".psm1", ".bat", ".cmd")
 
 
 def _command_script_path(command: str) -> str:

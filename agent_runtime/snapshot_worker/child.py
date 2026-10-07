@@ -22,6 +22,13 @@ Each request runs on its own thread: builds take one lock and turn sections
 another, so an overlay never queues behind a 2-16 s core (they share THIS
 process's interpreter, never the serve's). Both kinds read history rows through
 the serve's chat-runtime export (``runtime``), never this process's empty registry.
+
+**Liveness (lane h-pool-starve).** Once its builder is imported the worker says
+``snapshot.ready``, then ``snapshot.beat`` every :data:`~.peer.BEAT_SECONDS` with,
+per request in flight, how long its thread has burned no CPU (``idle_s``). The
+serve reads a missing ready, a missing beat, or a request idle past its bound as
+a silent worker and builds in process at once (``peer.SnapshotPeer``). A handler
+that raised anything -- ``SystemExit`` included -- still answers.
 """
 
 from __future__ import annotations
@@ -29,7 +36,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
+import time
 import traceback
 from contextlib import nullcontext
 from pathlib import Path
@@ -38,7 +47,7 @@ from typing import Any, BinaryIO
 from agent_runtime.conversations.model import ConversationError
 from agent_runtime.conversations.native_peer import MAX_FRAME_BYTES, encode_frame
 
-from .peer import BUILD_METHOD, TURN_SECTION_METHOD
+from .peer import BEAT_METHOD, BEAT_SECONDS, BUILD_METHOD, READY_METHOD, TURN_SECTION_METHOD
 
 __layer__ = "lanes"
 
@@ -193,25 +202,126 @@ def _reply_frame(rid: Any, *, result: dict | None = None, code: int | None = Non
                              "error": {"code": _TOO_LARGE, "message": "core over MAX_FRAME_BYTES"}})
 
 
+def _thread_cpu_reader():
+    """``native thread id -> CPU seconds`` for another thread of this process, or ``None``.
+
+    The worker's one progress signal: a thread that is working (Python or a
+    syscall) burns CPU; one parked on a grandchild, a lock or a pipe does not.
+    """
+
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenThread.restype = wintypes.HANDLE
+        kernel32.OpenThread.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        kernel32.GetThreadTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+
+        def read(native_id: int) -> float | None:
+            handle = kernel32.OpenThread(0x0800, False, native_id)  # THREAD_QUERY_LIMITED_INFORMATION
+            if not handle:
+                return None
+            try:
+                times = [wintypes.FILETIME() for _ in range(4)]
+                if not kernel32.GetThreadTimes(handle, *(ctypes.byref(item) for item in times)):
+                    return None
+                return sum((item.dwHighDateTime << 32 | item.dwLowDateTime) for item in times[2:]) / 1e7
+            finally:
+                kernel32.CloseHandle(handle)
+
+        return read
+    clock_of = getattr(time, "pthread_getcpuclockid", None)
+    if clock_of is None:
+        return None
+    by_native: dict[int, int] = {}
+
+    def read_posix(native_id: int) -> float | None:
+        ident = by_native.get(native_id)
+        if ident is None:
+            return None
+        try:
+            return time.clock_gettime(clock_of(ident))
+        except (OSError, ValueError):
+            return None
+
+    read_posix.by_native = by_native  # type: ignore[attr-defined]
+    return read_posix
+
+
+#: CPU a request thread must burn between two beats to count as working.
+_WORKING_CPU_SECONDS = 0.005
+
+
 def serve(requests: BinaryIO, replies: BinaryIO) -> None:
-    """Answer requests until the serve closes the pipe, each on its own thread."""
+    """Say ready, beat, and answer requests until the serve closes the pipe, each on its own thread."""
 
     logging.getLogger().setLevel(logging.INFO)
     write_lock = threading.Lock()
+    active: dict[Any, int] = {}
+    active_lock = threading.Lock()
 
-    def answer(rid: Any, method: Any, params: dict) -> None:
-        handler = _HANDLERS.get(method)
-        if handler is None:
-            encoded = _reply_frame(rid, code=_UNKNOWN_METHOD, message="unknown method")
-        else:
-            try:
-                encoded = _reply_frame(rid, result=handler(params))
-            except Exception as exc:
-                encoded = _reply_frame(rid, code=_BUILD_FAILED, message=type(exc).__name__)
+    def send(encoded: bytes) -> None:
         with write_lock:
             replies.write(encoded)
             replies.flush()
 
+    def answer(rid: Any, method: Any, params: dict) -> None:
+        native_id = threading.get_native_id()
+        by_native = getattr(cpu_of, "by_native", None)
+        if by_native is not None:
+            by_native[native_id] = threading.get_ident()
+        with active_lock:
+            active[rid] = native_id
+        try:
+            handler = _HANDLERS.get(method)
+            if handler is None:
+                encoded = _reply_frame(rid, code=_UNKNOWN_METHOD, message="unknown method")
+            else:
+                try:
+                    encoded = _reply_frame(rid, result=handler(params))
+                except BaseException as exc:  # a SystemExit in a handler must still answer
+                    encoded = _reply_frame(rid, code=_BUILD_FAILED, message=type(exc).__name__)
+        finally:
+            with active_lock:
+                active.pop(rid, None)
+            if by_native is not None:
+                by_native.pop(native_id, None)
+        try:
+            send(encoded)
+        except (OSError, ValueError):  # the serve closed the pipe: nobody is waiting
+            pass
+
+    def beat() -> None:
+        idle_since: dict[Any, tuple[float, float]] = {}
+        while True:
+            time.sleep(BEAT_SECONDS)
+            now = time.monotonic()
+            with active_lock:
+                current = dict(active)
+            idle: dict[str, float] = {}
+            for rid, native_id in current.items():
+                cpu = None if cpu_of is None else cpu_of(native_id)
+                last = idle_since.get(rid)
+                if cpu is None or last is None or cpu - last[1] > _WORKING_CPU_SECONDS:
+                    idle_since[rid] = (now, -1.0 if cpu is None else cpu)
+                    idle[str(rid)] = 0.0
+                else:
+                    idle[str(rid)] = round(now - last[0], 1)
+            for rid in [rid for rid in idle_since if rid not in current]:
+                idle_since.pop(rid, None)
+            try:
+                send(encode_frame({"jsonrpc": "2.0", "method": BEAT_METHOD, "params": {"idle_s": idle}}))
+            except Exception:
+                return
+
+    cpu_of = _thread_cpu_reader()
+    # The handshake means "a build can start now": the builder's imports are paid.
+    import agent_runtime.snapshot.build  # noqa: F401
+
+    send(encode_frame({"jsonrpc": "2.0", "method": READY_METHOD, "params": {"worker_pid": os.getpid()}}))
+    threading.Thread(target=beat, name="snapshot-worker-beat", daemon=True).start()
     while raw := requests.readline(MAX_FRAME_BYTES + 1):
         try:
             frame = json.loads(raw)

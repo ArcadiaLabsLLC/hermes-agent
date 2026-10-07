@@ -633,16 +633,22 @@ class PluginContext:
     @_serialized_replacement
     def register_cli_command(
         self, name: str, help: str, setup_fn: Callable, handler_fn: Callable | None = None,
-        description: str = "",
+        description: str = "", parent: str | None = None,
     ) -> PluginRegistration:
         """Register a CLI subcommand (``hermes <name> ...``). *setup_fn* receives the argparse
-        subparser; *handler_fn* becomes ``set_defaults(func=...)``."""
+        subparser; *handler_fn* becomes ``set_defaults(func=...)``.
+
+        *parent* attaches it under a built-in command instead (``hermes <parent> <name> ...``).
+        Built-in commands skip plugin discovery, so a parented command is reachable only when
+        ``plugin.yaml`` also declares it (``cli_commands: [{name, parent}]``)."""
         entry = {
             "name": name, "help": help, "description": description, "setup_fn": setup_fn,
             "handler_fn": handler_fn, "plugin": self.manifest.name, "plugin_key": self.plugin_id,
+            "parent": parent or None,
         }
-        return self._register_entry("cli_command", name, self._manager._cli_commands, entry,
-                                    "Plugin %s registered CLI command: %s", name)
+        key = cli_command_key(name, parent)
+        return self._register_entry("cli_command", key, self._manager._cli_commands, entry,
+                                    "Plugin %s registered CLI command: %s", key)
 
     @_serialized_replacement
     def register_command(
@@ -1768,7 +1774,11 @@ def discover_plugins(force: bool = False) -> None:
     get_plugin_manager().discover_and_load(force=force)
 
 
-# fork: hook-pending (seam Stage 1) — manifest-declared CLI commands, the upstream PR's generic half.
+def cli_command_key(name: str, parent: str | None = None) -> str:
+    """``PluginManager._cli_commands`` key: the argv spelling, ``"<parent> <name>"`` or ``"<name>"``."""
+    return f"{parent} {name}" if parent else name
+
+
 def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parser: Any) -> None:
     """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, run the parser setup its ``register(ctx)``
     registered for ``name``, then unload it again. Never runs :func:`discover_plugins`.
@@ -1799,11 +1809,11 @@ def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parse
 def discover_declared_cli_commands() -> List[Dict[str, Any]]:
     """CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.
 
-    One descriptor per row, shaped like a ``register_cli_command`` entry, for every directory manifest
-    the discovery gate would load (same precedence and gate as :meth:`PluginManager.discover_and_load`;
-    ``HERMES_SAFE_MODE`` yields nothing, as discovery does). Each ``setup_fn`` materialises only its own
-    plugin by name, so ``hermes <declared>`` pays for one plugin, never for :func:`discover_plugins`.
-    Entry-point plugins have no manifest to read and keep the discovery path.
+    One ``register_cli_command``-shaped descriptor per row, for every directory manifest discovery
+    would load (same precedence and enable gate; ``HERMES_SAFE_MODE`` yields nothing). Each
+    ``setup_fn`` materialises only its own plugin, so running a declared command costs one plugin
+    import instead of :func:`discover_plugins`. Entry-point plugins have no manifest to read and
+    keep the discovery path.
     """
     if _env_enabled("HERMES_SAFE_MODE"):
         return []
@@ -1811,14 +1821,15 @@ def discover_declared_cli_commands() -> List[Dict[str, Any]]:
     config = load_config_readonly()  # one read serves both lists
     disabled, enabled = _get_disabled_plugins(config), _get_enabled_plugins(config)
     commands: List[Dict[str, Any]] = []
-    for key, manifest in winners.items():
+    for plugin_key, manifest in winners.items():
         if gate_manifest(manifest, disabled, enabled).action not in ("load", "load_now"):
             continue
         for row in manifest.cli_commands:
+            key = cli_command_key(row["name"], row["parent"])
             commands.append({
-                **row, "help": row["help"] or manifest.description or "", "handler_fn": None, "plugin": manifest.name, "plugin_key": key,
-                "setup_fn": lambda parser, _m=manifest, _n=row["name"]: _materialize_declared_cli_command(
-                    _m, _n, parser),
+                **row, "parent": row["parent"] or None, "help": row["help"] or manifest.description or "",
+                "handler_fn": None, "plugin": manifest.name, "plugin_key": plugin_key,
+                "setup_fn": lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser),
             })
     return commands
 

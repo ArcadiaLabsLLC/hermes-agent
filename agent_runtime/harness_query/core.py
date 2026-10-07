@@ -147,6 +147,7 @@ def _instance(args: dict[str, Any]) -> dict[str, Any]:
             "chat_head_home": instance.chat_head_home,
             "model": instance.model,
             "provider": instance.provider,
+            "reasoning_effort": instance.reasoning_effort,
         },
         "mcp": _mcp_resolution(instance),
     }

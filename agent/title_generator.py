@@ -796,5 +796,8 @@ def maybe_auto_title(
     if title_upgrade_must_wait_for_turn(main_runtime):
         logger.debug("Auto-title upgrade deferred past the turn: shares the self-hosted endpoint with the main request")
         return upgrade
+    from agent_runtime.title_upgrade_defer import hold_title_upgrade  # fork seam: h-title-defer
+    if hold_title_upgrade(upgrade, main_runtime):  # fork seam: h-title-defer (started at request_sent)
+        return upgrade
     start_title_upgrade(upgrade)
     return upgrade

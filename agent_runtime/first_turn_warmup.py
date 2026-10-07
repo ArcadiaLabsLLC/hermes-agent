@@ -16,6 +16,37 @@ offline, both are one-time process work, not the agent's:
   ``platform_headers()`` (``platform.platform()`` -> two WMI queries on Windows,
   ~300 ms, cached for the process) and its ``client.responses`` resource import.
 
+h-send-window (2026-10-06) adds two more, from the Neko turn-1 records ``c1cfc36c``
+/ ``3e412f30`` (each the first chat turn of its serve process) against their warm
+turns:
+
+* ``provider_request_started -> conversation_started`` 422 / 111 ms (warm 5-12):
+  ``agent/turn_facade.py::run_conversation``'s lazy imports -- the Relay binding
+  (``nemo_relay`` and its ~20 submodules, via ``relay_runtime._load_nemo_relay``),
+  ``relay_shared_metrics`` and its ``shared_metrics*`` family, the turn lease and
+  its neighbours; then ``build_turn_context``'s (title generator, native
+  persistence, bot-mode DM, MCP tool names). Offline (the turn-cost guard
+  scenario, a stack sampler between the marks) 129 ms against 16 warm, every
+  sample inside an import.
+* ``context_built -> observability_built`` 484 / 518 ms (warm 60-150):
+  ``observability_catalog_walk_ms=312 / 330`` -- the serve's skill-catalog memo
+  is COLD on its first chat turn, because the hub's snapshot builds (the only
+  other readers) run in the snapshot worker process. The memo is process-wide,
+  so the prewarm reads it once (the caller's ``skill_catalog`` step, ``profile_runner.execute``).
+
+h-turn1-conn adds the response side: the SDK's first parse of a streamed
+Responses event (``openai._models.construct_type`` building the
+``ResponseStreamEvent`` discriminated union and each variant's model) landed
+between turn 1's first byte and its first event -- ``send_window_receipt
+first_event_lag_ms`` 21.5-23.0 ms on the turn-cost guard's turn 0 against
+0.4 on every later turn, 277.6 / 334.2 ms in a cold test process.
+:func:`_warm_sdk_event_parse` feeds one synthetic event of each kind a text
+or reasoning turn sees through the SDK's own ``Stream`` over an in-memory
+``httpx.Response``: nothing is sent. Two more first-turn lazy imports,
+stack-sampled in the guard's turn 0: ``agent_runtime.gateway_targets`` (via
+the ambient HUD block, before ``context_built``) and
+``agent_runtime.chat_live_log`` (the write-ahead's first mirror).
+
 :func:`warm_first_turn_paths` runs each once, under the prewarm's own scopes (the
 catalog is keyed by the profile home the turn will run in), so the first turn
 finds them cached. It sends nothing anywhere and never raises.
@@ -37,8 +68,25 @@ PREWARM_FIRST_TURN_WARMUP_MS = "prewarm_first_turn_warmup_ms"
 
 #: Modules a turn imports lazily on its way to the provider request:
 #: the loop and its phases, the ``_build_api_kwargs`` target, the dispatch's
-#: stream wrapper.
-FIRST_TURN_MODULES = ("agent.conversation_loop", "agent.chat_completion_helpers", "agent.relay_llm")
+#: stream wrapper; then (h-send-window) the turn facade's entry imports, the
+#: Relay binding and the turn-context builder's. Each is imported on its own and
+#: a missing one (``nemo_relay`` is an optional install) is skipped.
+FIRST_TURN_MODULES = (
+    "agent.conversation_loop", "agent.chat_completion_helpers", "agent.relay_llm",
+    "agent.turn_facade", "agent.turn_facade_lease", "agent.turn_liveness", "agent.periodic_scheduler",
+    "agent.aux_accounting", "agent.relay_cwd", "agent.review_idle_queue", "agent.subagent_lifecycle",
+    "nemo_relay", "hermes_cli.observability.relay_shared_metrics",
+    "hermes_cli.observability.shared_metrics_send_config", "hermes_cli.moa_config",
+    "agent_runtime.persona_turn_binding", "agent_runtime.usage_ledger",
+    "agent.title_generator", "agent_runtime.native_persistence", "tools.bot_mode_dm", "tools.mcp_tool_agent",
+    "hermes_cli.build_info", "hermes_cli.lifecycle",
+    "agent.opencode_affinity", "agent.plugin_stream_hooks", "agent.replay_cleanup",
+    "hermes_cli.observability.shared_metrics_process", "agent_runtime.skill_publishability",
+    "agent_runtime.skills_inventory", "agent_runtime.transport_phase_trace",
+    "agent.chat_completion_nonstream", "agent.reasoning_timeouts",
+    "agent_runtime.stream_gap_receipt", "agent_runtime.send_window_receipt",
+    "agent_runtime.gateway_targets", "agent_runtime.chat_live_log",
+)
 
 
 def _warm_spinner_catalog() -> None:
@@ -50,7 +98,10 @@ def _warm_spinner_catalog() -> None:
 
 def _warm_request_modules() -> None:
     for name in FIRST_TURN_MODULES:
-        importlib.import_module(name)
+        try:
+            importlib.import_module(name)
+        except Exception:
+            logger.debug("first-turn module %s not importable", name, exc_info=True)
 
 
 def _warm_sdk_request_build(agent: Any) -> None:
@@ -63,18 +114,83 @@ def _warm_sdk_request_build(agent: Any) -> None:
     getattr(client, "responses", None)
 
 
+def _synthetic_stream_events() -> list[dict[str, Any]]:
+    """One event of each kind a reasoning-then-text Responses turn streams, in order."""
+
+    response = {"id": "resp_warmup", "object": "response", "created_at": 0, "model": "warmup",
+                "status": "in_progress", "output": [], "parallel_tool_calls": True, "tool_choice": "auto",
+                "tools": []}
+    reasoning = {"type": "reasoning", "id": "rs_warmup", "summary": [], "encrypted_content": "x"}
+    part = {"type": "output_text", "text": "", "annotations": []}
+    message = {"type": "message", "id": "msg_warmup", "role": "assistant", "status": "in_progress",
+               "content": []}
+    done_message = {**message, "status": "completed", "content": [{**part, "text": "ok"}]}
+    usage = {"input_tokens": 1, "input_tokens_details": {"cached_tokens": 0}, "output_tokens": 1,
+             "output_tokens_details": {"reasoning_tokens": 0}, "total_tokens": 2}
+    text = {"item_id": "msg_warmup", "output_index": 1, "content_index": 0}
+    events = [
+        {"type": "response.created", "response": response},
+        {"type": "response.in_progress", "response": response},
+        {"type": "response.output_item.added", "output_index": 0, "item": reasoning},
+        {"type": "response.reasoning_summary_part.added", "item_id": "rs_warmup", "output_index": 0,
+         "summary_index": 0, "part": {"type": "summary_text", "text": ""}},
+        {"type": "response.reasoning_summary_text.delta", "item_id": "rs_warmup", "output_index": 0,
+         "summary_index": 0, "delta": "x"},
+        {"type": "response.output_item.done", "output_index": 0, "item": reasoning},
+        {"type": "response.output_item.added", "output_index": 1, "item": message},
+        {"type": "response.content_part.added", **text, "part": part},
+        {"type": "response.output_text.delta", **text, "delta": "ok", "logprobs": []},
+        {"type": "response.output_text.done", **text, "text": "ok", "logprobs": []},
+        {"type": "response.content_part.done", **text, "part": {**part, "text": "ok"}},
+        {"type": "response.output_item.done", "output_index": 1, "item": done_message},
+        {"type": "response.completed",
+         "response": {**response, "status": "completed", "output": [reasoning, done_message], "usage": usage}},
+    ]
+    return [{**event, "sequence_number": index} for index, event in enumerate(events)]
+
+
+def _warm_sdk_event_parse(agent: Any) -> None:
+    """The SDK's process-wide first-event parse, through its own ``Stream`` and nothing on the wire."""
+
+    import json
+
+    import httpx
+    import openai
+    from openai.types.responses import ResponseStreamEvent
+
+    client = getattr(agent, "client", None)
+    if not isinstance(client, openai.OpenAI):
+        return
+    body = b"".join(
+        f"event: {event['type']}\ndata: {json.dumps(event)}\n\n".encode() for event in _synthetic_stream_events()
+    )
+    response = httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body,
+                              request=httpx.Request("POST", "https://warmup.invalid/responses"))
+    for _ in openai.Stream(cast_to=ResponseStreamEvent, response=response, client=client):
+        pass
+
+
 _STEPS = (
     ("spinner_catalog", lambda agent: _warm_spinner_catalog()),
     ("request_modules", lambda agent: _warm_request_modules()),
     ("sdk_request_build", _warm_sdk_request_build),
+    ("sdk_event_parse", _warm_sdk_event_parse),
 )
 
 
-def warm_first_turn_paths(agent: Any, timing: dict[str, Any]) -> None:
-    """Run every warm-up step for *agent*; record the total in *timing*. Never raises."""
+def warm_first_turn_paths(
+    agent: Any, timing: dict[str, Any], extra_steps: tuple = (), *, should_stop: Any = None
+) -> None:
+    """Run every warm-up step for *agent* (plus a higher layer's *extra_steps*); record the total in *timing*. Never raises.
+
+    *should_stop* (h-turn-wait) is asked before each step; a truthy answer skips the
+    rest -- the prewarm runs these inside ``_WORKDIR_LOCK`` and a turn is waiting.
+    """
 
     started = time.perf_counter()
-    for name, step in _STEPS:
+    for name, step in _STEPS + tuple(extra_steps):
+        if should_stop is not None and should_stop():
+            break
         try:
             step(agent)
         except Exception:
@@ -85,4 +201,76 @@ def warm_first_turn_paths(agent: Any, timing: dict[str, Any]) -> None:
         pass
 
 
-__all__ = ["FIRST_TURN_MODULES", "PREWARM_FIRST_TURN_WARMUP_MS", "warm_first_turn_paths"]
+# ── the process-once half, paid at serve boot (h-prewarm-order) ───────────────
+#
+# The 2026-10-06 01:24:59.35 -> 01:25:04.62 silent span of the boot actor
+# prewarm (5.3 s, ``system_prompt_build_ms=2159``), re-measured offline in a
+# cold process (scratch home, loopback provider): the first system-prompt build
+# is 3,232 ms of which 3,050 ms is upstream's once-per-process scratch prune
+# (``build_environment_hints`` -> ``get_scratch_dir`` -> ``prune_scratch_dir``
+# -> ``reap_processes_rooted_in``: ``psutil`` reads the cwd of every process on
+# the host, ~6 ms each); the second build is 39 ms. ``sdk_request_build`` is
+# 1,579 ms, of which ~1,420 ms is importing ``openai.resources.responses`` and
+# ~130 ms ``platform.platform()``. On Linux the prune runs at import
+# (``hermes_bootstrap.export_scratch_tmp_env``); on Windows the OS's ``%TEMP%``
+# makes that hook return before it, so the first prompt build paid it -- on the
+# one worker the operator's opened chat queues behind.
+#
+# Every step below is process-wide (a global flag, a module import, the
+# ``platform`` cache), so paying it once on the serve's boot thread removes it
+# from every construction after.
+
+PROCESS_ONCE_WARM_RECEIPT = (
+    "serve_process_once_warm scratch_prune_ms=%d sdk_responses_ms=%d platform_ms=%d request_modules_ms=%d"
+)
+
+#: The SDK resource the codex turn sends through (``client.responses``).
+SDK_RESPONSES_MODULE = "openai.resources.responses"
+
+
+def _warm_scratch_prune() -> None:
+    from hermes_constants import get_scratch_dir
+
+    get_scratch_dir()
+
+
+def _warm_sdk_responses() -> None:
+    importlib.import_module(SDK_RESPONSES_MODULE)
+
+
+def _warm_platform() -> None:
+    import platform
+
+    platform.platform()
+
+
+_PROCESS_ONCE_STEPS = (
+    ("scratch_prune", _warm_scratch_prune),
+    ("sdk_responses", _warm_sdk_responses),
+    ("platform", _warm_platform),
+    ("request_modules", _warm_request_modules),
+)
+
+
+def warm_process_once_costs() -> dict[str, int]:
+    """Pay the process-once costs a chat actor's construction would pay; log one receipt. Never raises."""
+
+    spent: dict[str, int] = {}
+    for name, step in _PROCESS_ONCE_STEPS:
+        started = time.perf_counter()
+        try:
+            step()
+        except Exception:
+            logger.debug("process-once warm step %s failed", name, exc_info=True)
+        spent[name] = max(0, int((time.perf_counter() - started) * 1000))
+    logger.info(PROCESS_ONCE_WARM_RECEIPT, *(spent[name] for name, _ in _PROCESS_ONCE_STEPS))
+    return spent
+
+
+__all__ = [
+    "FIRST_TURN_MODULES",
+    "PREWARM_FIRST_TURN_WARMUP_MS",
+    "PROCESS_ONCE_WARM_RECEIPT",
+    "warm_first_turn_paths",
+    "warm_process_once_costs",
+]

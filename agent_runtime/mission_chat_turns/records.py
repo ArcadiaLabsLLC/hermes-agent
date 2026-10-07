@@ -323,6 +323,12 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     ):
         if key in value:
             result[key] = bool(value.get(key))
+    # The turn's reasoning counts (h-think-tokens; ``stream_gap_receipt.TurnReasoning``).
+    # Absent stays absent (the provider reported none); a reported 0 stays 0.
+    for key in ("reasoning_tokens", "reasoning_ms"):
+        count = value.get(key)
+        if type(count) is int and count >= 0:
+            result[key] = count
     return result
 
 

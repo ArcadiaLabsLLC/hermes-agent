@@ -1452,11 +1452,12 @@ def main() -> int:
         sys.path.insert(0, str(repo_root))
     _sweep_killed_run_roots(_runner_scratch_root())
 
+    # Duration cache for the timeout scaler: known-slow files get
+    # proportional headroom instead of a false timeout-kill under CI load
+    # (see _effective_file_timeout). Read once, before the pool, because the
+    # isolation retry below must grant the same bound the pool did.
+    timeout_durations = _load_durations(repo_root)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        # Duration cache for the timeout scaler: known-slow files get
-        # proportional headroom instead of a false timeout-kill under
-        # CI load (see _effective_file_timeout).
-        timeout_durations = _load_durations(repo_root)
         futures: List[Future] = []
         for file in files:
             t0 = time.monotonic()
@@ -1497,7 +1498,8 @@ def main() -> int:
             file,
             pytest_passthrough,
             repo_root,
-            args.file_timeout,
+            # Never tighter than the contended pool attempt it exists to rescue.
+            _effective_file_timeout(file, repo_root, args.file_timeout, timeout_durations),
             # retries=0 on purpose: this IS the retry. The in-pool flake retry
             # must not stack on top of the isolation re-run.
             0,
@@ -1507,6 +1509,7 @@ def main() -> int:
         fail_count -= 1
         tests_passed += summary.get("passed", 0)
         tests_failed += summary.get("failed", 0)
+        tests_skipped += summary.get("skipped", 0)
         # The straggler's outcomes count toward collection exactly as the
         # pool's do. Without this the nothing-ran guard below can only ever see
         # the KILLED first attempt, which by definition collected nothing:

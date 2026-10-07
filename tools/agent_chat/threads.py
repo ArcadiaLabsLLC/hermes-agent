@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 from agent_runtime.dispatch_session_policy import coerce_optional_flag
+from agent_runtime.profile_home import get_hermes_head_home
 
 from .lane import _canonical_persona_token, _chat_lane_session_ids, _looks_like_instance_handle, refusal_json, scope_off, session_belongs_to_chat_lane
 from .remote import _remote_roster_rows, _remote_thread_read
@@ -55,7 +56,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         if _looks_like_instance_handle(filter_token):
             wanted_instance_id = canonical_persona_instance_id(filter_token, persona_id=wanted_persona)
 
-    cfg = load_agent_runtime_config()
+    cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()
     store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
     instances = store.list_all()
@@ -178,7 +179,7 @@ def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="age
     # collapsed straight onto the canonical channel.
     target_instance_id = target if _looks_like_instance_handle(target) else None
 
-    cfg = load_agent_runtime_config()
+    cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()
     store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
 

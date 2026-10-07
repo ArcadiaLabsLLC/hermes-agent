@@ -164,6 +164,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness migrate](#hermes-harness-migrate)
 - [hermes harness observe](#hermes-harness-observe)
 - [hermes harness observe snapshot-builds](#hermes-harness-observe-snapshot-builds)
+- [hermes harness observe turn-timing](#hermes-harness-observe-turn-timing)
 - [hermes harness contracts](#hermes-harness-contracts)
 - [hermes harness contracts dump](#hermes-harness-contracts-dump)
 - [hermes harness worktree](#hermes-harness-worktree)
@@ -3385,15 +3386,17 @@ options:
 ## hermes harness observe
 
 ```text
-usage: hermes harness observe [-h] [--json] {snapshot-builds} ...
+usage: hermes harness observe [-h] [--json] {snapshot-builds,turn-timing} ...
 
 positional arguments:
-  {snapshot-builds}
-    snapshot-builds  Summarise snapshot builds from agent.log receipts: by trigger, time, executor,
-                     turns affected
+  {snapshot-builds,turn-timing}
+    snapshot-builds     Summarise snapshot builds from agent.log receipts: by trigger, time,
+                        executor, turns affected
+    turn-timing         Each chat turn's spans (turn record, serve receipts, Launcher diag line)
+                        against a baseline; names spans over 1.5x
 
 options:
-  -h, --help         show this help message and exit
+  -h, --help            show this help message and exit
   --json
 ```
 
@@ -3407,6 +3410,31 @@ options:
   --since SINCE  Window back from now: 90s, 30m, 2h, 1d (default 1h)
   --log LOG      agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
   --json
+```
+
+## hermes harness observe turn-timing
+
+```text
+usage: hermes harness observe turn-timing [-h] [--since SINCE] [--log LOG]
+                                          [--launcher-log LAUNCHER_LOG] [--baseline BASELINE]
+                                          [--json] [--check] [--last LAST] [--from FROM_TIME]
+                                          [--to TO_TIME] [--budgets BUDGETS]
+
+options:
+  -h, --help            show this help message and exit
+  --since SINCE         Window back from now: 90s, 30m, 2h, 1d (default 1h)
+  --log LOG             agent.log to read (default: the live serve's <home>/logs/agent.log)
+  --launcher-log LAUNCHER_LOG
+                        Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)
+  --baseline BASELINE   Baseline JSON (default tests/fixtures/turn_timing_baseline.json)
+  --json
+  --check               Judge the last N turns' receipts against
+                        agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL
+  --last LAST           --check: how many of the newest turns to judge (default 10)
+  --from FROM_TIME      --check: only turns anchored at/after this local time (YYYY-MM-DD
+                        HH:MM[:SS])
+  --to TO_TIME          --check: only turns anchored at/before this local time
+  --budgets BUDGETS     --check: budget JSON (default agent_runtime/turn_latency_budgets.json)
 ```
 
 ## hermes harness contracts

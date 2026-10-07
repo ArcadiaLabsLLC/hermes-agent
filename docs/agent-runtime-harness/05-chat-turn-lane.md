@@ -29,7 +29,7 @@ independent native conversations, with failure and queues scoped per participant
 `agent_runtime/operator_conversation.py` attaches another view to an exact
 operator session, without minting history or changing its default pointer.
 Reads reuse SessionDB, `mission_chat_turns`, admission receipts and clarify
-tickets. Send and Stop validate ownership without loading transcript history.
+tickets. Send, Stop and execution status validate ownership without loading transcript history.
 Launcher observes live journal output every two seconds while visible; this is
 not token-by-token fan-out and does not replace the original frame consumer.
 
@@ -44,7 +44,42 @@ Automated recovery and isolation evidence is in the
 [landing record](archive/operator-conversation-handoff-2026-09-28.md).
 Native desktop acceptance remains open in the Launcher queue.
 
+`operator_execution.operator_execution_reservation` joins instance/persona
+admissions to their resolved session using the exact turn journal's
+`root_chat_session_id` and `persona_instance_id`. Admission scope and payload
+fingerprint stay immutable for resend deduplication. It refuses unresolved
+or conflicting roots before persisting Stop intent; the instance's current
+default pointer is not execution evidence. Stop and attachment reads share
+this join. `test_operator_execution_recovery` covers the console's omitted
+`session_id` path, hard interrupt without tools, replay and conflicting journal
+evidence. Launcher `operator_native_test` exercises that wire shape through
+the Dart adapter against the native dispatcher, including a lost Stop ack.
+
+`serve_rpc.operator_conversation.status` reads the exact execution's native
+receipt and terminal journal state without requesting Stop or reading its
+transcript. Launcher uses bounded status reads after one Stop write, including
+a lost acknowledgement. Only native `stopped` or `finished` confirms the
+result; absent owners and disconnected reads remain unconfirmed. The
+[Stop audit](../downstream/operator-stop-audit-2026-10-06.md) records regression
+and baseline qualification; live cancellation latency remains unmeasured.
+
 ## 1. Send admission — the turn's identity and its thread
+
+**Inline relay admission uses the runtime head, not the sender's profile.**
+`hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
+enters `profile_context.process_home_scope(get_hermes_head_home())` around the
+canonical handler only when the current home differs. An already-head caller
+gets no synthetic override; an existing unbound override still fails the
+transcript durability guard. A sender's execution profile cannot replace the runtime's
+configured persona roster or defaults. The selected target still declares its
+execution profile through `GPTPersonaRuntime.mission_chat_reply`; the sender's
+context is restored on success, refusal or exception. The two roster reads in
+`tools/agent_chat/threads.py` load that same head's config. This does not merge
+profile catalogs or change workspace, exact-instance, session or relay guards.
+`tests/agent_runtime/test_agent_chat_runtime_roster.py` exercises the actual
+inline registry/handler and stores with two sender homes and sibling targets;
+only model execution is stubbed. Live relay and thread-opening acceptance is
+tracked separately in the Launcher's console live-contract audit.
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
@@ -117,7 +152,9 @@ reload) into `profile_timing` beside the context sub-spans.
 provider_first_byte` is client init + network + provider + whatever precedes the first reply-text
 delta (`:352-375`). **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
 turn's FIRST REPLY-TEXT DELTA, not the provider's first byte, so reasoning and tool rounds land
-inside it; `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
+inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner the emitter's
+`first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
+turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
 flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
@@ -151,7 +188,9 @@ themselves and return a `timings` mapping the handler folds beside `session_db_o
 `context_skill_preload_ms` / `context_hud_ms` / `context_signature_ms` from
 `agent_runtime/mission_chat_turn_context.py`, and `observability_skill_rows_ms` /
 `observability_catalog_walk_ms` / `observability_shared_catalog_ms` plus the 0/1
-`observability_catalog_cached` from `agent_runtime/prompt_observability.py`. The three in each
+`observability_catalog_cached` from `agent_runtime/prompt_observability.py` (`1` = no read on the
+turn's thread walked the catalog; past its 15 s TTL the memo answers stale and refreshes on a
+`skill-catalog-refresh` thread, so only a cold memo walks inline — h-turn1-again). The three in each
 group are disjoint (the walks are subtracted out of the block they run inside), so a group sums to
 its phase span rather than past it, and the mapping never reaches a persisted observability row —
 the handler pops it and `persist_prompt_observability_context` drops it again. Beside them ride
@@ -242,6 +281,34 @@ of the day — while a MEASURED zero (`builds_overlapped: 0`, the answer that ac
 contention) survives. Values are sanitized on the way OUT as well as in, because this block is read
 straight off a wire frame: non-integers, a `True` in a millisecond slot, negatives and absurd
 magnitudes are dropped rather than coerced.
+
+### 2b. The turn's reasoning on the Thinking row (h-think-tokens, 2026-10-06)
+
+Two additive integers name what the model spent thinking: `reasoning_tokens` (the provider's
+`usage.output_tokens_details.reasoning_tokens`, summed over the turn's requests) and
+`reasoning_ms` (per request, first parsed event to the first reply output — output text, or a
+function call's arguments on a tool round; the terminal event when neither came — summed). Both
+come from the stream-gap window (`agent_runtime/stream_gap_receipt.py`, `TurnReasoning`, bound
+per turn by `bind_turn_reasoning` in `_run_conversation_with_usage_ledger`) and reach the runner
+result as `AgentRunResult.reasoning_window`. A request abandoned before its terminal event is not
+counted.
+
+**Absent is not zero.** No request reported a reasoning count → no key anywhere (an older
+transport, a non-Codex provider). A reported `0` stays `0`, so the Launcher can say "0 tokens".
+
+**Where they ride.** The Thinking frames (`reasoning.summary`) leave while the model streams,
+before the usage block exists, and are never held for it; the counts land at turn end in ONE
+update per surface:
+
+| surface | carrier |
+|---|---|
+| live | `turn.end` frame, `reasoning_tokens` / `reasoning_ms` beside `output_tokens` |
+| terminal payload | `chat.final` (the `_mission_chat_emit` dict), same two keys |
+| turn record | `mission_chat_turns/*.json`, top-level keys on the projected record (`_safe_journal_metadata`) |
+| stored Thinking rows | ONE `run.progress` event, step `reasoning_usage` (`ChatProgressSink.record_reasoning_usage`, written by `mission_chat_reply` after the run), folded by `persona_chat_history.trace._fold_reasoning_usage` onto every Thinking entry of the same `turn_id`; the carrier is no row of its own (`reasoning_usage_folded`, by design) |
+| history replay | every `thinking_summary` message of the turn (conversation schema v3), same two keys |
+
+An older Launcher ignores the keys; no contract integer moves.
 
 ## 3. Model selection
 
@@ -357,7 +424,11 @@ runtime root, entry-point lane, and the **registry content** the composition rea
 `registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
 so the generation moved on every MCP-admitting turn while the content did not, and every such turn
 rebuilt (`visibility_bundle_rebuild_component_registry_epoch=1` on every turn from 2026-09-08 until
-lane h-bundle-epoch). The `check_fn` grace machinery is untouched, and a
+lane h-bundle-epoch). Admission-scoped `mcp-*` registrations are left out of the content
+altogether (lane h-newchat-t1): they belong to whichever run admitted them, the composition
+never reads them, and a new chat's turn 1 that overlapped the chat-open prewarm's admission
+rebuilt twice, as the scope came up and as it went down (turn `5377d205`, 2026-10-06,
+`rt_bundle_builds=2`). The `check_fn` grace machinery is untouched, and a
 down backend still loses its TOOLS at construction because `registry.get_definitions` re-probes on
 its own TTL; what can go stale is the toolset NAME in the lane's accounting until the key moves.
 `invalidate_chat_lane_bundles()` is the explicit hatch. A bundle whose best-effort components

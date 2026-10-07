@@ -17,7 +17,9 @@ from .operator_session_inspection import (
 from .persona_assignments import PersonaInstanceStore
 from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
-from .persona_chat_session import _persist_chat_model_override
+from .persona_chat_session import (
+    _persist_chat_model_override, log_model_selection, reasoning_effort_label,
+)
 from .profile_context import persona_profile_scope, resolve_persona_profile
 from .session_model_catalog import choices, facts, model_key
 
@@ -66,6 +68,7 @@ def operator_model_facts(params: dict) -> dict:
         inventory = operator_model_inventory(instance)
     settings = inspect_operator_settings(params)
     model = settings["model"]
+    effort = _reasoning_effort_facts(instance, model["effective_model"])
     provider, name = model["agent_provider"], model["agent_model"]
     projected = facts(params["session_id"], {"info": {
         "provider": model["effective_provider"], "model": model["effective_model"],
@@ -73,8 +76,21 @@ def operator_model_facts(params: dict) -> dict:
     return {**settings, "facts": {
         **projected, "default_model_id": model_key(provider, name) if provider and name else None,
         "can_save_model_default": not is_managed(),
-        "default_affects_inherited_sessions": True,
+        "default_affects_inherited_sessions": True, **effort,
     }}
+
+
+def _reasoning_effort_facts(instance, model: str | None) -> dict:
+    """The effort the next turn sends: the runner's own resolver over the instance's
+    effort (what ``chat_turn_commit.run`` passes), in the turn's profile."""
+    from .profile_runner.models import AgentRunRequest
+    from .profile_runner.resident_actor import turn_reasoning_config
+
+    request = AgentRunRequest(profile=None, model=model, reasoning_effort=instance.reasoning_effort)
+    with _model_profile(instance):
+        effort = reasoning_effort_label(turn_reasoning_config(request, model))
+    source = "instance" if instance.reasoning_effort else ("profile" if effort else "default")
+    return {"reasoning_effort": effort, "reasoning_effort_source": source}
 
 
 def _require_idle(session_id: str) -> None:
@@ -85,7 +101,27 @@ def _require_idle(session_id: str) -> None:
         raise OperatorConversationRefused("conversation_busy")
 
 
+#: Where each scope's choice lands: the chat's SessionDB row, or the instance
+#: store with this chat's override cleared so the new default is what it runs.
+_SAVED = {"conversation": "session_override",
+          "agent_default": "persona_instance_store+session_override_cleared"}
+
+
 def select_operator_model(params: dict) -> dict:
+    receipt = dict(verb="runtime.operator.conversation.model.select",
+                   target=params.get("session_id"), scope=str(params.get("scope") or "-"),
+                   chosen=params.get("model_id") if isinstance(params.get("model_id"), str) else None)
+    try:
+        facts = _select_operator_model(params)
+    except Exception as exc:
+        reason = getattr(exc, "reason", None) or type(exc).__name__
+        log_model_selection(**receipt, outcome=f"refused:{reason}", saved=None)
+        raise
+    log_model_selection(**receipt, outcome="applied", saved=_SAVED[params["scope"]])
+    return facts
+
+
+def _select_operator_model(params: dict) -> dict:
     scope, choice = params.get("scope"), params.get("model_id")
     if scope not in ("conversation", "agent_default") or not isinstance(choice, str):
         raise OperatorConversationRefused("invalid_model_selection")

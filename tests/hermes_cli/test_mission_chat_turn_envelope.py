@@ -178,7 +178,7 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):  # noqa: F811
     _witness("ensure_for_personas", PersonaInstanceStore, "ensure_for_personas")
     _witness("open_chat", PersonaInstanceStore, "open_chat")
     _witness("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
-    _witness("model_override", commit_admit, "_resolve_chat_model_override")
+    _witness("model_override", commit_admit, "_resolve_turn_model_selection")
     return harness_module, seen
 
 
@@ -238,7 +238,7 @@ def test_each_leasable_write_happens_exactly_once_per_turn(
 
     _count("open_chat", PersonaInstanceStore, "open_chat")
     _count("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
-    _count("model_override", commit_admit, "_resolve_chat_model_override")
+    _count("model_override", commit_admit, "_resolve_turn_model_selection")
 
     assert chat_turn_message._cmd_mission_chat_message(_args("once_turn")) == 0
     capsys.readouterr()

@@ -50,10 +50,9 @@ from ..chat_request import (
     _retired_persona_instance_payload,
 )
 from agent_runtime.persona_chat_session import (
-    _chat_effective_model_payload,
     _persona_chat_native_revision,
     _persona_chat_native_tip,
-    _resolve_chat_model_override,
+    _resolve_turn_model_selection,
 )
 
 __layer__ = "lanes"
@@ -233,16 +232,12 @@ class _AdmitPhases:
         session_id = self.session_id
         instance = self.instance
         try:
-            requested_override = _requested_chat_model_override(args)
-            chat_override = _resolve_chat_model_override(
+            model_selection = _resolve_turn_model_selection(
                 session_db=self.session_db,
                 session_id=session_id,
-                requested_override=requested_override,
-            )
-            model_selection = _chat_effective_model_payload(
+                requested_override=_requested_chat_model_override(args),
                 persona=self.persona,
                 config=self.cfg,
-                override=chat_override,
                 instance=instance,
             )
         except ValueError as exc:

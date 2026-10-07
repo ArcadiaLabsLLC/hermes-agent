@@ -94,8 +94,8 @@ execution. See [turn ownership](05-chat-turn-lane.md#existing-operator-conversat
 spawns the Launcher bridge otherwise pays a ~3s import tax on
 (hermes_cli/harness_parts/serve/__init__.py:1-7). Requests arrive as NDJSON, one frame
 per line, and dispatch into the **existing** harness argparse tree unchanged:
-`dispatch_argv` (hermes_cli/harness_parts/serve/argv_lane.py:229) builds a fresh parser per request
-(`_build_harness_parser`, hermes_cli/harness_parts/serve/argv_lane.py:137) and calls the same `_cmd_*` handler the CLI
+`dispatch_argv` (hermes_cli/harness_parts/serve/argv_lane.py:233) builds a fresh parser per request
+(`_build_harness_parser`, hermes_cli/harness_parts/serve/argv_lane.py:141) and calls the same `_cmd_*` handler the CLI
 would, including the harness error-envelope contract — argv arrives verbatim as
 the bridge already builds it, which keeps the per-call CLI fallback
 byte-identical to the served path. **`ready` is a BOOT frame, not a request
@@ -996,6 +996,14 @@ declines while DRAINING — a drain is waiting for that pool to empty — and a
 handler that finds it absent (a test-built context, a transport with no pool)
 answers on its own thread.
 
+**The ten `runtime.realm.*` verbs ride the same seam (2026-10-06, lane h-newchat-t1).**
+`status` fetches the realm remote and walks every store for drift; inline, the launcher's
+periodic poll held the reader loop from 01:25:01 to 01:25:04 local and the operator's first
+chat send of a new chat was accepted only after it (`send_to_admit_ms=2564`, turn
+`5377d205`). `agent_runtime/serve_rpc/realm.py` now offers each verb to `spawn_reply` and
+runs them one at a time among themselves (`_REALM_VERB_LOCK`), which is the serialization the
+inline lane used to give them for free.
+
 ## 3. The mission-control stream
 
 `agent_runtime/stream/session.py::stream_frames` (the whole function at `:1221`) is the single producer body.
@@ -1024,6 +1032,12 @@ Every `state.reconciled` names a producer bug to fix at source.
 | `heartbeat` | `heartbeat_frame` (`:328`) | 1 | no |
 | `running_work` | `running_work_frame` (`stream/frames.py`) | 1 | **no** — the `running_work` section alone |
 | `persona_chat_turn` | `persona_chat_turn_frames` (`stream/frames.py`) | 2 | **no** — one chat root's turn sections |
+
+The chat lane's per-request protocol-v2 frames (`turn.start`, `segment.*`, `tool.*`,
+`reasoning.summary`, `turn.end`, then `chat.final`) are not stream frames and have no row here;
+their one additive turn-end pair — `reasoning_tokens` / `reasoning_ms` on `turn.end` and
+`chat.final`, and on each history-replay `thinking_summary` message carried in the core's
+operator-channel conversation — is doc 05 §2b.
 
 `persona_chat_turn` (plan h-turn1 §2 C1/C2) replaces the demote core of a batch
 made ONLY of chat-turn events (`batch_turn_roots`: the three `persona_chat.*`

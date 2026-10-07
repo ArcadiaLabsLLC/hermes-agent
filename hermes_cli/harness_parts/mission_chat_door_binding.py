@@ -23,9 +23,21 @@ __all__ = ["bind_mission_chat_door"]
 
 
 def _mission_chat_turn_via_cli(args) -> int:
-    from hermes_cli.harness_parts.persona import chat_turn_message
+    from contextlib import nullcontext
 
-    return chat_turn_message._cmd_mission_chat_message(args)
+    from agent_runtime.profile_context import process_home_scope
+    from agent_runtime.profile_home import get_hermes_head_home
+    from hermes_cli.harness_parts.persona import chat_turn_message
+    from hermes_constants import get_hermes_home
+
+    # Inline relays arrive inside the sender's profile. Admission belongs to
+    # the runtime head; the chosen persona binds its own profile for execution.
+    # Do not invent an override for an already-head caller: without an explicit
+    # head authority, transcript durability must refuse an unbound override.
+    head = get_hermes_head_home()
+    scope = nullcontext() if head == get_hermes_home() else process_home_scope(head)
+    with scope:
+        return chat_turn_message._cmd_mission_chat_message(args)
 
 
 def _open_chat_via_cli(args) -> int:

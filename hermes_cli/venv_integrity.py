@@ -118,8 +118,28 @@ def site_package_dirs() -> list[Path]:
     return seen
 
 
+#: h-warm-phases: ``directory -> (its mtime_ns, the grouping)``. Every chat turn's provider-health
+#: check asked this of the whole site-packages tree (a listing plus a stat per entry: ~20 ms a turn
+#: on the operator's venv). Installing or removing a distribution adds or removes a metadata
+#: directory in ``directory`` itself, which moves its mtime; the grouping reads names only.
+_GROUPED_BY_DIRECTORY: dict[str, tuple[int, dict[str, list[Path]]]] = {}
+
+
 def _metadata_dirs_by_distribution(directory: Path) -> dict[str, list[Path]]:
     """Map canonical distribution name -> its metadata dirs inside ``directory``."""
+    try:
+        stamp = directory.stat().st_mtime_ns
+    except OSError:
+        return {}
+    cached = _GROUPED_BY_DIRECTORY.get(str(directory))
+    if cached is not None and cached[0] == stamp:
+        return {name: list(dirs) for name, dirs in cached[1].items()}
+    grouped = _list_metadata_dirs(directory)
+    _GROUPED_BY_DIRECTORY[str(directory)] = (stamp, grouped)
+    return {name: list(dirs) for name, dirs in grouped.items()}
+
+
+def _list_metadata_dirs(directory: Path) -> dict[str, list[Path]]:
     grouped: dict[str, list[Path]] = {}
     try:
         children = sorted(directory.iterdir())

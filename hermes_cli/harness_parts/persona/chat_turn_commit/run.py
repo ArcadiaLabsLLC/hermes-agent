@@ -43,6 +43,7 @@ from agent_runtime.prompt_observability import (
     persist_prompt_observability_context,
     turn_usage_from_result,
 )
+from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
 from agent_runtime.workspace_scope import workspace_claim_disagreement
 from ..chat_admission import (
@@ -195,7 +196,9 @@ class _RunPhases:
         #
         # Turn-local by construction: born here, dies with this object, never
         # attached to the context, the row, a persisted record or a wire frame.
-        self.turn_root_registries: dict[str, Any] = {}
+        # h-warm-phases: a root this map has not seen is read from the process registry cache when
+        # it holds one, and re-walked off-thread after this turn's ``request_sent``.
+        self.turn_root_registries: dict[str, Any] = TurnRootRegistries()
 
         self.turn_context = build_mission_chat_turn_context(
             persona=self.persona,
@@ -590,7 +593,15 @@ class _RunPhases:
                 # wire shape per token). Deltas ride the v2 `segment.delta` frame
                 # only; the emitter runs every frame inside the captured request
                 # context, so worker-thread deltas keep their serve request id.
-                stream_callback=stream_emitter.delta if getattr(args, "stream", False) else None,
+                # A turn that streams no frames still hands the runner a
+                # callback: the first-reply-text stamp, and nothing else. Without
+                # it a non-``--stream`` turn (the argv fallback lane) recorded no
+                # ``provider_first_byte`` (h-turn1-again).
+                stream_callback=(
+                    stream_emitter.delta
+                    if getattr(args, "stream", False)
+                    else stream_emitter.first_reply_text
+                ),
                 # C8: pre-trace acks are presentation-only. The emitter turns the
                 # payload into a v2 `turn.ack` stream frame — never a SessionDB
                 # row, never a turn-store element; replay never shows it.
