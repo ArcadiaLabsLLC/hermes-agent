@@ -59,6 +59,7 @@ import time
 from typing import Any, Callable
 
 from agent_runtime.clock import now_iso_micro
+from agent_runtime import idle_turn_keeper
 from agent_runtime.provider_preconnect import note_process_request_sent
 from agent_runtime.send_prep_receipt import CpuAnchor, emit_send_prep_receipt
 
@@ -228,6 +229,7 @@ class TurnPhaseMarks:
         "_lock",
         "_cpu_anchor",
         "receipt_turn",
+        "__weakref__",
     )
 
     def __init__(
@@ -253,6 +255,8 @@ class TurnPhaseMarks:
         # client message id it is keyed on (the handler stamps it once it has parsed args).
         self._cpu_anchor = CpuAnchor()
         self.receipt_turn: str | None = None
+        # h-idle-turn: no memo rebuild and no keep-warm while a turn is between here and request_sent.
+        idle_turn_keeper.note_window_opened(self)
 
     # ── reading ────────────────────────────────────────────────────────────
 
@@ -307,6 +311,7 @@ class TurnPhaseMarks:
             marks = dict(self._marks) if name == "request_sent" else None
         if marks is not None:
             note_process_request_sent()  # h-prep-contention: the keep-warm chains stop here
+            idle_turn_keeper.note_window_closed(self)  # h-idle-turn: the idle keeper takes over
             _notify_request_sent()
             emit_send_prep_receipt(
                 marks, PHASE_ORDER, turn=self.receipt_turn, anchored_at=self._anchored_at, anchor=self._cpu_anchor,

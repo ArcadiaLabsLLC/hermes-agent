@@ -206,6 +206,9 @@ class DrainLane:
             if self.drain_terminal_published.is_set():
                 return
             self.drain_terminal_published.set()
+        from agent_runtime import idle_turn_keeper
+
+        idle_turn_keeper.stop()  # h-idle-turn: no idle refresh or keep-warm past the serve's end
         self.drain_exit_code = code
         if code != 0:
             # Stuck workers: do NOT let the pool's context manager join
