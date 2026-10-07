@@ -2348,8 +2348,10 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[
                 # A copy of the file that just parsed is what a FRESH process falls back to when the
                 # next edit breaks the YAML (see _last_known_good_fallback). backup_config() skips
                 # byte-identical repeats and keeps a bounded count, so steady-state loads cost one stat.
-                from hermes_cli.config_backups import backup_config
-                backup_config(config_path, "good")
+                # Read-only loads never write a last-known-good backup.
+                if ensure_home:
+                    from hermes_cli.config_backups import backup_config
+                    backup_config(config_path, "good")
             except Exception as e:
                 lkg_copy = _last_known_good_fallback(config_path, path_key, cache_sig, e)
                 if lkg_copy is not None:

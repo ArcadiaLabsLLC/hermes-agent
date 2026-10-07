@@ -40,7 +40,7 @@ def _sh(path) -> str:
 
     ``env.execute`` hands the string to bash. Interpolating a bare native
     Windows path let bash consume every backslash as an escape, so ``cat``
-    was asked for ``C:UsersbeastAppData...`` and reported "No such file or
+    was asked for ``C:Users...AppData...`` and reported "No such file or
     directory" — the test failed on the spelling, never on the behaviour it
     exists to check. On POSIX this is the identity.
     """
@@ -102,8 +102,8 @@ class TestLocalEnvironmentExecute:
 
     def test_cat_deterministic_content(self, env, tmp_path):
         f = tmp_path / "det.txt"
-        # newline="": the assertion below pins EXACT bytes, and text-mode
-        # write_text turns every "\n" into "\r\n" on Windows.
+        # newline="": the assertion below pins exact bytes, and text mode
+        # would write every newline as CRLF on Windows.
         f.write_text(SIMPLE_CONTENT, newline="")
         result = env.execute(f"cat {_sh(f)}")
         assert result["returncode"] == 0

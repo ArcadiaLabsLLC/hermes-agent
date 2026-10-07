@@ -27,13 +27,9 @@ logger = logging.getLogger(__name__)
 def _process_hermes_home() -> Path:
     """HERMES_HOME for process-level identity files (ignore task overrides).
 
-    Delegates to the canonical :func:`hermes_constants.get_process_hermes_home`
-    (env var → platform default), which never follows the context-local
-    profile override. The previous local copy fell back to
-    ``get_hermes_home()`` when the env var was unset — that resolver DOES
-    honor the override, so a lifecycle write landing mid persona-turn could
-    route the sentinel into the wrong profile directory (same class as
-    gateway/status.py issue #56986).
+    ``get_process_hermes_home`` expands ``~``/``$VAR`` (python -m gateway.run skips the CLI
+    normalizer) and falls back to the platform default when ``HERMES_HOME`` is unset; the
+    override-honouring ``get_hermes_home()`` must not be the fallback (same class as #56986).
     """
     from hermes_constants import get_process_hermes_home
 

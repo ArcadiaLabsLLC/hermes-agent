@@ -154,3 +154,20 @@ def test_the_running_checkout_carries_fork_history():
     """Positive control on the real tree: the guard stays armed in this repository."""
     root = Path(__file__).resolve().parents[2]
     assert history.has_fork_ancestry(["git"], root) is True
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_plan_describes_the_path_the_guard_will_take(repo, monkeypatch, capsys, guarded):
+    """--plan must not promise a stop the guard will not make (review on #125265)."""
+    from hermes_cli.update_inventory import UpdatePlan, print_update_plan
+    folded_tip(repo, related=False)
+    if not guarded:
+        monkeypatch.setattr(history, "FORK_ROOT_COMMIT", "0" * 40)
+    plan = UpdatePlan(history={
+        **history.assess_history(["git"], repo, "origin/main").to_dict(),
+        "guarded": history.has_fork_ancestry(["git"], repo),
+    })
+    print_update_plan(plan)
+    out = capsys.readouterr().out
+    assert ("stop before stashing" in out) is guarded
+    assert ("standard rescue-ref" in out) is not guarded

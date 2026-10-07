@@ -1,24 +1,35 @@
-"""Per-process gateway lock directory cleanup, extracted from conftest."""
-import os
+"""Per-process gateway rendezvous directories for the test run.
+
+``tests/conftest.py`` gives every pytest process its own
+``HERMES_GATEWAY_LOCK_DIR`` named ``<prefix><pid>`` under the temp dir, and
+sweeps the directories of processes that are gone at import time. The sweep
+lives here so it can be tested without re-importing conftest.
+"""
+
+from __future__ import annotations
+
 import shutil
 from pathlib import Path
+
+import psutil
 
 LOCK_DIR_PREFIX = "hermes-test-gateway-locks-"
 
 
 def sweep_stale_lock_dirs(root: Path, prefix: str = LOCK_DIR_PREFIX) -> None:
-    for _stale in root.glob(f"{prefix}*"):
+    """Remove every ``<prefix><pid>`` directory under ``root`` whose PID is not running.
+
+    Liveness is ``psutil.pid_exists``, never ``os.kill(pid, 0)``: on Windows
+    signal 0 is ``CTRL_C_EVENT`` and goes through ``GenerateConsoleCtrlEvent``
+    (bpo-14484), so probing a sibling worker would either interrupt its
+    console process group or fail with ``OSError`` and have the sweep delete a
+    live worker's directory. See CONTRIBUTING.md, "Cross-Platform
+    Compatibility", critical rule 1.
+    """
+    for stale in root.glob(f"{prefix}*"):
         try:
-            _stale_pid = int(_stale.name[len(prefix):])
+            pid = int(stale.name[len(prefix):])
         except ValueError:
             continue
-        if os.name == "nt":
-            # This sweep runs before fixtures can intercept console signals.
-            from gateway.status import _pid_exists
-            if not _pid_exists(_stale_pid):
-                shutil.rmtree(_stale, ignore_errors=True)
-            continue
-        try:
-            os.kill(_stale_pid, 0)  # windows-footgun: ok — Windows continues above
-        except OSError:
-            shutil.rmtree(_stale, ignore_errors=True)
+        if not psutil.pid_exists(pid):
+            shutil.rmtree(stale, ignore_errors=True)

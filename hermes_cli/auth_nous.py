@@ -881,6 +881,37 @@ def _nous_stored_inference_url(state: Dict[str, Any]) -> str:
         or (DEFAULT_NOUS_WELCOME_URL if is_guest_state(state) else DEFAULT_NOUS_INFERENCE_URL))
 
 
+def _heal_persisted_nous_inference_urls(store: Dict[str, Any]) -> None:
+    """Heal every durable Nous inference URL in a freshly loaded auth *store*, in place.
+
+    ``providers.nous`` and each ``credential_pool.nous`` row carry an ``inference_base_url`` that
+    came from a Portal response and becomes the bearer's destination (``runtime_base_url``). One
+    persisted before login admission validated it would otherwise survive an upgrade as send
+    authority. A present value the network allowlist refuses heals to the canonical default via
+    ``_nous_stored_inference_url``, the same primitive refresh routing uses; an allowlisted URL, or
+    the host of the operator's ``NOUS_INFERENCE_BASE_URL``, is left as it is.
+    """
+    from hermes_cli.auth import _optional_base_url
+    providers = store.get("providers")
+    pool = store.get("credential_pool")
+    records = [providers.get("nous")] if isinstance(providers, dict) else []
+    if isinstance(pool, dict) and isinstance(pool.get("nous"), list):
+        records.extend(pool["nous"])
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        stored = _optional_base_url(record.get("inference_base_url"))
+        if not stored or _validate_nous_inference_url_from_network(stored):
+            continue
+        healed = _nous_stored_inference_url({**record, "inference_base_url": None})
+        # Log the raw rejected value, never a re-parse of it: the validator rejects strings
+        # ``urlparse`` raises on (``https://[``), and a raise here would leave them unhealed.
+        logger.warning(
+            "auth: healing persisted nous inference_base_url %.120r (not allowed) -> %s",
+            stored, healed)
+        record["inference_base_url"] = healed
+
+
 def _nous_effective_routing(state: Dict[str, Any]) -> tuple[str, str, str, str]:
     """``(portal_url, stored_inference_url, effective_inference_url, client_id)`` from *state*.
 
@@ -1411,8 +1442,8 @@ def _nous_device_code_login(
     now = datetime.now(timezone.utc)
     token_expires_in = _coerce_ttl_seconds(token_data.get("expires_in", 0))
     resolved_inference_url = (
-        _validate_nous_inference_url_from_network(
-            _optional_base_url(token_data.get("inference_base_url"))) or requested_inference_url)
+        _validate_nous_inference_url_from_network(_optional_base_url(token_data.get("inference_base_url")))
+        or requested_inference_url)
     if resolved_inference_url != requested_inference_url:
         print(f"Using portal-provided inference URL: {resolved_inference_url}")
     auth_state = {
