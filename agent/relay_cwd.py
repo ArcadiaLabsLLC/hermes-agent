@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from hermes_constants import module_shipped
+
 logger = logging.getLogger(__name__)
 
 _CWD_SENTINELS = frozenset({"", ".", "./", "auto", "cwd"})
@@ -18,8 +20,8 @@ def _clean_cwd(value: Any) -> str:
 
 
 def _recorded_cwd(key: str) -> str:
-    if not key:
-        return ""
+    if not key or not module_shipped("tools.terminal_tool"):
+        return ""  # no terminal tool in this install, so no recorded cwd
     from tools.terminal_tool import get_session_cwd
 
     return _clean_cwd(get_session_cwd(key))

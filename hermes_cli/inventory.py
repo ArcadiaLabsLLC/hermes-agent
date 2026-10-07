@@ -960,6 +960,10 @@ def _local_runtime_row(ctx: "ConfigContext") -> dict | None:
     before the server runs (selection starts it via the runtime_provider seam). The row's id comes from
     the provider registry's own definition, never a local literal: a row the resolver can't resolve is
     the bug this row's offline-first contract depends on not having."""
+    from hermes_constants import module_shipped
+
+    if not module_shipped("hermes_cli.local_runtime"):
+        return None
     try:
         from hermes_cli.local_runtime.bootstrap import staged_model_ids
         from hermes_cli.providers import LLAMACPP_ALIASES, LLAMACPP_PROVIDER_ID

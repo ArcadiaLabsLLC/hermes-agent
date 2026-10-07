@@ -802,6 +802,10 @@ def _wire_desktop_sinks() -> None:
     `terminal.close` (drops a tab without killing the process) route to the window owning the process; desktop-only
     tools pass the turn's ``HERMES_UI_SESSION_ID`` as ``sid``. `_emit` is thread-safe."""
     global _desktop_ui_wired
+    from hermes_constants import module_shipped
+
+    if not module_shipped("tools.process_registry"):
+        return  # a subset install ships no process registry to wire
     from tools.process_registry import process_registry
 
     def _owner_sid(session) -> str:
@@ -832,6 +836,10 @@ def _start_notification_poller(sid: str, session: dict) -> threading.Event:
     """Start the background notification poller for a TUI session (thread name is greppable)."""
     _wire_desktop_sinks()
     stop = threading.Event()
+    from hermes_constants import module_shipped
+
+    if not module_shipped("tools.process_registry"):
+        return stop  # the poller drains the process registry's queue first; there is none
     t = threading.Thread(target=_notification_poller_loop, args=(stop, sid, session), daemon=True, name=f"tui-notif-poller-{sid}")
     _notification_pollers[:] = [(s, th) for (s, th) in _notification_pollers if th.is_alive()] + [(stop, t)]
     t.start()

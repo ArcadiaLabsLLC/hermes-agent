@@ -4,6 +4,7 @@ Import-safe, stdlib-only — importable from anywhere without circular-import ri
 """
 
 import contextlib
+import importlib.util
 import os
 import re
 import shutil
@@ -1411,3 +1412,37 @@ def normalize_scope(scope: str | Path | None) -> str | None:
     """
     return hermes_home_key(scope) if scope is not None else None
 
+
+_OMITTED_MODULES: set[str] = set()
+_FOUND_MODULES: dict[str, bool] = {}
+
+
+def mark_modules_omitted(*names: str) -> None:
+    """Declare modules a distribution leaves out of its wheel (dotted prefixes); idempotent.
+
+    A subset install (Termux, an embedded host) calls this once at boot so every
+    :func:`module_shipped` guard agrees with what it packaged.
+    """
+    _OMITTED_MODULES.update(name for name in names if name)
+
+
+def module_shipped(name: str) -> bool:
+    """Whether *name* is in this installation; always True in a full install.
+
+    False when *name* or a dotted prefix of it was declared via
+    :func:`mark_modules_omitted`, or when it cannot be found. The lookup is
+    memoised per name, so a guard costs one dict read after the first call.
+    """
+    parts = name.split(".")
+    if any(".".join(parts[:i]) in _OMITTED_MODULES for i in range(1, len(parts) + 1)):
+        return False
+    if name in sys.modules:  # loaded, or blocked with ``sys.modules[name] = None``
+        return sys.modules[name] is not None
+    found = _FOUND_MODULES.get(name)
+    if found is None:
+        try:
+            found = importlib.util.find_spec(name) is not None
+        except (ImportError, ValueError):
+            found = False
+        _FOUND_MODULES[name] = found
+    return found

@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from agent.lazy_forward import forward as _forward, forward_static as _forward_static, lazy_attr as _lazy_attr
 from hermes_cli.timeouts import get_provider_request_timeout
+from hermes_constants import module_shipped
 from utils import base_url_host_matches, env_float
 
 logger = logging.getLogger("run_agent")  # origin module's logger name: log records / caplog filters unchanged
@@ -106,6 +107,8 @@ class ClientLifecycleMixin:
         from run_agent import _quietly, cleanup_browser, cleanup_vm
 
         def kill_processes() -> None:
+            if not module_shipped("tools.process_registry"):
+                return  # a subset install ships no background processes to kill
             from tools.process_registry import process_registry
             # A session can run several task IDs; delegated IDs also differ from session_id.
             # Never match the environment key (e.g. "default"), shared by parent and siblings.
