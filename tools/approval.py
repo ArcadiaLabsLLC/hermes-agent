@@ -1128,7 +1128,8 @@ def _command_guard_block(command: str, env_type: str) -> dict | None:
         results = invoke_hook("command_guard", command=command, env_type=env_type,
                               session_key=get_current_session_key(default=""))
     except Exception as exc:
-        logger.warning("command_guard dispatch failed; blocking command: %s (command: %s)", exc, command[:200])
+        logger.warning("command_guard dispatch failed; blocking command: %s (command: %s)", exc, command[:200],
+                       exc_info=True)
         reason = f"command guard dispatch failed ({type(exc).__name__})"
         return {**_blocked(f"BLOCKED: {reason}. Do NOT retry or rephrase this command.",
                            pattern_key="command_guard", description=reason),
