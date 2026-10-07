@@ -131,7 +131,12 @@ def _clipped_schema(node: Any) -> Any:
 
 def promoted_brief(target: Dict[str, Any]) -> Dict[str, Any]:
     """A promoted MCP tool's function body with its brief description and clipped parameters."""
-    rewritten = {**target, "description": _first_sentence(target.get("description") or "") + PROMOTED_BRIEF_SUFFIX}
+    description = " ".join(str(target.get("description") or "").split())
+    brief = _first_sentence(description)
+    suffix = PROMOTED_BRIEF_SUFFIX
+    if str(target.get("name") or "").startswith("mcp_launcher_qa_"):
+        suffix = " Full reference: mcp_launcher_qa_get_tool_manual." if brief != description else ""
+    rewritten = {**target, "description": brief + suffix}
     for key in ("parameters", "input_schema"):
         if isinstance(target.get(key), dict):
             rewritten[key] = _clipped_schema(target[key])

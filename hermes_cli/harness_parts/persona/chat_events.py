@@ -356,6 +356,9 @@ class _ChatProtocolV2Emitter:
             }
         )
 
+        if self._heartbeat is not None:
+            self._heartbeat.ensure_running()
+
     def first_reply_text(self, delta: str | None) -> None:
         """Mark ``provider_first_byte`` on the turn's FIRST reply-text delta; nothing else.
 
