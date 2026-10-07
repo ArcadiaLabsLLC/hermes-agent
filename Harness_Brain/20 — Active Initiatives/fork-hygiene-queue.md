@@ -7,6 +7,11 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-06 (lane console-generated-content)
+
+- [ ] **Restore the duplicate-helper gate without expanding its baseline:** `test_duplicate_helper_bodies.py` has the same two failing nodes on the repair branch and untouched `ef3e4bb012` (19 NEW names, 2 STALE rows); consolidate the offending owners and remove stale rows, not new exemptions. · `tests/agent_runtime/test_duplicate_helper_bodies.py` · serial `scripts/run_tests.sh` base comparison · UNCLAIMED
+- [ ] **Restore the function-legibility floor on the existing open-chat/send paths:** the same two nodes fail on untouched `ef3e4bb012` and the repair branch (one new over-floor function in `persona_open_chat.py`, four grown functions in `persona_runtime.py` and persona CLI chat-open/send); split the functions without increasing ceilings. · `tests/tooling/test_function_legibility_floor.py` · serial `scripts/run_tests.sh` base comparison · UNCLAIMED
+
 - [ ] **`tests/tools/test_mcp_progress_relay.py::test_a_call_reporting_progress_outlives_its_base_timeout` flakes under machine load: its 0.3 s base timeout let a progressing call die once in the 2026-10-02 landing gate ("TimeoutError object has no attribute content"), then passed on retry and 5/5 alone. Widen the timing margins (or drive the clock) so the reset is proved without racing the scheduler** · lane w14-prog `78413597a03` · UNCLAIMED
 
 The repository AS A FORK: upstream sync and the boundary, CI, the suite and its gates, the god-file refactor, this vault. Runtime and Mission Control rows do NOT go here — the hermes half is [[runtime-queue]], the launcher half is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`. Rows: one line + a pointer, never a restatement; claim with `**TAKEN <date> <who>**` before starting; a landing deletes its row.

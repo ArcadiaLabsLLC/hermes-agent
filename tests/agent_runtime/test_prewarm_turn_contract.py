@@ -19,7 +19,7 @@ Pinned:
    prewarm receipt line, and ``resident_rebuild_prewarm_discarded`` on the
    turn's timing.
 
-Named sabotage: delete ``_await_link_refresh(link)`` from ``_drain`` ->
+Named sabotage: delete the refresh wait from ``launcher_link_prewarm_scope`` ->
 ``test_prewarm_order_downstream``'s wait row reds (the ask now leaves at the
 gesture, so row 1's order alone no longer proves the wait); delete the ``self._prewarm_discards[...] =`` line in
 ``PersonaChatRuntimeRegistry.acquire`` -> row 3 reds.
