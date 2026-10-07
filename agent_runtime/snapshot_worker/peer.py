@@ -78,6 +78,7 @@ class SnapshotPeer(NativePeer):
     def __init__(self, process, *, containment=None, clock=time.monotonic):
         self._clock = clock
         self.spawned_at = clock()
+        self.worker_pid: int | None = None
         self.ready_at: float | None = None
         self.last_frame_at = self.spawned_at
         self.idle_s: dict[str, float] = {}
@@ -91,6 +92,9 @@ class SnapshotPeer(NativePeer):
         method = frame.get("method")
         if method == READY_METHOD and self.ready_at is None:
             self.ready_at = self._clock()
+            pid = (frame.get("params") or {}).get("worker_pid")
+            if type(pid) is int and pid > 0:
+                self.worker_pid = pid
         elif method == BEAT_METHOD:
             idle = (frame.get("params") or {}).get("idle_s")
             self.idle_s = dict(idle) if isinstance(idle, dict) else {}
@@ -159,5 +163,9 @@ class SnapshotPeer(NativePeer):
         return self._call(TURN_SECTION_METHOD, params, timeout, "sections")
 
     @property
-    def pid(self) -> int:
+    def pid(self) -> int | None:
+        return self.worker_pid
+
+    @property
+    def launcher_pid(self) -> int:
         return int(self.process.pid)

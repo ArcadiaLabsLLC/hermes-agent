@@ -33,6 +33,7 @@ import pytest
 from agent_runtime import serve_rpc
 from agent_runtime.chat_turn import (
     CHAT_MESSAGE_METHOD,
+    CHAT_MESSAGE_PARAMS,
     CHAT_STEER_METHOD,
     CHAT_TURN_METHOD_PARAMS,
     ChatTurnInvalid,
@@ -72,15 +73,11 @@ BASE_ARGV = [
 # ── one key at a time, as argv ───────────────────────────────────────────────
 
 
-def test_workspace_name_reaches_the_turn_that_the_console_names_it_on():
-    """THE key from the field run. The console's decorator puts it on every
-    send whose workspace has a name, so without this line the cockpit's ordinary
-    message can never take the method lane to a remote install."""
+def test_retired_workspace_hints_are_ignored_and_not_advertised():
+    assert _message(workspace_name="Eternia", workspace_id="legacy") == BASE_ARGV
+    assert _message(workspace_name=7) == BASE_ARGV
+    assert not {"workspace_id", "workspace_name"} & set(CHAT_MESSAGE_PARAMS)
 
-    assert _message(workspace_name="Eternia") == BASE_ARGV + [
-        "--workspace-name",
-        "Eternia",
-    ]
 
 
 def test_a_provider_override_rides_the_turn():
@@ -146,13 +143,11 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
             "message": "status?",
             "session_id": "root-1",
             "persona_instance_id": "personainst_neko_1",
-            "workspace_id": "ws-1",
-            "title": "Field run",
+                    "title": "Field run",
             "new_session": True,
             "stream": True,
             "max_seconds": 90,
-            "workspace_name": "Eternia",
-            "provider": "anthropic",
+                    "provider": "anthropic",
             "model": "claude-opus-4",
             "clarify_token": "clr_9f2a",
             "surface_prompt": "be brief",
@@ -176,15 +171,11 @@ def test_the_new_keys_lower_in_one_stable_order_beside_the_old_ones():
         "root-1",
         "--persona-instance-id",
         "personainst_neko_1",
-        "--workspace-id",
-        "ws-1",
         "--title",
         "Field run",
         "--new-session",
         "--max-seconds",
         "90.0",
-        "--workspace-name",
-        "Eternia",
         "--provider",
         "anthropic",
         "--model",
@@ -237,8 +228,6 @@ def test_use_agent_default_with_an_override_is_refused_at_the_door(override):
 @pytest.mark.parametrize(
     "params,reason",
     [
-        ({"workspace_name": 7}, "workspace_name_invalid"),
-        ({"workspace_name": "w" * 121}, "workspace_name_invalid"),
         ({"provider": ["anthropic"]}, "provider_invalid"),
         ({"model": 3}, "model_invalid"),
         ({"use_agent_default": "yes"}, "use_agent_default_invalid"),
@@ -255,17 +244,6 @@ def test_a_malformed_new_key_is_refused_with_a_machine_readable_reason(params, r
     assert outcome.refusal.code == serve_rpc.ERR_INVALID_PARAMS
     assert outcome.refusal.data["reason"] == reason
 
-
-def test_the_workspace_name_cap_matches_the_argv_handler_that_reads_it():
-    """120, because ``persona_commands`` reads it with
-    ``safe_assignment_text(..., limit=120)``. A boundary that accepted more
-    would hand the handler a string it silently truncates, and the operator
-    would never learn which half arrived."""
-
-    assert _message(workspace_name="w" * 120) == BASE_ARGV + [
-        "--workspace-name",
-        "w" * 120,
-    ]
 
 
 def test_an_unknown_param_is_still_ignored_rather_than_refused():
@@ -305,8 +283,6 @@ _EVERY_MESSAGE_PARAM = {
     "message": "hi",
     "session_id": "root-1",
     "persona_instance_id": "personainst_neko_1",
-    "workspace_id": "ws-1",
-    "workspace_name": "Eternia",
     "title": "Field run",
     "new_session": True,
     "stream": True,
@@ -358,7 +334,8 @@ def test_the_manifest_carries_a_params_block_beside_methods_and_tiers():
     assert {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD} <= set(block)
     assert block[CHAT_MESSAGE_METHOD] == sorted(block[CHAT_MESSAGE_METHOD])
     assert block[CHAT_STEER_METHOD] == sorted(block[CHAT_STEER_METHOD])
-    assert "workspace_name" in block[CHAT_MESSAGE_METHOD]
+    assert "workspace_name" not in block[CHAT_MESSAGE_METHOD]
+    assert "workspace_id" not in block[CHAT_MESSAGE_METHOD]
     assert "clarify_token" in block[CHAT_MESSAGE_METHOD]
     # JSON, not tuples: the block rides a greeting frame.
     assert all(isinstance(v, list) for v in block.values())

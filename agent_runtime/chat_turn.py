@@ -114,11 +114,6 @@ MAX_MESSAGE_LENGTH = 64_000
 #: Mirrors the ``client_message_id`` normaliser's cap in the chat handler.
 MAX_TURN_REQUEST_ID_LENGTH = 200
 
-#: Cap on ``workspace_name``, matching ``safe_assignment_text(..., limit=120)``
-#: in the argv handler that reads it. A boundary that accepted more would hand
-#: the handler a string it silently truncates, and the operator would never
-#: learn which half arrived.
-MAX_WORKSPACE_NAME_LENGTH = 120
 #: Cap on ``clarify_token``, matching the handler's own
 #: ``safe_assignment_text(..., limit=240)``.
 MAX_CLARIFY_TOKEN_LENGTH = 240
@@ -175,8 +170,6 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "title",
     "turn_request_id",
     "use_agent_default",
-    "workspace_id",
-    "workspace_name",
 )
 
 #: The same, for :func:`normalize_chat_steer` — which R-C8 found already whole,
@@ -373,13 +366,11 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     message = _required_text(params, "message", limit=MAX_MESSAGE_LENGTH)
     session_id = _text(params, "session_id", limit=200)
     persona_instance_id = _text(params, "persona_instance_id", limit=200)
-    workspace_id = _text(params, "workspace_id", limit=200)
     title = _text(params, "title", limit=200)
     # R-C8, the rest of the operator's surface. Read here — before the conflict
     # rule and before the argv is built — so that the set of keys this function
     # ASKS FOR is exactly ``CHAT_MESSAGE_PARAMS``, which is what the manifest
     # advertises and what the drift test walks.
-    workspace_name = _text(params, "workspace_name", limit=MAX_WORKSPACE_NAME_LENGTH)
     provider = _text(params, "provider", limit=MAX_MODEL_OVERRIDE_LENGTH)
     model = _text(params, "model", limit=MAX_MODEL_OVERRIDE_LENGTH)
     use_agent_default = _flag(params, "use_agent_default")
@@ -449,8 +440,6 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--session-id", session_id]
     if persona_instance_id:
         argv += ["--persona-instance-id", persona_instance_id]
-    if workspace_id:
-        argv += ["--workspace-id", workspace_id]
     if title:
         argv += ["--title", title]
     if new_session:
@@ -463,8 +452,6 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     # is the absence of a flag, not a flag carrying the parser's own default,
     # because the CLI tells "not given" from "given as the default" for several
     # of these and a remote turn must be the same execution as a local one.
-    if workspace_name:
-        argv += ["--workspace-name", workspace_name]
     if provider:
         argv += ["--provider", provider]
     if model:

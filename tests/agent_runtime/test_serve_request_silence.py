@@ -520,3 +520,36 @@ def test_ping_on_an_idle_service_still_answers_with_every_count():
     parked.release.set()
     pipe.send({"op": "shutdown"})
     result["thread"].join(WAIT)
+
+
+def test_disconnect_discards_queued_requests_before_any_effect():
+    from tests.agent_runtime.test_serve_socket_lane import client, running_serve
+    entered = threading.Event(); release = threading.Event(); effects = []
+    def dispatch(argv):
+        if argv[1] == "block":
+            entered.set(); assert release.wait(WAIT)
+        else:
+            effects.append(tuple(argv))
+        return 0
+    with running_serve(dispatch=dispatch, pool_size=1) as handle:
+        handle.pipe.send({"id":"hold", "argv":["harness","block"]})
+        assert entered.wait(WAIT)
+        with client(handle) as (connection, hello):
+            connection.send({"id":"discard", "argv":["harness","status","--json"]})
+            connection.send({"op":"ping"})
+            # A synchronous ping is ordered after registration of the request.
+            deadline = time.monotonic() + WAIT
+            while time.monotonic() < deadline:
+                frame = connection.read_frame()
+                if frame.get("event") == "busy": break
+            else: raise AssertionError("request never queued")
+        # The later stdio request proves disconnect processing and queue drain.
+        time.sleep(.1)
+        release.set()
+        handle.pipe.send({"id":"after", "argv":["harness","probe"]})
+        deadline = time.monotonic() + WAIT
+        while time.monotonic() < deadline:
+            if any(f.get("id")=="after" and f.get("event")=="exit" for f in handle.sink.frames()): break
+            time.sleep(.02)
+        assert ("harness","status","--json") not in effects
+        assert ("harness","probe") in effects

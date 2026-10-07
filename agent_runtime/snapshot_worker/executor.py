@@ -51,7 +51,7 @@ RESPAWN_LIMIT = 3
 TURN_SECTION_TIMEOUT_SECONDS = 30.0
 
 #: ``snapshot_worker`` receipts: one family, ``op=`` first, ``pid`` last (BO-3).
-WORKER_SPAWN_RECEIPT = "snapshot_worker op=spawn worker_pid=%d spawn_ms=%d respawns=%d pid=%d"
+WORKER_SPAWN_RECEIPT = "snapshot_worker op=spawn worker_pid=%s launcher_pid=%s spawn_ms=%d respawns=%d pid=%d"
 WORKER_LOST_RECEIPT = (
     "snapshot_worker op=lost reason=%s fallback=in_process worker_pid=%s respawns=%d pid=%d"
 )
@@ -173,6 +173,7 @@ class WorkerBinding:
                                self.respawns, os.getpid(), exc_info=True)
                 return None
             logger.info(WORKER_SPAWN_RECEIPT, self._peer.pid,
+                        getattr(self._peer, "launcher_pid", self._peer.pid),
                         int((time.monotonic() - started) * 1000), self.respawns, os.getpid())
             return self._peer
 

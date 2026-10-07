@@ -34,3 +34,14 @@ def request_cancel_scope(event: threading.Event) -> Iterator[None]:
 def request_cancelled() -> bool:
     event = _request_cancel_event.get()
     return bool(event is not None and event.is_set())
+
+
+class RequestCancelled(SystemExit):
+    """A cooperative read stopped before doing more work; terminal exit 130."""
+    def __init__(self):
+        super().__init__(130)
+
+
+def raise_if_request_cancelled() -> None:
+    if request_cancelled():
+        raise RequestCancelled()
