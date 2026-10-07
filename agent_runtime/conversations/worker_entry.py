@@ -32,6 +32,11 @@ def main() -> None:
     install()
     from agent_runtime.conversations.worker_app_functions import install as install_app_functions
     install_app_functions()
+    from agent_runtime.conversations.process_evidence import worker_ready_frame
+
+    from tui_gateway.server import write_json
+
+    write_json(worker_ready_frame())
     serve_native()
 
 

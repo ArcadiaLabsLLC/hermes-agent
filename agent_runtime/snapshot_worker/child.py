@@ -335,7 +335,11 @@ def serve(requests: BinaryIO, replies: BinaryIO) -> None:
     # The handshake means "a build can start now": the builder's imports are paid.
     import agent_runtime.snapshot.build  # noqa: F401
 
-    send(encode_frame({"jsonrpc": "2.0", "method": READY_METHOD, "params": {"worker_pid": os.getpid()}}))
+    from agent_runtime.conversations.process_evidence import worker_ready_frame
+
+    ready = worker_ready_frame()
+    ready["method"] = READY_METHOD
+    send(encode_frame(ready))
     threading.Thread(target=beat, name="snapshot-worker-beat", daemon=True).start()
     while raw := requests.readline(MAX_FRAME_BYTES + 1):
         try:

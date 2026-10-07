@@ -19,6 +19,13 @@ def test_actual_native_worker_boot_and_profile_local_catalog(tmp_path, monkeypat
     peer = start_worker(home, receive=events.append, lost=lambda: None)
     try:
         assert peer.alive
+        from hermes_cli.process_identity import ledger_entries
+        entries = ledger_entries()
+        assert any(row["pid"] == peer.process_identity[0] and row["purpose"] == "native-conversation"
+                   for row in entries)
+        if peer.process_identity[0] != peer.launcher_identity[0]:
+            assert any(row["pid"] == peer.launcher_identity[0] and row["purpose"] == "native-conversation-launcher"
+                       for row in entries)
         reply = peer.call("session.create", {"cwd": str(tmp_path), "source": "eternia_intelligence"})
         session = reply["session_id"]
         assert reply["stored_session_id"]
