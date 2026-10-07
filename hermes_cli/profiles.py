@@ -481,14 +481,11 @@ def iter_named_profile_dirs(*, live_only: bool = True) -> List[Path]:
         return []
     return [
         entry for entry in sorted(profiles_root.iterdir())
-        if entry.is_dir()
-        and entry.name != "default"
+        if entry.is_dir() and entry.name != "default"
         and _PROFILE_ID_RE.match(entry.name)
         and named_profile_has_identity(entry)
         and not (live_only and named_profile_is_deleted(entry))
     ]
-
-
 _iter_named_profile_dirs = iter_named_profile_dirs  # original private spelling, kept as an alias
 
 

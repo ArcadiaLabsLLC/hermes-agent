@@ -2282,8 +2282,7 @@ def _own_policy_open_startup_violation(config) -> Optional[str]:
 
 # Placed into _running_agents *before* any await so a second message can't slip past the "already
 # running" guard before the agent exists.
-AGENT_PENDING_SENTINEL = object()
-_AGENT_PENDING_SENTINEL = AGENT_PENDING_SENTINEL  # original private spelling, kept as an alias
+AGENT_PENDING_SENTINEL = _AGENT_PENDING_SENTINEL = object()  # the underscore spelling is the original, kept as an alias
 
 # Conversation-scoped per-session state registry (legacy contract). State lives in
 # ``SessionState.conversation`` (cleared via ``ConversationState.clear()``); this list remains for
