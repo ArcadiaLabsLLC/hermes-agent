@@ -499,7 +499,7 @@ def list_profile_names() -> List[str]:
     profile's directory must not resurface it as a ``bot-chat:<name>`` cron target."""
     names = ["default"]
     with contextlib.suppress(OSError):
-        names.extend(entry.name for entry in _iter_named_profile_dirs())
+        names.extend(entry.name for entry in iter_named_profile_dirs())
     return names
 
 
@@ -1082,7 +1082,7 @@ def list_profiles(*, lazy_skill_count: bool = False) -> List[ProfileInfo]:
     if default_home.is_dir():
         profiles.append(_profile_info("default", default_home, is_default=True,
                                       lazy_skill_count=lazy_skill_count))
-    named = _iter_named_profile_dirs()
+    named = iter_named_profile_dirs()
     if named:
         alias_map = build_alias_map()  # ONCE, not per profile (was the dominant cost)
         for entry in named:
@@ -1195,7 +1195,7 @@ def profiles_to_serve(multiplex: bool, *, include_standalone: bool = False,
     if not multiplex:
         return [(active, get_profile_dir(active))]
     serve: List[Tuple[str, Path]] = [("default", default)]
-    serve.extend((entry.name, entry) for entry in _iter_named_profile_dirs()
+    serve.extend((entry.name, entry) for entry in iter_named_profile_dirs()
                  if (include_standalone or not profile_is_standalone(entry))
                  and (include_parked or not profile_is_parked(entry)))
     return serve
@@ -1454,7 +1454,7 @@ def create_profile(
             raise ValueError(refusal)
     clear_named_profile_deleted(profile_dir)
     # Build in a hidden sibling and publish with one rename: a running multiplexer rescans profiles/
-    # on every create and every 30 s, and ``_iter_named_profile_dirs`` only lists valid ids (no leading
+    # on every create and every 30 s, and ``iter_named_profile_dirs`` only lists valid ids (no leading
     # dot), so it can never adopt the half-copied tree and start adapters on credentials the strip
     # below has not removed yet.
     staging = _clone_staging_dir(profile_dir)
@@ -1599,7 +1599,7 @@ def backfill_profile_envs(quiet: bool = False) -> List[str]:
     """
     backfilled: List[str] = []
     default_env = _get_default_hermes_home() / ".env"
-    for entry in _iter_named_profile_dirs():
+    for entry in iter_named_profile_dirs():
         env_path = entry / ".env"
         if env_path.exists():
             continue
