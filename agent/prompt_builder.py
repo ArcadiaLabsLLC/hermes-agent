@@ -28,7 +28,9 @@ from agent.skill_utils import (
     skill_matches_platform, skill_matches_platform_list,
 )
 from tools.threat_patterns import scan_for_threats as _scan_for_threats
-from agent_runtime.skill_resolution import current_skill_runtime_context, skill_frontmatter_runtime_compatibility
+from agent_runtime.skill_resolution import (
+    resolve_skill_runtime_defaults, skill_frontmatter_runtime_compatibility, skill_runtime_snapshot_metadata,
+)
 from utils import atomic_json_write, file_signature
 
 logger = logging.getLogger(__name__)
@@ -1275,28 +1277,12 @@ def _build_snapshot_entry(skill_file: Path, skills_dir: Path, frontmatter: dict,
     category = "general" if len(parts) < 2 else "/".join(parts[:-2]) if len(parts) > 2 else parts[0]
     platforms = frontmatter.get("platforms") or []
     platforms = [platforms] if isinstance(platforms, str) else platforms
-    metadata = frontmatter.get("metadata") if isinstance(frontmatter, dict) else {}
-    hermes = metadata.get("hermes") if isinstance(metadata, dict) else {}
-    runtime = {}
-    if isinstance(hermes, dict):
-        surfaces = hermes.get("surfaces") or []
-        modes = hermes.get("modes") or []
-        if not isinstance(surfaces, (str, list, tuple, set)):
-            surfaces = []
-        if not isinstance(modes, (str, list, tuple, set)):
-            modes = []
-        runtime = {
-            "surfaces": [surfaces] if isinstance(surfaces, str) else list(surfaces),
-            "modes": [modes] if isinstance(modes, str) else list(modes),
-            "load_policy": str(hermes.get("load_policy") or "explicit"),
-        }
-
     entry = {
         "skill_name": skill_name, "category": category, "frontmatter_name": str(frontmatter.get("name", skill_name)),
         "rel": skill_file.relative_to(skills_dir).as_posix(),
         "description": description, "platforms": [str(p).strip() for p in platforms if str(p).strip()],
         "conditions": extract_skill_conditions(frontmatter),
-        "runtime": runtime,
+        "runtime": skill_runtime_snapshot_metadata(frontmatter),
         "requires_apps": _requires_apps_list(frontmatter),
     }
     return entry
@@ -1362,11 +1348,7 @@ def build_skills_system_prompt(
     ``skills_dir_override`` makes home resolution EXPLICIT: a build thread that never bound the HERMES_HOME
     ContextVar would otherwise leak the default profile's skills into a bot's prompt.
     """
-    ambient_surface, ambient_mode = current_skill_runtime_context()
-    if skill_surface is None:
-        skill_surface = ambient_surface
-    if skill_root_node_mode is None:
-        skill_root_node_mode = ambient_mode
+    skill_surface, skill_root_node_mode = resolve_skill_runtime_defaults(skill_surface, skill_root_node_mode)
     _home_token = None
     if skills_dir_override is not None:
         skills_dir = Path(skills_dir_override)
