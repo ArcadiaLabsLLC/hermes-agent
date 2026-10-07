@@ -287,6 +287,7 @@ def _cmd_work_restart(args) -> int:
     the same path as every row (owner call 2) — the row already shows what it will run.
     """
 
+    from agent_runtime.root_observability import attach_root_observability
     from agent_runtime.builds.control import restart_build
     from agent_runtime.running_work import find_work_row
     from agent_runtime.running_work.surface import _cancel_is_superseded
@@ -295,19 +296,19 @@ def _cmd_work_restart(args) -> int:
     row = find_work_row(work_id)
     if row is None or row.get("kind") != "build":
         envelope = _error_envelope("not_found", "no running build with that id", safe_details={"work_id": work_id})
-        _print_stage42(envelope, args=args, default_output="json")
+        _print_stage42(attach_root_observability(envelope), args=args, default_output="json")
         return ERROR_EXIT_CODES["not_found"]
     issued_at = str(getattr(args, "issued_at", None) or "").strip()
     if _cancel_is_superseded(issued_at, str(row.get("started_at") or "")):
         envelope = _error_envelope("stale_revision", "restart was issued before this build started; superseded",
                                    safe_details={"work_id": work_id, "issued_at": issued_at})
-        _print_stage42(envelope, args=args, default_output="json")
+        _print_stage42(attach_root_observability(envelope), args=args, default_output="json")
         return ERROR_EXIT_CODES["stale_revision"]
     result = restart_build(row)
     if result.get("status") != "restarted":
         envelope = _error_envelope("invalid_payload", f"restart refused: {result.get('detail') or result.get('code')}",
                                    safe_details={"work_id": work_id, "code": result.get("code"), "detail": result.get("detail")})
-        _print_stage42(envelope, args=args, default_output="json")
+        _print_stage42(attach_root_observability(envelope), args=args, default_output="json")
         return ERROR_EXIT_CODES.get("invalid_payload", 1)
-    _print_stage42(_object_envelope("work_restart", result), args=args, default_output="json")
+    _print_stage42(attach_root_observability(_object_envelope("work_restart", result)), args=args, default_output="json")
     return 0

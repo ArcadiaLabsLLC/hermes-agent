@@ -66,8 +66,9 @@ _LOSS_BY_REFUSAL = {
 class WorkerLost(RuntimeError):
     """A worker build that will not arrive; the caller builds in process instead."""
 
-    def __init__(self, loss: WorkerLoss):
+    def __init__(self, loss: WorkerLoss, *, diagnostics: dict | None = None):
         self.loss = loss
+        self.diagnostics = diagnostics or {}
         super().__init__(loss.value)
 
 
@@ -136,7 +137,7 @@ class SnapshotPeer(NativePeer):
         if "error" in response:
             if response["error"].get("code") == 4130:
                 raise ConversationError(Refusal.RESPONSE_TOO_LARGE)
-            raise ConversationError(Refusal.NATIVE_REFUSAL)
+            raise WorkerLost(WorkerLoss.BUILD_ERROR, diagnostics=response["error"].get("data"))
         result = response.get("result")
         if not isinstance(result, dict):
             raise ConversationError(Refusal.NATIVE_REFUSAL)

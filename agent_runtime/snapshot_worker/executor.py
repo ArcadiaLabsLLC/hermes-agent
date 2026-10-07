@@ -189,6 +189,10 @@ class WorkerBinding:
         try:
             reply = peer.build(params, timeout=self.timeout)
         except WorkerLost as lost:
+            if lost.diagnostics:
+                _forward(lost.diagnostics.get("receipts") or [])
+                logger.warning("snapshot_worker_build_error error_type=%s frames=%s",
+                               lost.diagnostics.get("error_type"), lost.diagnostics.get("frames"))
             self._lost(peer, lost.loss)
             return None
         _forward(reply["receipts"])

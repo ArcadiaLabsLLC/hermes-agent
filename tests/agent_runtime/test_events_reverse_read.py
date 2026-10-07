@@ -159,3 +159,16 @@ def test_for_session_does_not_read_past_the_limit(isolate_agent_runtime_root, mo
     with pytest.raises(UnicodeDecodeError):
         _legacy_for_session("chat_hot", limit=2)
     assert [e.run_id for e in log.for_session("chat_hot", limit=2)] == ["r198", "r199"]
+
+
+def test_tail_is_chronological_across_slices_without_full_text_read(tmp_path, monkeypatch):
+    rows = [_session_evt(i, "chat") for i in range(30)]
+    paths = [tmp_path / "sealed.jsonl", tmp_path / "live.jsonl"]
+    for path, part in zip(paths, (rows[:20], rows[20:])):
+        path.write_text("\n".join(json.dumps(to_jsonable(row), ensure_ascii=False) for row in part) + "\n\n", encoding="utf-8")
+    from types import SimpleNamespace
+    monkeypatch.setattr(event_rotation, "reversed_slices", lambda: [SimpleNamespace(path=path) for path in reversed(paths)])
+    from pathlib import Path
+    monkeypatch.setattr(Path, "read_text", lambda *a, **k: (_ for _ in ()).throw(AssertionError("full text")))
+    for count in (0, 1, 12, 35):
+        assert _dump(EventLog().tail(count)) == _dump(rows[-count:] if count else [])

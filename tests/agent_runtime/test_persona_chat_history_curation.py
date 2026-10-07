@@ -52,7 +52,7 @@ class FakeHistorySessionDB(FakeSessionDB):
             rows = [row for row in rows if row.get("source") == source]
         if exclude_sources:
             rows = [row for row in rows if row.get("source") not in exclude_sources]
-        return rows[: kwargs.get("limit", len(rows))]
+        return rows[kwargs.get("offset", 0):][: kwargs.get("limit", len(rows))]
 
     def get_session(self, session_id):
         for row in self._sessions:
@@ -466,14 +466,14 @@ def test_history_hydrates_only_visible_newest_fifty_with_equivalent_accounting()
             "last_active": f"2026-07-{1 + index // 24:02d}T{index % 24:02d}:30:00Z",
             "model_config": json.dumps({"persona_instance_id": instance_id}),
         }
-        for index in range(120)
+        for index in range(297)
     ]
     # Bound to the newest chat: activity follows creation here, so the bound's
     # 50 are the newest 50 and the pin changes nothing.
-    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_119")
+    instance = _chat_persona_instance(instance_id, "neko_supervisor", "chat_296")
     full_db = CountingHistorySessionDB(sessions, messages=[])
     expected = persona_chat_history_summary(
-        persona_instances=[instance], session_db=full_db, limit=120
+        persona_instances=[instance], session_db=full_db, limit=len(sessions)
     )[:50]
 
     bounded_db = CountingHistorySessionDB(sessions, messages=[])
@@ -489,10 +489,10 @@ def test_history_hydrates_only_visible_newest_fifty_with_equivalent_accounting()
 
     assert actual == expected
     assert bounded_db.message_hydrations <= 50
-    assert len(omitted) == 70
-    assert accountant.summary()["considered"] == 120
+    assert len(omitted) == len(sessions) - 50
+    assert accountant.summary()["considered"] == len(sessions)
     assert accountant.summary()["included"] == 50
-    assert accountant.summary()["dropped"] == 70
+    assert accountant.summary()["dropped"] == len(sessions) - 50
 
 
 def test_persona_chat_history_rows_always_emit_kind():
@@ -2257,7 +2257,7 @@ class ActivityOrderedHistorySessionDB(FakeHistorySessionDB):
         rows = super().list_sessions_rich(**{**kwargs, "limit": len(self._sessions)})
         key = "last_active" if kwargs.get("order_by_last_active") else "started_at"
         rows.sort(key=lambda row: (row.get(key) or "", row.get("id") or ""), reverse=True)
-        return rows[: kwargs.get("limit", len(rows))]
+        return rows[kwargs.get("offset", 0):][: kwargs.get("limit", len(rows))]
 
 
 def _activity_sessions(instance_id: str) -> list[dict]:

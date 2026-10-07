@@ -49,6 +49,7 @@ def _list_sessions(
     source: str | None = None,
     exclude_sources: list[str] | None = None,
     order_by_last_active: bool = False,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     """One page of SessionDB rows; ``order_by_last_active`` picks WHICH rows, never their emitted order."""
     try:
@@ -64,13 +65,14 @@ def _list_sessions(
                 # creation-ordered there, so activity never reshuffles the directory.
                 order_by_last_active=order_by_last_active,
                 include_archived=True,
+                **({"offset": offset} if offset else {}),
             )
             or []
         )
     except TypeError:
         # Some tests/fakes may implement an older subset of the signature.
         try:
-            rows = list(db.list_sessions_rich(limit=limit) or [])
+            rows = list(db.list_sessions_rich(limit=limit + offset) or [])
         except Exception:
             return []
         if source:
@@ -78,7 +80,7 @@ def _list_sessions(
         if exclude_sources:
             blocked = set(exclude_sources)
             rows = [row for row in rows if isinstance(row, dict) and row.get("source") not in blocked]
-        return rows
+        return rows[offset:offset + limit]
     except Exception:
         return []
 
