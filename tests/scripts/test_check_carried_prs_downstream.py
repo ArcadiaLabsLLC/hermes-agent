@@ -30,6 +30,7 @@ def history(tmp_path):
     (tmp_path / 'ledger.md').write_text('| `code.py` | PR #12 (open, partial) |\n')
     manifest = {'version': 1, 'prs': {'12': {'head_ref': 'pr-head',
         'reviewed_head': head, 'base_ref': 'upstream',
+        'reviewed_base': git(tmp_path, 'rev-parse', 'upstream'),
         'files': {'code.py': {'mode': 'hunks'}}}}}
     (tmp_path / 'manifest.json').write_text(json.dumps(manifest))
     return tmp_path, source, manifest
@@ -138,7 +139,8 @@ def test_fragment_must_be_current_pr_addition(history):
 
 
 def test_reviewed_fragment_relocation_and_fork_changes(history):
-    fragment_rule(history, fork_path='relocated.py')
+    fragment_rule(history, fork_path='relocated.py', fragments=[{
+        'text': '    return 2', 'scope_map': {'carried': 'changed_name'}}])
     (history[0] / 'relocated.py').write_text(
         'def changed_name():\n    # fork line\n    return 2\n')
     history[1].unlink()
@@ -173,7 +175,7 @@ def test_missing_expected_fork_file_is_drift(history):
 
 def test_reviewed_identifier_mapping_detects_mutated_carry(history):
     fragment_rule(history, fragments=[{'text': '    return 2',
-                                      'fork_path': 'adapted.py'}])
+                                      'fork_path': 'adapted.py', 'scope_map': {'carried': 'moved'}}])
     (history[0] / 'adapted.py').write_text('def moved():\n    return 2\n')
     assert run(history)[0] == 0
     (history[0] / 'adapted.py').write_text('def moved():\n    return 9\n')
@@ -193,3 +195,106 @@ def test_identifier_replacement_is_validated_against_pr_before_mapping(history):
     assert run(history)[0] == 0
     history[1].write_text('def carried():\n    return other_helper()\n')
     assert run(history)[0] == 1
+
+
+@pytest.mark.parametrize("field", ["default", "forwarding", "doctor"])
+def test_production_duplicate_mutation_is_drift(history, field):
+    """Use the real carried production source and manifest, without remote refs."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    path = "tests/hermes_cli/test_doctor.py" if field == "doctor" else "agent/conversation_loop.py"
+    number = "125260" if field == "doctor" else "124210"
+    production = root / path
+    source = production.read_text()
+    rules = json.loads((root / "tests/fixtures/carried_prs.json").read_text())
+    rule = rules["prs"][number]["files"][path]
+    # An isolated empty base makes every real production fragment a PR addition.
+    history[1].write_text("")
+    git(history[0], "add", "code.py")
+    git(history[0], "commit", "-m", "empty production baseline")
+    git(history[0], "branch", "production-base")
+    history[1].write_text(source)
+    git(history[0], "add", "code.py")
+    git(history[0], "commit", "-m", "real production carried surface")
+    entry = history[2]["prs"]["12"]
+    entry.update(head_ref="HEAD", reviewed_head=git(history[0], "rev-parse", "HEAD"),
+                 base_ref="production-base", reviewed_base=git(history[0], "rev-parse", "production-base"))
+    entry["files"]["code.py"] = rule
+    save(history)
+    assert run(history)[0] == 0
+    text = ("reuse_current_user_message: bool = False" if field == "default"
+            else "reuse_current_user_message=reuse_current_user_message")
+    replacement = ("reuse_current_user_message: bool = True" if field == "default"
+                   else "reuse_current_user_message=False")
+    if field == "doctor":
+        text = 'monkeypatch.setenv("HERMES_HOME", str(hermes_home))'
+        replacement = 'monkeypatch.setenv("WRONG_HOME", str(hermes_home))'
+    assert source.count(text) >= 2
+    history[1].write_text(source.replace(text, replacement, 1))
+    assert run(history)[0] == 1
+
+
+def test_duplicate_occurrences_in_one_symbol_require_exact_count(history):
+    source = 'def carried():\n    value = 2\n    value = 2\n    return value\n'
+    history[1].write_text(source)
+    git(history[0], 'add', 'code.py')
+    git(history[0], 'commit', '-m', 'duplicate carried assignments')
+    entry = history[2]['prs']['12']
+    entry.update(head_ref='HEAD', reviewed_head=git(history[0], 'rev-parse', 'HEAD'))
+    fragment_rule(history, fragments=['    value = 2'])
+    assert run(history)[0] == 0
+    history[1].write_text(source.replace('value = 2', 'value = 9', 1))
+    assert run(history)[0] == 1
+
+
+def test_fork_only_duplicate_cannot_mask_changed_carried_symbol(history):
+    fragment_rule(history)
+    source = history[1].read_text() + '\n\ndef fork_only():\n    return 2\n'
+    history[1].write_text(source)
+    assert run(history)[0] == 0
+    history[1].write_text(source.replace('return 2', 'return 99', 1))
+    assert run(history)[0] == 1
+
+
+def test_unrelated_insertions_inside_carried_symbol_are_allowed(history):
+    fragment_rule(history)
+    history[1].write_text(history[1].read_text().replace('    return 2',
+        '    # independently ledgered fork addition\n    fork_value = 99\n    return 2'))
+    assert run(history)[0] == 0
+
+
+def test_moving_fragment_to_wrong_symbol_is_drift(history):
+    fragment_rule(history)
+    history[1].write_text('def wrong_symbol():\n    return 2\n')
+    assert run(history)[0] == 1
+
+
+def test_advanced_base_requires_review_even_with_unchanged_head(history):
+    # Simulate upstream absorbing this PR while the reviewed PR head stays put.
+    history[2]['prs']['12']['base_ref'] = 'pr-head'
+    save(history)
+    code, output = run(history)
+    assert code == 2
+    assert any('differs from reviewed_base' in line for line in output)
+
+
+def test_manifest_pair_removed_from_ledger_is_error(history):
+    history[2]['prs']['12']['files']['stale.py'] = {
+        'mode': 'deferred', 'reason': 'formerly recorded reference'}
+    save(history)
+    code, output = run(history)
+    assert code == 2
+    assert any('manifest pair absent' in line for line in output)
+
+
+def test_invalid_fork_ref_cannot_hide_behind_deferred_coverage(history):
+    history[2]['prs']['12']['files']['code.py'] = {
+        'mode': 'deferred', 'reason': 'not adopted'}
+    save(history)
+    assert check(history[0], 'ledger.md', 'manifest.json', 'does-not-exist')[0] == 2
+
+
+def test_missing_reviewed_base_is_error(history):
+    del history[2]['prs']['12']['reviewed_base']
+    save(history)
+    assert run(history)[0] == 2

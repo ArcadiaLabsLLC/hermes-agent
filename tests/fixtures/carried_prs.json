@@ -10,7 +10,8 @@
           "mode": "deferred",
           "reason": "Third-party PR adds per-extension rules; fork carries only equivalent root text=auto eol=lf with different spacing, explicitly permanent per ledger. Not a byte-identical PR copy."
         }
-      }
+      },
+      "reviewed_base": "efbfe0842fb99b93f37546cce406307c0f5eaec0"
     },
     "87515": {
       "head_ref": "refs/carried-prs/87515/head",
@@ -25,7 +26,8 @@
           "mode": "deferred",
           "reason": "Future global context-floor door; fork per-turn managed-local exemption is independently implemented, not a copied PR."
         }
-      }
+      },
+      "reviewed_base": "c6dfdcbf8d55605de3f2d712b59e61e824219960"
     },
     "114578": {
       "head_ref": "refs/carried-prs/114578/head",
@@ -36,7 +38,8 @@
           "mode": "deferred",
           "reason": "Future lazy tool search door; fork per-persona defer implementation is separately recorded."
         }
-      }
+      },
+      "reviewed_base": "e83b1d51f13a08b424636f0b519db86a35aa7bd7"
     },
     "119069": {
       "head_ref": "origin/fix/legacy-launchd-labels-pwd-import",
@@ -46,7 +49,8 @@
         "hermes_cli/gateway.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121219": {
       "head_ref": "origin/up/win-conpty-line-wrap",
@@ -56,7 +60,8 @@
         "tests/hermes_cli/test_win_pty_bridge.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121224": {
       "head_ref": "origin/up/win-path-spelling",
@@ -66,7 +71,8 @@
         "tests/hermes_cli/test_deleted_profile_tombstone.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121225": {
       "head_ref": "origin/up/win-posix-only-apis",
@@ -77,7 +83,8 @@
           "mode": "deferred",
           "reason": "Current PR has no delta for this ledger path; stale attribution, existing Windows tests retained."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "121226": {
       "head_ref": "origin/up/win-shell-invocation",
@@ -93,7 +100,8 @@
         "tests/tools/test_file_tools_live.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121640": {
       "head_ref": "origin/up/doc-accuracy",
@@ -109,7 +117,8 @@
         "hermes_cli/worktree_ops.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121642": {
       "head_ref": "origin/up/nous-login-inference-url",
@@ -119,7 +128,8 @@
         "hermes_cli/auth_nous.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121643": {
       "head_ref": "origin/up/win-remote-posix-paths",
@@ -133,7 +143,8 @@
         "tools/skills_hub_official.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "121645": {
       "head_ref": "origin/up/win-posix-guard-forms",
@@ -152,7 +163,8 @@
           "mode": "deferred",
           "reason": "Reviewed proc/device guards carried; fork posix_match_forms/path_identity adapter and import spelling remain independently owned. No exact added fragment survives adapter spelling; semantic coverage is in targeted importing tests."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "123890": {
       "head_ref": "origin/fix/cache-concurrency-probe-nameerror",
@@ -162,7 +174,8 @@
         "evals/postmortem/live_ab/cache_concurrency_probe.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "123891": {
       "head_ref": "origin/fix/process-hermes-home-no-override-fallback",
@@ -175,7 +188,8 @@
         "gateway/shutdown_watchdog.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "123892": {
       "head_ref": "origin/fix/shell-hook-script-path-os-sep",
@@ -185,7 +199,8 @@
         "agent/shell_hooks.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "123977": {
       "head_ref": "origin/widen/terminal-command-guard-hook",
@@ -196,7 +211,8 @@
           "mode": "deferred",
           "reason": "Future approval/plugin dispatch door; fork direct terminal_policy wrapper remains, no carried generic hook."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "123978": {
       "head_ref": "origin/widen/per-call-usage-record",
@@ -207,7 +223,8 @@
           "mode": "deferred",
           "reason": "Future post_api_request door; fork direct usage-ledger seam is not a copied generic hook."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "123979": {
       "head_ref": "origin/widen/register-toolset",
@@ -218,7 +235,8 @@
           "mode": "deferred",
           "reason": "Future register-toolset widening; _toolset_defs and registration API absent; newer plugins_toolsets split not carried."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "124190": {
       "head_ref": "origin/up/store-home-override",
@@ -237,7 +255,8 @@
           "mode": "deferred",
           "reason": "Future get_store_home hook; fork directly owns profile/provider storage, generic contract not adopted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "124191": {
       "head_ref": "origin/up/skills-extra-dirs",
@@ -252,7 +271,8 @@
           "mode": "deferred",
           "reason": "Redesigned PR depends on upstream tiered roots/catalog absent from fork; writable shared-root seam retained. Job 2 reviews separately."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "124193": {
       "head_ref": "origin/up/credential-pool-pick-and-rotate",
@@ -263,7 +283,8 @@
           "mode": "deferred",
           "reason": "Future rotation seam; fork PoolRotationMixin cursor implementation is independent of PR _pick_and_rotate."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "124194": {
       "head_ref": "origin/up/local-runtime-knobs",
@@ -278,7 +299,8 @@
           "mode": "deferred",
           "reason": "Future local-runtime knobs; fork-owned adapter provides model/executable/preset parallel, PR knobs not copied."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "124195": {
       "head_ref": "origin/up/public-drain-fd",
@@ -289,7 +311,8 @@
           "mode": "deferred",
           "reason": "Future public drain_fd; fork subprocess pump is independent recorded implementation."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "124210": {
       "head_ref": "origin/up/persisted-row-hooks",
@@ -337,7 +360,8 @@
           "mode": "deferred",
           "reason": "Generic runtime transform hook not adopted; direct runtime_env/progress/job-wake seam retained."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "125259": {
       "head_ref": "origin/fix/readonly-config-reads",
@@ -359,7 +383,8 @@
         "plugins/dashboard_auth/_shared.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125260": {
       "head_ref": "origin/fix/doctor-call-time-home",
@@ -403,7 +428,8 @@
           ],
           "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125261": {
       "head_ref": "origin/fix/win-runtime-fixes",
@@ -420,7 +446,8 @@
         "tools/process_registry.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125262": {
       "head_ref": "origin/fix/win-path-identity",
@@ -442,7 +469,8 @@
         "tools/tts_tool_delivery.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125263": {
       "head_ref": "origin/fix/test-runner",
@@ -489,7 +517,8 @@
           ],
           "reason": "Reviewed conservative jobs, timeout formatting/retry and probe rooting; fork coverage/console isolation and docstring wrapping retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125264": {
       "head_ref": "origin/fix/media-path-hardening",
@@ -509,7 +538,8 @@
           ],
           "reason": "Current PR additions except the regex grouping boundary: fork preserves closing-quote termination for quoted Windows paths by applying the boundary only to bare paths. Covered by test_platform_base_downstream and test_media_path_hardening; grouping, context and removed lines require manual review."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "125265": {
       "head_ref": "origin/fix/updater-fork-history",
@@ -522,7 +552,8 @@
         "hermes_cli/update_inventory.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "128648": {
       "head_ref": "origin/feat/plugin-cli-commands",
@@ -568,7 +599,8 @@
           ],
           "reason": "Reviewed name/parent validation and returned descriptor moved into fork-owned cli_command_entry; facade metadata/field wiring independently retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128650": {
       "head_ref": "origin/fix/pet-atlas-extraction",
@@ -578,7 +610,8 @@
         "agent/pet/generate/atlas.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128651": {
       "head_ref": "origin/fix/memory-plugin-publish-module",
@@ -604,16 +637,23 @@
             "                raise",
             {
               "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 \u2014 a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
-              "fork_path": "plugins/memory/_module_publish.py"
+              "fork_path": "plugins/memory/_module_publish.py",
+              "scope_map": {
+                "_publish_module": "publish_module"
+              }
             },
             {
               "text": "    sys.modules.pop(full_name, None)\n    parent_name, _, child = full_name.rpartition(\".\")\n    parent = sys.modules.get(parent_name) if parent_name else None\n    if parent is None:\n        return\n    try:\n        delattr(parent, child)\n    except AttributeError:\n        pass",
-              "fork_path": "plugins/memory/_module_publish.py"
+              "fork_path": "plugins/memory/_module_publish.py",
+              "scope_map": {
+                "_unpublish_module": "unpublish_module"
+              }
             }
           ],
           "reason": "Exact publish/rollback calls with reviewed _publish_module/_unpublish_module identifier mapping, plus both helper bodies in fork-owned _module_publish.py; differing docstrings omitted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128652": {
       "head_ref": "origin/fix/state-db-small-fixes",
@@ -623,7 +663,8 @@
         "hermes_state_messages.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128653": {
       "head_ref": "origin/feat/plugin-session-info-tool-names",
@@ -633,7 +674,8 @@
         "agent/system_prompt.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128654": {
       "head_ref": "origin/refactor/oauth-flow-catalog",
@@ -655,7 +697,8 @@
           ],
           "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128840": {
       "head_ref": "origin/fix/bytecode-sweep-lock",
@@ -665,7 +708,8 @@
         "hermes_cli/main_web_build.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128841": {
       "head_ref": "origin/fix/tool-registry-probe-cache",
@@ -684,7 +728,8 @@
           ],
           "reason": "Reviewed tuple expiry/grace policy; fork _note_check_fn_probe instrumentation and comment formatting retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "128843": {
       "head_ref": "origin/feat/config-switch-keys",
@@ -742,7 +787,8 @@
         "hermes_cli/config_switches.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "129412": {
       "head_ref": "origin/fix/process-identity-psutil-guard",
@@ -752,7 +798,8 @@
         "hermes_cli/process_identity.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129413": {
       "head_ref": "origin/refactor/bootstrap-relaunch-in-venv-sync",
@@ -773,7 +820,8 @@
           ],
           "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129414": {
       "head_ref": "origin/refactor/tui-gateway-methods-pdf",
@@ -783,7 +831,8 @@
         "tests/fixtures/resolution_allowlist.json": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129582": {
       "head_ref": "origin/test/live-guard-lazy-children",
@@ -795,13 +844,18 @@
           "fragments": [
             "        _real_process = _psutil.Process\n        _real_children = _psutil.Process.children",
             "        _real_process = _real_children = None\n",
-            "\n    def _own_children() -> set:",
-            "            except Exception:",
+            {
+              "text": "    def _own_children() -> set:\n        nonlocal _children_snapshot\n        if _children_snapshot is None:\n            try:\n                _children_snapshot = {\n                    c.pid\n                    for c in _real_children(_real_process(test_pid), recursive=True)\n                } if _psutil is not None else set()\n            except Exception:\n                _children_snapshot = set()\n        return _children_snapshot",
+              "replacements": {
+                "_children_snapshot": "_children_cache"
+              }
+            },
             "        if pid == test_pid or pid in _own_children():"
           ],
-          "reason": "Reviewed real Process/children binding; fork console-event refusal and backend-spawn guard retained."
+          "reason": "Exact bound Process/children capture, whole lazy snapshot helper with reviewed cache-variable rename, and caller; fork console-event refusal and backend-spawn guard retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129695": {
       "head_ref": "origin/widen/mcp",
@@ -824,7 +878,8 @@
           "mode": "deferred",
           "reason": "Future MCP public-reader widening; fork keeps private-reader adapter, public APIs not adopted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129698": {
       "head_ref": "origin/widen/skills",
@@ -839,7 +894,8 @@
           "mode": "deferred",
           "reason": "Future skills public-reader widening; not adopted and newest version needs tiered roots absent fork."
         }
-      }
+      },
+      "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
     "129700": {
       "head_ref": "origin/widen/pet",
@@ -854,7 +910,8 @@
           "mode": "deferred",
           "reason": "Future pet public-name widening, not adopted; underscore readers remain (distinct from carried atlas fix #128650)."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129702": {
       "head_ref": "origin/widen/text-streaming",
@@ -869,7 +926,8 @@
           "mode": "deferred",
           "reason": "Future text/streaming public-name widening; aliases not adopted, private-reader seam retained."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "129704": {
       "head_ref": "origin/widen/codex-cache",
@@ -880,7 +938,8 @@
           "mode": "deferred",
           "reason": "Future cache public-name widening; private readers retained, public aliases not adopted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "131902": {
       "head_ref": "origin/widen/terminal",
@@ -891,7 +950,8 @@
           "mode": "deferred",
           "reason": "Future terminal guard public-name widening; not adopted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "131903": {
       "head_ref": "origin/widen/processes",
@@ -902,7 +962,8 @@
           "mode": "deferred",
           "reason": "Future public terminate_host_pid widening and new termination-module split; private-reader seam retained."
         }
-      }
+      },
+      "reviewed_base": "9b38eb1432d8363fe0f01056d03b0fc123014946"
     },
     "131904": {
       "head_ref": "origin/widen/misc",
@@ -921,7 +982,8 @@
           "mode": "deferred",
           "reason": "Future public sentinel/doctor/profile-reader widening; public aliases not adopted."
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     },
     "131905": {
       "head_ref": "origin/fix/win-test-lock-sweep-probe",
@@ -931,7 +993,8 @@
         "tests/conftest.py": {
           "mode": "hunks"
         }
-      }
+      },
+      "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
     }
   }
 }
