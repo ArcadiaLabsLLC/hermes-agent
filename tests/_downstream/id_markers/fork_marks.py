@@ -275,15 +275,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/tools/test_tool_search_multiquery_downstream.py",
         ),
     ),
-    # The fork's doctor_config reads config.yaml from get_hermes_home() at call
-    # time, so upstream's patch of doctor.HERMES_HOME no longer selects the file.
-    "tests/hermes_cli/test_doctor.py::test_run_doctor_vendor_slug_policy_for_openai_api_endpoint"
-    "[https://api.openai.com/v1-True]": (
-        _fork_replaces(
-            "hermes_cli.doctor_config._check_config_file (home resolved at call time)",
-            "tests/hermes_cli/test_doctor_downstream.py",
-        ),
-    ),
     # Lane REDS3: the bundled eternia-harness plugin (kind backend, auto-loaded)
     # registers post_api_request for the usage ledger (f5c9838487), and upstream's
     # test does not take the bundled tree out of its sweep.

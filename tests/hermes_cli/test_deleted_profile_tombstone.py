@@ -225,10 +225,8 @@ class TestDeletedProfileTombstone:
         # naming the stray dir, and leave every byte in place (never rmtree a non-tombstoned dir).
         (shell / "skills" / "my-skill").mkdir(parents=True)
         (shell / "skills" / "my-skill" / "SKILL.md").write_text("# mine\n", encoding="utf-8")
-        # ``match`` is a REGEX, so a Windows path is not a literal: ``C:\Users\...`` makes
-        # pytest refuse the pattern outright ("incomplete escape \U at position 2"), failing
-        # the test for a reason that has nothing to do with the refusal it asserts. Upstream
-        # authored this on POSIX, where the path happens to be regex-clean.
+        # match= is a regex; a Windows path ("C:\Users\...") is not a valid
+        # one ("incomplete escape \U"), so escape it.
         with pytest.raises(FileExistsError, match=re.escape(str(shell))):
             create_profile("ghost", no_alias=True, no_skills=True)
         assert (shell / "skills" / "my-skill" / "SKILL.md").exists()

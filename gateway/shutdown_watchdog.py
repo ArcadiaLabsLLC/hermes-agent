@@ -176,16 +176,8 @@ def _mark_exited_quietly(exit_code: int, reason: str) -> None:
 
 
 def _process_hermes_home() -> Path:
-    """HERMES_HOME for process-level identity files (ignore profile overrides).
-
-    Delegates to the canonical :func:`hermes_constants.get_process_hermes_home`
-    (env var → platform default), which never follows the context-local
-    profile override. The previous local copy fell back to
-    ``get_hermes_home()`` when the env var was unset — that resolver DOES
-    honor the override, so a heartbeat/dump written mid persona-turn could
-    land in the wrong profile directory (same class as gateway/status.py
-    issue #56986).
-    """
+    """HERMES_HOME for process-level identity files (ignore profile overrides, including when
+    ``HERMES_HOME`` is unset: the platform default, never ``get_hermes_home()``)."""
     return get_process_hermes_home()
 
 

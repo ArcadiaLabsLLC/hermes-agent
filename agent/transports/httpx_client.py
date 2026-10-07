@@ -17,7 +17,7 @@ normalization all run unchanged on top of them (never a second loop):
   (``anthropic_messages``).
 
 Selection is a profile switch, not a provider property: ``agent.provider_sdks``
-(default on) read through ``hermes_cli.config.config_switch``. Off, the client
+(default on) read through ``hermes_cli.config_switches.config_switch``. Off, the client
 chokepoints (``agent.agent_runtime_helpers.create_openai_client``,
 ``agent.anthropic_adapter``'s SDK loader and the auxiliary client's ``OpenAI``
 proxy) hand out the SDK-free clients instead; desktop keeps the SDKs.
@@ -178,7 +178,7 @@ def sdk_free_async_client(sync_client: Any) -> "AsyncSdkFreeClient | None":
 
 def provider_sdks_enabled() -> bool:
     """``agent.provider_sdks`` — off in a profile that ships no provider SDK."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("agent", "provider_sdks", default=True)
 

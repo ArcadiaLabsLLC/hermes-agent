@@ -194,7 +194,7 @@ def run_login_in_process(provider: str, flow: str, profile: str | None) -> Login
 
 def subprocess_signin_enabled() -> bool:
     """``auth.subprocess_signin`` — off in a profile that may start no subprocess."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("auth", "subprocess_signin", default=True)
 

@@ -158,7 +158,7 @@ def mcp_client_enabled() -> bool:
     snapshot (``tools.mcp_tool_agent``) is not the client and is unaffected. An unreadable config
     keeps today's behaviour (on)."""
     try:
-        from hermes_cli.config import config_switch
+        from hermes_cli.config_switches import config_switch
     except ImportError:  # a config module without the reader (a stubbed one) is today's behaviour
         return True
     return config_switch("mcp", "client")
@@ -168,7 +168,7 @@ def mcp_stdio_servers_allowed() -> bool:
     """Config ``mcp.stdio_servers`` (default on): may this Hermes start stdio MCP servers (local
     processes)? A distribution that starts none (an embedded desktop host) turns it off; HTTP
     servers are unaffected. An unreadable config keeps today's behaviour (on)."""
-    from hermes_cli.config import config_switch
+    from hermes_cli.config_switches import config_switch
 
     return config_switch("mcp", "stdio_servers")
 

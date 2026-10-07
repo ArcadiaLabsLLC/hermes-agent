@@ -237,7 +237,7 @@ def checkout_bound_enabled() -> bool:
     as a wheel (the bundled desktop profile) turns it off and is identified by its baked stamp.
     An unreadable config keeps today's behaviour (on); never raises."""
     try:
-        from hermes_cli.config import config_switch
+        from hermes_cli.config_switches import config_switch
     except Exception:  # pragma: no cover - a stamp must never raise
         return True
     return config_switch("updates", "checkout_bound")
