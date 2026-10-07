@@ -78,6 +78,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     chat,
     operator_conversation,
     operator_inspection,
+    console_operations,
     instance_history,
     scope,
     workspace,

@@ -5757,30 +5757,6 @@
           "required": false,
           "type": null
         },
-        "--workspace": {
-          "action": "store",
-          "canonical": "--workspace-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
-        "--workspace-id": {
-          "action": "store",
-          "canonical": "--workspace-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
-        "--workspace-name": {
-          "action": "store",
-          "canonical": "--workspace-name",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
         "-h": {
           "action": "help",
           "canonical": "--help",

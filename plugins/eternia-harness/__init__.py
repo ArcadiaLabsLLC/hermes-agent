@@ -191,6 +191,8 @@ def brief_tool_descriptions(request=None, **_context):
     current = safety if safety is not None else current
     routed = route_persona_cache(current, **_context)
     current = routed if routed is not None else current
+    from agent_runtime.persona_turn_binding import capture_final_request_tools
+    capture_final_request_tools(current)
     steps = (
         ("blocked tools dropped", unblocked), ("tool wire briefs", briefed),
         ("execution-guidance Safety sentence", safety), ("persona cache routing", routed),

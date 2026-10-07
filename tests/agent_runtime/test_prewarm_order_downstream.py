@@ -44,6 +44,7 @@ def worker(monkeypatch):
     monkeypatch.setattr(prewarm_module, "_queue", queue.PriorityQueue())
     monkeypatch.setattr(prewarm_module, "_pending", {})
     monkeypatch.setattr(prewarm_module, "_links", {})
+    monkeypatch.setattr(prewarm_module, "_deferred_until_idle", {})
     monkeypatch.setattr(prewarm_module, "_running_root", None)
     monkeypatch.setattr(prewarm_module, "_running_priority", None)
     monkeypatch.setattr(prewarm_module, "_ensure_worker", lambda: None)
@@ -275,3 +276,21 @@ def test_a_chat_turn_through_the_pool_receipts_accept_to_anchor(monkeypatch, cap
     assert lines[0].startswith("chat_turn_accept_to_anchor request=chat-req-1 queue_ms=")
     for field in ("link_ms=", "dispatch_ms=", "total_ms="):
         assert field in lines[0]
+
+
+def test_active_turn_yield_requeues_once_at_idle_boundary(worker, monkeypatch):
+    ran = []
+    def warm(root):
+        ran.append(root)
+        return OUTCOME_SKIPPED_TURN_ACTIVE if turn_activity.chat_turns_admitted() else OUTCOME_WARMED
+    monkeypatch.setattr(prewarm_module, "prewarm_chat_actor", warm)
+    with turn_activity.admitted_turn("turn"):
+        request_chat_actor_prewarm("yielded", priority=PRIORITY_BOOT)
+        worker()
+        assert ran == ["yielded"]
+        assert prewarm_module._pending == {"yielded": PRIORITY_BOOT}
+        assert prewarm_module._queue.empty()
+    prewarm_module._queue.join()
+    assert ran == ["yielded", "yielded"]
+    assert not prewarm_module._pending
+    assert not prewarm_module._deferred_until_idle

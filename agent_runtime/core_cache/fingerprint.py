@@ -280,7 +280,7 @@ def _collect_config_authorities(entries: list[FingerprintEntry]) -> bool:
 def _collect_skill_registries(entries: list[FingerprintEntry]) -> bool:
     """Input class 6 — the skill registries.
 
-    Resolved through ``get_all_skills_dirs()`` (local profile skills,
+    Resolved through ``skill_search_roots()`` (local profile skills,
     the shared canonical root, configured external roots) walked per root,
     plus the in-repo harness-skill source root the hash comparison reads.
     PINNED, and this is the class the measured 1,237-entry divergence came
@@ -288,12 +288,12 @@ def _collect_skill_registries(entries: list[FingerprintEntry]) -> bool:
     """
 
     try:
-        from agent.skill_utils import get_all_skills_dirs
+        from agent_runtime.skill_resolution import skill_search_roots
 
         from ..skill_install import harness_skill_source_root
 
         # PINNED, and this is the class the measured 1,237-entry divergence came
-        # from. ``get_all_skills_dirs()`` puts ``get_skills_dir()`` — the AMBIENT
+        # from. ``skill_search_roots()`` puts ``get_skills_dir()`` — the AMBIENT
         # home's ``skills/`` — at index 0, so a walk taken while a persona scope
         # is exported enumerates ANOTHER PROFILE'S ENTIRE SKILLS TREE. The
         # external roots behind it are read out of the ambient ``config.yaml``
@@ -304,7 +304,7 @@ def _collect_skill_registries(entries: list[FingerprintEntry]) -> bool:
         # home this process resolved, instead of core_cache growing a second copy
         # of its "local, then shared, then external, deduped" rule.
         with _pinned_to_fingerprint_home():
-            roots = [*get_all_skills_dirs(), harness_skill_source_root()]
+            roots = [*skill_search_roots(), harness_skill_source_root()]
     except Exception:
         return False
     seen_roots: set[str] = set()

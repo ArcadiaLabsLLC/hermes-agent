@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class OwnedResidentActor:
+    """Factory publication transfers this explicit resource to the registry."""
+    agent: Any
+    writer_lease: Any
+
+
+@dataclass
 class ResidentPersonaChatRuntime:
     root_session_id: str
     active_session_id: str
@@ -43,6 +50,7 @@ class ResidentPersonaChatRuntime:
     #: signature change that discards it is a WASTED prewarm -- recorded as
     #: the prewarm's own outcome, not only as the turn's rebuild.
     prewarmed: bool = False
+    writer_lease: Any = None
 
 
 #: One line per rebuild whose cause is a moved signature component. Component
@@ -132,6 +140,7 @@ class PersonaChatRuntimeRegistry:
         factory: Callable[[], Any],
         signature_components: dict[str, str] | None = None,
         prewarm: bool = False,
+        writer_generation: Any = None,
     ) -> tuple[ResidentPersonaChatRuntime, bool, str | None, tuple[str, ...]]:
         """Reuse this root's actor, or build one. Reports WHY, and WHAT moved.
 
@@ -146,6 +155,8 @@ class PersonaChatRuntimeRegistry:
         now = time.monotonic()
         components = dict(signature_components or {})
         with self._lock:
+            if getattr(self, "_closed", False):
+                raise RuntimeError("resident runtime registry is closed")
             self._evict_expired(now)
             entry = self._entries.pop(root_session_id, None)
             rebuild_reason = None
@@ -170,27 +181,45 @@ class PersonaChatRuntimeRegistry:
                 rebuild_reason = "disk_revision_changed"
                 self._close_entry(entry)
                 entry = None
+            elif entry is not None and (
+                (entry.writer_lease.db if entry.writer_lease is not None else None)
+                is not writer_generation
+            ):
+                rebuild_reason = "writer_generation_changed"
+                self._close_entry(entry)
+                entry = None
             reused = entry is not None
-            if entry is None:
-                entry = ResidentPersonaChatRuntime(
-                    root_session_id=root_session_id,
-                    active_session_id=active_session_id,
-                    signature=signature,
-                    revision=revision,
-                    agent=factory(),
-                    created_at=now,
-                    last_used_at=now,
-                    last_resumed_at=now_iso_micro(),
-                    signature_components=components,
-                    prewarmed=bool(prewarm),
-                )
-                self._record_transition(
-                    root_session_id,
-                    "cold",
-                    "rebuilt" if rebuild_reason else "rehydrated",
-                )
-            entry.last_used_at = now
-            self._entries[root_session_id] = entry
+            built = None
+            try:
+                if entry is None:
+                    built = factory()
+                    actor = built.agent if isinstance(built, OwnedResidentActor) else built
+                    writer_lease = built.writer_lease if isinstance(built, OwnedResidentActor) else None
+                    entry = ResidentPersonaChatRuntime(
+                        root_session_id=root_session_id,
+                        active_session_id=active_session_id,
+                        signature=signature,
+                        revision=revision,
+                        agent=actor,
+                        writer_lease=writer_lease,
+                        created_at=now,
+                        last_used_at=now,
+                        last_resumed_at=now_iso_micro(),
+                        signature_components=components,
+                        prewarmed=bool(prewarm),
+                    )
+                    self._record_transition(
+                        root_session_id, "cold", "rebuilt" if rebuild_reason else "rehydrated"
+                    )
+                entry.last_used_at = now
+                self._entries[root_session_id] = entry
+            except BaseException:
+                self._entries.pop(root_session_id, None)
+                if entry is not None:
+                    self._close_entry(entry)
+                elif isinstance(built, OwnedResidentActor):
+                    self._close_actor(built.agent, built.writer_lease)
+                raise
             while len(self._entries) > self.max_entries:
                 evicted_root, evicted = self._entries.popitem(last=False)
                 self._close_entry(evicted)
@@ -291,14 +320,37 @@ class PersonaChatRuntimeRegistry:
             "transition": transition or previous.get("transition"),
         }
 
+    def close(self) -> None:
+        """Retire every resident resource before replacing or disabling this owner."""
+        with self._lock:
+            self._closed = True
+            entries, self._entries = self._entries, OrderedDict()
+            failure = None
+            for root, entry in entries.items():
+                try:
+                    self._close_entry(entry)
+                    self._record_transition(root, "cold", "evicted")
+                except BaseException as exc:
+                    failure = failure or exc
+            if failure is not None:
+                raise failure
+
     @staticmethod
     def _close_entry(entry: ResidentPersonaChatRuntime) -> None:
-        close = getattr(entry.agent, "close", None)
-        if callable(close):
-            try:
-                close()
-            except Exception:
-                pass
+        PersonaChatRuntimeRegistry._close_actor(entry.agent, entry.writer_lease)
+
+    @staticmethod
+    def _close_actor(agent, writer_lease) -> None:
+        try:
+            close = getattr(agent, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        finally:
+            if writer_lease is not None:
+                writer_lease.close()
 
     def _evict_expired(self, now: float) -> None:
         expired = [key for key, value in self._entries.items() if now - value.last_used_at > self.ttl_seconds]
@@ -310,22 +362,27 @@ class PersonaChatRuntimeRegistry:
 
 
 _REGISTRY: PersonaChatRuntimeRegistry | None = None
+_REGISTRY_RESET_LOCK = threading.Lock()
 
 
 def initialize_persona_chat_runtime_registry(
     *, enabled: bool = True, max_entries: int = 8, ttl_seconds: float = 1800.0
 ) -> PersonaChatRuntimeRegistry | None:
     global _REGISTRY
-    _REGISTRY = (
-        PersonaChatRuntimeRegistry(max_entries=max_entries, ttl_seconds=ttl_seconds)
-        if enabled
-        else None
-    )
-    # h-idle-turn: the idle keeper (policy) asks this store whether resident chats are on.
-    from agent_runtime import idle_turn_keeper
+    with _REGISTRY_RESET_LOCK:
+        previous, _REGISTRY = _REGISTRY, None
+        if previous is not None:
+            previous.close()
+        _REGISTRY = (
+            PersonaChatRuntimeRegistry(max_entries=max_entries, ttl_seconds=ttl_seconds)
+            if enabled
+            else None
+        )
+        # h-idle-turn: the idle keeper (policy) asks this store whether resident chats are on.
+        from agent_runtime import idle_turn_keeper
 
-    idle_turn_keeper.bind_registry_live(lambda: persona_chat_runtime_registry() is not None)
-    return _REGISTRY
+        idle_turn_keeper.bind_registry_live(lambda: persona_chat_runtime_registry() is not None)
+        return _REGISTRY
 
 
 def persona_chat_runtime_registry() -> PersonaChatRuntimeRegistry | None:

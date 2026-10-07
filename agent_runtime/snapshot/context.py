@@ -88,6 +88,9 @@ _SNAPSHOT_BUILD_CONTEXT: ContextVar[SnapshotBuildContext | None] = ContextVar(
 
 @contextmanager
 def snapshot_build_context_scope(context: SnapshotBuildContext):
+    if _SNAPSHOT_BUILD_CONTEXT.get() is not context:
+        # The context lives for the serve; these registries belong to one build.
+        context.skill_root_registries.clear()
     token = _SNAPSHOT_BUILD_CONTEXT.set(context)
     try:
         yield context

@@ -66,10 +66,10 @@ def _frontmatter(skill_md: Path) -> dict:
 
 
 def _source_kind(skill_md: Path) -> str:
-    from agent.skill_utils import get_all_skills_dirs, get_project_skills_dirs
-    from agent_runtime.skill_resolution import skill_source_kind
+    from agent.skill_utils import get_project_skills_dirs
+    from agent_runtime.skill_resolution import skill_source_kind, skill_search_roots
 
-    for root in [*get_project_skills_dirs(), *get_all_skills_dirs()]:
+    for root in [*get_project_skills_dirs(), *skill_search_roots()]:
         try:
             if skill_md.resolve().is_relative_to(root.resolve()):
                 return skill_source_kind(root)

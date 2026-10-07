@@ -47,7 +47,7 @@ from __future__ import annotations
 import contextvars
 import threading
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 __layer__ = "models"
@@ -695,20 +695,46 @@ class MissionChatDeferredFinalization:
 
     #: Zero-arg thunk packaged under the lease, invoked after it releases.
     thunk: object | None = None
+    _cleanup: object | None = field(default=None, repr=False)
+    _lock: object = field(default_factory=threading.Lock, repr=False)
 
     def defer(self, thunk: object) -> None:
-        """Package the post-lease work. Refuses a second thunk rather than
-        silently dropping one — two deferrals would mean the tail grew a second
-        author, which is the shape this holder exists to prevent."""
+        """Package one post-lease thunk; never silently replace its author."""
+        with self._lock:
+            if self.thunk is not None:
+                raise ValueError("mission-chat deferred finalization is already set")
+            self.thunk = thunk
 
-        if self.thunk is not None:
-            raise ValueError("mission-chat deferred finalization is already set")
-        self.thunk = thunk
+    def attach_cleanup(self, cleanup: object) -> bool:
+        """Accept ownership only while work is still pending, before dispatch."""
+        with self._lock:
+            if self.thunk is None:
+                return False
+            if self._cleanup is not None:
+                raise ValueError("mission-chat deferred cleanup is already set")
+            self._cleanup = cleanup
+            return True
+
+    def _take(self):
+        with self._lock:
+            thunk, cleanup = self.thunk, self._cleanup
+            self.thunk = self._cleanup = None
+        return thunk, cleanup
+
+    @staticmethod
+    def _release(cleanup) -> None:
+        if cleanup is not None:
+            cleanup()
+
+    def cancel(self) -> bool:
+        """Discard not-started work and release its owner exactly once."""
+        thunk, cleanup = self._take()
+        self._release(cleanup)
+        return thunk is not None
 
     def run_once(self) -> bool:
-        """Run the deferred thunk exactly once. Never raises; True if it ran clean."""
-
-        thunk, self.thunk = self.thunk, None
+        """Run once, releasing the tail owner even when decoration fails."""
+        thunk, cleanup = self._take()
         if thunk is None:
             return False
         try:
@@ -716,39 +742,34 @@ class MissionChatDeferredFinalization:
             return True
         except Exception:
             return False
+        finally:
+            self._release(cleanup)
 
     def run_off_path(self) -> threading.Thread | None:
-        """Run the deferred thunk on its own daemon thread; return that thread.
+        """Transfer work and cleanup to a daemon, carrying the caller context.
 
-        The method lane answers the Launcher when the verb RETURNS, so a tail
-        run inline — even past the lease — still holds the answer: live
-        2026-10-05, ``end_to_settle_ms`` 1261–1785 on exactly the turns whose
-        tail paid the auxiliary title call, 34–41 ms on those that did not.
-        The serve's request pool is not reachable from a verb, and lending it a
-        tail that once took 46 s would starve request workers, so the tail gets
-        a daemon thread of its own — the shape upstream gives the same call
-        (``auto_title_session`` is a daemon-thread target), and one a drain
-        never has to join. The caller's context is copied so the call-time
-        ``HERMES_HOME`` override travels with it. Never raises; the same
-        swallow as :meth:`run_once`. ``None`` when there was nothing to run.
+        Construction/start rejection runs the same best-effort tail inline.
+        The original holder no longer owns a running child's writer reference.
         """
-
-        thunk, self.thunk = self.thunk, None
+        thunk, cleanup = self._take()
         if thunk is None:
             return None
-        carried = MissionChatDeferredFinalization(thunk=thunk)
-        context = contextvars.copy_context()
-        worker = threading.Thread(
-            target=context.run,
-            args=(carried.run_once,),
-            name="chat-turn-deferred",
-            daemon=True,
-        )
+        carried = MissionChatDeferredFinalization(thunk=thunk, _cleanup=cleanup)
         try:
+            context = contextvars.copy_context()
+            worker = threading.Thread(
+                target=context.run,
+                args=(carried.run_once,),
+                name="chat-turn-deferred",
+                daemon=True,
+            )
             worker.start()
         except Exception:
             carried.run_once()
             return None
+        except BaseException:
+            carried.cancel()
+            raise
         return worker
 
 

@@ -361,11 +361,13 @@ def _chat_history_context(*, session_db: Any | None, session_id: str | None) -> 
     if session_db is None or not session_id:
         return []
     try:
-        messages = session_db.get_messages(session_id)
+        messages = session_db.get_messages(
+            session_id, limit=DEFAULT_CHAT_HISTORY_LIMIT, latest=True,
+        )
     except Exception:
         return []
     rows: list[dict[str, Any]] = []
-    for item in (messages or [])[-DEFAULT_CHAT_HISTORY_LIMIT:]:
+    for item in messages or []:
         if not isinstance(item, dict):
             continue
         role = safe_assignment_token(item.get("role")) or "message"

@@ -33,16 +33,18 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
         **options,
     )
     try:
-        peer = NativePeer(process, receive=receive, lost=lost, containment=containment)
+        register_child(process.pid, "native-conversation-launcher")
+        peer = NativePeer(process, receive=receive, lost=lost, containment=containment,
+                          worker_purpose="native-conversation")
     except Exception:
         if containment is not None:
             containment.close()
         process.kill()
         process.wait(timeout=10)
         raise
-    register_child(process.pid, "native-conversation")
     try:
         peer.call("client.capabilities", {"server_requests": True})
+        peer.process_identity  # The interpreter receipt must precede the successful handshake.
     except Exception:
         peer.close()
         raise

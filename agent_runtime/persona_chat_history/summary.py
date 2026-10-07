@@ -199,17 +199,19 @@ class HistorySummary:
             limit=pool_size,
             include_children=False,
         )
-        # The persona-chat pool is the freshest ``pool_size`` by activity: a
-        # creation-ordered page left an old chat in daily use out of the
-        # candidates altogether (297 persona-chat sessions on the live store,
-        # pool 200). Measured +0 ms against the creation-ordered page there.
-        source_sessions = _list_sessions(
-            db,
-            source=PERSONA_CHAT_SESSION_SOURCE,
-            limit=pool_size,
-            include_children=True,
-            order_by_last_active=True,
-        )
+        # Every source chat participates in omission accounting, including older
+        # sessions outside the displayed window. The display cap applies later.
+        source_sessions = []
+        offset = 0
+        while True:
+            page = _list_sessions(
+                db, source=PERSONA_CHAT_SESSION_SOURCE, limit=pool_size,
+                include_children=True, order_by_last_active=True, offset=offset,
+            )
+            source_sessions.extend(page)
+            if len(page) < pool_size:
+                break
+            offset += len(page)
         try:
             return list(source_sessions) + list(broad_sessions)
         except Exception:

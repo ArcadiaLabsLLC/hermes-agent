@@ -417,8 +417,6 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--use-agent-default", action="store_true", help="Clear the chat-scoped provider/model override before sending")
     mission_chat_message.add_argument("--surface-prompt", default="")
     mission_chat_message.add_argument("--agents-file", default=None, help="Absolute path to one operator-selected workspace AGENTS.md to inject for this turn")
-    mission_chat_message.add_argument("--workspace-id", "--workspace", default=None)
-    mission_chat_message.add_argument("--workspace-name", default=None)
     mission_chat_message.add_argument("--intent-hint", default="chat")
     mission_chat_message.add_argument("--requested-by", default="cli")
     mission_chat_message.add_argument("--client-message-id", default=None)

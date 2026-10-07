@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
+from agent_runtime.root_observability import attach_root_observability
 
 __layer__ = "wiring"
 __all__ = ["_cmd_observe_snapshot_builds", "_cmd_observe_turn_check", "_cmd_observe_turn_timing"]
@@ -25,11 +26,22 @@ def _cmd_observe_snapshot_builds(args) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    log = Path(args.log) if getattr(args, "log", None) else default_log_path()
+    from agent_runtime import paths
+    from agent_runtime.turn_timing_census import live_serve_home
+    from hermes_cli.logs import LOG_FILES
+
+    home, serve_pid = live_serve_home(paths.store_root())
+    if getattr(args, "log", None):
+        log, source = Path(args.log), "--log"
+    elif home is not None:
+        log, source = home / "logs" / LOG_FILES["agent"], f"live serve pid {serve_pid}"
+    else:
+        log, source = default_log_path(), "no live serve; this CLI's profile"
     files = log_files(log)
     report = census_builds(read_lines(files), since=datetime.now() - window)
     report["window"]["files"] = [str(path) for path in files]
-    print(emit_json(report) if getattr(args, "json", False) else format_census(report))
+    report["home"] = {"path": str(log.parent.parent), "source": source}
+    print(emit_json(attach_root_observability(report)) if getattr(args, "json", False) else format_census(report))
     return 0
 
 
@@ -79,7 +91,7 @@ def _cmd_observe_turn_timing(args) -> int:
                                 since=datetime.now(timezone.utc) - window)
     report["home"] = {"path": str(log.parent.parent), "source": source}
     report["baseline"]["path"] = str(baseline_path)
-    print(emit_json(report) if getattr(args, "json", False) else format_report(report))
+    print(emit_json(attach_root_observability(report)) if getattr(args, "json", False) else format_report(report))
     return 0
 
 
@@ -119,7 +131,7 @@ def _cmd_observe_turn_check(args) -> int:
                    start=start, end=end)
     report["logs"] = [str(path) for path in logs]
     report["launcher_log_path"] = str(launcher_path) if launcher_lines is not None else None
-    print(emit_json(report) if getattr(args, "json", False) else format_check(report))
+    print(emit_json(attach_root_observability(report)) if getattr(args, "json", False) else format_check(report))
     if report["result"] == "FAIL":
         return 1
     return 2 if report["result"] == "NO TURNS" else 0

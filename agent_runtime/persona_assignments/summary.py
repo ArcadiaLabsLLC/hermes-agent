@@ -101,6 +101,13 @@ def persona_instance_summary(
             apply_chat_lane_tool_scope(
                 visibility_persona, tool_options, session_id=instance.default_chat_session_id
             )
+    from agent_runtime.config import load_agent_runtime_config
+    from agent_runtime.persona_chat_session import _chat_effective_model_payload
+
+    model_selection = _chat_effective_model_payload(
+        persona=visibility_persona, config=load_agent_runtime_config(),
+        override=None, instance=instance,
+    )
     summary = {
         "agent_profile_id": instance.id,
         "agent_profile_display_name": instance.display_name,
@@ -122,15 +129,15 @@ def persona_instance_summary(
         "provider": instance.provider,
         "api_mode": instance.api_mode,
         "model_is_override": bool(instance.model or instance.provider or instance.reasoning_effort),
-        "effective_model": instance.model or getattr(visibility_persona, "model", None),
-        "effective_provider": instance.provider or getattr(visibility_persona, "provider", None),
+        "effective_model": model_selection["effective_model"],
+        "effective_provider": model_selection["effective_provider"],
         # Per-instance reasoning-effort override (None = inherit runtime default)
         # plus whether the effective model supports reasoning effort at all, so
         # the Launcher only offers the effort control for reasoning-capable
         # models (no fake affordance). Computed offline from the model id.
         "reasoning_effort": instance.reasoning_effort,
         "reasoning_supported": _model_supports_reasoning_effort(
-            instance.model or getattr(visibility_persona, "model", None)
+            model_selection["effective_model"]
         ),
         # The DECLARED lane toolsets (S0a A2), not the persona's legacy field:
         # the field is read by no admission path since A1, so projecting it here

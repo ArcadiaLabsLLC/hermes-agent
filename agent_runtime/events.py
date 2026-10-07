@@ -174,19 +174,17 @@ class EventLog:
     def tail(self, n: int) -> list[Event]:
         if n <= 0:
             return []
-        # Walk slices newest-first, prepending each older slice's lines, until we
-        # have at least n. Pristine (single live slice) reads only events.jsonl —
-        # byte-identical to the old ``read_text().splitlines()[-n:]``.
-        collected: list[str] = []
+        selected: list[str] = []
         for sl in event_rotation.reversed_slices():
             if not sl.path.exists():
                 continue
-            lines = [line for line in sl.path.read_text(encoding="utf-8").splitlines() if line.strip()]
-            collected = lines + collected
-            if len(collected) >= n:
-                break
-        tail_lines = collected[-n:]
-        return [from_jsonable(Event, json.loads(line)) for line in tail_lines]
+            for line in _reversed_slice_lines(sl.path):
+                if not line.strip():
+                    continue
+                selected.append(line)
+                if len(selected) >= n:
+                    return [from_jsonable(Event, json.loads(row)) for row in reversed(selected)]
+        return [from_jsonable(Event, json.loads(row)) for row in reversed(selected)]
 
     def iter_from_offset(self, offset: int) -> Iterator[tuple[int, Event]]:
         # Logical-offset tailing across slices: resolve which slice(s) a logical

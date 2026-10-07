@@ -247,7 +247,7 @@ class ArgvLanes:
 
     def _dispatch_guarded(self, request: _ArgvRequest, state: _RunState) -> None:
         from agent_runtime.profile_context import process_home_scope
-        from agent_runtime.request_control import request_cancel_scope
+        from agent_runtime.request_control import request_cancel_scope, RequestCancelled
         from hermes_cli.harness_parts.serve.operator_interrupt import operator_interrupt_scope
 
         try:
@@ -327,6 +327,8 @@ class ArgvLanes:
                     ),
                 }
             )
+        except RequestCancelled:
+            state.code = 130
         except SystemExit as exc:  # argparse usage errors land here
             state.code = _system_exit_code(exc)
             if state.code != 0:

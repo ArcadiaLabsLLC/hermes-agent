@@ -23,9 +23,11 @@ request splits it.
   from request start to the first event: its wake-up lateness says whether
   this process (the GIL, the serve) stalled inside the window.
 
-``wait_on`` names the largest share: ``local`` (stall lateness over the floor
-plus the first event's parse lag), ``network`` (connect + TLS + upload) or
-``server`` (headers wait + headers -> first byte).
+``wait_on`` is a heuristic comparing the largest observed local, network or
+response interval. Local callbacks can overlap these durations: their measured
+cost and deferred persistence are attribution receipts, never a subtraction from
+network time. ``pool_ms`` is retained for compatibility and means time before
+the first trace; ``pre_first_trace_ms`` names that observation precisely.
 
 **Cost and failure.** A dict write per httpcore event, one short-lived thread
 per request, one ``INFO`` line per request. Fail-open everywhere.
@@ -54,6 +56,7 @@ _STAMPS: dict[str, str] = {
     "connection.start_tls.complete": "tls_done",
     "send_request_headers.started": "upload_start",
     "send_request_body.complete": "sent",
+    "receive_response_headers.started": "receive_start",
     "receive_response_headers.complete": "headers",
 }
 
@@ -75,6 +78,9 @@ class SendWindow:
     first_event_lag_ms: float | None = None
     probe: Any = None
     end: str | None = None
+    callback_ms: float = 0.0
+    callback_count: int = 0
+    persist_ms: float | None = None
     logged: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -131,9 +137,9 @@ class SendWindow:
         probe = self.probe
         stall_over = getattr(probe, "late_over_floor_ms", None) if probe else None
         shares = {
-            "local": (stall_over or 0.0) + (self.first_event_lag_ms or 0.0),
-            "network": (connect or 0.0) + (tls or 0.0) + (upload or 0.0),
-            "server": (server_wait or 0.0) + (body_wait or 0.0),
+            "local": max(stall_over or 0.0, self.first_event_lag_ms or 0.0, self.callback_ms),
+            "network": max(connect or 0.0, tls or 0.0, upload or 0.0),
+            "server": max(server_wait or 0.0, body_wait or 0.0),
         }
         wait_on = max(shares, key=shares.get) if any(shares.values()) else None
         return {
@@ -142,7 +148,12 @@ class SendWindow:
             "http": self.http,
             "body_bytes": self.body_bytes,
             "content_type": (self.content_type or "").split(";")[0].strip() or None,
-            "pool_ms": rel(self.first_trace_at),
+            "pool_ms": rel(self.first_trace_at),  # compatibility: not pool acquisition
+            "pre_first_trace_ms": rel(self.first_trace_at),
+            "receive_start_ms": rel(stamps.get("receive_start")),
+            "callback_ms": self.callback_ms if self.callback_count else None,
+            "callback_count": self.callback_count or None,
+            "deferred_persist_ms": self.persist_ms,
             "connect_ms": connect,
             "tls_ms": tls,
             "upload_ms": upload,
@@ -156,6 +167,7 @@ class SendWindow:
             "stall_max_ms": probe.max_late_ms if probe else None,
             "stall_over50_ms": stall_over,
             "wait_on": wait_on,
+            "wait_on_is_heuristic": True,
         }
 
     def line(self, *, request_id: Any = None, model: Any = None) -> str:

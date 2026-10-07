@@ -204,6 +204,7 @@ def _mission_chat_target_decision(
     session_id,
     relay_chain,
     requested_by_session=None,
+    instance_read_epoch=None,
 ):
     """Decide the ``ambiguous_target`` refusal for a mission-chat send.
 
@@ -264,7 +265,8 @@ def _mission_chat_target_decision(
     addressable = workspace_scope.addressable_roster(
         (
             instance
-            for instance in instance_store.list_all()
+            for instance in (instance_read_epoch.scan(instance_store).instances
+                             if instance_read_epoch is not None else instance_store.list_all())
             if getattr(instance, "persona_id", None) == normalized_persona
         ),
         scope_workspace_id=scope_workspace_id,

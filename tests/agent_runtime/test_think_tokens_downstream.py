@@ -226,3 +226,16 @@ def test_without_usage_the_frames_and_record_carry_no_counts(monkeypatch, capsys
     record = record_on_disk(isolate_agent_runtime_root, "think-tokens-none")
     for row in (turn_end, final, record):
         assert not set(_COUNTS) & set(row)
+
+
+def test_generic_provider_usage_reports_reasoning_without_fabricating_time():
+    from agent_runtime.profile_runner.execute import _run_conversation_with_usage_ledger
+    from agent_runtime.usage_ledger import record_usage
+    def run(**kwargs):
+        record_usage({"reasoning_tokens": 17})
+        record_usage({"reasoning_tokens": 24})
+        return {}
+    result = _run_conversation_with_usage_ledger(SimpleNamespace(run_conversation=run), {})
+    assert result["reasoning_tokens"] == 41
+    assert result["reasoning_window"] == {"reasoning_tokens": 41}
+    assert "reasoning_ms" not in result["reasoning_window"]

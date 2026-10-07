@@ -68,6 +68,7 @@ def available_skills_context(
             shared_by_name=shared_by_name,
             realm_rows=realm_rows,
             hash_unassigned=skill_resolver is None,
+            preparation_epoch=(getattr(skill_resolver, "preparation_epoch", None)),
         )
         if row is not None:
             rows.append(row)
@@ -106,6 +107,7 @@ def _skill_row(
     shared_by_name: dict[str, dict[str, Any]],
     realm_rows: list[dict[str, Any]],
     hash_unassigned: bool,
+    preparation_epoch=None,
 ) -> dict[str, Any] | None:
     """One installed skill's catalog row, or ``None`` when it has no name or no resolution."""
 
@@ -125,7 +127,8 @@ def _skill_row(
         return None
     selected = resolution.candidate
     compatibility = skill_runtime_compatibility(
-        selected, surface="mission_chat", root_node_mode=False
+        selected, surface="mission_chat", root_node_mode=False,
+        preparation_epoch=preparation_epoch,
     )
     shared = shared_by_name.get(name)
     realm_sync = _skill_realm_sync(name, realm_rows) if shared else []

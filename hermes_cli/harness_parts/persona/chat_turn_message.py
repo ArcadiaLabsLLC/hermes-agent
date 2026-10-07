@@ -10,6 +10,10 @@ import time
 import uuid
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
 from agent_runtime.chat_turn_presence import ChatTurnPresence
+from agent_runtime.chat_session_writer import (
+    current_chat_session_writer_owner,
+    with_chat_session_writer_owner,
+)
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.dispatch_session_policy import (
     derive_dispatch_title,
@@ -105,6 +109,7 @@ def _session_target(args, persona_instance_id: str | None, normalized_persona: s
 
 
 @_within_admitted_turn
+@with_chat_session_writer_owner
 def _cmd_mission_chat_message(args) -> int:
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
@@ -248,10 +253,12 @@ def _cmd_mission_chat_message(args) -> int:
     _session_db_open_ms = max(
         0, int((time.monotonic() - _session_db_open_started) * 1000)
     )
-    instance_store = PersonaInstanceStore()
+    from agent_runtime.preparation_reads import InstanceReadEpoch
+    instance_read_epoch = InstanceReadEpoch()
+    instance_store = PersonaInstanceStore(preparation_epoch=instance_read_epoch)
     from agent_runtime.auxiliary_chat import is_auxiliary_chat
     if not is_auxiliary_chat(getattr(args, "persona_instance_id", None), getattr(args, "session_id", None)):
-        instance_store.ensure_for_personas(ensure_persisted_personas(cfg))
+        instance_store.ensure_for_personas(ensure_persisted_personas(cfg), read_epoch=instance_read_epoch)
     # Auxiliary sessions were admitted against an existing exact instance.
     # They must not run the catalog's repairing projection writer (including
     # display/profile fields) while another operator may be editing that row.
@@ -381,7 +388,10 @@ def _cmd_mission_chat_message(args) -> int:
         session_id=session_id,
         relay_chain=turn_relay_chain,
         requested_by_session=requested_by_session,
+        instance_read_epoch=instance_read_epoch,
     )
+    # Target projection reuse ends before authoritative admission/binding.
+    instance_read_epoch.close()
     if not target_decision.allowed:
         data = {
             "ok": False,
@@ -796,11 +806,11 @@ def _cmd_mission_chat_message(args) -> int:
     # free from here, so a slow or failing deferred step delays nobody's next
     # send. ``run_once`` never raises: this is past the point where the exit
     # code is decided, and a decoration failure may not change it.
-    _run_deferred_tail(deferred)
+    _run_deferred_tail(deferred, session_db=session_db)
     return exit_code
 
 
-def _run_deferred_tail(deferred) -> None:
+def _run_deferred_tail(deferred, *, session_db=None) -> None:
     """Run the turn's deferred tail without holding the method-lane answer.
 
     Past the lease is not past the ANSWER: on the method lane the Launcher's
@@ -811,7 +821,15 @@ def _run_deferred_tail(deferred) -> None:
 
     from hermes_cli.harness_parts.serve import current_serve_request_id
 
-    if current_serve_request_id() is not None:
-        deferred.run_off_path()
-    else:
-        deferred.run_once()
+    owner = current_chat_session_writer_owner()
+    if owner is not None:
+        owner.transfer_to(deferred, session_db)
+    try:
+        if current_serve_request_id() is not None:
+            deferred.run_off_path()
+        else:
+            deferred.run_once()
+    finally:
+        # Dispatch failure/cancellation before the holder hands off still owns
+        # its reference. An already-running child owns its own cleanup instead.
+        deferred.cancel()

@@ -251,11 +251,21 @@ for the runner's durations):
 | `agent_ready_ms` | `phases.agent_ready` (Stage 6) |
 | `visibility_bundle_builds` | `phases.visibility_bundle_builds` (Stage 6) |
 | `runtime_resolve_ms` | `profile_timing.runtime_resolve_ms` (Stage 6) — no `profile_` prefix on this one |
-| `conversation_started_ms` … `response_headers_ms`, `provider_returned_ms` | `phases.<mark>` for the nine provider-span stamps above (h-chatperf, 2026-10-03), appended in turn order |
+| `mcp_admission_ms` | `profile_timing.mcp_admission_ms` |
+| `agent_construct_ms` | `profile_timing.agent_construct_ms` |
+| `conversation_started_ms` | `phases.conversation_started` |
+| `turn_context_built_ms` | `phases.turn_context_built` |
+| `preflight_done_ms` | `phases.preflight_done` |
+| `request_built_ms` | `phases.request_built` |
+| `client_built_ms` | `phases.client_built` |
+| `tls_done_ms` | `phases.tls_done` |
+| `request_sent_ms` | `phases.request_sent` |
+| `response_headers_ms` | `phases.response_headers` |
+| `provider_returned_ms` | `phases.provider_returned` |
 
 Stage 6's six are APPENDED to `TURN_TIMING_ORDER` rather than interleaved chronologically, which
 is "additive in the strict sense" taken literally: no existing key moves in name OR position.
-Nothing reads the block positionally (the launcher's `MissionRuntimeTurnTiming` reads it by key
+Nothing reads the block positionally (the launcher's `AgentConsoleTurnTiming` reads it by key
 name), so the only cost is that the tuple lists the pre-admit half below the post-admit half.
 `write_ahead_ms` is why the widening happened: the pre-admit span is where a local turn's extra
 seconds live, and until Stage 6 it was readable only by opening the ledger file — which an
