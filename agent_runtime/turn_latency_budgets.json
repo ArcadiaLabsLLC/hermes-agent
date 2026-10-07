@@ -1,0 +1,28 @@
+{
+  "seeded": "2026-10-07 00:41-00:43 local, four live turns on one chat (hermes 91cb3156e22, launcher c238636bad)",
+  "ruling": "owner 2026-10-07: make sure we don't regress (runtime-queue h-live-check)",
+  "cold_after_boot_s": 120,
+  "idle_gap_s": 30,
+  "budgets": [
+    {"span": "accept_to_anchor", "source": "hermes", "max_ms": 150, "warm_only": true,
+     "baseline": "27-73 ms", "receipt": "chat_turn_accept_to_anchor total_ms"},
+    {"span": "send_prep_total", "source": "hermes", "max_ms": 900, "warm_only": true,
+     "baseline": "460-780 ms", "receipt": "send_prep_receipt total_ms"},
+    {"span": "conn", "source": "hermes", "equals": "reused", "warm_only": true,
+     "baseline": "reused 4/4", "receipt": "send_window_receipt conn"},
+    {"span": "send_to_admit", "source": "launcher", "max_ms": 250, "warm_only": false,
+     "baseline": "97-173 ms", "receipt": "[MissionChatTiming] send_to_admit_ms"},
+    {"span": "ui_build_max", "source": "launcher", "max_ms": 180, "warm_only": false,
+     "baseline": "96-143 ms", "receipt": "[MissionChatTiming] ui_build_max_ms"},
+    {"span": "ui_build_sum", "source": "launcher", "max_ms": 1500, "warm_only": false,
+     "baseline": "954-1162 ms", "receipt": "[MissionChatTiming] ui_build_sum_ms"},
+    {"span": "ui_apply_to_paint", "source": "launcher", "max_ms": 100, "warm_only": false,
+     "baseline": "21-55 ms", "receipt": "[MissionChatTiming] ui_apply_to_paint_ms"}
+  ],
+  "reported": [
+    {"span": "server_wait", "source": "provider", "baseline": "658-920 ms",
+     "receipt": "send_window_receipt server_wait_ms"},
+    {"span": "first_event_to_text", "source": "provider", "baseline": "110-209 ms",
+     "receipt": "stream_gap_receipt gap_ms (end=text)"}
+  ]
+}
