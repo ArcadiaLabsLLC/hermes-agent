@@ -339,3 +339,36 @@ class PersonaProfileBinding:
     summary: str = "ready"
     metadata: dict[str, Any] = field(default_factory=dict)
 
+
+
+def seed_profile_skill_roots(profile_dir: Path) -> bool:
+    """Seed upstream writable roots during profile publication; never called by a scan.
+
+    Existing profiles remain supported by the minimal shared-root fallback until their
+    explicit profile lifecycle updates them. Preserve all user roots and settings.
+    """
+    from agent.skill_utils import parse_config_string_list
+    from hermes_cli.config import atomic_config_write, read_user_config_raw
+
+    path = profile_dir / "config.yaml"
+    config = read_user_config_raw(path) if path.exists() else {}
+    skills = config.setdefault("skills", {})
+    if not isinstance(skills, dict):
+        raise ValueError("skills configuration must be a mapping")
+    changed = False
+    for key, additions in (
+        ("extra_dirs", [str(get_shared_skills_dir())]),
+        ("excluded_dirs", [".realm_inbox", ".provenance"]),
+    ):
+        values = parse_config_string_list(skills.get(key))
+        for value in additions:
+            present = (any(Path(item).expanduser().resolve() == Path(value).resolve() for item in values)
+                       if key == "extra_dirs" else value in values)
+            if not present:
+                values.append(value)
+                changed = True
+        if changed or key not in skills:
+            skills[key] = values
+    if changed:
+        atomic_config_write(path, config)
+    return changed

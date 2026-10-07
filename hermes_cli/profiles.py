@@ -1523,6 +1523,9 @@ def _finish_profile_layout(profile_dir: Path, *, no_skills: bool, clone_all: boo
     if not clone_all:
         _migrate_profile_config_if_outdated(profile_dir)
 
+    from agent_runtime.profile_home import seed_profile_skill_roots
+    seed_profile_skill_roots(profile_dir)
+
     # Description last, so a partial-create failure doesn't strand a description file.
     if description and description.strip():
         with contextlib.suppress(Exception):  # non-fatal — `hermes profile describe` works later
