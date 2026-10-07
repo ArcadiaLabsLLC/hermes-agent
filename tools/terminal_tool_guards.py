@@ -141,9 +141,9 @@ _looks_like_help_or_version_command = looks_like_help_or_version_command  # orig
 def _foreground_background_guidance(command: str) -> str | None:
     """Guidance text when a foreground command looks long-lived or uses shell
     backgrounding (it should be a managed background session), else None."""
-    if _looks_like_help_or_version_command(command):
+    if looks_like_help_or_version_command(command):
         return None
-    unquoted = _strip_quotes(command)
+    unquoted = strip_quotes(command)
     return next((msg for hit, msg in _FOREGROUND_GUIDANCE if hit(unquoted)), None)
 
 
