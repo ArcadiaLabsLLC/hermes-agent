@@ -210,3 +210,30 @@ def test_reopening_a_running_chat_does_not_retain_its_link_for_later_boot(worker
     assert observed[1] == ("reopened", None, [])
     assert prewarm._links == {}, "completed work must release even a late opening link"
     assert app.current_launcher_link() is None
+
+
+def test_a_preempted_boot_item_keeps_a_late_open_link_for_its_retry(worker, monkeypatch):
+    """Completion releases a link; yielding to an open preserves it for the queued retry."""
+    _, finished, drain = worker
+    link = app.LauncherLink(_Launcher(tools=[_CREATE]), app.ORIGIN_LOCAL)
+    observed = []
+    tools = []
+
+    def construct(root):
+        observed.append(app.current_launcher_link())
+        tools.append(registry.get_definitions({_CREATE["name"]}, quiet=True))
+        if len(observed) == 1:
+            assert prewarm.request_chat_actor_prewarm(root, launcher_link=link) == "already_running"
+            return prewarm.OUTCOME_PREEMPTED_BY_OPEN
+        finished.set()
+        return prewarm.OUTCOME_WARMED
+
+    monkeypatch.setattr(prewarm, "prewarm_chat_actor", construct)
+    assert prewarm.request_chat_actor_prewarm("preempted", priority=prewarm.PRIORITY_BOOT) == "started"
+    drain()
+    prewarm._queue.join()
+    assert observed == [None, link]
+    assert tools[0] == []
+    assert tools[1], "the retried opening must offer its Launcher tool"
+    assert prewarm._links == {}
+    assert app.current_launcher_link() is None
