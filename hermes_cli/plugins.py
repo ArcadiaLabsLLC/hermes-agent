@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- registering the command_guard policy hook needs its entry and contract comment in VALID_HOOKS, the one hook registry; no code grows here
 """Hermes Plugin System — discovers, loads, and manages plugins.
 
 Sources, later overriding earlier on key collision: bundled ``<repo>/plugins/<name>/`` (``memory/``
