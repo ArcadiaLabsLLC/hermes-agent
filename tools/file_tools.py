@@ -203,6 +203,10 @@ def _is_blocked_device(filepath: str, base_dir: str | Path | None = None) -> boo
             target = os.readlink(current)
         except OSError:
             break
+        # A rooted link target (``/dev/zero``) is drive-relative on Windows (Python 3.13+ isabs is
+        # False), so joining it onto the link's dir would hide its POSIX form; check it as written.
+        if _is_blocked_device_path(target):
+            return True
         if not os.path.isabs(target):
             target = os.path.join(os.path.dirname(current), target)
         target = os.path.normpath(target)
