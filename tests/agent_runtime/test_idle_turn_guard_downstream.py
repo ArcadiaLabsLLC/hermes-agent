@@ -10,7 +10,9 @@ pool's ``keepalive_expiry``, then one turn. The after-idle turn must
 * rebuild no memo between its anchor and ``request_sent`` -- no skill-catalog walk on any thread
   (``skills_tool._find_all_skills``), no runtime re-resolve (``resolve_runtime_provider``), no
   ``skill-catalog-refresh`` thread started, no idle keep-warm ``HEAD``;
-* ride a pooled connection (``send_window_receipt conn=reused``);
+* ride a pooled connection (``send_window_receipt conn=reused``) although its actor's pre-connect
+  record is dropped (h-idle-socket: live, the chat typed in was never pre-connected), and every
+  keeper tick sends its ``HEAD`` (an HTTP status, never ``no_target``);
 * send within :data:`IDLE_OVER_WARM_MS` of the slowest warm turn and inside the guard's absolute
   warm budget.
 
@@ -166,6 +168,9 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
             ]) == 0
             root = json.loads(capsys.readouterr().out)["session_id"]
             assert guard._await_prewarm(log, root) == "warmed"
+            # h-idle-socket: the chat that turns was never pre-connected (live 2026-10-07 12:07 its
+            # prewarm read skipped_turn_active); the keeper must keep the client its turns rode.
+            provider_preconnect._IDLE_TARGETS.clear()
             for index in (*WARM_TURNS, IDLE_TURN):
                 if index == IDLE_TURN:
                     idle_from = time.monotonic()
@@ -205,6 +210,10 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
     print("idle-turn guard: " + "; ".join(spans))
     print("\n".join(log.receipts("send_prep_receipt ")))
     print("\n".join(log.receipts("idle_turn_keeper ")))
+    sockets = sorted({_fields(m).get("socket") for m in log.receipts("idle_turn_keeper ")})
+    if not sockets or not all(str(status).isdigit() for status in sockets):
+        violations.append(f"idle keeper socket statuses {sockets} (every tick sends its HEAD on the "
+                          "client the last turn rode, pre-connected or not)")
     warm = [sent[i] for i in WARM_TURNS[1:] if isinstance(sent.get(i), int)]
     after = sent.get(IDLE_TURN)
     if not warm or not isinstance(after, int):

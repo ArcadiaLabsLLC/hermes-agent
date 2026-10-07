@@ -319,17 +319,43 @@ def _remember_idle_target(agent: Any, http: Any, url: str, host: str, headers: d
         _IDLE_TARGETS[id(agent)] = (ref, http, url, host, headers)
 
 
-def refresh_idle_connection(agent: Any) -> str:
-    """h-idle-turn: ONE ``HEAD`` on ``agent``'s pre-connected connection, between turns. Returns a status.
+def _idle_target(agent: Any) -> tuple[Any, ...] | str:
+    """``(ref, http, url, host, headers)`` for ``agent``, or the status saying why there is none.
 
-    Only an actor the pre-connect reached (its client, URL and identity are remembered; a loopback
-    provider never is). One connection: an after-idle turn has no title upgrade racing it.
+    The pre-connect's record when it reached this actor; otherwise derived now, from the client
+    the actor's turns send on (:func:`_http_client`), and remembered. h-idle-socket (live
+    2026-10-07 12:07, w19): the chat the operator typed in was never pre-connected -- its prewarm
+    read ``skipped_turn_active`` -- so every keeper tick logged ``socket=no_target``.
     """
 
     with _IDLE_TARGETS_LOCK:
         target = _IDLE_TARGETS.get(id(agent))
-    if target is None or target[0]() is not agent or getattr(target[1], "is_closed", False):
-        return STATUS_NO_TARGET
+    if target is not None and target[0]() is agent and not getattr(target[1], "is_closed", False):
+        return target
+    http = _http_client(agent)
+    if http is None:
+        return STATUS_NO_CLIENT
+    url = _base_url(agent)
+    host = (urlsplit(url).hostname or "").lower()
+    if not url or not host:
+        return STATUS_NO_URL
+    if _is_loopback(host):
+        return STATUS_LOOPBACK
+    _remember_idle_target(agent, http, url, host, _identity_headers(agent))
+    with _IDLE_TARGETS_LOCK:
+        return _IDLE_TARGETS.get(id(agent)) or STATUS_NO_TARGET
+
+
+def refresh_idle_connection(agent: Any) -> str:
+    """h-idle-turn: ONE ``HEAD`` on the connection ``agent``'s turns ride, between turns. Returns a status.
+
+    The client is the one the actor's last turn sent on, pre-connected or not (:func:`_idle_target`);
+    a loopback provider is never kept. One connection: an after-idle turn has no title upgrade racing it.
+    """
+
+    target = _idle_target(agent)
+    if isinstance(target, str):
+        return target
     _ref, http, url, host, headers = target
     started = time.perf_counter()
     try:
