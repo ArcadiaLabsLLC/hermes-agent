@@ -23,6 +23,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-07 (Console file-input prerequisite)
+
+- [ ] **Extend the native reviewed conversation input to deliver arbitrary file contents before Launcher exposes Files.** · producer: `agent_runtime/conversations/prompt.py::validate` currently accepts exactly text/images (900 KiB aggregate serialized bound), `submit` calls `image.attach_bytes` then `prompt.submit`; `ConversationService.send` and `LiveConversation.recover` own exact execution/admission/recovery. · Need a tested capability packet defining reviewed filename/media type + bytes or install-owned opaque reference + digest/size; supported formats/encodings and per-file/aggregate/count/extraction/expiry limits; typed invalid/unsupported/oversize/expired/wrong-owner refusals; same-turn changed-content guard; exact profile/session/turn/execution ownership; persisted content identity, retention/deletion and reconnect/restored-draft behavior for accepted/refused/unknown dispatch without another execution. Extend the existing submit owner, never dereference client paths or create a separate upload/send authority. · prerequisite for Launcher C019; no Files UI until producer proof. · UNCLAIMED
+
 ### Filed on arrival — 2026-10-07 (native turn anchor carrier)
 
 
