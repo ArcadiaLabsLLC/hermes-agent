@@ -43,6 +43,7 @@ from agent_runtime.prompt_observability import (
     persist_prompt_observability_context,
     turn_usage_from_result,
 )
+from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
 from agent_runtime.workspace_scope import workspace_claim_disagreement
 from ..chat_admission import (
@@ -195,7 +196,9 @@ class _RunPhases:
         #
         # Turn-local by construction: born here, dies with this object, never
         # attached to the context, the row, a persisted record or a wire frame.
-        self.turn_root_registries: dict[str, Any] = {}
+        # h-warm-phases: a root this map has not seen is read from the process registry cache when
+        # it holds one, and re-walked off-thread after this turn's ``request_sent``.
+        self.turn_root_registries: dict[str, Any] = TurnRootRegistries()
 
         self.turn_context = build_mission_chat_turn_context(
             persona=self.persona,

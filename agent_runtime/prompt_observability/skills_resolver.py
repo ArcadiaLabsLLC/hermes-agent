@@ -7,6 +7,7 @@ behind one TTL memo.
 from __future__ import annotations
 
 import contextvars
+import functools
 import json
 import threading
 import time
@@ -14,6 +15,7 @@ from typing import Any, Iterable
 
 from .._upstream_doors import skills_walker
 from ..persona_assignments import safe_assignment_token
+from ..skill_root_freshness import TurnRootRegistries, queue_after_request_sent
 from .context_budget import _profile_snapshot_skill_names
 from .spans import _SPAN_CATALOG_WALK, _SPAN_SHARED_CATALOG, _accumulate_span, _note_catalog_walk
 
@@ -73,6 +75,9 @@ class _SkillObservabilityResolver:
         root.  ``build_shared_catalog`` walks + content-hashes every shared skill;
         without this memo it re-ran once per projected persona (measured 12× per
         build, 2026-07-23).  Read-only for callers — the same dict is shared."""
+        if self._shared_catalog is None and isinstance(self._root_registries, TurnRootRegistries):
+            # h-warm-phases: a turn reads the process memo and rebuilds it after its request_sent.
+            self._shared_catalog = _turn_shared_catalog()
         if self._shared_catalog is None:
             catalog: list[dict[str, Any]] = []
             # Stage 6 item 2: the content-hash walk, billed where it runs. On a
@@ -335,6 +340,39 @@ def _persona_skill_assignment_removals(persona: Any) -> list[str]:
 # 522 / 336 / 76 ms of ``observability_catalog_walk_ms`` before their request
 # left, the one inside the TTL paid 0.
 _SKILL_CATALOG_TTL_SECONDS = 15.0
+
+
+#: h-warm-phases: the turn lane's shared-catalog rows, ``shared skills root -> {slug: row}``. A turn
+#: built them inline (a listing, a frontmatter parse and a stat per file of every shared skill:
+#: 40-80 ms a turn on the operator's 186-directory root) for its observability row -- a record, not
+#: part of the request. A turn now reads this memo and rebuilds it after its ``request_sent``
+#: (``agent_runtime.skill_root_freshness``); only a cold process builds inline.
+_TURN_SHARED_CATALOG: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def _rebuild_turn_shared_catalog(key: str) -> dict[str, dict[str, Any]]:
+    rows = _SkillObservabilityResolver().shared_catalog()
+    _TURN_SHARED_CATALOG[key] = rows
+    return rows
+
+
+def _turn_shared_catalog() -> dict[str, dict[str, Any]] | None:
+    """The memo's rows for this home's shared root (refresh queued), else a build; None to build as before."""
+
+    try:
+        from ..profile_home import get_shared_skills_dir
+
+        root = get_shared_skills_dir()
+    except Exception:
+        return None
+    if root is None:
+        return None
+    key = str(root)
+    rows = _TURN_SHARED_CATALOG.get(key)
+    if rows is None:
+        return _rebuild_turn_shared_catalog(key)
+    queue_after_request_sent(f"shared_catalog:{key}", functools.partial(_rebuild_turn_shared_catalog, key))
+    return rows
 
 
 _skill_catalog_memo: dict[str, Any] = {"at": 0.0, "rows": None, "walker": None}

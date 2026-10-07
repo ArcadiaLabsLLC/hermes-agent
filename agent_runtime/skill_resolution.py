@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from hermes_constants import get_skills_dir
 from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
+from agent_runtime.skill_root_freshness import (
+    TurnRootRegistries,
+    needs_fresh_walk,
+    registry_for_turn,
+    walk_served_roots,
+)
 
 __layer__ = "stores"
 # Import skill_utils only inside consumers: its compatibility aliases import us.
@@ -454,10 +460,7 @@ def resolve_skill(
 
     for root in search_roots:
         root_key = str(_resolved_path(root))
-        registry = root_registries.get(root_key)
-        if registry is None:
-            registry = _skill_root_registry(root)
-            root_registries[root_key] = registry
+        registry = _registry_in(root_registries, root, root_key)
         for lookup in lookup_names:
             direct_manifest = root / lookup / "SKILL.md"
             for skill_dir, manifest in registry.manifests:
@@ -473,7 +476,28 @@ def resolve_skill(
             record(root, skill_dir, legacy)
 
     status = _skill_resolution_status(name, candidates)
-    return SkillResolution(name, status, tuple(candidates))
+    resolution = SkillResolution(name, status, tuple(candidates))
+    if needs_fresh_walk(root_registries, {name: resolution}):
+        walk_served_roots(root_registries)
+        return resolve_skill(identifier, roots=roots, categorized_identifier=categorized_identifier,
+                             _root_registries=root_registries)
+    return resolution
+
+def _registry_in(root_registries: Dict[str, Any], root: Path, root_key: str) -> _SkillRootRegistry:
+    """``root``'s registry from the caller's map, else read once and kept there.
+
+    h-warm-phases: a turn's pre-admit map (``TurnRootRegistries``) reads the process cache and
+    queues the root for a re-walk after ``request_sent``; every other map walks.
+    """
+
+    registry = root_registries.get(root_key)
+    if registry is None:
+        if isinstance(root_registries, TurnRootRegistries):
+            registry = registry_for_turn(root, root_key, root_registries)
+        else:
+            registry = _skill_root_registry(root)
+        root_registries[root_key] = registry
+    return registry
 
 def resolve_skills(
     identifiers: List[str],
@@ -519,10 +543,7 @@ def resolve_skills(
 
     for root in search_roots:
         root_key = str(_resolved_path(root))
-        registry = root_registries.get(root_key)
-        if registry is None:
-            registry = _skill_root_registry(root)
-            root_registries[root_key] = registry
+        registry = _registry_in(root_registries, root, root_key)
         kind = skill_source_kind(root)
         hit = registry.resolved_files
         for name in names:
@@ -539,6 +560,9 @@ def resolve_skills(
     for name, candidates in found.items():
         status = _skill_resolution_status(name, candidates)
         result[name] = SkillResolution(name, status, tuple(candidates))
+    if needs_fresh_walk(root_registries, result):
+        walk_served_roots(root_registries)
+        return resolve_skills(identifiers, roots=roots, _root_registries=root_registries)
     return result
 
 def _skill_resolution_status(

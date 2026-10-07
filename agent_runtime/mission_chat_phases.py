@@ -53,6 +53,7 @@ before this module is ever entered.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any, Callable
@@ -171,6 +172,25 @@ _BLOCK_ORDER: tuple[str, ...] = (
 )
 
 _KNOWN_MARKS = frozenset(PHASE_ORDER)
+
+#: h-warm-phases: work a turn defers to its own ``request_sent`` (the request has left; the turn
+#: waits on the network). Registered by the module that owns the work, at its import.
+_REQUEST_SENT_LISTENERS: list[Callable[[], Any]] = []
+
+
+def on_request_sent(listener: Callable[[], Any]) -> None:
+    """Run ``listener`` at every turn's ``request_sent`` mark (once per listener; never raises into the turn)."""
+
+    if listener not in _REQUEST_SENT_LISTENERS:
+        _REQUEST_SENT_LISTENERS.append(listener)
+
+
+def _notify_request_sent() -> None:
+    for listener in tuple(_REQUEST_SENT_LISTENERS):
+        try:
+            listener()
+        except Exception:
+            logging.getLogger(__name__).debug("request_sent listener failed", exc_info=True)
 _KNOWN_FLAGS = frozenset(PHASE_FLAGS)
 _KNOWN_COUNTERS = frozenset(PHASE_COUNTERS)
 
@@ -287,6 +307,7 @@ class TurnPhaseMarks:
             marks = dict(self._marks) if name == "request_sent" else None
         if marks is not None:
             note_process_request_sent()  # h-prep-contention: the keep-warm chains stop here
+            _notify_request_sent()
             emit_send_prep_receipt(
                 marks, PHASE_ORDER, turn=self.receipt_turn, anchored_at=self._anchored_at, anchor=self._cpu_anchor,
             )
