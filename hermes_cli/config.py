@@ -2270,7 +2270,9 @@ def _merge_managed_overlay(expanded: Dict[str, Any]) -> Tuple[Dict[str, Any], An
     return _deep_merge(expanded, _expand_env_vars(managed_normalized)), managed_config
 
 
-def _load_config_cache_hit(path_key: str, cache_sig: Any) -> Optional[Dict[str, Any]]:
+def _load_config_cache_hit(
+    path_key: str, cache_sig: Any, *, require_writable: bool = False,
+) -> Optional[Dict[str, Any]]:
     """Lookup: the cached expanded config for ``path_key`` if its signature equals
     ``cache_sig`` AND every ``${VAR}`` it was expanded against still has the same value, else
     ``None``. Signatures matching is not enough: a load before load_hermes_dotenv() would otherwise
@@ -2280,6 +2282,14 @@ def _load_config_cache_hit(path_key: str, cache_sig: Any) -> Optional[Dict[str, 
     if cached is None or cache_sig is None or cached[:8] != cache_sig:
         return None
     hit = cached[8]
+    # A readonly parse publishes the same values, but has not ensured the home or
+    # saved the raw last-known-good file. The first mutable load must take the
+    # normal parse path once to fulfill those guarantees. Never promote a cached
+    # parse failure: its on-disk bytes are not a good config to back up.
+    if require_writable and not isinstance(hit, FailedConfigRead) and not (
+        len(cached) > 10 and cached[10]
+    ):
+        return None
     if isinstance(hit, FailedConfigRead) and isinstance(hit.read_error, OSError):
         # A read error (EMFILE/EIO/sharing violation) can clear without touching the file's
         # signature: serve the fallback only while the file still cannot be read.
@@ -2305,7 +2315,7 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[
         path_key = str(config_path)
         if path_key in _LOAD_CONFIG_CACHE:
             _, fast_sig = _load_config_cache_sig(config_path)
-            hit = _load_config_cache_hit(path_key, fast_sig)
+            hit = _load_config_cache_hit(path_key, fast_sig, require_writable=ensure_home)
             if hit is not None:
                 return copy.deepcopy(hit) if want_deepcopy else hit
     except Exception:
@@ -2325,7 +2335,7 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[
 
         user_sig, cache_sig = _load_config_cache_sig(config_path)
 
-        hit = _load_config_cache_hit(path_key, cache_sig)
+        hit = _load_config_cache_hit(path_key, cache_sig, require_writable=ensure_home)
         if hit is not None:
             return copy.deepcopy(hit) if want_deepcopy else hit
 
@@ -2375,7 +2385,7 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[
             env_snapshot = _env_ref_snapshot(normalized)
             if managed_config:
                 _env_ref_snapshot(managed_config, env_snapshot)
-            _LOAD_CONFIG_CACHE[path_key] = (*cache_sig, cached_copy, env_snapshot)
+            _LOAD_CONFIG_CACHE[path_key] = (*cache_sig, cached_copy, env_snapshot, ensure_home)
             # Readonly path returns the same object later calls will see (identity invariant).
             if not want_deepcopy:
                 return cached_copy
