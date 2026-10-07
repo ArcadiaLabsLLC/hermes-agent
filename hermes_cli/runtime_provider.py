@@ -983,7 +983,8 @@ def resolve_runtime_provider(*, requested: Optional[str] = None, explicit_api_ke
                              explicit_base_url: Optional[str] = None, target_model: Optional[str] = None) -> Dict[str, Any]:
     """Resolve runtime provider credentials for agent execution. Ladder (order is behavior — each
     rung returns or raises, else falls to the next):
-      1. disabled-provider guard (``providers.<name>.enabled: false``)
+      1. disabled-provider guard (``providers.<name>.enabled: false``), re-applied to the provider
+         the ladder picks when it differs from the requested one (``auto``)
       2. requested-name shortcuts: moa, anthropic@azure, azure-foundry, vertex
       3. named custom provider / llamacpp alias / bare-custom direct alias
       4. local-endpoint bypass (no explicit creds, config base_url at a non-cloud host)
@@ -1007,6 +1008,8 @@ def resolve_runtime_provider(*, requested: Optional[str] = None, explicit_api_ke
     requested_provider, explicit_base_url = expand_direct_api_alias(requested_provider, explicit_base_url)
     _raise_if_local_alias_missing_endpoint(requested_provider, explicit_base_url)
     runtime = next(r for r in _ladder_rungs(requested_provider, explicit_api_key, explicit_base_url, target_model) if r)
+    if runtime.get("provider") != requested_provider:  # "auto" (or an alias) landed elsewhere: guard the pick too
+        _raise_if_provider_disabled(str(runtime.get("provider") or ""))
     _raise_for_credentialless_bare_custom(requested_provider, runtime)
     # model.openai_runtime is applied ONCE, after the ladder: every rung (pool, OAuth store,
     # explicit --api-key/--base-url, env key) hardcodes the wire api_mode for openai/openai-codex,
