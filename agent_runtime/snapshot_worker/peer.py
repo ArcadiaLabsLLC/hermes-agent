@@ -66,21 +66,24 @@ _LOSS_BY_REFUSAL = {
 class WorkerLost(RuntimeError):
     """A worker build that will not arrive; the caller builds in process instead."""
 
-    def __init__(self, loss: WorkerLoss):
+    def __init__(self, loss: WorkerLoss, *, diagnostics: dict | None = None):
         self.loss = loss
+        self.diagnostics = diagnostics or {}
         super().__init__(loss.value)
 
 
 class SnapshotPeer(NativePeer):
     """A :class:`NativePeer` whose calls are :meth:`build` and :meth:`turn_section`, watched."""
 
-    def __init__(self, process, *, containment=None, clock=time.monotonic):
+    def __init__(self, process, *, containment=None, clock=time.monotonic, worker_purpose=None):
         self._clock = clock
         self.spawned_at = clock()
+        self.worker_pid: int | None = None
         self.ready_at: float | None = None
         self.last_frame_at = self.spawned_at
         self.idle_s: dict[str, float] = {}
-        super().__init__(process, receive=self._notice, lost=lambda: None, containment=containment)
+        super().__init__(process, receive=self._notice, lost=lambda: None, containment=containment,
+                         worker_purpose=worker_purpose)
 
     def _route(self, frame: dict) -> None:
         self.last_frame_at = self._clock()
@@ -89,6 +92,9 @@ class SnapshotPeer(NativePeer):
     def _notice(self, frame: dict) -> None:
         method = frame.get("method")
         if method == READY_METHOD and self.ready_at is None:
+            params = frame.get("params") or {}
+            self.bind_worker_identity(params)
+            self.worker_pid = params["worker_pid"]
             self.ready_at = self._clock()
         elif method == BEAT_METHOD:
             idle = (frame.get("params") or {}).get("idle_s")
@@ -136,7 +142,7 @@ class SnapshotPeer(NativePeer):
         if "error" in response:
             if response["error"].get("code") == 4130:
                 raise ConversationError(Refusal.RESPONSE_TOO_LARGE)
-            raise ConversationError(Refusal.NATIVE_REFUSAL)
+            raise WorkerLost(WorkerLoss.BUILD_ERROR, diagnostics=response["error"].get("data"))
         result = response.get("result")
         if not isinstance(result, dict):
             raise ConversationError(Refusal.NATIVE_REFUSAL)
@@ -158,5 +164,9 @@ class SnapshotPeer(NativePeer):
         return self._call(TURN_SECTION_METHOD, params, timeout, "sections")
 
     @property
-    def pid(self) -> int:
+    def pid(self) -> int | None:
+        return self.worker_pid
+
+    @property
+    def launcher_pid(self) -> int:
         return int(self.process.pid)

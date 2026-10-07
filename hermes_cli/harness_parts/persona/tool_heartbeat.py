@@ -154,7 +154,7 @@ def tool_progress_frame(turn_id: str, element: dict[str, Any], call: Any) -> dic
 
 
 class ToolHeartbeat:
-    """Beats ``tool.progress`` for an emitter's live tool elements until stopped."""
+    """Beats turn liveness and live tool progress until the turn settles."""
 
     def __init__(self, emitter: Any, *, interval: float = TOOL_HEARTBEAT_SECONDS) -> None:
         self._emitter = emitter
@@ -178,6 +178,12 @@ class ToolHeartbeat:
     def beat(self) -> int:
         """Emit one beat per live tool element now; returns how many went out."""
 
+        self._emitter._emit_chat_frame({
+            "type": "turn.progress", "protocol_version": 2,
+            "turn_id": self._emitter.turn_id,
+            "elapsed_ms": int(max(0.0, time.monotonic() - self._emitter._started_at) * 1000),
+            "next_heartbeat_after_ms": int(self._interval * 1000),
+        })
         live = [
             element for element in list(self._emitter.elements)
             if element.get("kind") == "tool" and element.get("state") == "started"
@@ -191,24 +197,10 @@ class ToolHeartbeat:
             self._emitter._emit_chat_frame(frame)
         return len(live)
 
-    def _retire_if_idle(self) -> bool:
-        """End the thread when nothing is live, re-checked under the arming lock
-        so a tool started between the empty beat and here is never left unbeaten."""
-
-        with self._lock:
-            if any(
-                element.get("kind") == "tool" and element.get("state") == "started"
-                for element in list(self._emitter.elements)
-            ):
-                return False
-            self._thread = None
-            return True
-
     def _run(self) -> None:
         while not self._stop.wait(self._interval):
             try:
-                if self.beat() == 0 and self._retire_if_idle():
-                    return
+                self.beat()
             except Exception:
                 # A beat is presentation: a failed read must not end the turn's stream.
                 continue

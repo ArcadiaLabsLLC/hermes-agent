@@ -16,6 +16,7 @@ __all__ = ["_cmd_builds_registry_path"]
 
 
 def _cmd_builds_registry_path(args) -> int:
+    from agent_runtime.root_observability import attach_root_observability
     from agent_runtime.builds.registry import registry_dir
     from agent_runtime.builds.vocabulary import REGISTRY_DIR_ENV, REGISTRY_SCHEMA_VERSION
 
@@ -24,5 +25,5 @@ def _cmd_builds_registry_path(args) -> int:
         "env": REGISTRY_DIR_ENV,
         "schema_version": REGISTRY_SCHEMA_VERSION,
     }
-    _print_stage42(_object_envelope("build_registry_path", payload), args=args, default_output="json")
+    _print_stage42(attach_root_observability(_object_envelope("build_registry_path", payload)), args=args, default_output="json")
     return 0

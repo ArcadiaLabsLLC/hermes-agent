@@ -371,3 +371,13 @@ mock remains. Retired the now-passing vendor-slug strict-xfail marker. Reviewed
 head/base pins remain unchanged. Exact-count scope checks replace existence-only
 fragment matching; moved memory helpers are explicitly mapped, and the live-system
 guard snapshot body is checked with its fork cache-variable rename.
+
+## Runtime ownership door candidates — 2026-10-07 (design only)
+
+Frozen fork base `8f2f1cdd386`; these proposals add no upstream hunks and do not change footprint counts. No upstream PR filed. Exact controls, lifecycle and acceptance: [Wave2 ownership packet](runtime-wave2-ownership-2026-10-07.md).
+
+| candidate | exact upstream owner / proposed additive API | fork caller retired or consolidated | prerequisite / proof |
+|---|---|---|---|
+| R008-PREP-CONTEXT | `agent/agent_init.py`: `prepare_agent_construction(context, options, checkpoint)` / `construct_prepared_agent(prepared)`; `agent/prompt_builder.py`: `prepare_system_prompt(agent_inputs, context, system_message, checkpoint)` | `AgentRunExecution.scopes/construct_agent/finish_prewarm` wide-lock preparation moves only after context/explicit-spawn/cooperative ownership is complete | actual scope/prompt control blocks next turn; preserve cwd/profile/env authority and cancelled-publication fences; named tests in packet |
+| R010-REGISTRATION-HANDLE | `tools/mcp_tool_discovery.py`: `start_mcp_registration(servers, registry_scope, cancel_event)` returns request-owned `request_cancel/wait_stopped/result`; `tools/mcp_tool_loop.py` drains owned async tasks/callbacks before acknowledgement | `Admission.register_bounded/_work` requests cancellation and releases mutex only after registrar stop/join | abandon control retains running registrar + busy next turn + late write; no Future-only or global-shutdown substitute; named tests in packet |
+| R034-FINAL-TOOL-SURFACE | `agent/turn_api_request.py`: `commit_dispatched_tool_surface` after all transforms at attempted dispatch; `tools/mcp_tool_agent.py`: owner-aware settle/permission-bounded restore/persist; `hermes_cli/middleware.py` ordered-current payload semantics | one fork `chat_tool_surface` owner replaces duplicate defer/reprune/pin writers while separating logical tools from provider wire | current public refresh pins 34 definitions vs settled 15; permission epoch, provider shape, final callback, retry and no-dispatch proofs in packet |

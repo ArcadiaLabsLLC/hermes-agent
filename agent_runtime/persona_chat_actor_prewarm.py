@@ -784,6 +784,20 @@ LINK_REFRESH_WAIT_SECONDS = 10.0
 _links: dict[str, LauncherLinkPreparation] = {}
 
 
+_deferred_until_idle: dict[str, int] = {}
+
+
+def _resume_after_turn() -> None:
+    """Requeue yielded roots once the turn authority observes an idle boundary."""
+    if _stand_down_outcome() == OUTCOME_SKIPPED_TURN_ACTIVE:
+        return
+    with _lock:
+        for root, priority in tuple(_deferred_until_idle.items()):
+            if _pending.get(root) == priority:
+                _queue.put((priority, next(_sequence), root))
+        _deferred_until_idle.clear()
+
+
 def _drain() -> None:
     """Warm one chat root at a time, forever, and never die.
 
@@ -824,7 +838,11 @@ def _drain() -> None:
         )
         with _lock:
             _running_priority, _running_root = None, None
-            if outcome == OUTCOME_PREEMPTED_BY_OPEN and _pending.get(root) == priority:
+            if outcome == OUTCOME_SKIPPED_TURN_ACTIVE and _pending.get(root) == priority:
+                _deferred_until_idle[root] = priority
+                if link is not None:
+                    _links[root] = link
+            elif outcome == OUTCOME_PREEMPTED_BY_OPEN and _pending.get(root) == priority:
                 # Behind the open that preempted it; it built nothing yet.
                 _queue.put((priority, next(_sequence), root))
             else:
@@ -833,12 +851,18 @@ def _drain() -> None:
                 # It belongs to this completed item, never a later boot pass.
                 _links.pop(root, None)
         _queue.task_done()
+        # Closes the race where the last turn exits before this item parks.
+        _resume_after_turn()
 
 
 def _open_waiting_locked() -> bool:
     """Is a chat-open item queued? Call under ``_lock``."""
 
     return any(priority == PRIORITY_OPEN for priority in _pending.values())
+
+
+from .turn_activity import register_turn_idle_listener
+register_turn_idle_listener(_resume_after_turn)
 
 
 def _ensure_worker() -> None:

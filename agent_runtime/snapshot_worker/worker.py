@@ -33,14 +33,14 @@ def start_worker(home: Path) -> SnapshotPeer:
         **options,
     )
     try:
-        peer = SnapshotPeer(process, containment=containment)
+        register_child(process.pid, SPAWN_PURPOSE + "-launcher")
+        peer = SnapshotPeer(process, containment=containment, worker_purpose=SPAWN_PURPOSE)
     except Exception:
         if containment is not None:
             containment.close()
         process.kill()
         process.wait(timeout=10)
         raise
-    register_child(process.pid, SPAWN_PURPOSE)
     return peer
 
 

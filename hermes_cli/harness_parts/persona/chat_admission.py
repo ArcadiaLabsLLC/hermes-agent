@@ -12,6 +12,7 @@ from enum import Enum, auto
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
+from agent_runtime.chat_observation_policy import BUSY_RETRY_AFTER_MS, chat_observation_guidance
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
@@ -114,6 +115,7 @@ def _busy_duplicate_in_flight(send: _BusySend) -> int:
         "execution_state": ExecutionState.BLOCKED,
         "error_kind": ChatErrorKind.CHAT_TURN_DUPLICATE_IN_FLIGHT,
         "duplicate_in_flight": True,
+        **chat_observation_guidance(),
         # Explicitly NOT busy. A consumer that switches on this flag must
         # not see a duplicate-in-flight as a lost message.
         "chat_busy": False,
@@ -233,6 +235,7 @@ def _busy_refused(send: _BusySend) -> int:
         "execution_state": ExecutionState.REJECTED,
         "error_kind": ChatErrorKind.CHAT_BUSY,
         "chat_busy": True,
+        "retry_after_ms": BUSY_RETRY_AFTER_MS,
         "root_chat_session_id": send.session_id,
         "session_id": send.session_id,
         "lease_owner": send.exc.owner,

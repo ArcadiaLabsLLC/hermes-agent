@@ -685,7 +685,7 @@ _TIMING_REUSED_KEY = "resident_actor_reused"
 #: whole of the "additive in the strict sense" rule taken literally: no existing
 #: key moves, in name OR in position, so a consumer written against the block as
 #: it shipped reads the payload exactly as it did before. Nothing reads this
-#: block positionally — the launcher's ``MissionRuntimeTurnTiming`` reads it by
+#: block positionally — the launcher's ``AgentConsoleTurnTiming`` reads it by
 #: key name — so the cost of the literal reading is only that a person scanning
 #: the tuple finds the pre-admit half below the post-admit half. The six are in
 #: their own chronological order among themselves.

@@ -251,6 +251,26 @@ def _chat_effective_model_payload(
     """
     default_provider = getattr(persona, "provider", None) or getattr(config, "default_provider", None)
     default_model = getattr(persona, "model", None) or getattr(config, "default_model", None)
+    from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
+    from agent_runtime.profile_runner.models import AgentRunRequest
+    from agent_runtime.profile_runner.resident_actor import turn_reasoning_config
+    binding = resolve_persona_profile(persona)
+    effort = getattr(instance, "reasoning_effort", None)
+    reasoning = None
+    if binding.readiness == "ready":
+        with persona_profile_scope(binding):
+            if not default_model or not default_provider:
+                from agent_runtime.config import load_agent_runtime_config
+                profile_config = load_agent_runtime_config()
+                default_model = default_model or profile_config.default_model
+                default_provider = default_provider or profile_config.default_provider
+            effective_model = ((override or {}).get("model") or getattr(instance, "model", None)
+                               or default_model)
+            reasoning = turn_reasoning_config(AgentRunRequest(profile=None,
+                model=effective_model, reasoning_effort=effort), effective_model)
+    elif effort:
+        from hermes_constants import parse_reasoning_effort
+        reasoning = parse_reasoning_effort(effort)
     instance_provider = getattr(instance, "provider", None) if instance is not None else None
     instance_model = getattr(instance, "model", None) if instance is not None else None
     agent_provider = instance_provider or default_provider
@@ -268,6 +288,8 @@ def _chat_effective_model_payload(
         "chat_model": (override or {}).get("model"),
         "effective_provider": provider,
         "effective_model": model,
+        "effective_reasoning_effort": reasoning_effort_label(reasoning),
+        "reasoning_effort_source": "instance" if effort else ("profile" if reasoning else "default"),
         "model_is_default": not bool(override and ((override.get("provider") or "") or (override.get("model") or ""))),
         "model_is_instance_override": bool(instance_provider or instance_model),
         "scope": "mission_control_chat_session",

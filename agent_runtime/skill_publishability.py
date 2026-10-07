@@ -640,7 +640,7 @@ def build_publishability_rows(roots: Iterable[Path] | None = None) -> list[dict[
     tier first so the unpublishable set reads as a block.
     """
 
-    from agent.skill_utils import get_all_skills_dirs
+    from agent_runtime.skill_resolution import skill_search_roots
     from agent_runtime.skill_resolution import (
         skill_package_content_hash,
         skill_source_kind,
@@ -648,7 +648,7 @@ def build_publishability_rows(roots: Iterable[Path] | None = None) -> list[dict[
 
     from .skill_promotion import iter_skill_packages
 
-    search_roots = list(roots) if roots is not None else get_all_skills_dirs()
+    search_roots = list(roots) if roots is not None else skill_search_roots()
     rows: list[dict[str, Any]] = []
     for root in search_roots:
         if not Path(root).is_dir():

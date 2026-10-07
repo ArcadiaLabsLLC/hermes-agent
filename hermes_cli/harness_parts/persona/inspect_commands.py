@@ -6,6 +6,8 @@ Separate because nothing here writes a chat or starts a turn; the one write
 
 from __future__ import annotations
 
+from agent_runtime.operation_result import emit_operation_result
+
 from datetime import datetime, timedelta, timezone
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
@@ -115,7 +117,7 @@ def _cmd_persona_tool_diff(args) -> int:
     persona = _persona_by_id(cfg, str(args.persona_id or ""))
     if persona is None:
         data = {"ok": False, "error": f"persona not found: {args.persona_id}"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     # No flag ⇒ the RUNTIME DEFAULT, so the preview describes what a real turn
     # gets. Hardcoding ``profile_default`` here would have made every preview
@@ -176,7 +178,7 @@ def _cmd_persona_tool_diff(args) -> int:
             persona, session_id=args.session_id, permission_mode=permission_mode
         )
     if args.json:
-        print(emit_json(data))
+        emit_operation_result(args, data)
     else:
         print(f"{visibility['persona_id']}: {visibility['final_tool_count']} tools")
         # S0a A2: say WHERE the capability came from. Before this, an operator
@@ -244,7 +246,7 @@ def _cmd_persona_permission_set(args) -> int:
     persona = _persona_by_id(cfg, str(args.persona_id or ""))
     if persona is None:
         data = {"ok": False, "error": f"persona not found: {args.persona_id}"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     expires_at = str(args.expires_at or "").strip() or None
     ttl_seconds = getattr(args, "ttl_seconds", None)
@@ -274,7 +276,7 @@ def _cmd_persona_permission_set(args) -> int:
         "permission_state": permission_state_for_chat(persona, session_id=record.session_id),
     }
     if args.json:
-        print(emit_json(data))
+        emit_operation_result(args, data)
     else:
         print(f"{record.persona_id}: {record.session_id} mode={record.mode}")
     return 0
@@ -333,3 +335,19 @@ def _cmd_persona_instance_detail(args) -> int:
         )
     print(emit_json(detail))
     return 0
+
+
+def permission_operation_result(params: dict, *, preview: bool) -> dict:
+    """Shared CLI authority for previews and scoped/one-turn overrides."""
+    from types import SimpleNamespace
+    rows = []
+    args = SimpleNamespace(persona_id=params["persona_id"], session_id=params["session_id"],
+        permission_mode=params.get("mode"), mode=params.get("mode"),
+        reason=params.get("reason"), expires_at=params.get("expires_at"),
+        ttl_seconds=params.get("ttl_seconds"), turns=params.get("turns"),
+        repo_scope=None, workdir=None, explain_mcp=True, explain_envelope=True,
+        json=True, operation_result_sink=rows.append)
+    (_cmd_persona_tool_diff if preview else _cmd_persona_permission_set)(args)
+    if len(rows) != 1:
+        raise RuntimeError("permission operation did not produce exactly one result")
+    return rows[0]

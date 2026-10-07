@@ -356,6 +356,9 @@ class _ChatProtocolV2Emitter:
             }
         )
 
+        if self._heartbeat is not None:
+            self._heartbeat.ensure_running()
+
     def first_reply_text(self, delta: str | None) -> None:
         """Mark ``provider_first_byte`` on the turn's FIRST reply-text delta; nothing else.
 
@@ -826,6 +829,11 @@ class _ChatProtocolV2Emitter:
         if not self._emit_frames:
             return
         with self._emit_lock:
+            # stop() cannot cancel a beat already computing its frames. Fence
+            # progress at the writer boundary so an in-flight beat cannot
+            # escape after finish; segment/end frames must still settle.
+            if self._finished and payload.get("type") in {"turn.progress", "tool.progress"}:
+                return
             self._turn_context.run(_emit_chat_frame, payload)
 
 

@@ -4,7 +4,7 @@ import json
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import inspect_operator_settings, inspect_operator_skills
-from agent_runtime.operator_session_models import operator_model_facts, select_operator_model
+from agent_runtime.operator_session_models import operator_model_facts, operator_selected_model_facts, select_operator_model
 from agent_runtime.skill_inspection import SkillInspectionError
 from .protocol import DEFERRED, RpcContext, deferred_reply, err, ok
 from .registry import method
@@ -50,6 +50,12 @@ def skills(rid, params: dict, context: RpcContext | None = None):
 def models(rid, params: dict, context: RpcContext | None = None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.models",
                                operator_model_facts)
+
+
+@method("runtime.operator.conversation.model.facts", tier=TIER_CONSOLE)
+def model_facts(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.model.facts",
+                               operator_selected_model_facts)
 
 
 @method("runtime.operator.conversation.model.select", tier=TIER_CONSOLE)

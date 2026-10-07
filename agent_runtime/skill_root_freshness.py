@@ -62,11 +62,13 @@ class TurnRootRegistries(dict):
     that finds a name missing can walk exactly those.
     """
 
-    __slots__ = ("served_from_cache",)
+    __slots__ = ("served_from_cache", "preparation_epoch")
 
     def __init__(self) -> None:
         super().__init__()
         self.served_from_cache: dict[str, Path] = {}
+        from agent_runtime.preparation_reads import SkillPreparationEpoch
+        self.preparation_epoch = SkillPreparationEpoch()
 
 
 def registry_for_turn(root: Path, root_key: str, turn_map: TurnRootRegistries) -> Any:

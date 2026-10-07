@@ -441,6 +441,8 @@ def _archive_instance_row(store: PersonaInstanceStore, instance: PersonaInstance
     store._release_parent_references(instance.id)
     archive_dir.mkdir(parents=True, exist_ok=True)
     target = archive_dir / source.name
+    if store.preparation_epoch is not None:
+        store.preparation_epoch.invalidate()
     shutil.move(str(source), str(target))
     return target
 

@@ -521,6 +521,26 @@ def _global_auth_file_path() -> Optional[Path]:
     return None if _same_path(_auth_file_path(), global_path) else global_path
 
 
+def authentication_owner_stamps() -> tuple:
+    """Revision identities for native profile/shared stores used by provider resolution.
+
+    No credentials are read. Creation, rotation, replacement and sign-out all
+    change the identity; callers must not invent a separate auth-path cascade.
+    """
+    paths = [_auth_file_path()]
+    shared = _global_auth_file_path()
+    if shared is not None:
+        paths.append(shared)
+    stamps = []
+    for path in paths:
+        try:
+            stat = path.stat()
+            stamps.append((str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino))
+        except FileNotFoundError:
+            stamps.append((str(path), None, None, None))
+    return tuple(stamps)
+
+
 def _load_global_auth_store() -> Dict[str, Any]:
     """Load the global-root auth store (read-only fallback, mtime-memoised); ``{}`` when absent or
     unreadable — a malformed global store must never break profile reads."""

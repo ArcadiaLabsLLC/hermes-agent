@@ -201,6 +201,8 @@ def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -
         rode_inflight = bool(accept_inflight and state["running"])
         target = state["started"] + (0 if rode_inflight else 1)
         while True:
+            from agent_runtime.request_control import raise_if_request_cancelled
+            raise_if_request_cancelled()
             if state["done"] >= target and state["result"] is not None:
                 payload = copy.deepcopy(state["result"])
                 if state["waiters"] == 0:
@@ -225,7 +227,7 @@ def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -
                 state["started"] += 1
                 return None, state["started"]
             state["waiters"] += 1
-            _BUILD_COALESCE.wait()
+            _BUILD_COALESCE.wait(timeout=0.1)
             state["waiters"] -= 1
 
 
