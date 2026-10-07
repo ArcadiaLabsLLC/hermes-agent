@@ -115,11 +115,22 @@ def note_active_agent(agent: Any) -> None:
 
 # ── the thread ──────────────────────────────────────────────────────────────
 
-def _enabled() -> bool:
-    try:
-        from agent_runtime.persona_chat_continuity.runtime_registry import persona_chat_runtime_registry
+#: Whether this process keeps resident chats (a serve). Injected by the layer that owns the
+#: registry (``persona_chat_continuity.runtime_registry.initialize_persona_chat_runtime_registry``)
+#: so this policy module never imports a store.
+_LIVE: dict[str, Callable[[], bool] | None] = {"check": None}
 
-        return persona_chat_runtime_registry() is not None
+
+def bind_registry_live(check: Callable[[], bool] | None) -> None:
+    """Set the callable that answers "is the resident chat registry on?" (None: off)."""
+
+    _LIVE["check"] = check
+
+
+def _enabled() -> bool:
+    check = _LIVE["check"]
+    try:
+        return bool(check()) if check is not None else False
     except Exception:
         return False
 
@@ -209,6 +220,7 @@ def reset_for_tests() -> None:
 
 __all__ = [
     "KEEPER_INTERVAL_SECONDS", "KEEPER_MAX_TICKS", "KEEPER_RECEIPT", "KEEPER_THREAD_NAME", "arm",
+    "bind_registry_live",
     "keeper_thread_for_tests", "note_active_agent", "note_window_closed", "note_window_opened",
     "register_refresh", "reset_for_tests", "stop", "tick_once", "turn_window_open",
 ]
