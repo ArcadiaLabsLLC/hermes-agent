@@ -36,7 +36,8 @@ def is_excluded_skill_path(path, *, root: Optional[Path] = None) -> bool:
     """True if *path* should be skipped by skill scanners (VCS/dependency/cache
     dirs + support packages). Apply to every SKILL.md from a direct ``rglob``."""
     parts = PurePath(str(path)).parts
-    return any(part in EXCLUDED_SKILL_DIRS for part in parts) or is_skill_support_path(path, root=root)
+    excluded = excluded_skill_dirs()
+    return any(part in excluded for part in parts) or is_skill_support_path(path, root=root)
 
 
 def is_skill_support_path(path, *, root: Optional[Path] = None) -> bool:
@@ -319,14 +320,29 @@ def _config_str_list(raw) -> List[str]:
     return [e for e in (str(entry).strip() for entry in raw) if e]
 
 
+def excluded_skill_dirs() -> frozenset:
+    """``EXCLUDED_SKILL_DIRS`` plus the directory names listed in ``skills.excluded_dirs``."""
+    return EXCLUDED_SKILL_DIRS | frozenset(_config_str_list(_skills_cfg_get("excluded_dirs")))
+
+
+def get_extra_skills_dirs() -> List[Path]:
+    """Validated ``skills.extra_dirs``: additional WRITABLE skill roots, searched after the
+    local skills dir. Unlike ``external_dirs`` they are not classed read-only."""
+    return _config_skills_dirs("extra_dirs")
+
+
 def get_external_skills_dirs() -> List[Path]:
     """Validated, deduplicated ``skills.external_dirs`` (existing dirs only). Entries
     are ``~``/``${VAR}`` expanded, relative to HERMES_HOME; the local skills dir is skipped."""
+    return _config_skills_dirs("external_dirs")
+
+
+def _config_skills_dirs(key: str) -> List[Path]:
     config_path = get_config_path()
     if not config_path.exists():
         return []
     full_key = _config_cache_key(config_path)
-    cache_key = full_key
+    cache_key = full_key if key == "external_dirs" or full_key is None else (key, *full_key)
     cached = _EXTERNAL_DIRS_CACHE.get(cache_key) if cache_key is not None else None
     if cached is not None:
         return list(cached)  # copy so callers can't mutate the cache
@@ -335,7 +351,7 @@ def get_external_skills_dirs() -> List[Path]:
         return []
     local_skills = get_skills_dir().resolve()
     result: List[Path] = []
-    for entry in _config_str_list(skills_cfg.get("external_dirs")):
+    for entry in _config_str_list(skills_cfg.get(key)):
         p = _home_relative(_expand_path(entry)).resolve()
         if p == local_skills or p in result:
             continue
@@ -380,10 +396,10 @@ def display_skill_create_dir() -> str:
     return create_dir.as_posix() + "/"
 
 
-# Cross-directory precedence, lowest tier wins: trusted project > local profile > skills.create_dir >
-# skills.external_dirs. Inside ONE tier two different skills sharing a name stay ambiguous — refused,
+# Cross-directory precedence, lowest tier wins: trusted project > local profile > skills.extra_dirs >
+# skills.create_dir > skills.external_dirs. Inside ONE tier two different skills sharing a name stay ambiguous — refused,
 # never guessed (59da8ec4e) — while identical copies under one root resolve to the shallowest.
-TIER_PROJECT, TIER_LOCAL, TIER_CREATE_DIR, TIER_EXTERNAL = range(4)
+TIER_PROJECT, TIER_LOCAL, TIER_EXTRA, TIER_CREATE_DIR, TIER_EXTERNAL = range(5)
 # Leading words of every same-tier refusal (skill_view error, preload/cron label) — one spelling.
 AMBIGUOUS_SKILL_PREFIX = "Ambiguous skill name "
 # (shadowed path, *sorted higher-tier paths) already judged: the identity check (it hashes both
@@ -397,9 +413,10 @@ def get_skill_search_roots(local: Optional[Path] = None, *, include_project: boo
     skills dir (skills_tool passes its live root); that entry is kept even when missing."""
     roots = [(TIER_PROJECT, d) for d in get_project_skills_dirs()] if include_project else []
     roots.append((TIER_LOCAL, Path(local) if local is not None else get_skills_dir()))
+    roots += [(TIER_EXTRA, d) for d in get_extra_skills_dirs()]
     shared = get_shared_skills_dir()
-    if shared.expanduser() != roots[-1][1].expanduser():
-        roots.append((TIER_LOCAL, shared))
+    if shared.expanduser() not in {d.expanduser() for _, d in roots}:
+        roots.append((TIER_EXTRA, shared))
     create_dir = get_skill_create_dir()
     if create_dir is not None and create_dir.is_dir():
         roots.append((TIER_CREATE_DIR, create_dir))
@@ -409,7 +426,7 @@ def get_skill_search_roots(local: Optional[Path] = None, *, include_project: boo
 
 
 def get_all_skills_dirs() -> List[Path]:
-    """Skill dirs: local ``~/.hermes/skills/`` first, then create_dir, then external.
+    """Skill dirs: local ``~/.hermes/skills/`` first, then extra_dirs, then create_dir, then external.
     Trusted project dirs are NOT included (higher precedence; see get_project_skills_dirs)."""
     return [d for _tier, d in get_skill_search_roots(include_project=False)]
 
@@ -484,7 +501,7 @@ def resolve_skill_catalog(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]
                 _SHADOW_CHECKED.add(key)
                 if not any(provably_same_skill([e["path"], out[j]["path"]]) for j in higher):
                     logger.warning("Skill '%s' at %s is shadowed by a higher-precedence copy "
-                                   "(project > local > create_dir > external_dirs)", name, e["path"])
+                                   "(project > local > extra_dirs > create_dir > external_dirs)", name, e["path"])
         elif winner[name] == i:
             e.update(status="unique", load_name=name)
         else:
@@ -846,11 +863,12 @@ def is_skill_description_truncated_for_prompt(frontmatter: Dict[str, Any]) -> bo
 
 def iter_skill_index_files(skills_dir: Path, filename: str):
     """Walk skills_dir yielding sorted paths matching *filename*; prunes
-    EXCLUDED_SKILL_DIRS and support dirs of skill roots."""
+    ``excluded_skill_dirs()`` and support dirs of skill roots."""
     matches: list[str] = []
+    excluded = excluded_skill_dirs()
     for root, dirs, files in os.walk(str(skills_dir), followlinks=True):
         has_skill_md = "SKILL.md" in files
-        dirs[:] = [d for d in dirs if d not in EXCLUDED_SKILL_DIRS and not (has_skill_md and d in SKILL_SUPPORT_DIRS)]
+        dirs[:] = [d for d in dirs if d not in excluded and not (has_skill_md and d in SKILL_SUPPORT_DIRS)]
         if filename in files:
             matches.append(os.path.join(root, filename))
     yield from map(Path, sorted(matches))
