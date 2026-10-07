@@ -1,5 +1,4 @@
 """Profile-owner seeding qualifies tiered roots without write-on-scan."""
-from pathlib import Path
 
 from agent import skill_utils
 from agent_runtime.profile_home import get_shared_skills_dir, seed_profile_skill_roots
@@ -12,7 +11,8 @@ def test_two_profile_layouts_preserve_user_roots_exclusions_and_live_switch(tmp_
     shared = root / "shared" / "skills"
     shared.mkdir(parents=True)
     extra, external = tmp_path / "user-extra", tmp_path / "external"
-    extra.mkdir(); external.mkdir()
+    extra.mkdir()
+    external.mkdir()
     for name in ("alice", "bob"):
         home = root / "profiles" / name
         home.mkdir(parents=True)
@@ -52,7 +52,8 @@ def test_malformed_profile_skills_are_preserved_on_refusal(tmp_path):
 
 def test_explicit_user_shared_root_is_preserved_without_duplicate(tmp_path, monkeypatch):
     home, shared = tmp_path / "profile", tmp_path / "shared"
-    home.mkdir(); shared.mkdir()
+    home.mkdir()
+    shared.mkdir()
     monkeypatch.setenv("HERMES_SHARED_SKILLS", str(shared))
     path = home / "config.yaml"
     path.write_text(f"skills:\n  extra_dirs: [{shared.as_posix()}]\n  excluded_dirs: [user]\n", encoding="utf-8")

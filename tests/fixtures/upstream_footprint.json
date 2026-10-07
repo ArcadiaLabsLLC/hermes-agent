@@ -1,6 +1,6 @@
 {
   "measured_at": "2026-10-06",
-  "base": "ee5f49b943",
+  "base": "cc75e8f402",
   "files": 176,
   "deleted_lines": 883,
   "heavy": 4,
@@ -25,7 +25,7 @@
     },
     {
       "change": "lane h-upgaps (fork-hygiene row: footprint 172->175 red + ledger gaps): baseline the three MCP job-wake seams that landed unledgered (d9bb0469d2, owner ruling 2026-10-03)",
-      "files": "173 -> 176: tools/mcp_tool_handlers.py (3 added, 0 deleted), tools/mcp_tool_health.py (2 added, 0 deleted), tools/process_registry_notifications.py (3 added, 0 deleted) — red on main since d9bb0469d2, named and not baselined by the h-turn1-tail row",
+      "files": "173 -> 176: tools/mcp_tool_handlers.py (3 added, 0 deleted), tools/mcp_tool_health.py (2 added, 0 deleted), tools/process_registry_notifications.py (3 added, 0 deleted) \u2014 red on main since d9bb0469d2, named and not baselined by the h-turn1-tail row",
       "deleted_lines": "883 -> 883: all three seams are additive; heavy unchanged at 4",
       "reason": "None can move to a fork module without an upstream edit: the wake needs the caller's routing read on the MCP tool worker thread plus the raw CallToolResult (no stock door; post_tool_call carries the capped handler JSON), the server's notifications/message (the logging callback is a private closure), and a renderer for a new completion_queue event type in the formatter the upstream CLI/TUI/gateway drains call. Each is a one-line call into tools/mcp_job_wake.py; the ledger rows are `hook` and name the door each wants."
     },
@@ -48,13 +48,13 @@
       "reason": "No fork door: with no history _restore_or_build_system_prompt never reads the session row, and build_turn_context skips the function entirely once _cached_system_prompt is set, so neither pre-seeding the row nor the cache reaches the first-turn tail (persist, on_session_start). The block calls agent_runtime.prewarmed_system_prompt.take_prewarmed_system_prompt with upstream's own _stored_prompt_matches_runtime; held PR row in upstream-footprint-ledger.md."
     },
     {
-      "change": "owner ruling 2026-10-02 (lane w13-hm): drop the Copilot plain-client carry in agent/process_bootstrap.py build_keepalive_http_client — upstream's bytes restored there",
+      "change": "owner ruling 2026-10-02 (lane w13-hm): drop the Copilot plain-client carry in agent/process_bootstrap.py build_keepalive_http_client \u2014 upstream's bytes restored there",
       "files": "172 -> 172: agent/process_bootstrap.py still carries the _load_openai_cls sdk_import_failure guard",
       "deleted_lines": "882 -> 882: the carry was additive (5 added, 0 deleted); the file's added lines fall 10 -> 5; heavy unchanged at 4",
       "reason": "The 'second request stalls' cause did not reproduce on upstream 8d30c4eaab (lane h12-upfix 2026-09-30); Copilot now rides upstream's shared keepalive transport like every direct host, pinned by tests/agent/test_copilot_keepalive_no_carry.py."
     },
     {
-      "change": "owner ruling 2026-10-01: drop the watcher reply_to carry in gateway/run_notifications.py — Eternia Harness reports finished background work in Mission Control's own Background Work panel; chat-platform alerts follow upstream 10938a7cf9 (#52694, standalone, no stale reply anchor)",
+      "change": "owner ruling 2026-10-01: drop the watcher reply_to carry in gateway/run_notifications.py \u2014 Eternia Harness reports finished background work in Mission Control's own Background Work panel; chat-platform alerts follow upstream 10938a7cf9 (#52694, standalone, no stale reply anchor)",
       "files": "173 -> 172: gateway/run_notifications.py is byte-identical to upstream",
       "deleted_lines": "883 -> 882: the one replaced upstream line is restored",
       "reason": "The line only threaded Telegram \"background process finished\" alerts under the message that started the job; upstream deliberately sends them standalone, our PR #125266 was closed, and the owner chose Mission Control as the surface for background work. A per-deployment threading choice, if ever wanted, belongs in the eternia-harness plugin behind an upstream delivery hook, not in an upstream file."
@@ -78,7 +78,7 @@
       "reason": "Two native OAuth fallback return sites must respect the explicitly selected credential authority. Red evidence: an empty owner otherwise borrowed another global account. Existing standalone fallback is preserved. Registry, credentials and model resolution are reused, not duplicated. See docs/downstream/provider-access-boundary-2026-10-01.md; generic extension seams are upstream candidates, not a submitted PR."
     },
     {
-      "change": "lane s2-g5: agent/secret_sources/bitwarden.py's _derive_encrypted_cache_key imports cryptography ImportError-guarded (raises RuntimeError, which both callers' best-effort cache paths already absorb) — phone-gate plan 2026-09-30, lane G5, owner decision D3",
+      "change": "lane s2-g5: agent/secret_sources/bitwarden.py's _derive_encrypted_cache_key imports cryptography ImportError-guarded (raises RuntimeError, which both callers' best-effort cache paths already absorb) \u2014 phone-gate plan 2026-09-30, lane G5, owner decision D3",
       "files": "172 -> 173 (after the unified-documents row): agent/secret_sources/bitwarden.py",
       "deleted_lines": "879 -> 881: the two re-indented import lines; heavy unchanged at 4",
       "reason": "The bundled phone profile omits cryptography (D3: the vault is dropped on phones), and the closure refuses an omitted distribution imported unguarded in any kept module. The Bitwarden secret source is kept (the secret-source registry imports it on the turn path) and its encrypted last-good cache is the one remaining unguarded site; a function-level stand-in cannot answer an import site. Upstream door: the same guard is an upstreamable 'cryptography is optional for the bws cache' change; its merge retires this carry."
@@ -90,16 +90,16 @@
       "reason": "Discovery must precede the agent tool snapshot. Native turns bind the existing request transport; isolated compute must transport and settle discovery before its full session is registered. Capability policy, registry and documents remain Launcher-owned. Ordinary gateway paths retain their existing factory. See docs/downstream/unified-document-native-tools-2026-09-30.md."
     },
     {
-      "change": "lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) — phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)",
+      "change": "lane s2-g4: hermes_bootstrap's module-level relaunch moved into hermes_cli.venv_sync.relaunch_if_needed (imported guarded) and tui_gateway.methods_prompt's pdf.attach moved into the new fork-carried tui_gateway/methods_pdf.py (registered in tui_gateway/server.py behind a guarded import) \u2014 phone-gate plan 2026-09-30, lane G4, bucket D4 (M6 doors with fork carry)",
       "files": "170 -> 172: hermes_cli/venv_sync.py (relaunch_if_needed), tests/fixtures/resolution_allowlist.json (the pdftoppm `which` entry follows the handler to methods_pdf.py)",
       "deleted_lines": "743 -> 876: methods_prompt.py loses the pdf.attach handler and its two helpers (the moved lines), hermes_bootstrap.py the inline relaunch block, the allowlist one path; heavy unchanged at 4",
       "reason": "The bundled phone profile refuses a subprocess call in any kept module. hermes_bootstrap runs its relaunch at module level and every embedder imports it, and pdf.attach sits inside methods_prompt, which the in-process gateway needs; neither can be answered by a function-level stand-in, so each spawn moves to a module the phone switches off. The upstream PRs carrying the same moves (NousResearch/hermes-agent #129413 relaunch, #129414 pdf) retire this carry on merge; the fork's guarded imports and the ABI step inside relaunch_if_needed stay fork seams."
     },
     {
-      "change": "lane s2-g2: the phone's kept psutil and tty import sites guarded — hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)",
+      "change": "lane s2-g2: the phone's kept psutil and tty import sites guarded \u2014 hermes_cli/process_identity.py::_kill_process_tree_windows, hermes_constants_scratch.py::_own_lineage / reap_processes_rooted_in (psutil) and hermes_cli/secret_prompt.py::_masked_secret_prompt_posix (termios/tty) (phone-gate plan 2026-09-30, lane G2, buckets A psutil and B; the thin seams the plan names M6 with fork carry)",
       "files": "167 -> 170: hermes_cli/process_identity.py, hermes_constants_scratch.py, hermes_cli/secret_prompt.py",
       "deleted_lines": "738 -> 743: each import re-indented under try/except ImportError (1 + 2 + 2); heavy unchanged at 4",
-      "reason": "The bundled phone profile omits psutil (a phone starts no sibling process), which the closure allows only when every kept import site is ImportError-guarded, and refuses an unguarded termios/tty import. hermes_constants_scratch was to be switched off (plan bucket D1) but lane G1 kept it. secret_prompt was to be switched off behind a loop-placeholder stand-in (plan M2), but hermes_cli.config imports it while the embedded entry module itself is imported, before EmbeddedServe.start registers the placeholders — so the plan's own later step (guard the two imports) is taken now; the ImportError falls back to getpass, as any raise there already did. The upstream PRs are lane G4's; their merge retires this carry."
+      "reason": "The bundled phone profile omits psutil (a phone starts no sibling process), which the closure allows only when every kept import site is ImportError-guarded, and refuses an unguarded termios/tty import. hermes_constants_scratch was to be switched off (plan bucket D1) but lane G1 kept it. secret_prompt was to be switched off behind a loop-placeholder stand-in (plan M2), but hermes_cli.config imports it while the embedded entry module itself is imported, before EmbeddedServe.start registers the placeholders \u2014 so the plan's own later step (guard the two imports) is taken now; the ImportError falls back to getpass, as any raise there already did. The upstream PRs are lane G4's; their merge retires this carry."
     },
     {
       "change": "lane h13-sweep: the three MC timing stamps in agent/turn_api_request.py dropped (owner-delegated 2026-09-29, runtime-queue DOORS-A row option 1)",
@@ -153,7 +153,7 @@
       "change": "lane h11-mcp (5c8e850b18, c05c9d58d7), landed on main while h10-fhrel was landing",
       "files": "179 -> 180: adds agent/tool_dispatch_helpers.py and hermes_cli/mcp_startup.py (additive, 0 deleted each), retires tools/mcp_tool.py",
       "deleted_lines": "954 -> 955: tui_gateway/server.py 5 -> 7, net of tools/mcp_tool.py leaving",
-      "reason": "Recorded by the h10 landing so the gate states main honestly; the owner's move-first ruling (2026-09-29) applies — whether the two new files can move behind a fork seam is the h11 program's to check."
+      "reason": "Recorded by the h10 landing so the gate states main honestly; the owner's move-first ruling (2026-09-29) applies \u2014 whether the two new files can move behind a fork seam is the h11 program's to check."
     },
     {
       "change": "landing of lane h10-fhrel onto main (after h10-rtseam and h10-rtfork)",
@@ -177,7 +177,7 @@
       "change": "phone-P1 landing tip (lanes p1-hsplit + p1-hsec + p1-hloop + p1-hint) on origin/main 48ec00999a",
       "files": "117 -> 155: origin/main 48ec00999a already measures 143 (unrecorded main drift, 26 files); p1-hsec adds 12 (its seams, reasons row above); p1-hsplit, p1-hloop and p1-hint add 0",
       "deleted_lines": "770 -> 921: all 151 from origin/main's unrecorded drift; the three phone lanes and p1-hint add 0 (every phone edit to an upstream file is additive)",
-      "reason": "The ratchet was red on main before this landing (main 143/921/4 vs fixture 117/770/3). The phone lanes' own share is p1-hsec's +12 additive seam files, argued in its row above; the main drift is not absorbed as reviewed — its audit and disposition stay the open fork-hygiene row 'Reconcile the upstream-footprint ledger with main's unrecorded growth'. Measured with scripts/upstream_footprint.py's own counting over git diff --numstat base..<ref> for origin/main, each lane commit and the tip."
+      "reason": "The ratchet was red on main before this landing (main 143/921/4 vs fixture 117/770/3). The phone lanes' own share is p1-hsec's +12 additive seam files, argued in its row above; the main drift is not absorbed as reviewed \u2014 its audit and disposition stay the open fork-hygiene row 'Reconcile the upstream-footprint ledger with main's unrecorded growth'. Measured with scripts/upstream_footprint.py's own counting over git diff --numstat base..<ref> for origin/main, each lane commit and the tip."
     },
     {
       "change": "Owner-approved optional Discussion conclusion, 2026-09-28",
@@ -213,7 +213,7 @@
       "change": "lane MECH (seam/mech-apply-2026-09-24)",
       "files": "448 -> 408: 40 files byte-identical to d337b736aa again (16 of them to upstream/main too) - 15 REVERT rows, 9 win-text-encoding tests, 7 website pages, the P6/P7 set (hermes_constants, profile_cmd, subcommands/profile, test_profile_delete_log_handlers), modal/singularity, ci.yaml, kanban_db, test_startup_latency_regressions",
       "deleted_lines": "2800 -> 2612 (profiles.py 29 -> 20, auxiliary_client 42 -> 2, turn_api_call 26 -> 1, the reverts and moves)",
-      "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three § Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
+      "reason": "applied the ledger's decided dispositions: REVERTs, adopt-upstream duplicates, the three \u00a7 Seams defects, the four dropped-PR rulings, movable carries; heavy 12 -> 11"
     },
     {
       "change": "lane S2 (seam/s2-plugin-surface-2026-09-24)",
@@ -268,7 +268,7 @@
       "change": "lane CARRY2A (seam/test-carries-cli-2026-09-24)",
       "files": "346 -> 313",
       "deleted_lines": "2131 -> 1918",
-      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner — comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports. Class A2: 9 files whose hardening upstream's bytes no longer need on this host — hang-bound widenings (active_sessions, relay_shared_metrics), host-OS fakes (managed_uv, update_stale_dashboard, owner 2026-09-24: drop the fakes), stubs for walks that fit the cap (update_autostash, update_fleet_restart_pending, local_quickstart), a Git-on-PATH respelling (kanban_reclaim_claim_lock_guard), and worktree_selfheal's pre-2.32-git hedge plus a second-pass test upstream's TestRepackStampede now owns. Class B/C: 13 files — marks, timeouts and platform treatments by test id (codex_cli_model_picker, lazy_command_exports, gateway_job_teardown_live, relaunch, kanban_boards), a marker-gated conftest fixture (background_agent_turns for the two notification-display witnesses; profiles' psutil-lister tests need nothing since lane ADOPT's fence patches psutil.process_iter), and rule-4 strict xfails naming the fork symbol with the opposite assertion in a sibling (config_read_guard, dashboard_tui_backcompat, dashboard_unified_launch, gateway_windows); mcp_config and profiles' fork tests moved to siblings importing the upstream fixture"
+      "reason": "tests/hermes_cli carries restored to upstream's bytes (the fork's marks ride tests/_downstream/id_markers.py, fork tests ride *_downstream.py siblings). Class A1: 11 files whose fork hunks were dead on this runner \u2014 comments, reload removals and sys.modules restores already done by the directory's _sys_modules_identity_is_restored, the AWS scrub tests/conftest.py already does, doctor HERMES_HOME re-spellings the fork's PEP 562 _LIVE_HOME_NAMES already answers, a call re-routed to _bytecode_sweep that main still re-exports. Class A2: 9 files whose hardening upstream's bytes no longer need on this host \u2014 hang-bound widenings (active_sessions, relay_shared_metrics), host-OS fakes (managed_uv, update_stale_dashboard, owner 2026-09-24: drop the fakes), stubs for walks that fit the cap (update_autostash, update_fleet_restart_pending, local_quickstart), a Git-on-PATH respelling (kanban_reclaim_claim_lock_guard), and worktree_selfheal's pre-2.32-git hedge plus a second-pass test upstream's TestRepackStampede now owns. Class B/C: 13 files \u2014 marks, timeouts and platform treatments by test id (codex_cli_model_picker, lazy_command_exports, gateway_job_teardown_live, relaunch, kanban_boards), a marker-gated conftest fixture (background_agent_turns for the two notification-display witnesses; profiles' psutil-lister tests need nothing since lane ADOPT's fence patches psutil.process_iter), and rule-4 strict xfails naming the fork symbol with the opposite assertion in a sibling (config_read_guard, dashboard_tui_backcompat, dashboard_unified_launch, gateway_windows); mcp_config and profiles' fork tests moved to siblings importing the upstream fixture"
     },
     {
       "change": "lane MOVE-A group 9 (seam/carry-move-a-2026-09-24)",
@@ -410,52 +410,52 @@
       "reason": "history-preserving merge and the supersession pass: 1 hunk retired (tests/hermes_cli/test_doctor_journal_modes.py's win32 skip on test_partial_holder_scan_is_never_an_all_clear, 14 -> 7 added: upstream now scans holders on Windows); no ledger row left, all 19 open upstream PRs still open; heavy flat at 4"
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth.py",
       "files": "counted in 195 -> 200",
       "deleted_lines": "added/deleted at 749220ef00: 13/1 -> 18/1; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth_codex.py",
       "files": "195 -> 200 across the eight files of this batch (four newly touched)",
       "deleted_lines": "added/deleted at 749220ef00: new: 11/1; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_codex_browser.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth_codex_browser.py",
       "files": "195 -> 200 across the eight files of this batch (four newly touched)",
       "deleted_lines": "added/deleted at 749220ef00: new: 4/1; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_minimax.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth_minimax.py",
       "files": "195 -> 200 across the eight files of this batch (four newly touched)",
       "deleted_lines": "added/deleted at 749220ef00: new: 14/2; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_nous.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth_nous.py",
       "files": "counted in 195 -> 200",
       "deleted_lines": "added/deleted at 749220ef00: 2/1 -> 22/1; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/auth_xai.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/auth_xai.py",
       "files": "195 -> 200 across the eight files of this batch (four newly touched)",
       "deleted_lines": "added/deleted at 749220ef00: new: 13/1; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/provider_catalog.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/provider_catalog.py",
       "files": "counted in 195 -> 200",
       "deleted_lines": "added/deleted at 749220ef00: 189/0 -> 192/0; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
-      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) — hermes_cli/subcommands/auth.py",
+      "change": "owner auth/provider commits 98f8a8caf9, 38f9345633, 09d722bb30 (2026-09-24) \u2014 hermes_cli/subcommands/auth.py",
       "files": "counted in 195 -> 200",
       "deleted_lines": "added/deleted at 749220ef00: 35/0 -> 37/0; batch total 990 -> 999; heavy unchanged at 4",
-      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue § Seams row of the same date, which lowers this fixture back."
+      "reason": "Owner-requested: canonical browser sign-in exposed through a scoped machine transport, and canonical provider ids beside the login health labels. No plugin hook covers the per-provider sign-in sites, so the edit is in-file for now. Raised by the orchestrator 2026-09-25 after the fork-hygiene row filed on 2026-09-25 ([up-fp] ROSE on main); the move behind the plugin surface is the runtime-queue \u00a7 Seams row of the same date, which lowers this fixture back."
     },
     {
       "change": "weekly merge upstream/main 067fa1a257 (merge/upstream-2026-09-25, merge commit 2aa09594c5) + re-seats A/B + the supersession pass",
@@ -525,7 +525,7 @@
     },
     {
       "change": "lane FOOTPRINT-DROP (lane/footprint-drop): sort-and-drop of the 151 footprint files (table: docs/agent-runtime-harness/planned/footprint-drop-2026-09-27.md)",
-      "files": "151 -> 117: 34 files back at 2f14d5e6e4 bytes — 32 upstream test files (5 linux marks moved to id_markers; 6 doc pointers / an unused import; 16 Windows respellings upstream's own platforms marks already skip; 2 respellings moved to *_downstream.py siblings with win32 strict xfails; the local-runtime stub, now a timeout mark by id; the redundant test_hermes_constants pin; the bypass self-test, now a win32 skip by id plus a sibling), the CRLF contributor file (a -text keeper), and hermes_cli/provider_catalog.py (its block is hermes_cli/provider_login_catalog.py)",
+      "files": "151 -> 117: 34 files back at 2f14d5e6e4 bytes \u2014 32 upstream test files (5 linux marks moved to id_markers; 6 doc pointers / an unused import; 16 Windows respellings upstream's own platforms marks already skip; 2 respellings moved to *_downstream.py siblings with win32 strict xfails; the local-runtime stub, now a timeout mark by id; the redundant test_hermes_constants pin; the bypass self-test, now a win32 skip by id plus a sibling), the CRLF contributor file (a -text keeper), and hermes_cli/provider_catalog.py (its block is hermes_cli/provider_login_catalog.py)",
       "deleted_lines": "834 -> 766: the reverted files' deletions; heavy 4 -> 3 (agent/pet/generate/atlas.py 199 -> 109). Twelve kept files shrank into fork modules (each move's red is in its commit message): gateway.py 169 -> 20, gateway_windows.py 123 -> 5, tool_search.py 117 -> 37, terminal_tool.py 86 -> 30, plugins/memory 69 -> 2, subcommands/auth.py 37 -> 2, model_tools.py 31 -> 4, update_cmd_windows.py 30 -> 4, process_registry_notifications.py 29 -> 3, plugins_manifest.py 20 -> 5, live_system_guard.py 169 -> 39",
       "reason": "footprint moves to fork-owned modules, id marks and siblings; no behaviour change (bucket b found no load-time-safe wrap)"
     },
@@ -540,6 +540,10 @@
       "files": "173 -> 173: agent/auxiliary_client.py was already in the footprint",
       "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
       "reason": "the title call closed the process-shared pool's warm connection mid-body, so a chat's next turn paid a new TLS connection; the adapter's stream has no hook between consume and close. Held-PR row in the upstream footprint ledger"
+    },
+    {
+      "change": "Job3 daily integration ownership manifest refreshed to frozen upstream cc75e8f402",
+      "reason": "Keep strict main ceilings176/883/4; actual measured excess remains red and is recorded, never hidden by rehearsal ceilings or PR adoption."
     }
   ]
 }
