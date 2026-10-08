@@ -5,6 +5,7 @@ helpers (``_sessions``, ``_ok``, ``_err``, ...) bare; module-level helpers are p
 server.py the same way (tests monkeypatching ``server.X`` still intercept)."""
 
 import contextlib
+from agent_runtime.conversations.worker_app_functions import session_construction
 
 from .method_ctx import HandlerRegistry, bind_module
 
@@ -910,6 +911,7 @@ def _resume_cold(ctx: _Resume) -> dict:
                             auto_continue=_maybe_schedule_auto_continue(sid, record, ctx.target))
 
 
+@session_construction
 def _resume_eager(ctx: _Resume) -> dict:
     """Synchronous build OUTSIDE _session_resume_lock (it would stall session.close), then double-checked."""
     sid, source, _cwd = ctx.mint()
@@ -2126,6 +2128,7 @@ def _visible_branch_history(messages) -> list:
             and _coerce_message_text(message.get("content")).strip()]
 
 
+@session_construction
 def _build_branch_agent(session: dict, new_sid: str, new_key: str, history: list, source: str):
     """Build + register the branched agent in the parent's profile; the DEDICATED db handle is ours until
     ``_transfer_db_to_agent`` (released here on failure)."""

@@ -409,6 +409,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-08 (native connection ownership cleanup)
+- [ ] **Compute-host minimal-session fallback calls a removed source helper and raises instead of recovering.** · `tui_gateway/compute_host.py::ComputeHost._build_server_session` calls `server._sanitize_client_source`, which is absent from the gateway namespace; exposed by forcing cwd hydration to raise. Evidence: `tests/agent_runtime/test_native_worker_app_function_lifetime.py::test_real_compute_host_transfers_the_link_even_with_minimal_session_fallback` supplies the missing helper only to isolate connection ownership; `docs/downstream/native-worker-link-qualification-2026-10-08.md`. Use the gateway's existing source resolver through the permitted upstream seam; do not duplicate sanitization.
+
 ### Filed on arrival — 2026-10-06 (upstream sync planning; AFTER the next release merge)
 
 - [ ] **`SdkFreeClient` on a desktop with openai installed (`agent.provider_sdks: false`) misses the #103673 pre-stream retry: codex_runtime catches the real `openai.APIConnectionError`, the client raises `httpx_client.APIConnectionError`, and the shim installs only when no real SDK exists** · runtime / provider transport · evidence: 0099b1a33f, `tests/agent/test_run_agent_codex_responses_downstream.py` docstring · lane: seam

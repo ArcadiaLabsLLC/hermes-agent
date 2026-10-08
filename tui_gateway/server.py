@@ -2559,8 +2559,8 @@ def _make_agent(
     ignore_rules = is_truthy_value(os.environ.get("HERMES_IGNORE_RULES"))
     with _sessions_lock:
         session = _sessions.get(sid)
-    from agent_runtime.conversations.worker_app_functions import create_agent
-    agent = create_agent(AIAgent, sid, session or {"source": platform_override},
+    from agent_runtime.conversations.worker_app_functions import construction_session, create_agent
+    agent = create_agent(AIAgent, sid, session if session is not None else construction_session(sid, platform_override),
         model=model, max_iterations=_cfg_max_turns(cfg, 500), provider=runtime.get("provider"),
         requested_provider=runtime.get("requested_provider"),
         base_url=runtime.get("base_url"), api_key=runtime.get("api_key"), api_mode=runtime.get("api_mode"),
@@ -2661,6 +2661,8 @@ def _init_session(
     _start_session_services(sid, key, _sessions.get(sid, {}))
     _emit("session.info", sid, _session_info(agent, _sessions.get(sid, {})))
     _schedule_mcp_late_refresh(sid, agent)
+    from agent_runtime.conversations.worker_app_functions import adopt
+    adopt(sid, _sessions[sid])
 
 
 def _new_session_key() -> str:

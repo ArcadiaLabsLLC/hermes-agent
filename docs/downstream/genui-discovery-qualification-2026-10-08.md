@@ -4,6 +4,8 @@ The Launcher now declares eager discovery on its generated list/create entry poi
 
 ## Runtime verification
 
+The later [native connection ownership cleanup](native-worker-link-qualification-2026-10-08.md) supersedes the owning-agent storage described above; these original qualification receipts remain historical evidence.
+
 | Check | Result |
 | --- | --- |
 | Initial focused catalog, discovery, prewarm and tool-search tests | 89 passed |

@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import pytest
 
@@ -252,3 +253,105 @@ def test_closed_sink_refuses_locally_without_a_server_request(monkeypatch):
     monkeypatch.setattr(server_requests, 'send', lambda *a, **kw: pytest.fail('retired connection sent a request'))
     worker._Sink.emit(sink, {'id': 'closed', 'method': app.LIST_METHOD})
     assert replies[0]['error']['code'] == -32000
+
+
+@pytest.fixture
+def gateway(monkeypatch):
+    from tui_gateway import server
+    from agent import shell_hooks
+    import run_agent
+
+    monkeypatch.setattr(server, '_sessions', {})
+    monkeypatch.setattr(run_agent, 'AIAgent', lambda **kw: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(shell_hooks, 'register_from_config', lambda cfg: None)
+    for name, value in {
+        '_load_cfg': {}, '_startup_system_prompt': '', '_load_provider_routing': {},
+        '_load_reasoning_config': None, '_load_service_tier': None,
+        '_load_enabled_toolsets': [], '_load_disabled_toolsets': [], '_load_fallback_model': None,
+        '_load_prefill_messages': [], '_agent_cbs': {}, '_load_show_reasoning': False,
+        '_load_tool_progress_mode': 'off', '_completion_cwd': '.', '_session_info': {},
+    }.items():
+        monkeypatch.setattr(server, name, lambda *a, _value=value, **kw: _value)
+    monkeypatch.setattr(server, '_resolve_agent_model_runtime', lambda *a: ('test', {}))
+    for name in ('_hydrate_session_cwd', '_register_session_cwd', '_wire_session_agent',
+                 '_start_session_services', '_emit', '_schedule_mcp_late_refresh', '_session_todo_state'):
+        monkeypatch.setattr(server, name, lambda *a, **kw: None)
+    monkeypatch.setattr(server, '_profile_build_scope', lambda *a: nullcontext())
+    monkeypatch.setattr(server, '_transfer_db_to_agent', lambda *a: False)
+    monkeypatch.setattr(server, '_maybe_schedule_auto_continue', lambda *a: None)
+    return server
+
+
+def resume_context():
+    return SimpleNamespace(
+        mint=lambda: ('resume', 'eternia_intelligence', '.'), restore=lambda: ([], [], []),
+        display_prefix=lambda: [], profile_home=None, target='stored', db=None, found={},
+        profile_resume_cwd='', owns_db=False, cols=80, rid='request')
+
+
+def test_real_eager_resume_transfers_the_discovered_link_to_the_registered_session(gateway, monkeypatch, catalog):
+    monkeypatch.setattr(gateway, '_find_live_session_by_key', lambda *a: None)
+    monkeypatch.setattr(gateway, '_resume_response', lambda *a, **kw: {'result': 'resumed'})
+    assert gateway._resume_eager(resume_context()) == {'result': 'resumed'}
+    registered = gateway._sessions['resume']
+    original_sink = catalog[0][0]
+    assert link_for('resume', registered).sink is original_sink
+    registered['agent'] = gateway._make_agent('resume', 'stored')
+    assert link_for('resume', registered).sink is original_sink
+    assert len(catalog) == 1
+
+
+def test_duplicate_eager_resume_closes_its_abandoned_connection(gateway, monkeypatch, catalog):
+    monkeypatch.setattr(gateway, '_find_live_session_by_key', lambda *a: ('winner', {}))
+    monkeypatch.setattr(gateway, '_resume_reuse_live_locked', lambda *a: {'result': 'winner'})
+    assert gateway._resume_eager(resume_context()) == {'result': 'winner'}
+    assert catalog[0][0].closed
+    assert not app._state.catalog
+
+
+@pytest.mark.parametrize('stage', ['hydrate', 'response'])
+def test_eager_resume_failure_releases_the_connection_before_or_after_registration(
+        stage, gateway, monkeypatch, catalog):
+    monkeypatch.setattr(gateway, '_find_live_session_by_key', lambda *a: None)
+
+    def fail(*a, **kw):
+        raise ValueError('registration failed')
+
+    monkeypatch.setattr(gateway, '_hydrate_session_cwd' if stage == 'hydrate' else '_resume_response', fail)
+    if stage == 'hydrate':
+        assert 'error' in gateway._resume_eager(resume_context())
+    else:
+        with pytest.raises(ValueError, match='registration failed'):
+            gateway._resume_eager(resume_context())
+    assert catalog[0][0].closed
+    assert not app._state.catalog
+
+
+def test_real_branch_build_has_an_independent_registered_connection(gateway, catalog):
+    parent = session()
+    parent.update(cwd='.', cols=80)
+    parent['agent'] = worker.create_agent(Agent, 'parent', parent)
+    parent_link = link_for('parent', parent)
+    gateway._build_branch_agent(parent, 'branch', 'stored', [], 'eternia_intelligence')
+    branch = gateway._sessions['branch']
+    assert link_for('branch', branch).sink is catalog[1][0]
+    assert link_for('parent', parent) is parent_link
+    assert len(catalog) == 2
+
+
+@pytest.mark.parametrize('fallback', [False, True])
+def test_real_compute_host_transfers_the_link_even_with_minimal_session_fallback(
+        fallback, gateway, monkeypatch, catalog):
+    from tui_gateway.compute_host import ComputeHost
+    host = SimpleNamespace(_transport=SimpleNamespace())
+    if fallback:
+        # Existing fallback names a removed gateway helper; qualify ownership separately.
+        monkeypatch.setattr(gateway, '_sanitize_client_source', gateway._resolve_session_source, raising=False)
+        def fail(*a, **kw):
+            raise ValueError('side machinery failed')
+        monkeypatch.setattr(gateway, '_hydrate_session_cwd', fail)
+    registered = ComputeHost._build_server_session(host, gateway, {
+        'sid': 'host', 'session_key': 'stored', 'source': 'eternia_intelligence'}, 'host')
+    assert link_for('host', registered).sink is catalog[0][0]
+    registered['agent'] = gateway._make_agent('host', 'stored')
+    assert len(catalog) == 1

@@ -1,8 +1,11 @@
 """Native-worker transport for the Launcher's existing app-function tools."""
 from __future__ import annotations
 
-from contextlib import nullcontext, suppress
-from dataclasses import dataclass
+from contextlib import contextmanager, nullcontext, suppress
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from functools import wraps
+import sys
 
 from agent_runtime import launcher_app_functions as app
 from agent_runtime.launcher_client_requests import resolve_response
@@ -73,6 +76,81 @@ class SessionBinding:
     @property
     def closed(self) -> bool:
         return self.link.sink.closed
+
+
+@dataclass
+class _Construction:
+    """Scoped owner until the gateway registers a successful eager build."""
+    session: dict = field(default_factory=dict)
+    destination: dict | None = None
+    transferred: SessionBinding | None = None
+    succeeded: bool = False
+
+    def complete(self, result):
+        self.succeeded = not (isinstance(result, dict) and "error" in result)
+        return result
+
+
+_construction: ContextVar[_Construction | None] = ContextVar("launcher_session_construction", default=None)
+
+
+@contextmanager
+def construction():
+    owner = _Construction()
+    token = _construction.set(owner)
+    try:
+        yield owner
+    finally:
+        close(owner.session)
+        if not owner.succeeded and owner.transferred is not None:
+            close(owner.destination, expected=owner.transferred)
+        _construction.reset(token)
+
+
+def session_construction(fn):
+    """Wrap the three eager gateway paths without storing state on their agents."""
+    runtime = sys.modules[__name__]
+
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        # Keep fork globals on the module: method_ctx rebinds split-handler globals.
+        with runtime.construction() as owner:
+            return owner.complete(fn(*args, **kwargs))
+
+    return wrapped
+
+
+def construction_session(sid, source):
+    owner = _construction.get()
+    if owner is None:
+        if enabled({"source": source}):
+            raise RuntimeError("Native agent construction requires a session ownership scope.")
+        return {"source": source}
+    held = owner.session.get(_SESSION_STATE_KEY)
+    if isinstance(held, SessionBinding) and held.sid != sid:
+        raise RuntimeError("A construction scope cannot own another session's connection.")
+    owner.session["source"] = source
+    return owner.session
+
+
+def adopt(sid, session):
+    """Transfer the exact discovered link after registration, including host fallback."""
+    owner = _construction.get()
+    if owner is None:
+        return
+    held = owner.session.get(_SESSION_STATE_KEY)
+    if not isinstance(held, SessionBinding):
+        return
+    with session.get("history_lock") or nullcontext():
+        if (held.sid != sid or held.closed or not enabled(session)
+                or session.get("_closing") or session.get("_finalized")):
+            raise RuntimeError("The Launcher app-function session is closed or unavailable.")
+        existing = session.get(_SESSION_STATE_KEY)
+        if existing is not None and existing is not held:
+            raise RuntimeError("The session already owns another Launcher connection.")
+        session[_SESSION_STATE_KEY] = held
+        owner.session.pop(_SESSION_STATE_KEY)
+        owner.destination, owner.transferred = session, held
 
 
 def close(session, *, expected=None):
