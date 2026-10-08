@@ -26,7 +26,6 @@ from agent_runtime import paths
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
-    chat_tickets_commands,
     chat_turn_message,
     lifecycle_commands,
 )
@@ -89,7 +88,10 @@ def session_db(monkeypatch):
     db = _RecordingSessionDB()
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
-    monkeypatch.setattr(chat_tickets_commands, "_default_persona_session_db", lambda: db)
+    # turn resolve moved below the CLI (5167db9ce9); its session-db seam moved with it.
+    from agent_runtime.chat_verbs import turn_resolve
+
+    monkeypatch.setattr(turn_resolve, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
     return db

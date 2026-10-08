@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from hermes_cli.flag_binding import list_flag_or_empty
 from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_harness_error
 
 __layer__ = "lanes"
@@ -86,12 +87,13 @@ def _cmd_workspace_slots_env_set(args) -> int:
         declared = live_slots(load_document(workspace_id)).get(slot)
         if declared is None:
             raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
+        # A fill is written whole (replace): an absent --path-prepend / --env-keep means "none".
         fill = set_slot_fill(workspace_id, slot, env=_pairs(args.env, "--env"),
-                             tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list(args.path_prepend or []),
+                             tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list_flag_or_empty(args, "path_prepend"),
                              dotenv=args.dotenv, venv=args.venv, secret_keys=secret_keys(declared),
-                             issued_at=_issued_at(args), env_keep=list(args.env_keep or []))
+                             issued_at=_issued_at(args), env_keep=list_flag_or_empty(args, "env_keep"))
         return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {}),
-                "env_keep_missing": sorted(set(args.env_keep or ()) - set(fill.env))}
+                "env_keep_missing": sorted(set(list_flag_or_empty(args, "env_keep")) - set(fill.env))}
 
     return _run(args, "workspace_slot_env", action)
 

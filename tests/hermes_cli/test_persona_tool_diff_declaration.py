@@ -123,8 +123,9 @@ def test_the_text_mode_names_the_source_and_the_ignored_list(
     # 43 -> 44: S2b registered ``agent_chat_installs`` into the ``agent_chat``
     # toolset, which ``harness_core`` includes by NAME. Re-measured with the S0a
     # ratchet in the same wave (``test_harness_core_ratchet.py``), never adjusted
-    # to make a red go green.
-    assert "dev: 44 tools" in out
+    # to make a red go green. 44 -> 45: HQ1 (``8767fbf7a1``) added ``harness_query``
+    # to ``agent_chat``; the same ratchet reads DECLARED_TOOL_COUNT = 45.
+    assert "dev: 45 tools" in out
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored (legacy" in out
     assert "kanban" in out

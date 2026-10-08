@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -190,7 +191,9 @@ def test_join_prints_the_correlation_it_was_given_and_records_the_far_expiry(
     (R-IP17), and the expiry the FAR side computed — read off the frame rather
     than derived here, so the two ends of the edge lapse together."""
 
-    _stub_successful_join(monkeypatch, expires_at="2026-10-03T00:00:00+00:00")
+    # Relative to now: a dated literal lapsed on 2026-10-03 and flipped `expired`.
+    far_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).replace(microsecond=0).isoformat()
+    _stub_successful_join(monkeypatch, expires_at=far_expiry)
 
     code = _dispatch(
         [
@@ -212,7 +215,7 @@ def test_join_prints_the_correlation_it_was_given_and_records_the_far_expiry(
     assert code == 0, out
     assert payload["fingerprint_attested"] is True
     assert payload["correlation"] == "grant-1"
-    assert payload["expires_at"] == "2026-10-03T00:00:00+00:00"
+    assert payload["expires_at"] == far_expiry
     assert payload["expired"] is False
 
 
