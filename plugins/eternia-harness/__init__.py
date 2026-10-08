@@ -68,17 +68,26 @@ def render_tool_guidance(session_info) -> str:
     """The harness's tool-conditional guidance: one line per tool present in the session.
 
     ``session_info["tool_names"]`` is the comma-joined sorted tool set core renders
-    the prompt with. The lines are the T6b policy moved OFF the brief wire
-    descriptions, so the section renders only in a session that runs that wire —
-    one that carries ``tool_describe`` — and then one line per gating tool present.
-    Anything else gets an empty section, which core skips.
+    the prompt with. The fixed lines are the T6b policy moved OFF the brief wire
+    descriptions, so they render only in a session that runs that wire — one that
+    carries ``tool_describe`` — and then one line per gating tool present. The
+    Launcher's app-function ``guidance`` lines render for any session whose list
+    holds the tool. Nothing present gets an empty section, which core skips.
     """
     from agent_runtime import prompt_guidance
+    from agent_runtime.launcher_app_functions import app_function_guidance_lines
 
     tools = set(str(session_info.get("tool_names") or "").split(","))
-    if "tool_describe" not in tools:
-        return ""
-    return "\n".join(getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools)
+    lines = (
+        [getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools]
+        if "tool_describe" in tools
+        else []
+    )
+    # The host's own WHEN rules (the Launcher's app-function ``guidance``), one
+    # line per offered tool present in this session: the rule, the tool brief
+    # and any skill then derive from one text the host owns.
+    lines.extend(app_function_guidance_lines(tools))
+    return "\n".join(lines)
 
 
 def render_windows_tooling(session_info=None) -> str:

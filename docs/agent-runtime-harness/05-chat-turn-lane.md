@@ -428,7 +428,11 @@ keeps upstream's correction, and a search reports the eager tools that answer a 
 `directly_available` beside the unchanged deferred `matches`. The describe `call_rule` says an
 eager tool is called by name. Nothing is granted that the session did not already offer.
 
-Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
+Launcher also owns the WHEN: an entry may carry a one-line `guidance`, and the
+`eternia-harness` tool-guidance prompt section renders it only while that tool is in the
+session's list (`agent_runtime.launcher_app_functions.app_function_guidance_lines`), so the tool
+brief, the prompt line and any skill derive from one host-owned text (lane host-guidance,
+2026-10-08). Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
 (`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
 full description, and `launcher.generated.list` returns the full component catalog and examples.
 Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
