@@ -9,12 +9,15 @@ The Launcher now declares eager discovery on its generated list/create entry poi
 | Initial focused catalog, discovery, prewarm and tool-search tests | 89 passed |
 | Extended native-worker discovery tests | 14 passed |
 | Extended prewarm tests using real search assembly | 5 passed |
+| Final discovery + prewarm checks after the catalog-lifetime fix | 20 passed |
 | Full sanctioned landing gate over `tests` | 993 files; 13,338 passed, 70 failed, 64 skipped; 822 seconds, 8 workers |
 | Same 12 failing files on untouched base `7ea1c17366` | 58 passed, the identical 70 nodes failed, 3 skipped; 199 seconds |
+| Repeated full sanctioned landing gate, final runtime | 993 files; 13,323 passed, 71 failed, 64 skipped; one additional file times out; 631 seconds, 8 workers |
+| Additional failing files on unchanged base | Stream-gap assertion matches; cleanup first passes all 15 tests, then an isolated repeat hangs at the identical `stream.close()` site |
 | Documentation adjacency gate | No unwaived failures or stale waivers |
 | Changed-line mutation inventory | Exit 0 |
 
-The full gate is **red on both the candidate and the untouched base**. The node-set comparison has zero candidate-only or base-only failures. The footprint violation also matches exactly: measured `files=184 deleted_lines=959 heavy=4`, fixture `files=176 deleted_lines=883 heavy=4`. The new cache-context seam is two additive lines in an already-carried upstream file; it changes none of these ratchet metrics. The fixture was not raised.
+The full gate is **red**. The initial 70-node comparison and the final 71-node comparison against the combined base receipts each have zero candidate-only or base-only assertion failures. The final gate also has an unqualified process-cleanup file: its child times out while closing a subprocess pipe, so its 15 tests are not counted as passes. An isolated base repeat hangs in the same test and at the same close site. The runner's `0 errors` statistic does not turn that file into a pass. The footprint violation also matches exactly: measured `files=184 deleted_lines=959 heavy=4`, fixture `files=176 deleted_lines=883 heavy=4`. The new cache-context seam is two additive lines in an already-carried upstream file; it changes none of these ratchet metrics. The fixture was not raised.
 
 | Inherited failing file under `tests/` | Failed nodes |
 | --- | ---: |
@@ -30,8 +33,12 @@ The full gate is **red on both the candidate and the untouched base**. The node-
 | `agent_runtime/test_serve_gateway_peer_lane.py` | 24 |
 | `scripts/test_upstream_footprint.py` | 1 |
 | `tools/test_modal_sandbox_fixes.py` | 1 |
+| `agent_runtime/test_stream_gap_receipt.py` (final gate) | 1 |
+| `gateway/test_abandoned_turn_process_cleanup.py` (final gate) | File timeout; unqualified |
 
 The gateway failures include certificate-pin mismatch and unsuccessful peer setup. Their shared cause is not established by the node comparison. Modal's inherited failure is `TestHostPrefixList::test_all_common_host_paths_flagged_unusable`. The footprint finding already has an owner row; the other findings are recorded in the [fork hygiene queue](../../Harness_Brain/20%20%E2%80%94%20Active%20Initiatives/fork-hygiene-queue.md).
+
+The stream-gap fixture fails `max_lag_ms >= 150` (candidate 91.4 ms, base 75.0 ms). Cleanup hangs in `test_timed_out_turn_reaps_only_its_own_job_on_a_shared_container_key` at `_release_finished_handles` → `stream.close()`, including during its own final cleanup. Its intermittency is observed on the base, not inferred solely from unchanged source. Neither timing floors nor process cleanup were edited.
 
 ## Killing controls
 
@@ -45,6 +52,10 @@ Detached copies of runtime `b958a18747` and Launcher `8ead9b6ad` carried each pl
 | Force the Launcher projection's eager mark to false | Per-entry metadata parity and the two-entry-point check fail |
 
 The tests exercise boolean opt-in, legacy omission, an arbitrary future app-function name, persona deferral, admission, reach, connection teardown, warm memo hits, old session-prefix restoration, all three provider payload forms, full manual retention and refusal through the existing dispatcher.
+
+A further red-first regression fails on the previous candidate when the same sink redeclares after another link already synced replacement registry entries. The fixed catalog lifetime token makes it green; 82 focused catalog/discovery/search tests pass, followed by the final 20 discovery/prewarm checks. Warm hits retain the token without another wire request.
+
+The actual shipped Launcher projection measured through the parser, assembly and briefing middleware carries 1,189 characters for the eager pair (list 398, create 791); net surface growth is 1,014 characters after removing their deferred listing entries. Chars/4 estimates 297 tokens for the pair and 254 net; these are controlled-subset estimates, not live provider token counts. Full component schemas remain behind `generated.list`, and full descriptions remain behind `tool_describe`.
 
 ## Product acceptance
 
