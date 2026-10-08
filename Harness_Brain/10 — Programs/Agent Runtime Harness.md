@@ -48,6 +48,9 @@ qualify recovery, exact Stop, compute answer acknowledgement, bounded delivery,
 retirement and concurrent Launcher surfaces. Baseline repository gate failures
 remain explicit; no duplicate native state owner was introduced.
 
+`native_link_cursor::` 2026-10-08 — [Connection ownership cleanup](../../docs/downstream/native-worker-link-qualification-2026-10-08.md)
+records the session binding, lifecycle controls and current baseline comparison. Live native model acceptance remains pending.
+
 > [!info] Cursor
 > `cursor::` see frontmatter — the last landed program and what it still owes.
 
