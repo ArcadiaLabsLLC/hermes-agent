@@ -49,7 +49,8 @@ def test_native_active_and_uncertain_work_keeps_every_listener_open(rig, state):
     session, owner, scope, sid, worker, _ = rig
     owner.send(scope, sid, "turn", {"text": "hello", "images": []})
     owner.store.settle(sid, "turn", state)
-    assert request(rig) == {"event": "drain_deferred", "id": "maintenance", "reason": "busy"}
+    assert request(rig) == {"event": "drain_deferred", "id": "maintenance", "reason": "busy",
+                            "held_by": "conversation_turn"}
     assert session.drain_state is None and not session.liveness_stop.is_set()
     assert owner.capabilities()["accepting"]
     assert session._busy_frame()["work"] == 1
@@ -61,20 +62,40 @@ def test_native_active_and_uncertain_work_keeps_every_listener_open(rig, state):
     assert len([m for m, _ in worker.calls if m == "prompt.submit"]) == 1
 
 
-def test_mission_control_work_blocks_but_standing_subscriptions_do_not(rig):
+def _argv(*, chat=False, long_run=False, stream=False):
+    return SimpleNamespace(is_chat_turn=chat, is_long_run=long_run, is_runtime_stream=stream)
+
+
+@pytest.mark.parametrize(("item", "held_by"), [
+    (_argv(chat=True), "chat_turn"),
+    (_argv(long_run=True), "long_run"),
+])
+def test_a_running_turn_or_long_run_refuses_with_its_typed_hold(rig, item, held_by):
     session, owner, *_ = rig
-    session.inflight["console"] = SimpleNamespace(is_runtime_stream=False)
-    assert request(rig)["reason"] == "busy"
-    assert owner.capabilities()["accepting"]
-    session.inflight["console"].is_runtime_stream = True
-    assert request(rig)["event"] == "draining"
+    session.inflight["turn"] = item
+    session.inflight["read"] = _argv()
+    refusal = request(rig)
+    assert (refusal["reason"], refusal["held_by"]) == ("busy", held_by)
+    assert session.drain_state is None and owner.capabilities()["accepting"]
+
+
+def test_startup_requests_and_standing_subscriptions_never_defer_the_drain(rig):
+    # The request that triggered the launcher's attach, a read, a prewarm: all
+    # finish inside the drain, so none of them may refuse it (2026-10-08).
+    # MUTATION: count any non-stream request as busy again and this reddens.
+    session, owner, *_ = rig
+    session.inflight["status"] = _argv()
+    session.inflight["console"] = _argv(stream=True)
+    reply = request(rig)
+    assert reply["event"] == "draining" and reply["request_ids"] == ["console", "status"]
+    assert not owner.capabilities()["accepting"]
 
 
 def test_open_discussion_blocks_maintenance_between_rounds(rig, engine):
     session, owner, *_ = rig
     session.discussion_owner = engine[0]
     begin(engine[0])
-    assert request(rig)["reason"] == "busy"
+    assert (request(rig)["reason"], request(rig)["held_by"]) == ("busy", "discussion")
     assert owner.capabilities()["accepting"]
     assert session._busy_frame()["work"] == 1
 
@@ -84,7 +105,8 @@ def test_unreadable_owner_is_not_idle(rig, monkeypatch):
     def unreadable():
         raise OSError("unavailable")
     monkeypatch.setattr(owner.store, "unsettled", unreadable)
-    assert request(rig)["reason"] == "unavailable"
+    refusal = request(rig)
+    assert (refusal["reason"], refusal["held_by"]) == ("unavailable", "unreadable")
     assert session.drain_state is None and owner.capabilities()["accepting"]
     assert session._busy_frame()["work"] == 1
 
