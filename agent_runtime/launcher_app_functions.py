@@ -157,7 +157,7 @@ class AppFunctionEntry:
     parameters: dict[str, Any]
     #: The Launcher waits for the person's approval card before running it.
     requires_confirmation: bool = False
-    #: ``local`` or ``paired_device``: the farthest origin the entry runs from.
+    #: The Launcher's reach enum: ``localOnly`` or ``pairedDevice``.
     reach: str = ""
     #: Host-owned discovery preference; never a permission grant.
     always_loaded: bool = False
