@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
+import hermes_constants
 from hermes_constants import (
-    _get_platform_default_hermes_home,
     reset_hermes_home_override,
     set_hermes_home_override,
 )
@@ -60,7 +60,9 @@ def test_env_unset_falls_back_to_platform_default_not_override(
     token = set_hermes_home_override(str(override))
     try:
         resolved = resolver()
-        assert resolved == _get_platform_default_hermes_home(), name
+        # Looked up at call time: tests/conftest.py isolates the platform default
+        # per test (ea8adb5e22), and a name bound at import is the unpatched one.
+        assert resolved == hermes_constants._get_platform_default_hermes_home(), name
         assert resolved != override, name
     finally:
         reset_hermes_home_override(token)

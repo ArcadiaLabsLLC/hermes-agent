@@ -84,9 +84,12 @@ def test_a_build_subprocess_never_inherits_the_workers_request_pipe():
 _SILENT_CHILD = "import time; time.sleep(60)"
 
 _IDLE_CHILD = r"""
-import json, sys, time
+import json, os, sys, time
+import psutil
 out = sys.stdout.buffer
-out.write(json.dumps({"jsonrpc": "2.0", "method": "snapshot.ready", "params": {}}).encode() + b"\n"); out.flush()
+# The handshake carries the executing interpreter's identity, as the real child's does.
+ready = {"worker_pid": os.getpid(), "worker_created": psutil.Process().create_time()}
+out.write(json.dumps({"jsonrpc": "2.0", "method": "snapshot.ready", "params": ready}).encode() + b"\n"); out.flush()
 frame = json.loads(sys.stdin.buffer.readline())
 while True:
     beat = {"jsonrpc": "2.0", "method": "snapshot.beat", "params": {"idle_s": {frame["id"]: 99.0}}}

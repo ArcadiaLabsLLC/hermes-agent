@@ -172,9 +172,15 @@ def run_deferred_turn_persist(agent: Any, ran_on: str = RAN_ON_REQUEST_SENT) -> 
     except Exception:
         logger.warning("deferred first-turn persist failed for session %s", getattr(agent, "session_id", None),
                        exc_info=True)
-    logger.info(DEFERRED_PERSIST_RECEIPT, getattr(agent, "session_id", None), ran_on,
-                max(0, int((time.perf_counter() - started) * 1000)))
+    elapsed_ms = max(0, int((time.perf_counter() - started) * 1000))
+    setattr(agent, "_hermes_deferred_persist_ms", elapsed_ms)
+    logger.info(DEFERRED_PERSIST_RECEIPT, getattr(agent, "session_id", None), ran_on, elapsed_ms)
     return True
+
+
+def deferred_turn_persist_duration_ms(agent: Any) -> int | None:
+    """The duration from the same measurement used by the persistence receipt."""
+    return getattr(agent, "_hermes_deferred_persist_ms", None)
 
 
 __all__ = [

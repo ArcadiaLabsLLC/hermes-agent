@@ -38,6 +38,7 @@ _CREATE = {
     "parameters": {"type": "object", "properties": {
         "document_json": {"type": "string"}}, "required": ["document_json"]},
     "reach": "local",
+    "always_loaded": True,
 }
 
 
@@ -107,11 +108,14 @@ def test_first_turn_reuses_an_actor_with_callable_launcher_tools(worker, monkeyp
     contract = _tool_contract()
     boot_signature = json.dumps(contract.tool_contract(), sort_keys=True)
     prewarm_signatures = []
+    construction_errors = []
 
     class ToolAwareAgent(_Agent):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
-            self.tools = registry.get_definitions({_CREATE["name"]}, quiet=True)
+            from tools.tool_search import ToolSearchConfig, assemble_tool_defs
+            raw = registry.get_definitions({_CREATE["name"]}, quiet=True)
+            self.tools = assemble_tool_defs(raw, config=ToolSearchConfig.from_raw({"enabled": "on"})).tool_defs
             actors.append(self)
 
         def run_conversation(self, *args, **kwargs):
@@ -126,12 +130,16 @@ def test_first_turn_reuses_an_actor_with_callable_launcher_tools(worker, monkeyp
             prewarm_signatures.append(signature)
             runner.prewarm(_request(prewarm_only=True, registry=resident, signature=signature))
             return prewarm.OUTCOME_WARMED
+        except Exception as error:
+            construction_errors.append(repr(error))
+            raise
         finally:
             finished.set()
 
     monkeypatch.setattr(prewarm, "prewarm_chat_actor", construct)
     assert prewarm.request_chat_actor_prewarm("chat_root_1", launcher_link=link) == "started"
     drain()
+    assert not construction_errors
     assert [tool["function"]["name"] for tool in actors[0].tools] == [_CREATE["name"]]
 
     token = app.bind_launcher_link(link)

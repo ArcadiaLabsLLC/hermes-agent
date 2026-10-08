@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Collection
 
 from tui_gateway.host_supervisor import MUTATOR_ROUTE_TABLE, _build_sha
+from agent_runtime.conversations.worker_app_functions import session_construction
 
 
 def now_ns() -> int:
@@ -363,6 +364,7 @@ class ComputeHost:
             session["pending_model_switch"] = dict(frame["pending_model_switch"])
         return session
 
+    @session_construction
     def _build_server_session(self, server: Any, frame: dict[str, Any], sid: str) -> dict:
         """Build the agent under the frame's profile scope and register the session."""
         key = str(frame.get("session_key") or sid)
@@ -440,6 +442,8 @@ class ComputeHost:
                 "source": server._sanitize_client_source(frame.get("source")),
                 "transport": self._transport}
         session = server._sessions[sid]
+        from agent_runtime.conversations.worker_app_functions import adopt
+        adopt(sid, session)
         session["transport"] = self._transport
         # The host pipe names no login; the record carries the one the gateway stamped at creation.
         session["auth_user_id"] = frame.get("auth_user_id")

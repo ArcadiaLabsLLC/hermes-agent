@@ -326,3 +326,27 @@ def test_the_stream_hydrate_joins_the_running_build(monkeypatch):
     # The shared core's own watermark rides out with it, so the stream tails
     # from exactly where that core ended — nothing is skipped.
     assert frames["hydrate"]["watermark"] == {"event_offset": 7}
+
+
+def test_cancelled_rider_leaves_park_without_waiting_for_build(monkeypatch):
+    from agent_runtime.request_control import request_cancel_scope, RequestCancelled
+    entered = threading.Event(); release = threading.Event(); cancelled = threading.Event()
+    def fake_build(**kwargs):
+        entered.set(); assert release.wait(5); return {"n":1}
+    monkeypatch.setattr(snapshot_mod.build, "_build_snapshot_uncoalesced", fake_build)
+    leader = threading.Thread(target=snapshot_mod.build_snapshot); leader.start()
+    assert entered.wait(5)
+    exits = []
+    def rider():
+        with request_cancel_scope(cancelled):
+            try: snapshot_mod.build_snapshot()
+            except RequestCancelled as exc: exits.append(exc.code)
+    follower = threading.Thread(target=rider); follower.start()
+    assert _wait_for(lambda: snapshot_mod._build_coalesce_state["waiters"] == 1)
+    cancelled.set(); follower.join(1)
+    try:
+        assert not follower.is_alive()
+        assert exits == [130]
+        assert snapshot_mod._build_coalesce_state["waiters"] == 0
+    finally:
+        release.set(); leader.join(5); follower.join(5)

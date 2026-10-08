@@ -64,6 +64,26 @@ _ADMITTED = 0
 _IN_TURN: ContextVar[bool] = ContextVar("hermes_in_admitted_turn", default=False)
 
 
+_IDLE_LISTENERS: set[Callable[[], None]] = set()
+
+
+def register_turn_idle_listener(listener: Callable[[], None]) -> None:
+    """Register a process-lifetime consumer of the accepted/admitted idle boundary."""
+    with _LOCK:
+        _IDLE_LISTENERS.add(listener)
+
+
+def notify_turn_idle() -> None:
+    """Deliver outside the counter lock; listeners must recheck before doing work."""
+    with _LOCK:
+        listeners = tuple(_IDLE_LISTENERS) if not _ADMITTED and not _ACCEPTED else ()
+    for listener in listeners:
+        try:
+            listener()
+        except Exception:
+            _logger.warning("turn idle listener failed", exc_info=True)
+
+
 def inside_admitted_turn() -> bool:
     """True on the thread (context) of an admitted turn's own handler."""
 
@@ -192,6 +212,7 @@ class AcceptedTurn:
     def release(self) -> None:
         with _LOCK:
             self._release_locked()
+        notify_turn_idle()
 
     def _release_locked(self) -> None:
         self._held = False
@@ -367,6 +388,7 @@ def admitted_turn(turn_id=None):
         with _LOCK:
             _ADMITTED -= 1
             _ENTRIES.pop(token, None)
+        notify_turn_idle()
 
 
 __all__ = [

@@ -47,7 +47,7 @@ def _rpc(method: str, params, rid: str = "cv"):
 
 
 @pytest.fixture
-def chat_db(monkeypatch, isolate_agent_runtime_root):
+def chat_db(monkeypatch, isolate_agent_runtime_root, persisted_persona_samples):
     cfg = _assignment_config()
     db = _TranscriptDB()
     for module in (chat_delete, chat_open, chat_target, lifecycle_commands):
@@ -213,8 +213,10 @@ def test_delete_refuses_a_root_owned_by_another_instance(chat_db):
 
 def test_create_mints_an_agent_profile_with_its_chat_root(chat_db, capsys):
     # ``profile:`` ids skip the roster check by decision D-U1; a bare id must be on it.
-    result = _rpc("runtime.persona.instance.create",
-                  {"persona_id": "profile:reviewer", "display_name": "Dev two"})["result"]
+    reply = _rpc("runtime.persona.instance.create",
+                 {"persona_id": "profile:reviewer", "display_name": "Dev two"})
+    assert "result" in reply, reply
+    result = reply["result"]
     assert capsys.readouterr().out == ""
     instance = PersonaInstanceStore().get(result["persona_instance_id"])
     assert instance.display_name == "Dev two"

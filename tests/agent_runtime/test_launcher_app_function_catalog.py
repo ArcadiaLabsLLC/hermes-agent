@@ -170,6 +170,11 @@ def test_the_serve_disconnect_path_forgets_the_connections_sink():
         def __init__(self, sinks):
             self.connection_sinks = dict(sinks)
             self.connection_sinks_lock = threading.Lock()
+            # The serve session's in-flight table (``session.py``): the disconnect
+            # path also cancels the departed owner's queued requests; none here.
+            self.inflight = {}
+            self.inflight_futures = {}
+            self.inflight_lock = threading.Lock()
             self.released = []
 
         def _release_subscription(self, connection):

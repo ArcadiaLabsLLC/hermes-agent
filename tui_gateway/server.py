@@ -2687,8 +2687,8 @@ def _make_agent(
     ignore_rules = is_truthy_value(os.environ.get("HERMES_IGNORE_RULES"))
     with _sessions_lock:
         session = _sessions.get(sid)
-    from agent_runtime.conversations.worker_app_functions import create_agent
-    agent = create_agent(AIAgent, sid, session or {"source": platform_override},
+    from agent_runtime.conversations.worker_app_functions import construction_session, create_agent
+    agent = create_agent(AIAgent, sid, session if session is not None else construction_session(sid, platform_override),
         model=model, max_iterations=_cfg_max_turns(cfg, 500), provider=runtime.get("provider"),
         requested_provider=runtime.get("requested_provider"),
         base_url=runtime.get("base_url"), api_key=runtime.get("api_key"), api_mode=runtime.get("api_mode"),
@@ -2795,6 +2795,8 @@ def _init_session(
             "transport": current_transport() or _stdio_transport,
             "auth_user_id": _transport_auth_user_id(current_transport()),
         }
+        from agent_runtime.conversations.worker_app_functions import adopt
+        adopt(sid, _sessions[sid])
         _session_todo_state(_sessions[sid])
     _hydrate_session_cwd(sid, key, session_db, profile_home)
     _register_session_cwd(_sessions[sid])
@@ -3115,7 +3117,10 @@ def _find_live_session_by_key(session_key: str, profile_home=_ANY_PROFILE) -> tu
 def _fallback_session_info(session: dict) -> dict:
     agent = session.get("agent")
     if agent is not None:
-        return _session_info(agent, session)
+        # Upstream's one-argument call already resolves this session by agent identity; the session
+        # is passed only when that lookup would land elsewhere (keeps upstream's call shape).
+        owner = next((c for c in _sessions.values() if c.get("agent") is agent), None)
+        return _session_info(agent) if owner is session else _session_info(agent, session)
     # The SESSION's own workspace, not the launch dir (wrong project in the desktop Files pane). `branch` is
     # always emitted ("" outside git) so a stale label clears; `desktop_contract` missing reads as "out of date".
     # Reporting `_default_session_cwd()` here told a lazily-resumed session's client that its workspace was

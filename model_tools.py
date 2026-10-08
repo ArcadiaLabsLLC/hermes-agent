@@ -274,6 +274,7 @@ def _tool_defs_cache_key(
     profile_scope = check_fn_cache_scope()
     if profile_scope == CHECK_FN_CACHE_BYPASS:
         return None
+    from agent_runtime.launcher_app_functions import app_function_tool_scope
     try:
         from hermes_cli.config import get_config_path
         cfg_stat = get_config_path().stat()
@@ -285,6 +286,7 @@ def _tool_defs_cache_key(
         frozenset(disabled_toolsets) if disabled_toolsets else None, registry._generation, cfg_fp,
         bool(os.environ.get("HERMES_KANBAN_TASK")), bool(skip_tool_search_assembly),
         _is_delegated_child_context(), _is_dispatcher_owned_worker(), profile_scope,
+        app_function_tool_scope(),
     )
 
 

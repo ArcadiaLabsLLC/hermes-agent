@@ -44,7 +44,7 @@ def _initialize(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mc_discussion_attempts_schema VALUES(1,1)")
 
 
-def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
+def _attempt_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     result = dict(row)
@@ -67,12 +67,12 @@ class AttemptStore:
 
     def get(self, run: str, task: str, generation: int) -> dict[str, Any] | None:
         with closing(self.connect()) as conn:
-            return _row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
+            return _attempt_row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
 
     def begin(self, run: str, task: str, generation: int, member: Mapping[str, Any], prompt: str) -> dict[str, Any]:
         with transaction(self.connect(), immediate=True) as conn:
             params = (run, task, generation)
-            old = _row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", params).fetchone())
+            old = _attempt_row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", params).fetchone())
             if old is not None:
                 # Continuations retain the original task but deliberately replace prompt.
                 if old["member_id"] != member["member_id"] or old["session_id"] != member["session_id"]:
@@ -84,7 +84,7 @@ class AttemptStore:
             conn.execute("""INSERT INTO mc_discussion_attempts
                 (run_id,task_id,generation,member_id,session_id,native_id,prompt,stage)
                 VALUES(?,?,?,?,?,?,?,'pending')""", (*params, member["member_id"], member["session_id"], nid, prompt))
-            return _row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", params).fetchone())
+            return _attempt_row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", params).fetchone())
 
     def claim(self, row: Mapping[str, Any], *, pid: int, started: int) -> bool:
         """Claim a pending turn before entering the native handler. No blind reclaim."""
@@ -108,7 +108,7 @@ class AttemptStore:
         answer = text(answer, field="answer", max_bytes=8000)
         adigest = digest({"answer": answer, "native_id": expected_native_id})
         with transaction(self.connect(), immediate=True) as conn:
-            row = _row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
+            row = _attempt_row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
             if row is None:
                 raise DiscussionError("attempt_not_found")
             if row["answer_key"] == key:
@@ -126,8 +126,8 @@ class AttemptStore:
                 receipt_json=NULL,question_json=NULL,owner_pid=NULL,owner_started=NULL,answer_key=?,answer_digest=?
                 WHERE run_id=? AND task_id=? AND generation=?""",
                 (continuation, nid, answer, key, adigest, run, task, generation))
-            return _row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
+            return _attempt_row(conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? AND task_id=? AND generation=?", (run, task, generation)).fetchone())
 
     def rows(self, run: str) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
-            return [_row(row) for row in conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? ORDER BY task_id,generation", (run,))]
+            return [_attempt_row(row) for row in conn.execute("SELECT * FROM mc_discussion_attempts WHERE run_id=? ORDER BY task_id,generation", (run,))]

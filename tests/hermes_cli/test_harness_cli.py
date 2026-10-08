@@ -635,6 +635,18 @@ def test_harness_config_show_and_migrate_check_are_redaction_safe(tmp_path, monk
 
 def test_harness_verify_skip_tests_emits_proof_packet(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    # The packet's shape is the subject; the four sub-commands are each a cold
+    # ``hermes_cli.main`` boot (well past the 30 s test bound together), and the
+    # runner itself is pinned by test_run_verify_command_survives_non_cp1252_bytes_in_child_output.
+    from hermes_cli.harness_parts import verify_commands
+
+    spawned: list[list[str]] = []
+
+    def _fake_run(label, command, *, cwd):
+        spawned.append(command)
+        return {"label": label, "command": " ".join(command), "cwd": str(cwd), "exit_code": 0}
+
+    monkeypatch.setattr(verify_commands, "_run_verify_command", _fake_run)
 
     args = parser().parse_args(["harness", "verify", "--mode", "temp-root", "--skip-tests", "--json"])
 
@@ -646,6 +658,7 @@ def test_harness_verify_skip_tests_emits_proof_packet(tmp_path, monkeypatch, cap
     assert {item["label"] for item in packet["commands"]} >= {"harness status", "harness snapshot", "harness config show"}
     assert packet["tests"] == []
     assert packet["runtime_config"]["validation"]["ok"] is True
+    assert all(command[1:3] == ["-m", "hermes_cli.main"] for command in spawned)
 
 
 def test_harness_burn_in_commands_are_removed():

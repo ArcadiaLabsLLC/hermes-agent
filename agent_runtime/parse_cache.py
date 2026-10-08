@@ -7,7 +7,7 @@ frontmatter, file hashes — are pure functions of file content, so re-parsing t
 dozens of times per build is wasted work (profiled as the dominant snapshot cost:
 YAML scanning ≫ everything else).
 
-This caches by ``(path, mtime_ns, size)`` so a file edit invalidates the entry
+This caches by ``(path, device, inode, ctime_ns, mtime_ns, size)`` so a file edit invalidates the entry
 (safe in a long-lived daemon) while repeats within a build are free. Caches are
 bounded and self-clearing.
 """
@@ -32,7 +32,7 @@ def _stamp(path: Path) -> tuple | None:
         st = path.stat()
     except OSError:
         return None
-    return (str(path), st.st_mtime_ns, st.st_size)
+    return (str(path), st.st_dev, st.st_ino, st.st_ctime_ns, st.st_mtime_ns, st.st_size)
 
 
 def _bounded_set(cache: dict, key: tuple, value: Any) -> None:

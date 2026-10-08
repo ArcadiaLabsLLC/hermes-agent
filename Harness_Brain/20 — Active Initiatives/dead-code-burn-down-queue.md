@@ -50,3 +50,6 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-09-26, lane ACP-DROP
 
+## Filed on arrival — 2026-10-07 (landing prep/hermes-waves-reviewed)
+
+- [ ] **`workspace_claim_disagreement` is a test-only production function since 33069ca1fc retired its only caller** · dead code · `agent_runtime/workspace_scope.py`, `tests/agent_runtime/test_workspace_scope.py` · lane: delete with its test

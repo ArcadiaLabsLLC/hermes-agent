@@ -63,8 +63,9 @@ __all__ = [
 
 
 class PersonaInstanceStore:
-    def __init__(self, event_log: EventLog | None = None):
+    def __init__(self, event_log: EventLog | None = None, *, preparation_epoch=None):
         self.event_log = event_log or EventLog()
+        self.preparation_epoch = preparation_epoch
 
     # S-DUP4 removed ``create_free_floating`` (and its only helper,
     # ``_free_floating_identity``). It was production-callerless — the
@@ -512,7 +513,7 @@ class PersonaInstanceStore:
     def list_all(self) -> list[PersonaInstance]:
         return self.scan_all().instances
 
-    def ensure_for_personas(self, personas: list[AgentPersona]) -> list[PersonaInstance]:
+    def ensure_for_personas(self, personas: list[AgentPersona], *, read_epoch=None) -> list[PersonaInstance]:
         """Materialize an instance for every configured persona and settle any
         instance still carrying a stale execution binding.
 
@@ -529,8 +530,9 @@ class PersonaInstanceStore:
         chat binding is not stale execution state.
         """
         personas = [persona for persona in personas if is_runtime_persona(persona)]
-        for persona in personas:
-            self.ensure_for_persona(persona)
+        # One ensure per persona: ensure_for_persona already re-reads its final row.
+        if read_epoch is not None:
+            read_epoch.invalidate()
         for persona in personas:
             instance = self.ensure_for_persona(persona)
             if instance.mode in {"chat", "free_floating"}:
@@ -556,7 +558,7 @@ class PersonaInstanceStore:
                 instance.token_budget_used = 0
                 instance.last_heartbeat_at = None
                 self.update(instance)
-        return self.list_all()
+        return read_epoch.scan(self).instances if read_epoch is not None else self.list_all()
 
     def _has_live_binding(self, instance: PersonaInstance) -> bool:
         # S56 removed the worker arm: the store it read is gone and no instance
@@ -575,6 +577,8 @@ class PersonaInstanceStore:
         return False
 
     def _write(self, instance: PersonaInstance) -> None:
+        if self.preparation_epoch is not None:
+            self.preparation_epoch.invalidate()
         path = paths.persona_instance_path(instance.id)
         path.parent.mkdir(parents=True, exist_ok=True)
         atomic_json_write(path, to_jsonable(instance), indent=2, sort_keys=True)

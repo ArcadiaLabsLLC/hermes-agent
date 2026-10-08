@@ -2716,8 +2716,8 @@
       "path": "agent_runtime/stream/build.py",
       "symbol": "_full_core_batch_frames",
       "operator": "reorder-yield-after-job",
-      "find": "    _defer_demote_build_for_active_turns(reason=reason, caller=caller)\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller)",
-      "replace": "    job = _SnapshotBuildJob(caller=caller)\n    _defer_demote_build_for_active_turns(reason=reason, caller=caller)",
+      "find": "    _defer_demote_build_for_active_turns(reason=reason, caller=caller)\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller, reason=reason)",
+      "replace": "    job = _SnapshotBuildJob(caller=caller, reason=reason)\n    _defer_demote_build_for_active_turns(reason=reason, caller=caller)",
       "test": [
         "{python}",
         "-m",
@@ -2927,8 +2927,8 @@
       "path": "hermes_cli/harness_parts/persona/chat_turn_message.py",
       "symbol": "_cmd_mission_chat_message",
       "operator": "drop-measurement",
-      "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    instance_store = PersonaInstanceStore()",
-      "replace": "    instance_store = PersonaInstanceStore()",
+      "find": "    _session_db_open_ms = max(\n        0, int((time.monotonic() - _session_db_open_started) * 1000)\n    )\n    from agent_runtime.preparation_reads import InstanceReadEpoch",
+      "replace": "    from agent_runtime.preparation_reads import InstanceReadEpoch",
       "test": [
         "{python}",
         "-m",
@@ -4717,11 +4717,11 @@
     },
     {
       "id": "llama-h-actor-signature-tracks-params",
-      "path": "agent_runtime/local_llama_adapter/provider.py",
-      "symbol": "actor_signature",
+      "path": "agent_runtime/persona_chat_identity.py",
+      "symbol": "resolved_runtime_revision",
       "operator": "weaken-actor",
-      "find": "json.dumps({\"parameters\": runtime[\"local_parameters\"],",
-      "replace": "json.dumps({\"parameters\": None,",
+      "find": "identity_revision(runtime, _RESOLVED_RUNTIME_FIELDS)",
+      "replace": "identity_revision(runtime, _RESOLVED_RUNTIME_FIELDS[:-1])",
       "test": [
         "{python}",
         "-m",

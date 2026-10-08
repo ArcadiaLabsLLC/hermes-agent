@@ -36,12 +36,12 @@ class TestLoadBackgroundNotificationsMode:
 
 
 @pytest.mark.asyncio
-async def test_agent_notification_carries_message_id_reply_anchor(monkeypatch, tmp_path):
-    """A watcher send carries the triggering message_id so the result message
-    can be reply-anchored back into a Telegram DM topic.
-
-    Without an anchor, Telegram private-chat topic sends fall back to the main
-    chat (see _thread_kwargs_for_send / telegram_dm_topic_reply_fallback)."""
+async def test_agent_notification_sends_standalone_without_a_reply_anchor(monkeypatch, tmp_path):
+    """A watcher send carries NO reply anchor, even when the watcher holds the
+    arming message_id: the alert goes out standalone in its thread, as upstream
+    10938a7cf9 (#52694) decided (owner ruling 2026-10-01, ``36fb9474ff`` dropped
+    the fork's ``reply_to`` carry; finished background work is reported in
+    Mission Control's Background Work panel)."""
     import tools.process_registry as pr_module
 
     sessions = [SimpleNamespace(
@@ -72,14 +72,14 @@ async def test_agent_notification_carries_message_id_reply_anchor(monkeypatch, t
     args, kwargs = adapter.send.await_args
     assert args[0] == "123"
     assert "SMOKE_OK" in args[1]
-    assert kwargs["reply_to"] == "555"
+    assert "reply_to" not in kwargs
     assert kwargs["metadata"] == {"thread_id": "24296"}
 
 
 @pytest.mark.asyncio
 async def test_agent_notification_no_message_id_is_tolerated(monkeypatch, tmp_path):
     """A watcher dict without message_id (CLI spawn, pre-upgrade checkpoint)
-    still sends — reply anchor is simply None."""
+    still sends, standalone."""
     import tools.process_registry as pr_module
 
     sessions = [SimpleNamespace(
@@ -106,4 +106,4 @@ async def test_agent_notification_no_message_id_is_tolerated(monkeypatch, tmp_pa
 
     adapter.handle_message.assert_not_awaited()
     adapter.send.assert_awaited_once()
-    assert adapter.send.await_args.kwargs["reply_to"] is None
+    assert "reply_to" not in adapter.send.await_args.kwargs

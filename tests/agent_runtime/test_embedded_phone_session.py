@@ -515,10 +515,11 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     # The phone wheel: nothing on the turn path reached a switched-off module except through a
     # module-level seam (not even into an ImportError it swallowed), and no process was started —
     # no worker, no `hermes auth login`, no python/pip probe, no git probe. Positive control: the
-    # recorder saw the native gateway's own seam (tui_gateway/server.py's environments import).
+    # recorder saw the native gateway's own seams (the optional connector / PDF handler imports,
+    # module-level in agent_runtime/gateway_extensions.py since they moved out of tui_gateway/server.py).
     if wheel == "phone":
         assert (unseamed := _unseamed(result["attempted"])) == [], unseamed
-        assert any(a["site"] == "tui_gateway/server.py" for a in result["attempted"]), result["attempted"]
+        assert any(a["site"] == "agent_runtime/gateway_extensions.py" for a in result["attempted"]), result["attempted"]
         # The forced tree (lane G6): no directory scan — the tool registry's, the plugin loader's —
         # reached a forced module. Positive controls: the scan ran and imported the kept tools, and
         # the forced tree was there to find, through the path the entry mounted.

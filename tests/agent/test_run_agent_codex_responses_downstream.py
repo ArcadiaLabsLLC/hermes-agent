@@ -8,6 +8,8 @@ its autouse ``_no_codex_backoff`` are imported by name.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from tests.agent.test_run_agent_codex_responses import (  # noqa: F401 — upstream names the moved test uses
@@ -25,7 +27,12 @@ def test_a_prestream_failure_is_retried_once_on_either_client(monkeypatch, clien
     ``APIConnectionError`` / ``APITimeoutError``; the SDK-free client (the phone's) raises its own
     classes of those names from ``HttpCore.send`` — both must take the one retry. Before the wrap the
     SDK-free client raised ``httpx.ConnectTimeout`` / ``PoolTimeout`` / ``WriteError`` raw, which no
-    arm retried."""
+    arm retried.
+
+    The SDK-free arm runs in the phone's world: since 0099b1a33f ``codex_runtime`` catches
+    ``openai.APIConnectionError`` by upstream's bytes, and on a profile without the SDK the provider
+    shim binds that name to the SDK-free class. The arm registers the shim's modules, as
+    ``EmbeddedServe.start`` does, so the retry is proven through the seam the phone actually uses."""
     import json
 
     import httpx
@@ -53,6 +60,11 @@ def test_a_prestream_failure_is_retried_once_on_either_client(monkeypatch, clien
 
     http = httpx.Client(transport=httpx.MockTransport(handler))
     agent = _build_agent(monkeypatch)
+    if client_kind == "sdk_free":
+        from agent_runtime.provider_sdk_shim import stand_in_modules
+
+        for name, module in stand_in_modules().items():
+            monkeypatch.setitem(sys.modules, name, module)
     agent.client = (OpenAI(api_key="k", base_url=base, http_client=http, max_retries=0) if client_kind == "sdk"
                     else SdkFreeClient(api_key="k", base_url=base, http_client=http))
 

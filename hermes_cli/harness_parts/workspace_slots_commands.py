@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from hermes_cli.flag_binding import list_flag_or_empty
 from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_harness_error
 
 __layer__ = "lanes"
@@ -38,7 +39,7 @@ def _pairs(values, name: str) -> dict[str, str]:
     return out
 
 
-def _run(args, kind: str, action) -> int:
+def _run_workspace_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.workspace_slot_env import SlotEnvRefused
     from agent_runtime.workspace_slots import SlotRefused
 
@@ -55,7 +56,7 @@ def _run(args, kind: str, action) -> int:
 def _cmd_workspace_slots_show(args) -> int:
     from agent_runtime.workspace_slots import show
 
-    return _run(args, "workspace_slots", lambda: show(str(args.workspace_id)))
+    return _run_workspace_slot_verb(args, "workspace_slots", lambda: show(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_declare(args) -> int:
@@ -66,13 +67,13 @@ def _cmd_workspace_slots_declare(args) -> int:
         require_publish_right(str(args.workspace_id))
         return declare(str(args.workspace_id), slots, issued_at=_issued_at(args), machine=machine_id())
 
-    return _run(args, "workspace_slots_declare", action)
+    return _run_workspace_slot_verb(args, "workspace_slots_declare", action)
 
 
 def _cmd_workspace_slots_bind(args) -> int:
     from agent_runtime.workspace_slots import bind
 
-    return _run(args, "workspace_slot_bind",
+    return _run_workspace_slot_verb(args, "workspace_slot_bind",
                 lambda: bind(str(args.workspace_id), str(args.slot), str(args.path), issued_at=_issued_at(args)))
 
 
@@ -86,20 +87,21 @@ def _cmd_workspace_slots_env_set(args) -> int:
         declared = live_slots(load_document(workspace_id)).get(slot)
         if declared is None:
             raise SlotRefused(REASON_SLOT_NOT_DECLARED, slot)
+        # A fill is written whole (replace): an absent --path-prepend / --env-keep means "none".
         fill = set_slot_fill(workspace_id, slot, env=_pairs(args.env, "--env"),
-                             tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list(args.path_prepend or []),
+                             tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list_flag_or_empty(args, "path_prepend"),
                              dotenv=args.dotenv, venv=args.venv, secret_keys=secret_keys(declared),
-                             issued_at=_issued_at(args), env_keep=list(args.env_keep or []))
+                             issued_at=_issued_at(args), env_keep=list_flag_or_empty(args, "env_keep"))
         return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {}),
-                "env_keep_missing": sorted(set(args.env_keep or ()) - set(fill.env))}
+                "env_keep_missing": sorted(set(list_flag_or_empty(args, "env_keep")) - set(fill.env))}
 
-    return _run(args, "workspace_slot_env", action)
+    return _run_workspace_slot_verb(args, "workspace_slot_env", action)
 
 
 def _cmd_workspace_slots_report(args) -> int:
     from agent_runtime.workspace_slots_probe import report
 
-    return _run(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
+    return _run_workspace_slot_verb(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_clone(args) -> int:
@@ -114,4 +116,4 @@ def _cmd_workspace_slots_clone(args) -> int:
                              registry=registry, watch=False)
         return {**started, "run": watch_run(started["run"]["run_id"], registry) or started["run"]}
 
-    return _run(args, "workspace_slot_clone", action)
+    return _run_workspace_slot_verb(args, "workspace_slot_clone", action)

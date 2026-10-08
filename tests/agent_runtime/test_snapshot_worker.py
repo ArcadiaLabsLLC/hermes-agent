@@ -391,3 +391,15 @@ def test_parse_duration():
     assert parse_duration("2h").total_seconds() == 7200
     with pytest.raises(ValueError):
         parse_duration("2 hours")
+
+
+def test_worker_ready_identity_names_interpreter_not_windows_stub():
+    from agent_runtime.snapshot_worker.peer import SnapshotPeer, READY_METHOD
+    from types import SimpleNamespace
+    # Invoke the receipt owner with a minimal peer: process.pid is the Windows
+    # venv launcher, while the child itself reports the running interpreter.
+    peer = SimpleNamespace(ready_at=None, _clock=lambda: 1.0, worker_pid=None,
+                           process=SimpleNamespace(pid=100), bind_worker_identity=lambda params: None)
+    SnapshotPeer._notice(peer, {"method": READY_METHOD, "params": {"worker_pid": 200, "worker_created": 2.0}})
+    assert SnapshotPeer.pid.fget(peer) == 200
+    assert peer.ready_at == 1.0

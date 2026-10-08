@@ -24,7 +24,10 @@ _HARNESS_PY = Path(harness_module.__file__)
 _PARTS_DIR = _HARNESS_PY.parent / "harness_parts"
 
 # Calls whose presence marks a handler as a JSON-envelope emitter.
-_EMIT_CALLS = {"emit_json", "_print_stage42"}
+# ``emit_operation_result`` (agent_runtime/operation_result.py) prints
+# ``emit_json`` under ``--json`` or hands the same payload to a direct-operation
+# sink; the permission verbs moved onto it so their RPC twins share one envelope.
+_EMIT_CALLS = {"emit_json", "_print_stage42", "emit_operation_result"}
 # The one attach chokepoint (agent_runtime/root_observability.py).
 _ATTACH_CALL = "attach_root_observability"
 

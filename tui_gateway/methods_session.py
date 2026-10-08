@@ -5,6 +5,7 @@ helpers (``_sessions``, ``_ok``, ``_err``, ...) bare; module-level helpers are p
 server.py the same way (tests monkeypatching ``server.X`` still intercept)."""
 
 import contextlib
+from agent_runtime.conversations.worker_app_functions import session_construction
 
 from .method_ctx import HandlerRegistry, bind_module
 
@@ -995,6 +996,7 @@ def _resume_cold(ctx: _Resume) -> dict:
                             auto_continue=_maybe_schedule_auto_continue(sid, record, ctx.target))
 
 
+@session_construction
 def _resume_eager(ctx: _Resume) -> dict:
     """Synchronous build OUTSIDE _session_resume_lock (it would stall session.close), then double-checked."""
     sid, source, _cwd = ctx.mint()

@@ -250,11 +250,12 @@ def test_the_turns_context_record_names_the_agents_workspace_not_the_clients(
     """A client can say which workspace it was SHOWING; the turn runs in the
     agent's own. The record must name the second.
 
-    The join, end to end: a real agent placed in ``WORKSPACE``, a different
-    workspace active, and a send whose ``--workspace-id`` / ``--workspace-name``
-    name that other one — the shape of a launcher window showing workspace B
-    with a conversation open on an agent placed in A. Before 2026-10-05 the
-    record took the client's two values verbatim.
+    The join, end to end: a real agent placed in ``WORKSPACE`` and a different
+    workspace active — the shape of a launcher window showing workspace B with a
+    conversation open on an agent placed in A. Before 2026-10-05 the record took
+    the client's two values verbatim; the message verb's ``--workspace-id`` /
+    ``--workspace-name`` hints are retired since (33069ca1fc), so a stale value
+    left on the namespace must not reach the record either.
     """
 
     from agent_runtime.store import WorkspaceStore
@@ -289,11 +290,8 @@ def test_the_turns_context_record_names_the_agents_workspace_not_the_clients(
     # Control: the two workspaces really are different, so "the agent's own" is
     # not satisfied by the client's value happening to match.
     assert (shown.id, shown.name) != (WORKSPACE, placed_name)
-    # The claim is not obeyed, and it is not swallowed either: the two flags
-    # are read to say that the client named a workspace the turn was not in.
-    said = [r.getMessage() for r in caplog.records if "client_workspace_claim_differs" in r.getMessage()]
-    assert len(said) == 1, caplog.text
-    assert f"claimed_id={shown.id}" in said[0] and f"turn_id={WORKSPACE}" in said[0]
+    # The hints are retired, not read: nothing reports a claim the verb no longer takes.
+    assert "client_workspace_claim_differs" not in caplog.text
 
 
 def test_a_client_that_names_the_turns_own_workspace_is_not_reported(

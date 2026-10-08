@@ -62,7 +62,12 @@ def test_turn_registration_cannot_cross_an_accepted_drain(rig, monkeypatch, lane
             assert any(frame.get("draining") for frame in frames)
     else:
         assert not errors
-        assert request(rig)["reason"] == "busy"
+        # Only a TURN holds an idle drain; this argv is a stand-in, so mark the
+        # registered request as the turn it plays.
+        (registered,) = session.inflight.values()
+        registered.is_chat_turn = True
+        refusal = request(rig)
+        assert (refusal["reason"], refusal["held_by"]) == ("busy", "chat_turn")
 
 
 @pytest.mark.parametrize("busy", [False, True])

@@ -190,7 +190,7 @@ def derived_steps(slot_name: str, slot: dict[str, Any]) -> list[dict[str, Any]]:
 # ── the owner's part ─────────────────────────────────────────────────────────
 
 
-#: The only fields a STORED command step carries (what :func:`_command` returns).
+#: The only fields a STORED command step carries (what :func:`_recipe_command` returns).
 COMMAND_FIELDS = frozenset({"id", "kind", "label", "argv", "cwd_slot", "run"})
 
 
@@ -218,7 +218,7 @@ def _annotation(entry: dict[str, Any], derived: dict[str, dict[str, Any]], *, he
     return out
 
 
-def _command(entry: dict[str, Any], slot_name: str, names: frozenset[str], *, held: bool) -> dict[str, Any]:
+def _recipe_command(entry: dict[str, Any], slot_name: str, names: frozenset[str], *, held: bool) -> dict[str, Any]:
     step_id = str(entry.get("id") or "")
     if not _COMMAND_ID_RE.match(step_id) or step_id in _RESERVED_IDS:
         raise RecipeRefused(REASON_INVALID_STEP, "a command id is [A-Za-z0-9_-]{1,64}, not a reserved id")
@@ -259,7 +259,7 @@ def normalize_owner_step(entry: Any, slot_name: str, derived: dict[str, dict[str
     if not is_command and entry.get("kind") not in (None, *DERIVED_KINDS):
         raise RecipeRefused(REASON_INVALID_STEP, "an owner step is a command or an annotation of a derived kind")
     if is_command:
-        return _command(entry, slot_name, frozenset(names), held=held)
+        return _recipe_command(entry, slot_name, frozenset(names), held=held)
     return _annotation(entry, derived, held=held)
 
 

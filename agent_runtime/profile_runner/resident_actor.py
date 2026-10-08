@@ -143,20 +143,13 @@ def turn_reasoning_config(request: AgentRunRequest, model: str | None) -> dict |
     ``agent.reasoning_effort`` (per-model override first) — the chokepoint every
     upstream surface uses. Before this, a run without an instance effort passed
     nothing and the codex transport sent its own ``medium`` whatever the profile said.
-    Runs inside the persona's profile scope, so ``load_config`` is that profile's."""
+    Runs inside the persona's profile scope, so ``load_config`` is that profile's.
+    The resolution itself is :func:`agent_runtime.persona_chat_session.reasoning_config_for`
+    (the stores layer, which the effective-model payload reads too)."""
 
-    from hermes_constants import parse_reasoning_effort
+    from agent_runtime.persona_chat_session import reasoning_config_for
 
-    if request.reasoning_effort:
-        return parse_reasoning_effort(request.reasoning_effort)
-    try:
-        from hermes_cli.config import load_config
-        from hermes_constants import resolve_reasoning_config
-
-        return resolve_reasoning_config(load_config() or {}, model or "")
-    except Exception:
-        _logger.debug("profile reasoning effort unreadable", exc_info=True)
-        return None
+    return reasoning_config_for(request.reasoning_effort, model)
 
 
 def log_turn_effort(request: AgentRunRequest, agent: Any, *, reused: bool) -> None:

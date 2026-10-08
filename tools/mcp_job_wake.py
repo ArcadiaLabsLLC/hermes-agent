@@ -394,14 +394,14 @@ def _write_checkpoints_locked(path: str) -> None:
     mine = [{k: v for k, v in row.items() if k != "checkpoint"} for row in _rows.values() if row["checkpoint"] == path]
     try:
         from utils import atomic_json_write
-        foreign = [e for e in _read_checkpoint(path) if e.get("pid") != pid and _expires_after(e, wall)]
+        foreign = [e for e in _checkpoint_dicts(path) if e.get("pid") != pid and _expires_after(e, wall)]
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         atomic_json_write(path, foreign + mine)
     except Exception:
         logger.warning("MCP job checkpoint %s could not be written", Path(path).name, exc_info=True)
 
 
-def _read_checkpoint(path: str) -> list[dict]:
+def _checkpoint_dicts(path: str) -> list[dict]:
     try:
         entries = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):

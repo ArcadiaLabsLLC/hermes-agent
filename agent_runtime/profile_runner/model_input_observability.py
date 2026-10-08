@@ -529,8 +529,9 @@ def _prompt_surface(
     from tools.tool_search_catalog import TOOL_SEARCH_NAME
     from tools.tool_search_downstream import PROMOTED_MCP_TOOLS
 
-    listing_chars = 0
-    for tool in list(getattr(agent, "tools", None) or []):
+    receipt = getattr(agent, "_hermes_turn_wire_tool_receipt", None)
+    listing_chars = receipt["listing_chars"] if isinstance(receipt, dict) else 0
+    for tool in ([] if receipt is not None else list(getattr(agent, "tools", None) or [])):
         function = tool.get("function") if isinstance(tool, dict) else None
         if isinstance(function, dict) and function.get("name") == TOOL_SEARCH_NAME:
             # The description's first paragraph is the bridge's own text; the rest is the
@@ -570,6 +571,10 @@ def _is_first_turn(agent: Any) -> bool:
 
 def _agent_wire_tool_chars(agent) -> dict[str, int]:
     """``{name: chars}`` of the agent's tools as the wire carries them, largest first."""
+    receipt = getattr(agent, "_hermes_turn_wire_tool_receipt", None)
+    if isinstance(receipt, dict):
+        return receipt["per_tool_chars"]
+
     try:
         from tools.downstream_schema import wire_tool_chars
 
@@ -581,6 +586,10 @@ def _agent_wire_tool_chars(agent) -> dict[str, int]:
 
 def _agent_tools_json_bytes(agent) -> int | None:
     """UTF-8 byte size of the serialized tool schemas, or None if unmeasurable."""
+    receipt = getattr(agent, "_hermes_turn_wire_tool_receipt", None)
+    if isinstance(receipt, dict):
+        return receipt["json_bytes"]
+
     try:
         tools = list(getattr(agent, "tools", None) or [])
         if not tools:
@@ -591,6 +600,9 @@ def _agent_tools_json_bytes(agent) -> int | None:
 
 
 def _agent_tool_names(agent) -> list[str]:
+    receipt = getattr(agent, "_hermes_turn_wire_tool_receipt", None)
+    if isinstance(receipt, dict):
+        return list(receipt["names"])
     names: list[str] = []
     for tool in list(getattr(agent, "tools", []) or []):
         if not isinstance(tool, dict):

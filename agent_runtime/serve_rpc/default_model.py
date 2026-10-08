@@ -56,7 +56,7 @@ _REASON_CODES: dict[str, int] = {
 }
 
 
-def _answer(rid: Any, provider: str | None, model: str | None, requested_by: str | None) -> dict:
+def _default_model_answer(rid: Any, provider: str | None, model: str | None, requested_by: str | None) -> dict:
     from agent_runtime.runtime_default_model import DefaultModelRefused, set_runtime_default_model
 
     try:
@@ -88,7 +88,7 @@ def _runtime_default_model_set(rid: Any, params: dict, context: RpcContext | Non
         return err(rid, ERR_INVALID_PARAMS, f"{METHOD_NAME} refused: provider_required", {"reason": "provider_required"})
     if model is None:
         return err(rid, ERR_INVALID_PARAMS, f"{METHOD_NAME} refused: model_required", {"reason": "model_required"})
-    build = lambda: _answer(rid, provider, model, requested_by)  # noqa: E731
+    build = lambda: _default_model_answer(rid, provider, model, requested_by)  # noqa: E731
     spawn = None if context is None else context.spawn_reply
     if spawn is not None and spawn(deferred_reply(rid, METHOD_NAME, build)):
         return DEFERRED

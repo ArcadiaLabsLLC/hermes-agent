@@ -200,3 +200,21 @@ def test_a_stream_not_typed_event_stream_still_has_its_bytes_stamped(fake_sse, c
     assert send["content_type"] == "text/plain"
     assert gap["first_lag_ms"] != "na" and gap["text_chunk_ms"] != "na"
     assert _num(send, "first_byte_ms") <= _num(send, "first_event_ms")
+
+
+def test_slow_chained_callback_is_visible_without_sampler_lateness():
+    from agent_runtime.send_window_receipt import SendWindow
+    from agent_runtime.transport_phase_trace import phase_trace_for
+    now = [1.0]
+    window = SendWindow(clock=lambda: now[0]); window.started_at = 1.0
+    def slow(event, info):
+        now[0] += .375
+    trace = phase_trace_for(None, chained=slow, window=window)
+    trace("http11.receive_response_headers.started", {})
+    fields = window.fields()
+    assert fields["receive_start_ms"] == 0
+    assert fields["callback_ms"] == 375
+    assert fields["callback_count"] == 1
+    assert fields["stall_over50_ms"] is None
+    assert fields["wait_on"] == "local"
+    assert fields["wait_on_is_heuristic"] is True

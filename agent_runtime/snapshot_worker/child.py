@@ -141,6 +141,18 @@ _BUILD_LOCK = threading.Lock()
 _TURN_SECTION_LOCK = threading.Lock()
 
 
+class SnapshotBuildFailed(RuntimeError):
+    def __init__(self, error: BaseException, receipts: list[dict]) -> None:
+        import traceback
+        self.diagnostics = {
+            "error_type": type(error).__name__,
+            "frames": [f"{Path(frame.filename).name}:{frame.name}:{frame.lineno}"
+                       for frame in traceback.extract_tb(error.__traceback__)[-8:]],
+            "receipts": receipts,
+        }
+        super().__init__(type(error).__name__)
+
+
 def handle_build(params: dict) -> dict:
     """One build, its receipts, and this process's pid."""
 
@@ -158,6 +170,8 @@ def handle_build(params: dict) -> dict:
         try:
             with _resolution_scope(params.get("resolution")), snapshot_build_context_scope(_build_context()),                     precomputed_running_work(params.get("running_work")),                     recorded_runtime_registry(params.get("runtime")):
                 core = _build_snapshot_uncoalesced()
+        except BaseException as exc:
+            raise SnapshotBuildFailed(exc, _captured(capture)) from exc
         finally:
             root.removeHandler(capture)
     return {"core": to_jsonable(core), "receipts": _captured(capture), "worker_pid": os.getpid()}
@@ -189,12 +203,12 @@ def handle_turn_section(params: dict) -> dict:
 _HANDLERS = {BUILD_METHOD: handle_build, TURN_SECTION_METHOD: handle_turn_section}
 
 
-def _reply_frame(rid: Any, *, result: dict | None = None, code: int | None = None, message: str = "") -> bytes:
+def _reply_frame(rid: Any, *, result: dict | None = None, code: int | None = None, message: str = "", data: dict | None = None) -> bytes:
     frame: dict[str, Any] = {"jsonrpc": "2.0", "id": rid}
     if code is None:
         frame["result"] = result
     else:
-        frame["error"] = {"code": code, "message": message}
+        frame["error"] = {"code": code, "message": message, **({"data": data} if data else {})}
     try:
         return encode_frame(frame)
     except ConversationError:
@@ -282,7 +296,8 @@ def serve(requests: BinaryIO, replies: BinaryIO) -> None:
                 try:
                     encoded = _reply_frame(rid, result=handler(params))
                 except BaseException as exc:  # a SystemExit in a handler must still answer
-                    encoded = _reply_frame(rid, code=_BUILD_FAILED, message=type(exc).__name__)
+                    encoded = _reply_frame(rid, code=_BUILD_FAILED, message=type(exc).__name__,
+                                           data=getattr(exc, "diagnostics", None))
         finally:
             with active_lock:
                 active.pop(rid, None)
@@ -320,7 +335,11 @@ def serve(requests: BinaryIO, replies: BinaryIO) -> None:
     # The handshake means "a build can start now": the builder's imports are paid.
     import agent_runtime.snapshot.build  # noqa: F401
 
-    send(encode_frame({"jsonrpc": "2.0", "method": READY_METHOD, "params": {"worker_pid": os.getpid()}}))
+    from agent_runtime.conversations.process_evidence import worker_ready_frame
+
+    ready = worker_ready_frame()
+    ready["method"] = READY_METHOD
+    send(encode_frame(ready))
     threading.Thread(target=beat, name="snapshot-worker-beat", daemon=True).start()
     while raw := requests.readline(MAX_FRAME_BYTES + 1):
         try:

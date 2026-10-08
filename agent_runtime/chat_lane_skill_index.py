@@ -64,28 +64,22 @@ def compact_skill_categories(keep_skills: Iterable[str], roots: list[Path] | Non
     one, so a warm root costs one listing walk.
     """
 
-    from agent_runtime.skill_resolution import _skill_root_registry
+    from agent_runtime.skill_resolution import skill_root_manifests, skill_search_roots
 
     if roots is None:
-        from agent.skill_utils import get_all_skills_dirs
-
-        roots = list(get_all_skills_dirs())
+        roots = skill_search_roots()
     keep = {str(s).strip() for s in keep_skills if str(s or "").strip()}
     all_categories: set[str] = set()
     kept: set[str] = set()
     for root in roots:
-        registry = _skill_root_registry(Path(root))
-        aliases_of: dict[Path, set[str]] = {}
-        for alias, entries in registry.manifests_by_alias.items():
-            for _skill_dir, manifest in entries:
-                aliases_of.setdefault(manifest, set()).add(alias)
-        for skill_dir, manifest in registry.manifests:
+        for entry in skill_root_manifests(Path(root)):
+            skill_dir, manifest = entry.skill_dir, entry.manifest
             try:
                 category = _top_category(manifest, Path(root))
             except ValueError:
                 continue
             all_categories.add(category)
-            names = aliases_of.get(manifest, set()) | ({skill_dir.name} if skill_dir is not None else set())
+            names = set(entry.aliases) | ({skill_dir.name} if skill_dir is not None else set())
             if names & keep:
                 kept.add(category)
     return frozenset(all_categories - kept)

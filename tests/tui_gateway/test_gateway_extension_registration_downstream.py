@@ -18,6 +18,7 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
     server.__package__ = "tui_gateway"
     server.sys = sys
     server.calls = []
+    server.imported = []
     monkeypatch.setitem(sys.modules, server.__name__, server)
     real_import = builtins.__import__
     def importing(name, globals=None, locals=None, fromlist=(), level=0):
@@ -25,8 +26,12 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
             modules = {}
             for child in fromlist:
                 if inspect_pdf_import and child == "methods_pdf":
-                    assert hasattr(server, "_methods_connectors")
-                    assert hasattr(server, "_methods_connectors_account")
+                    # The optional imports are module-level seams in gateway_extensions
+                    # (the bundle-profile fence reads only that shape), so the aliases are
+                    # published by prepare(); what survives of the original import-time
+                    # visibility is the ORDER: the connector pair is imported before PDF.
+                    assert {"methods_connectors", "methods_connectors_account"} <= set(server.imported)
+                server.imported.append(child)
                 if failure and child == failure[0]:
                     raise ImportError("fixture omitted dependency", name=failure[1])
                 def register(owner, child=child):

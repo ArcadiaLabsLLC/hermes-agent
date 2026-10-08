@@ -122,6 +122,24 @@ class _SkillRootRegistry:
     resolved_files: dict[Path, Path] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class SkillRootManifest:
+    skill_dir: Path | None
+    manifest: Path
+    aliases: frozenset[str]
+
+
+def skill_root_manifests(root: Path) -> tuple[SkillRootManifest, ...]:
+    """Public, signature-validated manifests and resolver aliases for one root."""
+    registry = _skill_root_registry(root)
+    aliases: dict[Path, set[str]] = {}
+    for alias, entries in registry.manifests_by_alias.items():
+        for _, manifest in entries:
+            aliases.setdefault(manifest, set()).add(alias)
+    return tuple(SkillRootManifest(directory, manifest, frozenset(aliases.get(manifest, ())))
+                 for directory, manifest in registry.manifests)
+
+
 def _group_by_path(
     entries: tuple[tuple[Path | None, Path], ...],
 ) -> dict[Path, tuple[tuple[Path | None, Path], ...]]:
@@ -451,7 +469,7 @@ def resolve_skill(
     from agent import skill_utils as _skills
 
     name = str(identifier or "").strip()
-    search_roots = list(roots) if roots is not None else _skills.get_all_skills_dirs()
+    search_roots = list(roots) if roots is not None else skill_search_roots()
     candidates: list[SkillResolutionCandidate] = []
     seen: set[Path] = set()
 
@@ -534,7 +552,7 @@ def resolve_skills(
 
     names = list(dict.fromkeys(str(item or "").strip() for item in identifiers))
     names = [name for name in names if name]
-    search_roots = list(roots) if roots is not None else _skills.get_all_skills_dirs()
+    search_roots = list(roots) if roots is not None else skill_search_roots()
     found: Dict[str, list[SkillResolutionCandidate]] = {name: [] for name in names}
     seen: Dict[str, set[Path]] = {name: set() for name in names}
     root_registries = _registries_for_call(_root_registries)
@@ -782,12 +800,14 @@ def skill_runtime_compatibility(
     *,
     surface: str,
     root_node_mode: bool = False,
+    preparation_epoch=None,
 ) -> dict[str, Any]:
     """Evaluate declared surface/mode compatibility for a resolved skill."""
 
     if candidate is None:
         return {"compatible": False, "reason": "unresolved"}
-    frontmatter = _cached_skill_frontmatter(candidate.skill_md)
+    frontmatter = (preparation_epoch.frontmatter(candidate.skill_md)
+                   if preparation_epoch is not None else _cached_skill_frontmatter(candidate.skill_md))
     return skill_frontmatter_runtime_compatibility(
         frontmatter,
         surface=surface,
@@ -819,6 +839,8 @@ def required_preload_skill_ids(
             resolution.candidate,
             surface=surface,
             root_node_mode=root_node_mode,
+            preparation_epoch=(_root_registries.preparation_epoch
+                               if isinstance(_root_registries, TurnRootRegistries) else None),
         )
         if (
             resolution.status == "resolved"

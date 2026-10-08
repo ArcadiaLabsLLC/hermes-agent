@@ -312,7 +312,17 @@ def classify(cmd, env=None) -> str | None:
     #     ``_local_browser_runnable`` / ``get_nous_subscription_features`` /
     #     ``apply_nous_managed_defaults``  (2026-09-04)
     # so the exemption is deleted and the real-store arm is unconditional again.
-    if _names_real_root(text, env):
+    #
+    # A Python INTERPRETER token is not evidence of the store: an interpreter
+    # names a code install, and the gate's own venv lives under
+    # ``<root>/installs/.../test-environment`` -- matched as text, every
+    # ``sys.executable`` spawn in this directory was refused (2026-10-07: 80
+    # refusals, ~15 reds on main). The store is reached through HERMES_HOME or
+    # through an argument that names it; both stay refused.
+    store_text = " ".join(
+        token for token in tokens if not _PYTHON_BASENAME_RE.match(_basename(token))
+    )
+    if _names_real_root(store_text, env):
         return (
             f"it would run hermes against the operator's REAL store ({_REAL_ROOT}). "
             "Tests run against the hermetic home that tests/conftest.py's "

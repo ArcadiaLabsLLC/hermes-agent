@@ -258,7 +258,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # 67 (w6-hm, 2026-10-02): ``runtime.default_model.set``, the serve op that writes
 # the serve profile's ``model.default`` (``agent_runtime.runtime_default_model``).
 # Red at 66 on that commit and moved deliberately.
-SURVIVING_EVENT_COUNT = 67
+# 68 (row H7, 79560dff44, 2026-10-04): ``build.ended``, one event per build
+# ending, emitted by the serve build sweep (``agent_runtime.builds.sweep``).
+# The commit registered the type but left this counter at 67; moved here.
+SURVIVING_EVENT_COUNT = 68
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

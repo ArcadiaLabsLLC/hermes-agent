@@ -11,8 +11,8 @@ reviewable act rather than something a `cp` can do silently.
 | --- | --- |
 | Source repo | `EterniaLauncher` |
 | Source path | `docs/stages/qa-reboot/launcher_qa_profile_allowlists.yaml` |
-| Snapshot sha256 | `4aad31d0467eaa807b2cf6295c25ec4645923d8495b88120dc4ecc63389591aa` |
-| Snapshot taken | 2026-07-26, launcher `3e3feff0` (`feat(stagec-qa): run_actions — one MCP call, an ordered action list`); 26-tool surface |
+| Snapshot sha256 | `05edade189582f6f5781bc705a1628071a43c711f3a6c7a7394a4b29b4f1c291` |
+| Snapshot taken | 2026-10-07, launcher `de077f4cb9f551090b24811e0edd6ad1962431e7` (`l-qa-brief`); 36-tool surface |
 | Consumed by | `tests/agent_runtime/test_mcp_admission_r2.py` (parity of `agent_runtime.mcp_admission.READ_ONLY_INCLUDED_TOOLS` / `READ_ONLY_EXCLUDED_TOOLS` against the YAML's `reviewer` row) |
 
 Hermes **owns** the admission policy — design open question 6. This YAML is
@@ -62,3 +62,17 @@ whose live subject no current test references. The generator is
 test, and it needs a clone that still holds the pre-fold objects. The snapshot
 is final — its base does not move — so a refresh should only ever fix a
 generator defect, never absorb a coverage loss.
+
+### Reviewed refresh: 2026-10-07
+
+The exact Launcher source blob is `9a680dbff39da5faa91f201822ec823c03921aa0`.
+Hermes adopts the reviewer's three added reads: `get_tool_manual` reads registered
+manual/schema text without dispatching the described tool; `build_status` reads or
+waits for an existing job without starting it; `get_render_profile` reads render
+state. Names above use the `mcp_launcher_qa_` prefix. The seven newly explicit
+warm-cache denials are `record_video`, `prebuild`, `dev_login`, `set_text`,
+`resize_window`, `set_dpi`, and `pointer_drag`. All existing denials remain.
+The resulting reviewer partition is 15 allowed and 21 denied tools. The full QA
+profiles also document semantic-control scopes; those are fixture data, not new
+Hermes MCP include entries. Unknown tool names remain denied by the positive list.
+Alice/PM/reviewer can read the manual but cannot use it to execute a denied tool.

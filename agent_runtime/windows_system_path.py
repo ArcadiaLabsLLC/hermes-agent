@@ -2,6 +2,8 @@
 
 import os
 
+__layer__ = "policy"
+
 
 def windows_system_path_dirs() -> "list[str]":
     """Windows dirs that host the native command tooling the agent may shell

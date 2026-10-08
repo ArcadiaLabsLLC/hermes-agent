@@ -121,9 +121,9 @@ session — is refused before all of this with the candidate `@handles` (`:2210-
 ## 2. The turn phases contract
 
 `agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under
-`phases` at schema **v3** (`:62`, `:71`). A v2 record has no `phases` key and is never migrated —
+`phases` (`TURN_PHASES_KEY`) at schema **v3** (`TURN_RECORD_SCHEMA_VERSION`). A v2 record has no `phases` key and is never migrated —
 the bump is how a reader tells "predates instrumentation" from "instrumented and never got there".
-`PHASE_ORDER` (`:77-90`):
+`PHASE_ORDER`:
 
 ```
 request_received → context_built → observability_built → emitter_created →
@@ -251,11 +251,21 @@ for the runner's durations):
 | `agent_ready_ms` | `phases.agent_ready` (Stage 6) |
 | `visibility_bundle_builds` | `phases.visibility_bundle_builds` (Stage 6) |
 | `runtime_resolve_ms` | `profile_timing.runtime_resolve_ms` (Stage 6) — no `profile_` prefix on this one |
-| `conversation_started_ms` … `response_headers_ms`, `provider_returned_ms` | `phases.<mark>` for the nine provider-span stamps above (h-chatperf, 2026-10-03), appended in turn order |
+| `mcp_admission_ms` | `profile_timing.mcp_admission_ms` |
+| `agent_construct_ms` | `profile_timing.agent_construct_ms` |
+| `conversation_started_ms` | `phases.conversation_started` |
+| `turn_context_built_ms` | `phases.turn_context_built` |
+| `preflight_done_ms` | `phases.preflight_done` |
+| `request_built_ms` | `phases.request_built` |
+| `client_built_ms` | `phases.client_built` |
+| `tls_done_ms` | `phases.tls_done` |
+| `request_sent_ms` | `phases.request_sent` |
+| `response_headers_ms` | `phases.response_headers` |
+| `provider_returned_ms` | `phases.provider_returned` |
 
 Stage 6's six are APPENDED to `TURN_TIMING_ORDER` rather than interleaved chronologically, which
 is "additive in the strict sense" taken literally: no existing key moves in name OR position.
-Nothing reads the block positionally (the launcher's `MissionRuntimeTurnTiming` reads it by key
+Nothing reads the block positionally (the launcher's `AgentConsoleTurnTiming` reads it by key
 name), so the only cost is that the tuple lists the pre-admit half below the post-admit half.
 `write_ahead_ms` is why the widening happened: the pre-admit span is where a local turn's extra
 seconds live, and until Stage 6 it was readable only by opening the ledger file — which an
@@ -374,6 +384,34 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
 - The Launcher's app functions (`launcher_app_functions`, Stage 7) join the augmentation once a
   Launcher has listed them; under `read_only` the same chokepoint blocks every entry the Launcher
   marks `requires_confirmation` (`extra_blocked_tools_for_permission_mode`) beside `READ_ONLY_BLOCKS`.
+
+The Launcher may mark an offered app-function entry `always_loaded: true`. Hermes keeps those
+entries visible through tool-search assembly, including a persona's defer extension; this is a
+discovery preference, not a grant. The bound connection's cached catalog owns the marks
+(`agent_runtime/launcher_app_functions.py`), and the definitions memo includes that catalog's
+lifetime token and origin. Re-declaration replaces the token even when another connection already
+synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
+an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
+
+Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
+(`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
+full description, and `launcher.generated.list` returns the full component catalog and examples.
+Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
+New component kinds belong in that catalog rather than growing the always-loaded tool schema.
+There is no additional prompt section or per-turn catalog fetch. Intelligence's native worker
+retains a typed `SessionBinding` on the gateway's existing session record
+(`agent_runtime/conversations/worker_app_functions.py`) so continued turns and agent replacement
+use the same discovery boundary. The worker adds no attributes to the upstream agent. The gateway's
+teardown chokepoint releases that record's exact catalog and open app-function requests; closed
+records cannot reacquire the link. A failed initial construction releases its binding, while a
+failed replacement retains the still-live agent's connection. Discovery and construction hold no
+session lock across network or factory work, and a late result cannot revive a closed catalog.
+Eager resume, branch creation and compute-host construction use a fork-owned construction scope
+until registration attaches the same binding under the session lock, before I/O or publication.
+Duplicate resumes and failed registration release the abandoned catalog, including errors after
+the transfer; a failed registered record cannot rediscover. Compute-host fallback migrates the
+same binding to its minimal record. The scope is context-local and transient,
+not a second session registry; no additional discovery request or model-schema change is introduced.
 
 `apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane
 resolution onto the operator preview, so `persona tool-diff` reports what the turn ships. It sets
@@ -907,7 +945,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
   the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:435-436`) and the live
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py`, 2026-08-22 tree) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
 - **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —

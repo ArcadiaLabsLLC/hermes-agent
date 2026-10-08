@@ -64,6 +64,8 @@ __all__ = [
     "latest_answerer",
     "declare_answerer",
     "app_function_tools_registered",
+    "app_function_tool_scope",
+    "always_loaded_app_function_tools",
     "LauncherLink",
     "bind_launcher_link",
     "call_app_function",
@@ -155,8 +157,10 @@ class AppFunctionEntry:
     parameters: dict[str, Any]
     #: The Launcher waits for the person's approval card before running it.
     requires_confirmation: bool = False
-    #: ``local`` or ``paired_device``: the farthest origin the entry runs from.
+    #: The Launcher's reach enum: ``localOnly`` or ``pairedDevice``.
     reach: str = ""
+    #: Host-owned discovery preference; never a permission grant.
+    always_loaded: bool = False
 
     @classmethod
     def parse(cls, raw: Any) -> AppFunctionEntry | None:
@@ -176,7 +180,8 @@ class AppFunctionEntry:
         reach = raw.get("reach")
         return cls(name, method, description if isinstance(description, str) else "", parameters,
                    requires_confirmation=raw.get("requires_confirmation") is True,
-                   reach=reach if isinstance(reach, str) else "")
+                   reach=reach if isinstance(reach, str) else "",
+                   always_loaded=raw.get("always_loaded") is True)
 
     def schema(self) -> dict[str, Any]:
         """The tool schema: the Launcher's name, description and parameters, with
@@ -223,8 +228,8 @@ class _ToolsetState:
         #: Declaring owners in declaration order (a re-declaration moves to the end).
         self.answerers: dict[str, None] = {}
         self.unanswered: dict[int, Any] = {}
-        #: By sink identity: the sink (so the id stays live) and its entries.
-        self.catalog: dict[int, tuple[Any, list[AppFunctionEntry]]] = {}
+        #: Sink, entries and an opaque memo token for this catalog's lifetime.
+        self.catalog: dict[int, tuple[Any, list[AppFunctionEntry], object]] = {}
 
 
 _state = _ToolsetState()
@@ -266,6 +271,40 @@ def app_function_tools_registered() -> bool:
 
     with _state.lock:
         return bool(_state.registered)
+
+
+def app_function_tool_scope() -> tuple[object, str] | None:
+    """Memo boundary for connection-bound availability and discovery preferences.
+
+    No wire read: the catalog is already fetched once per admitted connection.
+    A linked and an unlinked construction must never share an assembled list.
+    Re-declaration replaces the token even if another connection already synced
+    the same registry entries; a retired catalog cannot lend its memo to a new one.
+    """
+    link = current_launcher_link()
+    if link is None:
+        return None
+    with _state.lock:
+        held = _state.catalog.get(id(link.sink))
+        return (held[2] if held is not None and held[0] is link.sink else None, link.origin)
+
+
+def always_loaded_app_function_tools() -> frozenset[str]:
+    """This connection's host-declared eager tools, within its origin's reach.
+
+    Read the bound link's catalog, never the process-global last registered list.
+    Toolset admission and the Launcher's dispatcher still decide whether a call
+    is available and allowed; this only changes search classification.
+    """
+    link = current_launcher_link()
+    if link is None:
+        return frozenset()
+    with _state.lock:
+        held = _state.catalog.get(id(link.sink))
+        if held is None or held[0] is not link.sink:
+            return frozenset()
+        return frozenset(entry.name for entry in held[1] if entry.always_loaded and
+                         (link.origin == ORIGIN_LOCAL or entry.reach == "pairedDevice"))
 
 
 def confirm_app_function_tools() -> frozenset[str]:
@@ -360,7 +399,7 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
             continue
         entries.append(entry)
     with _state.lock:
-        _state.catalog[id(link.sink)] = (link.sink, entries)
+        _state.catalog[id(link.sink)] = (link.sink, entries, object())
         _sync_registry(entries)
     return [entry.name for entry in entries]
 

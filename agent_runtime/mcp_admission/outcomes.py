@@ -405,6 +405,6 @@ def _admitted_clause(
         return ""
     listed = ", ".join(dict.fromkeys(names))
     return (
-        f" Admitted on this turn: {listed}; those servers' mcp__<server>__* tools ARE "
-        "in your tool list, so call them directly."
+        f" Admitted on this turn: {listed}. Call tools present in your tool list directly; "
+        "discover deferred tools with tool_search and invoke them through tool_call."
     )

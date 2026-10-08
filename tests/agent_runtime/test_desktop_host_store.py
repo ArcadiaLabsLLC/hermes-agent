@@ -295,6 +295,8 @@ def test_the_conversation_worker_binds_before_its_engine_reads_a_credential(app,
     _install_profile(app)
     monkeypatch.setattr(desktop, "os_secure_store", _unavailable)
     monkeypatch.setattr(worker_skills, "install", lambda: pytest.fail("the worker started unbound"))
+    # In-process: the worker's stdin re-plumbing would dup2 THIS process's fd 0.
+    monkeypatch.setattr(worker_entry, "own_protocol_input", lambda: None)
     with pytest.raises(SystemExit) as exited:
         worker_entry.main()
     assert exited.value.code == 2

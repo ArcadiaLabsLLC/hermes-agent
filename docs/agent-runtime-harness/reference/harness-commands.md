@@ -3100,9 +3100,8 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--clarify-token CLARIFY_TOKEN] [--title TITLE]
                                            --message MESSAGE [--provider PROVIDER] [--model MODEL]
                                            [--use-agent-default] [--surface-prompt SURFACE_PROMPT]
-                                           [--agents-file AGENTS_FILE] [--workspace-id WORKSPACE_ID]
-                                           [--workspace-name WORKSPACE_NAME]
-                                           [--intent-hint INTENT_HINT] [--requested-by REQUESTED_BY]
+                                           [--agents-file AGENTS_FILE] [--intent-hint INTENT_HINT]
+                                           [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
                                            [--idempotency-key IDEMPOTENCY_KEY] [--stream]
                                            [--max-seconds MAX_SECONDS]
@@ -3136,8 +3135,6 @@ options:
   --agents-file AGENTS_FILE
                         Absolute path to one operator-selected workspace AGENTS.md to inject for
                         this turn
-  --workspace-id, --workspace WORKSPACE_ID
-  --workspace-name WORKSPACE_NAME
   --intent-hint INTENT_HINT
   --requested-by REQUESTED_BY
   --client-message-id CLIENT_MESSAGE_ID

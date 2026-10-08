@@ -61,6 +61,29 @@ __all__ = [
 # existed; repointed MCF-78 2026-08-20.
 
 
+def _chat_lane_tool_options(instance: PersonaInstance, visibility_persona: AgentPersona) -> Any:
+    """The instance's chat-lane permission options, scoped as the chat lane scopes them."""
+    with timed_create_subphase("permission_options_ms"):
+        tool_options = permission_options_for_chat(
+            visibility_persona,
+            session_id=instance.default_chat_session_id,
+            task_id=instance.current_task_id,
+            goal_id=instance.goal_id,
+            runtime_root=instance.runtime_root,
+        )
+    # T9b: this preview is the persona instance's operator CHAT lane, so it
+    # must reflect the chat-lane scoping (augmentation + cost cuts + restore
+    # knob + registry hygiene) — not the raw effective_toolsets. Lazy import
+    # avoids a module-load cycle; the chat-lane authority stays single.
+    from ..chat_lane_bundle import apply_chat_lane_tool_scope
+
+    with timed_create_subphase("chat_lane_scope_ms"):
+        apply_chat_lane_tool_scope(
+            visibility_persona, tool_options, session_id=instance.default_chat_session_id
+        )
+    return tool_options
+
+
 def persona_instance_summary(
     instance: PersonaInstance,
     persona: AgentPersona | None = None,
@@ -81,26 +104,18 @@ def persona_instance_summary(
         if instance.skill_overrides is not None
         else list(getattr(visibility_persona, "skills", []) or [])
     )
-    tool_options = None
-    if visibility_persona is not None:
-        with timed_create_subphase("permission_options_ms"):
-            tool_options = permission_options_for_chat(
-                visibility_persona,
-                session_id=instance.default_chat_session_id,
-                task_id=instance.current_task_id,
-                goal_id=instance.goal_id,
-                runtime_root=instance.runtime_root,
-            )
-        # T9b: this preview is the persona instance's operator CHAT lane, so it
-        # must reflect the chat-lane scoping (augmentation + cost cuts + restore
-        # knob + registry hygiene) — not the raw effective_toolsets. Lazy import
-        # avoids a module-load cycle; the chat-lane authority stays single.
-        from ..chat_lane_bundle import apply_chat_lane_tool_scope
+    tool_options = (
+        _chat_lane_tool_options(instance, visibility_persona)
+        if visibility_persona is not None
+        else None
+    )
+    from agent_runtime.config import load_agent_runtime_config
+    from agent_runtime.persona_chat_session import _chat_effective_model_payload
 
-        with timed_create_subphase("chat_lane_scope_ms"):
-            apply_chat_lane_tool_scope(
-                visibility_persona, tool_options, session_id=instance.default_chat_session_id
-            )
+    model_selection = _chat_effective_model_payload(
+        persona=visibility_persona, config=load_agent_runtime_config(),
+        override=None, instance=instance,
+    )
     summary = {
         "agent_profile_id": instance.id,
         "agent_profile_display_name": instance.display_name,
@@ -122,15 +137,15 @@ def persona_instance_summary(
         "provider": instance.provider,
         "api_mode": instance.api_mode,
         "model_is_override": bool(instance.model or instance.provider or instance.reasoning_effort),
-        "effective_model": instance.model or getattr(visibility_persona, "model", None),
-        "effective_provider": instance.provider or getattr(visibility_persona, "provider", None),
+        "effective_model": model_selection["effective_model"],
+        "effective_provider": model_selection["effective_provider"],
         # Per-instance reasoning-effort override (None = inherit runtime default)
         # plus whether the effective model supports reasoning effort at all, so
         # the Launcher only offers the effort control for reasoning-capable
         # models (no fake affordance). Computed offline from the model id.
         "reasoning_effort": instance.reasoning_effort,
         "reasoning_supported": _model_supports_reasoning_effort(
-            instance.model or getattr(visibility_persona, "model", None)
+            model_selection["effective_model"]
         ),
         # The DECLARED lane toolsets (S0a A2), not the persona's legacy field:
         # the field is read by no admission path since A1, so projecting it here

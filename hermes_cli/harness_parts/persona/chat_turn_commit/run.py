@@ -26,10 +26,11 @@ from agent_runtime.mission_chat_turns.journal import (
     persist_mission_chat_turn,
     transition_mission_chat_turn,
 )
-from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
+from agent_runtime.mission_chat_turns.reads import (
+    abandoned_mission_chat_message_ids, is_abandoned_mission_chat_message,
+)
 from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
-    TURN_STATE_ABANDONED,
     TURN_STATE_EXECUTING,
     TURN_STATE_PENDING,
 )
@@ -45,7 +46,6 @@ from agent_runtime.prompt_observability import (
 )
 from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
-from agent_runtime.workspace_scope import workspace_claim_disagreement
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -121,24 +121,13 @@ class _RunPhases:
         _history_started = time.monotonic()
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_history = _persona_chat_native_history(session_db, active_session_id)
-        abandoned_ids = {
-            str(record.get("client_message_id") or "")
-            for record in mission_chat_turn_records(session_id=session_id)
-            if record.get("state") == TURN_STATE_ABANDONED
-        }
-        native_history = safe_native_history(
-            [
-                item
-                for item in (native_history or [])
-                if not any(
-                    str(item.get("platform_message_id") or "") == abandoned_id
-                    or str(item.get("platform_message_id") or "").startswith(
-                        f"{abandoned_id}:"
-                    )
-                    for abandoned_id in abandoned_ids
-                )
-            ]
-        )
+        abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
+        native_history = safe_native_history([
+            item for item in (native_history or [])
+            if not is_abandoned_mission_chat_message(
+                str(item.get("platform_message_id") or ""), abandoned_ids,
+            )
+        ])
         self.active_session_id = active_session_id
         self.native_history = native_history
         self.pre_admit_timings.update(
@@ -275,21 +264,11 @@ class _RunPhases:
         The row's workspace is the one the turn RESOLVED
         (``turn_context.lane_workspace``: the lane's own pointer, else the active
         workspace) — the same resolution the Runtime Situation scope line is
-        named from. ``--workspace-id`` / ``--workspace-name`` never decide it: a
-        client can only say which workspace it was showing, and for a lane
-        placed elsewhere that named a workspace the turn did not run in. They
-        are read for one thing, to say so when they disagree.
+        named from. The resolved workspace is the context authority.
         """
 
         args = self.args
         workspace = turn_context.lane_workspace
-        disagreement = workspace_claim_disagreement(
-            workspace,
-            claimed_id=safe_assignment_token(getattr(args, "workspace_id", None)),
-            claimed_name=safe_assignment_text(getattr(args, "workspace_name", None), limit=120),
-        )
-        if disagreement:
-            logger.info("mission chat %s (the record names the turn's own workspace)", disagreement)
         return mission_chat_prompt_observability(
             persona=self.persona,
             persona_instance_id=instance.id,
@@ -517,6 +496,10 @@ class _RunPhases:
 
     def _run_model(self) -> None:
         """The model turn itself, under the relay chain's shared deadline. Marks ``stream_done``."""
+        # Prepared manifest snapshots must never serve later tool authorization.
+        preparation_epoch = getattr(getattr(self, "turn_root_registries", None), "preparation_epoch", None)
+        if preparation_epoch is not None:
+            preparation_epoch.close()
 
         args = self.args
         turn_context = self.turn_context

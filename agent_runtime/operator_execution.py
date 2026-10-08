@@ -4,12 +4,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import contextmanager
 
+from agent_runtime.chat_observation_policy import chat_observation_guidance
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
 from agent_runtime.chat_turn_reservations import (
     ChatTurnReservationError, STATE_SETTLED, read_chat_turn_receipt, reserve_chat_turn,
 )
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
+from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, turn_timing_block
+from agent_runtime.serde import safe_assignment_token
 from agent_runtime.mission_chat_turns.states import (
     TERMINAL_TURN_STATES, TURN_STATE_INTERRUPTED,
 )
@@ -63,8 +66,18 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
         outcome = "stopped" if receipt.exit_code == 130 else "finished"
     else:
         outcome = "stop_requested" if receipt.stop_requested else "unsettled"
+    timing = None
+    if (not receipt.is_new and journal is not None
+            and journal.get("client_message_id") == str(turn_id).strip()
+            and journal.get("turn_id") == safe_assignment_token(turn_id)
+            and journal.get("root_chat_session_id") == session_id):
+        timing = turn_timing_block(
+            phases=journal.get(TURN_PHASES_KEY), profile_timing=journal.get("profile_timing")
+        )
     return {"turn_request_id": turn_id, "outcome": outcome,
-            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested}
+            **({"timing": timing} if timing is not None else {}),
+            "admitted": not receipt.is_new, "stop_requested": receipt.stop_requested,
+            **chat_observation_guidance(terminal=outcome in {"stopped", "finished"})}
 
 
 def stop_operator_execution(session_id: str, turn_id: str,

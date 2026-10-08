@@ -120,7 +120,7 @@ class PeerCore:
 
 class NativePeer(PeerCore):
     def __init__(self, process: subprocess.Popen, *, receive: Callable[[dict], None],
-                 lost: Callable[[], None], containment=None):
+                 lost: Callable[[], None], containment=None, worker_purpose: str | None = None):
         try:
             import psutil
         except ImportError as exc:  # the phone omits psutil, and starts no worker process to identify
@@ -129,12 +129,46 @@ class NativePeer(PeerCore):
         super().__init__(receive=receive, lost=lost)
         self.process = process
         self.containment = containment
-        self.process_identity = (process.pid, psutil.Process(process.pid).create_time())
+        self.launcher_identity = (process.pid, psutil.Process(process.pid).create_time())
+        self._worker_identity: tuple[int, float] | None = None
+        self._worker_purpose = worker_purpose
         self._close_lock = threading.Lock()
         self._disposed = False
         self._reader = threading.Thread(target=self._read, daemon=True,
                                         name="native-conversation-reader")
         self._reader.start()
+
+    @property
+    def process_identity(self) -> tuple[int, float]:
+        if self._worker_identity is None:
+            raise ConversationError(Refusal.WORKER_LOST)
+        return self._worker_identity
+
+    def bind_worker_identity(self, params: dict) -> None:
+        from .process_evidence import observe_process_tree
+
+        pid, created = params.get("worker_pid"), params.get("worker_created")
+        if type(pid) is not int or pid <= 0 or type(created) not in (int, float) or created <= 0:
+            raise ConversationError(Refusal.WORKER_LOST)
+        identity = (pid, float(created))
+        tree = observe_process_tree(self.launcher_identity)
+        if identity not in tree.identities:
+            raise ConversationError(Refusal.WORKER_LOST)
+        if purpose := getattr(self, "_worker_purpose", None):
+            from hermes_cli.process_identity import register_child
+
+            register_child(pid, purpose)
+        self._worker_identity = identity
+        _log.info("native_worker execution_pid=%s launcher_pid=%s owned_processes=%s rss_bytes=%s tree_status=%s",
+                  pid, self.launcher_identity[0], len(tree.identities), tree.rss_bytes, tree.status.value)
+
+    def _route(self, frame: dict) -> None:
+        from .process_evidence import WORKER_READY_METHOD
+
+        if frame.get("method") == WORKER_READY_METHOD:
+            self.bind_worker_identity(frame.get("params") or {})
+            return
+        super()._route(frame)
 
     @property
     def alive(self) -> bool:
@@ -143,6 +177,10 @@ class NativePeer(PeerCore):
 
     @property
     def execution_possible(self) -> bool:
+        from .process_evidence import execution_possible
+
+        if self._worker_identity is not None:
+            return execution_possible(*self._worker_identity)
         return self.process.poll() is None
 
     def _send(self, frame: dict, encoded: bytes) -> None:

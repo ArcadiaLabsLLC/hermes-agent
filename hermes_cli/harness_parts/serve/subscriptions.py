@@ -475,6 +475,31 @@ class SubscriptionLanes:
             )
         return len(abandoned)
 
+    def _cancel_owner_queued_requests(self, owner: str) -> int:
+        """A Future cancelled before execution cannot have changed durable state."""
+        with self.inflight_lock:
+            queued = [(key, request, self.inflight_futures.get(key))
+                      for key, request in self.inflight.items() if request.owner == owner]
+        count = 0
+        for key, request, future in queued:
+            if future is None or not future.cancel():
+                continue  # Already-running mutations and chat turns remain owned.
+            if request.turn_request_id:
+                from agent_runtime.chat_turn_reservations import settle_chat_turn
+                from agent_runtime.profile_context import process_home_scope
+                with process_home_scope(self.serve_request_home):
+                    settle_chat_turn(turn_request_id=request.turn_request_id, exit_code=130)
+            with self.inflight_lock:
+                self.inflight.pop(key, None)
+                self.inflight_futures.pop(key, None)
+            if request.accepted is not None:
+                request.accepted.release()
+            request.cancel_event.set()
+            self._emit_safely(request.sink, {"id": request.rid, "event": "exit",
+                                           "code": 130, "cancelled": True})
+            count += 1
+        return count
+
     def _on_connection_closed(self, connection: Any) -> None:
         """The ONE disconnect path: unsubscribe, then reclaim the worker.
 
@@ -486,6 +511,7 @@ class SubscriptionLanes:
         with self.connection_sinks_lock:
             launcher_sink = self.connection_sinks.get(connection.key) if connection is not None else None
         self._release_subscription(connection)
+        self._cancel_owner_queued_requests(self._owner_of(connection))
         self._reclaim_abandoned_streams(connection)
         if launcher_sink is not None:
             # Stage 7: the Launcher that answered app functions on this sink is
