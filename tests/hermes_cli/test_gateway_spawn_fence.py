@@ -170,6 +170,43 @@ def test_the_agent_browser_capability_probe_is_refused_like_anything_else():
     ids=["npm-prefix", "node-script", "agent-browser-install", "probe-plus-a-flag"],
 )
 def test_no_argv_naming_the_real_store_gets_through(argv):
+    _assert_real_store_refusal(argv)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["{root}/installs/abc/test-environment/gen-1/venv/Scripts/python.exe", "-c", "pass"],
+        ["{root}/installs/abc/venv/bin/python3.12", "-m", "pytest", "-q"],
+    ],
+    ids=["gate-venv-python-c", "install-python-m"],
+)
+def test_an_interpreter_under_the_store_root_is_not_the_store(argv):
+    """The gate venv lives under ``<root>/installs``; its interpreter is code, not state.
+
+    Killing mutation: drop the interpreter filter in ``classify`` and both ids red
+    with "REAL store" (the 2026-10-07 gate refused every ``sys.executable`` spawn).
+    """
+    real_root = _gateway_fence.real_root()
+    if real_root is None:
+        pytest.skip("no default hermes root resolvable on this host")
+    root = str(real_root).replace("\\", "/")
+    assert _gateway_fence.classify([tok.replace("{root}", root) for tok in argv]) is None
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["{root}/installs/abc/venv/Scripts/python.exe", "{root}/profiles/alice/x.py"],
+        ["{root}/installs/abc/venv/Scripts/python.exe", "-m", "pip", "--prefix", "{root}/profiles/alice"],
+    ],
+    ids=["interpreter-plus-store-script", "interpreter-plus-store-arg"],
+)
+def test_an_interpreter_does_not_launder_an_argument_naming_the_store(argv):
+    _assert_real_store_refusal(argv)
+
+
+def _assert_real_store_refusal(argv):
     """ANTI-VACUITY for the row above, and the older regression it replaced.
 
     Before 2026-08-31 the arm's escape was spelled "argv without a hermes entry
