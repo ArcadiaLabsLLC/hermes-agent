@@ -81,6 +81,30 @@ inline registry/handler and stores with two sender homes and sibling targets;
 only model execution is stubbed. Live relay and thread-opening acceptance is
 tracked separately in the Launcher's console live-contract audit.
 
+**A relay sent from inside a run is detached, never waited on.** The sender's run holds
+`profile_runner._WORKDIR_LOCK` for its whole body and a tool runs on a worker thread, so an
+inline `agent_chat_send` would wait for a child turn that needs the lock the sender holds; the
+wait ended only when the sender's wall budget killed the sender (203 s of a 240 s turn,
+`agent-chat-send-db7a2d34`, 2026-10-08). `tools/agent_chat/send.py::Send.envelope` reads
+`agent_runs_in_flight()` — the gauge the actor prewarm already yields on — and routes the send
+onto the dispatch lane, whose child is its own process. The handle says `auto_detached: true`
+and tells the model to finish its reply; the reply arrives as its own message. The admission
+refusals (no delivery channel, no sender session) are reworded for that case as
+`inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The detached
+budget rule is unchanged: the child's clock starts when it starts, and the row now records
+`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`.
+
+**Stop reaches the work the turn started, and nothing else.** A dispatch records the sending
+turn's `client_message_id` as `parent_turn_id` (`relay_policy.RELAY_PARENT_TURN`, seeded beside
+the chain). `runtime.operator.conversation.stop` on a turn that is `stop_requested` cancels
+that turn's `running` dispatches through `running_work.cancel_work` and answers
+`dependent_dispatches`; a turn that finished on its own keeps its children, and a job the
+operator started has no parent and is never reached. A dispatch cancels to the typed
+`cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
+identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
+replied when the kill lands → the reply is kept; supervised by another process →
+`not_owned_here`, a refusal rather than a pretend kill.
+
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`

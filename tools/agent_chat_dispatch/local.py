@@ -71,6 +71,91 @@ def _get_executor(max_workers: int):
         return _executor
 
 
+#: Cancellations asked of dispatches THIS process supervises: dispatch id ->
+#: reason. Written by :func:`request_cancel`, read by the supervisor at the
+#: two points a cancel can land (before the spawn, and after the child exits)
+#: and consumed by the settle. The supervisor owns the ``proc`` handle on its
+#: own stack, so the request has to travel through here rather than a method
+#: on something the canceller could reach.
+_CANCEL_REQUESTED: dict[str, str] = {}
+_CANCEL_LOCK = threading.Lock()
+
+CANCEL_STOPPING = "stopping"
+CANCEL_CANCELLED = "cancelled"
+CANCEL_ALREADY_FINISHED = "already_finished"
+CANCEL_NOT_OWNED_HERE = "not_owned_here"
+
+
+def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCEL_REQUESTED[str(dispatch_id)] = str(reason or "operator_cancel")
+
+
+def _take_cancel_mark(dispatch_id: str) -> str | None:
+    with _CANCEL_LOCK:
+        return _CANCEL_REQUESTED.pop(str(dispatch_id), None)
+
+
+def _peek_cancel_mark(dispatch_id: str) -> str | None:
+    with _CANCEL_LOCK:
+        return _CANCEL_REQUESTED.get(str(dispatch_id))
+
+
+def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict[str, Any]:
+    """Cancel one dispatch this process supervises. Never a bare PID kill.
+
+    Three honest answers, each a typed ``outcome``:
+
+    * ``cancelled`` -- it had not spawned yet (queued behind the concurrency
+      cap); the row is settled ``cancelled`` here and the worker that later
+      picks it up sees the mark and runs nothing.
+    * ``stopping`` -- a child is running; it is tree-killed through the one
+      identity-guarded kill, and the SUPERVISOR settles the row when the child
+      is gone. "Stopping" is reported until that happens, never "stopped".
+    * ``already_finished`` -- the row is terminal; its result is kept as is.
+
+    A dispatch another process supervises (another serve, or a remote install)
+    is ``not_owned_here``: this process holds no handle to it and must not
+    pretend. The mark is set BEFORE the row is re-read and the spawn checks the
+    mark AFTER stamping the owner, so a cancel racing a spawn is caught by one
+    side or the other, never dropped by both.
+    """
+
+    from agent_runtime import dispatch_store
+
+    dispatch_id = str(dispatch_id or "")
+    row = dispatch_store.get_dispatch(dispatch_id)
+    if row is None:
+        return {"dispatch_id": dispatch_id, "outcome": "not_found"}
+    if row.get("state") != dispatch_store.STATE_RUNNING:
+        return {
+            "dispatch_id": dispatch_id,
+            "outcome": CANCEL_ALREADY_FINISHED,
+            "state": row.get("state"),
+        }
+    if dispatch_id not in supervised_dispatch_ids():
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_NOT_OWNED_HERE}
+    _request_cancel_mark(dispatch_id, reason)
+    row = dispatch_store.get_dispatch(dispatch_id) or row
+    owner_pid = row.get("owner_pid")
+    if owner_pid and row.get("started_at"):
+        _kill_child(int(owner_pid), row.get("owner_started_at"))
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_STOPPING, "reason": reason}
+    # Not spawned: settle it now. The worker consults the mark before spawning.
+    dispatch_store.record_completion(
+        dispatch_id,
+        state=dispatch_store.STATE_CANCELLED,
+        error=_cancelled_text(reason, spawned=False),
+        only_if_running=True,
+    )
+    return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+
+
+def _cancelled_text(reason: str, *, spawned: bool) -> str:
+    where = "before it replied" if spawned else "before it started"
+    return f"the dispatch was cancelled {where} ({reason}); nothing was delivered"
+
+
 def _run_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
     """Spawn one child turn, wait for it, and record its outcome.
 
@@ -129,6 +214,11 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
 
     from agent_runtime import dispatch_store
 
+    if _take_cancel_mark(dispatch_id) is not None:
+        # Cancelled while queued: ``request_cancel`` settled the row; running
+        # the turn now would deliver an answer to a sender who stopped asking.
+        return
+
     # ``spec["max_seconds"]`` everywhere: the tool always sets it, and reading
     # the same key two ways (subscript here, ``.get(...) or 1800`` there) is how
     # a spec-shape bug hides behind a default that looks deliberate.
@@ -165,6 +255,11 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     except Exception:  # pragma: no cover - bookkeeping must not abort the run
         logger.debug("dispatch %s owner stamp failed", dispatch_id, exc_info=True)
 
+    if _peek_cancel_mark(dispatch_id) is not None:
+        # The cancel landed between the queue check and the owner stamp, so
+        # nobody killed anything yet. This side does.
+        _kill_child(proc.pid, started_at)
+
     out_thread = drain(proc.stdout, stdout_tail)
     err_thread = drain(proc.stderr, stderr_tail)
 
@@ -188,7 +283,10 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
     release_pumps(proc, (out_thread, err_thread))
-    _settle_local(dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text())
+    _settle_local(
+        dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text(),
+        cancel_reason=_take_cancel_mark(dispatch_id),
+    )
 
 
 def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
@@ -215,12 +313,27 @@ def _settle_local(
     exit_reason: str,
     stdout_text: str,
     stderr_text: str,
+    *,
+    cancel_reason: str | None = None,
 ) -> None:
-    """Record the local child's outcome: stopped, no payload, or its payload's verdict."""
+    """Record the local child's outcome: stopped, no payload, or its payload's verdict.
+
+    ``cancel_reason`` is the mark a :func:`request_cancel` left. It decides the
+    row only when the child produced NO payload: a child that had already
+    replied when the kill arrived keeps its reply, because the sender asked for
+    that answer before anyone stopped asking.
+    """
 
     from agent_runtime import dispatch_store
 
     payload = parse_child_payload(stdout_text)
+    if cancel_reason is not None and payload is None:
+        dispatch_store.record_completion(
+            dispatch_id,
+            state=dispatch_store.STATE_CANCELLED,
+            error=_cancelled_text(cancel_reason, spawned=True),
+        )
+        return
     if exit_reason:
         dispatch_store.record_completion(
             dispatch_id,
@@ -327,6 +440,15 @@ def summarize_for_caller(row: dict[str, Any]) -> dict[str, Any]:
         "delivery_error": str(row.get("delivery_error") or "")[:200] or None,
         "notify_operator": bool(row.get("notify_operator")),
         "dispatched_at": row.get("dispatched_at"),
+        "started_at": row.get("started_at"),
+        # How long it sat behind the concurrency cap before a child existed;
+        # None until it starts. Its budget never ran during this wait.
+        "queued_seconds": (
+            int(max(0.0, (row.get("started_at") or 0.0) - (row.get("dispatched_at") or 0.0)))
+            if row.get("started_at")
+            else None
+        ),
+        "parent_turn_id": row.get("parent_turn_id") or None,
         "completed_at": row.get("completed_at"),
         "elapsed_seconds": int(
             max(

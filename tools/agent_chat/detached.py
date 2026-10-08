@@ -105,8 +105,16 @@ def _dispatch_detached(
     chain,
     wall_budget,
     remote_target=None,
+    parent_turn_id="",
+    auto_detached=False,
 ):
     """Record a detached dispatch durably, queue its child turn, return the handle.
+
+    ``parent_turn_id`` is the sending turn (``relay_policy.RELAY_PARENT_TURN``),
+    recorded on the row so the operator's Stop on that turn can cancel this
+    work. ``auto_detached`` says the lane chose this path because an inline
+    wait was impossible inside a running turn; the handle says so, because the
+    caller asked for a reply and must be told it is coming later instead.
 
     ORDER IS THE CONTRACT. The durable row is written BEFORE the work is handed
     to the supervisor and before the caller is told anything, so there is no
@@ -165,6 +173,7 @@ def _dispatch_detached(
             remote_install_id=(
                 "" if remote_target is None else remote_target.install_id
             ),
+            parent_turn_id=parent_turn_id,
         )
     except Exception as exc:
         logger.exception("agent_chat_send could not record dispatch %s", dispatch_id)
@@ -199,31 +208,36 @@ def _dispatch_detached(
             target_persona=persona_id,
         )
 
-    return json.dumps(
-        {
-            "ok": True,
-            "dispatched": True,
-            "dispatch_id": dispatch_id,
-            "target_persona": persona_id,
-            "session_id": None,
-            "started_at": started_at,
-            "max_seconds": wall_budget,
-            "notify_operator": bool(notify_operator),
-            "relay_chain": list(chain),
-            # Say plainly what happens next. An agent that thinks this call
-            # failed to return a reply will re-send; an agent that knows the
-            # answer is coming as its own message will move on, which is the
-            # entire behaviour change this lane is for.
-            "next_expected": (
-                "Their reply is NOT in this result — they are working on it now. It will arrive "
-                "as a new message in this conversation when they finish and you are idle. Carry "
-                "on with something else; do not re-send. Use agent_chat_dispatches to check "
-                "whether it is still running."
-            ),
-        },
-        indent=2,
-        default=str,
-    )
+    handle = {
+        "ok": True,
+        "dispatched": True,
+        "dispatch_id": dispatch_id,
+        "target_persona": persona_id,
+        "session_id": None,
+        "started_at": started_at,
+        "max_seconds": wall_budget,
+        "notify_operator": bool(notify_operator),
+        "relay_chain": list(chain),
+        # Say plainly what happens next. An agent that thinks this call
+        # failed to return a reply will re-send; an agent that knows the
+        # answer is coming as its own message will move on, which is the
+        # entire behaviour change this lane is for.
+        "next_expected": (
+            "Their reply is NOT in this result — they are working on it now. It will arrive "
+            "as a new message in this conversation when they finish and you are idle. Carry "
+            "on with something else; do not re-send. Use agent_chat_dispatches to check "
+            "whether it is still running."
+        ),
+    }
+    if auto_detached:
+        handle["auto_detached"] = True
+        handle["next_expected"] = (
+            "You asked to wait, but a turn cannot wait on another agent from inside itself, so "
+            "this was sent in the background instead. Their reply is NOT in this result; it "
+            "arrives as a new message in this conversation after this turn ends. Finish your own "
+            "reply now with what you have — do not poll, and do not re-send."
+        )
+    return json.dumps(handle, indent=2, default=str)
 
 
 def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):

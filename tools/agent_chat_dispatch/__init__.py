@@ -100,6 +100,7 @@ __all__ = [
     "dispatch_detached_turn",
     "supervised_dispatch_ids",
     "parse_child_payload",
+    "request_cancel",
     "summarize_for_caller",
 ]
 
@@ -130,6 +131,7 @@ from tools.agent_chat_dispatch.local import (  # noqa: F401
     _run_dispatch,
     _run_dispatch_guarded,
     dispatch_detached_turn,
+    request_cancel,
     summarize_for_caller,
     supervised_dispatch_ids,
 )

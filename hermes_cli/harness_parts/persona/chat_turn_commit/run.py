@@ -522,6 +522,12 @@ class _RunPhases:
         _relay_deadline_token = relay_policy.RELAY_DEADLINE.set(
             self.wall_budget.deadline_epoch
         )
+        # The turn's own id rides beside the chain so a dispatch this turn makes
+        # is owned by it (``dispatch_store`` ``parent_turn_id``) and Stop on this
+        # turn can reach that work.
+        _relay_parent_token = relay_policy.RELAY_PARENT_TURN.set(
+            str(self.client_message_id or "")
+        )
         # situational_hud / situational_hud_content were resolved once above
         # (record-at-injection): the write-ahead row, the fed block here, and
         # the post-turn row all carry the same object.
@@ -606,6 +612,7 @@ class _RunPhases:
         finally:
             relay_policy.RELAY_CHAIN.reset(_relay_chain_token)
             relay_policy.RELAY_DEADLINE.reset(_relay_deadline_token)
+            relay_policy.RELAY_PARENT_TURN.reset(_relay_parent_token)
         # The model turn is over — every token that was going to arrive has.
         # Only reached when the run RETURNED; a turn that raised (wall budget,
         # provider failure) leaves `stream_done` absent, and with it the Stage 4

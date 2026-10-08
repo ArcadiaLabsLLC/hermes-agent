@@ -21,6 +21,7 @@ from .models import (
     DELIVERY_DROPPED,
     DELIVERY_PENDING,
     STATE_COMPLETED,
+    STATE_CANCELLED,
     STATE_ERROR,
     STATE_RUNNING,
     STATE_UNKNOWN,
@@ -90,7 +91,9 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             owner_started_at INTEGER,
             relay_chain_json TEXT,
             delivery_error TEXT,
-            remote_install_id TEXT NOT NULL DEFAULT ''
+            remote_install_id TEXT NOT NULL DEFAULT '',
+            parent_turn_id TEXT NOT NULL DEFAULT '',
+            started_at REAL
         )"""
     )
     # CREATE TABLE IF NOT EXISTS does nothing to a store that already exists, so
@@ -107,6 +110,11 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
     # wonder why nothing is happening. Empty string means local, which is what
     # every row that predates this line already means.
     _add_missing_column(conn, "remote_install_id", "TEXT NOT NULL DEFAULT ''")
+    # Relay cancellation (2026-10-08). ``parent_turn_id`` is the turn whose Stop
+    # may cancel this row; ``started_at`` is when the child was spawned, which
+    # is the far end of the queue wait ``dispatched_at`` opens.
+    _add_missing_column(conn, "parent_turn_id", "TEXT NOT NULL DEFAULT ''")
+    _add_missing_column(conn, "started_at", "REAL")
 
 
 def _add_missing_column(conn: sqlite3.Connection, name: str, decl: str) -> None:
@@ -255,6 +263,26 @@ def pending_deliveries(limit: int = 50) -> list[dict[str, Any]]:
     )
 
 
+def running_dispatches_owned_by_turn(
+    sender_session_id: str, parent_turn_id: str
+) -> list[dict[str, Any]]:
+    """The ``running`` rows a turn made: its Stop's reach, and nothing beyond it.
+
+    Keyed on BOTH the sender's session and the turn id. A turn id alone is a
+    client-minted string another conversation could reuse; the pair is what the
+    operator's Stop names, so it is what this answers for.
+    """
+
+    session = str(sender_session_id or "").strip()
+    turn = str(parent_turn_id or "").strip()
+    if not session or not turn:
+        return []
+    return _query(
+        "WHERE sender_session_id=? AND parent_turn_id=? AND state=? ORDER BY dispatched_at ASC",
+        (session, turn, STATE_RUNNING),
+    )
+
+
 def get_dispatch(dispatch_id: str) -> dict[str, Any] | None:
     rows = _query("WHERE dispatch_id=?", (str(dispatch_id),))
     return rows[0] if rows else None
@@ -306,9 +334,9 @@ def remote_media_completions(*, limit: int = 128) -> list[dict[str, Any]]:
 
     bounded = max(1, min(int(limit or 128), 500))
     rows = _query(
-        "WHERE remote_install_id != '' AND state IN (?, ?, ?) "
+        "WHERE remote_install_id != '' AND state IN (?, ?, ?, ?) "
         "ORDER BY completed_at DESC LIMIT ?",
-        (STATE_COMPLETED, STATE_ERROR, STATE_UNKNOWN, bounded),
+        (STATE_COMPLETED, STATE_ERROR, STATE_UNKNOWN, STATE_CANCELLED, bounded),
     )
     completions: list[dict[str, Any]] = []
     for row in rows:

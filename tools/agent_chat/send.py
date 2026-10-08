@@ -22,6 +22,17 @@ __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 
 
+def _inside_agent_run() -> bool:
+    """Is a profile-runner agent run in flight in THIS process (the sender's own turn)?"""
+
+    try:
+        from agent_runtime.profile_runner.workdir import agent_runs_in_flight
+
+        return agent_runs_in_flight() > 0
+    except Exception:  # pragma: no cover - defensive; inline is the historical path
+        return False
+
+
 def agent_chat_send(
     *,
     persona_id,
@@ -149,10 +160,24 @@ class Send:
         # inline", which happens to be the right default but would make the two
         # indistinguishable to anything downstream that needs to know which it was.
         detached = coerce_optional_flag(self.wait) is False
+        # An inline wait from INSIDE a run cannot be honoured in this process:
+        # the run holds ``profile_runner._WORKDIR_LOCK`` for its whole body, the
+        # tool executes on a worker thread, and the target's turn would need
+        # that lock to build its actor -- so the wait only ends when the sender's
+        # wall budget kills the sender (measured 203 s on 2026-10-08). The
+        # detached lane runs the target in its own PROCESS, which is the one
+        # place the lock does not reach, so the send goes there instead and the
+        # result says so. ``agent_runs_in_flight`` is the gauge the prewarm
+        # already reads for the same question.
+        auto_detached = False
+        if not detached and _inside_agent_run():
+            detached, auto_detached = True, True
         notify = coerce_optional_flag(self.notify_operator) is True
         sender_session = str(self.requested_by_session or "").strip()
         self.chain, self.deadline_epoch = chain, deadline_epoch
+        self.parent_turn_id = relay_policy.RELAY_PARENT_TURN.get()
         self.detached, self.notify, self.sender_session = detached, notify, sender_session
+        self.auto_detached = auto_detached
         return None
 
     def remote(self):
@@ -221,6 +246,10 @@ class Send:
     def admit_detached(self):
         """The three preconditions a ``wait=false`` promise needs before any work starts."""
         persona_id, detached, sender_session = self.persona_id, self.detached, self.sender_session
+        if detached and self.auto_detached:
+            refusal = self._auto_detach_refusal()
+            if refusal is not None:
+                return refusal
         if detached and not sender_session:
             # A detached dispatch is a PROMISE to deliver the answer back into the
             # caller's conversation. With no caller session there is nowhere to
@@ -274,6 +303,26 @@ class Send:
             )
         self.sender_persona = sender_persona
         return None
+
+    def _auto_detach_refusal(self) -> str | None:
+        """The admission refusals, reworded for a send the lane detached itself.
+
+        The explicit ``wait=false`` refusals below end "send it with wait=true and
+        use the reply inline". Inside a running turn that advice is the deadlock
+        this lane exists to avoid, so when the same precondition fails here the
+        model is told what is true instead: nobody can be waited on from this
+        turn, and the operator is who can message them.
+        """
+
+        if self.sender_session and _async_delivery_available() and _persona_of_chat_root(self.sender_session):
+            return None
+        return refusal_json(
+            "agent_chat_send cannot wait for another agent from inside a running turn (the turn "
+            "holds the run lock their turn would need), and this lane cannot deliver a background "
+            "reply either. Finish your own reply and ask the operator to message them directly.",
+            error_kind="inline_relay_unavailable",
+            target_persona=self.persona_id,
+        )
 
     def budget(self):
         """This hop's wall budget and the deadline the envelope carries."""
@@ -431,6 +480,8 @@ class Send:
             chain=self.chain,
             wall_budget=self.wall_budget,
             remote_target=self.remote_target,
+            parent_turn_id=self.parent_turn_id,
+            auto_detached=self.auto_detached,
         )
 
     def relay(self, args):

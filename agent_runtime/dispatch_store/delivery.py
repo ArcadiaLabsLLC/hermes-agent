@@ -143,14 +143,19 @@ def set_dispatch_owner(
     bookkeeping, and it must never resurrect a settled row.
     """
 
+    # The owner stamp IS the moment the child exists, so it is also where the
+    # queue wait ends: ``started_at`` is written here and nowhere else.
+    now = time.time()
     with _DB_LOCK, _transaction() as conn:
         cur = conn.execute(
-            f"""UPDATE {_TABLE} SET owner_pid=?, owner_started_at=?, updated_at=?
+            f"""UPDATE {_TABLE} SET owner_pid=?, owner_started_at=?, updated_at=?,
+                started_at=COALESCE(started_at, ?)
                 WHERE dispatch_id=? AND state=?""",
             (
                 int(owner_pid) if owner_pid else None,
                 int(owner_started_at) if owner_started_at else None,
-                time.time(),
+                now,
+                now,
                 str(dispatch_id),
                 STATE_RUNNING,
             ),

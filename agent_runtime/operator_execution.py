@@ -86,4 +86,38 @@ def stop_operator_execution(session_id: str, turn_id: str,
     if result["outcome"] == "stop_requested":
         # A disconnected owner is uncertainty, never evidence that work stopped.
         result["owner_observed"] = interrupt(turn_id)
+        # Stop reaches the work this turn started and nothing else: the
+        # dispatches it made (an explicit wait=false, or an inline relay the
+        # lane detached because the turn held the run lock) are cancelled with
+        # it. A turn that finished on its own keeps its children running —
+        # their answers still arrive — which is why this sits under
+        # ``stop_requested`` and not beside every outcome.
+        result["dependent_dispatches"] = cancel_turn_dispatches(session_id, turn_id)
     return result
+
+
+def cancel_turn_dispatches(session_id: str, turn_id: str, *,
+                           reason: str = "operator_stop") -> list[dict]:
+    """Cancel every ``running`` dispatch the turn ``(session_id, turn_id)`` made.
+
+    Routed through ``running_work.cancel_work`` so a dispatch is stopped by the
+    same identity-guarded seam the operator's cancel button uses, and each row
+    answers for itself: ``stopping`` (a child is being killed; the supervisor
+    settles it), ``cancelled`` (never started), ``already_finished`` (its result
+    is kept) or a typed refusal when this process does not supervise it.
+    """
+
+    from agent_runtime.dispatch_store import running_dispatches_owned_by_turn
+    from agent_runtime.running_work import cancel_work
+    from agent_runtime.running_work.vocabulary import KIND_DISPATCH
+
+    answers = []
+    for row in running_dispatches_owned_by_turn(session_id, turn_id):
+        dispatch_id = str(row.get("dispatch_id") or "")
+        verdict = cancel_work(f"{KIND_DISPATCH}:{dispatch_id}", reason=reason)
+        answers.append({
+            "dispatch_id": dispatch_id,
+            "target_persona": row.get("target_persona") or "",
+            "outcome": verdict.get("outcome") or verdict.get("code") or "unknown",
+        })
+    return answers

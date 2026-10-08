@@ -90,13 +90,12 @@ AGENT_CHAT_SEND_SCHEMA = {
             "wait": {
                 "type": "boolean",
                 "description": (
-                    "Pass false to DISPATCH AND KEEP WORKING: the call returns a dispatch_id "
-                    "immediately, their turn runs in the background on its own longer budget "
-                    "(default 30 min), and their answer is delivered to you as a new message in "
-                    "this conversation once you are idle. Use it for anything that takes real time "
-                    "— test suites, builds, long reviews — instead of blocking your turn on it. "
-                    "Default true: you wait for the reply inline, exactly as before. Check on "
-                    "in-flight work with agent_chat_dispatches."
+                    "Pass false to dispatch and keep working: returns a dispatch_id at once, their "
+                    "turn runs in the background on its own budget (default 30 min), and their reply "
+                    "arrives as a new message here once you are idle. Default true waits inline, "
+                    "except inside a running chat turn, where the send is dispatched automatically and "
+                    "the result says auto_detached: finish your reply, do not poll. Check in-flight "
+                    "work with agent_chat_dispatches."
                 ),
             },
             "notify_operator": {
