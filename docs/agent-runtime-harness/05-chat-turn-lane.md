@@ -417,6 +417,17 @@ lifetime token and origin. Re-declaration replaces the token even when another c
 synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
 an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
 
+One door for a name the session already has (lane bridge-direct, 2026-10-08). A `tool_call`
+that names an in-scope eager tool is dispatched by name, not refused: upstream's "directly-listed
+tool, not a deferred one" correction cost a full provider round trip for an unambiguous call
+(`launcher_generated_list`, turn `agent-chat-send-db7a2d34`). `tools/tool_search_downstream.py`
+rebinds `resolve_underlying_call`, `scoped_deferrable_names` and `dispatch_tool_search` at
+`tool_search.py`'s fork seam: the bridge's scope is the session's own definitions, eager or
+deferred (one function read by both the dispatcher and the executor's unwrap), an unknown name
+keeps upstream's correction, and a search reports the eager tools that answer a query under
+`directly_available` beside the unchanged deferred `matches`. The describe `call_rule` says an
+eager tool is called by name. Nothing is granted that the session did not already offer.
+
 Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
 (`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
 full description, and `launcher.generated.list` returns the full component catalog and examples.

@@ -268,6 +268,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/agent_runtime/test_persona_binding_child_env.py",
         ),
     ),
+    # Lane bridge-direct (2026-10-08): an in-scope eager name sent through tool_call is
+    # dispatched by name, not refused; upstream's correction stays for unknown names.
+    "tests/tools/test_tool_search.py::TestRegression_OpenClawCron84141::"
+    "test_unwrap_rejects_core_tool_attempt": (
+        _fork_replaces(
+            "tools.tool_search.resolve_underlying_call via tools.tool_search_downstream.admit_direct_in_resolve",
+            "tests/tools/test_tool_search_downstream.py",
+        ),
+    ),
     "tests/tools/test_tool_search_multiquery.py::TestBatchedDescribe::"
     "test_registered_direct_surface_name_keeps_exact_error": (
         _fork_replaces(
