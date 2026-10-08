@@ -2,20 +2,20 @@
 
 The Launcher app-function connection now belongs to a typed `SessionBinding` on the gateway's existing session record. The worker no longer writes or reads `agent._launcher_app_function_link`. Warm turns and agent replacement reuse the exact discovered connection and catalog. The runtime contract is [Chat Turn Lane](../agent-runtime-harness/05-chat-turn-lane.md).
 
-Eager resume, branching and compute-host construction use a transient, context-local construction scope until registration transfers the binding. A duplicate resume releases its abandoned catalog. Failure before registration, after transfer, or during concurrent teardown releases the exact connection without clearing another session's catalog. Failed replacement preserves the still-live agent's binding. Closed emitters refuse locally. Discovery and the agent factory run outside the session lock.
+Eager resume, branching and compute-host construction use a transient, context-local construction scope. Registration attaches the binding under the gateway's session lock, before I/O or publication makes the record available to a turn. Compute-host fallback migrates that same binding to its minimal record. A duplicate resume releases its abandoned catalog. Failure before registration, after transfer, or during concurrent teardown releases the exact connection without clearing another session's catalog. A failed registered record retains its closed binding and cannot silently rediscover; a failed first factory build can retry. Failed replacement preserves the still-live agent's binding. Closed emitters refuse locally. Discovery and the agent factory run outside the session lock.
 
 ## Verification
 
 | Check | Result |
 | --- | --- |
-| Focused discovery, catalog, prewarm and connection lifetime checks | 86 passed across five files, 7.7 seconds |
-| Real gateway eager resume, duplicate resume, branching, registration failures and compute-host fallback | Included in the 21 lifetime tests |
+| Focused discovery, catalog, prewarm and connection lifetime checks | 87 passed across five files |
+| Real gateway eager resume, duplicate resume, branching, registration failures, early-publication race and compute-host fallback | Included in the 22 lifetime tests |
 | Ruff on the touched Python files | Passed |
 | Full sanctioned fork landing gate | Pending final candidate run; the earlier interrupted run is incomplete |
 
-Eight planted defects are checked on detached throwaway copies: reacquire a link on every bind; remove teardown cleanup; omit failed initial construction cleanup; ignore a late closed discovery result; omit normal registration transfer; omit fallback transfer; leave an abandoned construction scope open; omit cleanup after failed transferred registration. Each must produce assertion failures, and the copy is restored after each control. The CHANGE commits record the exact reds.
+Nine planted defects are checked on detached throwaway copies: reacquire a link on every bind; remove teardown cleanup; omit failed initial construction cleanup; ignore a late closed discovery result; omit normal registration transfer; omit fallback transfer; leave an abandoned construction scope open; omit cleanup after failed transferred registration; permit failed registered records to rediscover. Each produces assertion failures, and the copy is restored after each control. The CHANGE commits record the exact reds.
 
-The earlier whole-tree gate was interrupted after finding the eager construction handoff gap. Its partial results are not a qualification. The final gate and unchanged-base node/violation comparison will replace the pending row before landing.
+Two earlier whole-tree runs were interrupted after finding the eager construction handoff gap and the registration visibility race. Their partial results are not a qualification. The final gate and unchanged-base node/violation comparison will replace the pending row before landing.
 
 ## Existing limitation found by the real fallback test
 

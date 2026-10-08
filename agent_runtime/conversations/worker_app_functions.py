@@ -103,7 +103,7 @@ def construction():
     finally:
         close(owner.session)
         if not owner.succeeded and owner.transferred is not None:
-            close(owner.destination, expected=owner.transferred)
+            close(owner.destination, expected=owner.transferred, discard=False)
         _construction.reset(token)
 
 
@@ -134,33 +134,38 @@ def construction_session(sid, source):
 
 
 def adopt(sid, session):
-    """Transfer the exact discovered link after registration, including host fallback."""
+    """Attach before publishing registration; migrate the same link on host fallback."""
     owner = _construction.get()
     if owner is None:
         return
-    held = owner.session.get(_SESSION_STATE_KEY)
+    held = owner.session.get(_SESSION_STATE_KEY) or owner.transferred
     if not isinstance(held, SessionBinding):
         return
-    with session.get("history_lock") or nullcontext():
+    origin = owner.destination if owner.transferred is held else owner.session
+    with origin.get("history_lock") or nullcontext(), session.get("history_lock") or nullcontext():
         if (held.sid != sid or held.closed or not enabled(session)
                 or session.get("_closing") or session.get("_finalized")):
             raise RuntimeError("The Launcher app-function session is closed or unavailable.")
         existing = session.get(_SESSION_STATE_KEY)
         if existing is not None and existing is not held:
             raise RuntimeError("The session already owns another Launcher connection.")
+        if origin.get(_SESSION_STATE_KEY) is not held:
+            raise RuntimeError("The construction scope no longer owns this Launcher connection.")
         session[_SESSION_STATE_KEY] = held
-        owner.session.pop(_SESSION_STATE_KEY)
+        if origin is not session:
+            origin.pop(_SESSION_STATE_KEY)
         owner.destination, owner.transferred = session, held
 
 
-def close(session, *, expected=None):
+def close(session, *, expected=None, discard=True):
     """Release only this record's connection, including failed/abandoned builds."""
     if session is None:
         return
     with session.get("history_lock") or nullcontext():
         held = session.get(_SESSION_STATE_KEY)
         if isinstance(held, SessionBinding) and (expected is None or held is expected):
-            session.pop(_SESSION_STATE_KEY)
+            if discard:
+                session.pop(_SESSION_STATE_KEY)
             held.link.sink.close()
 
 
@@ -179,6 +184,7 @@ def _binding(sid, session):
                 return None, False  # A foreign sid cannot retarget this record.
             if not held.closed:
                 return held, False
+            return None, False  # Failed registered records cannot silently rediscover.
         held = SessionBinding(sid, app.LauncherLink(_Sink(sid), app.ORIGIN_LOCAL))
         session[_SESSION_STATE_KEY] = held
         return held, True

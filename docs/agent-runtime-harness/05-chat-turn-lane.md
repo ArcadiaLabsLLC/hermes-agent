@@ -407,9 +407,10 @@ records cannot reacquire the link. A failed initial construction releases its bi
 failed replacement retains the still-live agent's connection. Discovery and construction hold no
 session lock across network or factory work, and a late result cannot revive a closed catalog.
 Eager resume, branch creation and compute-host construction use a fork-owned construction scope
-until registration transfers the same binding onto the session. Duplicate resumes and failed
-registration release the abandoned catalog, including errors after the transfer. Compute-host
-fallback registration adopts the binding before returning. The scope is context-local and transient,
+until registration attaches the same binding under the session lock, before I/O or publication.
+Duplicate resumes and failed registration release the abandoned catalog, including errors after
+the transfer; a failed registered record cannot rediscover. Compute-host fallback migrates the
+same binding to its minimal record. The scope is context-local and transient,
 not a second session registry; no additional discovery request or model-schema change is introduced.
 
 `apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane

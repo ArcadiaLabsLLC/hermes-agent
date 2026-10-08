@@ -301,13 +301,28 @@ def test_real_eager_resume_transfers_the_discovered_link_to_the_registered_sessi
     assert len(catalog) == 1
 
 
+def test_registered_session_owns_the_connection_before_any_visible_side_effect(gateway, monkeypatch, catalog):
+    monkeypatch.setattr(gateway, '_find_live_session_by_key', lambda *a: None)
+    monkeypatch.setattr(gateway, '_resume_response', lambda *a, **kw: {'result': 'resumed'})
+    observed = []
+
+    def first_registration_io(sid, *a):
+        # A resumed client or another turn can see the record at this point.
+        observed.append(link_for(sid, gateway._sessions[sid]))
+
+    monkeypatch.setattr(gateway, '_hydrate_session_cwd', first_registration_io)
+    assert gateway._resume_eager(resume_context()) == {'result': 'resumed'}
+    assert observed[0].sink is catalog[0][0]
+    assert link_for('resume', gateway._sessions['resume']) is observed[0]
+    assert len(catalog) == 1
+
+
 def test_duplicate_eager_resume_closes_its_abandoned_connection(gateway, monkeypatch, catalog):
     monkeypatch.setattr(gateway, '_find_live_session_by_key', lambda *a: ('winner', {}))
     monkeypatch.setattr(gateway, '_resume_reuse_live_locked', lambda *a: {'result': 'winner'})
     assert gateway._resume_eager(resume_context()) == {'result': 'winner'}
     assert catalog[0][0].closed
     assert not app._state.catalog
-
 
 @pytest.mark.parametrize('stage', ['hydrate', 'response'])
 def test_eager_resume_failure_releases_the_connection_before_or_after_registration(
@@ -325,6 +340,8 @@ def test_eager_resume_failure_releases_the_connection_before_or_after_registrati
             gateway._resume_eager(resume_context())
     assert catalog[0][0].closed
     assert not app._state.catalog
+    assert link_for('resume', gateway._sessions['resume']) is None
+    assert len(catalog) == 1
 
 
 def test_real_branch_build_has_an_independent_registered_connection(gateway, catalog):

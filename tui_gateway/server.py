@@ -2654,6 +2654,8 @@ def _init_session(
             "transport": current_transport() or _stdio_transport,
             "auth_user_id": _transport_auth_user_id(current_transport()),
         }
+        from agent_runtime.conversations.worker_app_functions import adopt
+        adopt(sid, _sessions[sid])
         _session_todo_state(_sessions[sid])
     _hydrate_session_cwd(sid, key, session_db, profile_home)
     _register_session_cwd(_sessions[sid])
@@ -2661,8 +2663,6 @@ def _init_session(
     _start_session_services(sid, key, _sessions.get(sid, {}))
     _emit("session.info", sid, _session_info(agent, _sessions.get(sid, {})))
     _schedule_mcp_late_refresh(sid, agent)
-    from agent_runtime.conversations.worker_app_functions import adopt
-    adopt(sid, _sessions[sid])
 
 
 def _new_session_key() -> str:
