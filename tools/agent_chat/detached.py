@@ -63,33 +63,36 @@ def _persona_of_chat_root(root_session_id) -> str:
 def _dispatch_homes() -> tuple[str, str]:
     """``(ambient_home, background_work_home)`` for the child process.
 
-    Both come from the existing authorities, and it is worth being precise about
-    what the first one actually is, because the name invites a wrong reading.
+    The ambient home is the HEAD home — the same authority the inline relay
+    enters (``mission_chat_door_binding._mission_chat_turn_via_cli`` wraps the
+    handler in ``process_home_scope(get_hermes_head_home())``) — and not the
+    sender persona's profile home. The two differ inside a persona turn, and the
+    difference is the roster: the launcher pins the serve's head to
+    ``profiles/base``, whose ``config.yaml`` is where the configured personas
+    (``qa``, ``neko_supervisor``, ``backend_dev``, ``dev``) are defined. A child
+    booted onto the SENDER's profile home loads a config with no persona block
+    and answers ``unknown persona`` for every one of them — which is what every
+    background relay did on 2026-10-08 (Amelia turn ``agent-chat-send-994a2059``,
+    four dispatches, four ``unknown persona`` deliveries), while the same
+    targets resolved inline because the serve process had loaded the base config
+    at boot. This function used to read ``get_hermes_home()`` here on purpose,
+    to mirror the ORIGINAL inline lane that ran nested in the sender's flipped
+    environment; the inline lane has since moved to head-home admission, and
+    the child follows it so one target resolves the same way on both lanes.
 
-    ``get_hermes_home()`` is read HERE, inside the sender's turn — which means
-    inside that persona's ``persona_profile_context``. So the value is the
-    SENDER PERSONA's profile home, not the operator's. That is deliberate and it
-    matches the synchronous relay lane, where the target's turn has always run
-    nested inside the sender's flipped environment: a dispatched turn resolves
-    the same profile-scoped state whether it was awaited or detached. It is
-    still a behaviour change worth naming against the ORIGINAL in-process
-    dispatch lane, which inherited whatever the process-global happened to be at
-    the moment the worker thread ran — a value that depended on which unrelated
-    persona turn was in flight, and was therefore not reliably anything.
-
-    Reading it here rather than in the supervisor is what makes it deterministic
-    at all: by the time the supervisor thread spawns, another persona turn may
-    have flipped the process-global out from under it.
+    Read HERE, inside the sender's turn, because by the time the supervisor
+    thread spawns another persona turn may have flipped the process-global out
+    from under it; ``get_hermes_head_home`` honours the context-recorded relay
+    head first, so a nested hop cannot escape the operator that started it.
 
     ``get_hermes_background_work_home()`` is the one resolver for where
     background work is recorded, so the child's own background writers land
     exactly where this parent, the drain and the Activity projection read.
     """
 
-    from hermes_constants import get_hermes_home
-    from agent_runtime.profile_home import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home, get_hermes_head_home
 
-    return str(get_hermes_home()), str(get_hermes_background_work_home())
+    return str(get_hermes_head_home()), str(get_hermes_background_work_home())
 
 
 def _dispatch_detached(

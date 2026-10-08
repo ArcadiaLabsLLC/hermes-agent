@@ -92,7 +92,10 @@ and tells the model to finish its reply; the reply arrives as its own message. T
 refusals (no delivery channel, no sender session) are reworded for that case as
 `inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The detached
 budget rule is unchanged: the child's clock starts when it starts, and the row now records
-`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`.
+`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`. The child is
+booted onto the HEAD home (`get_hermes_head_home()`, the launcher's `profiles/base` pin), the same
+home the inline shim enters, because that config is where the configured personas live; booted
+onto the sender's profile home it answered `unknown persona` for every target (2026-10-08).
 
 **Stop reaches the work the turn started, and nothing else.** A dispatch records the sending
 turn's `client_message_id` as `parent_turn_id` (`relay_policy.RELAY_PARENT_TURN`, seeded beside

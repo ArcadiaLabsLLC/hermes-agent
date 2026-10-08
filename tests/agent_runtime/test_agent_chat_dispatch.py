@@ -419,6 +419,34 @@ def test_the_thread_tri_state_survives_the_process_boundary():
     assert "--new-session" not in flags(False) and "--defer-thread-policy" not in flags(False)
 
 
+def test_the_child_is_booted_onto_the_head_home_not_the_senders_profile_home(tmp_path, monkeypatch):
+    """The roster lives in the head home's config (the launcher pins it to ``profiles/base``);
+    a child booted onto the sender persona's profile home answers ``unknown persona`` for
+    every configured target (2026-10-08, four dispatches). The child follows the inline
+    lane's head-home admission instead.
+
+    *Killing mutation:* read ``get_hermes_home()`` for the ambient home again.
+    """
+    from agent_runtime.profile_home import get_hermes_head_home
+    from hermes_constants import get_hermes_home
+    from tools.agent_chat.detached import _dispatch_homes
+
+    head = tmp_path / "head"
+    sender_profile = tmp_path / "profiles" / "amelia"
+    head.mkdir(parents=True)
+    sender_profile.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
+    monkeypatch.setenv("HERMES_HOME", str(sender_profile))
+    # Positive control for the fixture: the two authorities really do differ here.
+    assert str(get_hermes_home()) == str(sender_profile)
+    assert str(get_hermes_head_home()) == str(head)
+
+    ambient, _background = _dispatch_homes()
+
+    assert ambient == str(head), "the child must resolve personas where the serve does"
+    assert ambient != str(sender_profile)
+
+
 def test_the_child_environment_states_both_homes_and_pins_the_tree(tmp_path):
     env = agent_chat_dispatch.child_environment(
         {"hermes_home": str(tmp_path / "ambient"), "head_home": str(tmp_path / "head")}
