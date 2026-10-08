@@ -336,7 +336,8 @@ inputs again. The read path, in order:
    shadow so completing it does not close the lane.
 6. On a full build: `pre_build_fingerprint()` (the consult's own key, reused — an OLDER key can
    only cost the next process a rebuild), `write_back`, then `note_full_build_completed()`
-   (`snapshot/build.py:225`), which disarms the lane (`:659-703`).
+   (`core_cache/lane.py::note_full_build_completed`, called from `snapshot/build.py::_lead_build_now`),
+   which disarms the lane.
 
 **Validity is the stat fingerprint, full stop.** `event_offset` is recorded in the sidecar as a
 diagnostic and never read as an input to the match. The offset-keyed design stays refused — but
@@ -381,7 +382,7 @@ directions (a token no row names, a row naming a token no writer emits); and
 ## Stage 9 — persona prewarm
 
 `agent_runtime/persona_prewarm.py`. Not a boot stage — it is **gesture-triggered**, via the
-JSON-RPC verb `runtime.persona.prewarm` (`agent_runtime/serve_rpc/chat.py:93`), which the launcher
+JSON-RPC verb `runtime.persona.prewarm` (`agent_runtime/serve_rpc/chat.py::_runtime_persona_prewarm`), which the launcher
 fires per persona chip when the palette opens.
 
 The verb resolves the persona SYNCHRONOUSLY through `agent_create.resolve_persona` — the same

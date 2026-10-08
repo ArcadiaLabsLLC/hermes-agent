@@ -357,7 +357,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Main's reds, fixed by lane — 2026-10-07 (owner: "fix all on our fork")
 
-- [ ] **Fork repo-gate reds (run_tests script, doc cite adjacency, legibility floor, command directory, mutation claims, upstream footprint, coverage claims, import layers, ladder routing)** · fork hygiene (gates) · evidence: landing gate 2026-10-07 on 4b598dc048 (142 reds on main: 73 in fork-owned test files, 69 in inherited ones) · **TAKEN 2026-10-07 h-red-gates**
 - [ ] **Inherited test files red on main (test_doctor 34, tui_gateway server/display/relay, provider picker/registry, bot retry, ...): prove each red on upstream code or fix the fork cause** · fork hygiene (upstream reds) · evidence: landing gate 2026-10-07 on 4b598dc048 (142 reds on main: 73 in fork-owned test files, 69 in inherited ones) · **TAKEN 2026-10-07 h-red-inherited**
 
 ## Filed by isolated lifecycle fixture — 2026-10-07

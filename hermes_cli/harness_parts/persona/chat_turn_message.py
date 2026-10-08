@@ -108,6 +108,34 @@ def _session_target(args, persona_instance_id: str | None, normalized_persona: s
     return tail, persona_instance_id
 
 
+def _caller_instance_pin(args, normalized_persona: str) -> str | None:
+    """The canonical instance id the caller pinned, recovered from either slot."""
+    # Canonicalize a caller-supplied instance id at THIS boundary (the same
+    # chokepoint open_chat uses), so an instance-shaped target can never mint a
+    # variant row.
+    #
+    # An instance-shaped `--persona` (`personainst_qa_agent_f24601ba`) IS a
+    # caller pin, and it arrives in the persona slot constantly (Mission Control
+    # payloads, agent @handle targeting, legacy SessionDB rows).
+    # `_resolve_mission_chat_persona_id` above canonicalizes it DOWN to the
+    # persona id so every persona-keyed lookup works — and the instance half
+    # used to be dropped right here, leaving the caller's explicit pin to be
+    # re-decided by the bare-persona placement resolver below. Recover the pin
+    # at this same chokepoint (no second resolver: `canonical_persona_instance_id`
+    # remains the one derivation authority) so an explicit @handle is
+    # authoritative BEFORE "placements shadow canonical" runs — which is what
+    # that ruling already documents: it never fires when the caller already
+    # disambiguated with a `personainst_*` target.
+    requested_instance_id = getattr(args, "persona_instance_id", None)
+    if not safe_assignment_token(requested_instance_id):
+        raw_persona_target = safe_assignment_token(getattr(args, "persona_id", None))
+        if raw_persona_target.startswith(PERSONA_INSTANCE_ID_PREFIX):
+            requested_instance_id = raw_persona_target
+    return canonical_persona_instance_id(
+        requested_instance_id, persona_id=normalized_persona
+    )
+
+
 @_within_admitted_turn
 @with_chat_session_writer_owner
 def _cmd_mission_chat_message(args) -> int:
@@ -262,30 +290,7 @@ def _cmd_mission_chat_message(args) -> int:
     # Auxiliary sessions were admitted against an existing exact instance.
     # They must not run the catalog's repairing projection writer (including
     # display/profile fields) while another operator may be editing that row.
-    # Canonicalize a caller-supplied instance id at THIS boundary (the same
-    # chokepoint open_chat uses), so an instance-shaped target can never mint a
-    # variant row.
-    #
-    # An instance-shaped `--persona` (`personainst_qa_agent_f24601ba`) IS a
-    # caller pin, and it arrives in the persona slot constantly (Mission Control
-    # payloads, agent @handle targeting, legacy SessionDB rows).
-    # `_resolve_mission_chat_persona_id` above canonicalizes it DOWN to the
-    # persona id so every persona-keyed lookup works — and the instance half
-    # used to be dropped right here, leaving the caller's explicit pin to be
-    # re-decided by the bare-persona placement resolver below. Recover the pin
-    # at this same chokepoint (no second resolver: `canonical_persona_instance_id`
-    # remains the one derivation authority) so an explicit @handle is
-    # authoritative BEFORE "placements shadow canonical" runs — which is what
-    # that ruling already documents: it never fires when the caller already
-    # disambiguated with a `personainst_*` target.
-    requested_instance_id = getattr(args, "persona_instance_id", None)
-    if not safe_assignment_token(requested_instance_id):
-        raw_persona_target = safe_assignment_token(getattr(args, "persona_id", None))
-        if raw_persona_target.startswith(PERSONA_INSTANCE_ID_PREFIX):
-            requested_instance_id = raw_persona_target
-    persona_instance_id = canonical_persona_instance_id(
-        requested_instance_id, persona_id=normalized_persona
-    )
+    persona_instance_id = _caller_instance_pin(args, normalized_persona)
     session_id, persona_instance_id = _session_target(args, persona_instance_id, normalized_persona)
     # What the CALLER named, before anything on this turn overwrites it. Kept so
     # the settlement can tell "they answered in the right thread because they

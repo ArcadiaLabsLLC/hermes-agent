@@ -1,69 +1,75 @@
 from pathlib import Path
 
 
+def _code_lines(script: str) -> list[str]:
+    """The script's executable lines: comments and blanks dropped."""
+    return [
+        line for line in script.splitlines() if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
 def test_run_tests_supports_windows_git_bash_venv_layout():
+    """A native-Windows interpreter is handed a Windows spelling of the runner.
+
+    The interpreter comes from an activation or ``HERMES_PYTHON`` (often
+    ``…/Scripts/python.exe``); under Git Bash / MSYS / WSL it cannot open a
+    POSIX ``/x/...`` script path, so the runner path is translated first.
+    """
     script = Path("scripts/run_tests.sh").read_text(encoding="utf-8")
-    assert '"$candidate/Scripts/activate"' in script
-    assert '"$candidate/Scripts/python.exe"' in script
+    assert 'if command -v cygpath >/dev/null 2>&1 && [[ "$PYTHON" == *.exe ]]; then' in script
+    assert 'RUNNER_PATH="$(cygpath -w "$RUNNER_PATH")"' in script
+    assert '[[ "$PYTHON" == *.exe && "$RUNNER_PATH" =~ ^/mnt/([A-Za-z])/(.*)$ ]]' in script
 
 
 def test_run_tests_does_not_use_global_python_after_venv_detection():
     script = Path("scripts/run_tests.sh").read_text(encoding="utf-8")
-    # The runner invocation spends the probed venv python, never a global one,
+    # The runner invocation spends the selected interpreter, never a global one,
     # and the runner path travels through $RUNNER_PATH so the Windows arms can
-    # rewrite it for a native interpreter.
+    # rewrite it for a native interpreter. The interpreter is one of exactly
+    # two doors: an explicit HERMES_PYTHON, or the activation's test python.
     assert '"$PYTHON" "$RUNNER_PATH" "$@"' in script
     assert 'RUNNER_PATH="$SCRIPT_DIR/run_tests_parallel.py"' in script
-    assert 'PYTHON="$VENV_PYTHON"' in script
-    assert 'VENV_PYTHON="$candidate/bin/python"' in script
-    assert 'VENV_PYTHON="$candidate/Scripts/python.exe"' in script
+    assignments = sorted(
+        {line.strip() for line in _code_lines(script) if line.strip().startswith("PYTHON=")}
+    )
+    assert assignments == ['PYTHON="$HERMES_PYTHON"', 'PYTHON="${__HERMES_TEST_PYTHON:-}"']
 
 
 def test_the_local_venv_still_outranks_the_shared_canonical_one():
-    """A checkout with its own ``.venv`` must keep using it.
+    """The checkout's activation outranks an inherited ``HERMES_PYTHON``.
 
-    The shared canonical venv exists for worktrees that have NO ``.venv`` — a
-    fresh ``git worktree add`` used to need a hand-carried ``HERMES_PYTHON=``.
-    It is appended, never prepended: a checkout that pins its own environment
-    (and CI, which creates one) must not be silently moved onto a machine-wide
-    one, so the ORDER is the claim, not the presence of the candidates.
+    The fork's shared-venv probe (``VENV_CANDIDATES``) retired at the
+    2026-09-25 upstream merge in favour of upstream's door. ``HERMES_PYTHON``
+    is honoured only when nothing is activated AND it has pytest, so a wrapped
+    ``hermes`` binary's release venv never silently replaces the checkout's
+    own environment. The probe list must not come back beside it.
     """
     script = Path("scripts/run_tests.sh").read_text(encoding="utf-8")
-    local = script.index('VENV_CANDIDATES=("$REPO_ROOT/.venv" "$REPO_ROOT/venv")')
-    explicit = script.index('VENV_CANDIDATES+=("$HERMES_TEST_VENV")')
-    shared = script.index('VENV_CANDIDATES+=("$HOME/.venvs/hermes-test")')
-    release = script.index('VENV_CANDIDATES+=("$HOME/.hermes/hermes-agent/venv")')
-    assert local < explicit < shared < release
-    # Every candidate goes through the same pytest-installed check, so an
-    # absent or pytest-less shared venv is skipped exactly like the release
-    # venv rather than selected and then failing every file.
-    assert 'for candidate in "${VENV_CANDIDATES[@]}"; do' in script
+    assert (
+        'if [ -z "${__HERMES_ACTIVATED:-}" ] && _has_pytest "${HERMES_PYTHON:-}"; then' in script
+    )
+    assert "\"$1\" -c 'import pytest'" in script
+    assert not [line for line in _code_lines(script) if "VENV_CANDIDATES" in line]
 
 
 def test_no_machine_specific_venv_path_is_committed_in_the_runner():
-    """Every probed candidate must be PORTABLE.
+    """Every interpreter selection must be PORTABLE.
 
-    The shared venv on the workstation that built this lane lives on another
-    volume and was briefly spelled here as a literal candidate. A site-local
-    absolute path in a shared script is a fact about one machine that everyone
-    else has to read past, and it rots silently when that machine changes. It
-    is reached through a junction into ``~/.venvs/hermes-test`` instead, so the
-    probe stays portable — and this test is what stops the literal coming back
-    the next time it is the convenient fix.
+    A site-local absolute path in a shared script is a fact about one machine
+    that everyone else has to read past, and it rots silently when that
+    machine changes. The workstation's shared venv is reached through
+    ``HERMES_PYTHON`` set in the caller's environment, never spelled here.
 
-    Drive letters in COMMENTS are fine and deliberate (the fence block records
-    the real store root it was measured against). Only the probe list is
-    constrained.
+    Drive letters in COMMENTS are fine and deliberate. Only executable lines
+    are constrained.
     """
     script = Path("scripts/run_tests.sh").read_text(encoding="utf-8")
-    candidate_lines = [
-        line for line in script.splitlines() if line.strip().startswith("VENV_CANDIDATES")
-    ]
-    assert candidate_lines, "the probe list moved — re-point this test"
-    for line in candidate_lines:
+    selection = [line for line in _code_lines(script) if "PYTHON" in line]
+    assert selection, "the interpreter selection moved — re-point this test"
+    for line in selection:
         assert ":/" not in line and ":\\" not in line, (
-            f"machine-specific path in the venv probe list: {line.strip()}. "
-            "Link it into ~/.venvs/hermes-test, or use $HERMES_TEST_VENV."
+            f"machine-specific path in the interpreter selection: {line.strip()}. "
+            "Set HERMES_PYTHON in the caller's environment instead."
         )
 
 

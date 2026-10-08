@@ -330,22 +330,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
     # can read the root's native tip and revision — the two values that decide
     # whether the first turn REUSES the actor or rebuilds it. See the helper.
     _prewarm_chat_actor_for_open(instance.default_chat_session_id)
-    previous_session_id = (
-        safe_assignment_text(
-            getattr(previous_instance, "default_chat_session_id", None)
-            or getattr(previous_instance, "session_id", None),
-            limit=200,
-        )
-        if previous_instance is not None
-        else None
-    )
-    instance_updated_at = _persona_instance_updated_at(instance)
-    previous_updated_at = _persona_instance_updated_at(previous_instance)
-    binding_changed = (
-        previous_instance is None
-        or previous_session_id != instance.default_chat_session_id
-        or getattr(previous_instance, "mode", None) != instance.mode
-        or previous_updated_at != instance_updated_at
+    previous_session_id, instance_updated_at, binding_changed = _binding_change(
+        previous_instance, instance
     )
     data = {
         "ok": True,
@@ -456,66 +442,19 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         ) as mint:
             receipt = mint.receipt
             if receipt.bound:
-                with closing(_default_persona_session_db()) as session_db:
-                    persisted = session_db.get_session(receipt.session_id)
-                    if persisted is None:
-                        raise ConversationOwnerError("session_not_found")
-                    require_session_owner(persisted, receipt.client_scope)
+                _require_replayed_root_owner(receipt)
                 # A retry after a confirmed response loss must be observational:
                 # return the original root without moving the instance pointer
                 # back over a newer chat selected since this mint completed.
                 instance = store.get(target_instance_id)
             else:
-                # Make the transcript root durable before publishing it as the
-                # instance's selected chat. If SessionDB is temporarily
-                # unavailable the reserved receipt survives and retry reuses the
-                # same root instead of creating a duplicate conversation.
-                try:
-                    with closing(_default_persona_session_db()) as session_db:
-                        _ensure_persona_chat_session(
-                            session_db=session_db,
-                            session_id=receipt.session_id,
-                            persona_id=persona_id,
-                            title=f"{current.display_name} chat",
-                            required=True,
-                            client_scope=receipt.client_scope,
-                        )
-                except PersonaChatPersistenceError as exc:
-                    data = {
-                        "ok": False,
-                        "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
-                        "persistence_operation": exc.operation,
-                        "error": str(exc),
-                        "persona_id": persona_id,
-                        "persona_instance_id": target_instance_id,
-                        "session_id": receipt.session_id,
-                        "mission_chat_root_id": receipt.session_id,
-                        "idempotent_replay": receipt.idempotent_replay,
-                        "mint_receipt_state": receipt.state,
-                        "next_expected": "restore canonical persona chat transcript storage and retry with the same idempotency key",
-                    }
-                    _emit_persona_open_chat_payload(args, data)
-                    return 2
-                try:
-                    instance = store.open_chat(
-                        persona_id=persona_id,
-                        persona_instance_id=target_instance_id,
-                        session_id=receipt.session_id,
-                        kill_active=bool(getattr(args, "kill_active", False)),
-                    )
-                except RetiredPersonaInstanceError as exc:
-                    data = _retired_persona_instance_payload(exc)
-                    data.update(
-                        {
-                            "session_id": receipt.session_id,
-                            "mission_chat_root_id": receipt.session_id,
-                            "idempotent_replay": receipt.idempotent_replay,
-                            "mint_receipt_state": receipt.state,
-                        }
-                    )
-                    _emit_persona_open_chat_payload(args, data)
-                    return 2
-                receipt = mint.mark_bound()
+                published = _publish_minted_root(
+                    args, store=store, mint=mint, current=current,
+                    persona_id=persona_id, target_instance_id=target_instance_id,
+                )
+                if isinstance(published, int):
+                    return published
+                instance, receipt = published
     except ConversationOwnerError as exc:
         return _emit_persona_open_chat_error(
             args, error_kind=exc.reason, error="This conversation could not be reopened.",
@@ -562,6 +501,96 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         plain=f"opened {instance.id} on new chat {receipt.session_id}",
     )
     return 0
+
+
+def _require_replayed_root_owner(receipt) -> None:
+    """A bound mint's root must still exist and belong to the replaying owner."""
+    with closing(_default_persona_session_db()) as session_db:
+        persisted = session_db.get_session(receipt.session_id)
+        if persisted is None:
+            raise ConversationOwnerError("session_not_found")
+        require_session_owner(persisted, receipt.client_scope)
+
+
+def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_instance_id: str):
+    """Make a fresh mint's root durable, select it, and mark the mint bound.
+
+    Returns ``(instance, receipt)``, or the exit code of the refusal it emitted.
+    """
+    from agent_runtime.mission_chat_outcome import ChatErrorKind
+    receipt = mint.receipt
+    # Make the transcript root durable before publishing it as the
+    # instance's selected chat. If SessionDB is temporarily
+    # unavailable the reserved receipt survives and retry reuses the
+    # same root instead of creating a duplicate conversation.
+    try:
+        with closing(_default_persona_session_db()) as session_db:
+            _ensure_persona_chat_session(
+                session_db=session_db,
+                session_id=receipt.session_id,
+                persona_id=persona_id,
+                title=f"{current.display_name} chat",
+                required=True,
+                client_scope=receipt.client_scope,
+            )
+    except PersonaChatPersistenceError as exc:
+        data = {
+            "ok": False,
+            "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
+            "persistence_operation": exc.operation,
+            "error": str(exc),
+            "persona_id": persona_id,
+            "persona_instance_id": target_instance_id,
+            "session_id": receipt.session_id,
+            "mission_chat_root_id": receipt.session_id,
+            "idempotent_replay": receipt.idempotent_replay,
+            "mint_receipt_state": receipt.state,
+            "next_expected": "restore canonical persona chat transcript storage and retry with the same idempotency key",
+        }
+        _emit_persona_open_chat_payload(args, data)
+        return 2
+    try:
+        instance = store.open_chat(
+            persona_id=persona_id,
+            persona_instance_id=target_instance_id,
+            session_id=receipt.session_id,
+            kill_active=bool(getattr(args, "kill_active", False)),
+        )
+    except RetiredPersonaInstanceError as exc:
+        data = _retired_persona_instance_payload(exc)
+        data.update(
+            {
+                "session_id": receipt.session_id,
+                "mission_chat_root_id": receipt.session_id,
+                "idempotent_replay": receipt.idempotent_replay,
+                "mint_receipt_state": receipt.state,
+            }
+        )
+        _emit_persona_open_chat_payload(args, data)
+        return 2
+    return instance, mint.mark_bound()
+
+
+def _binding_change(previous_instance, instance) -> tuple[str | None, str | None, bool]:
+    """``(previous_session_id, instance_updated_at, changed)`` for the binding receipt."""
+    previous_session_id = (
+        safe_assignment_text(
+            getattr(previous_instance, "default_chat_session_id", None)
+            or getattr(previous_instance, "session_id", None),
+            limit=200,
+        )
+        if previous_instance is not None
+        else None
+    )
+    instance_updated_at = _persona_instance_updated_at(instance)
+    previous_updated_at = _persona_instance_updated_at(previous_instance)
+    binding_changed = (
+        previous_instance is None
+        or previous_session_id != instance.default_chat_session_id
+        or getattr(previous_instance, "mode", None) != instance.mode
+        or previous_updated_at != instance_updated_at
+    )
+    return previous_session_id, instance_updated_at, binding_changed
 
 
 def _prewarm_chat_actor_for_open(session_id) -> None:

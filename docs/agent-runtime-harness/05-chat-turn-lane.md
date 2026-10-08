@@ -121,9 +121,9 @@ session — is refused before all of this with the candidate `@handles` (`:2210-
 ## 2. The turn phases contract
 
 `agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under
-`phases` at schema **v3** (`:62`, `:71`). A v2 record has no `phases` key and is never migrated —
+`phases` (`TURN_PHASES_KEY`) at schema **v3** (`TURN_RECORD_SCHEMA_VERSION`). A v2 record has no `phases` key and is never migrated —
 the bump is how a reader tells "predates instrumentation" from "instrumented and never got there".
-`PHASE_ORDER` (`:77-90`):
+`PHASE_ORDER`:
 
 ```
 request_received → context_built → observability_built → emitter_created →
@@ -917,7 +917,7 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
   states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
   the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
   CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
-- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py:435-436`) and the live
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py`, 2026-08-22 tree) and the live
   phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
   launcher's audit tooling; not reproducible from this repo.
 - **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —
