@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 from hermes_constants import get_hermes_home, get_process_hermes_home, hermes_home_key
+from agent_runtime.plugin_manager_home import cached_plugin_home_key
 from registration_lifecycle import replacement_coordinator
 from utils import env_var_enabled
 from hermes_cli.config import load_config_readonly
@@ -1664,6 +1665,9 @@ _published_tui_host_lock = threading.Lock()
 def _plugin_home_key() -> Path:
     """Resolved active Hermes home — the key for per-profile plugin managers (plugins capture the
     home at registration, so a process serving several profiles cannot share one manager)."""
+    cached = cached_plugin_home_key(get_hermes_home())  # fork seam: warm provider lookup
+    if cached is not None:
+        return cached
     try:
         return get_hermes_home().expanduser().resolve()
     except Exception:
