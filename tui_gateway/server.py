@@ -2951,7 +2951,10 @@ def _find_live_session_by_key(session_key: str, profile_home=_ANY_PROFILE) -> tu
 def _fallback_session_info(session: dict) -> dict:
     agent = session.get("agent")
     if agent is not None:
-        return _session_info(agent, session)
+        # Upstream's one-argument call already resolves this session by agent identity; the session
+        # is passed only when that lookup would land elsewhere (keeps upstream's call shape).
+        owner = next((c for c in _sessions.values() if c.get("agent") is agent), None)
+        return _session_info(agent) if owner is session else _session_info(agent, session)
     # The SESSION's own workspace, not the launch dir (wrong project in the desktop Files pane). `branch` is
     # always emitted ("" outside git) so a stale label clears; `desktop_contract` missing reads as "out of date".
     # Reporting `_default_session_cwd()` here told a lazily-resumed session's client that its workspace was
