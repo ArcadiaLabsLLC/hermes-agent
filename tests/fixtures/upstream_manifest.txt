@@ -1,4 +1,4 @@
-# base cc75e8f402
+# base 302c5d9f67
 .coderabbit.yaml
 .dockerignore
 .env.example
@@ -215,6 +215,7 @@ agent/estop.py
 agent/fallback_cooldown.py
 agent/fast_mode.py
 agent/file_safety.py
+agent/first_task_prompt.py
 agent/gemini_native_adapter.py
 agent/gemini_schema.py
 agent/history_commentary.py
@@ -226,6 +227,8 @@ agent/image_gen_provider.py
 agent/image_gen_registry.py
 agent/image_routing.py
 agent/image_token_cost.py
+agent/initiate_setup_facts.py
+agent/initiate_setup_prompt.py
 agent/inline_tool_executors.py
 agent/insights.py
 agent/interrupt_compat.py
@@ -420,6 +423,7 @@ agent/turn_request_assembly.py
 agent/turn_response_check.py
 agent/turn_response_intake.py
 agent/turn_retry_state.py
+agent/turn_scripted_prelude.py
 agent/turn_stop_gates.py
 agent/turn_summary.py
 agent/turn_tool_round.py
@@ -598,6 +602,7 @@ apps/desktop/e2e/core/known.ts
 apps/desktop/e2e/core/lineage-compaction-prompt.spec.ts
 apps/desktop/e2e/core/lineage-rotation.spec.ts
 apps/desktop/e2e/core/lineage-sidebar.spec.ts
+apps/desktop/e2e/core/no-idle-reap.spec.ts
 apps/desktop/e2e/core/onboarding-first-chat.spec.ts
 apps/desktop/e2e/core/oracle.ts
 apps/desktop/e2e/core/packaged-smoke.spec.ts
@@ -733,7 +738,6 @@ apps/desktop/electron/challenge-window-ipc.ts
 apps/desktop/electron/challenge-window.test.ts
 apps/desktop/electron/challenge-window.ts
 apps/desktop/electron/channel-build-version.test.ts
-apps/desktop/electron/chat-onboarding-window.ts
 apps/desktop/electron/cli-provision.test.ts
 apps/desktop/electron/cli-provision.ts
 apps/desktop/electron/close-stop-kill.test.ts
@@ -1272,6 +1276,7 @@ apps/desktop/electron/window-controls.test.ts
 apps/desktop/electron/window-controls.ts
 apps/desktop/electron/window-focus-policy.test.ts
 apps/desktop/electron/window-focus-policy.ts
+apps/desktop/electron/window-growth.test.ts
 apps/desktop/electron/window-growth.ts
 apps/desktop/electron/window-menu.test.ts
 apps/desktop/electron/window-menu.ts
@@ -1281,6 +1286,7 @@ apps/desktop/electron/window-renderer-lifecycle.test.ts
 apps/desktop/electron/window-renderer-lifecycle.ts
 apps/desktop/electron/window-reveal.test.ts
 apps/desktop/electron/window-reveal.ts
+apps/desktop/electron/window-size-types.ts
 apps/desktop/electron/window-state.test.ts
 apps/desktop/electron/window-state.ts
 apps/desktop/electron/windows-child-options.test.ts
@@ -1590,6 +1596,7 @@ apps/desktop/src/app/chat/browser-popout-handoff.test.tsx
 apps/desktop/src/app/chat/browser-popout-shell.tsx
 apps/desktop/src/app/chat/built-in-tour.ts
 apps/desktop/src/app/chat/chat-drop-overlay.tsx
+apps/desktop/src/app/chat/chat-surface-state.ts
 apps/desktop/src/app/chat/chat-swap-overlay.test.tsx
 apps/desktop/src/app/chat/chat-swap-overlay.tsx
 apps/desktop/src/app/chat/close-tab.test.ts
@@ -1667,6 +1674,7 @@ apps/desktop/src/app/chat/composer/hooks/use-live-completion-adapter.ts
 apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-mic-recorder.ts
 apps/desktop/src/app/chat/composer/hooks/use-micro-actions.ts
+apps/desktop/src/app/chat/composer/hooks/use-middleware-submit.ts
 apps/desktop/src/app/chat/composer/hooks/use-popout-drag.test.tsx
 apps/desktop/src/app/chat/composer/hooks/use-popout-drag.ts
 apps/desktop/src/app/chat/composer/hooks/use-slash-completions.test.tsx
@@ -1692,6 +1700,8 @@ apps/desktop/src/app/chat/composer/inline-references.test.ts
 apps/desktop/src/app/chat/composer/inline-refs.ts
 apps/desktop/src/app/chat/composer/large-paste.test.ts
 apps/desktop/src/app/chat/composer/large-paste.ts
+apps/desktop/src/app/chat/composer/local-setup-card.test.tsx
+apps/desktop/src/app/chat/composer/local-setup-card.tsx
 apps/desktop/src/app/chat/composer/micro-actions.tsx
 apps/desktop/src/app/chat/composer/model-pill.test.tsx
 apps/desktop/src/app/chat/composer/model-pill.tsx
@@ -1958,6 +1968,7 @@ apps/desktop/src/app/chat/transcript-retention.ts
 apps/desktop/src/app/chat/transcript-window-retention.test.ts
 apps/desktop/src/app/chat/transcript-window.test.ts
 apps/desktop/src/app/chat/transcript-window.ts
+apps/desktop/src/app/chat/use-chat-bar-state.ts
 apps/desktop/src/app/chat/use-transcript-retention.test.tsx
 apps/desktop/src/app/chat/use-transcript-retention.ts
 apps/desktop/src/app/command-center/delete-confirm.test.tsx
@@ -1981,9 +1992,8 @@ apps/desktop/src/app/context-menu/target.ts
 apps/desktop/src/app/contrib/context.tsx
 apps/desktop/src/app/contrib/controller.tsx
 apps/desktop/src/app/contrib/dev/credits-notice-demo.ts
-apps/desktop/src/app/contrib/handoff-leg.ts
-apps/desktop/src/app/contrib/handoff-receipt.ts
 apps/desktop/src/app/contrib/hooks/completed-reply-refresh.test.tsx
+apps/desktop/src/app/contrib/hooks/desktop-onboarding-metrics.test.ts
 apps/desktop/src/app/contrib/hooks/desktop-onboarding-metrics.ts
 apps/desktop/src/app/contrib/hooks/folded-tool-turn-refresh.test.tsx
 apps/desktop/src/app/contrib/hooks/live-status-reap.test.ts
@@ -2010,7 +2020,7 @@ apps/desktop/src/app/contrib/latest-actions.ts
 apps/desktop/src/app/contrib/layout-presets.ts
 apps/desktop/src/app/contrib/layout-sides.ts
 apps/desktop/src/app/contrib/mcp-install-deeplink-dialog.tsx
-apps/desktop/src/app/contrib/onboarding-handoff.ts
+apps/desktop/src/app/contrib/onboarding-kickoff-machine.ts
 apps/desktop/src/app/contrib/onboarding-kickoff.ts
 apps/desktop/src/app/contrib/panes.logs.test.tsx
 apps/desktop/src/app/contrib/panes.test.tsx
@@ -2024,6 +2034,7 @@ apps/desktop/src/app/contrib/surfaces.test.tsx
 apps/desktop/src/app/contrib/surfaces.tsx
 apps/desktop/src/app/contrib/types.ts
 apps/desktop/src/app/contrib/wiring-background-queue-drain.test.tsx
+apps/desktop/src/app/contrib/wiring-effects.ts
 apps/desktop/src/app/contrib/wiring-routing.test.ts
 apps/desktop/src/app/contrib/wiring-routing.ts
 apps/desktop/src/app/contrib/wiring.tsx
@@ -2320,6 +2331,7 @@ apps/desktop/src/app/session/hooks/use-route-resume.test.tsx
 apps/desktop/src/app/session/hooks/use-route-resume.ts
 apps/desktop/src/app/session/hooks/use-session-actions.test.tsx
 apps/desktop/src/app/session/hooks/use-session-actions/ambient-local-owner.test.tsx
+apps/desktop/src/app/session/hooks/use-session-actions/branch-create-key.ts
 apps/desktop/src/app/session/hooks/use-session-actions/create-overrides.ts
 apps/desktop/src/app/session/hooks/use-session-actions/created-this-run.ts
 apps/desktop/src/app/session/hooks/use-session-actions/display-hydration.ts
@@ -2416,6 +2428,7 @@ apps/desktop/src/app/settings/constants.ts
 apps/desktop/src/app/settings/credential-key-ui.tsx
 apps/desktop/src/app/settings/custom-endpoints-settings.test.tsx
 apps/desktop/src/app/settings/custom-endpoints-settings.tsx
+apps/desktop/src/app/settings/developer-settings.tsx
 apps/desktop/src/app/settings/env-credentials.tsx
 apps/desktop/src/app/settings/env-var-actions-menu.tsx
 apps/desktop/src/app/settings/fallback-models-field.test.tsx
@@ -2533,6 +2546,7 @@ apps/desktop/src/app/shell/hooks/use-statusbar-items.lifecycle.test.tsx
 apps/desktop/src/app/shell/hooks/use-statusbar-items.test.tsx
 apps/desktop/src/app/shell/hooks/use-statusbar-items.tsx
 apps/desktop/src/app/shell/hooks/use-window-controls-overlay-width.ts
+apps/desktop/src/app/shell/local-setup-menu-row.tsx
 apps/desktop/src/app/shell/model-catalog-menu.search-fold.test.tsx
 apps/desktop/src/app/shell/model-catalog-menu.test.tsx
 apps/desktop/src/app/shell/model-catalog-menu.tsx
@@ -2548,6 +2562,7 @@ apps/desktop/src/app/shell/statusbar-controls.tsx
 apps/desktop/src/app/shell/statusbar-visibility.test.tsx
 apps/desktop/src/app/shell/system-resources-statusbar.test.tsx
 apps/desktop/src/app/shell/system-resources-statusbar.tsx
+apps/desktop/src/app/shell/terms-butterbar.tsx
 apps/desktop/src/app/shell/titlebar-controls.test.tsx
 apps/desktop/src/app/shell/titlebar-controls.tsx
 apps/desktop/src/app/shell/titlebar-icon.tsx
@@ -2592,7 +2607,6 @@ apps/desktop/src/assets/tiers/feature-sandbox.webp
 apps/desktop/src/components/Backdrop.tsx
 apps/desktop/src/components/assistant-ui/ansi-text.tsx
 apps/desktop/src/components/assistant-ui/artifact-card.tsx
-apps/desktop/src/components/assistant-ui/ask-directive.tsx
 apps/desktop/src/components/assistant-ui/catalog-advanced-dialog.tsx
 apps/desktop/src/components/assistant-ui/catalog-install-tool.test.tsx
 apps/desktop/src/components/assistant-ui/catalog-install-tool.tsx
@@ -2600,13 +2614,21 @@ apps/desktop/src/components/assistant-ui/chat-empty-slot.test.tsx
 apps/desktop/src/components/assistant-ui/chat-empty-slot.tsx
 apps/desktop/src/components/assistant-ui/clarify/clarify-tool.test.tsx
 apps/desktop/src/components/assistant-ui/clarify/core/choice-row.tsx
+apps/desktop/src/components/assistant-ui/clarify/core/confirm-bar.tsx
 apps/desktop/src/components/assistant-ui/clarify/core/question-block.tsx
 apps/desktop/src/components/assistant-ui/clarify/core/shell.tsx
+apps/desktop/src/components/assistant-ui/clarify/core/use-clarify-keys-handlers.ts
 apps/desktop/src/components/assistant-ui/clarify/core/use-clarify-keys.ts
 apps/desktop/src/components/assistant-ui/clarify/index.tsx
 apps/desktop/src/components/assistant-ui/clarify/parse.ts
 apps/desktop/src/components/assistant-ui/clarify/pending.tsx
 apps/desktop/src/components/assistant-ui/clarify/settled.tsx
+apps/desktop/src/components/assistant-ui/clarify/setup-pending-parts.tsx
+apps/desktop/src/components/assistant-ui/clarify/setup-pending.test.tsx
+apps/desktop/src/components/assistant-ui/clarify/setup-pending.tsx
+apps/desktop/src/components/assistant-ui/clarify/setup-pickers.tsx
+apps/desktop/src/components/assistant-ui/clarify/setup-rows.ts
+apps/desktop/src/components/assistant-ui/clarify/setup-settled.tsx
 apps/desktop/src/components/assistant-ui/clarify/submit-shortcut.ts
 apps/desktop/src/components/assistant-ui/clarify/undelivered-notice.tsx
 apps/desktop/src/components/assistant-ui/clarify/use-undelivered.ts
@@ -2672,6 +2694,8 @@ apps/desktop/src/components/assistant-ui/message-render-boundary.test.tsx
 apps/desktop/src/components/assistant-ui/message-render-boundary.tsx
 apps/desktop/src/components/assistant-ui/reference-kinds.ts
 apps/desktop/src/components/assistant-ui/session-ref-open.test.tsx
+apps/desktop/src/components/assistant-ui/start-chat-tool-parts.tsx
+apps/desktop/src/components/assistant-ui/start-chat-tool.tsx
 apps/desktop/src/components/assistant-ui/test-utils.tsx
 apps/desktop/src/components/assistant-ui/thread-remount.test.tsx
 apps/desktop/src/components/assistant-ui/thread/agent-avatar-cache.test.ts
@@ -2709,6 +2733,7 @@ apps/desktop/src/components/assistant-ui/thread/response-group.test.tsx
 apps/desktop/src/components/assistant-ui/thread/response-group.tsx
 apps/desktop/src/components/assistant-ui/thread/sealed-tool-parts.test.tsx
 apps/desktop/src/components/assistant-ui/thread/session-switching.ts
+apps/desktop/src/components/assistant-ui/thread/setup-learned.tsx
 apps/desktop/src/components/assistant-ui/thread/should-auto-show-earlier.test.ts
 apps/desktop/src/components/assistant-ui/thread/status-invalidation-scope.test.tsx
 apps/desktop/src/components/assistant-ui/thread/status-tail-only.test.tsx
@@ -2886,18 +2911,15 @@ apps/desktop/src/components/model-visibility-dialog.tsx
 apps/desktop/src/components/notifications.test.tsx
 apps/desktop/src/components/notifications.tsx
 apps/desktop/src/components/onboarding-chat/assembly.ts
-apps/desktop/src/components/onboarding-chat/cards/build.tsx
-apps/desktop/src/components/onboarding-chat/cards/frame.tsx
-apps/desktop/src/components/onboarding-chat/cards/setup.tsx
 apps/desktop/src/components/onboarding-chat/chip.tsx
-apps/desktop/src/components/onboarding-chat/directive.tsx
-apps/desktop/src/components/onboarding-chat/first-build.ts
+apps/desktop/src/components/onboarding-chat/gate.test.tsx
 apps/desktop/src/components/onboarding-chat/gate.tsx
-apps/desktop/src/components/onboarding-chat/guide-loading.css
-apps/desktop/src/components/onboarding-chat/guide-loading.tsx
+apps/desktop/src/components/onboarding-chat/intro-copy.css
+apps/desktop/src/components/onboarding-chat/intro-copy.tsx
+apps/desktop/src/components/onboarding-chat/intro.test.ts
+apps/desktop/src/components/onboarding-chat/intro.ts
 apps/desktop/src/components/onboarding-chat/options.tsx
-apps/desktop/src/components/onboarding-chat/persisted-handoff.ts
-apps/desktop/src/components/onboarding-chat/setup-profile.ts
+apps/desktop/src/components/onboarding-chat/setup-session.ts
 apps/desktop/src/components/onboarding-chat/signpost.ts
 apps/desktop/src/components/onboarding-chat/skip.tsx
 apps/desktop/src/components/onboarding/flow.test.tsx
@@ -3042,8 +3064,6 @@ apps/desktop/src/components/sync-status.ts
 apps/desktop/src/components/tips/index.tsx
 apps/desktop/src/components/tips/local-runtime-update-offer.test.tsx
 apps/desktop/src/components/tips/local-runtime-update-offer.ts
-apps/desktop/src/components/tips/local-setup-offer.test.ts
-apps/desktop/src/components/tips/local-setup-offer.ts
 apps/desktop/src/components/tips/tip-bubble.tsx
 apps/desktop/src/components/tips/tips.css
 apps/desktop/src/components/tips/tutorial-lifetime.test.tsx
@@ -3241,6 +3261,7 @@ apps/desktop/src/i18n/de_boot.ts
 apps/desktop/src/i18n/de_local_models.ts
 apps/desktop/src/i18n/de_model_menu.ts
 apps/desktop/src/i18n/de_notices.ts
+apps/desktop/src/i18n/de_onboarding.ts
 apps/desktop/src/i18n/de_projects.ts
 apps/desktop/src/i18n/de_shared_metrics.ts
 apps/desktop/src/i18n/define-locale.ts
@@ -3253,6 +3274,7 @@ apps/desktop/src/i18n/en_catalog_install.ts
 apps/desktop/src/i18n/en_local_models.ts
 apps/desktop/src/i18n/en_model_menu.ts
 apps/desktop/src/i18n/en_notices.ts
+apps/desktop/src/i18n/en_onboarding.ts
 apps/desktop/src/i18n/en_projects.ts
 apps/desktop/src/i18n/en_shared_metrics.ts
 apps/desktop/src/i18n/en_uninstall_section.ts
@@ -3262,6 +3284,7 @@ apps/desktop/src/i18n/es_boot.ts
 apps/desktop/src/i18n/es_local_models.ts
 apps/desktop/src/i18n/es_model_menu.ts
 apps/desktop/src/i18n/es_notices.ts
+apps/desktop/src/i18n/es_onboarding.ts
 apps/desktop/src/i18n/es_projects.ts
 apps/desktop/src/i18n/es_shared_metrics.ts
 apps/desktop/src/i18n/fr.ts
@@ -3270,6 +3293,7 @@ apps/desktop/src/i18n/fr_boot.ts
 apps/desktop/src/i18n/fr_local_models.ts
 apps/desktop/src/i18n/fr_model_menu.ts
 apps/desktop/src/i18n/fr_notices.ts
+apps/desktop/src/i18n/fr_onboarding.ts
 apps/desktop/src/i18n/fr_projects.ts
 apps/desktop/src/i18n/fr_shared_metrics.ts
 apps/desktop/src/i18n/index.ts
@@ -3284,12 +3308,15 @@ apps/desktop/src/i18n/ja_aux_tasks.ts
 apps/desktop/src/i18n/ja_local_models.ts
 apps/desktop/src/i18n/ja_model_menu.ts
 apps/desktop/src/i18n/ja_notices.ts
+apps/desktop/src/i18n/ja_onboarding.ts
 apps/desktop/src/i18n/ja_plugins.ts
 apps/desktop/src/i18n/ja_projects.ts
 apps/desktop/src/i18n/ja_shared_metrics.ts
 apps/desktop/src/i18n/languages.test.ts
 apps/desktop/src/i18n/languages.ts
 apps/desktop/src/i18n/localized-tab-title.tsx
+apps/desktop/src/i18n/overlay-completeness.test.ts
+apps/desktop/src/i18n/overlay-gaps.json
 apps/desktop/src/i18n/plugin-i18n.test.tsx
 apps/desktop/src/i18n/plugin-i18n.ts
 apps/desktop/src/i18n/profile-locale.test.tsx
@@ -3300,6 +3327,7 @@ apps/desktop/src/i18n/ru.ts
 apps/desktop/src/i18n/ru_aux_tasks.ts
 apps/desktop/src/i18n/ru_model_menu.ts
 apps/desktop/src/i18n/ru_notices.ts
+apps/desktop/src/i18n/ru_onboarding.ts
 apps/desktop/src/i18n/ru_plugins.ts
 apps/desktop/src/i18n/ru_projects.ts
 apps/desktop/src/i18n/ru_shared_metrics.ts
@@ -3313,6 +3341,7 @@ apps/desktop/src/i18n/types_boot.ts
 apps/desktop/src/i18n/types_catalog_install.ts
 apps/desktop/src/i18n/types_model_menu.ts
 apps/desktop/src/i18n/types_notices.ts
+apps/desktop/src/i18n/types_onboarding.ts
 apps/desktop/src/i18n/types_projects.ts
 apps/desktop/src/i18n/types_shared_metrics.ts
 apps/desktop/src/i18n/types_uninstall_section.ts
@@ -3333,6 +3362,7 @@ apps/desktop/src/i18n/zh_aux_tasks.ts
 apps/desktop/src/i18n/zh_local_models.ts
 apps/desktop/src/i18n/zh_model_menu.ts
 apps/desktop/src/i18n/zh_notices.ts
+apps/desktop/src/i18n/zh_onboarding.ts
 apps/desktop/src/i18n/zh_projects.ts
 apps/desktop/src/i18n/zh_shared_metrics.ts
 apps/desktop/src/lib/ansi.test.ts
@@ -3528,7 +3558,6 @@ apps/desktop/src/lib/model-status-label.test.ts
 apps/desktop/src/lib/model-status-label.ts
 apps/desktop/src/lib/mutable-ref.ts
 apps/desktop/src/lib/onboarding-enabled.ts
-apps/desktop/src/lib/onboarding-recommendations.ts
 apps/desktop/src/lib/oneshot.ts
 apps/desktop/src/lib/path-compare.test.ts
 apps/desktop/src/lib/path-compare.ts
@@ -4024,6 +4053,7 @@ apps/desktop/src/store/fleet-roster.test.ts
 apps/desktop/src/store/fleet-roster.ts
 apps/desktop/src/store/free-tier-challenge.test.ts
 apps/desktop/src/store/free-tier-challenge.ts
+apps/desktop/src/store/free-tier-offer.test.ts
 apps/desktop/src/store/free-tier-setup-failure.test.ts
 apps/desktop/src/store/free-tier-sign-in.test.ts
 apps/desktop/src/store/free-tier-sign-in.ts
@@ -4073,7 +4103,7 @@ apps/desktop/src/store/local-models-flag.ts
 apps/desktop/src/store/local-models-surfaces.test.tsx
 apps/desktop/src/store/local-runtime-jobs.test.ts
 apps/desktop/src/store/local-runtime-jobs.ts
-apps/desktop/src/store/machine.ts
+apps/desktop/src/store/local-setup-offer.ts
 apps/desktop/src/store/managed-updates.test.ts
 apps/desktop/src/store/managed-updates.ts
 apps/desktop/src/store/mcp-deeplink-install.ts
@@ -4092,14 +4122,12 @@ apps/desktop/src/store/notifications.test.ts
 apps/desktop/src/store/notifications.ts
 apps/desktop/src/store/notify-baseline.ts
 apps/desktop/src/store/onboarding-answers.ts
-apps/desktop/src/store/onboarding-capabilities.ts
 apps/desktop/src/store/onboarding-gate.ts
+apps/desktop/src/store/onboarding-intro.ts
 apps/desktop/src/store/onboarding-owner.test.ts
-apps/desktop/src/store/onboarding-plugin-outcomes.ts
 apps/desktop/src/store/onboarding-plugins.ts
 apps/desktop/src/store/onboarding-presence.ts
 apps/desktop/src/store/onboarding-scope.ts
-apps/desktop/src/store/onboarding-script.ts
 apps/desktop/src/store/onboarding.test.ts
 apps/desktop/src/store/onboarding.ts
 apps/desktop/src/store/pane-focus.ts
@@ -4232,6 +4260,8 @@ apps/desktop/src/store/sidebar-sort.ts
 apps/desktop/src/store/skill-deeplink-install.test.ts
 apps/desktop/src/store/skill-deeplink-install.ts
 apps/desktop/src/store/starmap.ts
+apps/desktop/src/store/start-chat.test.ts
+apps/desktop/src/store/start-chat.ts
 apps/desktop/src/store/statusbar-prefs.test.ts
 apps/desktop/src/store/statusbar-prefs.ts
 apps/desktop/src/store/subagent-snapshot.test.ts
@@ -4646,6 +4676,7 @@ contributors/emails/HoneyTyagii@users.noreply.github.com
 contributors/emails/JLHunzicker@gmail.com
 contributors/emails/JiaDe-Wu@users.noreply.github.com
 contributors/emails/KHALIDagara@users.noreply.github.com
+contributors/emails/Kame696@users.noreply.github.com
 contributors/emails/LauraGPT@users.noreply.github.com
 contributors/emails/Lesnak1@users.noreply.github.com
 contributors/emails/MH284934@fi365.ort.edu.uy
@@ -4752,6 +4783,7 @@ contributors/emails/aleks.clark@gmail.com
 contributors/emails/alex-secure@tuta.io
 contributors/emails/alex.gazzillo@gmail.com
 contributors/emails/alex.moreno161100@gmail.com
+contributors/emails/alex@funnelsforfounders.com
 contributors/emails/alex@gunsberg.fi
 contributors/emails/alex@odbo.co
 contributors/emails/alexander.prendota@gmail.com
@@ -4793,6 +4825,7 @@ contributors/emails/armaandhawan61@gmail.com
 contributors/emails/armandasvaicikauskas@protonmail.com
 contributors/emails/artiefisher123@gmail.com
 contributors/emails/asaxinw@gmail.com
+contributors/emails/aslater3@googlemail.com
 contributors/emails/asscan@189.cn
 contributors/emails/assiri@gmail.com
 contributors/emails/at@aisec.co.il
@@ -4811,6 +4844,7 @@ contributors/emails/ayushnangia16@gmail.com
 contributors/emails/azureuser@Main.n1l05aasmpie5onxhehb5y5gra.lx.internal.cloudapp.net
 contributors/emails/b.sencan@equalsmoney.com
 contributors/emails/b2089766906@gmail.com
+contributors/emails/babyblueviperbusiness@gmail.com
 contributors/emails/back1992@users.noreply.github.com
 contributors/emails/badiyee85@users.noreply.github.com
 contributors/emails/baleian90@gmail.com
@@ -4851,6 +4885,7 @@ contributors/emails/bkashjee@gmail.com
 contributors/emails/bkashjee@users.noreply.github.com
 contributors/emails/bmtrnavsky@msn.com
 contributors/emails/boni.alessandro997@gmail.com
+contributors/emails/bonorinoa@users.noreply.github.com
 contributors/emails/borje@dqsverige.se
 contributors/emails/bot@bkstock.dev
 contributors/emails/botuser@Farrens-MacBook-Air.local
@@ -4939,6 +4974,7 @@ contributors/emails/codexbt1@gmail.com
 contributors/emails/coe0718+tuck@gmail.com
 contributors/emails/coe0718@icloud.com
 contributors/emails/coffee@coffeebot.dev
+contributors/emails/colabonate@gmail.com
 contributors/emails/colin@colingreig.com
 contributors/emails/connorjosephblack@gmail.com
 contributors/emails/contact@danteschrauwen.be
@@ -4983,6 +5019,7 @@ contributors/emails/daniel21436@hotmail.com
 contributors/emails/daniel@9to5mac.com
 contributors/emails/daniel@danielgreen.net
 contributors/emails/daniel@dasg.ltd
+contributors/emails/daniel@tenuo.ai
 contributors/emails/danielrpike9@gmail.com
 contributors/emails/dante32683@users.noreply.github.com
 contributors/emails/dariorapisardi@users.noreply.github.com
@@ -5033,6 +5070,7 @@ contributors/emails/diatche@gmail.com
 contributors/emails/dickson.neoh@gmail.com
 contributors/emails/dido.dim@gmail.com
 contributors/emails/diegomarino@users.noreply.github.com
+contributors/emails/digittao@gmail.com
 contributors/emails/dillontownsel@gmail.com
 contributors/emails/dimar@wiseconnex.com
 contributors/emails/dinmail@gmail.com
@@ -5292,6 +5330,7 @@ contributors/emails/hugomoreiradecarvalho@gmail.com
 contributors/emails/hukla25@gmail.com
 contributors/emails/humdrum00001010@gmail.com
 contributors/emails/hunter.c.yeagley@outlook.com
+contributors/emails/hunter@huntermonk.com
 contributors/emails/hunter@mail.com
 contributors/emails/hustwkr@users.noreply.github.com
 contributors/emails/hyperion@bathaeedunne.com
@@ -5312,6 +5351,7 @@ contributors/emails/info@bergmann89.de
 contributors/emails/info@datachainsystems.com
 contributors/emails/info@fxmacrodata.com
 contributors/emails/info@ghani.ch
+contributors/emails/info@labyrinthanalyticsconsulting.com
 contributors/emails/info@lucasimone.info
 contributors/emails/info@moodtune.fr
 contributors/emails/iniak@iniakdeMac-mini.local
@@ -5397,6 +5437,7 @@ contributors/emails/johnsonafuye@gmail.com
 contributors/emails/jollyroger1480@gmail.com
 contributors/emails/jon@cromulent.dk
 contributors/emails/jonathan@wolftacdigital.com
+contributors/emails/jonh.dev.br@gmail.com
 contributors/emails/jordan.mymail@gmail.com
 contributors/emails/jordan@boredsexy.com
 contributors/emails/jordanh@nvidia.com
@@ -5621,6 +5662,7 @@ contributors/emails/mike@mlsmith.net
 contributors/emails/mike@vorburger.ch
 contributors/emails/mikedemott@Mikes-Mac-mini.local
 contributors/emails/mikeest1972@gmail.com
+contributors/emails/mikrosthaj@gmail.com
 contributors/emails/milicevicandrej@yahoo.com
 contributors/emails/minh@alpon.xyz
 contributors/emails/miniadmin@skshim-mini.local
@@ -6084,6 +6126,7 @@ contributors/emails/victor@nousresearch.com
 contributors/emails/victornogu80@gmail.com
 contributors/emails/victoronwuanaku@gmail.com
 contributors/emails/vignesh@openai.com
+contributors/emails/viktor@brthls.com
 contributors/emails/vikyw89@gmail.com
 contributors/emails/vinayshah2006@gmail.com
 contributors/emails/vinoth12940@users.noreply.github.com
@@ -6181,6 +6224,7 @@ contributors/emails/yy28@vip.sina.com
 contributors/emails/z23@users.noreply.github.com
 contributors/emails/zabih.mosafer@gmail.com
 contributors/emails/zacharie.abidat@epitech.eu
+contributors/emails/zachary@lyonfamily.org
 contributors/emails/zaclanzon@users.noreply.github.com
 contributors/emails/zane.chee.2023@scis.smu.edu.sg
 contributors/emails/zanzipanzi@gmail.com
@@ -6193,6 +6237,7 @@ contributors/emails/zgqjava@gmail.com
 contributors/emails/zgzczzw@users.noreply.github.com
 contributors/emails/zhangcw1989@gmail.com
 contributors/emails/zhangk1985@gmail.com
+contributors/emails/zhangshower@gmail.com
 contributors/emails/zhangyingliang@outlook.com
 contributors/emails/zhangyswx@163.com
 contributors/emails/zhaomengfan44@sina.com
@@ -6630,6 +6675,7 @@ gateway/run_plugin_injection.py
 gateway/run_plugin_rewire.py
 gateway/run_profile_reconcile.py
 gateway/run_shutdown.py
+gateway/run_shutdown_session_end.py
 gateway/run_startup.py
 gateway/run_topics.py
 gateway/run_turn.py
@@ -6853,6 +6899,7 @@ hermes_cli/focus_view.py
 hermes_cli/foreign_sessions.py
 hermes_cli/foreign_sessions_browser.py
 hermes_cli/free_tier_bootstrap.py
+hermes_cli/free_tier_offer.py
 hermes_cli/fs_utils.py
 hermes_cli/gateway.py
 hermes_cli/gateway_command_errors.py
@@ -6947,7 +6994,6 @@ hermes_cli/main_tui_launch.py
 hermes_cli/main_web_build.py
 hermes_cli/managed_scope.py
 hermes_cli/managed_uv.py
-hermes_cli/mcp_app_detection.py
 hermes_cli/mcp_catalog.py
 hermes_cli/mcp_config.py
 hermes_cli/mcp_picker.py
@@ -7410,11 +7456,13 @@ hermes_state_sessions.py
 hermes_state_telegram.py
 hermes_state_timeline.py
 hermes_state_titles.py
+hermes_state_tool_retries.py
 hermes_state_usage.py
 hermes_state_user_copy.py
 hermes_state_wal.py
 hermes_time.py
 hermes_yaml.py
+lefthook.yml
 locales/_keys.desktop.json
 locales/_keys.tui.json
 locales/af.tui.yaml
@@ -8057,9 +8105,12 @@ optional-skills/payments/stripe-projects/SKILL.md
 optional-skills/productivity/canvas/SKILL.md
 optional-skills/productivity/canvas/scripts/canvas_api.py
 optional-skills/productivity/decision-questionnaire/SKILL.md
+optional-skills/productivity/first-task/SKILL.md
 optional-skills/productivity/here-now/SKILL.md
 optional-skills/productivity/here-now/scripts/drive.sh
 optional-skills/productivity/here-now/scripts/publish.sh
+optional-skills/productivity/initiate-setup/SKILL.md
+optional-skills/productivity/initiate-setup/templates/handoff.md
 optional-skills/productivity/live-dashboard/SKILL.md
 optional-skills/productivity/memento-flashcards/SKILL.md
 optional-skills/productivity/memento-flashcards/scripts/memento_cards.py
@@ -8357,6 +8408,8 @@ plugin-catalog/agora.yaml
 plugin-catalog/ai-usage-tracker.yaml
 plugin-catalog/aichipmunk.yaml
 plugin-catalog/aihubmix.yaml
+plugin-catalog/alans-way-computer.yaml
+plugin-catalog/alans-way.yaml
 plugin-catalog/alice-voice.yaml
 plugin-catalog/ando-platform.yaml
 plugin-catalog/android-emulator.yaml
@@ -8366,7 +8419,9 @@ plugin-catalog/antigravity-oauth.yaml
 plugin-catalog/antigravity-subscription-directsdk.yaml
 plugin-catalog/anyrouter.yaml
 plugin-catalog/anysearch.yaml
+plugin-catalog/aphrodite.yaml
 plugin-catalog/apify.yaml
+plugin-catalog/approval-ledger.yaml
 plugin-catalog/ard-kit.yaml
 plugin-catalog/artifact-relay.yaml
 plugin-catalog/aux-ledger.yaml
@@ -8391,6 +8446,7 @@ plugin-catalog/cashew.yaml
 plugin-catalog/cdp-manager.yaml
 plugin-catalog/chat-studio.yaml
 plugin-catalog/chatto-platform.yaml
+plugin-catalog/cheatsheet.yaml
 plugin-catalog/chronicle.yaml
 plugin-catalog/chutes-provider.yaml
 plugin-catalog/cjk_sanitizer.yaml
@@ -8403,6 +8459,7 @@ plugin-catalog/coder.yaml
 plugin-catalog/codex-chat-look.yaml
 plugin-catalog/cognee.yaml
 plugin-catalog/command-tray.yaml
+plugin-catalog/commandcode-oauth.yaml
 plugin-catalog/compartment.yaml
 plugin-catalog/composer-modes.yaml
 plugin-catalog/corpus.yaml
@@ -8429,6 +8486,7 @@ plugin-catalog/deja-memory.yaml
 plugin-catalog/desensitize.yaml
 plugin-catalog/deskrpg.yaml
 plugin-catalog/dexio.yaml
+plugin-catalog/diaktoros.yaml
 plugin-catalog/diff-review.yaml
 plugin-catalog/document-reader.yaml
 plugin-catalog/done-bell.yaml
@@ -8449,6 +8507,7 @@ plugin-catalog/fluxer-platform.yaml
 plugin-catalog/fmsg-platform.yaml
 plugin-catalog/foresee.yaml
 plugin-catalog/freight-reconciliation.yaml
+plugin-catalog/frihet.yaml
 plugin-catalog/fusion.yaml
 plugin-catalog/fxmacrodata.yaml
 plugin-catalog/gbrain-plugin.yaml
@@ -8468,6 +8527,7 @@ plugin-catalog/gods-eye-view.yaml
 plugin-catalog/gondola-provider.yaml
 plugin-catalog/gonogo.yaml
 plugin-catalog/good-student.yaml
+plugin-catalog/govee.yaml
 plugin-catalog/grok-acp.yaml
 plugin-catalog/groq-provider.yaml
 plugin-catalog/ha-sidebar-navigator.yaml
@@ -8492,10 +8552,13 @@ plugin-catalog/hermes-dreaming.yaml
 plugin-catalog/hermes-field-notes.yaml
 plugin-catalog/hermes-gemini-live.yaml
 plugin-catalog/hermes-herald.yaml
+plugin-catalog/hermes-honcho-plugin.yaml
 plugin-catalog/hermes-impossibl.yaml
 plugin-catalog/hermes-insight.yaml
 plugin-catalog/hermes-iroh-interconnect.yaml
 plugin-catalog/hermes-jailbreak-kernel.yaml
+plugin-catalog/hermes-kame-api-rotation.yaml
+plugin-catalog/hermes-kame-provider.yaml
 plugin-catalog/hermes-lang-vi.yaml
 plugin-catalog/hermes-lcm-x.yaml
 plugin-catalog/hermes-ledgerline.yaml
@@ -8512,7 +8575,9 @@ plugin-catalog/hermes-nous-prices.yaml
 plugin-catalog/hermes-office.yaml
 plugin-catalog/hermes-opper.yaml
 plugin-catalog/hermes-pets-all.yaml
+plugin-catalog/hermes-pickup.yaml
 plugin-catalog/hermes-pii.yaml
+plugin-catalog/hermes-plex-music.yaml
 plugin-catalog/hermes-plugin-chrome-profiles.yaml
 plugin-catalog/hermes-plugin-gen.yaml
 plugin-catalog/hermes-plugin-guard.yaml
@@ -8521,7 +8586,6 @@ plugin-catalog/hermes-pokemon.yaml
 plugin-catalog/hermes-project-stewardship.yaml
 plugin-catalog/hermes-pubky.yaml
 plugin-catalog/hermes-resetwatch.yaml
-plugin-catalog/hermes-review-loop.yaml
 plugin-catalog/hermes-rich-ui.yaml
 plugin-catalog/hermes-routines.yaml
 plugin-catalog/hermes-rss.yaml
@@ -8537,6 +8601,7 @@ plugin-catalog/hermes-snapcompact.yaml
 plugin-catalog/hermes-speech.yaml
 plugin-catalog/hermes-ssh.yaml
 plugin-catalog/hermes-structured-aux-models.yaml
+plugin-catalog/hermes-stt-enhance.yaml
 plugin-catalog/hermes-subscription-meter.yaml
 plugin-catalog/hermes-switchyard.yaml
 plugin-catalog/hermes-t3-control.yaml
@@ -8564,6 +8629,7 @@ plugin-catalog/homeassistant.yaml
 plugin-catalog/honcho.yaml
 plugin-catalog/hopper.yaml
 plugin-catalog/hud-teach.yaml
+plugin-catalog/hyatlas.yaml
 plugin-catalog/hydradb.yaml
 plugin-catalog/icarus.yaml
 plugin-catalog/identity.yaml
@@ -8574,6 +8640,7 @@ plugin-catalog/inkbox.yaml
 plugin-catalog/inline-platform.yaml
 plugin-catalog/intelligent-tool-break.yaml
 plugin-catalog/intelligent_memory.yaml
+plugin-catalog/invinoveritas-receipts.yaml
 plugin-catalog/iteration-budget-meter.yaml
 plugin-catalog/ja-writing-guard.yaml
 plugin-catalog/jackal-verified.yaml
@@ -8603,6 +8670,7 @@ plugin-catalog/junie-acp.yaml
 plugin-catalog/kanban-gantt.yaml
 plugin-catalog/kanban-live-gantt.yaml
 plugin-catalog/kanban-task-threads.yaml
+plugin-catalog/kfchow-llm-value-router.yaml
 plugin-catalog/kimchi-acp-provider.yaml
 plugin-catalog/kimchi-provider.yaml
 plugin-catalog/kimi-code-delegate.yaml
@@ -8613,6 +8681,7 @@ plugin-catalog/klipper-print-watch.yaml
 plugin-catalog/kuma.yaml
 plugin-catalog/lancedb-suite.yaml
 plugin-catalog/lancedb.yaml
+plugin-catalog/laso-finance.yaml
 plugin-catalog/letsfg.yaml
 plugin-catalog/lib-docs.yaml
 plugin-catalog/limbic.yaml
@@ -8624,6 +8693,7 @@ plugin-catalog/local_knowledge.yaml
 plugin-catalog/loreconvo.yaml
 plugin-catalog/lumberroom.yaml
 plugin-catalog/made-shelf.yaml
+plugin-catalog/magi.yaml
 plugin-catalog/maqami-travel.yaml
 plugin-catalog/markdown-new.yaml
 plugin-catalog/markifact.yaml
@@ -8661,9 +8731,11 @@ plugin-catalog/nachos.yaml
 plugin-catalog/needs-you.yaml
 plugin-catalog/nerve.yaml
 plugin-catalog/next-prompt.yaml
+plugin-catalog/next-steps.yaml
 plugin-catalog/nextdns.yaml
 plugin-catalog/nexus.yaml
 plugin-catalog/node-search.yaml
+plugin-catalog/nowstamp.yaml
 plugin-catalog/ntfy-approval.yaml
 plugin-catalog/nvidia-app.yaml
 plugin-catalog/nvidia-broadcast.yaml
@@ -8677,6 +8749,7 @@ plugin-catalog/openalex.yaml
 plugin-catalog/openltm.yaml
 plugin-catalog/openmail.yaml
 plugin-catalog/openrouter-picker.yaml
+plugin-catalog/openrouter-spend.yaml
 plugin-catalog/openrouter-voice.yaml
 plugin-catalog/openspec.yaml
 plugin-catalog/openviking.yaml
@@ -8700,6 +8773,7 @@ plugin-catalog/pocket-watch.yaml
 plugin-catalog/pricewin.yaml
 plugin-catalog/prism.yaml
 plugin-catalog/privacy-gateway.yaml
+plugin-catalog/profile-models.yaml
 plugin-catalog/profile-pane.yaml
 plugin-catalog/progress-squash.yaml
 plugin-catalog/prompt-enhance.yaml
@@ -8717,6 +8791,7 @@ plugin-catalog/provider-copy.yaml
 plugin-catalog/provider-status.yaml
 plugin-catalog/provider-usage.yaml
 plugin-catalog/pstack.yaml
+plugin-catalog/public-holidays.yaml
 plugin-catalog/pushary.yaml
 plugin-catalog/pushover-hermes-plugin.yaml
 plugin-catalog/qdrant.yaml
@@ -8780,6 +8855,7 @@ plugin-catalog/telegram_dashboard_probe.yaml
 plugin-catalog/telnyx-provider.yaml
 plugin-catalog/thomas.yaml
 plugin-catalog/time-gap.yaml
+plugin-catalog/tinyfish.yaml
 plugin-catalog/titanos-mcp.yaml
 plugin-catalog/tokenwatch.yaml
 plugin-catalog/tool-slimmer.yaml
@@ -9197,6 +9273,7 @@ pm/AGENTS.md
 pm/__init__.py
 pm/_marker_eval.py
 pm/_uv.py
+pm/_venv_entry.py
 pm/artifact-mirror.json
 pm/artifact_mirror.py
 pm/build_env.py
@@ -9254,6 +9331,7 @@ providers/__init__.py
 providers/base.py
 pyproject.toml
 registration_lifecycle.py
+ruff.strict.toml
 run_agent.py
 scripts/_activation.py
 scripts/_activation.sh
@@ -10314,6 +10392,7 @@ tests/agent/test_file_safety_session_state.py
 tests/agent/test_file_safety_write_credentials.py
 tests/agent/test_first_chunk_at_hook.py
 tests/agent/test_flush_diverts_on_corrupt_state_db.py
+tests/agent/test_free_tier_rate_limit_class.py
 tests/agent/test_future_timeout_worker_death.py
 tests/agent/test_gateway_turn_sidecar.py
 tests/agent/test_gemini_alias_native_route.py
@@ -10804,6 +10883,7 @@ tests/agent/test_turn_recovery_autorecover.py
 tests/agent/test_turn_retry_state.py
 tests/agent/test_turn_summary.py
 tests/agent/test_turn_usage_log_line.py
+tests/agent/test_turn_user_intervened.py
 tests/agent/test_uncompressed_context_guardrail.py
 tests/agent/test_unicode_ascii_codec.py
 tests/agent/test_unset_reasoning_effort_default.py
@@ -11094,6 +11174,7 @@ tests/docker/test_log_dir_seed.py
 tests/docker/test_main_invocation.py
 tests/docker/test_profile_gateway.py
 tests/docker/test_puid_pgid_remap.py
+tests/docker/test_s6_gateway_planned_stop.py
 tests/docker/test_s6_profile_gateway_integration.py
 tests/docker/test_smoke.py
 tests/docker/test_sqlite_runtime.py
@@ -12563,6 +12644,7 @@ tests/hermes_cli/test_cli_extension_hooks.py
 tests/hermes_cli/test_cli_external_editor.py
 tests/hermes_cli/test_cli_fallback_chain_hot_reload.py
 tests/hermes_cli/test_cli_file_drop.py
+tests/hermes_cli/test_cli_first_message.py
 tests/hermes_cli/test_cli_first_run_setup.py
 tests/hermes_cli/test_cli_footer_split.py
 tests/hermes_cli/test_cli_force_redraw.py
@@ -12862,6 +12944,7 @@ tests/hermes_cli/test_fleet_matrix_self_restart_pending.py
 tests/hermes_cli/test_focus_view.py
 tests/hermes_cli/test_foreign_sessions.py
 tests/hermes_cli/test_foreign_sessions_browser.py
+tests/hermes_cli/test_free_tier_offer.py
 tests/hermes_cli/test_fts_optimize_notice.py
 tests/hermes_cli/test_gateway.py
 tests/hermes_cli/test_gateway_enroll_multiplex_warning.py
@@ -13109,9 +13192,7 @@ tests/hermes_cli/test_managed_scope_writeguard.py
 tests/hermes_cli/test_managed_vision_capability.py
 tests/hermes_cli/test_manual_compress.py
 tests/hermes_cli/test_manual_serve_deferral.py
-tests/hermes_cli/test_mcp_app_detection.py
 tests/hermes_cli/test_mcp_catalog.py
-tests/hermes_cli/test_mcp_catalog_discovery.py
 tests/hermes_cli/test_mcp_catalog_env_boundary.py
 tests/hermes_cli/test_mcp_config.py
 tests/hermes_cli/test_mcp_dashboard_oauth.py
@@ -13273,6 +13354,7 @@ tests/hermes_cli/test_plan_reconciliation_windows_live.py
 tests/hermes_cli/test_platform_actions.py
 tests/hermes_cli/test_platform_plugin_env_injection.py
 tests/hermes_cli/test_plugin_api_compat.py
+tests/hermes_cli/test_plugin_api_hot_mount.py
 tests/hermes_cli/test_plugin_aux_tasks_dashboard.py
 tests/hermes_cli/test_plugin_auxiliary_tasks.py
 tests/hermes_cli/test_plugin_call_mcp.py
@@ -13284,6 +13366,7 @@ tests/hermes_cli/test_plugin_cli_registration.py
 tests/hermes_cli/test_plugin_config_state_bridge.py
 tests/hermes_cli/test_plugin_dependency_consent.py
 tests/hermes_cli/test_plugin_dev.py
+tests/hermes_cli/test_plugin_doctor_desktop_copy.py
 tests/hermes_cli/test_plugin_doctor_unload.py
 tests/hermes_cli/test_plugin_event_bus.py
 tests/hermes_cli/test_plugin_events.py
@@ -13293,7 +13376,6 @@ tests/hermes_cli/test_plugin_host.py
 tests/hermes_cli/test_plugin_install_manifest_version.py
 tests/hermes_cli/test_plugin_install_records_concurrent.py
 tests/hermes_cli/test_plugin_install_ref.py
-tests/hermes_cli/test_plugin_live_gateway_guard.py
 tests/hermes_cli/test_plugin_manifest_v2.py
 tests/hermes_cli/test_plugin_message_injection.py
 tests/hermes_cli/test_plugin_ownership_ledger.py
@@ -13305,6 +13387,7 @@ tests/hermes_cli/test_plugin_provider_picker_residue.py
 tests/hermes_cli/test_plugin_runtime_disable_gate.py
 tests/hermes_cli/test_plugin_scan_dunder_dirs.py
 tests/hermes_cli/test_plugin_scanner_recursion.py
+tests/hermes_cli/test_plugin_uninstall_windows_live.py
 tests/hermes_cli/test_plugin_update_recovery.py
 tests/hermes_cli/test_plugin_update_transaction.py
 tests/hermes_cli/test_plugin_validate.py
@@ -13469,6 +13552,7 @@ tests/hermes_cli/test_session_boundary_hooks.py
 tests/hermes_cli/test_session_browse.py
 tests/hermes_cli/test_session_detail_malformed_db.py
 tests/hermes_cli/test_session_dock.py
+tests/hermes_cli/test_session_end_messages.py
 tests/hermes_cli/test_session_export.py
 tests/hermes_cli/test_session_export_batch.py
 tests/hermes_cli/test_session_export_html.py
@@ -13521,6 +13605,9 @@ tests/hermes_cli/test_setup_model_provider.py
 tests/hermes_cli/test_setup_noninteractive.py
 tests/hermes_cli/test_setup_openclaw_migration.py
 tests/hermes_cli/test_setup_pin_values.py
+tests/hermes_cli/test_setup_profile_answers.py
+tests/hermes_cli/test_setup_profile_owner.py
+tests/hermes_cli/test_setup_profile_returning_user.py
 tests/hermes_cli/test_setup_prompt_menus.py
 tests/hermes_cli/test_setup_provider_catalog.py
 tests/hermes_cli/test_setup_reconfigure.py
@@ -14441,6 +14528,7 @@ tests/pm/test_update_request_reuse.py
 tests/pm/test_uv_cache.py
 tests/pm/test_uv_cache_seed.py
 tests/pm/test_uv_python.py
+tests/pm/test_venv_command.py
 tests/pm/test_venv_sync_ambient_config.py
 tests/pm/test_windows_build_deps.py
 tests/pm/test_worker.py
@@ -14751,8 +14839,10 @@ tests/tools/test_approval_mode_parity.py
 tests/tools/test_approval_outcome_parity.py
 tests/tools/test_approval_plugin_hooks.py
 tests/tools/test_approval_timeout_overflow.py
+tests/tools/test_approval_unattended_presence.py
 tests/tools/test_approval_user_summary.py
 tests/tools/test_approval_windows.py
+tests/tools/test_approval_yolo.py
 tests/tools/test_approved_command_clean_slate.py
 tests/tools/test_async_batch_task_failure_notice.py
 tests/tools/test_async_delegation.py
@@ -15260,6 +15350,7 @@ tests/tools/test_send_message_telegram_proxy.py
 tests/tools/test_send_message_tool.py
 tests/tools/test_session_cwd_store.py
 tests/tools/test_session_search.py
+tests/tools/test_setup_choose_name_card.py
 tests/tools/test_shared_container_task_id.py
 tests/tools/test_shell_arg_transport.py
 tests/tools/test_shell_bypass_denylist.py
@@ -15567,6 +15658,7 @@ tests/tui_gateway/test_finalize_session_persist.py
 tests/tui_gateway/test_first_contact_onboarding.py
 tests/tui_gateway/test_foreground_notification_snapshot.py
 tests/tui_gateway/test_free_tier_rpc.py
+tests/tui_gateway/test_free_tier_task_done.py
 tests/tui_gateway/test_gateway_owned_session_reap.py
 tests/tui_gateway/test_goal_command.py
 tests/tui_gateway/test_groups_methods.py
@@ -15671,6 +15763,7 @@ tests/tui_gateway/test_resume_live_lazy_session.py
 tests/tui_gateway/test_resume_live_profile_scope.py
 tests/tui_gateway/test_resume_profile_scope.py
 tests/tui_gateway/test_resume_readonly_mount.py
+tests/tui_gateway/test_resume_session_yolo.py
 tests/tui_gateway/test_resume_switched_provider_endpoint.py
 tests/tui_gateway/test_retirement_admission.py
 tests/tui_gateway/test_retirement_continuations.py
@@ -15789,6 +15882,7 @@ tools/approval_gateway_wait.py
 tools/approval_human_wait.py
 tools/approval_prompt.py
 tools/approval_smart.py
+tools/approval_yolo.py
 tools/arg_coercion.py
 tools/async_delegation.py
 tools/async_delegation_recovery_hints.py
@@ -16026,6 +16120,7 @@ tools/send_message_senders.py
 tools/send_message_targets.py
 tools/send_message_tool.py
 tools/session_search_tool.py
+tools/setup_choose_tool.py
 tools/shell_heredoc.py
 tools/skill_ledger.py
 tools/skill_linter.py
@@ -16055,6 +16150,7 @@ tools/skills_tool_plugin.py
 tools/skills_tool_setup.py
 tools/slash_confirm.py
 tools/spill_safety.py
+tools/start_chat_tool.py
 tools/stt_lease.py
 tools/subagent_worktree.py
 tools/terminal_hints.py
@@ -16164,6 +16260,7 @@ tui_gateway/contracts/tools_mcp_plugins.py
 tui_gateway/entry.py
 tui_gateway/event_publisher.py
 tui_gateway/event_replay.py
+tui_gateway/free_tier_task_done.py
 tui_gateway/git_probe.py
 tui_gateway/host_supervisor.py
 tui_gateway/hosted_room_driver.py
@@ -16204,12 +16301,12 @@ tui_gateway/methods_session_interrupt.py
 tui_gateway/methods_session_model_guard.py
 tui_gateway/methods_shared_metrics.py
 tui_gateway/methods_slash.py
+tui_gateway/methods_start_chat.py
 tui_gateway/methods_subagents.py
 tui_gateway/methods_tools.py
 tui_gateway/methods_vault.py
 tui_gateway/methods_voice.py
 tui_gateway/model_switch.py
-tui_gateway/onboarding_personalization.py
 tui_gateway/plugin_inject.py
 tui_gateway/profile_roster_cache.py
 tui_gateway/project_tree.py
@@ -16229,6 +16326,7 @@ tui_gateway/session_transports.py
 tui_gateway/session_workdir.py
 tui_gateway/slash_fuzzy.py
 tui_gateway/slash_worker.py
+tui_gateway/start_chat.py
 tui_gateway/synthetic_turn.py
 tui_gateway/tool_progress.py
 tui_gateway/transport.py
@@ -17055,7 +17153,6 @@ website/docs/developer-guide/middleware.md
 website/docs/developer-guide/model-provider-plugin.md
 website/docs/developer-guide/multiplexing-gateway.md
 website/docs/developer-guide/observer-hooks.md
-website/docs/developer-guide/onboarding-recommendations.md
 website/docs/developer-guide/plugin-llm-access.md
 website/docs/developer-guide/plugins/application-declarations.md
 website/docs/developer-guide/plugins/catalog-submission.md
@@ -17431,7 +17528,9 @@ website/docs/user-guide/skills/optional/payments/payments-stripe-link-cli.md
 website/docs/user-guide/skills/optional/payments/payments-stripe-projects.md
 website/docs/user-guide/skills/optional/productivity/productivity-canvas.md
 website/docs/user-guide/skills/optional/productivity/productivity-decision-questionnaire.md
+website/docs/user-guide/skills/optional/productivity/productivity-first-task.md
 website/docs/user-guide/skills/optional/productivity/productivity-here-now.md
+website/docs/user-guide/skills/optional/productivity/productivity-initiate-setup.md
 website/docs/user-guide/skills/optional/productivity/productivity-live-dashboard.md
 website/docs/user-guide/skills/optional/productivity/productivity-memento-flashcards.md
 website/docs/user-guide/skills/optional/productivity/productivity-property-listings.md

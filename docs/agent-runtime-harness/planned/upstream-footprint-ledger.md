@@ -450,3 +450,21 @@ Frozen sources: fork `94043a1a42e71290afde5e05de5ebef4685c2eaf`, upstream
 | --- | --- | --- |
 | `tui_gateway/methods_session_branch.py` branch construction | upstream / keep at moved owner | Origin adds `session_construction` to the former methods_session owner; upstream moved it. Drop the duplicate old-location body, retain one construction scope on authoritative moved branch helper. Actual `test_real_branch_build_has_an_independent_registered_connection` failed with missing session ownership scope before decorator, passed after. Public session-construction scope hook retires this two-line seam; no new registry. |
 | `agent/prompt_builder.py` plugin skill rows | upstream / keep | Incoming enabled code-plugin metadata bypassed disk runtime compatibility. Reuse `skill_frontmatter_runtime_compatibility` with resolved surface/mode before cache-key rows. Actual PluginContext registration control leaked root-only skill in standard mode before filter, passed after; root mode offered, wrong surface hidden, metadata-free offered. Generic plugin skill visibility hook receiving metadata and caller surface/mode retires this additive filter; no second policy owner. |
+
+Focused qualification: 117 passed / 5 failed in the explicitly named conflicted-module
+batch; all five were the fork registration fixture missing incoming `methods_start_chat`.
+After adding that upstream owner between metrics and recovery, only that file reran:
+9 passed. The native branch and actual plugin registration controls each went red then
+green. No broad suite run; full validation remains Claude-owned.
+
+Pinned uv 0.12.3 lock regeneration passed; both gateway contracts regenerated and
+`--check` passed, including final post-repair check. Undefined-name analysis passed for
+the 30 conflicted modules; moved branch binding globals produce the same 56 F821
+findings as exact incoming upstream (zero added), so that module is not claimed green.
+
+Footprint source manifest/fixture base advanced together to incoming `302c5d9f67`,
+strict ceilings unchanged at 176/883/4. Current measure is **188/1033/5**, still FAIL,
+versus reviewed prior daily 187/1028/5 (+1 file, +5 deleted lines, heavy unchanged).
+The old manifest base would count upstream churn as 2757/23057/26; it is not the fork
+comparison. Six prior incoming Windows chmod assertion reds were not re-run in this
+batch and remain unproven pre-existing main. No skip-list or ceiling adjustment.
