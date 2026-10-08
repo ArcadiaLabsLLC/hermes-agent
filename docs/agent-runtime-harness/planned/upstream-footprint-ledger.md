@@ -440,3 +440,12 @@ Frozen fork base `8f2f1cdd386`; these proposals add no upstream hunks and do not
 | R008-PREP-CONTEXT | `agent/agent_init.py`: `prepare_agent_construction(context, options, checkpoint)` / `construct_prepared_agent(prepared)`; `agent/prompt_builder.py`: `prepare_system_prompt(agent_inputs, context, system_message, checkpoint)` | `AgentRunExecution.scopes/construct_agent/finish_prewarm` wide-lock preparation moves only after context/explicit-spawn/cooperative ownership is complete | actual scope/prompt control blocks next turn; preserve cwd/profile/env authority and cancelled-publication fences; named tests in packet |
 | R010-REGISTRATION-HANDLE | `tools/mcp_tool_discovery.py`: `start_mcp_registration(servers, registry_scope, cancel_event)` returns request-owned `request_cancel/wait_stopped/result`; `tools/mcp_tool_loop.py` drains owned async tasks/callbacks before acknowledgement | `Admission.register_bounded/_work` requests cancellation and releases mutex only after registrar stop/join | abandon control retains running registrar + busy next turn + late write; no Future-only or global-shutdown substitute; named tests in packet |
 | R034-FINAL-TOOL-SURFACE | `agent/turn_api_request.py`: `commit_dispatched_tool_surface` after all transforms at attempted dispatch; `tools/mcp_tool_agent.py`: owner-aware settle/permission-bounded restore/persist; `hermes_cli/middleware.py` ordered-current payload semantics | one fork `chat_tool_surface` owner replaces duplicate defer/reprune/pin writers while separating logical tools from provider wire | current public refresh pins 34 definitions vs settled 15; permission epoch, provider shape, final callback, retry and no-dispatch proofs in packet |
+
+## Daily integration repairs — 2026-10-08
+
+Frozen sources: fork `94043a1a42e71290afde5e05de5ebef4685c2eaf`, upstream
+`302c5d9f679333ae957c256d76a3dff35120f4e0`; history-preserving merges only.
+
+| Seam | Verdict after drop / extract / upstream assessment | Evidence / retirement candidate |
+| --- | --- | --- |
+| `tui_gateway/methods_session_branch.py` branch construction | upstream / keep at moved owner | Origin adds `session_construction` to the former methods_session owner; upstream moved it. Drop the duplicate old-location body, retain one construction scope on authoritative moved branch helper. Actual `test_real_branch_build_has_an_independent_registered_connection` failed with missing session ownership scope before decorator, passed after. Public session-construction scope hook retires this two-line seam; no new registry. |

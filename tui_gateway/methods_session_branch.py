@@ -5,6 +5,7 @@ the bodies close over server.py globals through ``method_ctx.bind_module`` exact
 publication still runs from the parent's ``register()``.
 """
 
+from agent_runtime.conversations.worker_app_functions import session_construction
 from .method_ctx import HandlerRegistry, bind_module
 
 _registry = HandlerRegistry()
@@ -17,6 +18,7 @@ def _visible_branch_history(messages) -> list:
             and _coerce_message_text(message.get("content")).strip()]
 
 
+@session_construction
 def _build_branch_agent(session: dict, new_sid: str, new_key: str, history: list, source: str):
     """Build + register the branched agent in the parent's profile; the DEDICATED db handle is ours until
     ``_transfer_db_to_agent`` (released here on failure)."""
