@@ -252,8 +252,6 @@ def _chat_effective_model_payload(
     default_provider = getattr(persona, "provider", None) or getattr(config, "default_provider", None)
     default_model = getattr(persona, "model", None) or getattr(config, "default_model", None)
     from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
-    from agent_runtime.profile_runner.models import AgentRunRequest
-    from agent_runtime.profile_runner.resident_actor import turn_reasoning_config
     # An instance whose persona left the roster still gets a summary; it has no
     # profile to scope into, so only the instance and config tiers apply.
     binding = resolve_persona_profile(persona) if persona is not None else None
@@ -268,8 +266,7 @@ def _chat_effective_model_payload(
                 default_provider = default_provider or profile_config.default_provider
             effective_model = ((override or {}).get("model") or getattr(instance, "model", None)
                                or default_model)
-            reasoning = turn_reasoning_config(AgentRunRequest(profile=None,
-                model=effective_model, reasoning_effort=effort), effective_model)
+            reasoning = reasoning_config_for(effort, effective_model)
     elif effort:
         from hermes_constants import parse_reasoning_effort
         reasoning = parse_reasoning_effort(effort)
@@ -336,6 +333,27 @@ def _resolve_turn_model_selection(
 #: One INFO line per run that holds an agent: the effort its next request
 #: carries, read off the agent itself (so a reused or prewarmed actor whose
 #: config disagrees with ``requested`` shows the disagreement).
+def reasoning_config_for(effort: str | None, model: str | None) -> dict | None:
+    """The instance's effort when given, else the ACTIVE profile's
+    ``agent.reasoning_effort`` (per-model override first) — the chokepoint every
+    upstream surface uses. Read inside the persona's profile scope, so
+    ``load_config`` is that profile's. The resident actor's
+    ``turn_reasoning_config`` and the effective-model payload both resolve here."""
+
+    from hermes_constants import parse_reasoning_effort
+
+    if effort:
+        return parse_reasoning_effort(effort)
+    try:
+        from hermes_cli.config import load_config
+        from hermes_constants import resolve_reasoning_config
+
+        return resolve_reasoning_config(load_config() or {}, model or "")
+    except Exception:
+        _logger.debug("profile reasoning effort unreadable", exc_info=True)
+        return None
+
+
 TURN_EFFORT_RECEIPT = (
     "chat_turn_effort root=%s turn=%s model=%s requested=%s effort=%s source=%s actor=%s"
 )
