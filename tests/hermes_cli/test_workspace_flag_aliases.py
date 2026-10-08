@@ -39,9 +39,11 @@ BOTH_SPELLINGS = frozenset({"--workspace", "--workspace-id"})
 #: A floor for the walk, not a roster. Its job is to fail a walk that stopped
 #: descending (an ``add_parser`` refactor, a subparsers action this recursion
 #: stops recognising) — a scan that matches nothing must never read as a pass.
-#: The verbs D8 enumerates are 14; a walk finding fewer has lost part of the
-#: tree, and one finding more is a NEW verb this rule already covered.
-MINIMUM_WORKSPACE_VERBS = 14
+#: The verbs D8 enumerated were 14; ``mission-chat message`` retired its
+#: workspace hints (33069ca1fc: the turn resolves its own workspace), leaving 13.
+#: A walk finding fewer has lost part of the tree, and one finding more is a NEW
+#: verb this rule already covered.
+MINIMUM_WORKSPACE_VERBS = 13
 
 
 def _root_parser() -> argparse.ArgumentParser:
@@ -113,7 +115,6 @@ def test_the_walk_reaches_the_whole_tree():
         "harness office actor-upsert",
         "harness board create",
         "harness persona instance create",
-        "harness mission-chat message",
     ):
         assert expected in verbs, sorted(verbs)
 
@@ -180,7 +181,6 @@ def _required_extras(path: str) -> list[str]:
         "harness board card add": ["--title", "t"],
         "harness persona instance create": ["--persona", "qa", "--title", "t"],
         "harness persona instance open-chat": ["--persona", "qa"],
-        "harness mission-chat message": ["--persona", "qa", "--message", "hi"],
     }.get(path, [])
 
 
@@ -217,7 +217,6 @@ def test_the_discriminator_is_the_dest_not_the_spelling():
     [
         ["harness", "office", "show", "--workspace-id", "ws"],
         ["harness", "persona", "instance", "create", "--persona", "qa", "--title", "t", "--workspace", "ws"],
-        ["harness", "mission-chat", "message", "--persona", "qa", "--message", "hi", "--workspace", "ws"],
     ],
 )
 def test_the_previously_refused_spelling_now_parses(argv):

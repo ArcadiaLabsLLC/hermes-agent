@@ -712,8 +712,9 @@ def test_a_clean_admission_names_what_it_admitted(qa_profile):
     line = render_mcp_admission_line(admission)
 
     assert line == (
-        "- MCP tools: Admitted on this turn: launcher_qa; those servers' "
-        "mcp__<server>__* tools ARE in your tool list, so call them directly."
+        "- MCP tools: Admitted on this turn: launcher_qa. Call tools present in "
+        "your tool list directly; discover deferred tools with tool_search and "
+        "invoke them through tool_call."
     )
     assert "\n" not in line
     # The denial wording is a DENIAL wording: none of it leaks onto a turn that
@@ -1123,7 +1124,7 @@ def test_a_partial_admission_names_the_admitted_server_too():
 
     assert "launcher_qa (" in line
     assert "Admitted on this turn: other_server" in line
-    assert "mcp__<server>__* tools ARE" in line
+    assert "discover deferred tools with tool_search" in line
     assert "\n" not in line
 
 
@@ -1175,7 +1176,7 @@ def test_a_clean_admission_renders_the_admitted_half_alone():
 
     line = render_mcp_admission_line(clean)
     partial = render_mcp_admission_line(_partial(admitted="launcher_qa", dark="other"))
-    sentence = "Admitted on this turn: launcher_qa; those servers' mcp__<server>__* tools ARE in your tool list, so call them directly."
+    sentence = "Admitted on this turn: launcher_qa. Call tools present in your tool list directly; discover deferred tools with tool_search and invoke them through tool_call."
 
     assert line == f"- MCP tools: {sentence}"
     assert partial.endswith(f" {sentence}")

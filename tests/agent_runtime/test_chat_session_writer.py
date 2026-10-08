@@ -147,7 +147,8 @@ def test_unresolved_override_still_refuses_before_registry(canonical_scope, monk
 def test_async_tail_owns_writer_after_real_dispatch_and_turn_exit(canonical_scope, monkeypatch):
     from hermes_cli.harness_parts.persona.chat_turn_message import _run_deferred_tail
     from hermes_cli.harness_parts import serve
-    monkeypatch.setattr(serve, "current_serve_request_id", lambda: "test-owned-tail")
+    from tests._downstream.split_package_source import patch_where_bound
+    patch_where_bound(monkeypatch, serve, "current_serve_request_id", lambda: "test-owned-tail")
     entered, finish, done = threading.Event(), threading.Event(), threading.Event()
     releases = []
     original = registry.release

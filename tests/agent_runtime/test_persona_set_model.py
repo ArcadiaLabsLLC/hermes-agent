@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from agent_runtime import persona_chat_session as chat_session
+from tests._downstream.split_package_source import patch_where_bound
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
@@ -816,7 +817,7 @@ def test_instance_summary_inherits_runtime_default(monkeypatch):
     import agent_runtime.config as config_module
     persona = _persona(model=None, provider=None)
     instance, _ = _two_instances(PersonaInstanceStore(), persona)
-    monkeypatch.setattr(config_module, "load_agent_runtime_config", _cfg)
+    patch_where_bound(monkeypatch, config_module, "load_agent_runtime_config", lambda *a, **k: _cfg())
     summary = persona_instance_summary(instance, persona)
     selected = chat_session._chat_effective_model_payload(
         persona=persona, config=_cfg(), override=None, instance=instance)
@@ -833,8 +834,8 @@ def test_selection_profile_fallback_and_effort_are_one_authority(tmp_path, monke
     monkeypatch.setattr(profile_context, "resolve_persona_profile",
         lambda persona: SimpleNamespace(readiness="ready"))
     monkeypatch.setattr(profile_context, "persona_profile_scope", lambda binding: nullcontext())
-    monkeypatch.setattr(config, "load_agent_runtime_config",
-        lambda: SimpleNamespace(default_model="profile-model", default_provider="profile-provider"))
+    patch_where_bound(monkeypatch, config, "load_agent_runtime_config",
+        lambda *a, **k: SimpleNamespace(default_model="profile-model", default_provider="profile-provider"))
     persona = SimpleNamespace(model=None, provider=None)
     cfg = SimpleNamespace(default_model=None, default_provider=None)
     instance = SimpleNamespace(model=None, provider=None, reasoning_effort="high")
