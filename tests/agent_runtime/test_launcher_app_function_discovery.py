@@ -199,12 +199,16 @@ def test_native_worker_retains_its_own_relay_and_eager_policy_on_continued_turns
         observed.append(kwargs['enabled_toolsets'])
         return SimpleNamespace(tools=assemble_tool_defs(raw_defs(), config=_CFG).tool_defs)
 
-    agent = worker.create_agent(factory, 'native-1', {'source': 'eternia_intelligence'}, enabled_toolsets=[])
+    session = {'source': 'eternia_intelligence'}
+    agent = worker.create_agent(factory, 'native-1', session, enabled_toolsets=[])
+    session['agent'] = agent
     assert observed == [[app.APP_FUNCTIONS_TOOLSET]]
     assert {'launcher_generated_list', 'launcher_generated_create'} <= names(agent.tools)
-    original = agent._launcher_app_function_link
+    token = worker.bind('native-1', session)
+    original = app.current_launcher_link()
+    worker.reset(token)
     for _ in range(2):
-        token = worker.bind('native-1', {'source': 'eternia_intelligence', 'agent': agent})
+        token = worker.bind('native-1', session)
         try:
             assert app.current_launcher_link() is original
             assert app.always_loaded_app_function_tools() == {'launcher_generated_list', 'launcher_generated_create'}

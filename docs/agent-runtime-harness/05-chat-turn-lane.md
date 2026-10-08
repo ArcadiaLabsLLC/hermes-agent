@@ -399,8 +399,13 @@ full description, and `launcher.generated.list` returns the full component catal
 Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
 New component kinds belong in that catalog rather than growing the always-loaded tool schema.
 There is no additional prompt section or per-turn catalog fetch. Intelligence's native worker
-retains its relay on the owning agent (`agent_runtime/conversations/worker_app_functions.py`) so
-continued turns use the same discovery boundary.
+retains a typed `SessionBinding` on the gateway's existing session record
+(`agent_runtime/conversations/worker_app_functions.py`) so continued turns and agent replacement
+use the same discovery boundary. The worker adds no attributes to the upstream agent. The gateway's
+teardown chokepoint releases that record's exact catalog and open app-function requests; closed
+records cannot reacquire the link. A failed initial construction releases its binding, while a
+failed replacement retains the still-live agent's connection. Discovery and construction hold no
+session lock across network or factory work, and a late result cannot revive a closed catalog.
 
 `apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane
 resolution onto the operator preview, so `persona tool-diff` reports what the turn ships. It sets
