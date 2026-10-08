@@ -42,7 +42,7 @@
   },
   {
    "depth": 1,
-   "lines": 264,
+   "lines": 257,
    "unit": "agent_runtime/persona_runtime.py|GPTPersonaRuntime.mission_chat_reply"
   },
   {
@@ -97,17 +97,12 @@
   },
   {
    "depth": 4,
-   "lines": 321,
+   "lines": 314,
    "unit": "hermes_cli/harness_parts/persona/chat_open.py|_cmd_persona_instance_open_chat"
   },
   {
    "depth": 4,
-   "lines": 159,
-   "unit": "hermes_cli/harness_parts/persona/chat_open.py|_cmd_persona_instance_open_new_chat"
-  },
-  {
-   "depth": 4,
-   "lines": 691,
+   "lines": 675,
    "unit": "hermes_cli/harness_parts/persona/chat_turn_message.py|_cmd_mission_chat_message"
   },
   {

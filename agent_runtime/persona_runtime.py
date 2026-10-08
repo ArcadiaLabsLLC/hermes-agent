@@ -137,15 +137,7 @@ class GPTPersonaRuntime:
             raise ValueError(binding.summary)
         runtime_provider = provider_override or persona.provider or self._default_provider
         runtime_model = model_override or persona.model or self._default_model or ""
-        health_persona = AgentPersona(
-            **{
-                field: getattr(persona, field)
-                for field in getattr(persona, "__dataclass_fields__", {})
-            }
-        )
-        health_persona.provider = runtime_provider
-        health_persona.model = runtime_model
-        assert_provider_health_for_persona(health_persona)
+        _assert_turn_provider_health(persona, runtime_provider, runtime_model)
         # Non-blocking clarify bridge for this lane: a clarify call records the
         # question and ends the turn instead of blocking on a human queue the
         # spawn does not have. Read back after the run and threaded to the
@@ -327,6 +319,19 @@ class GPTPersonaRuntime:
 # so the agent's raw, in-flight copy never becomes recall-reachable while real
 # cross-session recall stays on.
 PERSONA_CHAT_SCRATCH_SOURCE = "tool"
+
+
+def _assert_turn_provider_health(persona: AgentPersona, provider: str, model: str) -> None:
+    """Provider health for the provider/model this turn will actually run on."""
+    health_persona = AgentPersona(
+        **{
+            field: getattr(persona, field)
+            for field in getattr(persona, "__dataclass_fields__", {})
+        }
+    )
+    health_persona.provider = provider
+    health_persona.model = model
+    assert_provider_health_for_persona(health_persona)
 
 
 def _mission_chat_surface_message(

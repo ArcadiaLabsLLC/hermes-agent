@@ -179,6 +179,52 @@ def _caller_device_id(caller: Any | None) -> str | None:
     return device_id.strip() if isinstance(device_id, str) and device_id.strip() else None
 
 
+def _open_chat_args(
+    params: dict, persona_id: str, owner: Any, caller: Any | None
+) -> SimpleNamespace:
+    """The handler namespace this door hands the open-chat slot; the minting arm pinned closed."""
+
+    return SimpleNamespace(
+        persona_id=persona_id,
+        persona_instance_id=_text(params, "persona_instance_id"),
+        session_id=_text(params, "session_id"),
+        new_session=bool(params.get("new_session")),
+        client_scope=owner,
+        kill_active=bool(params.get("kill_active")),
+        # The launcher spells the replay key ``idempotency_key`` (its
+        # ``ArgRef.idempotencyKey`` rides ``--idempotency-key`` on this verb),
+        # and ``client_message_id`` is the name the same value carries on the
+        # SEND lane and on ``persona instance create``. Both are accepted, in
+        # that order, so one client vocabulary reaches one CLI flag.
+        idempotency_key=_text(params, "idempotency_key", "client_message_id"),
+        # Provenance, defaulted from what the TRANSPORT proved. ``"cli"`` is the
+        # argparse default this verb has always had, kept for a caller with no
+        # device identity so the two doors do not answer with different words.
+        requested_by=(
+            _text(params, "requested_by") or _caller_device_id(caller) or "cli"
+        ),
+        # The minting arm, closed. See the docstring.
+        add_instance=False,
+        placement_id=None,
+        display_name=None,
+        workspace_id=None,
+        realm_id=None,
+        # The coordinator-budget arm reads these through ``getattr`` and is
+        # unreachable with ``add_instance``/``kill_active`` off anyway; they are
+        # spelled so no arm of the handler ever sees a missing attribute.
+        coordinator_id=None,
+        coordinator_max_spawns=None,
+        coordinator_spawns_used=0,
+        coordinator_may_kill_own=None,
+        coordinator_no_kill_own=None,
+        coordinator_may_kill_others=None,
+        # ``json`` is what the handler would print WITHOUT a sink; with one it
+        # prints nothing at all. It is set true so a sink that somehow went
+        # missing degrades to a JSON line rather than to prose.
+        json=True,
+    )
+
+
 def perform_persona_instance_open_chat(
     params: dict, *, caller: Any | None = None
 ) -> PersonaOpenChatOutcome:
@@ -248,45 +294,7 @@ def perform_persona_instance_open_chat(
             )
         )
 
-    args = SimpleNamespace(
-        persona_id=persona_id,
-        persona_instance_id=_text(params, "persona_instance_id"),
-        session_id=_text(params, "session_id"),
-        new_session=bool(params.get("new_session")),
-        client_scope=owner,
-        kill_active=bool(params.get("kill_active")),
-        # The launcher spells the replay key ``idempotency_key`` (its
-        # ``ArgRef.idempotencyKey`` rides ``--idempotency-key`` on this verb),
-        # and ``client_message_id`` is the name the same value carries on the
-        # SEND lane and on ``persona instance create``. Both are accepted, in
-        # that order, so one client vocabulary reaches one CLI flag.
-        idempotency_key=_text(params, "idempotency_key", "client_message_id"),
-        # Provenance, defaulted from what the TRANSPORT proved. ``"cli"`` is the
-        # argparse default this verb has always had, kept for a caller with no
-        # device identity so the two doors do not answer with different words.
-        requested_by=(
-            _text(params, "requested_by") or _caller_device_id(caller) or "cli"
-        ),
-        # The minting arm, closed. See the docstring.
-        add_instance=False,
-        placement_id=None,
-        display_name=None,
-        workspace_id=None,
-        realm_id=None,
-        # The coordinator-budget arm reads these through ``getattr`` and is
-        # unreachable with ``add_instance``/``kill_active`` off anyway; they are
-        # spelled so no arm of the handler ever sees a missing attribute.
-        coordinator_id=None,
-        coordinator_max_spawns=None,
-        coordinator_spawns_used=0,
-        coordinator_may_kill_own=None,
-        coordinator_no_kill_own=None,
-        coordinator_may_kill_others=None,
-        # ``json`` is what the handler would print WITHOUT a sink; with one it
-        # prints nothing at all. It is set true so a sink that somehow went
-        # missing degrades to a JSON line rather than to prose.
-        json=True,
-    )
+    args = _open_chat_args(params, persona_id, owner, caller)
 
     # Through the mission-chat door's open-chat slot (lane W3-B), never the
     # CLI namespace: the door installs ``args.payload_sink`` and hands back the

@@ -167,6 +167,84 @@ def fork_source(repo, path, ref):
     return file.read_text() if file.exists() else ''
 
 
+def _check_lines(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
+    """Reviewed addition fragments, counted per named scope in the fork file."""
+    fragments = rule['fragments']
+    reason = rule['reason'].strip()
+    if not reason or not fragments:
+        raise ValueError('lines mode needs nonempty fragments and review reason')
+    patch = git(repo, 'diff', '--no-renames', '--unified=0', base, head, '--', pr_path)
+    additions = added_blocks(patch)
+    added = added_line_numbers(patch)
+    theirs = git(repo, 'show', f'{head}:{pr_path}')
+    matches = True
+    fork_path = rule.get('fork_path', path)
+    for item in fragments:
+        spec = {'text': item} if isinstance(item, str) else item
+        fragment = spec['text']
+        original = fragment
+        if not fragment.strip() or not any(contains_lines(block, fragment) for block in additions):
+            raise ValueError('reviewed fragment is not in current PR additions')
+        for old, new in spec.get('replacements', {}).items():
+            if not old.isidentifier() or not new.isidentifier():
+                raise ValueError('fragment replacements must be identifiers')
+            fragment, count = re.subn(r'\b' + re.escape(old) + r'\b', new, fragment)
+            if not count:
+                raise ValueError('replacement identifier missing from PR fragment')
+        target = spec.get('fork_path', fork_path)
+        ours = fork_source(repo, target, fork_ref)
+        matches = scoped_fragment_matches(
+            theirs, ours, original, fragment, added, pr_path, target,
+            spec.get('scope_map', {}), mismatches) and matches
+    coverage = (f' [reviewed addition fragments in {fork_path}; '
+                f'exact occurrence counts per named scope; deletions/unselected changes not checked: {reason}]')
+    return matches, coverage, True
+
+
+def _check_symbols(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
+    """Named symbols must be byte-identical to the PR head's."""
+    symbols = rule['symbols']
+    if not symbols:
+        raise ValueError('empty symbol selection')
+    theirs = git(repo, 'show', f'{head}:{pr_path}')
+    ours = (git(repo, 'show', f'{fork_ref}:{path}') if fork_ref
+            else (repo / path).read_text())
+    matches = all(symbol_source(theirs, name) == symbol_source(ours, name)
+                  for name in symbols)
+    return matches, '', False
+
+
+def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
+    """The whole PR patch must reverse-apply cleanly to the fork tree."""
+    patch = git(repo, 'diff', '--binary', '--no-renames', base, head, '--', path)
+    with tempfile.TemporaryDirectory(prefix='carried-pr-index-') as directory:
+        env = dict(os.environ, GIT_INDEX_FILE=str(Path(directory) / 'index'))
+        git(repo, 'read-tree', fork_ref or 'HEAD', env=env)
+        if not fork_ref:
+            git(repo, 'add', '-A', '--', path, env=env)
+        result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
+                                 '--reverse', '--check', '-'], input=patch,
+                                capture_output=True, text=True, env=env, timeout=30)
+        matches = result.returncode == 0
+    return matches, '', False
+
+
+#: How each manifest ``mode`` is checked; ``deferred`` is answered before dispatch.
+MODE_CHECKS = {'lines': _check_lines, 'symbols': _check_symbols, 'hunks': _check_hunks}
+
+
+def _reviewed_pin(repo, entry):
+    """The PR's (head, base), refused unless both match the reviewed manifest pins."""
+    head = git(repo, 'rev-parse', '--verify', entry['head_ref'] + '^{commit}').strip()
+    if head != entry['reviewed_head']:
+        raise ValueError(f'fetched head {head} differs from reviewed_head; review manifest')
+    base = git(repo, 'merge-base', entry['base_ref'], head).strip()
+    reviewed_base = git(repo, 'rev-parse', '--verify', entry['reviewed_base'] + '^{commit}').strip()
+    if base != reviewed_base:
+        raise ValueError(f'merge base {base} differs from reviewed_base; review manifest')
+    return head, reviewed_base
+
+
 def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
     repo = Path(repo)
     pairs = ledger_pairs((repo / ledger).read_text())
@@ -193,14 +271,7 @@ def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
         try:
             entry = data['prs'][number]
             if number not in pins:
-                head = git(repo, 'rev-parse', '--verify', entry['head_ref'] + '^{commit}').strip()
-                if head != entry['reviewed_head']:
-                    raise ValueError(f'fetched head {head} differs from reviewed_head; review manifest')
-                base = git(repo, 'merge-base', entry['base_ref'], head).strip()
-                reviewed_base = git(repo, 'rev-parse', '--verify', entry['reviewed_base'] + '^{commit}').strip()
-                if base != reviewed_base:
-                    raise ValueError(f'merge base {base} differs from reviewed_base; review manifest')
-                pins[number] = head, reviewed_base
+                pins[number] = _reviewed_pin(repo, entry)
             head, base = pins[number]
             rule = entry['files'][path]
             mode = rule['mode']
@@ -215,61 +286,12 @@ def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
             changed = git(repo, 'diff', '--name-only', base, head, '--', pr_path).strip()
             if not changed:
                 raise ValueError('path has no PR delta; classify reference or review moved file')
-            coverage = ''
-            mismatches = []
-            if mode == 'lines':
-                fragments = rule['fragments']
-                reason = rule['reason'].strip()
-                if not reason or not fragments:
-                    raise ValueError('lines mode needs nonempty fragments and review reason')
-                patch = git(repo, 'diff', '--no-renames', '--unified=0', base, head, '--', pr_path)
-                additions = added_blocks(patch)
-                added = added_line_numbers(patch)
-                theirs = git(repo, 'show', f'{head}:{pr_path}')
-                matches = True
-                fork_path = rule.get('fork_path', path)
-                for item in fragments:
-                    spec = {'text': item} if isinstance(item, str) else item
-                    fragment = spec['text']
-                    original = fragment
-                    if not fragment.strip() or not any(contains_lines(block, fragment) for block in additions):
-                        raise ValueError('reviewed fragment is not in current PR additions')
-                    for old, new in spec.get('replacements', {}).items():
-                        if not old.isidentifier() or not new.isidentifier():
-                            raise ValueError('fragment replacements must be identifiers')
-                        fragment, count = re.subn(r'\b' + re.escape(old) + r'\b', new, fragment)
-                        if not count:
-                            raise ValueError('replacement identifier missing from PR fragment')
-                    target = spec.get('fork_path', fork_path)
-                    ours = fork_source(repo, target, fork_ref)
-                    matches = scoped_fragment_matches(
-                        theirs, ours, original, fragment, added, pr_path, target,
-                        spec.get('scope_map', {}), mismatches) and matches
-                partial += 1
-                coverage = (f' [reviewed addition fragments in {fork_path}; '
-                            f'exact occurrence counts per named scope; deletions/unselected changes not checked: {reason}]')
-            elif mode == 'symbols':
-                symbols = rule['symbols']
-                if not symbols:
-                    raise ValueError('empty symbol selection')
-                theirs = git(repo, 'show', f'{head}:{pr_path}')
-                ours = (git(repo, 'show', f'{fork_ref}:{path}') if fork_ref
-                        else (repo / path).read_text())
-                matches = all(symbol_source(theirs, name) == symbol_source(ours, name)
-                              for name in symbols)
-            elif mode == 'hunks':
-                patch = git(repo, 'diff', '--binary', '--no-renames', base, head, '--', path)
-                with tempfile.TemporaryDirectory(prefix='carried-pr-index-') as directory:
-                    env = dict(os.environ, GIT_INDEX_FILE=str(Path(directory) / 'index'))
-                    git(repo, 'read-tree', fork_ref or 'HEAD', env=env)
-                    if not fork_ref:
-                        git(repo, 'add', '-A', '--', path, env=env)
-                    result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
-                                             '--reverse', '--check', '-'], input=patch,
-                                            capture_output=True, text=True, env=env, timeout=30)
-                    matches = result.returncode == 0
-            else:
+            if mode not in MODE_CHECKS:
                 raise ValueError(f'unknown mode {mode!r}')
+            mismatches = []
+            matches, coverage, fragment_selection = MODE_CHECKS[mode](
+                repo, rule, path, pr_path, base, head, fork_ref, mismatches)
+            partial += fragment_selection
             checked += 1
             if matches:
                 output.append(f'OK {label}{coverage}')
