@@ -366,3 +366,9 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed by isolated lifecycle fixture — 2026-10-07
 
 - [ ] **A developer worktree post-merge can repair inherited operator home: shared `core.hooksPath` points at primary `.githooks`; its default `verify_harness_skill_install.py` repairs canonical packages using inherited `ETERNIA_HERMES_HOME` / `HERMES_HOME`, with no worktree-versus-install ownership guard** · fork hygiene / fixture isolation · evidence: `docs/agent-runtime-harness/planned/isolated-worktree-hook-home-2026-10-07.md` (reviewed runtime39964 fixture merge; observed hash-match no-op, risk is the same hook on differing package bytes) · UNCLAIMED
+
+## Filed on arrival — 2026-10-08 final GenUI gate
+
+- [ ] **Make the starved-reader stream-gap positive control deterministic without lowering its timing floors.** · `tests/agent_runtime/test_stream_gap_receipt.py::test_starved_reader_shows_lag_and_late_wakeups` · The final GenUI gate and an isolated run on untouched `7ea1c17366` fail the same `max_lag_ms >= 150` assertion (candidate 91.4 ms, base 75.0 ms). The GIL hog does not guarantee that lag floor on this machine; the production and test files are unchanged by GenUI. Raw gate/base receipts are retained in the qualification workspace. · UNCLAIMED
+
+Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gateway/test_abandoned_turn_process_cleanup.py` times out in `test_timed_out_turn_reaps_only_its_own_job_on_a_shared_container_key`, at `tools/process_registry.py::_release_finished_handles` → `stream.close()`. The candidate full gate and isolated run hang; untouched `7ea1c17366` first passes all 15 tests, then an isolated repeat hangs at the identical site. This is additional evidence for the existing process-dock/upstream-PR row above. No timeout, environment fence or production cleanup code was changed.
