@@ -7,6 +7,11 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-08 GenUI qualification
+
+- [ ] **Resolve 68 gateway TLS/peer failures in ten files without weakening certificate pinning or permission checks.** The full 993-file gate and the same files on untouched `7ea1c17366` fail the identical nodes; certificate-pin mismatch is visible on direct clients, and the cross-install ceremonies fail setup. The common cause remains unproven. · fork / suite · [Exact qualification](../../docs/downstream/genui-discovery-qualification-2026-10-08.md) · UNCLAIMED
+- [ ] **Repair `TestHostPrefixList::test_all_common_host_paths_flagged_unusable` in `tests/tools/test_modal_sandbox_fixes.py`.** It fails identically in the full GenUI gate and alone on untouched `7ea1c17366`. · fork / suite · [Exact qualification](../../docs/downstream/genui-discovery-qualification-2026-10-08.md) · UNCLAIMED
+
 ## Filed on arrival — 2026-10-06 (lane console-generated-content)
 
 - [ ] **Restore the duplicate-helper gate without expanding its baseline:** `test_duplicate_helper_bodies.py` has the same two failing nodes on the repair branch and untouched `ef3e4bb012` (19 NEW names, 2 STALE rows); consolidate the offending owners and remove stale rows, not new exemptions. · `tests/agent_runtime/test_duplicate_helper_bodies.py` · serial base comparison; [current-main qualification](../../docs/downstream/console-generated-content-2026-10-06.md#recorded-verification) also matches every violation on `5c0f130723` · UNCLAIMED
