@@ -142,6 +142,9 @@ def test_recovery_uses_native_compacted_lineage_and_display_visibility(owner):
     db.append_message("stored", "user", "original question")
     db.append_message("stored", "assistant", "original answer")
     db.archive_and_compact("stored", [{"role": "user", "content": "model scaffold", "display_kind": "hidden"}])
+    # A rotation ends the parent ``compression``: since the 2026-09-29 upstream merge the display read
+    # walks only that VERIFIED lineage (``SessionDB._resume_lineage_ids``), never a bare parent pointer.
+    db.end_session("stored", "compression")
     db.create_session("tip", source="eternia_intelligence", parent_session_id="stored")
     db.append_message("tip", "user", "follow-up")
     db.append_message("tip", "assistant", "new answer")

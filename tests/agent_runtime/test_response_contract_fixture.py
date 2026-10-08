@@ -340,7 +340,12 @@ def test_no_source_health_entry_carries_machine_local_prose(producer):
             "reason",
             "detail",
             "live_enrichment_error",
+            # The build lane's typed sub-healths (row H4, c2fe7ad3fd): one
+            # entry per build source, each a status + reason token + counts.
+            "sub",
         }, (source_name, source)
+        for sub_name, sub in source.get("sub", {}).items():
+            assert home_name not in json.dumps(sub), (source_name, sub_name, sub)
         detail = source.get("detail", "")
         assert home_name not in detail, (
             f"{source_name}: the resolved home is back on a contract field "

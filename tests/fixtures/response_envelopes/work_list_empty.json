@@ -30,6 +30,29 @@
     "kind": "list",
     "schema_version": 1,
     "sources": {
+      "build": {
+        "lane": "durable",
+        "status": "ok",
+        "sub": {
+          "agent": {
+            "reason": "",
+            "status": "ok"
+          },
+          "announced": {
+            "reason": "",
+            "status": "ok"
+          },
+          "detected": {
+            "budget_ms": 50,
+            "candidates": 0,
+            "processes_examined": 0,
+            "reason": "not_in_process",
+            "scan_ms": 0,
+            "status": "unavailable",
+            "unknowns": []
+          }
+        }
+      },
       "chat_turn": {
         "lane": "durable",
         "status": "ok"
