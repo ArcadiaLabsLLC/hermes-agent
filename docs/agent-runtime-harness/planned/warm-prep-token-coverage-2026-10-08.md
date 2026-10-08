@@ -12,12 +12,12 @@ Four tests use a fresh real `ToolRegistry`, isolated cache/home, and an inert bu
 
 Contracts: empty registry then registration; full wire wrapper and warm cache reuse; recalculation after registry generation changes; separate profile catalogs at the same generation; unavailable-tokenizer fallback. No changes to effective tools, prompts, credentials, selection or persistence.
 
-Named one-file shared-interpreter lane: four passed, exit 0 in 4.0 s. Touched-file ruff: PASS. Isolated characterization copy: four passed.
+Named one-file shared-interpreter lane: four passed, exit 0 in 4.0 s. The initial package-style import exercised the function but was not visible to the direct-reference scanner; the explicit module import fixes that without changing the tests' behavior. Corrected test plus full tombstone-registry file: 31 passed, exit 0 in 63.3 s. Both controls were rerun successfully after the import change. Touched-file ruff: PASS. Isolated characterization copy: four passed.
 
 Positive control removes the full function wrapper in a throwaway production copy: expected 187 deterministic units but got 153, exit 1. Killing mutation freezes the generation component of the cache key: refreshed cost remains 187, failing `187 > 187`, exit 1. Both changes are absent from the repository and excerpts are in the CHANGE commit body.
 
 ## Integration proof
 
-The combined ready batch must run the whole-tree fork landing gate once; the selected scope excludes the four workstation-freeze P0 files. Gate results, violation comparisons and live checks belong to the execution artifacts. No complete passing batch or final latency is claimed here before that run.
+The first combined gate attempt was stopped after 222 files when CI exposed the import mismatch; its log is preserved. The corrected ready batch must run the whole-tree fork landing gate; the selected scope excludes the four workstation-freeze P0 files. Gate results, violation comparisons and live checks belong to the execution artifacts. No complete passing batch or final latency is claimed here before that run.
 
 The 250 ms goal remains unmet in existing receipts. This repair changes tests only. The timing lane enables the next measured decision after integration; its fixture overhead is not production evidence.

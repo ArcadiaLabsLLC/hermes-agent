@@ -10,7 +10,7 @@ from types import ModuleType
 
 import pytest
 
-from hermes_cli import tools_config
+import hermes_cli.tools_config as tools_config
 
 
 @pytest.fixture
