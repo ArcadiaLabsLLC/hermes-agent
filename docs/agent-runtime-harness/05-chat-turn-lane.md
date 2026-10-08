@@ -388,9 +388,10 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
 The Launcher may mark an offered app-function entry `always_loaded: true`. Hermes keeps those
 entries visible through tool-search assembly, including a persona's defer extension; this is a
 discovery preference, not a grant. The bound connection's cached catalog owns the marks
-(`agent_runtime/launcher_app_functions.py`), and the definitions memo includes the connection and
-origin. An unlinked turn, a different connection, and an out-of-reach origin cannot inherit the
-promotion. Older Launchers omit the mark and retain deferred discovery.
+(`agent_runtime/launcher_app_functions.py`), and the definitions memo includes that catalog's
+lifetime token and origin. Re-declaration replaces the token even when another connection already
+synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
+an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
 
 Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
 (`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the

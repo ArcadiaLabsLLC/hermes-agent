@@ -121,6 +121,26 @@ def test_memo_keeps_linked_unlinked_and_other_connection_definitions_separate(mo
     assert len(eager.sent) == 1
 
 
+def test_redeclaration_changes_the_memo_scope_even_when_the_registry_is_unchanged(monkeypatch):
+    import model_tools
+    monkeypatch.setattr('tools.tool_search.load_config', lambda: _CFG)
+    first = _Launcher(_CATALOG)
+    legacy = [{k: v for k, v in tool.items() if k != 'always_loaded'} for tool in _CATALOG]
+    # Another link's prewarm may sync its catalog before our constructor runs.
+    with linked(first) as link:
+        app.refresh_app_function_tools(app.LauncherLink(_Launcher(legacy), app.ORIGIN_LOCAL))
+        eager = model_tools.get_tool_definitions([app.APP_FUNCTIONS_TOOLSET], quiet_mode=True)
+        assert 'launcher_generated_create' in names(eager)
+        old_key = model_tools._tool_defs_cache_key([app.APP_FUNCTIONS_TOOLSET], None, False)
+        app.forget_launcher_connection(first)
+        first.tools = legacy
+        app.refresh_app_function_tools(link)
+        new_key = model_tools._tool_defs_cache_key([app.APP_FUNCTIONS_TOOLSET], None, False)
+        assert new_key != old_key, 'a retired catalog must not lend its discovery policy to its replacement'
+        current = model_tools.get_tool_definitions([app.APP_FUNCTIONS_TOOLSET], quiet_mode=True)
+        assert 'launcher_generated_create' not in names(current)
+
+
 @pytest.mark.parametrize('shape', ['chat', 'responses', 'anthropic'])
 def test_provider_wire_is_brief_and_structural_schema_and_full_manual_are_preserved(shape):
     with linked(_Launcher(_CATALOG)):

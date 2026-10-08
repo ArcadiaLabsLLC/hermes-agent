@@ -228,8 +228,8 @@ class _ToolsetState:
         #: Declaring owners in declaration order (a re-declaration moves to the end).
         self.answerers: dict[str, None] = {}
         self.unanswered: dict[int, Any] = {}
-        #: By sink identity: the sink (so the id stays live) and its entries.
-        self.catalog: dict[int, tuple[Any, list[AppFunctionEntry]]] = {}
+        #: Sink, entries and an opaque memo token for this catalog's lifetime.
+        self.catalog: dict[int, tuple[Any, list[AppFunctionEntry], object]] = {}
 
 
 _state = _ToolsetState()
@@ -273,14 +273,20 @@ def app_function_tools_registered() -> bool:
         return bool(_state.registered)
 
 
-def app_function_tool_scope() -> tuple[int, str] | None:
+def app_function_tool_scope() -> tuple[object, str] | None:
     """Memo boundary for connection-bound availability and discovery preferences.
 
     No wire read: the catalog is already fetched once per admitted connection.
     A linked and an unlinked construction must never share an assembled list.
+    Re-declaration replaces the token even if another connection already synced
+    the same registry entries; a retired catalog cannot lend its memo to a new one.
     """
     link = current_launcher_link()
-    return (id(link.sink), link.origin) if link is not None else None
+    if link is None:
+        return None
+    with _state.lock:
+        held = _state.catalog.get(id(link.sink))
+        return (held[2] if held is not None and held[0] is link.sink else None, link.origin)
 
 
 def always_loaded_app_function_tools() -> frozenset[str]:
@@ -393,7 +399,7 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
             continue
         entries.append(entry)
     with _state.lock:
-        _state.catalog[id(link.sink)] = (link.sink, entries)
+        _state.catalog[id(link.sink)] = (link.sink, entries, object())
         _sync_registry(entries)
     return [entry.name for entry in entries]
 
