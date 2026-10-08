@@ -579,10 +579,10 @@ class MessageHandling:
             if existing is None and only_if_idle:
                 from .idle_drain import claim_idle_drain
 
-                reason = claim_idle_drain(self)
-                if reason is not None:
+                hold = claim_idle_drain(self)
+                if hold is not None:
                     sink.emit({"event": "drain_deferred", "id": message.get("id"),
-                               "reason": reason})
+                               "reason": hold.reason, "held_by": hold.value})
                     return None
             if existing is None:
                 if not only_if_idle:
