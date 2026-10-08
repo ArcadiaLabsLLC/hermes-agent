@@ -116,9 +116,6 @@ def test_a_slow_readiness_walk_lands_on_the_walk_number(one_runtime_persona):
         return real(persona, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(snapshot_module.build, "time", SimpleNamespace(
-            **{**vars(time), "perf_counter": lambda: clock[0]}
-        ))
         mp.setattr(snapshot_module.build_log, "time", SimpleNamespace(
             **{**vars(time), "perf_counter": lambda: clock[0]}
         ))
@@ -152,9 +149,6 @@ def test_a_slow_summary_lands_on_the_tool_visibility_number(one_runtime_persona)
         return real(agent, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(snapshot_module.build, "time", SimpleNamespace(
-            **{**vars(time), "perf_counter": lambda: clock[0]}
-        ))
         mp.setattr(snapshot_module.build_log, "time", SimpleNamespace(
             **{**vars(time), "perf_counter": lambda: clock[0]}
         ))

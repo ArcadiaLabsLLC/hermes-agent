@@ -303,12 +303,9 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 ## Filed on arrival — 2026-09-30 (lane h12-upfix)
 
 
-- `test_duplicate_helper_bodies::test_no_new_duplicate_anywhere_in_the_fork` fails on main `3c885f1232`: `_model` is shared by conversations RPC and phonemizer; `_owner` by spawn stand-ins and bundle closure. Rename the unrelated private helpers to state their responsibility. Reproduced on unchanged main `d244451a5d`, also naming `_flag` in bundle manifest/chat turn; [group repair evidence](../../docs/agent-runtime-harness/planned/chat-first-group-messages.md#group-model-setup-repair--2026-09-30). Clean base `204789cabb` also reports `_read_reply`, `_strip_ansi` and `_tail`; the instance-conversation branch has the same six collisions ([checkpoint](../../docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md#native-foundation-checkpoint)). No duplicate authority was added by these repairs.
 
 ## Filed on arrival — 2026-10-04 (lane h-qaeff)
 
-- [ ] **`test_duplicate_helper_bodies.py::test_the_fork_wide_baseline_still_describes_the_code` is red on `main`: W0-G3 helper names 15 NEW (e.g. `_read_checkpoint` in `running_work/lanes_process.py` + `tools/mcp_job_wake.py`, `_text`, `_flag`, `_strings` around `serve_rpc/realm.py`) and 2 STALE rows (`_resolve`, `_text`) — fold the collisions or re-baseline with reasons** · `fork / suite` · reproduced at `251645a6e7` (h-qaeff base run, 2026-10-04) · UNCLAIMED
-- [ ] **`test_mission_chat_outcome.py::test_every_owned_member_has_a_producer_in_the_cli_lane` is red on `main`: turn-outcome member `CHAT_TURN_RESOLUTION_MISMATCH` has no producer in the CLI lane — give it one or retire the member** · `fork / suite` · reproduced at `251645a6e7` (h-qaeff base run, 2026-10-04) · UNCLAIMED
 
 ## Filed on arrival — 2026-10-05 (lane upstream-PR review replies)
 
@@ -360,7 +357,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Main's reds, fixed by lane — 2026-10-07 (owner: "fix all on our fork")
 
-- [ ] **Fork agent_runtime/agent test reds (response contract fixture, codex responses downstream, readiness attribution, duplicate helper bodies, mission chat outcome, s15/s54, serve_rpc provider, snapshot, native recovery snapshot)** · fork hygiene (suite) · evidence: landing gate 2026-10-07 on 4b598dc048 (142 reds on main: 73 in fork-owned test files, 69 in inherited ones) · **TAKEN 2026-10-07 h-red-runtime**
 - [ ] **Fork repo-gate reds (run_tests script, doc cite adjacency, legibility floor, command directory, mutation claims, upstream footprint, coverage claims, import layers, ladder routing)** · fork hygiene (gates) · evidence: landing gate 2026-10-07 on 4b598dc048 (142 reds on main: 73 in fork-owned test files, 69 in inherited ones) · **TAKEN 2026-10-07 h-red-gates**
 - [ ] **Inherited test files red on main (test_doctor 34, tui_gateway server/display/relay, provider picker/registry, bot retry, ...): prove each red on upstream code or fix the fork cause** · fork hygiene (upstream reds) · evidence: landing gate 2026-10-07 on 4b598dc048 (142 reds on main: 73 in fork-owned test files, 69 in inherited ones) · **TAKEN 2026-10-07 h-red-inherited**
 

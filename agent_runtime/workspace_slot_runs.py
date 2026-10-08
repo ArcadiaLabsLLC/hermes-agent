@@ -48,7 +48,7 @@ def runs_path() -> Path:
     return Path(get_default_hermes_root()) / MACHINE_SLOT_RUNS_FILENAME
 
 
-def _read() -> dict[str, Any]:
+def _read_runs() -> dict[str, Any]:
     try:
         payload = json.loads(runs_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -66,7 +66,7 @@ def _write(payload: dict[str, Any]) -> None:
 
 def record_run(run: dict[str, Any]) -> dict[str, Any]:
     with LOCK:
-        payload = _read()
+        payload = _read_runs()
         payload["schema_version"] = RUNS_SCHEMA_VERSION
         payload["runs"][str(run["run_id"])] = dict(run)
         _write(payload)
@@ -75,7 +75,7 @@ def record_run(run: dict[str, Any]) -> dict[str, Any]:
 
 def update_run(run_id: str, **fields: Any) -> dict[str, Any] | None:
     with LOCK:
-        payload = _read()
+        payload = _read_runs()
         run = payload["runs"].get(run_id)
         if run is None:
             return None
@@ -85,7 +85,7 @@ def update_run(run_id: str, **fields: Any) -> dict[str, Any] | None:
 
 
 def all_runs() -> list[dict[str, Any]]:
-    return [dict(run) for run in _read()["runs"].values() if isinstance(run, dict)]
+    return [dict(run) for run in _read_runs()["runs"].values() if isinstance(run, dict)]
 
 
 def latest_runs(workspace_id: str, slot: str) -> dict[str, dict[str, Any]]:

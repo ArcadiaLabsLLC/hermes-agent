@@ -5,7 +5,7 @@ from .registry import method
 __layer__ = "lanes"
 
 
-def _text(params, key, *, required=False):
+def _console_text(params, key, *, required=False):
     value = params.get(key)
     if value is None and not required:
         return
@@ -36,11 +36,11 @@ def _operation(rid, params, context, name, run):
     return build()
 
 
-def _model(params, instance):
+def _console_model(params, instance):
     from hermes_cli.harness_parts.persona.model_and_skills_commands import model_operation_result
-    _text(params, "persona_instance_id" if instance else "persona_id", required=True)
+    _console_text(params, "persona_instance_id" if instance else "persona_id", required=True)
     for key in ("model", "provider", "reasoning_effort", "issued_at"):
-        _text(params, key)
+        _console_text(params, key)
     if "use_default" in params and type(params["use_default"]) is not bool:
         raise ValueError("use_default")
     return model_operation_result(params, instance=instance)
@@ -48,20 +48,20 @@ def _model(params, instance):
 
 @method("runtime.persona.instance.set_model", tier=TIER_CONSOLE)
 def instance_model(rid, params, context=None):
-    return _operation(rid, params, context, "runtime.persona.instance.set_model", lambda p: _model(p, True))
+    return _operation(rid, params, context, "runtime.persona.instance.set_model", lambda p: _console_model(p, True))
 
 
 @method("runtime.persona.set_model", tier=TIER_CONSOLE)
 def persona_model(rid, params, context=None):
-    return _operation(rid, params, context, "runtime.persona.set_model", lambda p: _model(p, False))
+    return _operation(rid, params, context, "runtime.persona.set_model", lambda p: _console_model(p, False))
 
 
 def _permission(params, preview):
     from hermes_cli.harness_parts.persona.inspect_commands import permission_operation_result
     for key in ("persona_id", "session_id"):
-        _text(params, key, required=True)
-    _text(params, "reason", required=not preview)
-    _text(params, "expires_at")
+        _console_text(params, key, required=True)
+    _console_text(params, "reason", required=not preview)
+    _console_text(params, "expires_at")
     if params.get("mode") not in ("profile_default", "bounded", "read_only", "unbounded"):
         raise ValueError("mode")
     for key in ("ttl_seconds", "turns"):
@@ -84,7 +84,7 @@ def permission_set(rid, params, context=None):
 def prompt_context(rid, params, context=None):
     def read(p):
         from agent_runtime.prompt_observability import load_persisted_context_row
-        _text(p, "context_id", required=True)
+        _console_text(p, "context_id", required=True)
         result = load_persisted_context_row(p["context_id"])
         if result is None:
             return {"found": False, "context_id": p["context_id"]}
@@ -96,7 +96,7 @@ def prompt_context(rid, params, context=None):
 def instance_detail(rid, params, context=None):
     def read(p):
         from agent_runtime.snapshot.details import persona_instance_detail_for_id
-        _text(p, "instance_id", required=True)
+        _console_text(p, "instance_id", required=True)
         result = persona_instance_detail_for_id(p["instance_id"])
         return result if result is not None else {"found": False, "instance_id": p["instance_id"]}
     return _operation(rid, params, context, "runtime.persona.instance.detail", read)
@@ -107,7 +107,7 @@ def skills_catalog(rid, params, context=None):
     def read(p):
         from agent_runtime.prompt_observability import skills_catalog_by_hash
         from agent_runtime.snapshot.build import build_snapshot
-        _text(p, "content_hash", required=True)
+        _console_text(p, "content_hash", required=True)
         result = skills_catalog_by_hash(p["content_hash"], materialize=build_snapshot)
         return {"hash": p["content_hash"], "found": result is not None, "skills": result or []}
     return _operation(rid, params, context, "runtime.skills.catalog", read)

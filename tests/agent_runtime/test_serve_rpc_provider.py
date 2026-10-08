@@ -343,7 +343,8 @@ def test_the_default_child_is_the_machine_sign_in_verb(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(provider_signin_child.subprocess, "Popen", Popen)
     provider_signin.spawn_login_child("anthropic", "paste_code", "work")
-    assert captured["argv"][1:] == ["-m", "hermes_cli.main", "auth", "login", "anthropic", "--json",
+    # The fork-owned door since d97ad57e96 (plugin-owned auth commands): ``harness auth login``.
+    assert captured["argv"][1:] == ["-m", "hermes_cli.main", "harness", "auth", "login", "anthropic", "--json",
                                     "--flow", "paste_code", "--profile", "work"]
     assert captured["stdin"] is provider_signin_child.subprocess.PIPE
     assert captured["stderr"] is provider_signin_child.subprocess.DEVNULL

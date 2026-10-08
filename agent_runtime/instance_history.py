@@ -42,13 +42,13 @@ def list_instance_conversations(params: dict) -> dict:
             raise InstanceHistoryRefused("session_db_unavailable")
         return {"conversations": [], "next_cursor": None}
     with closing(db):
-        raw = _page(db, owner=None if all_accounts else owner, before=before, limit=limit)
+        raw = _history_page(db, owner=None if all_accounts else owner, before=before, limit=limit)
         visible = raw[:limit]
         scan = PersonaInstanceStore().scan_all()
         if scan.unreadable:
             raise InstanceHistoryRefused("instance_roster_unreadable")
         instances = {instance.id: instance for instance in scan.instances}
-        rows = [_project_history(db, item, instances, params["install_id"]) for item in visible]
+        rows = [_project_instance_history(db, item, instances, params["install_id"]) for item in visible]
     cursor = None
     if len(raw) > limit:
         last = visible[-1]
@@ -56,7 +56,7 @@ def list_instance_conversations(params: dict) -> dict:
     return {"conversations": rows, "next_cursor": cursor}
 
 
-def _project_history(db, raw, instances, install_id):
+def _project_instance_history(db, raw, instances, install_id):
     config = _model_config(raw["model_config"])
     instance_id = config.get("persona_instance_id") or chat_session_owner_instance_id(raw["id"])
     instance = instances.get(instance_id)
@@ -89,7 +89,7 @@ def _history_position(value, scope):
         raise InstanceHistoryRefused("invalid_history_cursor") from exc
 
 
-def _page(db, *, owner, before, limit):
+def _history_page(db, *, owner, before, limit):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
     # read boundary; owner filtering must precede the page bound, not follow it.
     clauses = ["source=?", "hidden=0", "(model_config IS NULL OR json_valid(model_config))",

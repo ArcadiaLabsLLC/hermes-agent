@@ -175,7 +175,7 @@ def _omitted(row: Any) -> dict:
     return out
 
 
-def _flag(value: Any, where: str) -> bool:
+def _manifest_flag(value: Any, where: str) -> bool:
     if value is None:
         return False
     if not isinstance(value, bool):
@@ -230,7 +230,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_targets=_strings(packaging.get("targets"), "packaging.targets"),
         packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
-        packaging_forced_sibling_tree=_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
+        packaging_forced_sibling_tree=_manifest_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
     )
     if validate:
         validate_manifest(manifest)

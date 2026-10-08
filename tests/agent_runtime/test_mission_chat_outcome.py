@@ -619,9 +619,16 @@ def test_the_declared_literal_exception_still_matches_its_member():
 def test_every_owned_member_has_a_producer_in_the_cli_lane():
     """A member nothing produces is dead vocabulary; the enum is not a wishlist."""
 
-    tree = _persona_commands_tree()
+    # The CLI lane's verbs that moved to ONE implementation in
+    # ``agent_runtime/chat_verbs`` (5167db9ce9) produce there; the argv door
+    # only prints. ``turn_resolve`` is where CHAT_TURN_RESOLUTION_MISMATCH lives.
+    chat_verbs = Path(__file__).resolve().parents[2] / "agent_runtime" / "chat_verbs"
+    trees = [_persona_commands_tree()] + [
+        ast.parse(path.read_text(encoding="utf-8")) for path in sorted(chat_verbs.glob("*.py"))
+    ]
     spelled = {
         node.attr
+        for tree in trees
         for node in ast.walk(tree)
         if isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)

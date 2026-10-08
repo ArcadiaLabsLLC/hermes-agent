@@ -151,7 +151,7 @@ def test_every_row_of_the_real_table_names_a_function_of_its_module():
     phone's absences in place and checks the rebinding itself)."""
     assert len({row.target for row in ssi.SPAWN_STAND_INS}) == len(ssi.SPAWN_STAND_INS)
     for row in ssi.SPAWN_STAND_INS:
-        owner, name = ssi._owner(row, importlib.import_module(row.module))
+        owner, name = ssi._stand_in_owner(row, importlib.import_module(row.module))
         raw = vars(owner).get(name)
         function = raw.__func__ if isinstance(raw, (staticmethod, classmethod)) else raw
         assert isinstance(function, types.FunctionType), row.target

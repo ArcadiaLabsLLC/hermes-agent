@@ -15,7 +15,7 @@ __layer__ = "lanes"
 __all__ = ["_cmd_persona_slots_set", "_cmd_persona_slots_show"]
 
 
-def _run(args, kind: str, action) -> int:
+def _run_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.persona_slots import SlotAssignmentRefused
 
     try:
@@ -29,7 +29,7 @@ def _run(args, kind: str, action) -> int:
 def _cmd_persona_slots_show(args) -> int:
     from agent_runtime.persona_slots import show_instance_slots
 
-    return _run(args, "persona_instance_slots", lambda: show_instance_slots(str(args.persona_instance_id)))
+    return _run_slot_verb(args, "persona_instance_slots", lambda: show_instance_slots(str(args.persona_instance_id)))
 
 
 def _cmd_persona_slots_set(args) -> int:
@@ -37,6 +37,6 @@ def _cmd_persona_slots_set(args) -> int:
 
     issued_at = str(getattr(args, "issued_at", None) or datetime.now(timezone.utc).isoformat())
     # Collapse is the contract: ``set`` REPLACES the assignment and no ``--slot`` means "none".
-    return _run(args, "persona_instance_slots", lambda: set_instance_slots(
+    return _run_slot_verb(args, "persona_instance_slots", lambda: set_instance_slots(
         str(args.persona_instance_id), list_flag_or_empty(args, "slot"), getattr(args, "primary", None),
         issued_at=issued_at))
