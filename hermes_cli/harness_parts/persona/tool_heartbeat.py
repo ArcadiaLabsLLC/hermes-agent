@@ -77,7 +77,7 @@ TOOL_PROGRESS_TAIL_CHARS = 1200
 TOOL_PROGRESS_MESSAGE_CHARS = 400
 
 
-def _strip_ansi(text: str) -> str:
+def _heartbeat_strip_ansi(text: str) -> str:
     try:
         from tools.ansi_strip import strip_ansi
 
@@ -87,14 +87,14 @@ def _strip_ansi(text: str) -> str:
 
 
 def _bounded_tail(text: str) -> str:
-    masked = _safe_operator_output("terminal", {"output": _strip_ansi(text or "")}) or ""
+    masked = _safe_operator_output("terminal", {"output": _heartbeat_strip_ansi(text or "")}) or ""
     return masked[-TOOL_PROGRESS_TAIL_CHARS:]
 
 
 def _bounded_message(text: str | None) -> str | None:
     if text is None:
         return None
-    masked = _safe_operator_output("terminal", {"output": _strip_ansi(text)}) or ""
+    masked = _safe_operator_output("terminal", {"output": _heartbeat_strip_ansi(text)}) or ""
     return masked[:TOOL_PROGRESS_MESSAGE_CHARS]
 
 

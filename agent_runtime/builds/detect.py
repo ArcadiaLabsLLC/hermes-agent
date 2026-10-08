@@ -124,7 +124,7 @@ class _Scanner:
         self.started = clock()
         # Every bound root normalised ONCE per scan; a candidate then costs one prefix
         # compare per bound slot (§5), never a filesystem call per slot.
-        self.roots = sorted(((_normalized(slot.path), slot) for slot in bound), key=lambda item: -len(item[0]))
+        self.roots = sorted(((_comparable_path(slot.path), slot) for slot in bound), key=lambda item: -len(item[0]))
 
     def over_budget(self) -> bool:
         return (self.clock() - self.started) * 1000.0 > self.budget_ms
@@ -132,7 +132,7 @@ class _Scanner:
     def slot_for(self, cwd: str) -> Any:
         """The deepest bound slot ``cwd`` sits under (roots are sorted longest first)."""
 
-        target = _normalized(cwd)
+        target = _comparable_path(cwd)
         return next((slot for root, slot in self.roots if target == root or target.startswith(root + os.sep)), None)
 
     def consider(self, proc: Any) -> None:
@@ -141,7 +141,7 @@ class _Scanner:
         if exe not in EXE_NAMES:
             return
         self.scan.candidates += 1
-        argv = _read(proc.cmdline)
+        argv = _process_fact(proc.cmdline)
         if not isinstance(argv, list) or not argv:
             self.scan.unknowns.add(UNKNOWN_PROCESS_UNIDENTIFIED, f"{exe}: cmdline unreadable ({type(argv).__name__})", self.now)
             return
@@ -151,29 +151,29 @@ class _Scanner:
             return
         if recognition.command.kind == COMMAND_OTHER:
             return  # classified: a Dart/Flutter process that is not a build (an analysis server, pub)
-        cwd = _read(proc.cwd)
+        cwd = _process_fact(proc.cwd)
         if not isinstance(cwd, str):
             self.scan.unknowns.add(UNKNOWN_CWD_UNREADABLE, f"{_head(exe, argv)}: {type(cwd).__name__}", self.now)
             return
         slot = self.slot_for(cwd)
-        parents = _read(proc.parents)
+        parents = _process_fact(proc.parents)
         parents = parents if isinstance(parents, list) else []
         if slot is None or proc.pid in self.owned or any(pid in self.owned for pid, _name in parents):
             return
         command = recognize_argv(argv, cwd).command
-        cpu = _read(proc.cpu)
-        self.scan.builds.append(DetectedBuild(int(proc.pid), _read(proc.start), exe, [str(a) for a in argv], cwd, command,
+        cpu = _process_fact(proc.cpu)
+        self.scan.builds.append(DetectedBuild(int(proc.pid), _process_fact(proc.start), exe, [str(a) for a in argv], cwd, command,
                                               slot, float(cpu) if isinstance(cpu, (int, float)) else 0.0, parents))
 
 
-def _normalized(path: Any) -> str:
+def _comparable_path(path: Any) -> str:
     try:
         return os.path.normcase(os.path.realpath(str(path))).rstrip(os.sep)
     except (OSError, ValueError):
         return os.path.normcase(str(path)).rstrip(os.sep)
 
 
-def _read(reader: Callable[[], Any]) -> Any:
+def _process_fact(reader: Callable[[], Any]) -> Any:
     """A process fact, or the exception class that refused it (AccessDenied, NoSuchProcess …)."""
 
     try:

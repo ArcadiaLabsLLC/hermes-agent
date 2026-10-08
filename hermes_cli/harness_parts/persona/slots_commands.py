@@ -14,7 +14,7 @@ __layer__ = "lanes"
 __all__ = ["_cmd_persona_slots_set", "_cmd_persona_slots_show"]
 
 
-def _run(args, kind: str, action) -> int:
+def _run_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.persona_slots import SlotAssignmentRefused
 
     try:
@@ -28,12 +28,12 @@ def _run(args, kind: str, action) -> int:
 def _cmd_persona_slots_show(args) -> int:
     from agent_runtime.persona_slots import show_instance_slots
 
-    return _run(args, "persona_instance_slots", lambda: show_instance_slots(str(args.persona_instance_id)))
+    return _run_slot_verb(args, "persona_instance_slots", lambda: show_instance_slots(str(args.persona_instance_id)))
 
 
 def _cmd_persona_slots_set(args) -> int:
     from agent_runtime.persona_slots import set_instance_slots
 
     issued_at = str(getattr(args, "issued_at", None) or datetime.now(timezone.utc).isoformat())
-    return _run(args, "persona_instance_slots", lambda: set_instance_slots(
+    return _run_slot_verb(args, "persona_instance_slots", lambda: set_instance_slots(
         str(args.persona_instance_id), list(args.slot or []), getattr(args, "primary", None), issued_at=issued_at))

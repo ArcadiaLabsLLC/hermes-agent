@@ -38,6 +38,7 @@ from typing import Any
 from hermes_time import now
 
 from agent_runtime.events import EventLog
+from agent_runtime.provider_account import ProviderRefused
 from agent_runtime.models import Event
 
 __layer__ = "stores"
@@ -66,14 +67,10 @@ DEFAULT_MODEL_REFUSAL_REASONS: frozenset[str] = frozenset(
 _MAX_ID_CHARS = 200
 
 
-class DefaultModelRefused(Exception):
-    """A refusal with a closed ``reason``; ``message`` is operator text, never a credential."""
+class DefaultModelRefused(ProviderRefused):
+    """A refusal with a closed ``reason``; ``message`` is operator text, never a credential.
 
-    def __init__(self, reason: str, message: str = "", **data: Any) -> None:
-        super().__init__(reason)
-        self.reason = reason
-        self.message = message
-        self.data = data
+    The constructor is ``ProviderRefused``'s (one owner for the reason/message/data shape)."""
 
 
 def _clean_id(value: Any, reason: str) -> str:

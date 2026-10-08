@@ -174,8 +174,8 @@ def run_command(command: GateCommand, *, tail_chars: int) -> GateResult:
         name=command.name,
         returncode=int(completed.returncode),
         command=_quote_command(command.argv),
-        stdout_tail=_tail(completed.stdout, tail_chars),
-        stderr_tail=_tail(completed.stderr, tail_chars),
+        stdout_tail=_clip_tail(completed.stdout, tail_chars),
+        stderr_tail=_clip_tail(completed.stderr, tail_chars),
     )
 
 
@@ -210,7 +210,7 @@ def _touches_agent_tool_seam(paths: Iterable[str]) -> bool:
     return False
 
 
-def _tail(value: str, limit: int) -> str:
+def _clip_tail(value: str, limit: int) -> str:
     text = value or ""
     if len(text) <= limit:
         return text

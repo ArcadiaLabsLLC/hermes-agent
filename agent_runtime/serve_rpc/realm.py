@@ -78,7 +78,7 @@ def _refusal(rid: Any, reason: str, message: str, details: dict | None = None, r
     return err(rid, REASON_CODES.get(reason, ERR_HANDLER_FAILED), message, data)
 
 
-def _run(rid: Any, call: Callable[[], dict]) -> dict:
+def _run_verb(rid: Any, call: Callable[[], dict]) -> dict:
     """Run one verb and render its typed refusal; anything untyped propagates."""
     from agent_runtime.errors import NotFound
     from agent_runtime.profile_artifact_sync import ProfileArtifactResolveError
@@ -107,7 +107,7 @@ def _params(params: Any) -> dict:
     return params if isinstance(params, dict) else {}
 
 
-def _text(params: dict, name: str, *, required: bool = False) -> str | None:
+def _param_text(params: dict, name: str, *, required: bool = False) -> str | None:
     value = params.get(name)
     if value is None and not required:
         return None
@@ -116,14 +116,14 @@ def _text(params: dict, name: str, *, required: bool = False) -> str | None:
     return value.strip()
 
 
-def _flag(params: dict, name: str) -> bool:
+def _param_flag(params: dict, name: str) -> bool:
     value = params.get(name, False)
     if not isinstance(value, bool):
         raise _Refused("invalid_request", f"{name} must be a boolean")
     return value
 
 
-def _strings(params: dict, name: str) -> list[str] | None:
+def _param_strings(params: dict, name: str) -> list[str] | None:
     value = params.get(name)
     if value is None:
         return None
@@ -142,13 +142,13 @@ def _credential(params: dict):
 
 def _confirmed(params: dict) -> bool:
     """argv's ``_require_yes`` predicate: ``yes or dry_run``."""
-    if not (_flag(params, "yes") or _flag(params, "dry_run")):
+    if not (_param_flag(params, "yes") or _param_flag(params, "dry_run")):
         raise _Refused("confirmation_required", "This destructive operation requires yes.")
     return True
 
 
 def _realm(params: dict) -> str:
-    return _text(params, "realm_id", required=True)
+    return _param_text(params, "realm_id", required=True)
 
 
 # ── the ten verbs ────────────────────────────────────────────────────────────
@@ -165,36 +165,36 @@ def _pull(p: dict) -> dict:
     """Params: ``realm_id``, ``credential``, ``dry_run``."""
     from agent_runtime.realm_verbs import realm_sync_pull
 
-    return realm_sync_pull(_realm(p), credential=_credential(p), dry_run=_flag(p, "dry_run"))
+    return realm_sync_pull(_realm(p), credential=_credential(p), dry_run=_param_flag(p, "dry_run"))
 
 
-def _publish(p: dict) -> dict:
+def _sync_publish(p: dict) -> dict:
     """Params: ``realm_id``, ``credential``, ``dry_run``, ``yes``."""
     from agent_runtime.realm_verbs import realm_sync_publish
 
     realm_id = _realm(p)
     _confirmed(p)
-    return realm_sync_publish(realm_id, credential=_credential(p), dry_run=_flag(p, "dry_run"))
+    return realm_sync_publish(realm_id, credential=_credential(p), dry_run=_param_flag(p, "dry_run"))
 
 
 def _revert(p: dict) -> dict:
     """Params: ``realm_id``, ``items`` (FAMILY:CONTAINER:KEY strings), ``all``, ``to`` (a published sha), ``dry_run``, ``yes``."""
     from agent_runtime.realm_verbs import realm_sync_revert
 
-    realm_id, items, to = _realm(p), _strings(p, "items"), _text(p, "to")
+    realm_id, items, to = _realm(p), _param_strings(p, "items"), _param_text(p, "to")
     _confirmed(p)
-    return realm_sync_revert(realm_id, items=items, revert_all=_flag(p, "all"), to=to, dry_run=_flag(p, "dry_run"))
+    return realm_sync_revert(realm_id, items=items, revert_all=_param_flag(p, "all"), to=to, dry_run=_param_flag(p, "dry_run"))
 
 
-def _resolve(p: dict) -> dict:
+def _sync_resolve(p: dict) -> dict:
     """Params: ``realm_id``, ``key``, ``take`` (local|remote), ``dry_run``, ``yes``."""
     from agent_runtime.realm_verbs import realm_sync_resolve
 
-    realm_id, key, take = _realm(p), _text(p, "key", required=True), _text(p, "take", required=True)
+    realm_id, key, take = _realm(p), _param_text(p, "key", required=True), _param_text(p, "take", required=True)
     if take not in {"local", "remote"}:
         raise _Refused("invalid_request", "take must be 'local' or 'remote'")
     _confirmed(p)
-    return realm_sync_resolve(realm_id, key=key, take=take, dry_run=_flag(p, "dry_run"))
+    return realm_sync_resolve(realm_id, key=key, take=take, dry_run=_param_flag(p, "dry_run"))
 
 
 def _skills_show(p: dict) -> dict:
@@ -208,8 +208,8 @@ def _skills_set(p: dict) -> dict:
     """Params: ``realm_id``; exactly one of ``all`` / ``skills`` (list) / ``none``; ``dry_run``."""
     from agent_runtime.realm_verbs import realm_skills_set
 
-    return realm_skills_set(_realm(p), publish_all=_flag(p, "all"), skills=_strings(p, "skills"),
-                            publish_none=_flag(p, "none"), dry_run=_flag(p, "dry_run"))
+    return realm_skills_set(_realm(p), publish_all=_param_flag(p, "all"), skills=_param_strings(p, "skills"),
+                            publish_none=_param_flag(p, "none"), dry_run=_param_flag(p, "dry_run"))
 
 
 def _agents_show(p: dict) -> dict:
@@ -223,16 +223,16 @@ def _agents_set(p: dict) -> dict:
     """Params: ``realm_id``; exactly one of ``workspace`` / ``agents`` (list) / ``none``; ``dry_run``."""
     from agent_runtime.realm_verbs import realm_agents_set
 
-    return realm_agents_set(_realm(p), publish_workspace=_flag(p, "workspace"), agents=_strings(p, "agents"),
-                            publish_none=_flag(p, "none"), dry_run=_flag(p, "dry_run"))
+    return realm_agents_set(_realm(p), publish_workspace=_param_flag(p, "workspace"), agents=_param_strings(p, "agents"),
+                            publish_none=_param_flag(p, "none"), dry_run=_param_flag(p, "dry_run"))
 
 
 def _adopt(p: dict) -> dict:
     """Params: ``credential`` (required by the verb), ``server_id``, ``dry_run``, ``sort``."""
     from agent_runtime.realm_verbs import realm_adopt
 
-    return realm_adopt(_credential(p), server_id=_text(p, "server_id"), dry_run=_flag(p, "dry_run"),
-                       sort=_text(p, "sort"))
+    return realm_adopt(_credential(p), server_id=_param_text(p, "server_id"), dry_run=_param_flag(p, "dry_run"),
+                       sort=_param_text(p, "sort"))
 
 
 #: method name -> verb body. One table, so a test can iterate it and a verb is
@@ -240,9 +240,9 @@ def _adopt(p: dict) -> dict:
 REALM_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.realm.sync.status": _status,
     "runtime.realm.sync.pull": _pull,
-    "runtime.realm.sync.publish": _publish,
+    "runtime.realm.sync.publish": _sync_publish,
     "runtime.realm.sync.revert": _revert,
-    "runtime.realm.sync.resolve": _resolve,
+    "runtime.realm.sync.resolve": _sync_resolve,
     "runtime.realm.skills.show": _skills_show,
     "runtime.realm.skills.set": _skills_set,
     "runtime.realm.agents.show": _agents_show,
@@ -266,7 +266,7 @@ def _register(name: str, body: Callable[[dict], dict]) -> None:
     def _handler(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
         def _answer() -> dict:
             with _REALM_VERB_LOCK:
-                return _run(rid, lambda: body(_params(params)))
+                return _run_verb(rid, lambda: body(_params(params)))
 
         build = deferred_reply(rid, name, _answer)
         if context is not None and context.spawn_reply is not None and context.spawn_reply(build):

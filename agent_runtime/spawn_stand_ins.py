@@ -236,7 +236,7 @@ def _stand_in(row: StandIn, module: types.ModuleType, original: Callable[..., An
     return stand_in
 
 
-def _owner(row: StandIn, module: types.ModuleType) -> tuple[Any, str]:
+def _stand_in_owner(row: StandIn, module: types.ModuleType) -> tuple[Any, str]:
     *owners, name = row.qualname.split(".")
     owner: Any = module
     for part in owners:
@@ -247,7 +247,7 @@ def _owner(row: StandIn, module: types.ModuleType) -> tuple[Any, str]:
 
 
 def _rebind(row: StandIn, module: types.ModuleType) -> None:
-    owner, name = _owner(row, module)
+    owner, name = _stand_in_owner(row, module)
     raw = vars(owner).get(name)
     if is_spawn_stand_in(raw):
         return
@@ -338,7 +338,7 @@ def remove_spawn_stand_ins(table: tuple[StandIn, ...] = SPAWN_STAND_INS) -> None
             module = sys.modules.get(row.module)
             if module is None:
                 continue
-            owner, name = _owner(row, module)
+            owner, name = _stand_in_owner(row, module)
             raw = vars(owner).get(name)
             if is_spawn_stand_in(raw):
                 wrapper = type(raw) if isinstance(raw, (staticmethod, classmethod)) else None

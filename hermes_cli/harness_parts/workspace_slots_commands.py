@@ -38,7 +38,7 @@ def _pairs(values, name: str) -> dict[str, str]:
     return out
 
 
-def _run(args, kind: str, action) -> int:
+def _run_workspace_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.workspace_slot_env import SlotEnvRefused
     from agent_runtime.workspace_slots import SlotRefused
 
@@ -55,7 +55,7 @@ def _run(args, kind: str, action) -> int:
 def _cmd_workspace_slots_show(args) -> int:
     from agent_runtime.workspace_slots import show
 
-    return _run(args, "workspace_slots", lambda: show(str(args.workspace_id)))
+    return _run_workspace_slot_verb(args, "workspace_slots", lambda: show(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_declare(args) -> int:
@@ -66,13 +66,13 @@ def _cmd_workspace_slots_declare(args) -> int:
         require_publish_right(str(args.workspace_id))
         return declare(str(args.workspace_id), slots, issued_at=_issued_at(args), machine=machine_id())
 
-    return _run(args, "workspace_slots_declare", action)
+    return _run_workspace_slot_verb(args, "workspace_slots_declare", action)
 
 
 def _cmd_workspace_slots_bind(args) -> int:
     from agent_runtime.workspace_slots import bind
 
-    return _run(args, "workspace_slot_bind",
+    return _run_workspace_slot_verb(args, "workspace_slot_bind",
                 lambda: bind(str(args.workspace_id), str(args.slot), str(args.path), issued_at=_issued_at(args)))
 
 
@@ -93,13 +93,13 @@ def _cmd_workspace_slots_env_set(args) -> int:
         return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {}),
                 "env_keep_missing": sorted(set(args.env_keep or ()) - set(fill.env))}
 
-    return _run(args, "workspace_slot_env", action)
+    return _run_workspace_slot_verb(args, "workspace_slot_env", action)
 
 
 def _cmd_workspace_slots_report(args) -> int:
     from agent_runtime.workspace_slots_probe import report
 
-    return _run(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
+    return _run_workspace_slot_verb(args, "workspace_slots_report", lambda: report(str(args.workspace_id)))
 
 
 def _cmd_workspace_slots_clone(args) -> int:
@@ -114,4 +114,4 @@ def _cmd_workspace_slots_clone(args) -> int:
                              registry=registry, watch=False)
         return {**started, "run": watch_run(started["run"]["run_id"], registry) or started["run"]}
 
-    return _run(args, "workspace_slot_clone", action)
+    return _run_workspace_slot_verb(args, "workspace_slot_clone", action)

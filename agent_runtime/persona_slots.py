@@ -72,7 +72,7 @@ def _store():
     return PersonaInstanceStore()
 
 
-def _instance(instance_id: str):
+def _slot_instance(instance_id: str):
     try:
         return _store().get(instance_id)
     except (FileNotFoundError, KeyError) as exc:
@@ -89,7 +89,7 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
     issued = stamp_epoch(issued_at)
     if issued is None:
         raise SlotAssignmentRefused(REASON_INVALID_REQUEST, "issued_at must be an ISO-8601 stamp")
-    instance = _instance(instance_id)
+    instance = _slot_instance(instance_id)
     if not instance.workspace_id:
         raise SlotAssignmentRefused(REASON_INSTANCE_HAS_NO_WORKSPACE, "the canonical persona channel has no assignment")
     declared = live_slots(load_document(instance.workspace_id))
@@ -113,7 +113,7 @@ def show_instance_slots(instance_id: str) -> dict[str, Any]:
 
     from .workspace_slots import bound_path, live_slots, load_document
 
-    instance = _instance(instance_id)
+    instance = _slot_instance(instance_id)
     declared = live_slots(load_document(instance.workspace_id)) if instance.workspace_id else {}
     rows = []
     for name in instance.assigned_slots or []:
