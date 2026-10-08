@@ -120,3 +120,31 @@ class TestBuildSkillsSystemPromptConditional:
         assert "harness-continuity" in result
         assert "harness-mission-lead" not in result
         assert "harness-mission-lead" in root_result
+
+    def test_registered_plugin_skills_respect_runtime_surface_and_mode(self, monkeypatch, tmp_path):
+        import agent.prompt_builder as pb
+        import hermes_cli.plugins as plugins
+        from agent_runtime.skill_resolution import skill_runtime_scope
+
+        manager = plugins.PluginManager()
+        context = plugins.PluginContext(plugins.PluginManifest(name="runtimeprobe", source="user"), manager)
+        skill = tmp_path / "plugin-SKILL.md"
+        skill.write_text("plugin skill", encoding="utf-8")
+        context.register_skill("rootonly", skill, "Root-only plugin skill", {
+            "metadata": {"hermes": {"surfaces": ["mission_chat"], "modes": ["root_node"]}}})
+        context.register_skill("ordinary", skill, "Ordinary plugin skill")
+        monkeypatch.setattr(plugins, "discover_plugins", lambda: None)
+        monkeypatch.setattr(plugins, "get_plugin_manager", lambda: manager)
+        (tmp_path / "skills").mkdir()
+        monkeypatch.setattr(pb, "get_skills_dir", lambda: tmp_path / "skills")
+        monkeypatch.setattr(pb, "get_skill_search_roots", lambda *args: [])
+        with skill_runtime_scope(surface="mission_chat", root_node_mode=False):
+            standard = build_skills_system_prompt()
+        with skill_runtime_scope(surface="mission_chat", root_node_mode=True):
+            root = build_skills_system_prompt()
+        with skill_runtime_scope(surface="mission_worker", root_node_mode=True):
+            worker = build_skills_system_prompt()
+        assert "runtimeprobe:rootonly" not in standard
+        assert "runtimeprobe:rootonly" in root
+        assert "runtimeprobe:rootonly" not in worker
+        assert all("runtimeprobe:ordinary" in prompt for prompt in (standard, root, worker))

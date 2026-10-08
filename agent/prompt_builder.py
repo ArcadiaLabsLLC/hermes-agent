@@ -1325,7 +1325,7 @@ def _skill_should_show(
 
 def _plugin_skill_prompt_rows(
     disabled: "set[str]", available_tools: "set[str] | None", available_toolsets: "set[str] | None",
-    session_platform: "str | None",
+    session_platform: "str | None", skill_surface: str | None = None, skill_root_node_mode: bool = False,
 ) -> "list[tuple[str, str]]":
     """``(qualified_name, description)`` for every skill registered by an ENABLED plugin
     (``ctx.register_skill``), filtered through the same offer-time gates as on-disk skills.
@@ -1342,6 +1342,10 @@ def _plugin_skill_prompt_rows(
             if not name or name in disabled:
                 continue
             frontmatter = meta.get("frontmatter") or {}
+            if skill_surface and not skill_frontmatter_runtime_compatibility(
+                frontmatter, surface=skill_surface, root_node_mode=skill_root_node_mode,
+            ).get("compatible"):
+                continue
             if not (skill_matches_platform(frontmatter) and skill_matches_environment(frontmatter)
                     and skill_matches_apps(frontmatter)):
                 continue
@@ -1521,7 +1525,8 @@ def _build_skills_system_prompt_inner(
     disabled = get_disabled_skill_names(_platform_hint or None)
     # Plugin-registered skills (ctx.register_skill) are registry state, not files under any scanned
     # root — the snapshot manifest can't see them change, so they participate in the cache key.
-    plugin_rows = _plugin_skill_prompt_rows(disabled, available_tools, available_toolsets, _platform_hint or None)
+    plugin_rows = _plugin_skill_prompt_rows(
+        disabled, available_tools, available_toolsets, _platform_hint or None, skill_surface, skill_root_node_mode)
     cache_key = (
         str(skills_dir), tuple((t, str(d)) for t, d in extra_roots),
         tuple(sorted(str(t) for t in (available_tools or set()))),
