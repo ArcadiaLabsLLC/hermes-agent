@@ -52,7 +52,11 @@ class _Sink:
 
 
 def bind(sid, session):
-    link = app.LauncherLink(_Sink(sid), app.ORIGIN_LOCAL) if enabled(session) else None
+    link = None
+    if enabled(session):
+        link = getattr((session or {}).get("agent"), "_launcher_app_function_link", None)
+        if not isinstance(link, app.LauncherLink) or not isinstance(link.sink, _Sink) or link.sink.sid != sid:
+            link = app.LauncherLink(_Sink(sid), app.ORIGIN_LOCAL)
     return app.bind_launcher_link(link)
 
 
@@ -71,6 +75,10 @@ def create_agent(factory, sid, session, **kwargs):
         if names:
             toolsets = kwargs.get("enabled_toolsets")
             kwargs["enabled_toolsets"] = list(dict.fromkeys([*(toolsets if toolsets is not None else ["all"]), app.APP_FUNCTIONS_TOOLSET]))
-        return factory(**kwargs)
+        agent = factory(**kwargs)
+        # The agent owns this relay for its lifetime, including subsequent turns.
+        # Recreating a sink at every bind loses its cached host discovery metadata.
+        agent._launcher_app_function_link = app.current_launcher_link()
+        return agent
     finally:
         reset(token)

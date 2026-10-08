@@ -86,7 +86,7 @@ _NEVER_DEFER_TOOLS = _BUILTIN_NEVER_DEFER | PROMOTED_MCP_TOOLS
 
 
 def never_defer_tool_names(config=None) -> frozenset[str]:
-    """Hardcoded promotions unioned with the operator's config extension.
+    """Promotions plus this connection's host preferences and config extension.
 
     Config EXTENDS the set; nothing in config can remove a hardcoded name.
     """
@@ -94,9 +94,10 @@ def never_defer_tool_names(config=None) -> frozenset[str]:
         from tools.tool_search import load_config_readonly
 
         config = load_config_readonly()  # no write on discovery
-    if not config.never_defer:
-        return _NEVER_DEFER_TOOLS
-    return _NEVER_DEFER_TOOLS | frozenset(config.never_defer)
+    from agent_runtime.launcher_app_functions import always_loaded_app_function_tools
+
+    return (_NEVER_DEFER_TOOLS | always_loaded_app_function_tools() |
+            frozenset(config.never_defer or ()))
 
 
 logger = logging.getLogger("tools.tool_search")

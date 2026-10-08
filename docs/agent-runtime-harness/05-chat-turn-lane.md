@@ -385,6 +385,22 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
   Launcher has listed them; under `read_only` the same chokepoint blocks every entry the Launcher
   marks `requires_confirmation` (`extra_blocked_tools_for_permission_mode`) beside `READ_ONLY_BLOCKS`.
 
+The Launcher may mark an offered app-function entry `always_loaded: true`. Hermes keeps those
+entries visible through tool-search assembly, including a persona's defer extension; this is a
+discovery preference, not a grant. The bound connection's cached catalog owns the marks
+(`agent_runtime/launcher_app_functions.py`), and the definitions memo includes the connection and
+origin. An unlinked turn, a different connection, and an out-of-reach origin cannot inherit the
+promotion. Older Launchers omit the mark and retain deferred discovery.
+
+Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
+(`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
+full description, and `launcher.generated.list` returns the full component catalog and examples.
+Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
+New component kinds belong in that catalog rather than growing the always-loaded tool schema.
+There is no additional prompt section or per-turn catalog fetch. Intelligence's native worker
+retains its relay on the owning agent (`agent_runtime/conversations/worker_app_functions.py`) so
+continued turns use the same discovery boundary.
+
 `apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane
 resolution onto the operator preview, so `persona tool-diff` reports what the turn ships. It sets
 `configured_toolsets` from the same declaration on BOTH modes since S0a; the
