@@ -178,3 +178,35 @@ def test_admission_churn_does_not_rebuild_the_form(chat):
     _reset(ledger)
     turn(actor)
     assert (ledger["reads"], ledger["publishes"], len(ledger["pins"]), _receipt(actor).source) == (0, 0, 0, "unchanged")
+
+
+# ── S3: a rebuilt actor ships the pin without recomputation ─────────────────────────────────
+
+
+def test_a_rebuilt_actor_restores_the_wire_form_from_the_pin(chat):
+    """Actor B was built before the late tool registered (a stale bridge); actor A after it,
+    pinned by upstream's turn-1 persist (W6) and run twice. B is the session's rebuilt actor:
+    upstream's ``restore_agent_tool_prefix`` (W2) folds it onto A's pin, and the owner then finds
+    nothing to do -- B's turn ships A's bytes, no read, no publish, no pin.
+
+    *Killing mutations:* the factory leaves upstream's refresh on (its pin carries the deferred
+    tools back; the owner rebuilds and publishes); the owner compares names, not bytes (without
+    W2, B would keep its stale bridge -- see the h-cache-hit cross-chat test)."""
+    import tools.mcp_tool_agent as mcp_tool_agent
+
+    new_actor, turn, raw, ledger = chat
+    chat_b = new_actor("chat-x")
+    _register_late(raw)
+    chat_a = new_actor("chat-x")
+    mcp_tool_agent.persist_agent_tool_names(chat_a)  # W6: turn 1's persist_tools=True, before the hooks
+    turn(chat_a)
+    a_second, _ = turn(chat_a)
+    pin = ledger["pins"][-1]
+    assert not {t["function"]["name"] for t in pin["tools"]} & set(VAULT)
+
+    mcp_tool_agent.restore_agent_tool_prefix(chat_b, pin)  # W2: the rebuilt actor's restore
+    _reset(ledger)
+    b_first, _ = turn(chat_b)
+    assert _bytes(b_first) == _bytes(a_second)
+    assert (_receipt(chat_b).source, ledger["reads"], ledger["publishes"], len(ledger["pins"])) == (
+        "unchanged", 0, 0, 0)
