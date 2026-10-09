@@ -61,7 +61,7 @@ processes booting against one checkout is a REAL concurrency, so the sweep is cl
 `_break_stale_bytecode_sweep_lock` `:5056`;
 `tests/hermes_cli/test_bytecode_sweep_lock.py`). **`harness_parser_ms`** — the
 `hermes_cli.harness` import used to drag a full plugin-discovery walk in through
-`tool_visibility` → `model_tools`; it is now function-local (`tool_visibility.py:100`), guarded
+`tool_visibility` → `model_tools`; it is now function-local (`agent_runtime/tool_visibility.py::_ensure_tool_registry_populated`), guarded
 by `tests/agent_runtime/test_tool_visibility_import_deferral.py`, which drives the real chain
 through subprocesses after recording that the originally specified assertion was vacuous.
 
