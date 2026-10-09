@@ -355,5 +355,21 @@ def native_lineage_summary(session_db: Any, root_session_id: str) -> dict[str, A
 def native_history_revision(session_db: Any, root_session_id: str) -> str:
     tip = session_db.resolve_resume_session_id(root_session_id)
     history = session_db.get_messages_as_conversation(tip, include_ancestors=True)
-    payload = json.dumps(safe_native_history(history or []), sort_keys=True, separators=(",", ":"))
+    return native_history_revision_of(tip, history)
+
+
+def native_history_revision_of(tip: str, history: list[dict[str, Any]] | None) -> str:
+    """The revision of a lineage already read: ``tip`` and its ancestor-inclusive history.
+
+    ``native_history_revision`` is this over a fresh read; a caller that has just read the
+    same lineage hands it here instead of reading it again.
+    """
+
+    return native_history_revision_of_safe(tip, safe_native_history(history or []))
+
+
+def native_history_revision_of_safe(tip: str, safe_history: list[dict[str, Any]]) -> str:
+    """The revision of ``safe_native_history(history)`` already computed by the caller."""
+
+    payload = json.dumps(safe_history, sort_keys=True, separators=(",", ":"))
     return f"{tip}:{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]}"
