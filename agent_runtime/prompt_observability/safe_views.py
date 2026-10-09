@@ -386,6 +386,10 @@ def _safe_surface_fields(value: dict[str, Any]) -> dict[str, Any]:
     surface = value.get("surface")
     if not isinstance(surface, dict):
         return {}
+    if surface.get("state") == "not_computed":
+        return {"surface": {"schema_version": non_negative_int(surface.get("schema_version")) or 1,
+                            "state": "not_computed",
+                            "reason": safe_assignment_token(surface.get("reason")) or "unknown"}}
     safe: dict[str, Any] = {
         "schema_version": non_negative_int(surface.get("schema_version")) or 1,
         "resolution_id": safe_assignment_token(surface.get("resolution_id")) or "",

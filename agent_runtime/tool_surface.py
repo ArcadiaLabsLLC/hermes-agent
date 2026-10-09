@@ -385,6 +385,7 @@ def assemble_surface(
     context_length: int | None = None,
     tool_search_config: Any = None,
     extras: Iterable[dict[str, Any]] = (),
+    extras_ride_eager: bool = False,
 ) -> ToolSurface:
     """The assembly and its account, over definitions already read: the ONE function both the
     tool form's owner (``chat_lane_tool_form``, which memoizes the read) and the preview
@@ -392,6 +393,8 @@ def assemble_surface(
     upstream's ``assemble_tool_defs`` over raw + extras with the persona's names deferred, then
     ``ensure_tool_describe_present``; with ``tool_search.enabled: off``, raw + extras as they
     stand. The run's block is applied after (:meth:`ToolSurface.with_block`), as the owner prunes.
+    ``extras_ride_eager`` is the CONSTRUCTOR's form (upstream assembles the lane's definitions and
+    appends the post-build extras after it): the account of an actor the owner never re-assembled.
     """
 
     from tools.tool_search import BRIDGE_TOOL_NAMES, assemble_tool_defs, load_config
@@ -412,8 +415,9 @@ def assemble_surface(
     if off:
         tool_defs = raw + extra_defs
     else:
-        assembly = assemble_tool_defs(raw + extra_defs, context_length=context_length or None, config=config)
-        tool_defs = ensure_tool_describe_present(assembly.tool_defs)
+        assembled = raw if extras_ride_eager else raw + extra_defs
+        assembly = assemble_tool_defs(assembled, context_length=context_length or None, config=config)
+        tool_defs = ensure_tool_describe_present(assembly.tool_defs) + (extra_defs if extras_ride_eager else [])
     wire = {_def_name(td) for td in tool_defs}
 
     available = (raw_names | {_def_name(td) for td in extra_defs}) - BRIDGE_TOOL_NAMES
@@ -471,6 +475,12 @@ def compute_tool_surface(
     ).with_block(blocked_tool_names, admission_stripped_toolsets=admission_stripped_toolsets)
 
 
+def not_computed(reason: str) -> dict[str, Any]:
+    """The typed absence of a surface: a reader says WHY there is no account, never nothing."""
+
+    return {"schema_version": TOOL_SURFACE_SCHEMA_VERSION, "state": "not_computed", "reason": str(reason)}
+
+
 def unaliased_wire_names(wire_receipt: Mapping[str, Any] | None) -> list[str]:
     """The wire receipt's names with the transport's bridge alias reversed (note §5 item 1).
 
@@ -495,6 +505,7 @@ __all__ = [
     "blocked_reason",
     "assemble_surface",
     "compute_tool_surface",
+    "not_computed",
     "requested_tool_names",
     "unaliased_wire_names",
 ]

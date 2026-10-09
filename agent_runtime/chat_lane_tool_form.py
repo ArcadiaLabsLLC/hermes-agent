@@ -212,6 +212,8 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
     key = _form_key(agent, names, base)
     current = _dump(agent.tools)
     if getattr(agent, _SETTLED_ATTR, None) == (key, current):
+        if getattr(agent, AGENT_SURFACE_ATTR, None) is None:
+            _account_constructor_form(agent, key, names, base, blocked)
         return ToolFormReceipt("unchanged", False, False, len(agent.tools), len(current.encode("utf-8")),
                                len(admitted_mcp_tools(agent)))
     surface, source = _derive(agent, key, names, base)
@@ -275,6 +277,38 @@ def settle_turn_tool_form(
             int(receipt.pin_written), receipt.names, receipt.json_bytes, receipt.admitted,
         )
     return receipt
+
+
+def _account_constructor_form(agent: Any, key: tuple, names: frozenset[str], base: Any, blocked) -> None:
+    """The account of a form the owner did not assemble (a persona with no defer list keeps the
+    constructor's form): paid once per actor, on its first settle — the raw read through the
+    owner's memo (shared per key), one assembly (~7 ms steady, ~80 ms first, measured on the
+    live tree 2026-10-08). Published bytes are untouched; a form the account cannot reproduce is
+    typed ``not_computed``, never reported as something it is not."""
+
+    from tools.tool_search import BRIDGE_TOOL_NAMES
+
+    from agent_runtime.tool_surface import assemble_surface, not_computed
+
+    raw = _RAW_MEMO.get(key)
+    if raw is None:
+        raw = _read_raw(agent)
+        _remember(_RAW_MEMO, key, raw)
+    raw_names = {_def_name(td) for td in raw}
+    extras = [td for td in agent.tools
+              if _def_name(td) not in raw_names and _def_name(td) not in BRIDGE_TOOL_NAMES]
+    compressor = getattr(agent, "context_compressor", None)
+    surface = assemble_surface(
+        raw, enabled_toolsets=getattr(agent, "enabled_toolsets", None),
+        disabled_toolsets=getattr(agent, "disabled_toolsets", None), defer_tools=names,
+        context_length=int(getattr(compressor, "context_length", 0) or 0) or None,
+        tool_search_config=base, extras=extras, extras_ride_eager=True,
+    ).with_block(blocked or ())
+    shipped = {_def_name(td) for td in agent.tools}
+    if set(surface.eager) | set(surface.bridge) != shipped:
+        setattr(agent, AGENT_SURFACE_ATTR, not_computed("constructor_form_differs_from_its_account"))
+        return
+    setattr(agent, AGENT_SURFACE_ATTR, surface.receipt())
 
 
 def _record_degraded(agent: Any, exc: BaseException) -> None:

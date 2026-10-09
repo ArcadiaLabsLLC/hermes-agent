@@ -616,9 +616,12 @@ def _surface_receipt(agent) -> dict[str, Any] | None:
 
 
 def _surface_fields(agent) -> dict[str, Any]:
+    from agent_runtime.tool_surface import not_computed
+
     receipt = _surface_receipt(agent)
     if receipt is None:
-        return {}
+        # Never silent: an actor no tool-form settle reached says so.
+        return {"surface": not_computed("no_tool_form_settle")}
     return {"surface": receipt, "resolution_id": receipt.get("resolution_id")}
 
 

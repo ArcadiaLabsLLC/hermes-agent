@@ -108,7 +108,7 @@ def _surface_receipt(tool_contract: dict[str, Any] | None) -> dict[str, Any] | N
         from ..tool_surface import AGENT_SURFACE_ATTR, compute_tool_surface
 
         receipt = getattr(current_persona_turn_agent(), AGENT_SURFACE_ATTR, None)
-        if isinstance(receipt, dict):
+        if isinstance(receipt, dict) and receipt.get("state") != "not_computed":
             return receipt
         if not isinstance(tool_contract, dict):
             return None

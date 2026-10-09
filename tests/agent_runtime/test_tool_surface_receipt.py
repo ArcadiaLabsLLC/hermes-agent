@@ -47,3 +47,22 @@ def test_the_preview_and_the_factory_agree_on_one_input(harness_lane, monkeypatc
     assert set(factory["eager"]) | set(factory["bridge"]) == {d["function"]["name"] for d in agent.tools}
     assert factory["deferred"]["browser_vault_list"]["reason"] == "persona_defer"
     assert "skill_manage" in factory["blocked"]
+
+
+def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):  # noqa: F811
+    """The constructor's form is the wire for a persona with no ``chat_lane_defer_tools``; its
+    first settle accounts it once, so the curated and non-core defers are reported, not silent."""
+
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer, settle_turn_tool_form
+    from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
+
+    agent = harness_lane.build_agent()
+    shipped = [d["function"]["name"] for d in agent.tools]
+    assert apply_chat_lane_defer(agent, ()) is False
+    settle_turn_tool_form(agent, pin=False)
+    receipt = getattr(agent, AGENT_SURFACE_ATTR, None)
+    assert receipt is not None and receipt.get("state") != "not_computed", receipt
+    assert receipt["deferred"]["todo_list"]["reason"] == "curated_default_defer"
+    assert receipt["deferred"]["agent_chat_open"]["reason"] == "non_core_rule_defer"
+    assert [d["function"]["name"] for d in agent.tools] == shipped, "the account never moves the form"
+    assert sorted([*receipt["eager"], *receipt["bridge"]]) == sorted(shipped)
