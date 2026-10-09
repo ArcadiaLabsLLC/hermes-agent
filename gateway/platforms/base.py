@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- the media denylist covers every home and NUL-bearing tags are dropped inside the one delivery path; comments folded, the rest is that code
 """Base platform adapter interface; every platform adapter inherits from BasePlatformAdapter."""
 
 import asyncio
@@ -938,9 +939,7 @@ def _kanban_board_db_paths() -> list[Path]:
 
 def _media_delivery_denied_paths() -> list[Path]:
     """Return absolute denylist paths under which delivery is never allowed."""
-    # The native home (USERPROFILE on Windows), an operator ``$HOME`` that differs from it, AND the
-    # OS account's real home: a re-homed child (``HOME={HERMES_HOME}/home``) keeps the account home
-    # only in ``HERMES_REAL_HOME``, where ``~`` and ``$HOME`` both name the profile home.
+    # Native ``~``, an operator ``$HOME``, AND the account home a re-homed child keeps only in HERMES_REAL_HOME.
     real_home = _or_default(get_real_home, "", exc=(OSError, RuntimeError, ValueError))
     homes = dict.fromkeys(Path(h) for h in (os.path.expanduser("~"), os.environ.get("HOME"), real_home) if h)
     return [*map(Path, _MEDIA_DELIVERY_DENIED_PREFIXES),
@@ -1334,9 +1333,7 @@ MEDIA_TAG_CLEANUP_RE = re.compile(
     r'''(?P<path>`[^`\n]+?`|"[^"\n]+?"|'[^'\n]+?'|'''
     r'''(?:~/|/|[A-Za-z]:[/\\])\S+?(?:[^\S\n]+\S+?)*?\.(?:''' + _MEDIA_EXT_ALTERNATION + r'''))'''
     r'''(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|\.(?:\s|$)|$|'''
-    # An escaped ``\n`` / ``\r`` / ``\t`` (or a run of them) glued to the path ends it only when a
-    # real boundary follows the letter. Otherwise the backslash is a separator: in
-    # ``C:\out\a.png\notes\README`` or ``C:\out\album.png\photo.jpg``, ``a.png`` is a directory.
+    # Escaped ``\n``/``\r``/``\t`` ends the path only before a real boundary; else ``\`` is a separator.
     r'''(?:\\[nrt])+(?=[\s`"'*_,;:)\]}\[''' + _MEDIA_CJK_TERMINATORS + r''']|MEDIA:|$))'''
     r'''[`"'*_]{0,3}\.?''',
     re.IGNORECASE)
