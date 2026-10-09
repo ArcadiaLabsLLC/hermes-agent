@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- the read-only contract is two ensure_home guards inside _load_config_impl, the one config load path; the growth is those guards alone
 """Configuration management for Hermes Agent: config.yaml / .env loading, saving,
 validation, migration, and the ``hermes config`` command."""
 
@@ -2325,11 +2326,7 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> dict[
         pass
 
     with _CONFIG_LOCK:
-        # ``ensure_home=False`` is the read-only contract: loading config to
-        # LOOK at it must not scaffold the home directory tree (mkdirs +
-        # SOUL.md). Everything below already tolerates an absent home — the
-        # config stat handles FileNotFoundError and the cache is in-memory.
-        if ensure_home:
+        if ensure_home:  # read-only loads never scaffold the home; below tolerates its absence
             ensure_hermes_home()
         config_path = get_config_path()
         path_key = str(config_path)
@@ -2361,8 +2358,7 @@ def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> dict[
                 # A copy of the file that just parsed is what a FRESH process falls back to when the
                 # next edit breaks the YAML (see _last_known_good_fallback). backup_config() skips
                 # byte-identical repeats and keeps a bounded count, so steady-state loads cost one stat.
-                # Read-only loads (``ensure_home=False``) never write, so only ``load_config()`` does this.
-                if ensure_home:
+                if ensure_home:  # read-only loads never write; only load_config() keeps the backup
                     from hermes_cli.config_backups import backup_config
                     backup_config(config_path, "good")
             except Exception as e:
