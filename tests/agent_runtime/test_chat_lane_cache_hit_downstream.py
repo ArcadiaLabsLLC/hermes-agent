@@ -244,8 +244,7 @@ def test_two_new_chats_turn_one_differ_first_inside_the_user_turn(chat):
 # Measured on the pre-owner tree, per warm turn: 2 publishes of ``agent.tools`` (upstream's
 # between-turns refresh, the fork's re-assembly), 1 session pin write (the refresh's form, the
 # persona's deferred tools in it), 2 ``get_tool_definitions`` reads (the refresh's assembled
-# read, the re-assembly's raw read). Strict xfail until one owner produces the form.
-_OWNER_PENDING = pytest.mark.xfail(strict=True, reason="three writers per turn until the tool-form owner lands")
+# read, the re-assembly's raw read). With one owner and the refresh off (S2): 0 / 0 / 0.
 
 
 def _warm_turns(chat, n: int = 2) -> dict:
@@ -261,14 +260,12 @@ def _warm_turns(chat, n: int = 2) -> dict:
     return ledger
 
 
-@_OWNER_PENDING
 def test_a_warm_turn_publishes_the_form_once_and_pins_nothing(chat):
     ledger = _warm_turns(chat)
     assert (ledger["publishes"], len(ledger["pins"])) == (0, 0), (
         f"two warm turns: publishes={ledger['publishes']} pins={len(ledger['pins'])}")
 
 
-@_OWNER_PENDING
 def test_the_pin_never_carries_a_persona_deferred_name(chat):
     new_actor, turn, raw, ledger = chat
     actor = new_actor("chat-a")
@@ -279,7 +276,6 @@ def test_the_pin_never_carries_a_persona_deferred_name(chat):
     assert not any(carried), f"pins carrying deferred names: {carried}"
 
 
-@_OWNER_PENDING
 def test_a_warm_turn_reads_no_tool_definitions(chat):
     ledger = _warm_turns(chat)
     assert ledger["reads"] == 0, f"two warm turns read get_tool_definitions {ledger['reads']} times"

@@ -14,7 +14,11 @@ The raw read and the assembly are memoized per process on what they read — the
 CONTENT (:func:`agent_runtime.chat_lane_bundle.registry_content_revision`), the actor's
 toolsets, the persona's names, the context window, the config file and the Launcher link —
 never on ``registry.generation``, which MCP admission moves twice a turn while leaving the
-registry as it found it. A warm turn whose inputs did not move costs one byte compare.
+registry as it found it — plus THIS run's admitted MCP tools by content
+(:func:`admitted_mcp_tools`). A warm turn whose inputs did not move costs one byte compare.
+The runner's factory switches upstream's between-turns MCP refresh off for every actor it
+builds (``agent._skip_mcp_refresh``); the owner is what lands an admitted scope on a reused
+actor (``adopt_late_connections`` still runs in upstream's slot, ahead of the flag).
 
 The form is published only when its bytes moved, the run's block pruned in the same
 publish, and the session pin (``tools.mcp_tool_agent.persist_agent_tool_names``) stores
@@ -55,8 +59,9 @@ _FORM_MEMO: "OrderedDict[tuple, list]" = OrderedDict()
 
 @dataclass(frozen=True)
 class ToolFormReceipt:
-    """One settle. ``source``: ``unchanged`` (nothing published), ``memo`` (published from the
-    memo, no read, no assembly) or ``rebuilt`` (read and/or assembled)."""
+    """One settle. ``source``: ``unchanged`` (nothing read, assembled or published), ``memo``
+    (published from the memo, no read, no assembly) or ``rebuilt`` (read and/or assembled,
+    published or not)."""
 
     source: str
     published: bool
@@ -96,6 +101,33 @@ def _config_signature() -> Any:
         return None
 
 
+def admitted_mcp_tools(agent: Any) -> tuple:
+    """This run's admitted MCP tools as the actor sees them: ``(name, toolset, schema digest)``
+    of every registered ``mcp-*`` tool inside the actor's toolsets, sorted. Another run's scope
+    (a toolset this actor was not scoped to) is not in it, so its churn moves nothing here."""
+
+    from tools.registry import registry
+
+    from .mcp_admission.vocabulary import _MCP_TOOLSET_PREFIX
+
+    enabled = getattr(agent, "enabled_toolsets", None)
+    disabled = set(getattr(agent, "disabled_toolsets", None) or ())
+    scope = None
+    if enabled is not None:
+        aliases = registry.get_registered_toolset_aliases()
+        scope = set(enabled) | {aliases[t] for t in enabled if t in aliases}
+    rows = []
+    for entry in registry.get_all_entries():
+        toolset = str(entry.toolset)
+        if not toolset.startswith(_MCP_TOOLSET_PREFIX) or toolset in disabled:
+            continue
+        if scope is not None and toolset not in scope:
+            continue
+        schema = hashlib.sha256(_dump(entry.schema).encode("utf-8")).hexdigest()
+        rows.append((str(entry.name), toolset, schema))
+    return tuple(sorted(rows))
+
+
 def _form_key(agent: Any, names: frozenset[str], base: Any) -> tuple:
     """What the raw read and the assembly read, by content."""
 
@@ -116,6 +148,7 @@ def _form_key(agent: Any, names: frozenset[str], base: Any) -> tuple:
         repr(base),
         _config_signature(),
         app_function_tool_scope(),
+        admitted_mcp_tools(agent),
     )
 
 
@@ -164,7 +197,8 @@ def _derive(agent: Any, key: tuple, names: frozenset[str], base: Any) -> tuple[l
     form_key = (key, hashlib.sha256(_dump(extras).encode("utf-8")).hexdigest())
     form = _FORM_MEMO.get(form_key)
     if form is None:
-        form = _assemble(raw, extras, names, base, key[5])
+        compressor = getattr(agent, "context_compressor", None)
+        form = _assemble(raw, extras, names, base, int(getattr(compressor, "context_length", 0) or 0))
         _remember(_FORM_MEMO, form_key, form)
         source = "rebuilt"
     return form, source
@@ -177,7 +211,8 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
     key = _form_key(agent, names, base)
     current = _dump(agent.tools)
     if getattr(agent, _SETTLED_ATTR, None) == (key, current):
-        return ToolFormReceipt("unchanged", False, False, len(agent.tools), len(current.encode("utf-8")), 0)
+        return ToolFormReceipt("unchanged", False, False, len(agent.tools), len(current.encode("utf-8")),
+                               len(admitted_mcp_tools(agent)))
     form, source = _derive(agent, key, names, base)
     block = frozenset(str(n) for n in (blocked or ()))
     candidate = [td for td in form if _def_name(td) not in block] if block else form
@@ -192,8 +227,8 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
         # The executor caches the bridge's reachable set per agent.
         if hasattr(agent, "_tool_search_scope_cache"):
             agent._tool_search_scope_cache = None
-    else:
-        source = "unchanged"
+    elif source == "memo":
+        source = "unchanged"  # a rebuild that landed on the same bytes still says so
     if block:
         from agent_runtime.tool_blocks import prune_agent_tools
 
@@ -205,7 +240,8 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
         mcp_tool_agent.persist_agent_tool_names(agent)
         pin_written = True
     setattr(agent, _SETTLED_ATTR, (key, wire))
-    return ToolFormReceipt(source, published, pin_written, len(candidate), len(wire.encode("utf-8")), 0)
+    return ToolFormReceipt(source, published, pin_written, len(candidate), len(wire.encode("utf-8")),
+                           len(admitted_mcp_tools(agent)))
 
 
 def settle_turn_tool_form(
@@ -254,6 +290,7 @@ __all__ = [
     "AGENT_DEFER_ATTR",
     "RECEIPT_ATTR",
     "ToolFormReceipt",
+    "admitted_mcp_tools",
     "apply_chat_lane_defer",
     "clear_tool_form_memo",
     "settle_turn_tool_form",
