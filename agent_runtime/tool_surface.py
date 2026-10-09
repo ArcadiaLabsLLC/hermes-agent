@@ -28,6 +28,8 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
+from agent_runtime.tool_blocks import tool_definition_name as _def_name
+
 __layer__ = "policy"
 
 #: The agent attribute that carries the surface receipt from construction to the turn's readers.
@@ -225,14 +227,6 @@ class ToolSurface:
             bridge=tuple(sorted({n for n in names if n in BRIDGE_TOOL_NAMES})),
             degraded=tuple(degraded),
         )
-
-
-def _def_name(td: Any) -> str:
-    if not isinstance(td, dict):
-        return ""
-    inner = td.get("function")
-    target = inner if isinstance(inner, dict) else td
-    return str(target.get("name") or "")
 
 
 def _registered_toolset(name: str) -> str | None:

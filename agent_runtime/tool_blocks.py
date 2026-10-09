@@ -77,7 +77,7 @@ def blocked_tools_for(session_id: Any = None) -> frozenset[str]:
     return _RUN_BLOCK.get()
 
 
-def _tool_name(entry: Any) -> str:
+def tool_definition_name(entry: Any) -> str:
     """A tool definition's name in the chat, Responses or Anthropic payload shape."""
 
     if not isinstance(entry, dict):
@@ -95,7 +95,7 @@ def drop_blocked_request_tools(request: Any, *, session_id: Any = None) -> dict[
     block = blocked_tools_for(session_id)
     if not block:
         return None
-    tools = [entry for entry in request["tools"] if _tool_name(entry) not in block]
+    tools = [entry for entry in request["tools"] if tool_definition_name(entry) not in block]
     if len(tools) == len(request["tools"]):
         return None
     return {**request, "tools": tools}
@@ -117,7 +117,7 @@ def prune_agent_tools(agent: Any, names: Iterable[Any] | None) -> None:
     tools = getattr(agent, "tools", None)
     if not block or not isinstance(tools, list):
         return
-    kept = [entry for entry in tools if _tool_name(entry) not in block]
+    kept = [entry for entry in tools if tool_definition_name(entry) not in block]
     if len(kept) != len(tools):
         agent.tools = kept
     valid = getattr(agent, "valid_tool_names", None)
@@ -152,4 +152,5 @@ __all__ = [
     "drop_blocked_request_tools",
     "prune_agent_tools",
     "reprune_turn_agent",
+    "tool_definition_name",
 ]

@@ -37,7 +37,7 @@ from typing import Any, Iterable
 
 from agent_runtime.chat_lane_defer import AGENT_DEFER_ATTR
 from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
-from agent_runtime.tool_blocks import _tool_name as _def_name
+from agent_runtime.tool_blocks import tool_definition_name as _def_name
 
 __layer__ = "lanes"
 
