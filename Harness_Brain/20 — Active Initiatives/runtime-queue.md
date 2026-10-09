@@ -552,6 +552,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-08 (lane opus-w1-hermes, moved from fork-hygiene)
+
+- [ ] **Fix Windows encoding reds in webhook exit delivery and gateway update notifications, and bound the PM fetch-retry contract without hiding its failure.** Same exact four assertion nodes on lane and clean `94043a1a42`: `tests/agent/test_outbound_webhooks.py::TestDelivery::test_events_enqueued_at_exit_still_delivered` (generated cp1252 script rejected by Python), and `tests/gateway/test_update_command.py::TestSendUpdateNotification::{test_sends_notification_with_output,test_cleans_up_on_error,test_deferred_notification_delivers_after_reconnect}` (UnicodeEncodeError). `tests/pm/test_plugin_survival_contract.py` times out at `test_update_sync_retries_a_fetch_failure_once_before_disabling` / `_run_streaming` on both, including the runner's isolated retry; other assertions in that aborted file are not fully classified. · upstream / suite (all three files are upstream-owned, unedited by the fork since merge-base `ee5f49b943`) · [Qualification](../../docs/agent-runtime-harness/planned/warm-send-prep-measurements-2026-10-08.md) and execution artifacts with named-file clean-base comparison · UPSTREAM-ISSUE CANDIDATE (moved from fork-hygiene by opus-w1-hermes; never edit the files) · UNCLAIMED
+
 ### Filed on arrival — 2026-10-06 (lane h-suite-tail-b)
 
 - [ ] **`plugins/dashboard_auth/basic` computes a scrypt `_DUMMY_HASH` at import time (~0.2 s), paid again on every plugin re-import (80–122 scrypt calls per test file in the profiles)** · upstream-owned · evidence: lane h-suite-tail-b profiles · an upstream issue or a caller-side memo, never an edit · UNCLAIMED
