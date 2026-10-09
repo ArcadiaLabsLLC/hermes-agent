@@ -12,7 +12,7 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
-> **CROSS-STACK COPY STATUS (opus-toolvis-decl, 2026-10-08) — OPEN, launcher mirror OWED.**
+> **CROSS-STACK COPY STATUS (opus-toolvis-decl, 2026-10-08) — mirrored at launcher `9292e9971c` (287 passed over the 24 test files reading `test/fixtures/harness_stream`).**
 > Two generated goldens moved for one reason: every persona-instance row's
 > `toolset_declaration` lost `persona_list` and gained `issues` / `unknown`
 > (tool-visibility split slice 1 — the persona-level `toolsets` list was deleted;
