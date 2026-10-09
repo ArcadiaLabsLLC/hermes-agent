@@ -6,8 +6,9 @@
   "budgets": [
     {"span": "accept_to_anchor", "source": "hermes", "max_ms": 150, "warm_only": true,
      "baseline": "27-73 ms", "receipt": "chat_turn_accept_to_anchor total_ms"},
-    {"span": "send_prep_total", "source": "hermes", "max_ms": 900, "warm_only": true,
-     "baseline": "460-780 ms", "receipt": "send_prep_receipt total_ms"},
+    {"span": "send_prep_total", "source": "hermes", "max_ms": 400, "warm_only": true,
+     "baseline": "253–263 ms warm, n6, 2026-10-08", "ruling": "owner 2026-10-08: ~1.5x measured",
+     "receipt": "send_prep_receipt total_ms"},
     {"span": "conn", "source": "hermes", "equals": "reused", "warm_only": true,
      "baseline": "reused 4/4", "receipt": "send_window_receipt conn"},
     {"span": "send_to_admit", "source": "launcher", "max_ms": 250, "warm_only": false,

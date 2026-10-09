@@ -27,7 +27,7 @@ def _stamp(at: datetime) -> str:
     return f"{local:%Y-%m-%d %H:%M:%S},{local.microsecond // 1000:03d}"
 
 
-def _turn(at: datetime, n: int, *, accept=27, prep=480, conn="reused", wait=800, gap=150) -> list[str]:
+def _turn(at: datetime, n: int, *, accept=27, prep=260, conn="reused", wait=800, gap=150) -> list[str]:
     turn, request = f"agent-chat-send-{n:04d}", f"{CHAT}:req-{n}:abc:api:1"
     anchored = at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return [
@@ -73,7 +73,7 @@ def _session(regress: dict | None = None, launcher_regress: dict | None = None):
     hermes, launcher = [], []
     at = BOOT + timedelta(minutes=3)
     for n in range(1, 6):
-        hermes += _turn(at, n, **{"prep": 780 if n == 1 else 480, **(regress if n == 4 and regress else {})})
+        hermes += _turn(at, n, **{"prep": 780 if n == 1 else 260, **(regress if n == 4 and regress else {})})
         launcher.append(_launcher(at, n, send="first_in_process" if n == 1 else "warm",
                                   **(launcher_regress if n == 4 and launcher_regress else {})))
         at += timedelta(seconds=4)
@@ -96,13 +96,13 @@ def test_a_baseline_like_session_passes_and_turn_one_is_cold(tmp_path, monkeypat
 
 
 def test_a_regressed_session_fails_naming_send_prep_and_ui_build_max(tmp_path, monkeypatch, capsys):
-    hermes, launcher = _session(regress={"prep": 1300}, launcher_regress={"build_max": 260.0})
+    hermes, launcher = _session(regress={"prep": 890}, launcher_regress={"build_max": 260.0})
     code, report = _run(tmp_path, monkeypatch, capsys, hermes, launcher)
 
     assert code == 1 and report["result"] == "FAIL"
     assert report["failed"] == ["send_prep_total", "ui_build_max"]
     assert _row(report, "warm", "send_prep_total")["failing_turns"] == ["agent-chat-send-0004"]
-    assert _row(report, "warm", "send_prep_total")["observed"] == "480-1300 ms"
+    assert _row(report, "warm", "send_prep_total")["observed"] == "260-890 ms"
 
 
 def test_a_slow_provider_is_reported_never_failed(tmp_path, monkeypatch, capsys):
