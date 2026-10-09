@@ -7,8 +7,13 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-08 (lane opus-w1-hermes)
+
+- [ ] **`tests/_fork_scope.py` answers "did the fork write this line?" against the `upstream/main` TIP (`UPSTREAM_REF`), but the fork merges release tags (owner 2026-10-06), so every upstream line changed after the merge base reads as fork-authored and the fork's AST bans (flag-binding, mid-test undo) red on upstream code the fork may not edit; measure against `git merge-base HEAD upstream/main` as `scripts/upstream_footprint.py` does (check the tombstone-registry callers that read `_upstream_text`)** · fork-hygiene / gates · evidence: the bundles.py:72 VERDICT above (`ee5f49b943` has `List[str]`, upstream `d76cce4f11` respelled it) · UNCLAIMED
+
 ## Filed on arrival — 2026-10-08 (warm send-prep qualification)
 
+- [ ] **Restore absent-list flag handling in `hermes_cli/bundles.py:72`.** The identical flag-binding node and offender fail in the 1,070-file warm-prep gate and the same file on clean `74a64be15e`; do not suppress the guard. · fork / suite · [Batch qualification](../../docs/agent-runtime-harness/planned/warm-prep-integration-2026-10-08.md) · UNCLAIMED · **TAKEN 2026-10-08 opus-w1-hermes** · VERDICT 2026-10-08: not a fork line — `List[str]` is byte-identical to merge-base `ee5f49b943`; upstream respelled it to `list[str]` after (d76cce4f11), and `tests/_fork_scope.py` measures against the `upstream/main` TIP, so a post-base upstream line reads as fork-authored. Restoring it is a non-additive upstream edit (+1 file to the footprint; reverted). Clears at the next release merge, or when the scope helper measures against the merge base (row filed below)
 
 
 ## Filed on arrival — 2026-10-08 GenUI qualification
