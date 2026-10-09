@@ -453,7 +453,12 @@ def _requirement_failures(
         )
     rows.extend(
         chat_lane_drop_rows(
-            opts.chat_lane_capability_drops, role=role, entry_point_lane=lane
+            opts.chat_lane_capability_drops,
+            role=role,
+            entry_point_lane=lane,
+            default_mode=(
+                _default_permission_mode_for_options() if opts.chat_lane_capability_drops else ""
+            ),
         )
     )
     if opts.mission_chat_workdir is not None:

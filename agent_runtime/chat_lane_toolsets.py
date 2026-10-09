@@ -83,6 +83,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .permission_modes import normalize_permission_mode, permission_mode_is_unbounded
+
 __layer__ = "policy"
 
 
@@ -172,7 +174,13 @@ class ChatLaneDrop:
     restorable_via: str
     detail: str = ""
 
-    def row(self, *, role: str = "", entry_point_lane: str = "") -> dict[str, Any]:
+    def row(
+        self, *, role: str = "", entry_point_lane: str = "", default_mode: str = ""
+    ) -> dict[str, Any]:
+        """``default_mode`` is the runtime default permission mode in force
+        (``tool_permissions.default_permission_mode()``, threaded by the caller —
+        this policy module may not read config). The hint's sentence about the
+        default is derived from it, so it is not wrong the day the default moves."""
         lane = str(entry_point_lane or "").strip() or "unknown"
         role_text = str(role or "").strip()
         role_clause = f" (role '{role_text}')" if role_text else ""
@@ -198,13 +206,9 @@ class ChatLaneDrop:
             "fix_hint": (
                 "By design, not a permission problem: this is a per-turn schema-cost "
                 "cut applied AFTER role and permission resolution, so chasing "
-                "blocked-tool counts will not find it. Seeing this row at all means "
-                "the session is running BELOW the runtime default — since the "
-                "2026-08-09 ruling that default is `unbounded`, which bypasses this "
-                "policy entirely — so an operator either restricted this session "
-                "(`harness persona permission set --mode bounded|read_only`) or "
-                "configured `agent_runtime.tool_permissions.default_mode` narrower. "
-                "Lift that, restore it for this persona with "
+                "blocked-tool counts will not find it. "
+                + _posture_clause(default_mode)
+                + " Lift that, restore it for this persona with "
                 f"`{self.restorable_via}: [{self.subject}]` in the ROOT "
                 "config.yaml (un-exclusion — the role must already allow it), or run "
                 "the work on a worker lane, which never passes through this policy."
@@ -294,16 +298,44 @@ def chat_lane_tool_drops(
     return tuple(drops)
 
 
+def _posture_clause(default_mode: str) -> str:
+    """Why a session sees this row, said against the default actually in force."""
+
+    mode = normalize_permission_mode(default_mode)
+    if not mode:
+        return (
+            "Seeing this row at all means the session runs below `unbounded`, the "
+            "only posture that bypasses this policy — an operator either restricted "
+            "this session (`harness persona permission set --mode bounded|read_only`) "
+            "or configured `agent_runtime.tool_permissions.default_mode` narrower."
+        )
+    if permission_mode_is_unbounded(mode):
+        return (
+            "Seeing this row at all means the session is running BELOW the runtime "
+            "default, which here is `unbounded` and bypasses this policy entirely — so "
+            "an operator restricted this session "
+            "(`harness persona permission set --mode bounded|read_only`)."
+        )
+    return (
+        f"The runtime default here is `{mode}` "
+        "(`agent_runtime.tool_permissions.default_mode`), under which this policy "
+        "applies to every chat; only `unbounded` bypasses it — set the default, or "
+        "this session (`harness persona permission set --mode unbounded`), to it."
+    )
+
+
 def chat_lane_drop_rows(
     drops: Iterable[ChatLaneDrop] | None,
     *,
     role: str = "",
     entry_point_lane: str = "",
+    default_mode: str = "",
 ) -> list[dict[str, Any]]:
     """Render typed drops as ``requirement_failures`` rows (see module docstring)."""
 
     return [
-        drop.row(role=role, entry_point_lane=entry_point_lane) for drop in drops or ()
+        drop.row(role=role, entry_point_lane=entry_point_lane, default_mode=default_mode)
+        for drop in drops or ()
     ]
 
 

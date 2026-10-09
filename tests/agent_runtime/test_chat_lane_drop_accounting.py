@@ -189,6 +189,54 @@ def test_row_names_the_exact_restore_key_an_operator_must_edit():
     assert "file" in row["summary"]
 
 
+def test_the_hint_names_the_default_actually_in_force():
+    """The hint's sentence about the runtime default is DERIVED from it
+    (``default_permission_mode()``, threaded by the resolver) — it used to
+    hard-code "since the 2026-08-09 ruling that default is `unbounded`", which
+    would be wrong the day the default moved or an operator narrowed it."""
+
+    drop = ChatLaneDrop(
+        subject="terminal",
+        kind=DROP_KIND_TOOLSET,
+        code=TOOLSET_DROPPED_BY_CHAT_LANE_POLICY,
+        restorable_via=chat_lane_restore_config_key("dev"),
+    )
+
+    narrowed = drop.row(entry_point_lane=HARNESS_LANE, default_mode="bounded")["fix_hint"]
+    shipped = drop.row(entry_point_lane=HARNESS_LANE, default_mode="unbounded")["fix_hint"]
+
+    assert "The runtime default here is `bounded`" in narrowed
+    assert "bypasses this policy entirely" not in narrowed
+    # Positive control: the shipped default still reads as the bypass it is.
+    assert "which here is `unbounded` and bypasses this policy entirely" in shipped
+    assert "2026-08-09" not in narrowed + shipped
+
+
+def test_the_resolver_threads_the_configured_default_into_the_hint(monkeypatch):
+    """The join: ``tool_visibility`` reads the default and hands it to the row."""
+
+    from agent_runtime import tool_visibility
+
+    monkeypatch.setattr(tool_visibility, "_default_permission_mode_for_options", lambda: "read_only")
+    drop = ChatLaneDrop(
+        subject="terminal",
+        kind=DROP_KIND_TOOLSET,
+        code=TOOLSET_DROPPED_BY_CHAT_LANE_POLICY,
+        restorable_via=chat_lane_restore_config_key("dev"),
+    )
+    persona = next(p for p in sample_personas() if p.id == "dev")
+
+    visibility = resolve_tool_visibility(
+        persona,
+        ToolVisibilityOptions(chat_lane_capability_drops=(drop,)),
+        include_readiness=False,
+    )
+
+    rows = [r for r in visibility["requirement_failures"] if r.get("toolset") == "terminal"]
+    assert len(rows) == 1
+    assert "The runtime default here is `read_only`" in rows[0]["fix_hint"]
+
+
 def test_drop_rows_renders_every_drop():
     drops = chat_lane_toolset_drops(["file", "terminal"], persona_id="dev")
 
