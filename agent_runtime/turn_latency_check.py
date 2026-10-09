@@ -6,7 +6,10 @@
 * the persona profile's ``agent.log`` (a turn logs under the profile it runs in, so every sibling
   profile log is read): ``send_prep_receipt`` (``turn=``), then the first ``send_window_receipt``
   after it in the same file and the ``stream_gap_receipt`` of that request;
-* the Launcher's ``[MissionChatTiming]`` line, joined on ``turn_id=`` when the diag log exists.
+* the Launcher's ``[MissionChatTiming]`` line, joined on ``turn_id=`` when the diag log exists, for its
+  ``send=`` (the cold group) and its stamp (the turn's end) only. Its UI spans (``send_to_admit``,
+  ``ui_build_*``, ``ui_apply_to_paint``) are not read here: the launcher's budget registry
+  (``EterniaLauncher/tool/perf_budgets/budgets.json``) owns them (owner D2, 2026-10-08).
 
 Each turn falls in one GROUP: ``cold`` (the first turn after a serve boot, a turn within
 ``cold_after_boot_s`` of one, or a Launcher ``send=first_in_process``), ``after-idle`` (warm, but
@@ -38,7 +41,6 @@ _MARKERS = {
     "stream_gap_receipt ": "gap",
 }
 _LAUNCHER_MARKER = "[MissionChatTiming] "
-_LAUNCHER_KEYS = ("send_to_admit", "ui_build_max", "ui_build_sum", "ui_apply_to_paint")
 
 
 def default_budgets_path() -> Path:
@@ -94,10 +96,8 @@ def parse_launcher(line: str) -> dict[str, Any] | None:
     if not fields.get("turn_id"):
         return None
     stamp = _LAUNCHER_STAMP.match(line)
-    spans = {key: _num(fields.get(f"{key}_ms")) for key in _LAUNCHER_KEYS}
     return {"turn": fields["turn_id"], "send": fields.get("send"),
-            "at": _parse_local_stamp(stamp.group(1)) if stamp else None,
-            "spans": {k: v for k, v in spans.items() if v is not None}}
+            "at": _parse_local_stamp(stamp.group(1)) if stamp else None}
 
 
 def _turn(state: dict[str, Any], turn_id: str) -> dict[str, Any]:
@@ -170,7 +170,6 @@ def collect_turns(log_sources: Iterable[Iterable[str]], launcher_lines: Iterable
     for row in filter(None, map(parse_launcher, launcher_lines)):
         if row["turn"] in turns:
             entry = turns[row["turn"]]
-            entry["spans"].update(row["spans"])
             entry["launcher_send"] = row["send"]
             entry["launcher"] = True
             if row["at"] is not None:
@@ -217,8 +216,8 @@ def _range(values: list[Any]) -> str:
     return ",".join(f"{k}x{n}" for k, n in counts.items())
 
 
-def judge(turns: list[dict[str, Any]], budgets: dict[str, Any], *, launcher_present: bool) -> dict[str, Any]:
-    """One row per (group, span): status PASS / FAIL / INFO / REPORT / NO DATA / SKIP."""
+def judge(turns: list[dict[str, Any]], budgets: dict[str, Any]) -> dict[str, Any]:
+    """One row per (group, span): status PASS / FAIL / INFO / REPORT / NO DATA."""
 
     rows = []
     for group in GROUPS:
@@ -231,9 +230,7 @@ def judge(turns: list[dict[str, Any]], budgets: dict[str, Any], *, launcher_pres
             failing = [t["turn_id"] for t in members if t["spans"].get(span) is not None and (
                 t["spans"][span] != budget["equals"] if "equals" in budget else t["spans"][span] > budget["max_ms"])]
             limit = f"= {budget['equals']}" if "equals" in budget else f"<= {budget['max_ms']} ms"
-            if budget.get("source") == "launcher" and not launcher_present:
-                status = "SKIP"
-            elif not values:
+            if not values:
                 status = "NO DATA"
             elif budget.get("warm_only") and group == "cold":
                 status = "INFO"
@@ -259,7 +256,7 @@ def check(*, log_sources: Iterable[Iterable[str]], launcher_lines: Iterable[str]
     classify(turns, boots, budgets)
     kept = [t for t in turns if (start is None or t["anchor"] >= start) and (end is None or t["anchor"] <= end)]
     kept = kept[-last:] if last > 0 else kept
-    verdict = judge(kept, budgets, launcher_present=launcher_lines is not None)
+    verdict = judge(kept, budgets)
     return {
         "seeded": budgets.get("seeded"),
         "turns": [{"turn_id": t["turn_id"], "anchor": t["anchor"].isoformat(), "group": t["group"],
@@ -278,7 +275,7 @@ def format_check(report: dict[str, Any]) -> str:
     lines = [f"turn-latency check: {len(turns)} turn(s) ({groups['warm']} warm, {groups['after-idle']} after-idle, "
              f"{groups['cold']} cold) {span}; baseline {report['seeded']}"]
     if not report["launcher_log"]:
-        lines.append("  launcher diag log absent: launcher spans SKIP, hermes spans still checked")
+        lines.append("  launcher diag log absent: no launcher send= for the cold group; every span still checked")
     for turn in turns:
         if turn["group"] != "warm":
             lines.append(f"  {turn['group']:<10} {turn['turn_id']}  ({turn['why']})")
