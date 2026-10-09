@@ -405,6 +405,24 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
   `tools/tool_search_downstream.py::scoped_turn_defer`). Deferring is never a grant. Each turn's
   model-input record carries `tool_schema.per_tool_chars` and `prompt_surface` (chars of the wire
   form, by part), and a first turn logs one `prompt_surface …` line.
+- The turn's tool form has ONE owner, `agent_runtime/chat_lane_tool_form.py::settle_turn_tool_form`
+  (plan `planned/tool-form-one-owner-2026-10-08.md`): at construction (`apply_chat_lane_defer`,
+  from the runner's factory, no pin) and in the eternia-harness `pre_llm_call` hook before the
+  turn's first request, it assembles the lane's raw definitions plus the constructor's post-build
+  extras with the persona's names deferred (upstream's `assemble_tool_defs`), re-deriving the
+  `tool_search` bridge from the current catalog. The raw read and the assembly are memoized per
+  process on CONTENT — `chat_lane_bundle.registry_content_revision`, `admitted_mcp_tools(agent)`
+  (this run's `mcp-*` scope by name, toolset and schema digest), the actor's toolsets, the
+  persona's names, the context window, the tool-search config, `config.yaml`'s signature and the
+  Launcher link scope — never `registry.generation`, which admission moves twice a turn. The form
+  is published only when its bytes moved (the run's block pruned in the same write), and only then
+  is the session pin re-written: the pin is the turn's pre-brief `request["tools"]`. One log line
+  per turn: `tool_form_receipt turn=… source=<unchanged|memo|rebuilt> publishes= pin_written=
+  names= json_bytes= admitted=`. The factory sets `agent._skip_mcp_refresh` on every actor it
+  builds, so upstream's between-turns MCP refresh does not run on this lane
+  (`adopt_late_connections` still does, ahead of that flag); upstream's turn-1
+  `persist_tools=True` write and the rebuilt actor's `restore_agent_tool_prefix` are left as they
+  are — the restore folds a rebuilt actor onto the wire form, which the owner then leaves alone.
 - `agent_chat`, `board` and `clarify` are unconditional chat capabilities
   (`_CHAT_CAPABILITY_TOOLSETS`, `:902`) regardless of the persona's configured list; `clarify` is
   additionally un-blocked by name on the bounded lane (`:603`), which has a clarify bridge.
@@ -499,7 +517,7 @@ serve boot, on a chat where nothing had changed (turn `2026-08-23T14:34:57Z`).
 key is the lane's own identity: persona revision, chat root + a fresh permission fingerprint (mode,
 source, expiry, remaining turns, mode blocks), root + active `config.yaml` `(mtime_ns, size)`,
 runtime root, entry-point lane, and the **registry content** the composition reads
-(`chat_lane_bundle._registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
+(`chat_lane_bundle.registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
 `tools.registry.check_fn_epoch()`, which moves on every `invalidate_check_fn_cache`). Content, not
 `registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
 so the generation moved on every MCP-admitting turn while the content did not, and every such turn
