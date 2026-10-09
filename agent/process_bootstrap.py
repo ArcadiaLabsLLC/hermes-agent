@@ -255,7 +255,7 @@ def _shared_transport_cls():
         See #10933.
         """
 
-        __slots__ = ("_inner", "_closed")
+        __slots__ = ("_closed", "_inner")
 
         def __init__(self, inner: Any) -> None:
             self._inner = inner
@@ -390,8 +390,18 @@ OpenAI = _OpenAIProxy()
 
 
 __all__ = [
-    "OpenAI", "_OpenAIProxy", "_load_openai_cls", "load_openai_cls", "load_async_openai_cls",
-    "register_sdk_fallback", "sdk_fallback", "_SafeWriter", "_install_safe_stdio", "_get_proxy_from_env",
-    "_get_proxy_for_base_url", "build_keepalive_http_client", "close_shared_transports",
+    "OpenAI",
+    "_OpenAIProxy",
+    "_SafeWriter",
+    "_get_proxy_for_base_url",
+    "_get_proxy_from_env",
+    "_install_safe_stdio",
+    "_load_openai_cls",
+    "build_keepalive_http_client",
+    "close_shared_transports",
     "enable_happy_eyeballs_on_client",
+    "load_async_openai_cls",
+    "load_openai_cls",
+    "register_sdk_fallback",
+    "sdk_fallback",
 ]
