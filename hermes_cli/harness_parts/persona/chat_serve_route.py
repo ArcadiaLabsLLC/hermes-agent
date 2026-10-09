@@ -29,6 +29,8 @@ import sys
 import uuid
 from typing import Any, TextIO
 
+from hermes_cli.harness_parts.stream_relay import write_relay_line
+
 __layer__ = "lanes"
 __all__ = [
     "NOT_FORWARDED",
@@ -142,14 +144,6 @@ def _say(why: str) -> None:
         pass
 
 
-def _write_line(out: TextIO, line: str) -> None:
-    try:
-        out.write(line + "\n")
-        out.flush()
-    except (BrokenPipeError, OSError, ValueError):
-        pass
-
-
 def relay_send_via_serve(args: Any, *, out: TextIO | None = None) -> int | None:
     """Hand this send to the live serve; its exit code, or ``None`` to run in-process."""
 
@@ -192,26 +186,26 @@ def relay_send_via_serve(args: Any, *, out: TextIO | None = None) -> int | None:
             except socket.timeout:  # noqa: UP041 - an idle lap, not a failure
                 continue
             if frame is None:
-                _write_line(sys.stderr, f"mission-chat message: serve closed request {rid}")
+                write_relay_line(sys.stderr, f"mission-chat message: serve closed request {rid}")
                 return 1
             if frame.get("id") != rid:
                 continue
             event = frame.get("event")
             if event == "line":
-                _write_line(sink, str(frame.get("line") or ""))
+                write_relay_line(sink, str(frame.get("line") or ""))
             elif event == "stderr":
-                _write_line(sys.stderr, str(frame.get("line") or ""))
+                write_relay_line(sys.stderr, str(frame.get("line") or ""))
             elif event in _TERMINAL_EVENTS:
                 error = frame.get("error")
                 if error:
-                    _write_line(sys.stderr, f"mission-chat message: serve error: {error}")
+                    write_relay_line(sys.stderr, f"mission-chat message: serve error: {error}")
                     return 1
                 return int(frame.get("code") or 0)
     except KeyboardInterrupt:
-        _write_line(sys.stderr, f"mission-chat message: detached; the serve keeps request {rid}")
+        write_relay_line(sys.stderr, f"mission-chat message: detached; the serve keeps request {rid}")
         return 130
     except Exception as exc:  # noqa: BLE001 - a broken lane after the send ends the relay
-        _write_line(sys.stderr, f"mission-chat message: serve lane broke: {type(exc).__name__}")
+        write_relay_line(sys.stderr, f"mission-chat message: serve lane broke: {type(exc).__name__}")
         return 1
     finally:
         connection.close()
