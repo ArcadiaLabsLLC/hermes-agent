@@ -43,6 +43,7 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     _record_on_disk,
     _streaming_provider,
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
+    joined_tool_heartbeats,  # noqa: F401  (autouse: heartbeats join per test)
     scripted_marks,  # noqa: F401  (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore

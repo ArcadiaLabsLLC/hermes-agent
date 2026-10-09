@@ -27,6 +27,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-08 (lane opus-w1-hermes)
+- [ ] **A streamed `_ChatProtocolV2Emitter` starts its `ToolHeartbeat` daemon at `turn.start` and only `finish()` stops it: an emitter abandoned without `finish` beats `turn.progress` into stdout forever (it contaminated later tests' payloads; tests now join it per test). Bound the beat's lifetime by its owner (context manager or stop on the emitter's last reference), not by a caller remembering `finish`** · fork / `hermes_cli/harness_parts/persona/tool_heartbeat.py`, `chat_events.py` · evidence: the w1 fixture commit (`joined_tool_heartbeats`) and its control · UNCLAIMED
+
 ### Filed on arrival — 2026-10-08 (warm send-prep integration review, `196ec6159d`)
 - [ ] **Drop the launcher spans from `turn-timing --check` (owner D2, 2026-10-08): remove `send_to_admit`, `ui_build_max`, `ui_build_sum` and `ui_apply_to_paint` from `_LAUNCHER_KEYS` and `turn_latency_budgets.json` once the launcher budget registry checks them; today `ui_build_max` is 180 ms against the owner's 16 ms, so this check passes frames the owner fails** · fork / `agent_runtime/turn_latency_check.py` · launcher half first: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/qa-tooling-queue.md` budget-registry row · UNCLAIMED
 - [ ] **Read the existing `context_built` sub-stamps (preload, HUD, signature, `context_native_history_ms`) on the warm receipts before adding laps: `context_built` is 47 ms (44–51) and `observability_built` 17.5 ms (17–20) on every warm turn, and the 2026-10-03 h-chatperf row "Native history is re-read from SessionDB…" already names the likely share** · fork / `hermes_cli/harness_parts/persona/chat_turn_commit/run.py` · evidence: [Integrated receipts](../../docs/agent-runtime-harness/planned/warm-prep-integration-2026-10-08.md) · UNCLAIMED · **TAKEN 2026-10-08 opus-w1-sendprep**

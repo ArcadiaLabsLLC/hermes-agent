@@ -34,6 +34,9 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # noqa: F401
     _seed,
     isolate_agent_runtime_root,
 )
+from tests.hermes_cli.test_mission_chat_turn_phases import (  # noqa: F401
+    joined_tool_heartbeats,  # autouse: heartbeats join per test
+)
 
 
 def _provider(final_response: str, messages=None, raw=None):

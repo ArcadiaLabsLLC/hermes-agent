@@ -75,10 +75,40 @@ from tests.hermes_cli.test_mission_chat_budget_payload import (  # type: ignore
     isolate_agent_runtime_root,  # noqa: F401  (re-exported fixture)
 )
 from hermes_cli.harness_parts.persona import chat_events, chat_turn_message
+from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
+
+
+@pytest.fixture(autouse=True)
+def joined_tool_heartbeats(monkeypatch):
+    """Every heartbeat a test starts is stopped and JOINED before the next test runs.
+
+    A streamed emitter starts a daemon ``turn.progress`` beat at ``turn.start`` and
+    only ``finish()`` stops it. A test that builds an emitter and never finishes it
+    left that thread beating into stdout every 5 s, so a LATER test's
+    ``json.loads(capsys.readouterr().out)`` read "Extra data" (fork-hygiene row,
+    2026-10-08). Imported by the timing-block and visibility files, so the three
+    share one lifetime rule.
+    """
+
+    started: list[ToolHeartbeat] = []
+    real_ensure_running = ToolHeartbeat.ensure_running
+
+    def tracked(self: ToolHeartbeat) -> None:
+        started.append(self)
+        real_ensure_running(self)
+
+    monkeypatch.setattr(ToolHeartbeat, "ensure_running", tracked)
+    yield
+    for heartbeat in started:
+        heartbeat.stop()
+        thread = heartbeat._thread
+        if thread is not None:
+            thread.join(timeout=5)
+            assert not thread.is_alive(), f"heartbeat {thread.name} outlived its test"
 
 
 # --------------------------------------------------------------------------- #
-# Scripted clock                                                               #
+# Scripted clock                                                             #
 # --------------------------------------------------------------------------- #
 class _TickClock:
     """A monotonic clock that advances exactly one second per READ.
