@@ -9,7 +9,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-08 (warm send-prep qualification)
 
-- [ ] **Restore absent-list flag handling in `hermes_cli/bundles.py:72`.** The identical flag-binding node and offender fail in the 1,070-file warm-prep gate and the same file on clean `74a64be15e`; do not suppress the guard. · fork / suite · [Batch qualification](../../docs/agent-runtime-harness/planned/warm-prep-integration-2026-10-08.md) · UNCLAIMED · **TAKEN 2026-10-08 opus-w1-hermes**
 - [ ] **Stop asynchronous stdout contamination across the mission-chat phases / timing / visibility bundle.** The same timing-payload and finish-reason visibility nodes fail JSON decoding with Extra data on both clean `74a64be15e` and the batch; all 86 cases pass under isolated authority. Other visibility nodes vary with scheduling. Preserve first-pass output and join emitter lifetime before accepting a bundle pass. · fork / suite · [Batch qualification](../../docs/agent-runtime-harness/planned/warm-prep-integration-2026-10-08.md) · UNCLAIMED · **TAKEN 2026-10-08 opus-w1-hermes**
 
 
