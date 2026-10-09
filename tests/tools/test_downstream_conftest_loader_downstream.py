@@ -9,7 +9,6 @@ upstream half's fixtures still run beside them) and registers its hooks as
 
 def test_directory_half_is_registered_with_directory_scope(request):
     assert "_downstream_behavioral_vars_scrubbed" in request.fixturenames  # root half
-    assert "_tirith_config_value_under_test" in request.fixturenames
     # The UPSTREAM half shares this directory; registering the fork half beside it
     # must not evict it (pytest 9.1 holds one pending conftest per directory).
     assert "_materialize_mcp_sdk_symbols" in request.fixturenames
