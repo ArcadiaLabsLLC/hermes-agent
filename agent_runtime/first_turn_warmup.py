@@ -86,6 +86,9 @@ FIRST_TURN_MODULES = (
     "agent.chat_completion_nonstream", "agent.reasoning_timeouts",
     "agent_runtime.stream_gap_receipt", "agent_runtime.send_window_receipt",
     "agent_runtime.gateway_targets", "agent_runtime.chat_live_log",
+    # Upstream v0.21.6 adds these to the turn path (voice route, Anthropic thinking replay,
+    # the dead-connection sweep helpers).
+    "agent.voice_turn_route", "agent.anthropic_thinking_replay", "agent.agent_runtime_helpers_dead_connections",
 )
 
 
