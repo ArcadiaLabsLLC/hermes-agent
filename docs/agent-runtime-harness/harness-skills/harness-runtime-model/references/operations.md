@@ -50,7 +50,10 @@ In-flight architecture — check these brain notes before bridge/perf work
   instances, offices, boards, flow graphs, event log. It is shared, and it is what
   `persona list` / `snapshot` read.
 - Operator-CLI profile home: `HERMES_HOME=X:\Eternia\.hermes\profiles\alice`. Use it for
-  CLI inspection, and know what it does and does not decide — see the caveat below.
+  CLI inspection, and know what it does and does not decide — see the caveat below. It
+  does NOT decide a chat send: `mission-chat message` runs in the live serve under the
+  serve's home; only `--in-process` (or no live serve) runs it under this shell's home and
+  credentials.
 
 **`base` vs `alice`: which home answers which question (measured 2026-08-28).**
 The launcher-spawned serve child does **not** run under alice. Mission Control spawns
@@ -302,8 +305,9 @@ hermes harness workspace list --json  # .items[].id  → ws_codex-test-workspace
    Either home answers these identically — realms, workspaces and the roster live in the
    shared store, not the profile (measured 2026-08-28; see "base vs alice" under Roots).
    The home matters from step 4 on, where the turn's profile decides MCP admission and
-   model: the launcher's serve child runs under `profiles\base` or the persona's own bound
-   profile, so quote the home with the receipt.
+   model: the send runs in the live serve (under `profiles\base` or the persona's own bound
+   profile), not under this shell's alice home unless you pass `--in-process`, so quote
+   the home with the receipt.
 
    A workspace row also carries `agent_ids` / `live_scoped_agent_ids` — that is how you
    check an instance is actually ON the level rather than merely existing.
