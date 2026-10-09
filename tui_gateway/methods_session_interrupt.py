@@ -40,6 +40,13 @@ def _note_user_input(session: dict) -> None:
 
 @method("session.interrupt")
 def _(rid, params: dict) -> dict:
+    if expected := _str_param(params, "expected_execution_id"):
+        session, err = _sess_nowait(params, rid)
+        if err:
+            return err
+        from tui_gateway.session_execution import interrupt
+        applied = interrupt(str(params.get("session_id") or ""), session, expected)
+        return _ok(rid, {"status": "interrupted" if applied else "not_interrupted", "interrupted": applied})
     _tts_stream_stop()  # keypress barge-in also silences streaming TTS (voice is process-global)
     resume_wake = True
     try:
