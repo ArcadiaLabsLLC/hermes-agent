@@ -614,6 +614,7 @@ class TestShutdownSettleWindow:
 
         runner, adapter = make_restart_runner()
         runner._restart_drain_timeout = 0.01  # force the drain-timeout path
+        runner._cron_drain_timeout = 0.01  # API work now shares upstream's cron drain floor.
         adapter.disconnect = _make_async_noop()
         api = _SettlingApiAdapter()
         runner.adapters = {Platform.TELEGRAM: adapter, Platform.API_SERVER: api}
@@ -663,6 +664,7 @@ class TestShutdownSettleWindow:
 
         runner, adapter = make_restart_runner()
         runner._restart_drain_timeout = 0.01
+        runner._cron_drain_timeout = 0.01  # Reach the settle window under the API drain budget too.
         adapter.disconnect = _make_async_noop()
         api = _SettlingApiAdapter(polls_to_settle=10_000)  # never settles
         runner.adapters = {Platform.TELEGRAM: adapter, Platform.API_SERVER: api}
