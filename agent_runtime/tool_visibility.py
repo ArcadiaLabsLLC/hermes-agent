@@ -31,6 +31,7 @@ from .personas import (
 from .persona_profiles import declared_lane_toolsets, effective_toolsets
 from .profile_readiness import declared_mcp_server_names, profile_readiness_for_persona
 from .serde import unique_texts
+from .tool_surface import DispositionReason, blocked_reason
 from .tool_turn_history import load_tool_turn_history
 
 # The committed toolset manifest. Importing it imports NO registrar module and no
@@ -305,7 +306,7 @@ def resolve_tool_visibility(
     excluded_toolsets = [
         {
             "name": name,
-            "reason": "session_toolset_policy",
+            "reason": DispositionReason.SESSION_TOOLSET_POLICY.value,
             "tools": _tool_names_for_toolsets([name], blocked_tool_names=[]),
         }
         for name in configured_toolsets
@@ -690,15 +691,14 @@ def _blocked_tool_entries(
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for name in names:
-        reason = "session_tool_policy"
-        if name in requested_denies:
-            reason = "turn_runtime_block"
-        elif name in registry_hygiene_denies:
-            reason = "registry_hygiene"
-        elif name in role_denies:
-            reason = "role_policy"
-        elif name in persona_denies:
-            reason = "persona_safety_policy"
+        # ONE ladder (``tool_surface.blocked_reason``), read by the cost layer's surface too.
+        reason = blocked_reason(
+            name,
+            requested_denies=requested_denies,
+            registry_hygiene_denies=registry_hygiene_denies,
+            role_denies=role_denies,
+            persona_denies=persona_denies,
+        ).value
         entries.append(
             {
                 "name": name,

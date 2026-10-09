@@ -419,6 +419,21 @@ def scope_toolsets_to_admission(
     return scoped
 
 
+def admission_strips(
+    toolsets: Iterable[str] | None, *, admitted_servers: Iterable[str] | None
+) -> list[str]:
+    """The ``mcp-*`` toolsets :func:`scope_toolsets_to_admission` removes from ``toolsets``.
+
+    The additive sibling of the strip (toolvis slice 3): the strip itself stays exactly as it
+    is, and this answers WHAT it took, so the tool surface carries one
+    ``admission_not_admitted`` row per name instead of a silent absence the day the strip
+    becomes load-bearing. Same predicate, same order, the complement.
+    """
+
+    kept = set(scope_toolsets_to_admission(toolsets, admitted_servers=admitted_servers))
+    return [str(name) for name in (toolsets or []) if str(name) not in kept]
+
+
 def _mcp_toolset_aliases() -> frozenset[str]:
     """Alias names that point at an ``mcp-*`` toolset in this process."""
 

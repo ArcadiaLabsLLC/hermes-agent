@@ -184,6 +184,28 @@ class ToolSurface:
             "degraded": list(self.degraded),
         }
 
+    def with_block(
+        self, blocked_tool_names: Iterable[str] = (), *, admission_stripped_toolsets: Iterable[str] = (),
+    ) -> "ToolSurface":
+        """This surface with the run's block applied: a blocked name leaves every other state."""
+
+        from .personas import PERSONA_BLOCKED_TOOLS, REGISTRY_HYGIENE_BLOCKED_TOOLS
+
+        block = frozenset(str(n) for n in blocked_tool_names or () if n)
+        rows = [
+            ToolDisposition(d.name, STATE_BLOCKED, blocked_reason(
+                d.name, registry_hygiene_denies=REGISTRY_HYGIENE_BLOCKED_TOOLS,
+                persona_denies=PERSONA_BLOCKED_TOOLS,
+            )) if d.name in block else d
+            for d in self.dispositions
+        ]
+        known = {d.name for d in rows}
+        for toolset in admission_stripped_toolsets or ():
+            for name in sorted(requested_tool_names([str(toolset)]) - known):
+                rows.append(ToolDisposition(name, STATE_BLOCKED, DispositionReason.ADMISSION_NOT_ADMITTED))
+                known.add(name)
+        return replace(self, dispositions=tuple(rows))
+
     @classmethod
     def constructor_form(
         cls, tool_defs: Iterable[dict[str, Any]], *, enabled_toolsets: Iterable[str] | None,
@@ -283,17 +305,26 @@ def _family(toolset: str | None) -> str:
     return re.split(r"[-_]", str(toolset or ""), maxsplit=1)[0]
 
 
-def _unavailable_reason(name: str, *, available: set[str], closure: set[str]) -> DispositionReason:
-    """``backend_swap`` when an available name of the same toolset family arrived from OUTSIDE the
-    enabled closure — listed by name in a toolset it does not register into (``browser_exec`` for
-    the ``browser`` family under ``browser.backend: browser-use``); else the check_fn said no."""
+def _swap_families(available: set[str], closure: set[str]) -> set[str]:
+    """Toolset families an available name entered from OUTSIDE the enabled closure — listed by
+    name in a toolset it does not register into (``browser_exec``: upstream's ``browser`` toolset
+    names it, it registers into ``browser-use``). That is what a backend swap looks like."""
 
-    family = _family(_registered_toolset(name))
-    if family:
-        for other in available:
-            toolset = _registered_toolset(other)
-            if toolset and toolset not in closure and _family(toolset) == family:
-                return DispositionReason.BACKEND_SWAP
+    families: set[str] = set()
+    for name in available:
+        toolset = _registered_toolset(name)
+        if toolset and toolset not in closure:
+            families.add(_family(toolset))
+    families.discard("")
+    return families
+
+
+def _unavailable_reason(name: str, *, swap_families: set[str]) -> DispositionReason:
+    """``backend_swap`` when a swap target of this name's toolset family is on the surface;
+    otherwise its check_fn said no."""
+
+    if _family(_registered_toolset(name)) in swap_families:
+        return DispositionReason.BACKEND_SWAP
     return DispositionReason.CHECK_FN_UNAVAILABLE
 
 
@@ -317,71 +348,20 @@ def _deferred_reason(
     return None
 
 
-def compute_tool_surface(
-    *,
-    enabled_toolsets: Iterable[str] | None,
-    disabled_toolsets: Iterable[str] | None = None,
-    blocked_tool_names: Iterable[str] = (),
-    defer_tools: Iterable[str] = (),
-    context_length: int | None = None,
-    tool_search_config: Any = None,
-    extras: Iterable[dict[str, Any]] = (),
-    assemble_extras: bool = True,
-    admission_stripped_toolsets: Iterable[str] = (),
-) -> ToolSurface:
-    """The surface one agent would ship, every requested name accounted for. Raises on a fault —
-    the factory's caller records it (``ToolSurface.degraded``); the preview reports it.
+def _partition(
+    requested: set[str], *, available: set[str], wire: set[str], closure: set[str],
+    promoted: frozenset, off: bool, curated: frozenset, persona: frozenset, config: Any,
+) -> list[ToolDisposition]:
+    """Every requested or available name in exactly one state, with the rule that put it there."""
 
-    ``extras`` are definitions the constructor appends outside ``get_tool_definitions`` (memory
-    provider / context-engine tools); ``assemble_extras=False`` is the constructor's own form,
-    where they ride after the assembly, eager. ``admission_stripped_toolsets`` is the caller's
-    ``mcp_admission.resolve.admission_strips`` answer (this module is policy; admission is a store).
-    """
+    from tools.tool_search import BRIDGE_TOOL_NAMES
 
-    import model_tools
-    from tools.tool_search import BRIDGE_TOOL_NAMES, assemble_tool_defs, load_config
-    from tools.tool_search_downstream import ensure_tool_describe_present, never_defer_tool_names
-
-    from .personas import PERSONA_BLOCKED_TOOLS, REGISTRY_HYGIENE_BLOCKED_TOOLS
-
-    enabled = None if enabled_toolsets is None else [str(name) for name in enabled_toolsets]
-    disabled = [str(name) for name in disabled_toolsets or ()] or None
-    base = tool_search_config or load_config()
-    persona = frozenset(str(n).strip() for n in defer_tools or () if str(n).strip())
-    curated = frozenset(base.effective_defer_tools)
-    config = replace(base, defer_tools=curated | persona)
-
-    raw = model_tools.get_tool_definitions(
-        enabled_toolsets=enabled, disabled_toolsets=disabled, quiet_mode=True,
-        skip_tool_search_assembly=True,
-    ) or []
-    raw_names = {_def_name(td) for td in raw}
-    extra_defs = [td for td in extras or () if _def_name(td) not in raw_names
-                  and _def_name(td) not in BRIDGE_TOOL_NAMES]
-    extra_names = {_def_name(td) for td in extra_defs}
-    to_assemble = list(raw) + (extra_defs if assemble_extras else [])
-    assembled = assemble_tool_defs(to_assemble, context_length=context_length, config=config).tool_defs
-    tool_defs = ensure_tool_describe_present(list(assembled) + ([] if assemble_extras else extra_defs))
-    wire = {_def_name(td) for td in tool_defs}
-
-    requested = requested_tool_names(enabled, disabled)
-    available = (raw_names | extra_names) - BRIDGE_TOOL_NAMES
-    closure = _toolset_closure(enabled or ())
-    block = frozenset(str(n) for n in blocked_tool_names or () if n)
-    promoted = never_defer_tool_names(config)
-    off = base.enabled == "off"
-
+    swap_families = _swap_families(available, closure)
     dispositions: list[ToolDisposition] = []
     for name in sorted((requested | available) - BRIDGE_TOOL_NAMES):
-        if name in block:
-            reason = blocked_reason(
-                name, registry_hygiene_denies=REGISTRY_HYGIENE_BLOCKED_TOOLS,
-                persona_denies=PERSONA_BLOCKED_TOOLS,
-            )
-            dispositions.append(ToolDisposition(name, STATE_BLOCKED, reason))
-        elif name not in available:
+        if name not in available:
             dispositions.append(ToolDisposition(
-                name, STATE_UNAVAILABLE, _unavailable_reason(name, available=available, closure=closure)))
+                name, STATE_UNAVAILABLE, _unavailable_reason(name, swap_families=swap_families)))
         elif name in wire:
             reason = None
             if name in promoted:
@@ -393,18 +373,102 @@ def compute_tool_surface(
             dispositions.append(ToolDisposition(
                 name, STATE_DEFERRED,
                 _deferred_reason(name, curated=curated, persona=persona, config=config)))
-    for toolset in admission_stripped_toolsets or ():
-        for name in sorted(requested_tool_names([str(toolset)])):
-            if name not in {d.name for d in dispositions}:
-                dispositions.append(
-                    ToolDisposition(name, STATE_BLOCKED, DispositionReason.ADMISSION_NOT_ADMITTED))
+    return dispositions
+
+
+def assemble_surface(
+    raw: Iterable[dict[str, Any]],
+    *,
+    enabled_toolsets: Iterable[str] | None,
+    disabled_toolsets: Iterable[str] | None = None,
+    defer_tools: Iterable[str] = (),
+    context_length: int | None = None,
+    tool_search_config: Any = None,
+    extras: Iterable[dict[str, Any]] = (),
+) -> ToolSurface:
+    """The assembly and its account, over definitions already read: the ONE function both the
+    tool form's owner (``chat_lane_tool_form``, which memoizes the read) and the preview
+    (:func:`compute_tool_surface`) call. ``tool_defs`` is the form the owner publishes —
+    upstream's ``assemble_tool_defs`` over raw + extras with the persona's names deferred, then
+    ``ensure_tool_describe_present``; with ``tool_search.enabled: off``, raw + extras as they
+    stand. The run's block is applied after (:meth:`ToolSurface.with_block`), as the owner prunes.
+    """
+
+    from tools.tool_search import BRIDGE_TOOL_NAMES, assemble_tool_defs, load_config
+    from tools.tool_search_downstream import ensure_tool_describe_present, never_defer_tool_names
+
+    raw = list(raw or ())
+    enabled = None if enabled_toolsets is None else [str(name) for name in enabled_toolsets]
+    disabled = [str(name) for name in disabled_toolsets or ()] or None
+    base = tool_search_config or load_config()
+    persona = frozenset(str(n).strip() for n in defer_tools or () if str(n).strip())
+    curated = frozenset(base.effective_defer_tools)
+    config = replace(base, defer_tools=curated | persona)
+    off = base.enabled == "off"
+
+    raw_names = {_def_name(td) for td in raw}
+    extra_defs = [td for td in extras or () if _def_name(td) not in raw_names
+                  and _def_name(td) not in BRIDGE_TOOL_NAMES]
+    if off:
+        tool_defs = raw + extra_defs
+    else:
+        assembly = assemble_tool_defs(raw + extra_defs, context_length=context_length or None, config=config)
+        tool_defs = ensure_tool_describe_present(assembly.tool_defs)
+    wire = {_def_name(td) for td in tool_defs}
+
+    available = (raw_names | {_def_name(td) for td in extra_defs}) - BRIDGE_TOOL_NAMES
+    degraded: tuple[str, ...] = ()
+    try:
+        dispositions = _partition(
+            requested_tool_names(enabled, disabled), available=available, wire=wire,
+            closure=_toolset_closure(enabled or ()), promoted=never_defer_tool_names(config),
+            off=off, curated=curated, persona=persona, config=config,
+        )
+    except Exception as exc:  # noqa: BLE001 - the account never costs the form its cost cut
+        # The form stands; the account says it could not be taken (``account:<Exc>``) and
+        # reports what it does know, the wire, eager.
+        dispositions = [ToolDisposition(n, STATE_EAGER) for n in sorted(wire - BRIDGE_TOOL_NAMES)]
+        degraded = (f"account:{type(exc).__name__}",)
     return ToolSurface(
         enabled_toolsets=tuple(enabled or ()),
         dispositions=tuple(dispositions),
         bridge=tuple(sorted(wire & BRIDGE_TOOL_NAMES)),
+        degraded=degraded,
         tool_search=str(base.enabled),
         tool_defs=tuple(tool_defs),
     )
+
+
+def compute_tool_surface(
+    *,
+    enabled_toolsets: Iterable[str] | None,
+    disabled_toolsets: Iterable[str] | None = None,
+    blocked_tool_names: Iterable[str] = (),
+    defer_tools: Iterable[str] = (),
+    context_length: int | None = None,
+    tool_search_config: Any = None,
+    extras: Iterable[dict[str, Any]] = (),
+    admission_stripped_toolsets: Iterable[str] = (),
+) -> ToolSurface:
+    """The surface one agent would ship, read from scratch: the preview's door (``persona
+    tool-diff``). Raises on a fault; the preview reports it.
+
+    ``admission_stripped_toolsets`` is the caller's ``mcp_admission.resolve.admission_strips``
+    answer — this module is policy, admission is a store.
+    """
+
+    import model_tools
+
+    enabled = None if enabled_toolsets is None else [str(name) for name in enabled_toolsets]
+    disabled = [str(name) for name in disabled_toolsets or ()] or None
+    raw = model_tools.get_tool_definitions(
+        enabled_toolsets=enabled, disabled_toolsets=disabled, quiet_mode=True,
+        skip_tool_search_assembly=True,
+    ) or []
+    return assemble_surface(
+        raw, enabled_toolsets=enabled, disabled_toolsets=disabled, defer_tools=defer_tools,
+        context_length=context_length, tool_search_config=tool_search_config, extras=extras,
+    ).with_block(blocked_tool_names, admission_stripped_toolsets=admission_stripped_toolsets)
 
 
 def unaliased_wire_names(wire_receipt: Mapping[str, Any] | None) -> list[str]:
@@ -429,6 +493,7 @@ __all__ = [
     "ToolDisposition",
     "ToolSurface",
     "blocked_reason",
+    "assemble_surface",
     "compute_tool_surface",
     "requested_tool_names",
     "unaliased_wire_names",

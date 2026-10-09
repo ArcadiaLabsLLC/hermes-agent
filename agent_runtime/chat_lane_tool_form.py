@@ -36,6 +36,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
 from agent_runtime.chat_lane_defer import AGENT_DEFER_ATTR
+from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
 from agent_runtime.tool_blocks import _tool_name as _def_name
 
 __layer__ = "lanes"
@@ -164,24 +165,23 @@ def _read_raw(agent: Any) -> list:
     ) or [])
 
 
-def _assemble(raw: list, extras: list, names: frozenset[str], base: Any, context_length: int) -> list:
-    """The ONE assembly: upstream's tool search over raw + extras, the persona's names deferred."""
+def _assemble(agent: Any, raw: list, extras: list, names: frozenset[str], base: Any, context_length: int):
+    """The ONE assembly, and its account: upstream's tool search over raw + extras with the
+    persona's names deferred, through :func:`agent_runtime.tool_surface.assemble_surface` —
+    the function the ``persona tool-diff`` preview calls too, so the two are one answer."""
 
-    from tools.tool_search import assemble_tool_defs
-    from tools.tool_search_downstream import ensure_tool_describe_present
+    from agent_runtime.tool_surface import assemble_surface
 
-    if base.enabled == "off":
-        return list(raw) + list(extras)
-    assembly = assemble_tool_defs(
-        list(raw) + list(extras),
-        context_length=context_length or None,
-        config=replace(base, defer_tools=frozenset(base.effective_defer_tools) | names),
+    return assemble_surface(
+        raw, enabled_toolsets=getattr(agent, "enabled_toolsets", None),
+        disabled_toolsets=getattr(agent, "disabled_toolsets", None), defer_tools=names,
+        context_length=context_length or None, tool_search_config=base, extras=extras,
     )
-    return ensure_tool_describe_present(assembly.tool_defs)
 
 
-def _derive(agent: Any, key: tuple, names: frozenset[str], base: Any) -> tuple[list, str]:
-    """The form for ``key`` and this actor's extras; ``rebuilt`` when anything was read or assembled."""
+def _derive(agent: Any, key: tuple, names: frozenset[str], base: Any) -> tuple[Any, str]:
+    """The surface (whose ``tool_defs`` is the form) for ``key`` and this actor's extras;
+    ``rebuilt`` when anything was read or assembled."""
 
     from tools.tool_search import BRIDGE_TOOL_NAMES
 
@@ -196,13 +196,13 @@ def _derive(agent: Any, key: tuple, names: frozenset[str], base: Any) -> tuple[l
     extras = [td for td in agent.tools
               if _def_name(td) not in seen and _def_name(td) not in BRIDGE_TOOL_NAMES]
     form_key = (key, hashlib.sha256(_dump(extras).encode("utf-8")).hexdigest())
-    form = _FORM_MEMO.get(form_key)
-    if form is None:
+    surface = _FORM_MEMO.get(form_key)
+    if surface is None:
         compressor = getattr(agent, "context_compressor", None)
-        form = _assemble(raw, extras, names, base, int(getattr(compressor, "context_length", 0) or 0))
-        _remember(_FORM_MEMO, form_key, form)
+        surface = _assemble(agent, raw, extras, names, base, int(getattr(compressor, "context_length", 0) or 0))
+        _remember(_FORM_MEMO, form_key, surface)
         source = "rebuilt"
-    return form, source
+    return surface, source
 
 
 def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None, pin: bool) -> ToolFormReceipt:
@@ -214,7 +214,8 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
     if getattr(agent, _SETTLED_ATTR, None) == (key, current):
         return ToolFormReceipt("unchanged", False, False, len(agent.tools), len(current.encode("utf-8")),
                                len(admitted_mcp_tools(agent)))
-    form, source = _derive(agent, key, names, base)
+    surface, source = _derive(agent, key, names, base)
+    form = list(surface.tool_defs)
     block = frozenset(str(n) for n in (blocked or ()))
     candidate = [td for td in form if _def_name(td) not in block] if block else form
     wire = _dump(candidate)
@@ -241,6 +242,9 @@ def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None,
         mcp_tool_agent.persist_agent_tool_names(agent)
         pin_written = True
     setattr(agent, _SETTLED_ATTR, (key, wire))
+    # The surface receipt (toolvis slice 4): every name this form left off the wire, and why.
+    # Set with the form, so an ``unchanged`` settle keeps the receipt of the form it kept.
+    setattr(agent, AGENT_SURFACE_ATTR, surface.with_block(block).receipt())
     return ToolFormReceipt(source, published, pin_written, len(candidate), len(wire.encode("utf-8")),
                            len(admitted_mcp_tools(agent)))
 
@@ -259,8 +263,9 @@ def settle_turn_tool_form(
     names = frozenset(getattr(agent, AGENT_DEFER_ATTR) or ())
     try:
         receipt = _settle(agent, names, blocked=blocked, pin=pin)
-    except Exception:  # noqa: BLE001 - a form settle is a cost cut; never fail a turn over it
+    except Exception as exc:  # noqa: BLE001 - a form settle is a cost cut; never fail a turn over it
         logger.warning("tool form settle skipped; the actor's form stands", exc_info=True)
+        _record_degraded(agent, exc)
         return None
     setattr(agent, RECEIPT_ATTR, receipt)
     if pin:
@@ -270,6 +275,22 @@ def settle_turn_tool_form(
             int(receipt.pin_written), receipt.names, receipt.json_bytes, receipt.admitted,
         )
     return receipt
+
+
+def _record_degraded(agent: Any, exc: BaseException) -> None:
+    """The fault is a receipt row, not only a WARNING: the form that stands, eager, and why."""
+
+    from agent_runtime.tool_surface import ToolSurface
+
+    try:
+        surface = ToolSurface.constructor_form(
+            list(getattr(agent, "tools", None) or ()),
+            enabled_toolsets=getattr(agent, "enabled_toolsets", None),
+            degraded=(f"assembly:{type(exc).__name__}",),
+        )
+        setattr(agent, AGENT_SURFACE_ATTR, surface.receipt())
+    except Exception:  # noqa: BLE001 - the WARNING above already stands
+        logger.debug("tool surface: degraded receipt not recorded", exc_info=True)
 
 
 def apply_chat_lane_defer(
