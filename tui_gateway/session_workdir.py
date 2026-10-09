@@ -368,6 +368,9 @@ def _reconcile_session_cwd_from_terminal(session: dict | None) -> bool:
         return False
     if not _session_is_local_backend(session):
         return False
+    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel has no terminal.
+    if not shipped("tools.terminal_tool"):
+        return False
     try:
         from tools.terminal_tool import get_session_cwd
         if not (recorded := get_session_cwd(session.get("session_key") or "")):

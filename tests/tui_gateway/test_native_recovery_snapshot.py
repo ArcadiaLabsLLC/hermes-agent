@@ -25,6 +25,18 @@ def owner(tmp_path, monkeypatch):
     db.close()
 
 
+def test_checkpoint_returns_detached_json_events_from_frozen_replay(owner):
+    frame = {"method": "event", "params": {
+        "session_id": "live", "type": "message.delta", "payload": {"text": "original"}}}
+    event_replay._stamp_event(frame)
+    frame["params"]["payload"]["text"] = "caller mutation"
+    page = event_replay.checkpoint("live", 0)
+    assert json.loads(json.dumps(page))["events"][0]["payload"]["text"] == "original"
+    assert page["events"][0]["seq"] == page["latest_seq"] == 1
+    page["events"][0]["payload"]["text"] = "reader mutation"
+    assert event_replay.checkpoint("live", 0)["events"][0]["payload"]["text"] == "original"
+
+
 def test_snapshot_restores_the_exact_live_question_and_execution(owner):
     session, db = owner
     session_execution.admit(session, "execution")
