@@ -17,11 +17,28 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from tools.mcp_tool_schema import mcp_prefixed_tool_name, sanitize_mcp_name_component
-from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME, _registry_entry
+from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
 
 #: Top search hits that carry their full ``parameters`` schema, and its size bound.
 _SEARCH_HIT_SCHEMA_TOP_N = 3
 _SEARCH_HIT_SCHEMA_MAX_CHARS = 6000
+
+
+def _chat_def_name(td: Any) -> Any:
+    """A chat-shape tool-def's ``function.name`` (None when absent or not a dict)."""
+    if not isinstance(td, dict):
+        return None
+    return (td.get("function") or {}).get("name")
+
+
+def _is_registered_tool(name: str) -> bool:
+    """Whether the live registry holds ``name``; a raising registry reads as unregistered."""
+    try:
+        from tools.registry import registry
+
+        return registry.get_entry(name) is not None
+    except Exception:
+        return False
 
 
 def parse_never_defer(never_defer_raw) -> tuple[str, ...]:
@@ -240,13 +257,12 @@ def directly_available_names(tool_defs) -> frozenset[str]:
     checks read, so an eager tool the session never produced is not admitted here either.
     """
     from tools.tool_search import is_deferrable_tool_name, load_config_readonly
-    from tools.tool_search_catalog import _fn
 
     config = load_config_readonly()
     defer = config.effective_defer_tools
     names = set()
     for td in tool_defs or ():
-        name = _fn(td).get("name") if isinstance(td, dict) else None
+        name = _chat_def_name(td)
         if not name or name in BRIDGE_TOOL_NAMES:
             continue
         if not is_deferrable_tool_name(name, defer, config=config):
@@ -273,7 +289,7 @@ def admit_direct_in_resolve(upstream):
         if parse_err or len(entries) != 1:
             return name, raw_args, err
         candidate = entries[0]["name"]
-        if is_connector_name(candidate) or _registry_entry(candidate) is None:
+        if is_connector_name(candidate) or not _is_registered_tool(candidate):
             return name, raw_args, err
         return candidate, entries[0]["arguments"], None
 
@@ -316,10 +332,10 @@ def mark_direct_hits(upstream):
         results = payload.get("results") if isinstance(payload, dict) else None
         if not isinstance(results, list):
             return raw
-        from tools.tool_search_catalog import _fn, build_catalog, search_catalog
+        from tools.tool_search_catalog import build_catalog, search_catalog
 
         direct = directly_available_names(current_tool_defs)
-        eager_defs = [td for td in current_tool_defs or () if isinstance(td, dict) and _fn(td).get("name") in direct]
+        eager_defs = [td for td in current_tool_defs or () if _chat_def_name(td) in direct]
         if not eager_defs:
             return raw
         catalog = build_catalog(eager_defs)

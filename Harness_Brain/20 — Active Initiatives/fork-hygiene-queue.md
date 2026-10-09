@@ -10,7 +10,6 @@ tags: [queue, program/fork-hygiene]
 ## Filed on arrival — 2026-10-08 (lane opus-w1-hermes)
 
 - [ ] **The 2026-10-07 carried-PR sync (`7625cb7dad`, `fa2677be7b`) landed eight upstream files with no ledger row and no `carried_prs.json` entry; four are NON-ADDITIVE (`plugins/plugin_loader.py`, `tools/file_tools_read_tracking.py`, `tests/hermes_cli/test_auth_commands.py`, `tests/hermes_cli/test_worktree_sync_base.py`), three put fork tests inside upstream test files (`tests/agent/test_turn_context.py`, `test_uninstall_dry_run.py`, `tests/tools/test_windows_agent_loop_papercuts.py`), and `_posix_match_forms` now lives in both `tools/file_tools.py` and `tools/file_tools_paths.py`; it also grew 67 deleted lines in ledgered rows. Name each hunk's PR or make it additive / move the tests to `*_downstream.py`, and make the sync job write ledger rows and the fixture in the commit that lands them** · fork-hygiene / footprint · evidence: ledger rows marked `W1 2026-10-08`, fixture reason 176 -> 184 · UNCLAIMED
-- [ ] **W0-G6 `private_upstream_imports` is red on main: 2 NEW sites `tools/tool_search_downstream.py|tools.tool_search_catalog|_fn` and `|_registry_entry`** · fork / tool search seam · evidence: `tests/tooling/test_fork_import_layers.py::test_no_new_site[private_upstream_imports]` red on `e343adad39` (lane opus-w3-tool-form 2026-10-08) · lane: use a public door or declare the sites · UNCLAIMED
 
 ## Filed on arrival — 2026-10-08 GenUI qualification
 
