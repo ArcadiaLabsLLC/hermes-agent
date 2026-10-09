@@ -64,3 +64,29 @@ def test_inflight_heartbeat_cannot_emit_progress_after_real_finish(monkeypatch, 
     assert "segment.end" in types[:terminal]
     assert types.count("turn.end") == 1
     assert not any(kind in {"turn.progress", "tool.progress"} for kind in types[terminal + 1:])
+
+
+def test_an_emitter_dropped_without_finish_stops_its_heartbeat(monkeypatch):
+    """The owner bounds the beat: no ``finish`` call, and still no beat after teardown."""
+    import functools
+    import gc
+    from hermes_cli.harness_parts.persona import chat_events
+    frames = []
+    beat = threading.Event()
+    def emit(frame):
+        frames.append(frame)
+        if frame["type"] == "turn.progress":
+            beat.set()
+    monkeypatch.setattr(chat_events, "_emit_chat_frame", emit)
+    monkeypatch.setattr(chat_events, "ToolHeartbeat", functools.partial(ToolHeartbeat, interval=0.02))
+    emitter = chat_events._ChatProtocolV2Emitter(turn_id="dropped", client_message_id="dropped")
+    assert beat.wait(2), "the heartbeat never beat"
+    thread = emitter._heartbeat._thread
+    del emitter
+    gc.collect()
+    thread.join(2)
+    assert not thread.is_alive(), "a dropped emitter's heartbeat outlived it"
+    settled = len(frames)
+    time.sleep(0.1)
+    assert [f["type"] for f in frames[settled:]] == []
+    assert not any(f["type"] == "turn.end" for f in frames)  # finish() was never called
