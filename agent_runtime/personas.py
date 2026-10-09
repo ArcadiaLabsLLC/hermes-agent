@@ -233,6 +233,11 @@ class DeclarationIssueKind(StrEnum):
     #: ``toolsets.TOOLSETS``, not in the builtin manifest, not registered by a plugin.
     #: It resolves zero tools; the rest of the declaration resolves (ruling R4).
     UNKNOWN_TOOLSET = "unknown_toolset"
+    #: ``agent_runtime.personas.<id>.toolsets`` is set (ruling R2, 2026-10-08): the key
+    #: is refused — its value is dropped and admits nothing — and the refusal is this
+    #: row, never a raise out of the config read (a raise took the live snapshot
+    #: producer down on every rebuild, 2026-10-09). ``detail`` is the dotted key.
+    LEGACY_PERSONA_TOOLSETS_KEY = "persona_toolsets_key_refused"
 
 
 @dataclass(frozen=True)
@@ -256,6 +261,16 @@ class DeclarationIssue:
                 "of whatever that file declares."
             )
             fix_hint = "Fix or re-save the file; `hermes harness persona tool-diff <id>` re-reads it."
+        elif self.kind is DeclarationIssueKind.LEGACY_PERSONA_TOOLSETS_KEY:
+            summary = (
+                f"{self.detail} is no longer accepted and was ignored: the bound profile's "
+                "top-level toolsets: is the one declaration the harness lane reads."
+            )
+            fix_hint = (
+                f"Delete {self.detail} from {self.config_path or 'the config.yaml that carries it'} (the plugin's startup migration strips it "
+                "from every profiles/*/config.yaml); declare toolsets in the bound profile's "
+                "own config.yaml (top-level `toolsets:`)."
+            )
         else:
             summary = (
                 f"Declared toolset '{self.detail}' is not a known toolset (not built in, not "

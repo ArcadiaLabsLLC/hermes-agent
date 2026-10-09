@@ -100,6 +100,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
             DeclarationIssue(DeclarationIssueKind.UNKNOWN_TOOLSET, name, config_path)
             for name in unknown
         )
+        issues += _legacy_persona_toolsets_issues(persona)
         return ToolsetDeclaration(
             toolsets=toolsets,
             declared=declared,
@@ -173,6 +174,31 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
 
 
 _UNREAD = object()
+
+
+def _legacy_persona_toolsets_issues(persona: AgentPersona) -> tuple[DeclarationIssue, ...]:
+    """The ruling-R2 refusal row when the config the catalog reads carries
+    ``agent_runtime.personas.<id>.toolsets`` — the row ``tool-diff`` and the HUD
+    print. Best-effort: a read fault here is the catalog's to report, not this one's."""
+
+    try:
+        from hermes_constants import get_config_path
+
+        from .config.persona_records import legacy_persona_toolsets_issues
+        from .parse_cache import cached_yaml_file
+
+        path = get_config_path()
+        loaded = cached_yaml_file(path, default=None)
+        runtime = loaded.get("agent_runtime") if isinstance(loaded, dict) else None
+        personas = runtime.get("personas") if isinstance(runtime, dict) else None
+        if not isinstance(personas, dict):
+            return ()
+        return legacy_persona_toolsets_issues(
+            personas, persona_id=str(getattr(persona, "id", "") or ""), config_path=str(path)
+        )
+    except Exception as exc:  # a declaration read must never break a turn
+        _LOGGER.debug("legacy persona toolsets scan skipped: %s", type(exc).__name__)
+        return ()
 
 
 def _read_config_or_raise(path) -> object:
