@@ -189,7 +189,7 @@ def test_the_bundle_carries_the_list_in_the_tool_contract(monkeypatch):
     monkeypatch.setattr(CLB, "chat_lane_defer_tools", lambda persona_id: ["memory", "delegate_task"])
     CLB.invalidate_chat_lane_bundles()
     persona = AgentPersona(id="neko_supervisor", display_name="Neko", role="supervisor", model=None,
-                           provider=None, api_mode="codex_responses", toolsets=["skills"],
+                           provider=None, api_mode="codex_responses", 
                            system_prompt_path="personas/neko/system.md")
     bundle = CLB.chat_lane_bundle(persona, session_id="chat-defer")
     assert bundle.defer_tools == ("delegate_task", "memory")

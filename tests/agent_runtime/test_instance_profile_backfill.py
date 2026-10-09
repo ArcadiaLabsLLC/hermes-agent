@@ -60,7 +60,6 @@ def _write_persona(_root, persona_id: str, profile: str | None):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=profile,
     )

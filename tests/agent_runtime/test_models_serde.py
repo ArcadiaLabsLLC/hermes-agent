@@ -22,7 +22,6 @@ def test_all_stage_one_models_round_trip():
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=["file"],
             system_prompt_path="personas/pm/system.md",
         ),
         AgentRun(
@@ -70,6 +69,9 @@ def test_agent_persona_legacy_json_defaults_new_stage9_fields():
     persona = from_jsonable(AgentPersona, raw)
 
     assert persona.hermes_profile is None
+    # A pre-2026-10-08 row still carrying the deleted persona-level list loads
+    # without it (serde keeps declared fields only).
+    assert not hasattr(persona, "toolsets")
     assert persona.skills == []
     assert persona.soul_overlay_path is None
     assert persona.required_mcp_servers == []

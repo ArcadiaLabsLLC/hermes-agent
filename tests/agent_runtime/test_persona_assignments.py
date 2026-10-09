@@ -103,7 +103,6 @@ def _persona(persona_id: str = "dev", *, role: str = "dev") -> AgentPersona:
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal"],
         system_prompt_path="agent_runtime/prompts/dev.md",
         hermes_profile=f"profile-{persona_id}",
     )
@@ -1378,7 +1377,6 @@ def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_c
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="agent_runtime/prompts/qa.md",
         hermes_profile="profile-qa",
     )
@@ -3918,7 +3916,6 @@ def test_profile_persona_resolution_does_not_borrow_role_skills(monkeypatch, iso
         "model": "gpt-5.5",
         "api_mode": "codex_responses",
         "skills": ["harness-mission-lead", "systematic-debugging"],
-        "toolsets": ["terminal", "code_execution", "browser", "mission_goal"],
     }
 
     persona = chat_target._persona_by_id(cfg, "profile:alice")
@@ -3930,44 +3927,44 @@ def test_profile_persona_resolution_does_not_borrow_role_skills(monkeypatch, iso
     assert persona.skills == []
     assert persona.model == "gpt-default"
     assert persona.provider == "openai-codex"
-    assert persona.toolsets == []
+    assert not hasattr(persona, "toolsets")
 
 
 def test_profile_persona_resolution_prefers_exact_id_over_profile_owner(
     monkeypatch, isolate_agent_runtime_root
 ):
-    from agent_runtime.personas import profile_chat_toolsets
+    from agent_runtime.personas import PROFILE_CHAT_TOOLSET_MATCHED_EXACT, profile_persona_resolution
 
     exact = _persona("profile:shared")
     exact.hermes_profile = "different"
-    exact.toolsets = ["file"]
     owner = _persona("profile_owner")
     owner.hermes_profile = "shared"
-    owner.toolsets = ["terminal"]
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [owner, exact])
 
     assert chat_target._persona_by_id(_assignment_config(), "profile:shared") is exact
-    assert profile_chat_toolsets("shared", [owner, exact]) == ["file"]
+    matched, reason, _ = profile_persona_resolution("shared", [owner, exact])
+    assert matched is exact
+    assert reason == PROFILE_CHAT_TOOLSET_MATCHED_EXACT
 
 
 def test_ambiguous_profile_owners_do_not_supply_arbitrary_defaults(
     monkeypatch, isolate_agent_runtime_root
 ):
-    from agent_runtime.personas import profile_chat_toolsets
+    from agent_runtime.personas import PROFILE_CHAT_TOOLSET_AMBIGUOUS, profile_persona_resolution
 
     first = _persona("first")
     first.hermes_profile = "shared"
-    first.toolsets = ["file"]
     second = _persona("second")
     second.hermes_profile = "shared"
-    second.toolsets = ["terminal"]
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [first, second])
 
     resolved = chat_target._persona_by_id(_assignment_config(), "profile:shared")
     assert resolved is not None
     assert resolved.id == "profile:shared"
-    assert resolved.toolsets == []
-    assert profile_chat_toolsets("shared", [first, second]) == []
+    matched, reason, candidates = profile_persona_resolution("shared", [first, second])
+    assert matched is None
+    assert reason == PROFILE_CHAT_TOOLSET_AMBIGUOUS
+    assert set(candidates) == {"first", "second"}
 
 
 def test_profile_prompt_observability_uses_profile_skills_and_chat_title(
@@ -4004,7 +4001,6 @@ def test_profile_prompt_observability_uses_profile_skills_and_chat_title(
             model="gpt-test",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "skills"],
             system_prompt_path="",
             hermes_profile="alice",
             skills=[],
@@ -4060,7 +4056,6 @@ def test_prompt_observability_reports_used_skill_from_skill_view_trace(
             model="gpt-test",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "skills"],
             system_prompt_path="",
             hermes_profile="alice",
             skills=[],
@@ -4152,7 +4147,6 @@ def test_prompt_observability_refreshes_stale_derived_fields(
             model="gpt-test",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "skills"],
             system_prompt_path="",
             hermes_profile="alice",
             skills=[],
@@ -4258,7 +4252,6 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
             model="gpt-test",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "skills"],
             system_prompt_path="",
             hermes_profile="alice",
             skills=["harness-runtime-model"],
@@ -4507,7 +4500,6 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
         model="gpt-custom",
         provider="custom-provider",
         api_mode="chat_completions",
-        toolsets=["search"],
         system_prompt_path="SOUL.md",
         hermes_profile="researcher",
     )
@@ -4526,7 +4518,7 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
     assert persona.id == "profile:researcher"
     assert persona.display_name == "Raw Profile Chat"
     assert persona.role == "evidence_synthesist"
-    assert persona.toolsets == ["search"]
+    assert persona.hermes_profile == "researcher"
 
 
 def test_task_store_cancel_closes_persona_assignments():

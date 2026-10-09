@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ..errors import LegacyPersonaToolsetsRefused
 from ..personas import PROFILE_ROLE_SENTINEL, validate_toolsets
 from ..serde import positive_float, positive_int
 from .loader import load_agent_runtime_config
@@ -49,6 +50,7 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
         persona_id = str(pid or "").strip()
         if not persona_id or not isinstance(overrides, dict):
             continue
+        _refuse_legacy_toolsets_key(persona_id, overrides)
         if persona_id not in personas:
             role = str(overrides.get("role") or PROFILE_ROLE_SENTINEL)
             personas[persona_id] = _persona_from_overrides(persona_id, role, overrides, cfg)
@@ -83,25 +85,21 @@ def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
             p.skills = [skill_id for skill_id in merged if skill_id not in removals]
         if "required_mcp_servers" in overrides:
             p.required_mcp_servers = _string_list(overrides["required_mcp_servers"])
-        if "toolsets" in overrides:
-            # STILL READ, deliberately (S0a A2): deleting the reader would make a
-            # config that carries the key silently identical to one that never
-            # did, and the realm-sync body would keep shipping a list nothing in
-            # the runtime could even show. What changed is that the field admits
-            # nothing — the harness lane reads the PROFILE's declaration
-            # (``persona_profiles.declared_lane_toolsets``) — so a non-empty list is
-            # announced once per load and reported in every projection as
-            # ``toolset_declaration.persona_list``, never obeyed.
-            p.toolsets = validate_toolsets(list(overrides["toolsets"]))
-            if p.toolsets:
-                logger.info(
-                    "agent_runtime.personas.%s.toolsets is legacy and admits nothing "
-                    "(S0a atlas cleanup): %s. The harness lane reads the bound "
-                    "profile's top-level toolsets: key; delete this list.",
-                    persona_id,
-                    ", ".join(p.toolsets),
-                )
     return list(personas.values())
+
+
+def _refuse_legacy_toolsets_key(persona_id: str, overrides: dict[str, Any]) -> None:
+    """Refuse ``agent_runtime.personas.<id>.toolsets`` (ruling R2, 2026-10-08).
+
+    The key admitted nothing since S0a A1 and ``AgentPersona.toolsets`` is gone.
+    Ignoring it would make a config that carries it silently identical to one
+    that never did, which is how an operator keeps editing a list that does
+    nothing — so it is a typed refusal naming the one declaration."""
+
+    if "toolsets" in overrides:
+        raw = overrides.get("toolsets")
+        listed = validate_toolsets(list(raw)) if isinstance(raw, (list, tuple)) else [str(raw)]
+        raise LegacyPersonaToolsetsRefused(persona_id, listed)
 
 
 def skill_sources_for(stored, cfg: AgentRuntimeConfig) -> dict[str, dict[str, Any]]:
@@ -159,7 +157,6 @@ def _persona_from_overrides(persona_id: str, role: str, overrides: dict[str, Any
         model=overrides.get("model") or cfg.default_model,
         provider=overrides.get("provider") or cfg.default_provider,
         api_mode=overrides.get("api_mode") or cfg.default_api_mode,
-        toolsets=validate_toolsets(list(overrides.get("toolsets") or [])),
         system_prompt_path=str(overrides.get("system_prompt_path") or ""),
         include_core_context_files=bool(overrides.get("include_core_context_files", False)),
     )

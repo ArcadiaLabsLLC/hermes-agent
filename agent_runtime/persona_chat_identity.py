@@ -45,7 +45,6 @@ PERSONA_IDENTITY_FIELDS: tuple[str, ...] = (
     "skills",
     "soul_overlay_path",
     "system_prompt_path",
-    "toolsets",
 )
 
 INSTANCE_IDENTITY_FIELDS: tuple[str, ...] = (

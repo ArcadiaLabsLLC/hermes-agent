@@ -25,7 +25,6 @@ from .personas import (
     DeclarationIssue,
     DeclarationIssueKind,
     ToolsetDeclaration,
-    profile_chat_toolsets,
     validate_toolsets,
 )
 
@@ -84,12 +83,6 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
 
     from agent_runtime.toolset_names import expand_toolset_names, unknown_toolset_names
 
-    persona_list = tuple(
-        str(name).strip()
-        for name in (getattr(persona, "toolsets", None) or ())
-        if str(name or "").strip()
-    )
-
     def _resolved(
         declared: tuple[str, ...],
         source: str,
@@ -113,7 +106,6 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
             source=source,
             profile=profile,
             config_path=config_path,
-            persona_list=persona_list,
             issues=issues,
             unknown=unknown,
         )
@@ -199,8 +191,8 @@ def effective_toolsets(persona: AgentPersona) -> list[str]:
     (:func:`declared_lane_toolsets`), expanded to member toolset names. Every
     existing caller — the chat chokepoint's bounded branch, the visibility
     preview, the snapshot agents drawer, the worker/dev task lanes — follows
-    from here, which is what retires ``AgentPersona.toolsets`` as an admission
-    input in one place rather than five.
+    from here — the one place the persona-level list was retired as an admission
+    input (the field itself was deleted 2026-10-08).
     """
 
     return list(declared_lane_toolsets(persona).toolsets)
@@ -267,7 +259,6 @@ def promote_profile_to_persona(
             display_name=f"{profile_name} ({slot_role})",
             hermes_profile=profile_name,
             skills=list(template.skills),
-            toolsets=list(template.toolsets),
             required_mcp_servers=list(template.required_mcp_servers),
             readiness={},
         )
@@ -284,13 +275,8 @@ def promote_profile_to_persona(
             model=cfg.default_model,
             provider=cfg.default_provider,
             api_mode=cfg.default_api_mode,
-            # S66 BUGFIX: this called ``profile_chat_toolsets(profile_name)``
-            # with no persona list, so ``declared`` was always ``[]`` and the
-            # promoted persona was ALWAYS minted with zero toolsets — reachable
-            # live through ``POST /api/plugins/eternia-harness/profiles/{name}/promote``. The declared
-            # set is right here: ``known`` is the merged persona map this
-            # function already built two branches up to look for a template.
-            toolsets=profile_chat_toolsets(profile_name, list(known.values())),
+            # No ``toolsets=``: the minted persona's capability is its bound
+            # profile's own ``toolsets:`` (``declared_lane_toolsets``).
             system_prompt_path="",
             autonomy=AutonomyLevel.PROPOSE_ONLY.value,
             hermes_profile=profile_name,

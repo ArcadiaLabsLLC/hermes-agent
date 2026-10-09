@@ -34,7 +34,6 @@ class TestDeleteProfile:
                 model=None,
                 provider=None,
                 api_mode=None,
-                toolsets=[],
                 system_prompt_path="personas/dev/system.md",
                 hermes_profile="coder",
             )
@@ -62,7 +61,7 @@ class TestDeleteProfile:
             store.save(
                 AgentPersona(
                     id=pid, display_name=pid, role="dev", model=None, provider=None,
-                    api_mode=None, toolsets=[], system_prompt_path="personas/dev/system.md",
+                    api_mode=None, system_prompt_path="personas/dev/system.md",
                     hermes_profile=profile,
                 )
             )

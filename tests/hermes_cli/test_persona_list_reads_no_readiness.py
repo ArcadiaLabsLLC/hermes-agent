@@ -83,12 +83,12 @@ def roster_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     personas = [
         AgentPersona(id="widget", display_name="Widget Agent", role="dev", model=None, provider=None,
-                     api_mode="codex_responses", toolsets=["file"], system_prompt_path="", hermes_profile="alpha"),
+                     api_mode="codex_responses", system_prompt_path="", hermes_profile="alpha"),
         AgentPersona(id="gadget", display_name="Gadget Agent", role="qa", model="gpt-5.4", provider="openai-codex",
-                     api_mode="codex_responses", toolsets=["file", "web"], system_prompt_path="",
+                     api_mode="codex_responses", system_prompt_path="",
                      hermes_profile="beta"),
         AgentPersona(id="sprocket", display_name="Sprocket", role="dev", model=None, provider=None,
-                     api_mode="codex_responses", toolsets=[], system_prompt_path="", hermes_profile="alpha",
+                     api_mode="codex_responses", system_prompt_path="", hermes_profile="alpha",
                      skills=["plan"]),
     ]
     store = AgentStore()

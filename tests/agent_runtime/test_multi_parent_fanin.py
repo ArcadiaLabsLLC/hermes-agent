@@ -34,7 +34,6 @@ def _persona(persona_id: str = "dev") -> AgentPersona:
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal"],
         system_prompt_path="agent_runtime/prompts/dev.md",
         hermes_profile=f"profile-{persona_id}",
     )

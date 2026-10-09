@@ -67,7 +67,6 @@ def _profile_persona_from_instance(instance: Any) -> Any | None:
         api_mode=None,
         hermes_profile=profile,
         skills=[],
-        toolsets=["file", "search", "session_search", "todo", "skills"],
         system_prompt_path="",
     )
 

@@ -161,7 +161,6 @@ def test_publish_and_pull_agree_on_every_destination(homes, tmp_path, monkeypatc
             model="",
             provider="",
             api_mode="",
-            toolsets=[],
             system_prompt_path="",
             include_profile_memory=True,
             include_core_context_files=True,
@@ -444,7 +443,6 @@ def test_publish_tail_is_the_destination_so_a_prompt_round_trips(homes, tmp_path
         model="",
         provider="",
         api_mode="",
-        toolsets=[],
         system_prompt_path="",
         soul_overlay_path="personas/neko/SOUL.md",
     )

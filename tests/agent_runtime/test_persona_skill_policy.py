@@ -24,7 +24,6 @@ def _persona(**overrides) -> AgentPersona:
         "model": None,
         "provider": None,
         "api_mode": "codex_responses",
-        "toolsets": ["file", "search", "terminal", "skills"],
         "system_prompt_path": "personas/dev/system.md",
         "skills": ["aaa-feature-delivery", "test-driven-development"],
     }

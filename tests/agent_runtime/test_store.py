@@ -92,7 +92,6 @@ def test_agent_store_save_get_and_list():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/pm/system.md",
     )
     store = AgentStore()

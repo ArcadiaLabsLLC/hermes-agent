@@ -233,7 +233,6 @@ def _chat_persona():
         model="gpt-5.5",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="",
         hermes_profile=None,
     )

@@ -49,7 +49,7 @@ HARNESS_CORE_MEMBERS = [
 ]
 
 
-def _persona(profile: str | None = "gpt-launcher", *, toolsets=None) -> AgentPersona:
+def _persona(profile: str | None = "gpt-launcher") -> AgentPersona:
     return AgentPersona(
         id="dev",
         display_name="Launcher Dev Agent",
@@ -57,7 +57,6 @@ def _persona(profile: str | None = "gpt-launcher", *, toolsets=None) -> AgentPer
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=list(toolsets if toolsets is not None else ["file", "terminal"]),
         system_prompt_path="",
         hermes_profile=profile,
     )
@@ -268,37 +267,19 @@ def test_a_persona_with_no_bound_profile_resolves_the_lane_default():
     assert declared_lane_toolsets(persona).source == TOOLSET_SOURCE_PROFILE_UNRESOLVED
 
 
-# ── the persona field is inert (R-S0a-3) ─────────────────────────────────────
+# ── the declaration is the only list (R-S0a-3; field deleted 2026-10-08) ─────
 
 
-def test_effective_toolsets_ignores_the_persona_level_list(profile_config):
-    """The one authority, asserted at the seam every caller goes through.
-
-    A persona whose field says ``["kanban"]`` — the exact class of stale row the
-    operator's store carries — still resolves the profile's declaration, and the
-    stale list is reported beside it rather than obeyed.
-    """
-
-    persona = profile_config("agent:\n  model: gpt-5.5\n")
-    persona.toolsets = ["kanban", "messaging"]
-
-    declaration = declared_lane_toolsets(persona)
-
-    assert effective_toolsets(persona) == HARNESS_CORE_MEMBERS
-    assert "kanban" not in effective_toolsets(persona)
-    assert declaration.persona_list == ("kanban", "messaging")
-
-
-def test_the_wire_row_carries_declaration_and_the_legacy_list(profile_config):
+def test_the_wire_row_carries_the_declaration_and_no_legacy_list(profile_config):
     persona = profile_config("toolsets:\n  - harness_core\n")
-    persona.toolsets = ["kanban"]
 
     row = declared_lane_toolsets(persona).row()
 
     assert row["declared"] == ["harness_core"]
     assert row["source"] == TOOLSET_SOURCE_PROFILE_CONFIG
-    assert row["persona_list"] == ["kanban"]
+    assert "persona_list" not in row
     assert row["toolsets"] == HARNESS_CORE_MEMBERS
+    assert effective_toolsets(persona) == HARNESS_CORE_MEMBERS
     assert row["profile"] == "gpt-launcher"
 
 
@@ -321,7 +302,7 @@ def test_the_declaration_read_never_imports_model_tools(tmp_path):
         "from agent_runtime.models import AgentPersona\n"
         "from agent_runtime.persona_profiles import declared_lane_toolsets\n"
         "persona = AgentPersona(id='dev', display_name='dev', role='dev', model=None,\n"
-        "    provider=None, api_mode='codex_responses', toolsets=['file'],\n"
+        "    provider=None, api_mode='codex_responses',\n"
         "    system_prompt_path='', hermes_profile='gpt-launcher')\n"
         "declaration = declared_lane_toolsets(persona)\n"
         "assert len(declaration.toolsets) == 15, declaration\n"

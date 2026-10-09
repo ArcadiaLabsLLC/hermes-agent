@@ -74,7 +74,6 @@ def _persona(persona_id: str = "dev") -> AgentPersona:
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal", "skills"],
         system_prompt_path="personas/dev/system.md",
     )
 
@@ -583,13 +582,14 @@ def test_two_chat_roots_of_one_persona_do_not_share_a_bundle():
 
 
 def test_a_persona_edit_rebuilds_the_bundle():
-    """The persona revision covers its declared toolsets, skills, profile and
-    MCP declaration — every persona field the resolution reads."""
+    """The persona revision covers its skills, profile and MCP declaration —
+    every persona field the resolution reads. (It used to edit the persona-level
+    ``toolsets`` list, deleted 2026-10-08; the declaration is the profile's.)"""
 
     persona = _persona()
     first = CLB.chat_lane_bundle(persona, session_id="chat-persona")
     edited = _persona()
-    edited.toolsets = ["search"]
+    edited.required_mcp_servers = ["launcher_qa"]
     second = CLB.chat_lane_bundle(edited, session_id="chat-persona")
     assert second is not first
     assert second.key != first.key

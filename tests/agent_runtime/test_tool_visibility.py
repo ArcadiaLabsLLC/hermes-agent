@@ -181,7 +181,6 @@ def test_profile_chat_keeps_persona_safety_blocks():
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal", "todo", "mission_goal"],
         system_prompt_path="",
     )
 

@@ -272,7 +272,6 @@ def resolve_tool_visibility(
     resolved_toolsets = _resolved_toolsets(persona, opts, unbounded=unbounded)
     configured_toolsets = list(opts.configured_toolsets or resolved_toolsets)
     role_allowed_toolsets = list(resolved_toolsets)
-    persona_toolsets = list(getattr(persona, "toolsets", []) or [])
     declaration = declared_lane_toolsets(persona)
     # Registry hygiene NEVER yields to a permission mode: ``profile_runner``
     # unions ``REGISTRY_HYGIENE_BLOCKED_TOOLS`` at agent construction on EVERY
@@ -349,14 +348,6 @@ def resolve_tool_visibility(
         "workdir": str(opts.workdir) if opts.workdir is not None else None,
         "runtime_root": str(opts.runtime_root) if opts.runtime_root is not None else None,
         "profile_toolsets": resolved_toolsets,
-        # LEGACY DISPLAY, not an admission input (S0a R-S0a-3). The per-persona
-        # list is read by nothing on the harness lane since A1; it is reported
-        # here, and inside ``toolset_declaration.persona_list``, so a divergence
-        # from the profile's declaration is VISIBLE rather than obeyed. The
-        # follow-up row deletes the field from the model (store schema, realm
-        # sync, launcher card) — this stage makes it inert.
-        "persona_toolsets": persona_toolsets,
-        "persona_toolsets_in_force": False,
         "toolset_declaration": declaration.row(),
         "configured_toolsets": configured_toolsets,
         "effective_toolsets": resolved_toolsets,
@@ -631,7 +622,6 @@ def _cached_profile_readiness_for_visibility(
         provider=provider or None,
         model=model or None,
         api_mode=api_mode,
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=hermes_profile or None,
         skills=list(skills),

@@ -62,7 +62,6 @@ def _store_dev(model: str = "sol") -> AgentPersona:
             model=model,
             provider="openai",
             api_mode="chat_completions",
-            toolsets=[],
         )
     )
 

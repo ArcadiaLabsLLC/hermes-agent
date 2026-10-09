@@ -46,7 +46,6 @@ def _seed_store_persona(persona_id: str, skills: list[str]):
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=None,
         skills=list(skills),

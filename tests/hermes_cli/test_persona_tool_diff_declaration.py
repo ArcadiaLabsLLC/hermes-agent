@@ -55,7 +55,7 @@ def bound_profile_home():
     return home
 
 
-def _seed_persona(persona_id: str = "dev", *, toolsets: list[str] | None = None):
+def _seed_persona(persona_id: str = "dev"):
     from agent_runtime.models import AgentPersona
     from agent_runtime.store import AgentStore
 
@@ -66,7 +66,6 @@ def _seed_persona(persona_id: str = "dev", *, toolsets: list[str] | None = None)
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=list(toolsets if toolsets is not None else ["kanban", "messaging"]),
         system_prompt_path="",
         hermes_profile="gpt-launcher",
     )
@@ -87,7 +86,7 @@ def _tool_diff(persona_id: str, *flags: str) -> int:
     return _dispatch(["harness", "persona", "tool-diff", persona_id, *flags])
 
 
-def test_the_json_row_carries_the_declaration_and_marks_the_legacy_list_inert(
+def test_the_json_row_carries_the_declaration_and_no_legacy_list(
     bound_profile_home, capsys
 ):
     _seed_persona()
@@ -98,17 +97,15 @@ def test_the_json_row_carries_the_declaration_and_marks_the_legacy_list_inert(
     declaration = payload["toolset_declaration"]
     assert declaration["declared"] == ["harness_core"]
     assert declaration["source"] in {"lane_default", "profile_config"}
-    # The stale store list travels — labelled, in one object, beside what is
-    # actually in force. Visible, not obeyed.
-    assert declaration["persona_list"] == ["kanban", "messaging"]
-    assert payload["persona_toolsets"] == ["kanban", "messaging"]
-    assert payload["persona_toolsets_in_force"] is False
-    # ... and none of it reached the resolved set.
-    assert "kanban" not in payload["effective_toolsets"]
+    # The persona-level list was deleted 2026-10-08 (tool-visibility split,
+    # slice 1): the wire row carries the declaration and nothing beside it.
+    assert "persona_list" not in declaration
+    assert "persona_toolsets" not in payload
+    assert "persona_toolsets_in_force" not in payload
     assert payload["effective_toolsets"] == declaration["toolsets"]
 
 
-def test_the_text_mode_names_the_source_and_the_ignored_list(
+def test_the_text_mode_names_the_source(
     bound_profile_home, capsys
 ):
     """The operator's actual read. Without these two lines the only observable
@@ -126,22 +123,6 @@ def test_the_text_mode_names_the_source_and_the_ignored_list(
     # to make a red go green. 44 -> 45: HQ1 (``8767fbf7a1``) added ``harness_query``
     # to ``agent_chat``; the same ratchet reads DECLARED_TOOL_COUNT = 45.
     assert "dev: 45 tools" in out
-    assert "toolsets: harness_core (" in out
-    assert "persona-level toolsets list ignored (legacy" in out
-    assert "kanban" in out
-
-
-def test_a_persona_with_no_legacy_list_prints_no_ignore_line(
-    bound_profile_home, capsys
-):
-    """ANTI-VACUITY for the line above: it is conditional on a real divergence,
-    not printed for every persona."""
-
-    _seed_persona(toolsets=[])
-
-    assert _tool_diff("dev") == 0
-    out = capsys.readouterr().out
-
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored" not in out
 
@@ -169,7 +150,7 @@ def test_an_unknown_declared_toolset_prints_as_a_requirement_failure(
     from agent_runtime.parse_cache import clear_parse_cache
 
     clear_parse_cache()
-    _seed_persona(toolsets=[])
+    _seed_persona()
 
     assert _tool_diff("dev") == 0
     out = capsys.readouterr().out

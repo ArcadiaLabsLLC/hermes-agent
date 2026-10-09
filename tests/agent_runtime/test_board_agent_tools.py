@@ -56,7 +56,6 @@ def _chat_persona(role: str = "dev"):
         model=None,
         provider=None,
         api_mode="chat",
-        toolsets=["search"],
         system_prompt_path=None,
     )
 

@@ -269,6 +269,33 @@ class SkillTombstoneRefused(AgentRuntimeError):
         self.safe_details = dict(safe_details or {})
 
 
+class LegacyPersonaToolsetsRefused(AgentRuntimeError):
+    """Raised at config load for an ``agent_runtime.personas.<id>.toolsets`` key.
+
+    The persona-level list admitted nothing since S0a A1 and the field is gone
+    from ``AgentPersona`` (2026-10-08, ruling R2 of the tool-visibility split):
+    the bound profile's top-level ``toolsets:`` is the ONE declaration. A config
+    still carrying the key is refused rather than ignored, so nobody keeps
+    editing a list that does nothing. Same ``code`` + ``safe_details`` shape as
+    :class:`SkillTombstoneRefused`.
+    """
+
+    code = "persona_toolsets_key_refused"
+
+    def __init__(self, persona_id: str, toolsets: list[str]):
+        self.persona_id = persona_id
+        self.safe_details = {"persona_id": persona_id, "key": f"agent_runtime.personas.{persona_id}.toolsets"}
+        self.fix_hint = (
+            f"Delete agent_runtime.personas.{persona_id}.toolsets from the root config.yaml; declare "
+            "toolsets in the bound profile's own config.yaml (top-level `toolsets:`), which is the "
+            "one declaration the harness lane reads."
+        )
+        listed = ", ".join(toolsets) or "(empty)"
+        super().__init__(
+            f"agent_runtime.personas.{persona_id}.toolsets is no longer accepted ({listed}). {self.fix_hint}"
+        )
+
+
 class WorkspaceUnresolved(AgentRuntimeError):
     """Raised when an office write would AUTHOR a surface for an unresolvable id.
 

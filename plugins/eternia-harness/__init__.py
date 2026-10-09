@@ -351,6 +351,17 @@ def migrate_retired_local_llama_id() -> None:
         logging.getLogger(__name__).warning("local llama retired-id migration failed", exc_info=True)
 
 
+def migrate_legacy_persona_toolsets() -> None:
+    """Ruling R2 (tool-visibility split, 2026-10-08): strip the deleted persona-level
+    ``toolsets`` key from store rows once per store (a marker makes it one-shot)."""
+    try:
+        from agent_runtime.persona_toolsets_migration import migrate_legacy_persona_toolsets_once
+
+        migrate_legacy_persona_toolsets_once()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
+
+
 def register(ctx) -> None:
     from agent_runtime.provider_access import SharedProviderAccess
 
@@ -361,6 +372,7 @@ def register(ctx) -> None:
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
     migrate_retired_local_llama_id()
+    migrate_legacy_persona_toolsets()
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset

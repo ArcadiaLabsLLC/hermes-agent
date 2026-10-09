@@ -119,7 +119,6 @@ PERSONA_DEF_ALLOWED_KEYS: frozenset[str] = frozenset(
         "skills_remove",
         "soul_overlay_path",
         "system_prompt_path",
-        "toolsets",
     }
 )
 

@@ -332,7 +332,6 @@ def _readiness_for_config(tmp_path, monkeypatch, config_yaml: str, *, required: 
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=["file"],
             system_prompt_path="personas/qa/system.md",
             hermes_profile="qa",
             skills=[],

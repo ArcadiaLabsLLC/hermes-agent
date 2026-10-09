@@ -180,7 +180,6 @@ def _seed(monkeypatch, provider):
             model="gpt-test",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "search", "terminal"],
             system_prompt_path="agent_runtime/prompts/dev.md",
             hermes_profile="profile-dev",
         )

@@ -183,7 +183,6 @@ def seeded_store(isolate_agent_runtime_root):
                 model=None,
                 provider=None,
                 api_mode=None,
-                toolsets=[],
                 system_prompt_path="",
                 skills=names[index * 10 : index * 10 + 10],
             )

@@ -1973,7 +1973,6 @@ def _named_instance():
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
         )
     )

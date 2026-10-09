@@ -43,7 +43,6 @@ def _qa_persona(**overrides) -> AgentPersona:
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="qa",
         skills=[],

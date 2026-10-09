@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from enum import StrEnum
 
 from .models import AgentPersona
 
 __layer__ = "models"
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class AgentRole(StrEnum):
@@ -203,9 +200,9 @@ def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> li
 # config, store row, realm-sync body) were consulted by nobody.
 #
 # Now the profile's top-level ``toolsets:`` IS the declaration, and this module
-# is the one reader. The persona-level ``AgentPersona.toolsets`` field is legacy
-# display (R-S0a-3): it is reported as ``persona_list`` in the projections and
-# admits nothing.
+# is the one reader. The persona-level ``AgentPersona.toolsets`` field that
+# survived as legacy display (R-S0a-3) was deleted 2026-10-08 (tool-visibility
+# split, slice 1): config refuses the key, a store migration strips it.
 
 #: What the harness lane resolves for a profile that declares nothing of its own.
 HARNESS_LANE_DEFAULT_TOOLSETS: tuple[str, ...] = ("harness_core",)
@@ -293,9 +290,6 @@ class ToolsetDeclaration:
     source: str
     profile: str | None = None
     config_path: str | None = None
-    #: The legacy per-persona list, verbatim, for VISIBILITY only (A2). Never an
-    #: admission input — a divergence from ``declared`` is reported, not obeyed.
-    persona_list: tuple[str, ...] = ()
     #: Typed issues the resolution hit (a read fault, an unknown name). Empty on
     #: a clean read — the positive control the issue rows are tested against.
     issues: tuple[DeclarationIssue, ...] = ()
@@ -309,7 +303,6 @@ class ToolsetDeclaration:
             "source": self.source,
             "profile": self.profile,
             "config_path": self.config_path,
-            "persona_list": list(self.persona_list),
             "issues": [issue.row() for issue in self.issues],
             "unknown": list(self.unknown),
         }
@@ -362,49 +355,6 @@ def profile_persona_resolution(
     if len(profile_matches) > 1:
         return None, PROFILE_CHAT_TOOLSET_AMBIGUOUS, candidates
     return None, PROFILE_CHAT_TOOLSET_NO_MATCH, candidates
-
-
-def profile_chat_toolset_resolution(
-    profile_id: str,
-    personas: list[AgentPersona] | tuple[AgentPersona, ...] | None = None,
-) -> tuple[list[str], str, tuple[str, ...]]:
-    """``(toolsets, reason, candidate_persona_ids)`` for a profile-backed chat.
-
-    Universal chat capabilities are added later by the chat runtime. Ambiguous
-    ownership remains fail-closed (S64's ruling).
-
-    S66 split the reason out. The fail-closed arms are UNCHANGED and still
-    fail closed; what changed is that they are no longer silent. An ambiguous
-    shared profile used to return ``[]`` indistinguishable from "this profile
-    has no persona at all", so an operator staring at a toolless chat had no
-    way to tell a misconfiguration from a deliberate denial.
-    """
-
-    matching, reason, candidates = profile_persona_resolution(profile_id, personas)
-    toolsets = list(getattr(matching, "toolsets", []) or []) if matching is not None else []
-    return [toolset for toolset in toolsets if toolset], reason, candidates
-
-
-def profile_chat_toolsets(profile_id: str, personas: list[AgentPersona] | tuple[AgentPersona, ...] | None = None) -> list[str]:
-    """The toolsets half of :func:`profile_chat_toolset_resolution`.
-
-    Emits an operator-visible warning on the ambiguous arm: inheriting nothing
-    because two personas share the profile is a CONFIGURATION defect, not a
-    normal state, and it must not read as an ordinary empty list.
-    """
-
-    toolsets, reason, candidates = profile_chat_toolset_resolution(profile_id, personas)
-    if reason == PROFILE_CHAT_TOOLSET_AMBIGUOUS:
-        _LOGGER.warning(
-            "profile_chat_toolsets: profile %r is claimed by %d personas (%s); "
-            "inheriting NO toolsets (fail-closed). Give the chat persona an "
-            "exact persona id, or leave exactly one persona bound to this "
-            "profile.",
-            profile_id,
-            len(candidates),
-            ", ".join(candidates),
-        )
-    return toolsets
 
 
 def all_registered_toolsets() -> list[str]:

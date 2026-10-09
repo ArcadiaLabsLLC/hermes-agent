@@ -82,7 +82,6 @@ def test_agent_store_save_emits_persona_updated():
             model="m",
             provider="p",
             api_mode="codex_responses",
-            toolsets=[],
             system_prompt_path="dev.md",
         )
     )

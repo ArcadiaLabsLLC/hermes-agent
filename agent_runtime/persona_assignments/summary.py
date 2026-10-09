@@ -14,7 +14,6 @@ from agent_runtime.models import AgentPersona, PersonaAssignment, PersonaInstanc
 from agent_runtime.persona_assignments.identity import _display_name_for_template
 from agent_runtime.persona_assignments.profile import _model_supports_reasoning_effort
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
-from agent_runtime.personas import profile_chat_toolsets
 from agent_runtime.serde import safe_assignment_token
 from agent_runtime.states import ACTIVE_LANE_STATES
 from agent_runtime.tool_permissions import (
@@ -150,8 +149,7 @@ def persona_instance_summary(
         # The DECLARED lane toolsets (S0a A2), not the persona's legacy field:
         # the field is read by no admission path since A1, so projecting it here
         # made the launcher's instance summary describe a capability set no turn
-        # ever ran with. The legacy list travels beside it, labelled, inside
-        # ``toolset_declaration.persona_list``.
+        # ever ran with. (The legacy field itself was deleted 2026-10-08.)
         "toolsets": effective_toolsets(visibility_persona)
         if visibility_persona is not None
         else [],
@@ -402,7 +400,6 @@ def _profile_visibility_persona(
         model=instance.model,
         provider=instance.provider,
         api_mode=instance.api_mode,
-        toolsets=profile_chat_toolsets(profile_id, persisted_personas),
         system_prompt_path="",
         hermes_profile=profile_id or None,
         skills=list(instance.skill_overrides or []),

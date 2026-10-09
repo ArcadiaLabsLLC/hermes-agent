@@ -75,10 +75,7 @@
         "declared": [
           "harness_core"
         ],
-        "persona_list": [
-          "file",
-          "web"
-        ],
+        "issues": [],
         "profile": "beta",
         "source": "lane_default",
         "toolsets": [
@@ -97,7 +94,8 @@
           "session_search",
           "vision",
           "code_execution"
-        ]
+        ],
+        "unknown": []
       },
       "toolsets": [
         "agent_chat",
@@ -207,7 +205,7 @@
         "declared": [
           "harness_core"
         ],
-        "persona_list": [],
+        "issues": [],
         "profile": "alpha",
         "source": "lane_default",
         "toolsets": [
@@ -226,7 +224,8 @@
           "session_search",
           "vision",
           "code_execution"
-        ]
+        ],
+        "unknown": []
       },
       "toolsets": [
         "agent_chat",
@@ -334,9 +333,7 @@
         "declared": [
           "harness_core"
         ],
-        "persona_list": [
-          "file"
-        ],
+        "issues": [],
         "profile": "alpha",
         "source": "lane_default",
         "toolsets": [
@@ -355,7 +352,8 @@
           "session_search",
           "vision",
           "code_execution"
-        ]
+        ],
+        "unknown": []
       },
       "toolsets": [
         "agent_chat",

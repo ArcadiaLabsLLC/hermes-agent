@@ -51,7 +51,6 @@ def _persona(persona_id: str = "dev", *, model: str | None = "gpt-test", provide
         model=model,
         provider=provider,
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal"],
         system_prompt_path="agent_runtime/prompts/dev.md",
         hermes_profile=f"profile-{persona_id}",
     )
@@ -181,7 +180,7 @@ def test_overlay_partial_and_full(model, provider, api_mode, expected_model, exp
     assert overlaid.api_mode == expected_api_mode
     # identity/budget fields ride along untouched
     assert overlaid.id == persona.id
-    assert overlaid.toolsets == persona.toolsets
+    assert overlaid.skills == persona.skills
     # source persona never mutated
     assert persona.model == "gpt-test"
 

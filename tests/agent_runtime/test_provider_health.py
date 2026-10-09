@@ -26,7 +26,6 @@ def _persona() -> AgentPersona:
         provider="openai-codex",
         model="gpt-5.5",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="personas/dev/system.md",
     )
 

@@ -22,7 +22,7 @@ from agent_runtime.persona_assignments import (
 from agent_runtime.mission_chat_persona import (
     resolve_mission_chat_persona_id as _resolve_mission_chat_persona_id,
 )
-from agent_runtime.personas import profile_chat_toolsets, profile_persona_resolution
+from agent_runtime.personas import profile_persona_resolution
 
 __layer__ = "stores"
 __all__ = [
@@ -77,7 +77,6 @@ def _persona_by_id(cfg, persona_id: str):
             model=default_model or getattr(cfg, "default_model", None),
             provider=default_provider or getattr(cfg, "default_provider", None),
             api_mode=default_api_mode or getattr(cfg, "default_api_mode", None),
-            toolsets=profile_chat_toolsets(profile_id, personas),
             system_prompt_path="",
             autonomy=str(default_autonomy or "review"),
             hermes_profile=profile_id,
