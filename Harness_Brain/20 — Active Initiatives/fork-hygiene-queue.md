@@ -407,3 +407,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-09 (lane opus-fix-toolsets-refusal)
 
 - [ ] **No lane fixtures the operator's LIVE profile-config shape: slice 1b's R2 refusal raised on `agent_runtime.personas.<id>.toolsets` and five operator `profiles/*/config.yaml` carried it, so every snapshot rebuild died (`producer_error:LegacyPersonaToolsetsRefused`) with the suite green — a config-reading change has no test that loads a representative multi-profile root (legacy keys included) through the producer** · fork hygiene (suite) · fix/toolsets-refusal (refusal → typed issue row; config strip) · lane: a sanitized live-shape profile-config fixture + one producer-builds test over it · UNCLAIMED
+
+## Filed on arrival — 2026-10-09 (perf programme close-out sweep)
+
+- [ ] **The managed `hermes.exe` printed `source-update completion failed: … pm\worker.py timed out after 5 seconds; running with the previous dependencies` on an ordinary `harness persona tool-diff` call (2026-10-09, while the four final gates loaded the machine); a 5 s worker budget fails under load and leaves the install's dependencies stale — measure the worker's normal duration and make the budget load-tolerant or the completion asynchronous** · fork / install (pm) · evidence: final-gates live check (a) stderr, 2026-10-09 · UNCLAIMED
