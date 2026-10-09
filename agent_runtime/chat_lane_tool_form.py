@@ -1,14 +1,34 @@
 """The chat lane's tool form: one owner of a persona chat actor's ``tools``.
 
-Plan ``docs/agent-runtime-harness/planned/tool-form-one-owner-2026-10-08.md``. The
-per-persona defer's construction door (:func:`apply_chat_lane_defer`) lives here; the
-turn's bridge binding stays in :mod:`agent_runtime.chat_lane_defer`.
+Plan ``docs/agent-runtime-harness/planned/tool-form-one-owner-2026-10-08.md``. A persona
+chat turn's ``tools[]`` is derived ONCE, here, from the lane's raw definitions, the
+constructor's post-build extras and the persona's defer list (``chat_lane_defer_tools``),
+through the one assembly upstream's tool search runs (``assemble_tool_defs``) — at
+construction (:func:`apply_chat_lane_defer`, from ``profile_runner.runner._default_agent_factory``)
+and before every turn's first request (:func:`settle_turn_tool_form`, from the
+eternia-harness ``pre_llm_call`` hook). The bridge (``tool_search``'s listing and count) is
+re-derived from the current catalog, never frozen to the built bytes: the chats of one
+instance share one prefix whatever catalog their actor was built on.
+
+The raw read and the assembly are memoized per process on what they read — the registry's
+CONTENT (:func:`agent_runtime.chat_lane_bundle.registry_content_revision`), the actor's
+toolsets, the persona's names, the context window, the config file and the Launcher link —
+never on ``registry.generation``, which MCP admission moves twice a turn while leaving the
+registry as it found it. A warm turn whose inputs did not move costs one byte compare.
+
+The form is published only when its bytes moved, the run's block pruned in the same
+publish, and the session pin (``tools.mcp_tool_agent.persist_agent_tool_names``) stores
+exactly that form: the pre-brief ``request["tools"]`` of the turn.
 """
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import logging
-from dataclasses import replace
+from collections import OrderedDict
+from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
 from agent_runtime.tool_blocks import _tool_name as _def_name
@@ -18,67 +38,223 @@ __layer__ = "policy"
 logger = logging.getLogger(__name__)
 
 #: The agent attribute that carries the persona's defer set from construction to its turns.
+#: Its presence is also the owner's admission: only an actor the runner's factory built is settled.
 AGENT_DEFER_ATTR = "_chat_lane_defer_tools"
-#: The names the re-assembly actually took off the eager list (a never-defer promotion, or a
-#: name the lane never produced, is not one): the drift :func:`reapply_chat_lane_defer` watches.
-_EFFECTIVE_ATTR = "_chat_lane_defer_effective"
+#: Every name a raw read of this actor's lane produced. A name that leaves the read
+#: (deregistered, out of scope) is dropped, never mistaken for a constructor-appended extra.
+_RAW_NAMES_ATTR = "_chat_lane_raw_names"
+#: ``(memo key, bytes of agent.tools as settled)``: the warm turn's one compare.
+_SETTLED_ATTR = "_chat_lane_tool_form_settled"
+#: The last settle's :class:`ToolFormReceipt` (tests and diagnosis read it).
+RECEIPT_ATTR = "_chat_lane_tool_form_receipt"
+
+_MEMO_LIMIT = 64
+_RAW_MEMO: "OrderedDict[tuple, list]" = OrderedDict()
+_FORM_MEMO: "OrderedDict[tuple, list]" = OrderedDict()
+
+
+@dataclass(frozen=True)
+class ToolFormReceipt:
+    """One settle. ``source``: ``unchanged`` (nothing published), ``memo`` (published from the
+    memo, no read, no assembly) or ``rebuilt`` (read and/or assembled)."""
+
+    source: str
+    published: bool
+    pin_written: bool
+    names: int
+    json_bytes: int
+    admitted: int
+
+
+def clear_tool_form_memo() -> None:
+    """Drop the per-process memo (tests; an explicit catalog reset)."""
+
+    _RAW_MEMO.clear()
+    _FORM_MEMO.clear()
+
+
+def _dump(defs: Any) -> str:
+    return json.dumps(defs, ensure_ascii=False, separators=(",", ":"), default=str)
+
+
+def _remember(memo: OrderedDict, key: tuple, value: list) -> None:
+    memo[key] = value
+    memo.move_to_end(key)
+    while len(memo) > _MEMO_LIMIT:
+        memo.popitem(last=False)
+
+
+def _config_signature() -> Any:
+    """config.yaml's stat signature: the dynamic-schema input upstream's memo also keys on."""
+
+    try:
+        from hermes_cli.config import get_config_path
+        from utils import file_signature
+
+        return file_signature(get_config_path().stat())
+    except Exception:  # noqa: BLE001 - no config file is a stable input too
+        return None
+
+
+def _form_key(agent: Any, names: frozenset[str], base: Any) -> tuple:
+    """What the raw read and the assembly read, by content."""
+
+    from agent_runtime.chat_lane_bundle import registry_content_revision
+    from agent_runtime.launcher_app_functions import app_function_tool_scope
+    from tools.registry import registry
+
+    enabled = getattr(agent, "enabled_toolsets", None)
+    disabled = getattr(agent, "disabled_toolsets", None)
+    compressor = getattr(agent, "context_compressor", None)
+    return (
+        registry_content_revision(),
+        registry.current_scope_key(),
+        tuple(sorted(enabled)) if enabled is not None else None,
+        tuple(sorted(disabled)) if disabled else None,
+        tuple(sorted(names)),
+        int(getattr(compressor, "context_length", 0) or 0),
+        repr(base),
+        _config_signature(),
+        app_function_tool_scope(),
+    )
+
+
+def _read_raw(agent: Any) -> list:
+    import model_tools
+
+    return list(model_tools.get_tool_definitions(
+        enabled_toolsets=getattr(agent, "enabled_toolsets", None),
+        disabled_toolsets=getattr(agent, "disabled_toolsets", None),
+        quiet_mode=True,
+        skip_tool_search_assembly=True,
+    ) or [])
+
+
+def _assemble(raw: list, extras: list, names: frozenset[str], base: Any, context_length: int) -> list:
+    """The ONE assembly: upstream's tool search over raw + extras, the persona's names deferred."""
+
+    from tools.tool_search import assemble_tool_defs
+    from tools.tool_search_downstream import ensure_tool_describe_present
+
+    if base.enabled == "off":
+        return list(raw) + list(extras)
+    assembly = assemble_tool_defs(
+        list(raw) + list(extras),
+        context_length=context_length or None,
+        config=replace(base, defer_tools=frozenset(base.effective_defer_tools) | names),
+    )
+    return ensure_tool_describe_present(assembly.tool_defs)
+
+
+def _derive(agent: Any, key: tuple, names: frozenset[str], base: Any) -> tuple[list, str]:
+    """The form for ``key`` and this actor's extras; ``rebuilt`` when anything was read or assembled."""
+
+    from tools.tool_search import BRIDGE_TOOL_NAMES
+
+    source = "memo"
+    raw = _RAW_MEMO.get(key)
+    if raw is None:
+        raw = _read_raw(agent)
+        _remember(_RAW_MEMO, key, raw)
+        source = "rebuilt"
+    seen = frozenset(getattr(agent, _RAW_NAMES_ATTR, None) or ()) | {_def_name(td) for td in raw}
+    setattr(agent, _RAW_NAMES_ATTR, seen)
+    extras = [td for td in agent.tools
+              if _def_name(td) not in seen and _def_name(td) not in BRIDGE_TOOL_NAMES]
+    form_key = (key, hashlib.sha256(_dump(extras).encode("utf-8")).hexdigest())
+    form = _FORM_MEMO.get(form_key)
+    if form is None:
+        form = _assemble(raw, extras, names, base, key[5])
+        _remember(_FORM_MEMO, form_key, form)
+        source = "rebuilt"
+    return form, source
+
+
+def _settle(agent: Any, names: frozenset[str], *, blocked: Iterable[str] | None, pin: bool) -> ToolFormReceipt:
+    from tools.tool_search import load_config
+
+    base = load_config()
+    key = _form_key(agent, names, base)
+    current = _dump(agent.tools)
+    if getattr(agent, _SETTLED_ATTR, None) == (key, current):
+        return ToolFormReceipt("unchanged", False, False, len(agent.tools), len(current.encode("utf-8")), 0)
+    form, source = _derive(agent, key, names, base)
+    block = frozenset(str(n) for n in (blocked or ()))
+    candidate = [td for td in form if _def_name(td) not in block] if block else form
+    wire = _dump(candidate)
+    published = wire != current
+    if published:
+        # One write of the pair, on the turn's own thread: with upstream's refresh off for the
+        # lane there is no concurrent writer.
+        tools = copy.deepcopy(candidate)
+        agent.tools = tools
+        agent.valid_tool_names = {_def_name(td) for td in tools if _def_name(td)}
+        # The executor caches the bridge's reachable set per agent.
+        if hasattr(agent, "_tool_search_scope_cache"):
+            agent._tool_search_scope_cache = None
+    else:
+        source = "unchanged"
+    if block:
+        from agent_runtime.tool_blocks import prune_agent_tools
+
+        prune_agent_tools(agent, block)  # valid names and the kanban guidance; tools already pruned
+    pin_written = False
+    if published and pin:
+        import tools.mcp_tool_agent as mcp_tool_agent
+
+        mcp_tool_agent.persist_agent_tool_names(agent)
+        pin_written = True
+    setattr(agent, _SETTLED_ATTR, (key, wire))
+    return ToolFormReceipt(source, published, pin_written, len(candidate), len(wire.encode("utf-8")), 0)
+
+
+def settle_turn_tool_form(
+    agent: Any, *, blocked: Iterable[str] | None = None, pin: bool = True,
+) -> ToolFormReceipt | None:
+    """Produce the turn's ``tools`` once; publish and pin only when the bytes moved.
+
+    A no-op (``None``) for an actor the runner's factory did not build (no
+    :data:`AGENT_DEFER_ATTR`). Never raises: a fault leaves the actor's form standing.
+    """
+
+    if not hasattr(agent, AGENT_DEFER_ATTR) or not getattr(agent, "tools", None):
+        return None
+    names = frozenset(getattr(agent, AGENT_DEFER_ATTR) or ())
+    try:
+        receipt = _settle(agent, names, blocked=blocked, pin=pin)
+    except Exception:  # noqa: BLE001 - a form settle is a cost cut; never fail a turn over it
+        logger.warning("tool form settle skipped; the actor's form stands", exc_info=True)
+        return None
+    setattr(agent, RECEIPT_ATTR, receipt)
+    if pin:
+        logger.info(
+            "tool_form_receipt turn=%s source=%s publishes=%d pin_written=%d names=%d json_bytes=%d admitted=%d",
+            getattr(agent, "_current_turn_id", "") or "", receipt.source, int(receipt.published),
+            int(receipt.pin_written), receipt.names, receipt.json_bytes, receipt.admitted,
+        )
+    return receipt
 
 
 def apply_chat_lane_defer(agent: Any, defer_tools: Iterable[str] | None) -> bool:
-    """Re-assemble ``agent.tools`` with ``defer_tools`` deferred; True when it changed.
+    """Construction: bind the persona's defer set and settle the form; True when it changed.
 
-    The incoming list is the lane's RAW definitions (assembly skipped) plus every
-    definition the constructor appended outside ``get_tool_definitions`` (memory
-    provider / context-engine tools), so the listing names every deferred tool — the
-    curated ones the constructor already deferred included. Never raises: a fault
-    leaves the constructor's list, which is the profile-wide form, not a broken one.
+    With no list the constructor's (profile-wide) form stands until the first turn settles
+    it. The pin is the turn's, never the constructor's.
     """
 
     names = frozenset(str(n).strip() for n in (defer_tools or ()) if str(n).strip())
     setattr(agent, AGENT_DEFER_ATTR, names)
-    if not names or not getattr(agent, "tools", None):
+    if not names:
         return False
-    try:
-        import model_tools
-        from tools.tool_search import BRIDGE_TOOL_NAMES, assemble_tool_defs, load_config
-        from tools.tool_search_downstream import ensure_tool_describe_present
-
-        base = load_config()
-        if base.enabled == "off":
-            return False
-        raw = model_tools.get_tool_definitions(
-            enabled_toolsets=getattr(agent, "enabled_toolsets", None),
-            disabled_toolsets=getattr(agent, "disabled_toolsets", None),
-            quiet_mode=True,
-            skip_tool_search_assembly=True,
-        ) or []
-        raw_names = {_def_name(td) for td in raw}
-        extras = [
-            td for td in agent.tools
-            if _def_name(td) not in raw_names and _def_name(td) not in BRIDGE_TOOL_NAMES
-        ]
-        compressor = getattr(agent, "context_compressor", None)
-        context_length = int(getattr(compressor, "context_length", 0) or 0) or None
-        assembly = assemble_tool_defs(
-            list(raw) + extras,
-            context_length=context_length,
-            config=replace(base, defer_tools=frozenset(base.effective_defer_tools) | names),
-        )
-        tools = ensure_tool_describe_present(assembly.tool_defs)
-    except Exception:  # pragma: no cover - a defer is a cost cut; never fail construction over it
-        logger.warning("chat-lane defer skipped; the profile-wide tool list stands", exc_info=True)
-        return False
-    agent.tools = tools
-    agent.valid_tool_names = {_def_name(td) for td in tools if _def_name(td)}
-    setattr(agent, _EFFECTIVE_ATTR, frozenset(names & raw_names) - agent.valid_tool_names)
-    # The executor caches the bridge's reachable set per agent; it was computed (if at all)
-    # without the persona's names.
-    if hasattr(agent, "_tool_search_scope_cache"):
-        agent._tool_search_scope_cache = None
-    return True
+    receipt = settle_turn_tool_form(agent, pin=False)
+    return bool(receipt and receipt.published)
 
 
 __all__ = [
     "AGENT_DEFER_ATTR",
+    "RECEIPT_ATTR",
+    "ToolFormReceipt",
     "apply_chat_lane_defer",
+    "clear_tool_form_memo",
+    "settle_turn_tool_form",
 ]

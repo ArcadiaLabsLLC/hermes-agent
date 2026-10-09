@@ -221,10 +221,17 @@ def settle_turn_tools(session_id=None, **_context):
     deferred tools eager AND the bridge the actor was built with (a prewarm's catalog), while
     turn 2 shipped the bridge the re-prune re-assembled: two prompt-cache keys, turn 2 cold
     (lane h-cache-hit). This hook runs after the refresh and before the request is assembled,
-    so every turn's wire is the same re-assembly of the same catalog.
+    so every turn's wire is the same re-assembly of the same catalog. The form has one owner
+    (``agent_runtime.chat_lane_tool_form.settle_turn_tool_form``): derived once from a
+    content-keyed memo, published and pinned only when its bytes moved.
     """
-    from agent_runtime.tool_blocks import reprune_turn_agent
+    from agent_runtime.chat_lane_tool_form import settle_turn_tool_form
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+    from agent_runtime.tool_blocks import blocked_tools_for, reprune_turn_agent
 
+    agent = current_persona_turn_agent()
+    if agent is not None:
+        settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
     reprune_turn_agent(session_id)
     return None
 

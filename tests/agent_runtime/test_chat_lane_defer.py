@@ -135,16 +135,18 @@ def test_a_deferred_tool_is_found_and_callable_through_the_bridge(lane):
 
 
 def test_a_refresh_that_restores_the_profile_form_is_undone_before_the_next_request(lane):
-    from agent_runtime.chat_lane_defer import apply_chat_lane_defer, reapply_chat_lane_defer
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer, settle_turn_tool_form
 
     _raw, build_agent = lane
     agent = build_agent()
     apply_chat_lane_defer(agent, (*NEKO_DEFER, "agent_chat_send"))
     assert "agent_chat_send" in agent.valid_tool_names, "never-defer wins over the persona list"
-    assert reapply_chat_lane_defer(agent) is False, "a promoted name must not re-trigger the re-assembly"
+    assert settle_turn_tool_form(agent, pin=False).source == "unchanged", (
+        "a promoted name must not re-trigger a publish")
     fresh = build_agent()  # what tools/mcp_tool_agent publishes on a refresh
     agent.tools, agent.valid_tool_names = fresh.tools, fresh.valid_tool_names
-    assert reapply_chat_lane_defer(agent) is True
+    receipt = settle_turn_tool_form(agent, pin=False)
+    assert (receipt.source, receipt.published) == ("memo", True), receipt
     assert _names(agent.tools) == NEKO_EAGER
 
 
