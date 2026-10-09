@@ -19,6 +19,10 @@ from agent_runtime.persona_assignments import (
     safe_assignment_token,
 )
 from agent_runtime.persona_chat_continuity import native_history_revision
+from agent_runtime.persona_chat_continuity.wire import (
+    native_history_revision_of,
+    native_history_revision_of_safe,
+)
 from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 
 __layer__ = "stores"
@@ -35,6 +39,7 @@ __all__ = [
     "_persona_chat_bound_owner",
     "_persona_chat_native_history",
     "_persona_chat_native_revision",
+    "_persona_chat_native_revision_of_read",
     "_persona_chat_native_tip",
     "_persona_chat_session_owner",
     "_resolve_chat_model_override",
@@ -396,3 +401,32 @@ def _persona_chat_native_revision(session_db, root_session_id: str) -> str:
             session_db, _persona_chat_native_tip(session_db, root_session_id)
         )
         return f"{root_session_id}:{hashlib.sha256(emit_json(history).encode('utf-8')).hexdigest()[:16]}"
+
+
+def _persona_chat_native_revision_of_read(
+    session_db,
+    root_session_id: str,
+    active_session_id: str,
+    history: list[dict],
+    *,
+    safe_history: list[dict] | None = None,
+) -> str:
+    """``_persona_chat_native_revision`` of a lineage the caller has just read.
+
+    ``active_session_id`` and ``history`` are what ``_persona_chat_native_tip`` and
+    ``_persona_chat_native_history`` returned for ``root_session_id`` on this thread; the
+    revision is hashed from that read instead of a second full lineage read. A store
+    without the two native readers, or a hash that fails, takes the fresh-read path.
+    ``safe_history``, when given, IS ``safe_native_history(history)`` and is hashed as is.
+    """
+
+    if callable(getattr(session_db, "resolve_resume_session_id", None)) and callable(
+        getattr(session_db, "get_messages_as_conversation", None)
+    ):
+        try:
+            if safe_history is not None:
+                return native_history_revision_of_safe(active_session_id, safe_history)
+            return native_history_revision_of(active_session_id, history)
+        except Exception:
+            pass
+    return _persona_chat_native_revision(session_db, root_session_id)

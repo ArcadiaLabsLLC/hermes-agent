@@ -65,7 +65,7 @@ from ..chat_history_writes import (
 )
 from agent_runtime.persona_chat_session import (
     _persona_chat_native_history,
-    _persona_chat_native_revision,
+    _persona_chat_native_revision_of_read,
     _persona_chat_native_tip,
     _session_model_config,
 )
@@ -121,13 +121,15 @@ class _RunPhases:
         _history_started = time.monotonic()
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_history = _persona_chat_native_history(session_db, active_session_id)
+        history_read = native_history
         abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
-        native_history = safe_native_history([
+        kept_history = [
             item for item in (native_history or [])
             if not is_abandoned_mission_chat_message(
                 str(item.get("platform_message_id") or ""), abandoned_ids,
             )
-        ])
+        ]
+        native_history = safe_native_history(kept_history)
         self.active_session_id = active_session_id
         self.native_history = native_history
         self.pre_admit_timings.update(
@@ -135,7 +137,12 @@ class _RunPhases:
                 {"context_native_history_ms": max(0, int((time.monotonic() - _history_started) * 1000))}
             )
         )
-        self.native_revision_before = _persona_chat_native_revision(session_db, session_id)
+        # w1-sendprep: the revision of the lineage just read, not of a second full read;
+        # when the journal filter dropped nothing, the fed history IS its safe form.
+        self.native_revision_before = _persona_chat_native_revision_of_read(
+            session_db, session_id, active_session_id, history_read,
+            safe_history=native_history if len(kept_history) == len(history_read or []) else None,
+        )
         self.runtime_registry = persona_chat_runtime_registry()
         self.chat_message = self.message
         # Relay sender attribution: resolve who sent this incoming message ONCE
