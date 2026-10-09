@@ -24,6 +24,7 @@ from .permission_modes import permission_mode_is_unbounded
 from .personas import (
     PERSONA_BLOCKED_TOOLS,
     REGISTRY_HYGIENE_BLOCKED_TOOLS,
+    ToolsetDeclaration,
     blocked_tool_names,
     role_from_persona,
 )
@@ -318,6 +319,7 @@ def resolve_tool_visibility(
         opts,
         lane=entry_point_lane,
         role=str(role.value if hasattr(role, "value") else role),
+        declaration=declaration,
     )
     resolved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     resolution_id = _tool_resolution_id(
@@ -406,7 +408,12 @@ def resolve_tool_visibility(
 
 
 def _requirement_failures(
-    persona: AgentPersona, opts: ToolVisibilityOptions, *, lane: str, role: str = ""
+    persona: AgentPersona,
+    opts: ToolVisibilityOptions,
+    *,
+    lane: str,
+    role: str = "",
+    declaration: ToolsetDeclaration | None = None,
 ) -> list[dict[str, Any]]:
     """Typed capability accounting for this persona on this entry-point lane.
 
@@ -430,6 +437,9 @@ def _requirement_failures(
       typed drops. A worker-lane resolve threads none and claims none.
     * **Mission-chat workdir** — a row only when a CONFIGURED grounding path
       could not be used (the turn still runs, in the safe cwd).
+    * **Declaration issues** — the profile's ``toolsets:`` would not read
+      (``config_read_failed``) or names a toolset nothing knows
+      (``unknown_toolset``); ``ToolsetDeclaration.issues``, one row each.
 
     Rows are appended in that order so the MCP payload of an
     MCP-declaring persona stays byte-identical to what R0/R1 emitted.
@@ -457,6 +467,8 @@ def _requirement_failures(
     )
     if opts.mission_chat_workdir is not None:
         rows.extend(opts.mission_chat_workdir.rows(entry_point_lane=lane))
+    if declaration is not None:
+        rows.extend(issue.row(entry_point_lane=lane) for issue in declaration.issues)
     return rows, admitted
 
 

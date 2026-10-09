@@ -35,7 +35,9 @@ from agent_runtime.personas import (
     HARNESS_LANE_DEFAULT_TOOLSETS,
     TOOLSET_SOURCE_LANE_DEFAULT,
     TOOLSET_SOURCE_PROFILE_CONFIG,
+    TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
     TOOLSET_SOURCE_PROFILE_UNRESOLVED,
+    DeclarationIssueKind,
 )
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 
@@ -175,14 +177,79 @@ def test_a_stale_explicit_list_is_honored_verbatim(profile_config):
 
 def test_malformed_yaml_resolves_narrow_rather_than_wide(profile_config):
     """A config fault must never hand out MORE capability — the asymmetry
-    ``default_permission_mode`` applies to an unparseable permission mode."""
+    ``default_permission_mode`` applies to an unparseable permission mode.
+
+    Since slice 1 of the tool-visibility split (2026-10-08) it is also NAMED: a
+    file that will not parse is ``profile_config_unreadable``, not the
+    ``lane_default`` an honest undeclared profile answers."""
 
     persona = profile_config("toolsets: [harness_core\n  broken: : :\n")
 
     declaration = declared_lane_toolsets(persona)
 
-    assert declaration.source == TOOLSET_SOURCE_LANE_DEFAULT
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE
+    assert [issue.kind for issue in declaration.issues] == [DeclarationIssueKind.CONFIG_READ_FAILED]
     assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS
+
+
+# ── slice 1: the declaration tells the truth (tool-visibility split, 2026-10-08) ──
+
+
+def test_an_unreadable_config_is_typed_rather_than_a_debug_line(profile_config):
+    """A ``config.yaml`` that EXISTS and will not read used to answer
+    ``lane_default`` with a DEBUG log — indistinguishable from a profile that
+    declares nothing. Now: its own source, one typed issue naming the exception
+    class (never the message), and still the narrow set."""
+
+    persona = profile_config(None)
+    from hermes_cli.profiles import get_profile_dir
+
+    (get_profile_dir("gpt-launcher") / "config.yaml").mkdir()
+    clear_parse_cache()
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE
+    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS
+    assert len(declaration.issues) == 1
+    issue = declaration.issues[0]
+    assert issue.kind is DeclarationIssueKind.CONFIG_READ_FAILED
+    assert issue.detail in {"IsADirectoryError", "PermissionError"}
+    row = declaration.row()
+    assert row["source"] == "profile_config_unreadable"
+    assert [item["code"] for item in row["issues"]] == ["config_read_failed"]
+
+
+def test_an_unknown_declared_name_is_named(profile_config):
+    """A typo'd ``eternia_lense`` used to pass through ``expand_toolset_names``
+    verbatim, resolve zero tools, and say nothing (ruling R4: a typed warning,
+    the rest of the declaration resolves)."""
+
+    persona = profile_config("toolsets:\n  - harness_core\n  - eternia_lense\n")
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
+    assert declaration.unknown == ("eternia_lense",)
+    assert [(issue.kind, issue.detail) for issue in declaration.issues] == [
+        (DeclarationIssueKind.UNKNOWN_TOOLSET, "eternia_lense")
+    ]
+    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS + ["eternia_lense"]
+    assert declaration.row()["unknown"] == ["eternia_lense"]
+
+
+def test_a_readable_known_declaration_carries_no_issue(profile_config):
+    """Positive control for the two cases above: the same fixture, readable and
+    spelled right, carries no issue rows — so an issue row is the fixture's
+    doing, never the reader's default."""
+
+    persona = profile_config("toolsets:\n  - harness_core\n  - spotify\n")
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
+    assert declaration.issues == ()
+    assert declaration.unknown == ()
 
 
 def test_an_unresolvable_profile_is_typed_rather_than_silent():

@@ -153,3 +153,26 @@ def test_the_verb_still_requires_its_positional_persona_id():
 
     with pytest.raises(SystemExit):
         _dispatch(["harness", "persona", "tool-diff", "--json"])
+
+
+def test_an_unknown_declared_toolset_prints_as_a_requirement_failure(
+    bound_profile_home, capsys
+):
+    """Slice 1 of the tool-visibility split (2026-10-08): the declaration's typed
+    issues reach the operator through ``requirement_failures`` — the join between
+    ``ToolsetDeclaration.issues`` and ``tool_visibility._requirement_failures``,
+    pinned where the operator reads it."""
+
+    (bound_profile_home / "config.yaml").write_text(
+        "toolsets:\n  - harness_core\n  - eternia_lense\n", encoding="utf-8"
+    )
+    from agent_runtime.parse_cache import clear_parse_cache
+
+    clear_parse_cache()
+    _seed_persona(toolsets=[])
+
+    assert _tool_diff("dev") == 0
+    out = capsys.readouterr().out
+
+    assert "requirement failure: unknown_toolset" in out
+    assert "'eternia_lense'" in out

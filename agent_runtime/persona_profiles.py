@@ -19,8 +19,11 @@ from .personas import (
     PROFILE_ROLE_SENTINEL,
     TOOLSET_SOURCE_LANE_DEFAULT,
     TOOLSET_SOURCE_PROFILE_CONFIG,
+    TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
     TOOLSET_SOURCE_PROFILE_UNRESOLVED,
     AutonomyLevel,
+    DeclarationIssue,
+    DeclarationIssueKind,
     ToolsetDeclaration,
     profile_chat_toolsets,
     validate_toolsets,
@@ -60,9 +63,16 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     ``[harness_core, spotify]``, or a stale explicit ``[hermes-cli, …]`` — is
     honored verbatim and shows up as ``profile_config`` in ``tool-diff``.
 
-    Never raises and never widens: a YAML fault resolves to the narrow lane
+    * a ``config.yaml`` that exists but will not read or parse ⇒ the lane
+      default, ``profile_config_unreadable``, with one ``config_read_failed``
+      issue naming the exception class
+
+    Never raises and never widens: a read fault resolves to the narrow lane
     default, the same asymmetry ``default_permission_mode`` applies to an
-    unparseable permission mode.
+    unparseable permission mode — but it is TYPED, never a debug line an
+    operator cannot tell from an honest default. A declared name nothing knows
+    is carried in ``unknown`` with an ``unknown_toolset`` issue (ruling R4: a
+    typed warning; the rest of the declaration resolves).
 
     Cheap and registry-free: path arithmetic plus the mtime-cached YAML parse
     ``profile_readiness`` already performs, then a static ``TOOLSETS`` expansion.
@@ -72,7 +82,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     subprocess.
     """
 
-    from agent_runtime.toolset_names import expand_toolset_names
+    from agent_runtime.toolset_names import expand_toolset_names, unknown_toolset_names
 
     persona_list = tuple(
         str(name).strip()
@@ -86,17 +96,30 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
         *,
         profile: str | None,
         config_path: str | None,
+        read_fault: str | None = None,
     ) -> ToolsetDeclaration:
+        toolsets = tuple(validate_toolsets(expand_toolset_names(declared)))
+        unknown = unknown_toolset_names(toolsets)
+        issues = tuple(
+            DeclarationIssue(DeclarationIssueKind.CONFIG_READ_FAILED, read_fault, config_path)
+            for read_fault in ((read_fault,) if read_fault else ())
+        ) + tuple(
+            DeclarationIssue(DeclarationIssueKind.UNKNOWN_TOOLSET, name, config_path)
+            for name in unknown
+        )
         return ToolsetDeclaration(
-            toolsets=tuple(validate_toolsets(expand_toolset_names(declared))),
+            toolsets=toolsets,
             declared=declared,
             source=source,
             profile=profile,
             config_path=config_path,
             persona_list=persona_list,
+            issues=issues,
+            unknown=unknown,
         )
 
     profile_name = str(getattr(persona, "hermes_profile", "") or "").strip() or None
+    config_path = None
     try:
         from .parse_cache import cached_yaml_file
         from .profile_context import resolve_persona_profile
@@ -111,15 +134,26 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
                 config_path=None,
             )
         config_path = binding.profile_home / "config.yaml"
-        raw = cached_yaml_file(config_path, default={}) or {}
+        raw = cached_yaml_file(config_path, default=_UNREAD)
+        if raw is _UNREAD:
+            # The cache answers its default for BOTH "absent" and "would not
+            # read"; only the second is a fault. Absent stays the lane default.
+            raw = _read_config_or_raise(config_path) if config_path.exists() else {}
+        raw = raw or {}
         value = raw.get("toolsets") if isinstance(raw, dict) else None
-    except Exception:  # pragma: no cover - defensive; a declaration read must never break a turn
-        _LOGGER.debug("declared_lane_toolsets: read failed for %r", getattr(persona, "id", None), exc_info=True)
+    except Exception as exc:  # a declaration read must never break a turn — and never hide
+        _LOGGER.warning(
+            "declared_lane_toolsets: %s for persona %r could not be read (%s); resolving the narrow lane default",
+            config_path or "profile config",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+        )
         return _resolved(
             HARNESS_LANE_DEFAULT_TOOLSETS,
-            TOOLSET_SOURCE_LANE_DEFAULT,
+            TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
             profile=profile_name,
-            config_path=None,
+            config_path=str(config_path) if config_path is not None else None,
+            read_fault=type(exc).__name__,
         )
 
     path_text = str(config_path)
@@ -144,6 +178,18 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
         profile=profile_name,
         config_path=path_text,
     )
+
+
+_UNREAD = object()
+
+
+def _read_config_or_raise(path) -> object:
+    """The uncached read, run only when the cached one already failed on a file
+    that exists — so the fault's exception CLASS reaches the declaration."""
+
+    from agent_runtime import yaml_io
+
+    return yaml_io.load(path.read_text(encoding="utf-8"))
 
 
 def effective_toolsets(persona: AgentPersona) -> list[str]:
