@@ -174,7 +174,6 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("hermes_cli.version_info", "_run_git", returns=None),
     StandIn("hermes_constants", "_run_version_probe", returns=None),
     StandIn("hermes_constants_scratch", "release_git_worktrees", returns=None),
-    StandIn("plugins.memory.honcho.client", "HonchoClientConfig._git_repo_name", returns=None),
     StandIn("pm.extras", "_evaluate_in_runtime", returns=True),  # its own fallback: the resolver decides
     StandIn("pm.package", "Runner.run"),
     *_stand("tools.bot_mode_dm", "_run_local_turn", "_run_delivery"),
