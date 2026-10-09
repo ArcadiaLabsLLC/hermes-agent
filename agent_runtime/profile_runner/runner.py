@@ -385,9 +385,11 @@ def _default_agent_factory(**kwargs):
     agent = AIAgent(**kwargs)
     if cache_scope_id:
         agent.cache_scope_id = cache_scope_id
-    from agent_runtime.chat_lane_defer import apply_chat_lane_defer
-    from agent_runtime.tool_blocks import prune_agent_tools
+    # The tool form has one owner (agent_runtime.chat_lane_tool_form, settled in the
+    # eternia-harness pre_llm_call hook): upstream's between-turns MCP refresh is switched off
+    # through its own per-agent door; the owner lands this run's admitted MCP scope instead.
+    agent._skip_mcp_refresh = True
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
 
-    apply_chat_lane_defer(agent, chat_lane_defer_tools)
-    prune_agent_tools(agent, blocked_tool_names)
+    apply_chat_lane_defer(agent, chat_lane_defer_tools, blocked=blocked_tool_names)
     return agent

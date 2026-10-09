@@ -184,7 +184,6 @@ def _wire_persona(persona_id: str):
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="base",
         skills=[SKILL],

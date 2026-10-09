@@ -17,7 +17,6 @@ def _explicit_pm():
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "terminal", "todo"],
         system_prompt_path="personas/pm/system.md",
     )
 

@@ -10,7 +10,6 @@ def test_agent_summary_contains_profile_readiness_without_secret_values():
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "terminal"],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="definitely-missing-stage9-profile",
         skills=["definitely-missing-stage9-skill"],

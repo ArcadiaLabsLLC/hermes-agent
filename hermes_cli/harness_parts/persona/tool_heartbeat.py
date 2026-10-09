@@ -45,15 +45,22 @@ The newest report rides the next beat, so the console sees a report at most
 :data:`TOOL_HEARTBEAT_SECONDS` after the server sent it; ``elapsed_ms`` is the
 call's own clock either way.
 
-One daemon thread per turn, started by the first live tool and ended by the
-turn's ``finish``; frames go out through the emitter's own locked writer, so a
-beat can never interleave with a delta or enter the request context twice.
+One daemon thread per turn, started at ``turn.start`` and ended by the turn's
+``finish``; frames go out through the emitter's own locked writer, so a beat can
+never interleave with a delta or enter the request context twice.
+
+The OWNER bounds the beat's lifetime, not a caller remembering ``finish``: the
+thread holds its emitter only weakly, and the emitter's last reference going
+away stops the beat (a ``weakref.finalize`` wakes the thread at once). An
+emitter dropped without ``finish`` used to beat ``turn.progress`` into stdout
+for the life of the process.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+import weakref
 from typing import Any
 
 from agent_runtime import live_turns
@@ -157,18 +164,27 @@ class ToolHeartbeat:
     """Beats turn liveness and live tool progress until the turn settles."""
 
     def __init__(self, emitter: Any, *, interval: float = TOOL_HEARTBEAT_SECONDS) -> None:
-        self._emitter = emitter
+        self._turn_id = emitter.turn_id
         self._interval = float(interval)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        try:
+            # Weak, so the beat thread never keeps its emitter alive; the
+            # finalizer stops the beat when the emitter's last reference goes.
+            self._emitter_ref = weakref.ref(emitter)
+            weakref.finalize(emitter, self._stop.set)
+        except TypeError:
+            # A stand-in emitter that cannot be weakly referenced (a test's
+            # SimpleNamespace) is held strongly and bounded by ``stop`` alone.
+            self._emitter_ref = lambda: emitter
 
     def ensure_running(self) -> None:
         with self._lock:
             if self._stop.is_set() or (self._thread is not None and self._thread.is_alive()):
                 return
             self._thread = threading.Thread(
-                target=self._run, name=f"chat-tool-heartbeat-{self._emitter.turn_id}", daemon=True
+                target=self._run, name=f"chat-tool-heartbeat-{self._turn_id}", daemon=True
             )
             self._thread.start()
 
@@ -178,23 +194,27 @@ class ToolHeartbeat:
     def beat(self) -> int:
         """Emit one beat per live tool element now; returns how many went out."""
 
-        self._emitter._emit_chat_frame({
+        emitter = self._emitter_ref()
+        if emitter is None:
+            self._stop.set()
+            return 0
+        emitter._emit_chat_frame({
             "type": "turn.progress", "protocol_version": 2,
-            "turn_id": self._emitter.turn_id,
-            "elapsed_ms": int(max(0.0, time.monotonic() - self._emitter._started_at) * 1000),
+            "turn_id": emitter.turn_id,
+            "elapsed_ms": int(max(0.0, time.monotonic() - emitter._started_at) * 1000),
             "next_heartbeat_after_ms": int(self._interval * 1000),
         })
         live = [
-            element for element in list(self._emitter.elements)
+            element for element in list(emitter.elements)
             if element.get("kind") == "tool" and element.get("state") == "started"
         ]
         if not live:
             return 0
-        view = live_turns.live_turn_view(self._emitter.turn_id)
+        view = live_turns.live_turn_view(emitter.turn_id)
         calls = {call.call_id: call for call in (view.tools if view is not None else ())}
         for element in live:
-            frame = tool_progress_frame(self._emitter.turn_id, element, calls.get(element.get("tool_call_id")))
-            self._emitter._emit_chat_frame(frame)
+            frame = tool_progress_frame(emitter.turn_id, element, calls.get(element.get("tool_call_id")))
+            emitter._emit_chat_frame(frame)
         return len(live)
 
     def _run(self) -> None:

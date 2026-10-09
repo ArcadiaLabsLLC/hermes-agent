@@ -119,7 +119,6 @@ def qa_persona():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)
@@ -140,7 +139,6 @@ def dev_persona():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)
@@ -1626,7 +1624,6 @@ def _persona_with_profile(persona_id: str, profile: str | None):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=profile,
     )

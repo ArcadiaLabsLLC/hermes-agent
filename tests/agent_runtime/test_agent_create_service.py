@@ -83,7 +83,6 @@ def qa_persona():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)
@@ -208,7 +207,6 @@ def test_a_caller_supplied_persona_object_settles_the_question(qa_persona):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
 

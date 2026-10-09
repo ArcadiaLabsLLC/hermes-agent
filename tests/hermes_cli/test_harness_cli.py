@@ -736,7 +736,6 @@ def _seed_rebind_fixture(tmp_path, monkeypatch):
             model=None,
             provider=None,
             api_mode="codex_responses",
-            toolsets=["file"],
             system_prompt_path="",
             hermes_profile="alpha",
         )

@@ -46,13 +46,11 @@ def test_persona_records_from_config_support_collection_specialists_without_drop
             "backend_dev": {
                 "display_name": "Backend Dev",
                 "hermes_profile": "backend-dev",
-                "toolsets": ["file", "search", "terminal", "code_execution"],
             },
             "ml_dev": {
                 "display_name": "ML Dev",
                 "role": "dev",
                 "hermes_profile": "ml-dev",
-                "toolsets": ["file", "search", "terminal"],
             },
         }
     )

@@ -497,10 +497,38 @@ def _cancel_build(work_id: str, kind: str, stable: str, row: dict[str, Any], *, 
     return stop_build(row, reason=reason)
 
 
+def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """A dispatch: ``agent_chat_dispatch.request_cancel`` in the process that supervises it.
+
+    The lane owns the child's handle and the identity-guarded kill; this only
+    routes. ``not_owned_here`` is a typed refusal, not a pretend success: a
+    dispatch another serve (or another install) supervises has no seam in this
+    process, and the row says so rather than reporting a kill that never
+    happened.
+    """
+
+    lane = _module("tools.agent_chat_dispatch")
+    if lane is None:
+        # The supervisor lives in that module; a process that never imported it
+        # supervises nothing, so the row is simply not ours to stop.
+        return {"status": "error", "code": "not_owned_here", "work_id": work_id, "kind": kind,
+                "detail": "this process does not supervise that dispatch"}
+    answer = lane.request_cancel(stable, reason=reason)
+    outcome = str(answer.get("outcome") or "")
+    if outcome in {"stopping", "cancelled"}:
+        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
+    if outcome == "already_finished":
+        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind,
+                "state": answer.get("state"), "detail": "already finished; its result is kept"}
+    return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
+            "detail": "this process does not supervise that dispatch" if outcome == "not_owned_here" else ""}
+
+
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.
 _CANCELLERS = {
     KIND_TERMINAL: _cancel_terminal,
     KIND_DELEGATION: _cancel_delegation,
     KIND_TOOL_CALL: _cancel_tool_call_arm,
     KIND_BUILD: _cancel_build,
+    KIND_DISPATCH: _cancel_dispatch,
 }

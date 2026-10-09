@@ -67,7 +67,6 @@ def _persona(**overrides) -> AgentPersona:
         "model": None,
         "provider": None,
         "api_mode": "codex_responses",
-        "toolsets": ["file"],
         "system_prompt_path": "",
         "hermes_profile": "alpha",
         "soul_overlay_path": "soul.md",

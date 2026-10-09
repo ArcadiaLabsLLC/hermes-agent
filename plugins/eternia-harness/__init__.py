@@ -68,17 +68,26 @@ def render_tool_guidance(session_info) -> str:
     """The harness's tool-conditional guidance: one line per tool present in the session.
 
     ``session_info["tool_names"]`` is the comma-joined sorted tool set core renders
-    the prompt with. The lines are the T6b policy moved OFF the brief wire
-    descriptions, so the section renders only in a session that runs that wire —
-    one that carries ``tool_describe`` — and then one line per gating tool present.
-    Anything else gets an empty section, which core skips.
+    the prompt with. The fixed lines are the T6b policy moved OFF the brief wire
+    descriptions, so they render only in a session that runs that wire — one that
+    carries ``tool_describe`` — and then one line per gating tool present. The
+    Launcher's app-function ``guidance`` lines render for any session whose list
+    holds the tool. Nothing present gets an empty section, which core skips.
     """
     from agent_runtime import prompt_guidance
+    from agent_runtime.launcher_app_functions import app_function_guidance_lines
 
     tools = set(str(session_info.get("tool_names") or "").split(","))
-    if "tool_describe" not in tools:
-        return ""
-    return "\n".join(getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools)
+    lines = (
+        [getattr(prompt_guidance, attr) for tool, attr in _TOOL_GUIDANCE if tool in tools]
+        if "tool_describe" in tools
+        else []
+    )
+    # The host's own WHEN rules (the Launcher's app-function ``guidance``), one
+    # line per offered tool present in this session: the rule, the tool brief
+    # and any skill then derive from one text the host owns.
+    lines.extend(app_function_guidance_lines(tools))
+    return "\n".join(lines)
 
 
 def render_windows_tooling(session_info=None) -> str:
@@ -212,10 +221,17 @@ def settle_turn_tools(session_id=None, **_context):
     deferred tools eager AND the bridge the actor was built with (a prewarm's catalog), while
     turn 2 shipped the bridge the re-prune re-assembled: two prompt-cache keys, turn 2 cold
     (lane h-cache-hit). This hook runs after the refresh and before the request is assembled,
-    so every turn's wire is the same re-assembly of the same catalog.
+    so every turn's wire is the same re-assembly of the same catalog. The form has one owner
+    (``agent_runtime.chat_lane_tool_form.settle_turn_tool_form``): derived once from a
+    content-keyed memo, published and pinned only when its bytes moved.
     """
-    from agent_runtime.tool_blocks import reprune_turn_agent
+    from agent_runtime.chat_lane_tool_form import settle_turn_tool_form
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+    from agent_runtime.tool_blocks import blocked_tools_for, reprune_turn_agent
 
+    agent = current_persona_turn_agent()
+    if agent is not None:
+        settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
     reprune_turn_agent(session_id)
     return None
 
@@ -335,6 +351,22 @@ def migrate_retired_local_llama_id() -> None:
         logging.getLogger(__name__).warning("local llama retired-id migration failed", exc_info=True)
 
 
+def migrate_legacy_persona_toolsets() -> None:
+    """Ruling R2 (tool-visibility split, 2026-10-08): strip the deleted persona-level
+    ``toolsets`` key from store rows once per store (a marker makes it one-shot), and from
+    the root and every profile ``config.yaml`` (idempotent, every start)."""
+    try:
+        from agent_runtime.persona_toolsets_migration import (
+            migrate_legacy_persona_toolsets_once,
+            strip_legacy_persona_toolsets_from_configs,
+        )
+
+        migrate_legacy_persona_toolsets_once()
+        strip_legacy_persona_toolsets_from_configs()
+    except Exception:  # a failed migration must not take plugin load down
+        logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
+
+
 def register(ctx) -> None:
     from agent_runtime.provider_access import SharedProviderAccess
 
@@ -345,6 +377,7 @@ def register(ctx) -> None:
     default_kanban_claim_ttl()
     default_no_venv_lazy_installs()
     migrate_retired_local_llama_id()
+    migrate_legacy_persona_toolsets()
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset

@@ -63,33 +63,36 @@ def _persona_of_chat_root(root_session_id) -> str:
 def _dispatch_homes() -> tuple[str, str]:
     """``(ambient_home, background_work_home)`` for the child process.
 
-    Both come from the existing authorities, and it is worth being precise about
-    what the first one actually is, because the name invites a wrong reading.
+    The ambient home is the HEAD home — the same authority the inline relay
+    enters (``mission_chat_door_binding._mission_chat_turn_via_cli`` wraps the
+    handler in ``process_home_scope(get_hermes_head_home())``) — and not the
+    sender persona's profile home. The two differ inside a persona turn, and the
+    difference is the roster: the launcher pins the serve's head to
+    ``profiles/base``, whose ``config.yaml`` is where the configured personas
+    (``qa``, ``neko_supervisor``, ``backend_dev``, ``dev``) are defined. A child
+    booted onto the SENDER's profile home loads a config with no persona block
+    and answers ``unknown persona`` for every one of them — which is what every
+    background relay did on 2026-10-08 (Amelia turn ``agent-chat-send-994a2059``,
+    four dispatches, four ``unknown persona`` deliveries), while the same
+    targets resolved inline because the serve process had loaded the base config
+    at boot. This function used to read ``get_hermes_home()`` here on purpose,
+    to mirror the ORIGINAL inline lane that ran nested in the sender's flipped
+    environment; the inline lane has since moved to head-home admission, and
+    the child follows it so one target resolves the same way on both lanes.
 
-    ``get_hermes_home()`` is read HERE, inside the sender's turn — which means
-    inside that persona's ``persona_profile_context``. So the value is the
-    SENDER PERSONA's profile home, not the operator's. That is deliberate and it
-    matches the synchronous relay lane, where the target's turn has always run
-    nested inside the sender's flipped environment: a dispatched turn resolves
-    the same profile-scoped state whether it was awaited or detached. It is
-    still a behaviour change worth naming against the ORIGINAL in-process
-    dispatch lane, which inherited whatever the process-global happened to be at
-    the moment the worker thread ran — a value that depended on which unrelated
-    persona turn was in flight, and was therefore not reliably anything.
-
-    Reading it here rather than in the supervisor is what makes it deterministic
-    at all: by the time the supervisor thread spawns, another persona turn may
-    have flipped the process-global out from under it.
+    Read HERE, inside the sender's turn, because by the time the supervisor
+    thread spawns another persona turn may have flipped the process-global out
+    from under it; ``get_hermes_head_home`` honours the context-recorded relay
+    head first, so a nested hop cannot escape the operator that started it.
 
     ``get_hermes_background_work_home()`` is the one resolver for where
     background work is recorded, so the child's own background writers land
     exactly where this parent, the drain and the Activity projection read.
     """
 
-    from hermes_constants import get_hermes_home
-    from agent_runtime.profile_home import get_hermes_background_work_home
+    from agent_runtime.profile_home import get_hermes_background_work_home, get_hermes_head_home
 
-    return str(get_hermes_home()), str(get_hermes_background_work_home())
+    return str(get_hermes_head_home()), str(get_hermes_background_work_home())
 
 
 def _dispatch_detached(
@@ -105,8 +108,16 @@ def _dispatch_detached(
     chain,
     wall_budget,
     remote_target=None,
+    parent_turn_id="",
+    auto_detached=False,
 ):
     """Record a detached dispatch durably, queue its child turn, return the handle.
+
+    ``parent_turn_id`` is the sending turn (``relay_policy.RELAY_PARENT_TURN``),
+    recorded on the row so the operator's Stop on that turn can cancel this
+    work. ``auto_detached`` says the lane chose this path because an inline
+    wait was impossible inside a running turn; the handle says so, because the
+    caller asked for a reply and must be told it is coming later instead.
 
     ORDER IS THE CONTRACT. The durable row is written BEFORE the work is handed
     to the supervisor and before the caller is told anything, so there is no
@@ -165,6 +176,7 @@ def _dispatch_detached(
             remote_install_id=(
                 "" if remote_target is None else remote_target.install_id
             ),
+            parent_turn_id=parent_turn_id,
         )
     except Exception as exc:
         logger.exception("agent_chat_send could not record dispatch %s", dispatch_id)
@@ -199,31 +211,36 @@ def _dispatch_detached(
             target_persona=persona_id,
         )
 
-    return json.dumps(
-        {
-            "ok": True,
-            "dispatched": True,
-            "dispatch_id": dispatch_id,
-            "target_persona": persona_id,
-            "session_id": None,
-            "started_at": started_at,
-            "max_seconds": wall_budget,
-            "notify_operator": bool(notify_operator),
-            "relay_chain": list(chain),
-            # Say plainly what happens next. An agent that thinks this call
-            # failed to return a reply will re-send; an agent that knows the
-            # answer is coming as its own message will move on, which is the
-            # entire behaviour change this lane is for.
-            "next_expected": (
-                "Their reply is NOT in this result — they are working on it now. It will arrive "
-                "as a new message in this conversation when they finish and you are idle. Carry "
-                "on with something else; do not re-send. Use agent_chat_dispatches to check "
-                "whether it is still running."
-            ),
-        },
-        indent=2,
-        default=str,
-    )
+    handle = {
+        "ok": True,
+        "dispatched": True,
+        "dispatch_id": dispatch_id,
+        "target_persona": persona_id,
+        "session_id": None,
+        "started_at": started_at,
+        "max_seconds": wall_budget,
+        "notify_operator": bool(notify_operator),
+        "relay_chain": list(chain),
+        # Say plainly what happens next. An agent that thinks this call
+        # failed to return a reply will re-send; an agent that knows the
+        # answer is coming as its own message will move on, which is the
+        # entire behaviour change this lane is for.
+        "next_expected": (
+            "Their reply is NOT in this result — they are working on it now. It will arrive "
+            "as a new message in this conversation when they finish and you are idle. Carry "
+            "on with something else; do not re-send. Use agent_chat_dispatches to check "
+            "whether it is still running."
+        ),
+    }
+    if auto_detached:
+        handle["auto_detached"] = True
+        handle["next_expected"] = (
+            "You asked to wait, but a turn cannot wait on another agent from inside itself, so "
+            "this was sent in the background instead. Their reply is NOT in this result; it "
+            "arrives as a new message in this conversation after this turn ends. Finish your own "
+            "reply now with what you have — do not poll, and do not re-send."
+        )
+    return json.dumps(handle, indent=2, default=str)
 
 
 def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):

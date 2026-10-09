@@ -522,7 +522,6 @@ def _live_records():
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "search"],
         system_prompt_path="personas/dev/system.md",
         hermes_profile="dev",
     )
@@ -610,7 +609,6 @@ def test_the_reuse_key_still_moves_for_a_real_instance_edit():
         ), f"an instance {field} change no longer rotates the reuse key"
 
     for field, value in (
-        ("toolsets", ["search"]),
         ("skills", ["harness-qa-verdict"]),
         ("hermes_profile", "qa"),
         ("required_mcp_servers", ["launcher_qa"]),
@@ -1210,7 +1208,6 @@ def _readiness_walk_gate(monkeypatch, walked_home):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="qa",
         skills=[],

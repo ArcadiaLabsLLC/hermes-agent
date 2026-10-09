@@ -43,7 +43,6 @@ def qa_persona():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)

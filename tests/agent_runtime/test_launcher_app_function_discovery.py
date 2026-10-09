@@ -17,7 +17,8 @@ _CATALOG = [
     {"name": "launcher_generated_list", "method": "launcher.generated.list",
      "description": "Render side-by-side comparisons and mocks directly in chat using this catalog. Full component manual and resource restrictions follow.",
      "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
-     "always_loaded": True, "reach": "localOnly"},
+     "always_loaded": True, "reach": "localOnly",
+     "guidance": "Inline output: for comparisons and mockups call list then create in the first response."},
     {"name": "launcher_generated_create", "method": "launcher.generated.create",
      "description": "Display an editable in-chat output using the catalog's Composition/Text or WebArtifact. Full creation manual and refusal instructions follow.",
      "parameters": {"type": "object", "properties": {"document_json": {"type": "string", "description": "JSON array from the catalog."}}, "required": ["document_json"], "additionalProperties": False},
@@ -225,3 +226,29 @@ def test_native_worker_retains_its_own_relay_and_eager_policy_on_continued_turns
         assert app.current_launcher_link() is None
     finally:
         worker.reset(token)
+
+
+def test_the_hosts_guidance_line_renders_only_beside_a_present_tool():
+    """The WHEN rule is the Launcher's, carried on the entry; the prompt section renders
+    it for a session whose tool list holds that tool, and nothing for one that does not."""
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "eternia_harness_plugin", Path(__file__).resolve().parents[2] / "plugins" / "eternia-harness" / "__init__.py"
+    )
+    plugin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin)
+
+    with linked(_Launcher(_CATALOG)):
+        assert app.app_function_guidance_lines(["launcher_generated_list", "terminal"]) == [
+            "Inline output: for comparisons and mockups call list then create in the first response."
+        ]
+        assert app.app_function_guidance_lines(["launcher_generated_create"]) == []  # carries none
+        present = plugin.render_tool_guidance({"tool_names": "launcher_generated_list,read_file"})
+        assert present == "Inline output: for comparisons and mockups call list then create in the first response."
+        absent = plugin.render_tool_guidance({"tool_names": "read_file,terminal"})
+        assert "Inline output" not in absent
+    # A legacy entry (no key) and a non-string carry nothing.
+    assert app.AppFunctionEntry.parse({k: v for k, v in _CATALOG[0].items() if k != "guidance"}).guidance == ""
+    assert app.AppFunctionEntry.parse({**_CATALOG[0], "guidance": ["x"]}).guidance == ""

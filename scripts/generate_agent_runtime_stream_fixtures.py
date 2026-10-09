@@ -879,7 +879,6 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
         )
     )

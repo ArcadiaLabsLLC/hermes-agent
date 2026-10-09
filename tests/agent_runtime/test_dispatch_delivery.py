@@ -299,7 +299,6 @@ def named_target(store_home):
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
         )
     )

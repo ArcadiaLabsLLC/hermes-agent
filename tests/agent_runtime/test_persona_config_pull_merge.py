@@ -259,6 +259,22 @@ def test_adopting_preserves_the_members_own_persona_keys(tmp_path):
     assert dev["display_name"] == "Dev (realm)"
 
 
+
+def test_adopting_never_writes_the_retired_toolsets_key_back(tmp_path):
+    """Ruling R2: ``personas.<id>.toolsets`` is refused; the member-keys preserve
+    must not carry it forward into the written-back definition."""
+
+    local = {**DEV_V1, "repo_scope": "D:/Member/Launcher", "toolsets": ["file", "terminal"]}
+    _member_config({"dev": local})
+    write_persona_config_baseline(REALM, {"dev": persona_def_hash(DEV_V1)})
+
+    apply_persona_config_pull(REALM, _remote_projection(tmp_path, {"dev": DEV_V2}))
+    dev = _member_personas()["dev"]
+
+    assert "toolsets" not in dev
+    assert dev["repo_scope"] == "D:/Member/Launcher"
+    assert dev["display_name"] == "Dev (realm)"
+
 # ── refusals: per-entity isolation, one bad definition never aborts a pull ──
 
 

@@ -81,6 +81,33 @@ inline registry/handler and stores with two sender homes and sibling targets;
 only model execution is stubbed. Live relay and thread-opening acceptance is
 tracked separately in the Launcher's console live-contract audit.
 
+**A relay sent from inside a run is detached, never waited on.** The sender's run holds
+`profile_runner._WORKDIR_LOCK` for its whole body and a tool runs on a worker thread, so an
+inline `agent_chat_send` would wait for a child turn that needs the lock the sender holds; the
+wait ended only when the sender's wall budget killed the sender (203 s of a 240 s turn,
+`agent-chat-send-db7a2d34`, 2026-10-08). `tools/agent_chat/send.py::Send.envelope` reads
+`agent_runs_in_flight()` — the gauge the actor prewarm already yields on — and routes the send
+onto the dispatch lane, whose child is its own process. The handle says `auto_detached: true`
+and tells the model to finish its reply; the reply arrives as its own message. The admission
+refusals (no delivery channel, no sender session) are reworded for that case as
+`inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The detached
+budget rule is unchanged: the child's clock starts when it starts, and the row now records
+`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`. The child is
+booted onto the HEAD home (`get_hermes_head_home()`, the launcher's `profiles/base` pin), the same
+home the inline shim enters, because that config is where the configured personas live; booted
+onto the sender's profile home it answered `unknown persona` for every target (2026-10-08).
+
+**Stop reaches the work the turn started, and nothing else.** A dispatch records the sending
+turn's `client_message_id` as `parent_turn_id` (`relay_policy.RELAY_PARENT_TURN`, seeded beside
+the chain). `runtime.operator.conversation.stop` on a turn that is `stop_requested` cancels
+that turn's `running` dispatches through `running_work.cancel_work` and answers
+`dependent_dispatches`; a turn that finished on its own keeps its children, and a job the
+operator started has no parent and is never reached. A dispatch cancels to the typed
+`cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
+identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
+replied when the kill lands → the reply is kept; supervised by another process →
+`not_owned_here`, a refusal rather than a pretend kill.
+
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
 `client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
@@ -378,6 +405,24 @@ does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope
   `tools/tool_search_downstream.py::scoped_turn_defer`). Deferring is never a grant. Each turn's
   model-input record carries `tool_schema.per_tool_chars` and `prompt_surface` (chars of the wire
   form, by part), and a first turn logs one `prompt_surface …` line.
+- The turn's tool form has ONE owner, `agent_runtime/chat_lane_tool_form.py::settle_turn_tool_form`
+  (plan `planned/tool-form-one-owner-2026-10-08.md`): at construction (`apply_chat_lane_defer`,
+  from the runner's factory, no pin) and in the eternia-harness `pre_llm_call` hook before the
+  turn's first request, it assembles the lane's raw definitions plus the constructor's post-build
+  extras with the persona's names deferred (upstream's `assemble_tool_defs`), re-deriving the
+  `tool_search` bridge from the current catalog. The raw read and the assembly are memoized per
+  process on CONTENT — `chat_lane_bundle.registry_content_revision`, `admitted_mcp_tools(agent)`
+  (this run's `mcp-*` scope by name, toolset and schema digest), the actor's toolsets, the
+  persona's names, the context window, the tool-search config, `config.yaml`'s signature and the
+  Launcher link scope — never `registry.generation`, which admission moves twice a turn. The form
+  is published only when its bytes moved (the run's block pruned in the same write), and only then
+  is the session pin re-written: the pin is the turn's pre-brief `request["tools"]`. One log line
+  per turn: `tool_form_receipt turn=… source=<unchanged|memo|rebuilt> publishes= pin_written=
+  names= json_bytes= admitted=`. The factory sets `agent._skip_mcp_refresh` on every actor it
+  builds, so upstream's between-turns MCP refresh does not run on this lane
+  (`adopt_late_connections` still does, ahead of that flag); upstream's turn-1
+  `persist_tools=True` write and the rebuilt actor's `restore_agent_tool_prefix` are left as they
+  are — the restore folds a rebuilt actor onto the wire form, which the owner then leaves alone.
 - `agent_chat`, `board` and `clarify` are unconditional chat capabilities
   (`_CHAT_CAPABILITY_TOOLSETS`, `:902`) regardless of the persona's configured list; `clarify` is
   additionally un-blocked by name on the bounded lane (`:603`), which has a clarify bridge.
@@ -393,7 +438,22 @@ lifetime token and origin. Re-declaration replaces the token even when another c
 synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
 an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
 
-Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
+One door for a name the session already has (lane bridge-direct, 2026-10-08). A `tool_call`
+that names an in-scope eager tool is dispatched by name, not refused: upstream's "directly-listed
+tool, not a deferred one" correction cost a full provider round trip for an unambiguous call
+(`launcher_generated_list`, turn `agent-chat-send-db7a2d34`). `tools/tool_search_downstream.py`
+rebinds `resolve_underlying_call`, `scoped_deferrable_names` and `dispatch_tool_search` at
+`tool_search.py`'s fork seam: the bridge's scope is the session's own definitions, eager or
+deferred (one function read by both the dispatcher and the executor's unwrap), an unknown name
+keeps upstream's correction, and a search reports the eager tools that answer a query under
+`directly_available` beside the unchanged deferred `matches`. The describe `call_rule` says an
+eager tool is called by name. Nothing is granted that the session did not already offer.
+
+Launcher also owns the WHEN: an entry may carry a one-line `guidance`, and the
+`eternia-harness` tool-guidance prompt section renders it only while that tool is in the
+session's list (`agent_runtime.launcher_app_functions.app_function_guidance_lines`), so the tool
+brief, the prompt line and any skill derive from one host-owned text (lane host-guidance,
+2026-10-08). Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
 (`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
 full description, and `launcher.generated.list` returns the full component catalog and examples.
 Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
@@ -457,7 +517,7 @@ serve boot, on a chat where nothing had changed (turn `2026-08-23T14:34:57Z`).
 key is the lane's own identity: persona revision, chat root + a fresh permission fingerprint (mode,
 source, expiry, remaining turns, mode blocks), root + active `config.yaml` `(mtime_ns, size)`,
 runtime root, entry-point lane, and the **registry content** the composition reads
-(`chat_lane_bundle._registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
+(`chat_lane_bundle.registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
 `tools.registry.check_fn_epoch()`, which moves on every `invalidate_check_fn_cache`). Content, not
 `registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
 so the generation moved on every MCP-admitting turn while the content did not, and every such turn

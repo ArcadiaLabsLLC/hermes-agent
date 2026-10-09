@@ -151,6 +151,21 @@ def bundled_persona_profiles():
 
 
 @pytest.fixture(autouse=True)
+def reset_chat_lane_tool_form_memo():
+    """Keep the tool form's per-process memo from crossing test boundaries.
+
+    It keys on registry content and the actor's inputs, none of which distinguish one
+    test's monkeypatched ``get_tool_definitions`` from the next test's.
+    """
+
+    from agent_runtime.chat_lane_tool_form import clear_tool_form_memo
+
+    clear_tool_form_memo()
+    yield
+    clear_tool_form_memo()
+
+
+@pytest.fixture(autouse=True)
 def reset_profile_runner_runtime_resolve_cache():
     """Keep the T6 runtime-resolve memo from crossing test boundaries.
 

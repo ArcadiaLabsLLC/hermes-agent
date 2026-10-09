@@ -257,7 +257,7 @@ def test_the_snapshot_walk_asks_once_per_package_list_not_per_persona(
     for i in range(3):
         AgentStore().save(AgentPersona(
             id=f"readiness_cost_{i}", display_name=f"Cost {i}", role="qa",
-            model=None, provider=None, api_mode=None, toolsets=[], system_prompt_path="",
+            model=None, provider=None, api_mode=None, system_prompt_path="",
         ))
     monkeypatch.setattr(renv, "required_packages_for", lambda **_: ["openai"])
     walks, statuses = [], []

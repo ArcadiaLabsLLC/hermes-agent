@@ -84,7 +84,6 @@ def _persona(persona_id: str) -> AgentPersona:
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="agent_runtime/prompts/dev.md",
         hermes_profile=f"profile-{persona_id}",
     )
@@ -567,11 +566,10 @@ def test_open_chat_create_resolves_the_backing_persona_like_the_snapshot_does(
     changed = _open_chat_patches(store, before)[0]["changed"]
     assert changed["effective_model"] == "gpt-test"
     assert changed["effective_provider"] == "openai-codex"
-    # ``toolsets`` on this row is the DECLARED lane set since S0a A2 (the
-    # persona's own ``["file"]`` field admits nothing), so the parity property
-    # is asserted against the declaration rather than against the field.
+    # ``toolsets`` on this row is the DECLARED lane set since S0a A2; the
+    # persona-level field it once mirrored was deleted 2026-10-08.
     assert changed["toolsets"] == effective_toolsets(persona)
-    assert changed["toolset_declaration"]["persona_list"] == ["file"]
+    assert "persona_list" not in changed["toolset_declaration"]
     # And the whole row equals the snapshot's own construction for this instance.
     from agent_runtime.serde import to_jsonable
 

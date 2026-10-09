@@ -44,6 +44,12 @@ MIN_RELAY_BUDGET_SECONDS = 10.0
 # In-process carriers (see module docstring — the envelope is the truth).
 RELAY_CHAIN: ContextVar[tuple[str, ...]] = ContextVar("hermes_relay_chain", default=())
 RELAY_DEADLINE: ContextVar[float | None] = ContextVar("hermes_relay_deadline", default=None)
+#: The chat turn (its ``client_message_id``, the id the operator's Stop names) that
+#: is running when a relay is sent. A dispatch made from inside a turn records it as
+#: its ``parent_turn_id``, so Stop on that turn can cancel the work it started and
+#: nothing else. Empty outside a turn: a dispatch nobody's turn owns is never
+#: cancelled by a Stop. Seeded beside the chain by the mission-chat handler.
+RELAY_PARENT_TURN: ContextVar[str] = ContextVar("hermes_relay_parent_turn", default="")
 
 
 def max_relay_depth() -> int:

@@ -74,7 +74,7 @@ The key is the bundle's own inputs — not a clock:
   and keyed on exactly what the config loader's own mtime cache keys on.
 * **runtime root + entry-point lane** — both are inputs to the resolved
   permission state's ``requirement_failures``.
-* **registry content** (:func:`_registry_content_revision`) — the registered
+* **registry content** (:func:`registry_content_revision`) — the registered
   ``(tool, toolset)`` pairs, the toolset aliases, and the availability epoch
   every explicit ``invalidate_check_fn_cache`` moves. CONTENT, not the
   registration generation: a register/deregister pair that leaves the registry
@@ -381,7 +381,7 @@ def _config_revisions() -> tuple[str, str]:
     return root, active
 
 
-def _registry_content_revision() -> str:
+def registry_content_revision() -> str:
     """What the composition reads from the tool registry, as one digest.
 
     The composition asks the registry three things: which tools exist, which
@@ -428,6 +428,9 @@ def _registry_content_revision() -> str:
     )
 
 
+#: The pre-tool-form spelling, kept one release (plan tool-form-one-owner-2026-10-08 S1).
+_registry_content_revision = registry_content_revision
+
 def chat_lane_bundle_key_material(
     persona: Any, permission: Any, *, session_id: str | None
 ) -> dict[str, Any]:
@@ -469,7 +472,7 @@ def chat_lane_bundle_key_material(
         "active_config_revision": active_config,
         "runtime_root": runtime_root,
         "entry_point_lane": lane,
-        "registry_content": _registry_content_revision(),
+        "registry_content": registry_content_revision(),
     }
 
 
@@ -571,7 +574,9 @@ def _build_bundle(
     # changed".
     degraded: list[str] = []
     try:
-        capability = capability_block_for_persona(persona, session_id=session_id) or {}
+        capability = capability_block_for_persona(
+            persona, session_id=session_id, tool_contract=tool_contract
+        ) or {}
     except Exception as exc:
         logger.debug("chat-lane capability account unavailable for this turn", exc_info=True)
         capability = {}

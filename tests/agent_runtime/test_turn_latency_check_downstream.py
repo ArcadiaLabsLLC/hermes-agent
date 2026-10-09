@@ -27,7 +27,7 @@ def _stamp(at: datetime) -> str:
     return f"{local:%Y-%m-%d %H:%M:%S},{local.microsecond // 1000:03d}"
 
 
-def _turn(at: datetime, n: int, *, accept=27, prep=480, conn="reused", wait=800, gap=150) -> list[str]:
+def _turn(at: datetime, n: int, *, accept=27, prep=260, conn="reused", wait=800, gap=150) -> list[str]:
     turn, request = f"agent-chat-send-{n:04d}", f"{CHAT}:req-{n}:abc:api:1"
     anchored = at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return [
@@ -73,7 +73,7 @@ def _session(regress: dict | None = None, launcher_regress: dict | None = None):
     hermes, launcher = [], []
     at = BOOT + timedelta(minutes=3)
     for n in range(1, 6):
-        hermes += _turn(at, n, **{"prep": 780 if n == 1 else 480, **(regress if n == 4 and regress else {})})
+        hermes += _turn(at, n, **{"prep": 780 if n == 1 else 260, **(regress if n == 4 and regress else {})})
         launcher.append(_launcher(at, n, send="first_in_process" if n == 1 else "warm",
                                   **(launcher_regress if n == 4 and launcher_regress else {})))
         at += timedelta(seconds=4)
@@ -95,14 +95,14 @@ def test_a_baseline_like_session_passes_and_turn_one_is_cold(tmp_path, monkeypat
     assert _row(report, "warm", "server_wait")["status"] == "REPORT"
 
 
-def test_a_regressed_session_fails_naming_send_prep_and_ui_build_max(tmp_path, monkeypatch, capsys):
-    hermes, launcher = _session(regress={"prep": 1300}, launcher_regress={"build_max": 260.0})
+def test_a_regressed_hermes_span_fails_naming_send_prep(tmp_path, monkeypatch, capsys):
+    hermes, launcher = _session(regress={"prep": 890}, launcher_regress={"build_max": 260.0})
     code, report = _run(tmp_path, monkeypatch, capsys, hermes, launcher)
 
     assert code == 1 and report["result"] == "FAIL"
-    assert report["failed"] == ["send_prep_total", "ui_build_max"]
+    assert report["failed"] == ["send_prep_total"]
     assert _row(report, "warm", "send_prep_total")["failing_turns"] == ["agent-chat-send-0004"]
-    assert _row(report, "warm", "send_prep_total")["observed"] == "480-1300 ms"
+    assert _row(report, "warm", "send_prep_total")["observed"] == "260-890 ms"
 
 
 def test_a_slow_provider_is_reported_never_failed(tmp_path, monkeypatch, capsys):
@@ -118,7 +118,6 @@ def test_without_the_launcher_log_the_hermes_spans_are_still_checked(tmp_path, m
     code, report = _run(tmp_path, monkeypatch, capsys, hermes, None)
 
     assert report["launcher_log"] is False
-    assert _row(report, "warm", "ui_build_max")["status"] == "SKIP"
     assert _row(report, "warm", "accept_to_anchor")["status"] == "PASS"
     assert code == 1 and report["failed"] == ["send_prep_total"]
 
@@ -150,9 +149,20 @@ def test_a_slow_cold_turn_is_reported_not_failed(tmp_path, monkeypatch, capsys):
     assert code == 0
 
 
+def test_launcher_ui_spans_are_never_a_hermes_verdict(tmp_path, monkeypatch, capsys):
+    """Owner D2: the launcher's budget registry owns the UI spans; a 180 ms frame never fails here."""
+    hermes, launcher = _session(launcher_regress={"build_max": 180.0, "build_sum": 9000.0, "admit": 900,
+                                                  "paint": 400})
+    code, report = _run(tmp_path, monkeypatch, capsys, hermes, launcher)
+
+    assert code == 0 and report["result"] == "PASS", report["failed"]
+    assert report["groups"] == {"warm": 4, "after-idle": 0, "cold": 1}
+    launcher_spans = {"send_to_admit", "ui_build_max", "ui_build_sum", "ui_apply_to_paint"}
+    assert not launcher_spans & {r["span"] for r in report["rows"]}
+    assert not any(launcher_spans & t["spans"].keys() for t in report["turns"])
+
+
 def test_every_budget_names_its_baseline():
     budgets = load_budgets()
-    assert {b["span"] for b in budgets["budgets"]} == {
-        "accept_to_anchor", "send_prep_total", "conn", "send_to_admit", "ui_build_max", "ui_build_sum",
-        "ui_apply_to_paint"}
+    assert {b["span"] for b in budgets["budgets"]} == {"accept_to_anchor", "send_prep_total", "conn"}
     assert all(b.get("baseline") for b in budgets["budgets"] + budgets["reported"])

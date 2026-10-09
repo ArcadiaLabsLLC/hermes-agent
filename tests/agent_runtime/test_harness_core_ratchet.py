@@ -56,7 +56,9 @@ DECLARED_TOOL_COUNT = 45
 # envelope hid (the recorded first request carried ~16.6k tokens of tools[]).
 # Lane h-prompt-brief (2026-10-05): every wire description collapsed to one line,
 # parameters whole: 13372 -> 10183.
-DECLARED_TOKEN_ESTIMATE = 10183
+# Lane relay-detach (2026-10-08): ``agent_chat_send.wait`` rewritten to carry the
+# in-turn auto-detach rule in fewer words than it had: 10183 -> 10168 (-15).
+DECLARED_TOKEN_ESTIMATE = 10168
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

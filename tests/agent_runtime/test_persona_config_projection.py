@@ -110,7 +110,6 @@ _MACHINE_CONFIG = {
                 "hermes_profile": "base",
                 "display_name": "Neko Mission Lead",
                 "soul_overlay_path": "SOUL.md",
-                "toolsets": ["file", "terminal"],
             },
             "unwanted": {"display_name": "Not published by this realm"},
         },
@@ -226,7 +225,6 @@ def _live_shape_record(**overrides) -> AgentPersona:
         model="claude-opus-4",
         provider="anthropic",
         api_mode="chat_completions",
-        toolsets=["file", "terminal", "web"],
         system_prompt_path="agent_runtime/prompts/alice_supervisor.md",
         autonomy="propose_only",
         hermes_profile="base",
@@ -279,7 +277,7 @@ def test_one_key_override_does_not_amputate_the_resolved_record():
     assert body["model"] == "claude-opus-4"
     assert body["provider"] == "anthropic"
     assert body["skills"] == ["harness-mission-lead", "harness-continuity"]
-    assert body["toolsets"] == ["file", "terminal", "web"]
+    assert "toolsets" not in body  # the persona-level list was deleted 2026-10-08
     assert body["system_prompt_path"] == "agent_runtime/prompts/alice_supervisor.md"
     assert body["soul_overlay_path"] == "SOUL.md"
     assert body["iteration_budget"] == 40

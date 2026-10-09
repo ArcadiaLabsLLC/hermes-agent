@@ -78,7 +78,7 @@ from hermes_cli.harness_parts.persona import chat_events, chat_turn_message
 
 
 # --------------------------------------------------------------------------- #
-# Scripted clock                                                               #
+# Scripted clock                                                             #
 # --------------------------------------------------------------------------- #
 class _TickClock:
     """A monotonic clock that advances exactly one second per READ.

@@ -29,7 +29,7 @@ def _discover(monkeypatch, *, names, templates=None):
 
 
 def _persona(persona_id, profile=None):
-    return AgentPersona(persona_id, persona_id, "custom", None, None, None, [], hermes_profile=profile)
+    return AgentPersona(persona_id, persona_id, "custom", None, None, None, hermes_profile=profile)
 
 
 def test_new_named_profile_is_persisted_once_without_creating_instance(monkeypatch):
@@ -40,7 +40,7 @@ def test_new_named_profile_is_persisted_once_without_creating_instance(monkeypat
     assert [item.id for item in reconcile_profile_personas(cfg)] == []
     assert {item.id for item in AgentStore().list_all()} == {"profile_alice", "profile_bob"}
     assert all(item.role == "profile" and item.autonomy == "propose_only" for item in first)
-    assert all(item.include_profile_memory and not item.toolsets for item in first)
+    assert all(item.include_profile_memory and not hasattr(item, "toolsets") for item in first)
     assert all(item.readiness["auto_discovered_profile"] for item in first)
     assert {item.id for item in ensure_persisted_personas(cfg)} == {"profile_alice", "profile_bob"}
     edited = AgentStore().get("profile_alice")

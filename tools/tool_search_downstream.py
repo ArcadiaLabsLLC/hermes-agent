@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from tools.mcp_tool_schema import mcp_prefixed_tool_name, sanitize_mcp_name_component
-from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
+from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME, _registry_entry
 
 #: Top search hits that carry their full ``parameters`` schema, and its size bound.
 _SEARCH_HIT_SCHEMA_TOP_N = 3
@@ -207,9 +207,140 @@ def warn_unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNev
 #: agent handed three names by describe still sent all three in one call (owner
 #: screenshot 2026-10-01, ``events.81417412.jsonl`` line 17549) and lost a round trip.
 LOCAL_CALL_RULE = (
-    "Invoke each local tool with its own tool_call (calls: an array of ONE entry); "
-    "only connectors__ names may be batched in one tool_call."
+    "Invoke a deferred local tool with its own tool_call (calls: an array of ONE entry); "
+    "a tool already in your tool list is called by name. Only connectors__ names may be "
+    "batched in one tool_call."
 )
+
+#: Stamped on a search result that found an eager tool for a query.
+DIRECT_CALL_RULE = (
+    "Names under directly_available are already in your tool list: call them by name, "
+    "not through tool_call."
+)
+
+
+# ── one door for a name the session already has (lane bridge-direct, 2026-10-08) ────
+#
+# Upstream's bridge refuses a ``tool_call`` that names a directly-listed tool and tells
+# the model to call it by name. On the chat lane that correction costs a full provider
+# round trip (a ~50K-token request, 4–16 s) for a call whose intent was unambiguous;
+# Amelia turn ``agent-chat-send-db7a2d34`` (2026-10-08) paid it for
+# ``launcher_generated_list`` while the same name sat in its eager list. Both vendors'
+# native discovery dispatch a discovered tool by name through one door, so the fork
+# admits an in-scope eager name through the bridge and keeps upstream's correction for
+# the one case it is right about: an UNKNOWN name. Scope is the union the executor and
+# the dispatcher already check — a name must be in the session's own definitions — so
+# this grants nothing; it only stops refusing what the session already offers.
+
+
+def directly_available_names(tool_defs) -> frozenset[str]:
+    """The names in ``tool_defs`` the model may call by name: scoped, not deferrable, not a bridge tool.
+
+    Read from the session's PRE-ASSEMBLY definitions, the same list the bridge's scope
+    checks read, so an eager tool the session never produced is not admitted here either.
+    """
+    from tools.tool_search import is_deferrable_tool_name, load_config_readonly
+    from tools.tool_search_catalog import _fn
+
+    config = load_config_readonly()
+    defer = config.effective_defer_tools
+    names = set()
+    for td in tool_defs or ():
+        name = _fn(td).get("name") if isinstance(td, dict) else None
+        if not name or name in BRIDGE_TOOL_NAMES:
+            continue
+        if not is_deferrable_tool_name(name, defer, config=config):
+            names.add(name)
+    return frozenset(names)
+
+
+def admit_direct_in_resolve(upstream):
+    """``resolve_underlying_call`` that admits a registered eager name instead of refusing it.
+
+    Upstream's answer stands for everything else: a connector batch, a multi-entry local
+    batch, a bridge name, and an unknown name — the last keeps its "did you mean" correction,
+    which is the one the model actually needs.
+    """
+
+    def resolve_underlying_call(args):
+        name, raw_args, err = upstream(args)
+        if err is None:
+            return name, raw_args, err
+        from tools.connectors import is_connector_name
+        from tools.tool_search_validation import normalize_tool_call_entries
+
+        entries, parse_err = normalize_tool_call_entries(args)
+        if parse_err or len(entries) != 1:
+            return name, raw_args, err
+        candidate = entries[0]["name"]
+        if is_connector_name(candidate) or _registry_entry(candidate) is None:
+            return name, raw_args, err
+        return candidate, entries[0]["arguments"], None
+
+    resolve_underlying_call.__doc__ = (upstream.__doc__ or "") + "\n\nFork: a registered eager name is admitted, not refused (tool_search_downstream)."
+    return resolve_underlying_call
+
+
+def admit_direct_in_scope(upstream):
+    """``scoped_deferrable_names`` widened to the names the bridge may reach: deferred OR eager, in scope.
+
+    Both scope checks — ``model_tools._dispatch_bridge_tool`` and the executor's unwrap —
+    read this one function, so the eager admission and the deferred admission cannot drift.
+    """
+
+    def scoped_deferrable_names(tool_defs):
+        return frozenset(upstream(tool_defs)) | directly_available_names(tool_defs)
+
+    scoped_deferrable_names.__doc__ = (upstream.__doc__ or "") + "\n\nFork: eager names in scope are included (tool_search_downstream)."
+    return scoped_deferrable_names
+
+
+def mark_direct_hits(upstream):
+    """``dispatch_tool_search`` that also says which EAGER tools answer a query.
+
+    Upstream's catalog holds deferrable tools only, so a search for a capability the
+    session already has eagerly returned its deferred siblings and hid the one to call
+    (``launcher generated list`` → inspect/edit/update, 2026-10-08). The eager subset is
+    searched with the same scorer and reported under ``directly_available`` per query,
+    beside the unchanged ``matches``; nothing is added to ``tools`` because those schemas
+    are already on the wire.
+    """
+
+    def dispatch_tool_search(args, *, current_tool_defs, config=None, connector_search=None):
+        raw = upstream(args, current_tool_defs=current_tool_defs, config=config,
+                       connector_search=connector_search)
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            return raw
+        results = payload.get("results") if isinstance(payload, dict) else None
+        if not isinstance(results, list):
+            return raw
+        from tools.tool_search_catalog import _fn, build_catalog, search_catalog
+
+        direct = directly_available_names(current_tool_defs)
+        eager_defs = [td for td in current_tool_defs or () if isinstance(td, dict) and _fn(td).get("name") in direct]
+        if not eager_defs:
+            return raw
+        catalog = build_catalog(eager_defs)
+        try:
+            limit = max(1, min(int((args or {}).get("limit") or 5), 25))
+        except (TypeError, ValueError):
+            limit = 5
+        marked = False
+        for group in results:
+            if not isinstance(group, dict):
+                continue
+            hits = search_catalog(catalog, str(group.get("query") or ""), limit=limit)
+            if hits:
+                group["directly_available"] = [hit.name for hit in hits]
+                marked = True
+        if marked:
+            payload["direct_rule"] = DIRECT_CALL_RULE
+        return json.dumps(payload, ensure_ascii=False)
+
+    dispatch_tool_search.__doc__ = (upstream.__doc__ or "") + "\n\nFork: eager hits are reported as directly_available (tool_search_downstream)."
+    return dispatch_tool_search
 
 
 def attach_local_call_rule(result: Dict[str, Any]) -> None:

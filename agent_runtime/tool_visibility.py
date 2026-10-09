@@ -24,12 +24,14 @@ from .permission_modes import permission_mode_is_unbounded
 from .personas import (
     PERSONA_BLOCKED_TOOLS,
     REGISTRY_HYGIENE_BLOCKED_TOOLS,
+    ToolsetDeclaration,
     blocked_tool_names,
     role_from_persona,
 )
 from .persona_profiles import declared_lane_toolsets, effective_toolsets
 from .profile_readiness import declared_mcp_server_names, profile_readiness_for_persona
 from .serde import unique_texts
+from .tool_surface import DispositionReason, blocked_reason
 from .tool_turn_history import load_tool_turn_history
 
 # The committed toolset manifest. Importing it imports NO registrar module and no
@@ -271,7 +273,6 @@ def resolve_tool_visibility(
     resolved_toolsets = _resolved_toolsets(persona, opts, unbounded=unbounded)
     configured_toolsets = list(opts.configured_toolsets or resolved_toolsets)
     role_allowed_toolsets = list(resolved_toolsets)
-    persona_toolsets = list(getattr(persona, "toolsets", []) or [])
     declaration = declared_lane_toolsets(persona)
     # Registry hygiene NEVER yields to a permission mode: ``profile_runner``
     # unions ``REGISTRY_HYGIENE_BLOCKED_TOOLS`` at agent construction on EVERY
@@ -305,7 +306,7 @@ def resolve_tool_visibility(
     excluded_toolsets = [
         {
             "name": name,
-            "reason": "session_toolset_policy",
+            "reason": DispositionReason.SESSION_TOOLSET_POLICY.value,
             "tools": _tool_names_for_toolsets([name], blocked_tool_names=[]),
         }
         for name in configured_toolsets
@@ -318,6 +319,7 @@ def resolve_tool_visibility(
         opts,
         lane=entry_point_lane,
         role=str(role.value if hasattr(role, "value") else role),
+        declaration=declaration,
     )
     resolved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     resolution_id = _tool_resolution_id(
@@ -347,14 +349,6 @@ def resolve_tool_visibility(
         "workdir": str(opts.workdir) if opts.workdir is not None else None,
         "runtime_root": str(opts.runtime_root) if opts.runtime_root is not None else None,
         "profile_toolsets": resolved_toolsets,
-        # LEGACY DISPLAY, not an admission input (S0a R-S0a-3). The per-persona
-        # list is read by nothing on the harness lane since A1; it is reported
-        # here, and inside ``toolset_declaration.persona_list``, so a divergence
-        # from the profile's declaration is VISIBLE rather than obeyed. The
-        # follow-up row deletes the field from the model (store schema, realm
-        # sync, launcher card) — this stage makes it inert.
-        "persona_toolsets": persona_toolsets,
-        "persona_toolsets_in_force": False,
         "toolset_declaration": declaration.row(),
         "configured_toolsets": configured_toolsets,
         "effective_toolsets": resolved_toolsets,
@@ -406,7 +400,12 @@ def resolve_tool_visibility(
 
 
 def _requirement_failures(
-    persona: AgentPersona, opts: ToolVisibilityOptions, *, lane: str, role: str = ""
+    persona: AgentPersona,
+    opts: ToolVisibilityOptions,
+    *,
+    lane: str,
+    role: str = "",
+    declaration: ToolsetDeclaration | None = None,
 ) -> list[dict[str, Any]]:
     """Typed capability accounting for this persona on this entry-point lane.
 
@@ -430,6 +429,9 @@ def _requirement_failures(
       typed drops. A worker-lane resolve threads none and claims none.
     * **Mission-chat workdir** — a row only when a CONFIGURED grounding path
       could not be used (the turn still runs, in the safe cwd).
+    * **Declaration issues** — the profile's ``toolsets:`` would not read
+      (``config_read_failed``) or names a toolset nothing knows
+      (``unknown_toolset``); ``ToolsetDeclaration.issues``, one row each.
 
     Rows are appended in that order so the MCP payload of an
     MCP-declaring persona stays byte-identical to what R0/R1 emitted.
@@ -452,11 +454,18 @@ def _requirement_failures(
         )
     rows.extend(
         chat_lane_drop_rows(
-            opts.chat_lane_capability_drops, role=role, entry_point_lane=lane
+            opts.chat_lane_capability_drops,
+            role=role,
+            entry_point_lane=lane,
+            default_mode=(
+                _default_permission_mode_for_options() if opts.chat_lane_capability_drops else ""
+            ),
         )
     )
     if opts.mission_chat_workdir is not None:
         rows.extend(opts.mission_chat_workdir.rows(entry_point_lane=lane))
+    if declaration is not None:
+        rows.extend(issue.row(entry_point_lane=lane) for issue in declaration.issues)
     return rows, admitted
 
 
@@ -619,7 +628,6 @@ def _cached_profile_readiness_for_visibility(
         provider=provider or None,
         model=model or None,
         api_mode=api_mode,
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=hermes_profile or None,
         skills=list(skills),
@@ -683,15 +691,14 @@ def _blocked_tool_entries(
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for name in names:
-        reason = "session_tool_policy"
-        if name in requested_denies:
-            reason = "turn_runtime_block"
-        elif name in registry_hygiene_denies:
-            reason = "registry_hygiene"
-        elif name in role_denies:
-            reason = "role_policy"
-        elif name in persona_denies:
-            reason = "persona_safety_policy"
+        # ONE ladder (``tool_surface.blocked_reason``), read by the cost layer's surface too.
+        reason = blocked_reason(
+            name,
+            requested_denies=requested_denies,
+            registry_hygiene_denies=registry_hygiene_denies,
+            role_denies=role_denies,
+            persona_denies=persona_denies,
+        ).value
         entries.append(
             {
                 "name": name,

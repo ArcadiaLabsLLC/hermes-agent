@@ -606,3 +606,7 @@ __all__ = [
 
 
 from tools.tool_search_downstream import attach_hit_parameters, attach_local_call_rule, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # noqa: E402,F401 — fork
+from tools.tool_search_downstream import admit_direct_in_resolve, admit_direct_in_scope, mark_direct_hits  # noqa: E402 — fork
+resolve_underlying_call = admit_direct_in_resolve(resolve_underlying_call)  # fork, additive: an in-scope eager name is dispatched, not refused
+scoped_deferrable_names = admit_direct_in_scope(scoped_deferrable_names)  # fork, additive: the bridge's scope is deferred OR eager, in scope
+dispatch_tool_search = mark_direct_hits(dispatch_tool_search)  # fork, additive: eager hits reported as directly_available

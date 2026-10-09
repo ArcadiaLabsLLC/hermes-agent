@@ -202,6 +202,7 @@ def _safe_prompt_blocks(value: Any) -> list[dict[str, Any]]:
 _PROMPT_SURFACE_FIELDS = (
     "schema_version", "tools", "tool_chars", "promoted_mcp_chars", "listing_chars",
     "system_chars", "skills_entries", "hud_chars", "user_chars", "chars_per_token",
+    "deferred", "unavailable",
 )
 
 
@@ -354,7 +355,66 @@ def _safe_tool_schema(value: Any) -> dict[str, Any] | None:
             for name, raw in list((value.get("per_tool_chars") or {}).items())[:_SAFE_TOOL_NAME_LIMIT]
             if (token := safe_assignment_token(name)) and (chars := non_negative_int(raw)) is not None
         } if isinstance(value.get("per_tool_chars"), dict) else {},
+        **({"bridge_aliases": aliases} if (aliases := _safe_aliases(value.get("bridge_aliases"))) else {}),
+        **_safe_surface_fields(value),
     }
+
+
+#: The surface receipt's states (``agent_runtime.tool_surface.STATES``), spelled here so this
+#: policy module validates the foreign dict without importing the producer.
+_SURFACE_STATES = ("eager", "deferred", "unavailable", "blocked")
+_SURFACE_COUNT_KEYS = (*_SURFACE_STATES, "bridge", "callable_by_name")
+
+
+def _safe_aliases(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        alias: real
+        for key, raw in list(value.items())[:8]
+        if (alias := safe_assignment_token(key)) and (real := safe_assignment_token(raw))
+    }
+
+
+def _safe_surface_fields(value: dict[str, Any]) -> dict[str, Any]:
+    """``tool_schema.surface`` (toolvis slice 4): names, reasons and counts — nothing else.
+
+    A per-name row keeps ``reason`` and ``restorable_via`` (a config key) and drops any other
+    field, so a producer that grows a schema-bearing field cannot widen what a record keeps.
+    """
+
+    surface = value.get("surface")
+    if not isinstance(surface, dict):
+        return {}
+    if surface.get("state") == "not_computed":
+        return {"surface": {"schema_version": non_negative_int(surface.get("schema_version")) or 1,
+                            "state": "not_computed",
+                            "reason": safe_assignment_token(surface.get("reason")) or "unknown"}}
+    safe: dict[str, Any] = {
+        "schema_version": non_negative_int(surface.get("schema_version")) or 1,
+        "resolution_id": safe_assignment_token(surface.get("resolution_id")) or "",
+        "tool_search": safe_assignment_token(surface.get("tool_search")) or "",
+    }
+    for state in _SURFACE_STATES:
+        rows: dict[str, Any] = {}
+        raw_rows = surface.get(state)
+        for name, row in list((raw_rows or {}).items())[:_SAFE_TOOL_NAME_LIMIT] if isinstance(raw_rows, dict) else ():
+            token = safe_assignment_token(name)
+            if not token:
+                continue
+            row = row if isinstance(row, dict) else {}
+            kept: dict[str, Any] = {"reason": safe_assignment_token(row.get("reason")) or None}
+            if (via := safe_assignment_text(row.get("restorable_via"), limit=120)):
+                kept["restorable_via"] = via
+            rows[token] = kept
+        safe[state] = rows
+    safe["bridge"] = [token for item in (surface.get("bridge") or [])[:8]
+                      if (token := safe_assignment_token(item))]
+    counts = surface.get("counts") if isinstance(surface.get("counts"), dict) else {}
+    safe["counts"] = {key: non_negative_int(counts.get(key)) or 0 for key in _SURFACE_COUNT_KEYS}
+    safe["degraded"] = [token for item in (surface.get("degraded") or [])[:8]
+                        if (token := safe_assignment_text(item, limit=80))]
+    return {"surface": safe, "resolution_id": safe["resolution_id"]}
 
 
 def _chat_history_context(*, session_db: Any | None, session_id: str | None) -> list[dict[str, Any]]:

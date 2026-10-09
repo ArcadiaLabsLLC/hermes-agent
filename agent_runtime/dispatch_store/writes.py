@@ -44,8 +44,13 @@ def record_dispatch(
     relay_chain: Any = None,
     dispatched_at: float | None = None,
     remote_install_id: str = "",
+    parent_turn_id: str = "",
 ) -> dict[str, Any]:
     """Persist a dispatch BEFORE its target turn starts.
+
+    ``parent_turn_id`` is the sending turn's client message id when the send
+    came from inside a turn (``relay_policy.RELAY_PARENT_TURN``), else "". It is
+    the one fact Stop needs: which running dispatches that turn started.
 
     Order matters and is not negotiable: the row exists first, so a process that
     dies one instruction into the target's turn leaves a record the boot sweep
@@ -66,6 +71,7 @@ def record_dispatch(
         "notify_operator": bool(notify_operator),
         "dispatched_at": now_epoch,
         "remote_install_id": bounded_text(remote_install_id, 128),
+        "parent_turn_id": bounded_text(parent_turn_id, 200),
     }
     with _DB_LOCK, _transaction() as conn:
         conn.execute(
@@ -74,8 +80,8 @@ def record_dispatch(
                  target_instance_id, target_session_id, title, ask, state,
                  notify_operator, dispatched_at, updated_at, delivery_state,
                  delivery_attempts, owner_pid, owner_started_at, relay_chain_json,
-                 remote_install_id)
-                VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)""",
+                 remote_install_id, parent_turn_id)
+                VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
             (
                 row["dispatch_id"],
                 row["sender_session_id"],
@@ -93,6 +99,7 @@ def record_dispatch(
                 started,
                 json.dumps(list(relay_chain or [])),
                 row["remote_install_id"],
+                row["parent_turn_id"],
             ),
         )
     _emit(

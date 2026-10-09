@@ -1973,7 +1973,6 @@ def _named_instance():
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
         )
     )
@@ -2101,12 +2100,30 @@ def test_the_dispatch_lane_reports_unavailable_when_the_store_cannot_be_read(
     assert entry["reason"] == "store_unreadable"
 
 
-def test_cancelling_a_dispatch_is_a_typed_refusal_not_a_pretend_success(dispatch_home):
+def test_cancelling_a_dispatch_nobody_here_supervises_is_a_typed_refusal(dispatch_home):
+    """Recorded is not supervised: the row exists, no process here holds its child."""
+    import tools.agent_chat_dispatch  # noqa: F401 - the lane must be resident for the seam to answer
+
     dispatch_id = _record_dispatch()
 
     result = cancel_work(f"dispatch:{dispatch_id}")
 
-    assert result["code"] == "cancel_unsupported"
+    assert result["status"] == "error"
+    assert result["code"] == "not_owned_here"
+
+
+def test_cancelling_a_queued_dispatch_this_process_supervises_settles_it(dispatch_home):
+    import tools.agent_chat_dispatch as lane
+    from agent_runtime.dispatch_store import get_dispatch
+
+    dispatch_id = _record_dispatch()
+    lane._mark_supervised(dispatch_id)
+
+    result = cancel_work(f"dispatch:{dispatch_id}", reason="operator_stop")
+
+    assert result["status"] == "ok"
+    assert result["outcome"] == "cancelled"
+    assert get_dispatch(dispatch_id)["state"] == "cancelled"
 
 
 # --- owner attribution ------------------------------------------------------

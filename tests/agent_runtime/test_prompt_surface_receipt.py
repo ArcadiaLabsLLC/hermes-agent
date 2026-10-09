@@ -134,3 +134,95 @@ def test_the_visibility_token_figure_is_measured_from_the_schema():
     assert _estimate_model_tool_tokens(["terminal"]) == math.ceil(wire["terminal"] / 4)
     assert _estimate_model_tool_tokens(["terminal"]) > (len("terminal") + 96) // 4
     assert _estimate_model_tool_tokens(["no_such_tool_xyz"]) == (len("no_such_tool_xyz") + 96) // 4
+
+
+# ── toolvis slice 4: one receipt, three readers ──────────────────────────────
+# Plan: ``docs/agent-runtime-harness/planned/tool-visibility-authority-split-2026-10-08.md`` §2(c),
+# §3 slice 4, §5 item 1. The receipt is the tool form owner's (``chat_lane_tool_form``), set with
+# the form it describes; the wire capture runs AFTER the transport aliased the bridge
+# (``hermes_tool_search``), so the join reverses the transport's own alias map.
+
+from tests.agent_runtime.test_chat_lane_defer import NEKO_DEFER  # noqa: E402
+from tests.agent_runtime.test_tool_surface import harness_lane  # noqa: E402,F401 - fixture
+
+_BLOCK = ("skill_manage",)
+
+
+def _factory_agent(lane):
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
+
+    agent = lane.build_agent()
+    apply_chat_lane_defer(agent, NEKO_DEFER, blocked=_BLOCK)
+    return agent
+
+
+def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):  # noqa: F811
+    from agent_runtime.persona_turn_binding import bind_persona_turn_agent, capture_final_request_tools
+    from agent_runtime.tool_surface import unaliased_wire_names
+
+    agent = _factory_agent(harness_lane)
+    agent.api_mode = "codex_responses"
+    agent.messages = [{"role": "user", "content": "hi"}]
+    agent._persist_user_message_idx = 0
+    agent._cached_system_prompt = _SYSTEM
+    # What the Responses transport emits for an OpenAI/Codex endpoint: the bridge under its alias.
+    agent._transport_cache = {"codex_responses": SimpleNamespace(
+        _last_wire_aliases={"hermes_tool_search": "tool_search"})}
+    wire_tools = [
+        {**td, "function": {**td["function"], "name": "hermes_tool_search"}}
+        if td["function"]["name"] == "tool_search" else td
+        for td in agent.tools
+    ]
+    with bind_persona_turn_agent(agent):
+        capture_final_request_tools({"tools": wire_tools})
+    schema = _record(agent)["tool_schema"]
+    surface = schema["surface"]
+
+    assert "hermes_tool_search" in schema["final_model_tools"], "the record keeps the wire's spelling"
+    joined = unaliased_wire_names({"names": schema["final_model_tools"], "bridge_aliases": schema["bridge_aliases"]})
+    assert sorted(joined) == sorted([*surface["eager"], *surface["bridge"]])
+    assert schema["resolution_id"] == surface["resolution_id"]
+    assert agent._hermes_turn_wire_tool_receipt["listing_chars"] > 0, "the aliased bridge's listing read as 0"
+    # Anti-vacuity: the block and the persona's defer both moved names off this wire.
+    assert "skill_manage" in surface["blocked"] and "memory" in surface["deferred"]
+
+
+def test_hud_renders_the_deferred_line(harness_lane):  # noqa: F811
+    from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
+    from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
+
+    receipt = getattr(_factory_agent(harness_lane), AGENT_SURFACE_ATTR)
+    block = resolve_capability_block(surface=receipt)
+    count = len(receipt["deferred"])
+    assert count >= 15, receipt["deferred"]
+    assert block["deferred"]["count"] == count and block["deferred"]["via"] == "tool_search"
+    assert "agent_runtime.personas.<persona>.chat_lane_defer_tools" in block["deferred"]["restorable_via"]
+    text = render_capability_block(block)
+    assert f"- {count} tools deferred, reachable through tool_search" in text
+    assert "nothing is missing" in text
+    # Positive control: no surface, no line — the account stays silent when it knows nothing.
+    assert "deferred" not in render_capability_block(resolve_capability_block())
+
+
+def test_the_safe_view_keeps_reasons_and_counts_only(harness_lane):  # noqa: F811
+    from agent_runtime.prompt_observability.safe_views import _safe_tool_schema
+    from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
+
+    receipt = getattr(_factory_agent(harness_lane), AGENT_SURFACE_ATTR)
+    tainted = {**receipt, "deferred": {name: {**row, "schema": {"description": "SECRET body"}}
+                                       for name, row in receipt["deferred"].items()}}
+    safe = _safe_tool_schema({
+        "final_model_tools": ["terminal"], "per_tool_chars": {"terminal": 900},
+        "surface": tainted, "resolution_id": receipt["resolution_id"],
+    })
+    surface = safe["surface"]
+    assert set(surface) == {"schema_version", "resolution_id", "tool_search", "eager", "deferred",
+                            "unavailable", "blocked", "bridge", "counts", "degraded"}
+    for state in ("eager", "deferred", "unavailable", "blocked"):
+        for name, row in surface[state].items():
+            assert set(row) <= {"reason", "restorable_via"}, (state, name, row)
+    assert "SECRET" not in repr(surface) and "per_tool_chars" not in surface
+    assert surface["counts"] == receipt["counts"]
+    # Positive control: the reasons themselves survive the whitelist.
+    assert surface["deferred"]["browser_vault_list"]["reason"] == "persona_defer"
+    assert safe["resolution_id"] == receipt["resolution_id"]

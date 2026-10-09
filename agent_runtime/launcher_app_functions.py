@@ -65,6 +65,7 @@ __all__ = [
     "declare_answerer",
     "app_function_tools_registered",
     "app_function_tool_scope",
+    "app_function_guidance_lines",
     "always_loaded_app_function_tools",
     "LauncherLink",
     "bind_launcher_link",
@@ -161,6 +162,9 @@ class AppFunctionEntry:
     reach: str = ""
     #: Host-owned discovery preference; never a permission grant.
     always_loaded: bool = False
+    #: Host-owned one-line WHEN rule, rendered in the prompt only while this
+    #: tool is in the session's list (``plugins/eternia-harness`` tool guidance).
+    guidance: str = ""
 
     @classmethod
     def parse(cls, raw: Any) -> AppFunctionEntry | None:
@@ -181,7 +185,9 @@ class AppFunctionEntry:
         return cls(name, method, description if isinstance(description, str) else "", parameters,
                    requires_confirmation=raw.get("requires_confirmation") is True,
                    reach=reach if isinstance(reach, str) else "",
-                   always_loaded=raw.get("always_loaded") is True)
+                   always_loaded=raw.get("always_loaded") is True,
+                   guidance=" ".join(str(raw.get("guidance")).split())
+                   if isinstance(raw.get("guidance"), str) else "")
 
     def schema(self) -> dict[str, Any]:
         """The tool schema: the Launcher's name, description and parameters, with
@@ -305,6 +311,24 @@ def always_loaded_app_function_tools() -> frozenset[str]:
             return frozenset()
         return frozenset(entry.name for entry in held[1] if entry.always_loaded and
                          (link.origin == ORIGIN_LOCAL or entry.reach == "pairedDevice"))
+
+
+def app_function_guidance_lines(tool_names: Iterable[str]) -> list[str]:
+    """The host's WHEN rules for the app-function tools among *tool_names*, in
+    registration order, each text once.
+
+    Read from the registered entries — the set this process offers — so a rule
+    renders only beside a tool the model can actually call; the tool-names gate
+    is the caller's (the prompt section renders for THIS session's list).
+    """
+
+    wanted = {str(name) for name in tool_names}
+    lines: list[str] = []
+    with _state.lock:
+        for name, entry in _state.registered.items():
+            if name in wanted and entry.guidance and entry.guidance not in lines:
+                lines.append(entry.guidance)
+    return lines
 
 
 def confirm_app_function_tools() -> frozenset[str]:

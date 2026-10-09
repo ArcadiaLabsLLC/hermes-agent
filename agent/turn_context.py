@@ -31,6 +31,7 @@ from agent.model_metadata import (
 from agent.image_token_cost import bind_image_token_cost
 from agent.usage_anchor import anchored_context_tokens, restore_usage_anchor
 from agent.turn_author import parse_turn_author
+from agent_runtime.turn_context_timing import note_turn_context_part, trace_turn_context  # fork seam: prep attribution
 
 logger = logging.getLogger(__name__)
 
@@ -1021,6 +1022,7 @@ def _persist_turn_start(
     )
 
 
+@trace_turn_context
 def build_turn_context(
     agent, user_message: Any, system_message: Optional[str],
     conversation_history: Optional[list[dict[str, Any]]], task_id: Optional[str], stream_callback,
@@ -1066,7 +1068,9 @@ def build_turn_context(
     set_review_attended(getattr(agent, "_review_attended", False))
     agent._restore_primary_runtime()
     _publish_runtime_main(agent)
+    note_turn_context_part("runtime_restore")
     _refresh_mcp_tools_between_turns(agent)
+    note_turn_context_part("mcp_refresh")
 
     if isinstance(user_message, str):
         user_message = sanitize_surrogates(user_message)
@@ -1150,6 +1154,7 @@ def build_turn_context(
     except Exception:
         logger.debug("message_agent injection skipped", exc_info=True)
 
+    note_turn_context_part("state_history_prompt")
     _ensure_session_row(agent, pending_cli_message)
 
     # A turn interrupted before admission could not write its accepted input because
@@ -1163,6 +1168,7 @@ def build_turn_context(
     ):
         agent._flush_messages_to_session_db(conversation_history, conversation_history)
 
+    note_turn_context_part("session_row")
     compaction = run_turn_start_compaction(
         agent, messages=messages, system_message=system_message,
         active_system_prompt=active_system_prompt, conversation_history=conversation_history,
@@ -1174,6 +1180,7 @@ def build_turn_context(
     conversation_history = compaction.conversation_history
     current_turn_user_idx = compaction.current_turn_user_idx
 
+    note_turn_context_part("compaction")
     plugin_user_context = _collect_pre_llm_call_context(
         agent, effective_task_id=effective_task_id, turn_id=turn_id,
         original_user_message=original_user_message, messages=messages,
@@ -1183,13 +1190,17 @@ def build_turn_context(
         agent, messages, current_turn_user_idx, plugin_user_context
     )
 
+    note_turn_context_part("hooks")
     _bind_interrupt_scope(agent, ra)
     ext_prefetch_cache = _memory_turn_start_and_prefetch(agent, original_user_message, turn_author)
+
+    note_turn_context_part("memory")
 
     # Title the session now: titling depends only on the user's ask (before any injected
     # context lands on list content), so it runs concurrently with the turn. Daemon thread,
     # no-op once titled; it ensures the session row itself.
     _maybe_title_session_at_turn_start(agent, messages, title_user_message)
+    note_turn_context_part("title")
 
     # Sidecar skipped for codex_app_server/MoA; list content carries its context as a part in every mode.
     if 0 <= current_turn_user_idx < len(messages) and messages[current_turn_user_idx].get("role") == "user":
@@ -1204,7 +1215,9 @@ def build_turn_context(
                 plugin_user_context, preflight_compressed=compaction.compressed,
             )
 
+    note_turn_context_part("sidecar")
     _persist_turn_start(agent, messages, conversation_history, pending_cli_message)
+    note_turn_context_part("persist")
 
     return TurnContext(
         user_message=user_message, original_user_message=original_user_message, messages=messages,

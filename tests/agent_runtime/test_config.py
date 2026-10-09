@@ -8,11 +8,10 @@ from agent_runtime.config import (
 
 
 def test_config_merges_persona_overrides(tmp_path):
-    p=tmp_path/"config.yaml"; p.write_text("agent_runtime:\n  default_model: gpt-x\n  personas:\n    pm:\n      toolsets: [file, terminal, todo]\n", encoding="utf-8")
+    p=tmp_path/"config.yaml"; p.write_text("agent_runtime:\n  default_model: gpt-x\n  personas:\n    pm:\n      model: gpt-y\n", encoding="utf-8")
     cfg=load_agent_runtime_config(p)
     pm=next(p for p in persona_records_from_config(cfg) if p.id=="pm")
-    assert pm.model == "gpt-x"
-    assert pm.toolsets == ["file", "terminal", "todo"]
+    assert pm.model == "gpt-y"
 
 
 def test_config_does_not_derive_a_system_prompt_from_an_arbitrary_role(tmp_path):

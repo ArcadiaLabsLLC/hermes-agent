@@ -557,3 +557,101 @@ class TestPromotedMcpBrief:
         flat = {"type": "function", **full["function"]}
         wired = brief_request_tools({"tools": [flat]})["tools"][0]
         assert len(wired["description"]) <= 600 and "function" not in wired
+
+
+class TestOneDoorForAnEagerName:
+    """Lane bridge-direct (2026-10-08): a ``tool_call`` naming a tool the session already
+    has eagerly is dispatched, not refused; the bridge's scope is deferred OR eager, in
+    scope; a search reports the eager tools that answer a query."""
+
+    _register = staticmethod(_UpstreamCatalogListing._register)
+
+    def _send_def(self):
+        import tools.agent_chat_tool  # noqa: F401
+        from tools.registry import registry
+
+        raw = registry.get_schema("agent_chat_send") or {}
+        fn = raw.get("function") if raw.get("type") == "function" else raw
+        assert (fn or {}).get("name") == "agent_chat_send"
+        return {"type": "function", "function": fn}
+
+    def test_an_eager_name_resolves_through_tool_call_and_an_unknown_one_still_gets_the_correction(self):
+        from tools.tool_search import resolve_underlying_call
+
+        self._send_def()
+        self._register("mcp_x_direct_probe")
+
+        name, args, err = resolve_underlying_call(
+            {"calls": [{"name": "agent_chat_send", "arguments": {"persona_id": "dev", "message": "hi"}}]}
+        )
+        assert (name, args, err) == ("agent_chat_send", {"persona_id": "dev", "message": "hi"}, None)
+
+        # Positive control: a deferred name resolves exactly as before.
+        name, _args, err = resolve_underlying_call({"calls": [{"name": "mcp_x_direct_probe", "arguments": {}}]})
+        assert (name, err) == ("mcp_x_direct_probe", None)
+        # Upstream's corrections stand where they are right.
+        name, _args, err = resolve_underlying_call({"calls": [{"name": "no_such_tool_here", "arguments": {}}]})
+        assert name is None and "not a known tool name" in err
+        name, _args, err = resolve_underlying_call(
+            {"calls": [{"name": "agent_chat_send", "arguments": {}}, {"name": "mcp_x_direct_probe", "arguments": {}}]}
+        )
+        assert name is None and "exactly one entry" in err
+        name, _args, err = resolve_underlying_call({"calls": [{"name": "tool_search", "arguments": {}}]})
+        assert name is None and "bridge tool" in err
+
+    def test_the_bridge_scope_is_the_sessions_own_definitions_eager_or_deferred(self):
+        from tools.tool_search import scoped_deferrable_names
+
+        send_def = self._send_def()
+        self._register("mcp_x_scope_probe")
+        defs = [send_def, _td("mcp_x_scope_probe", "Deferred.")]
+
+        scoped = scoped_deferrable_names(defs)
+
+        assert {"agent_chat_send", "mcp_x_scope_probe"} <= scoped
+        assert not ({"tool_search", "tool_describe", "tool_call"} & scoped)
+        # Registered and eager elsewhere, but NOT in this session's definitions: not admitted.
+        assert "agent_chat_dispatches" not in scoped
+
+    def test_the_dispatcher_hands_an_eager_tool_call_to_the_real_tool(self, monkeypatch):
+        import model_tools
+        from tools.tool_search import ToolSearchConfig
+
+        send_def = self._send_def()
+        monkeypatch.setattr(model_tools, "get_tool_definitions", lambda **kw: [send_def])
+        monkeypatch.setattr("tools.tool_search.load_config", lambda: ToolSearchConfig.from_raw({"enabled": "on"}))
+
+        result, redispatch = model_tools._dispatch_bridge_tool(
+            "tool_call",
+            {"calls": [{"name": "agent_chat_send", "arguments": {"persona_id": "dev", "message": "hi"}}]},
+            None, None,
+        )
+
+        assert result is None
+        assert redispatch == ("agent_chat_send", {"persona_id": "dev", "message": "hi"})
+
+    def test_a_search_names_the_eager_tool_that_answers_the_query(self):
+        from tools.tool_search import ToolSearchConfig, dispatch_tool_search
+
+        send_def = self._send_def()
+        for i in range(5):
+            self._register(f"mcp_x_eager_{i}")
+        defs = [_td(f"mcp_x_eager_{i}", "Deferred widget tool.") for i in range(5)] + [send_def]
+        cfg = ToolSearchConfig.from_raw({"enabled": "on"})
+
+        parsed = json.loads(dispatch_tool_search(
+            {"queries": ["agent chat send", "widget"], "limit": 10}, current_tool_defs=defs, config=cfg,
+        ))
+
+        by_query = {group["query"]: group for group in parsed["results"]}
+        assert by_query["agent chat send"]["directly_available"] == ["agent_chat_send"]
+        assert "agent_chat_send" not in by_query["agent chat send"]["matches"]  # still not a deferred match
+        assert "directly_available" not in by_query["widget"]  # only deferred tools answer it
+        assert "agent_chat_send" not in parsed["tools"]  # its schema is already on the wire
+        assert "call them by name" in parsed["direct_rule"]
+
+    def test_the_call_rule_says_an_eager_tool_is_called_by_name(self):
+        from tools.tool_search_downstream import LOCAL_CALL_RULE
+
+        assert "called by name" in LOCAL_CALL_RULE
+        assert "ONE entry" in LOCAL_CALL_RULE and "connectors__" in LOCAL_CALL_RULE

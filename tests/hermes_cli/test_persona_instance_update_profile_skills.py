@@ -62,7 +62,6 @@ def instance_with_two_overrides():
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
             skills=["harness-qa-verdict"],
         )

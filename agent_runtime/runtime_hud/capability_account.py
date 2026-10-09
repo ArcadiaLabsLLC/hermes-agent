@@ -23,6 +23,7 @@ def capability_block_for_persona(
     session_id: str | None = None,
     permission_mode: str | None = None,
     lane: str | None = None,
+    tool_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Chat-side convenience: resolve both capability accounts for one persona.
 
@@ -92,4 +93,29 @@ def capability_block_for_persona(
         envelope=envelope,
         permission_mode=mode,
         permission_source=source,
+        surface=_surface_receipt(tool_contract),
     )
+
+
+def _surface_receipt(tool_contract: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The cost layer's receipt for this lane: the bound turn agent's when there is one (what
+    the factory derived), else the preview surface from the lane's ``tool_contract`` — the
+    same function on the same input, so the two cannot disagree. Degrades on its own, like
+    the halves above: the HUD loses the deferred line, never the turn."""
+
+    try:
+        from ..persona_turn_binding import current_persona_turn_agent
+        from ..tool_surface import AGENT_SURFACE_ATTR, compute_tool_surface
+
+        receipt = getattr(current_persona_turn_agent(), AGENT_SURFACE_ATTR, None)
+        if isinstance(receipt, dict) and receipt.get("state") != "not_computed":
+            return receipt
+        if not isinstance(tool_contract, dict):
+            return None
+        return compute_tool_surface(
+            enabled_toolsets=tool_contract.get("enabled_toolsets"),
+            blocked_tool_names=tool_contract.get("blocked_tool_names") or (),
+            defer_tools=tool_contract.get("chat_lane_defer_tools") or (),
+        ).receipt()
+    except Exception:  # noqa: BLE001 - an account decorates a turn, it never blocks one
+        return None

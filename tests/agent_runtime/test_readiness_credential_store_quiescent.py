@@ -182,7 +182,6 @@ def _persona() -> AgentPersona:
         model="deepseek-chat",
         provider=PROVIDER,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="personas/probe/system.md",
     )
 

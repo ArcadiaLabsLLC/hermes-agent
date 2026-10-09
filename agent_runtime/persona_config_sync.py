@@ -68,6 +68,7 @@ from agent_runtime import yaml_io
 
 from hermes_constants import get_config_path
 
+from .config.persona_records import LEGACY_PERSONA_TOOLSETS_KEY
 from .sync_merge import PullAction, classify_three_way_pull
 
 __layer__ = "stores"
@@ -97,6 +98,11 @@ PROJECTION_RELATIVE_PATH = "store/personas.yaml"
 #:   clock); travelling it would let a stale realm snapshot win a local race.
 #: - anything unknown — new keys are opt-in, never opt-out. Unknown keys are
 #:   ACCOUNTED (``PersonaConfigProjection.dropped_keys``), never silently eaten.
+#: Keys a write-back never carries forward from the member's own config: ruling R2
+#: (2026-10-08) refuses ``agent_runtime.personas.<id>.toolsets``, so an adopt that
+#: preserved it would re-write a key the startup migration strips.
+RETIRED_PERSONA_CONFIG_KEYS: frozenset[str] = frozenset({LEGACY_PERSONA_TOOLSETS_KEY})
+
 PERSONA_DEF_ALLOWED_KEYS: frozenset[str] = frozenset(
     {
         "api_mode",
@@ -119,7 +125,6 @@ PERSONA_DEF_ALLOWED_KEYS: frozenset[str] = frozenset(
         "skills_remove",
         "soul_overlay_path",
         "system_prompt_path",
-        "toolsets",
     }
 )
 
@@ -473,7 +478,11 @@ def adopt_persona_def(
 
     only = config_only_keys()
     current = dict(local_raw) if isinstance(local_raw, dict) else {}
-    wanted = {key: value for key, value in current.items() if str(key) not in only}
+    wanted = {
+        key: value
+        for key, value in current.items()
+        if str(key) not in only and str(key) not in RETIRED_PERSONA_CONFIG_KEYS
+    }
     wanted.update({key: remote_body[key] for key in sorted(only) if key in remote_body})
     if wanted != current and (wanted or local_raw is not None):
         atomic_roundtrip_yaml_update(path, f"agent_runtime.personas.{persona_id}", wanted)
@@ -744,7 +753,9 @@ def merge_persona_def(local_raw: Any, remote_body: dict[str, Any]) -> dict[str, 
     preserved = {
         str(key): value
         for key, value in (local_raw or {}).items()
-        if isinstance(local_raw, dict) and str(key) not in PERSONA_DEF_ALLOWED_KEYS
+        if isinstance(local_raw, dict)
+        and str(key) not in PERSONA_DEF_ALLOWED_KEYS
+        and str(key) not in RETIRED_PERSONA_CONFIG_KEYS
     }
     return {**preserved, **remote_body}
 

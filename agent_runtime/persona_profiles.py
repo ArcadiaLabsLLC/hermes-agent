@@ -19,10 +19,12 @@ from .personas import (
     PROFILE_ROLE_SENTINEL,
     TOOLSET_SOURCE_LANE_DEFAULT,
     TOOLSET_SOURCE_PROFILE_CONFIG,
+    TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
     TOOLSET_SOURCE_PROFILE_UNRESOLVED,
     AutonomyLevel,
+    DeclarationIssue,
+    DeclarationIssueKind,
     ToolsetDeclaration,
-    profile_chat_toolsets,
     validate_toolsets,
 )
 
@@ -60,9 +62,16 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     ``[harness_core, spotify]``, or a stale explicit ``[hermes-cli, …]`` — is
     honored verbatim and shows up as ``profile_config`` in ``tool-diff``.
 
-    Never raises and never widens: a YAML fault resolves to the narrow lane
+    * a ``config.yaml`` that exists but will not read or parse ⇒ the lane
+      default, ``profile_config_unreadable``, with one ``config_read_failed``
+      issue naming the exception class
+
+    Never raises and never widens: a read fault resolves to the narrow lane
     default, the same asymmetry ``default_permission_mode`` applies to an
-    unparseable permission mode.
+    unparseable permission mode — but it is TYPED, never a debug line an
+    operator cannot tell from an honest default. A declared name nothing knows
+    is carried in ``unknown`` with an ``unknown_toolset`` issue (ruling R4: a
+    typed warning; the rest of the declaration resolves).
 
     Cheap and registry-free: path arithmetic plus the mtime-cached YAML parse
     ``profile_readiness`` already performs, then a static ``TOOLSETS`` expansion.
@@ -72,13 +81,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     subprocess.
     """
 
-    from agent_runtime.toolset_names import expand_toolset_names
-
-    persona_list = tuple(
-        str(name).strip()
-        for name in (getattr(persona, "toolsets", None) or ())
-        if str(name or "").strip()
-    )
+    from agent_runtime.toolset_names import expand_toolset_names, unknown_toolset_names
 
     def _resolved(
         declared: tuple[str, ...],
@@ -86,17 +89,30 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
         *,
         profile: str | None,
         config_path: str | None,
+        read_fault: str | None = None,
     ) -> ToolsetDeclaration:
+        toolsets = tuple(validate_toolsets(expand_toolset_names(declared)))
+        unknown = unknown_toolset_names(toolsets)
+        issues = tuple(
+            DeclarationIssue(DeclarationIssueKind.CONFIG_READ_FAILED, read_fault, config_path)
+            for read_fault in ((read_fault,) if read_fault else ())
+        ) + tuple(
+            DeclarationIssue(DeclarationIssueKind.UNKNOWN_TOOLSET, name, config_path)
+            for name in unknown
+        )
+        issues += _legacy_persona_toolsets_issues(persona)
         return ToolsetDeclaration(
-            toolsets=tuple(validate_toolsets(expand_toolset_names(declared))),
+            toolsets=toolsets,
             declared=declared,
             source=source,
             profile=profile,
             config_path=config_path,
-            persona_list=persona_list,
+            issues=issues,
+            unknown=unknown,
         )
 
     profile_name = str(getattr(persona, "hermes_profile", "") or "").strip() or None
+    config_path = None
     try:
         from .parse_cache import cached_yaml_file
         from .profile_context import resolve_persona_profile
@@ -111,15 +127,26 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
                 config_path=None,
             )
         config_path = binding.profile_home / "config.yaml"
-        raw = cached_yaml_file(config_path, default={}) or {}
+        raw = cached_yaml_file(config_path, default=_UNREAD)
+        if raw is _UNREAD:
+            # The cache answers its default for BOTH "absent" and "would not
+            # read"; only the second is a fault. Absent stays the lane default.
+            raw = _read_config_or_raise(config_path) if config_path.exists() else {}
+        raw = raw or {}
         value = raw.get("toolsets") if isinstance(raw, dict) else None
-    except Exception:  # pragma: no cover - defensive; a declaration read must never break a turn
-        _LOGGER.debug("declared_lane_toolsets: read failed for %r", getattr(persona, "id", None), exc_info=True)
+    except Exception as exc:  # a declaration read must never break a turn — and never hide
+        _LOGGER.warning(
+            "declared_lane_toolsets: %s for persona %r could not be read (%s); resolving the narrow lane default",
+            config_path or "profile config",
+            getattr(persona, "id", None),
+            type(exc).__name__,
+        )
         return _resolved(
             HARNESS_LANE_DEFAULT_TOOLSETS,
-            TOOLSET_SOURCE_LANE_DEFAULT,
+            TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
             profile=profile_name,
-            config_path=None,
+            config_path=str(config_path) if config_path is not None else None,
+            read_fault=type(exc).__name__,
         )
 
     path_text = str(config_path)
@@ -146,6 +173,43 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     )
 
 
+_UNREAD = object()
+
+
+def _legacy_persona_toolsets_issues(persona: AgentPersona) -> tuple[DeclarationIssue, ...]:
+    """The ruling-R2 refusal row when the config the catalog reads carries
+    ``agent_runtime.personas.<id>.toolsets`` — the row ``tool-diff`` and the HUD
+    print. Best-effort: a read fault here is the catalog's to report, not this one's."""
+
+    try:
+        from hermes_constants import get_config_path
+
+        from .config.persona_records import legacy_persona_toolsets_issues
+        from .parse_cache import cached_yaml_file
+
+        path = get_config_path()
+        loaded = cached_yaml_file(path, default=None)
+        runtime = loaded.get("agent_runtime") if isinstance(loaded, dict) else None
+        personas = runtime.get("personas") if isinstance(runtime, dict) else None
+        if not isinstance(personas, dict):
+            return ()
+        return legacy_persona_toolsets_issues(
+            personas, persona_id=str(getattr(persona, "id", "") or ""), config_path=str(path)
+        )
+    except Exception as exc:  # a declaration read must never break a turn
+        _LOGGER.debug("legacy persona toolsets scan skipped: %s", type(exc).__name__)
+        return ()
+
+
+def _read_config_or_raise(path) -> object:
+    """The uncached read, run only when the cached one already failed on a file
+    that exists — so the fault's exception CLASS reaches the declaration."""
+
+    from agent_runtime import yaml_io
+
+    return yaml_io.load(path.read_text(encoding="utf-8"))
+
+
 def effective_toolsets(persona: AgentPersona) -> list[str]:
     """The toolsets this persona's harness lane admits by.
 
@@ -153,8 +217,8 @@ def effective_toolsets(persona: AgentPersona) -> list[str]:
     (:func:`declared_lane_toolsets`), expanded to member toolset names. Every
     existing caller — the chat chokepoint's bounded branch, the visibility
     preview, the snapshot agents drawer, the worker/dev task lanes — follows
-    from here, which is what retires ``AgentPersona.toolsets`` as an admission
-    input in one place rather than five.
+    from here — the one place the persona-level list was retired as an admission
+    input (the field itself was deleted 2026-10-08).
     """
 
     return list(declared_lane_toolsets(persona).toolsets)
@@ -221,7 +285,6 @@ def promote_profile_to_persona(
             display_name=f"{profile_name} ({slot_role})",
             hermes_profile=profile_name,
             skills=list(template.skills),
-            toolsets=list(template.toolsets),
             required_mcp_servers=list(template.required_mcp_servers),
             readiness={},
         )
@@ -238,13 +301,8 @@ def promote_profile_to_persona(
             model=cfg.default_model,
             provider=cfg.default_provider,
             api_mode=cfg.default_api_mode,
-            # S66 BUGFIX: this called ``profile_chat_toolsets(profile_name)``
-            # with no persona list, so ``declared`` was always ``[]`` and the
-            # promoted persona was ALWAYS minted with zero toolsets — reachable
-            # live through ``POST /api/plugins/eternia-harness/profiles/{name}/promote``. The declared
-            # set is right here: ``known`` is the merged persona map this
-            # function already built two branches up to look for a template.
-            toolsets=profile_chat_toolsets(profile_name, list(known.values())),
+            # No ``toolsets=``: the minted persona's capability is its bound
+            # profile's own ``toolsets:`` (``declared_lane_toolsets``).
             system_prompt_path="",
             autonomy=AutonomyLevel.PROPOSE_ONLY.value,
             hermes_profile=profile_name,

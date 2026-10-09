@@ -69,7 +69,7 @@ def _seed_persona() -> None:
 
     AgentStore().save(AgentPersona(
         id="dev", display_name="Dev Persona", role="dev", model=guard.MODEL, provider="openai-codex",
-        api_mode="codex_responses", toolsets=["file", "search", "terminal"], skills=list(PERSONA_SKILLS),
+        api_mode="codex_responses", skills=list(PERSONA_SKILLS),
         system_prompt_path="agent_runtime/prompts/dev.md",
     ))
 

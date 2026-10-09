@@ -6,6 +6,12 @@
   "heavy": 4,
   "reasons": [
     {
+      "change": "lane opus-w1-hermes (fork-hygiene row: footprint red on main, qualified 184 / 959 / 4 on merge-base 74a64be15e and the warm-prep batch): baseline what the carried-PR sync landed unledgered",
+      "files": "176 -> 184: plugins/plugin_loader.py (5/1), tools/file_tools_paths.py (6/0), tools/file_tools_read_tracking.py (12/4), tests/agent/test_turn_context.py (8/0), tests/hermes_cli/test_auth_commands.py (3/3), tests/hermes_cli/test_uninstall_dry_run.py (1/0), tests/hermes_cli/test_worktree_sync_base.py (1/1), tests/tools/test_windows_agent_loop_papercuts.py (23/0); all from 7625cb7dad / fa2677be7b, none named in carried_prs.json",
+      "deleted_lines": "883 -> 959: 9 from the four non-additive new rows above, 67 from rows already ledgered that grew since 2026-10-06 (7625cb7dad touches most of them) (hermes_cli/main.py 8->16, tests/hermes_cli/test_doctor.py 3->19, tests/conftest.py 1->10, hermes_cli/config.py 6->12, ...; the ledger's added/deleted columns are regenerated); heavy unchanged at 4",
+      "reason": "Red on main since the 2026-10-07 carried-PR sync; the ratchet cannot fall until those edits are made additive or adopted upstream. Each new file has a ledger row (disposition carry, reason, W1 2026-10-08); the non-additive ones and the fork tests inside upstream test files are a fork-hygiene row. Baselined here so the gate measures the NEXT rise, not this one."
+    },
+    {
       "change": "lane h-title-defer (runtime-queue Seams CLASS row: the turn-start title upgrade runs inside anchor->request_sent on turns 1-3): the auto-title upgrade starts at the turn's request_sent",
       "files": "175 -> 176: agent/title_generator.py (3 added, 0 deleted: one import, a guarded early return in maybe_auto_title, `# fork seam: h-title-defer`)",
       "deleted_lines": "883 -> 883: the seam is additive; heavy unchanged at 4",

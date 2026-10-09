@@ -155,6 +155,22 @@ def _cmd_persona_tool_diff(args) -> int:
         ),
     )
     data = {"ok": True, "tool_visibility": visibility}
+    # Slice 2 of the tool-visibility split: plugin toolsets THIS persona's
+    # declaration does not name — the Lens case, said out loud.
+    from agent_runtime.persona_profiles import declared_lane_toolsets
+    from agent_runtime.toolset_census import undeclared_registered_toolsets
+
+    data["undeclared_registered_toolsets"] = list(
+        undeclared_registered_toolsets([declared_lane_toolsets(persona)])
+    )
+    # The cost layer's split (toolvis slice 4): which of the callable names ride the schema,
+    # which the tool_search listing, which this process cannot run — through the function the
+    # tool form's owner calls, on the chat-lane bundle's tool contract (the actor's input).
+    surface = _preview_tool_surface(persona, args, permission_mode, visibility)
+    data["tool_surface"] = surface
+    counts = surface.get("counts") or {}
+    for state in ("eager", "deferred", "unavailable"):
+        visibility[f"{state}_tool_count"] = counts.get(state)
     # Inspection only: resolve_mcp_admission is pure policy — it never connects
     # to or registers an MCP server — so an operator can read exactly what a
     # persona WOULD be admitted before the kill switch is ever flipped.
@@ -180,23 +196,23 @@ def _cmd_persona_tool_diff(args) -> int:
     if args.json:
         emit_operation_result(args, data)
     else:
-        print(f"{visibility['persona_id']}: {visibility['final_tool_count']} tools")
+        print(_surface_headline(visibility, surface))
+        for line in _surface_lines(surface):
+            print(line)
         # S0a A2: say WHERE the capability came from. Before this, an operator
         # reading a preview had no way to tell a profile declaration from the
-        # lane default — or to see that the persona-level ``toolsets`` list in
-        # the config/store was being ignored.
+        # lane default. (The persona-level ``toolsets`` list it also flagged was
+        # deleted 2026-10-08; config refuses the key.)
         declaration = visibility.get("toolset_declaration") or {}
         if declaration:
             declared = ", ".join(declaration.get("declared") or []) or "-"
             where = declaration.get("config_path") or "no profile config"
             print(f"toolsets: {declared} ({declaration.get('source')}, {where})")
-            persona_list = declaration.get("persona_list") or []
-            if persona_list:
-                print(
-                    "persona-level toolsets list ignored (legacy; delete it from "
-                    f"agent_runtime.personas.{visibility['persona_id']}.toolsets): "
-                    + ", ".join(persona_list)
-                )
+        if data["undeclared_registered_toolsets"]:
+            print(
+                "registered but declared by no profile: "
+                + ", ".join(data["undeclared_registered_toolsets"])
+            )
         envelope = data.get("terminal_envelope")
         if envelope is not None:
             from agent_runtime.terminal_envelope_explain import (
@@ -239,6 +255,80 @@ def _cmd_persona_tool_diff(args) -> int:
             if failure.get("fix_hint"):
                 print(f"  fix: {failure['fix_hint']}")
     return 0
+
+
+def _preview_tool_surface(persona, args, permission_mode: str, visibility: dict) -> dict:
+    """The surface receipt for this persona's chat lane, or a typed ``unavailable`` row.
+
+    Input: ``chat_lane_bundle(...).tool_contract()`` — the resident actor's rebuild key, the
+    exact lists the factory builds from — when the asked mode is the lane's own. A
+    ``--permission-mode`` the lane is not in has no bundle, so the preview's own resolve
+    stands in and the receipt says so (``contract_source``).
+    """
+
+    from agent_runtime.chat_lane_bundle import chat_lane_bundle
+    from agent_runtime.mcp_admission.resolve import admission_strips
+    from agent_runtime.tool_surface import compute_tool_surface
+
+    try:
+        bundle = chat_lane_bundle(persona, session_id=args.session_id)
+        if bundle.permission_mode == permission_mode:
+            contract, source = bundle.tool_contract(), "chat_lane_bundle"
+        else:
+            contract = {
+                "enabled_toolsets": list(visibility.get("effective_toolsets") or []),
+                "blocked_tool_names": list(visibility.get("blocked_tool_names") or []),
+                "chat_lane_defer_tools": list(bundle.defer_tools),
+            }
+            source = "preview_mode_override"
+        admitted = sorted(getattr(bundle.admission, "server_names", ()) or ())
+        receipt = compute_tool_surface(
+            enabled_toolsets=contract.get("enabled_toolsets"),
+            blocked_tool_names=contract.get("blocked_tool_names") or (),
+            defer_tools=contract.get("chat_lane_defer_tools") or (),
+            admission_stripped_toolsets=admission_strips(
+                contract.get("enabled_toolsets"), admitted_servers=admitted
+            ),
+        ).receipt()
+    except Exception as exc:  # the preview reports a fault; it never hides the rest of the diff
+        return {"unavailable": f"{type(exc).__name__}", "counts": {}}
+    receipt["contract_source"] = source
+    return receipt
+
+
+def _surface_headline(visibility: dict, surface: dict) -> str:
+    counts = surface.get("counts") or {}
+    head = f"{visibility['persona_id']}: "
+    if not counts:
+        return head + (
+            f"{visibility['final_tool_count']} tools callable by name "
+            f"(tool surface unavailable: {surface.get('unavailable') or 'unknown'})"
+        )
+    return head + (
+        f"{counts.get('eager', 0)} eager · {counts.get('deferred', 0)} deferred · "
+        f"{counts.get('unavailable', 0)} unavailable · {counts.get('blocked', 0)} blocked "
+        f"({visibility['final_tool_count']} callable by name)"
+    )
+
+
+def _surface_lines(surface: dict) -> list[str]:
+    """Each non-eager group, one line per reason: what moved the names and where to change it."""
+
+    lines: list[str] = []
+    for state in ("deferred", "unavailable", "blocked"):
+        by_reason: dict[str, list[str]] = {}
+        via: dict[str, str] = {}
+        for name, row in sorted((surface.get(state) or {}).items()):
+            reason = str((row or {}).get("reason") or "unexplained")
+            by_reason.setdefault(reason, []).append(name)
+            if (row or {}).get("restorable_via"):
+                via[reason] = row["restorable_via"]
+        for reason, names in sorted(by_reason.items()):
+            where = f" [{via[reason]}]" if reason in via else ""
+            lines.append(f"{state} ({reason}){where}: {', '.join(names)}")
+    for item in surface.get("degraded") or []:
+        lines.append(f"tool surface degraded: {item}")
+    return lines
 
 
 def _cmd_persona_permission_set(args) -> int:

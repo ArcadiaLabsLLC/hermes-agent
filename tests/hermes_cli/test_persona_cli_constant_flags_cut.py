@@ -71,7 +71,6 @@ def persona_home(tmp_path, monkeypatch):
             model=None,
             provider=None,
             api_mode="codex_responses",
-            toolsets=["file"],
             system_prompt_path="",
             hermes_profile="alpha",
         )

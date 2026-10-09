@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from enum import StrEnum
 
 from .models import AgentPersona
 
 __layer__ = "models"
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class AgentRole(StrEnum):
@@ -203,9 +200,9 @@ def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> li
 # config, store row, realm-sync body) were consulted by nobody.
 #
 # Now the profile's top-level ``toolsets:`` IS the declaration, and this module
-# is the one reader. The persona-level ``AgentPersona.toolsets`` field is legacy
-# display (R-S0a-3): it is reported as ``persona_list`` in the projections and
-# admits nothing.
+# is the one reader. The persona-level ``AgentPersona.toolsets`` field that
+# survived as legacy display (R-S0a-3) was deleted 2026-10-08 (tool-visibility
+# split, slice 1): config refuses the key, a store migration strips it.
 
 #: What the harness lane resolves for a profile that declares nothing of its own.
 HARNESS_LANE_DEFAULT_TOOLSETS: tuple[str, ...] = ("harness_core",)
@@ -214,12 +211,84 @@ HARNESS_LANE_DEFAULT_TOOLSETS: tuple[str, ...] = ("harness_core",)
 TOOLSET_SOURCE_PROFILE_CONFIG = "profile_config"
 TOOLSET_SOURCE_LANE_DEFAULT = "lane_default"
 TOOLSET_SOURCE_PROFILE_UNRESOLVED = "profile_unresolved"
+#: The bound profile's ``config.yaml`` exists but could not be read or parsed.
+#: Narrow like the two defaults above, and NAMED so it is not one of them: before
+#: this value a read fault answered ``lane_default`` with a DEBUG line, which an
+#: operator could not tell from a profile that simply declares nothing.
+TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE = "profile_config_unreadable"
 
 #: The upstream CLI default (``hermes_cli.config_defaults.DEFAULT_CONFIG``).
 #: Read as the default it IS rather than as an operator's choice — see
 #: R-S0a-2. Kept as a literal fallback for the (import-error) case where the
 #: CLI package cannot be reached from this module.
 _UPSTREAM_DEFAULT_TOOLSETS: tuple[str, ...] = ("hermes-cli",)
+
+
+class DeclarationIssueKind(StrEnum):
+    """What is wrong with a declaration that still resolved (narrow)."""
+
+    #: ``config.yaml`` is there and would not read; ``detail`` is the exception CLASS.
+    CONFIG_READ_FAILED = "config_read_failed"
+    #: A declared (or composite-member) toolset name nothing knows: not in
+    #: ``toolsets.TOOLSETS``, not in the builtin manifest, not registered by a plugin.
+    #: It resolves zero tools; the rest of the declaration resolves (ruling R4).
+    UNKNOWN_TOOLSET = "unknown_toolset"
+    #: ``agent_runtime.personas.<id>.toolsets`` is set (ruling R2, 2026-10-08): the key
+    #: is refused — its value is dropped and admits nothing — and the refusal is this
+    #: row, never a raise out of the config read (a raise took the live snapshot
+    #: producer down on every rebuild, 2026-10-09). ``detail`` is the dotted key.
+    LEGACY_PERSONA_TOOLSETS_KEY = "persona_toolsets_key_refused"
+
+
+@dataclass(frozen=True)
+class DeclarationIssue:
+    """One typed issue on a :class:`ToolsetDeclaration`, rendered as a
+    ``requirement_failures`` row so ``tool-diff`` and the HUD print it like any
+    other accounted gap."""
+
+    kind: DeclarationIssueKind
+    #: The toolset name for ``unknown_toolset``; the exception class for
+    #: ``config_read_failed`` (never the message — it can carry a path or YAML text).
+    detail: str
+    config_path: str | None = None
+
+    def row(self, *, entry_point_lane: str = "") -> dict[str, object]:
+        where = self.config_path or "the bound profile's config.yaml"
+        if self.kind is DeclarationIssueKind.CONFIG_READ_FAILED:
+            summary = (
+                f"{where} could not be read ({self.detail}); the harness lane resolved "
+                f"the narrow default ({', '.join(HARNESS_LANE_DEFAULT_TOOLSETS)}) instead "
+                "of whatever that file declares."
+            )
+            fix_hint = "Fix or re-save the file; `hermes harness persona tool-diff <id>` re-reads it."
+        elif self.kind is DeclarationIssueKind.LEGACY_PERSONA_TOOLSETS_KEY:
+            summary = (
+                f"{self.detail} is no longer accepted and was ignored: the bound profile's "
+                "top-level toolsets: is the one declaration the harness lane reads."
+            )
+            fix_hint = (
+                f"Delete {self.detail} from {self.config_path or 'the config.yaml that carries it'} (the plugin's startup migration strips it "
+                "from every profiles/*/config.yaml); declare toolsets in the bound profile's "
+                "own config.yaml (top-level `toolsets:`)."
+            )
+        else:
+            summary = (
+                f"Declared toolset '{self.detail}' is not a known toolset (not built in, not "
+                "registered by any loaded plugin); it contributes no tools. The rest of the "
+                "declaration resolves."
+            )
+            fix_hint = (
+                f"Correct the name in the toolsets: key of {where}, or load the plugin that "
+                "registers it."
+            )
+        return {
+            "code": self.kind.value,
+            "subject": self.detail,
+            "config_path": self.config_path,
+            "entry_point_lane": str(entry_point_lane or "").strip() or "unknown",
+            "summary": summary,
+            "fix_hint": fix_hint,
+        }
 
 
 @dataclass(frozen=True)
@@ -236,9 +305,11 @@ class ToolsetDeclaration:
     source: str
     profile: str | None = None
     config_path: str | None = None
-    #: The legacy per-persona list, verbatim, for VISIBILITY only (A2). Never an
-    #: admission input — a divergence from ``declared`` is reported, not obeyed.
-    persona_list: tuple[str, ...] = ()
+    #: Typed issues the resolution hit (a read fault, an unknown name). Empty on
+    #: a clean read — the positive control the issue rows are tested against.
+    issues: tuple[DeclarationIssue, ...] = ()
+    #: The member names nothing knows (``toolset_names.unknown_toolset_names``).
+    unknown: tuple[str, ...] = ()
 
     def row(self) -> dict[str, object]:
         return {
@@ -247,7 +318,8 @@ class ToolsetDeclaration:
             "source": self.source,
             "profile": self.profile,
             "config_path": self.config_path,
-            "persona_list": list(self.persona_list),
+            "issues": [issue.row() for issue in self.issues],
+            "unknown": list(self.unknown),
         }
 
 
@@ -298,49 +370,6 @@ def profile_persona_resolution(
     if len(profile_matches) > 1:
         return None, PROFILE_CHAT_TOOLSET_AMBIGUOUS, candidates
     return None, PROFILE_CHAT_TOOLSET_NO_MATCH, candidates
-
-
-def profile_chat_toolset_resolution(
-    profile_id: str,
-    personas: list[AgentPersona] | tuple[AgentPersona, ...] | None = None,
-) -> tuple[list[str], str, tuple[str, ...]]:
-    """``(toolsets, reason, candidate_persona_ids)`` for a profile-backed chat.
-
-    Universal chat capabilities are added later by the chat runtime. Ambiguous
-    ownership remains fail-closed (S64's ruling).
-
-    S66 split the reason out. The fail-closed arms are UNCHANGED and still
-    fail closed; what changed is that they are no longer silent. An ambiguous
-    shared profile used to return ``[]`` indistinguishable from "this profile
-    has no persona at all", so an operator staring at a toolless chat had no
-    way to tell a misconfiguration from a deliberate denial.
-    """
-
-    matching, reason, candidates = profile_persona_resolution(profile_id, personas)
-    toolsets = list(getattr(matching, "toolsets", []) or []) if matching is not None else []
-    return [toolset for toolset in toolsets if toolset], reason, candidates
-
-
-def profile_chat_toolsets(profile_id: str, personas: list[AgentPersona] | tuple[AgentPersona, ...] | None = None) -> list[str]:
-    """The toolsets half of :func:`profile_chat_toolset_resolution`.
-
-    Emits an operator-visible warning on the ambiguous arm: inheriting nothing
-    because two personas share the profile is a CONFIGURATION defect, not a
-    normal state, and it must not read as an ordinary empty list.
-    """
-
-    toolsets, reason, candidates = profile_chat_toolset_resolution(profile_id, personas)
-    if reason == PROFILE_CHAT_TOOLSET_AMBIGUOUS:
-        _LOGGER.warning(
-            "profile_chat_toolsets: profile %r is claimed by %d personas (%s); "
-            "inheriting NO toolsets (fail-closed). Give the chat persona an "
-            "exact persona id, or leave exactly one persona bound to this "
-            "profile.",
-            profile_id,
-            len(candidates),
-            ", ".join(candidates),
-        )
-    return toolsets
 
 
 def all_registered_toolsets() -> list[str]:

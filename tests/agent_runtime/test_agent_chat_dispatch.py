@@ -419,6 +419,34 @@ def test_the_thread_tri_state_survives_the_process_boundary():
     assert "--new-session" not in flags(False) and "--defer-thread-policy" not in flags(False)
 
 
+def test_the_child_is_booted_onto_the_head_home_not_the_senders_profile_home(tmp_path, monkeypatch):
+    """The roster lives in the head home's config (the launcher pins it to ``profiles/base``);
+    a child booted onto the sender persona's profile home answers ``unknown persona`` for
+    every configured target (2026-10-08, four dispatches). The child follows the inline
+    lane's head-home admission instead.
+
+    *Killing mutation:* read ``get_hermes_home()`` for the ambient home again.
+    """
+    from agent_runtime.profile_home import get_hermes_head_home
+    from hermes_constants import get_hermes_home
+    from tools.agent_chat.detached import _dispatch_homes
+
+    head = tmp_path / "head"
+    sender_profile = tmp_path / "profiles" / "amelia"
+    head.mkdir(parents=True)
+    sender_profile.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
+    monkeypatch.setenv("HERMES_HOME", str(sender_profile))
+    # Positive control for the fixture: the two authorities really do differ here.
+    assert str(get_hermes_home()) == str(sender_profile)
+    assert str(get_hermes_head_home()) == str(head)
+
+    ambient, _background = _dispatch_homes()
+
+    assert ambient == str(head), "the child must resolve personas where the serve does"
+    assert ambient != str(sender_profile)
+
+
 def test_the_child_environment_states_both_homes_and_pins_the_tree(tmp_path):
     env = agent_chat_dispatch.child_environment(
         {"hermes_home": str(tmp_path / "ambient"), "head_home": str(tmp_path / "head")}
@@ -1093,3 +1121,285 @@ def test_the_pumps_are_forced_loose_when_a_survivor_holds_the_pipe():
     finally:
         os.close(out_w)
         os.close(err_w)
+
+
+# --------------------------------------------------------------------------
+# relay inside a run: detach, own, cancel (runtime-queue rows of 2026-10-08)
+# --------------------------------------------------------------------------
+#
+# The sender's run holds ``profile_runner._WORKDIR_LOCK`` for its whole body and
+# the tool runs on a worker thread, so an inline relay's child turn can never
+# take that lock until the sender dies: measured 203 s on Amelia turn
+# ``agent-chat-send-db7a2d34`` (2026-10-08). These tests pin the repair at the
+# level the guarantee lives at — the lock — and the Stop contract beside it:
+# normal completion keeps a child, Stop on the parent cancels that turn's own
+# dispatches, a child that already replied keeps its reply.
+
+import threading
+import time
+
+from agent_runtime.relay_policy import RELAY_PARENT_TURN
+
+
+class _BlockingProc:
+    """A child whose ``wait`` returns only when ``release`` is set — a kill, or a reply."""
+
+    def __init__(self, *, stdout=""):
+        import io
+
+        self.pid = 4242
+        self.stdout = io.StringIO(stdout)
+        self.stderr = io.StringIO("")
+        self.returncode = -9
+        self.release = threading.Event()
+
+    def wait(self, timeout=None):
+        if not self.release.wait(timeout=timeout):
+            raise subprocess.TimeoutExpired(cmd="child", timeout=timeout or 0)
+        return self.returncode
+
+
+def _never_called(*a, **k):
+    raise AssertionError("the inline relay handler must not run inside a running turn")
+
+
+def test_an_inline_send_inside_a_run_is_detached_not_waited_on(store_home, deliverable_lane, queued, monkeypatch):
+    from tools.agent_chat import send as send_module
+
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", _never_called)
+    monkeypatch.setattr(send_module, "_inside_agent_run", lambda: True)
+    token = RELAY_PARENT_TURN.set("turn-parent-1")
+    try:
+        result = json.loads(agent_chat_send(persona_id="dev", message="hi", requested_by_session=SENDER_ROOT))
+    finally:
+        RELAY_PARENT_TURN.reset(token)
+
+    assert result["ok"] is True
+    assert result["dispatched"] is True
+    assert result["auto_detached"] is True
+    assert "do not poll" in result["next_expected"]
+    assert "reply" not in result
+    assert queued[0]["dispatch_id"] == result["dispatch_id"]
+    # Owned by the turn that sent it: the one fact Stop needs.
+    assert get_dispatch(result["dispatch_id"])["parent_turn_id"] == "turn-parent-1"
+
+    # Positive control: outside a run the inline lane is untouched.
+    seen = []
+
+    def inline(args):
+        seen.append(args.persona_id)
+        args.payload_sink({"ok": True, "reply": "ack"})
+        return 0
+
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", inline)
+    monkeypatch.setattr(send_module, "_inside_agent_run", lambda: False)
+    result = json.loads(agent_chat_send(persona_id="dev", message="hi", requested_by_session=SENDER_ROOT))
+    assert result["reply"] == "ack" and "dispatched" not in result
+    assert seen == ["dev"]
+
+
+def test_the_run_lock_itself_is_what_detaches_the_send(store_home, deliverable_lane, queued, monkeypatch):
+    """Reproduce the deadlock with the real gauge and the real lock, no stub of either.
+
+    *Killing mutation:* drop the ``_inside_agent_run`` check in ``Send.envelope``.
+    The fake child then blocks on ``_WORKDIR_LOCK`` exactly as the real one did,
+    and the send never returns within the join below.
+    """
+
+    from agent_runtime.profile_runner.workdir import _WORKDIR_LOCK, _counted_agent_run
+
+    def child_turn(args):  # the target's turn needs the run lock, like every run
+        with _WORKDIR_LOCK:
+            args.payload_sink({"ok": True, "reply": "late"})
+        return 0
+
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", child_turn)
+
+    run_entered, run_release = threading.Event(), threading.Event()
+
+    def sender_run():  # the sender's run: holds the lock and is counted in flight
+        with _counted_agent_run(), _WORKDIR_LOCK:
+            run_entered.set()
+            run_release.wait(10)
+
+    outcome = {}
+
+    def tool_thread():  # the tool runs on a worker thread, never the run's own
+        outcome["result"] = json.loads(
+            agent_chat_send(persona_id="dev", message="hi", requested_by_session=SENDER_ROOT)
+        )
+
+    sender = threading.Thread(target=sender_run, daemon=True)
+    sender.start()
+    assert run_entered.wait(5)
+    try:
+        # The real executor runs a tool under the turn's copied context
+        # (``propagate_context_to_thread``); the delivery declaration the lane
+        # checks lives in that context, so the worker is started the same way.
+        import contextvars
+
+        worker = threading.Thread(target=contextvars.copy_context().run, args=(tool_thread,), daemon=True)
+        worker.start()
+        worker.join(5)
+        assert not worker.is_alive(), "the send waited on a lock its own turn holds"
+    finally:
+        run_release.set()
+        sender.join(5)
+    assert outcome["result"]["auto_detached"] is True
+    assert queued and queued[0]["dispatch_id"] == outcome["result"]["dispatch_id"]
+
+
+def test_an_auto_detached_send_that_cannot_deliver_names_the_turn_not_wait_true(store_home, monkeypatch, queued):
+    from tools.agent_chat import send as send_module
+
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", _never_called)
+    monkeypatch.setattr(send_module, "_inside_agent_run", lambda: True)
+
+    result = json.loads(agent_chat_send(persona_id="dev", message="hi"))  # no session to deliver into
+
+    assert result["ok"] is False
+    assert result["error_kind"] == "inline_relay_unavailable"
+    assert "wait=true" not in result["error"]
+    assert "running turn" in result["error"]
+    assert queued == [] and running_dispatches() == []
+
+
+def test_cancel_before_spawn_settles_cancelled_and_the_worker_runs_nothing(store_home, monkeypatch):
+    dispatch_id = _armed_dispatch()
+    agent_chat_dispatch._mark_supervised(dispatch_id)
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", _never_called)
+
+    answer = agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")
+
+    assert answer["outcome"] == "cancelled"
+    row = get_dispatch(dispatch_id)
+    assert row["state"] == "cancelled"
+    assert "before it started" in row["result"]["error"]
+    assert row["delivery_state"] == DELIVERY_PENDING  # the sender is still told
+
+    agent_chat_dispatch._run_dispatch(dispatch_id, _spec())  # the queued worker arrives late
+    assert get_dispatch(dispatch_id)["state"] == "cancelled"
+    assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
+
+
+def _run_in_background(dispatch_id, proc, monkeypatch, *, on_kill):
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_kill_child", on_kill)
+    agent_chat_dispatch._mark_supervised(dispatch_id)
+    worker = threading.Thread(
+        target=agent_chat_dispatch._run_dispatch, args=(dispatch_id, _spec(max_seconds=30)), daemon=True
+    )
+    worker.start()
+    deadline = time.time() + 5
+    while time.time() < deadline and not (get_dispatch(dispatch_id) or {}).get("started_at"):
+        time.sleep(0.01)
+    assert get_dispatch(dispatch_id)["started_at"], "the owner stamp must record when the child started"
+    return worker
+
+
+def test_cancel_of_a_running_child_kills_it_and_settles_cancelled(store_home, monkeypatch):
+    dispatch_id = _armed_dispatch()
+    proc = _BlockingProc()
+    killed = []
+
+    def on_kill(pid, started):
+        killed.append((pid, started))
+        proc.release.set()  # the tree-kill lands; the child dies without a payload
+
+    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+
+    answer = agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")
+    assert answer["outcome"] == "stopping"  # reported until the supervisor settles it
+    worker.join(5)
+    assert not worker.is_alive()
+
+    assert killed == [(4242, 777)]  # identity-guarded, never a bare pid
+    row = get_dispatch(dispatch_id)
+    assert row["state"] == "cancelled"
+    assert "operator_stop" in row["result"]["error"]
+
+
+def test_cancel_that_lands_after_the_child_replied_keeps_the_reply(store_home, monkeypatch):
+    dispatch_id = _armed_dispatch()
+    proc = _BlockingProc(stdout=json.dumps({"ok": True, "reply": "done already", "session_id": "s-dev"}))
+    proc.returncode = 0
+
+    def on_kill(pid, started):
+        proc.release.set()
+
+    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+
+    assert agent_chat_dispatch.request_cancel(dispatch_id)["outcome"] == "stopping"
+    worker.join(5)
+
+    row = get_dispatch(dispatch_id)
+    assert row["state"] == "completed"
+    assert row["result"]["reply"] == "done already"
+
+
+def test_cancel_of_a_finished_dispatch_reports_already_finished_and_keeps_its_result(store_home):
+    from agent_runtime.dispatch_store import STATE_COMPLETED, record_completion
+
+    dispatch_id = _armed_dispatch()
+    record_completion(dispatch_id, state=STATE_COMPLETED, reply="kept")
+
+    answer = agent_chat_dispatch.request_cancel(dispatch_id)
+
+    assert answer == {"dispatch_id": dispatch_id, "outcome": "already_finished", "state": "completed"}
+    assert get_dispatch(dispatch_id)["result"]["reply"] == "kept"
+
+
+def test_cancel_of_a_dispatch_this_process_does_not_supervise_is_not_owned_here(store_home):
+    dispatch_id = _armed_dispatch()  # recorded, never marked supervised here
+
+    assert agent_chat_dispatch.request_cancel(dispatch_id)["outcome"] == "not_owned_here"
+    assert get_dispatch(dispatch_id)["state"] == STATE_RUNNING
+
+
+def test_stop_cancels_only_the_stopped_turns_own_dispatches(store_home, monkeypatch):
+    from agent_runtime import operator_execution
+
+    own = _armed_dispatch(parent_turn_id="turn-A")
+    other_turn = _armed_dispatch(parent_turn_id="turn-B")
+    other_session = mint_dispatch_id()
+    record_dispatch(
+        dispatch_id=other_session,
+        sender_session_id="persona_chat_personainst_dev_bbbbbbbbbbbb",
+        target_persona="dev",
+        ask="run the suite",
+        parent_turn_id="turn-A",
+    )
+    for dispatch_id in (own, other_turn, other_session):
+        agent_chat_dispatch._mark_supervised(dispatch_id)
+    monkeypatch.setattr(operator_execution, "execution_status", lambda *a, **k: {"outcome": "stop_requested"})
+
+    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-A", lambda turn: True)
+
+    assert result["dependent_dispatches"] == [
+        {"dispatch_id": own, "target_persona": "dev", "outcome": "cancelled"}
+    ]
+    assert get_dispatch(own)["state"] == "cancelled"
+    assert get_dispatch(other_turn)["state"] == STATE_RUNNING
+    assert get_dispatch(other_session)["state"] == STATE_RUNNING
+
+    # A turn that finished on its own keeps its children: Stop reaches nothing.
+    monkeypatch.setattr(operator_execution, "execution_status", lambda *a, **k: {"outcome": "finished"})
+    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-B", lambda turn: True)
+    assert "dependent_dispatches" not in result
+    assert get_dispatch(other_turn)["state"] == STATE_RUNNING
+
+
+def test_started_at_and_the_queue_wait_are_recorded_at_spawn(store_home, monkeypatch):
+    dispatch_id = _armed_dispatch()
+    proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "ok"}))
+    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+
+    agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
+
+    row = get_dispatch(dispatch_id)
+    assert row["started_at"] >= row["dispatched_at"]
+    summary = agent_chat_dispatch.summarize_for_caller(row)
+    assert summary["queued_seconds"] == int(row["started_at"] - row["dispatched_at"])
+    assert summary["parent_turn_id"] is None

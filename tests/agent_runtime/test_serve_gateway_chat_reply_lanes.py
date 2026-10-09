@@ -196,7 +196,6 @@ def placed_agent(isolate_agent_runtime_root, head_home):
             model=None,
             provider=None,
             api_mode=None,
-            toolsets=[],
             system_prompt_path="",
         )
     )

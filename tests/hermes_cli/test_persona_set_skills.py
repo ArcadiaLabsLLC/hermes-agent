@@ -78,7 +78,6 @@ def _seed_persona(persona_id: str = "qa", *, skills: list[str] | None = None):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
         hermes_profile=persona_id,
         skills=list(skills if skills is not None else ["seeded-skill"]),

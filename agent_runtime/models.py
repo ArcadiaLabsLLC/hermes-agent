@@ -411,7 +411,11 @@ class AgentPersona:
     model: str | None
     provider: str | None
     api_mode: str | None
-    toolsets: list[str]
+    # ``toolsets`` was deleted 2026-10-08 (tool-visibility split, slice 1): the
+    # persona-level list admitted nothing since S0a A1 — the bound profile's
+    # ``toolsets:`` is the one declaration (``persona_profiles.declared_lane_toolsets``).
+    # Store rows that still carry the key load without it (``serde`` drops
+    # unknown keys) and ``persona_toolsets_migration`` strips it from disk.
     # Empty string and absent are the same thing — no dedicated prompt file
     # (resolve_persona_system_prompt_path returns None for both). Rows written
     # before 2026-08-29 may omit the key entirely.

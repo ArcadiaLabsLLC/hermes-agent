@@ -752,7 +752,6 @@ def test_persona_section_reconciles_identity_rules_and_soul_no_overlap():
         model="",
         provider="",
         api_mode="",
-        toolsets=[],
         system_prompt_path=None,
     )
     identity = prompts._mission_chat_identity_prompt(persona)

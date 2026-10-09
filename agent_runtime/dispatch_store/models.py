@@ -27,12 +27,18 @@ STATE_RUNNING = "running"
 STATE_COMPLETED = "completed"
 STATE_ERROR = "error"
 STATE_UNKNOWN = "unknown"
+#: Stopped on purpose — the operator's Stop on the turn that owned it, or a
+#: direct ``cancel_work`` — before it produced a reply. Its own typed state,
+#: not an ``error`` with a sentence inside, so a consumer can tell "it broke"
+#: from "we stopped it" without parsing prose.
+STATE_CANCELLED = "cancelled"
 
 #: The states a dispatch can END in. ``running`` is the only non-terminal one;
 #: everything else is a completion the sender is owed an answer about, including
-#: ``error`` and ``unknown`` — "it failed" and "nobody knows" are results a
-#: waiting agent must receive, not rows to quietly bury.
-TERMINAL_STATES = (STATE_COMPLETED, STATE_ERROR, STATE_UNKNOWN)
+#: ``error``, ``unknown`` and ``cancelled`` — "it failed", "nobody knows" and
+#: "we stopped it" are results a waiting agent must receive, not rows to
+#: quietly bury.
+TERMINAL_STATES = (STATE_COMPLETED, STATE_ERROR, STATE_UNKNOWN, STATE_CANCELLED)
 
 #: How long a delivery claim is honoured before another consumer may take it.
 #: Same 300 s the delegation lane uses: long enough that a slow forge is not
@@ -203,6 +209,8 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         relay_chain_json,
         delivery_error,
         remote_install_id,
+        parent_turn_id,
+        started_at,
     ) = row
     try:
         result = json.loads(result_json) if result_json else None
@@ -226,6 +234,11 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         "dispatched_at": float(dispatched_at or 0.0),
         "completed_at": float(completed_at) if completed_at else None,
         "updated_at": float(updated_at or 0.0),
+        # The turn that made this dispatch (its client message id), or "" for
+        # a dispatch no turn owns; and when the child actually started, so the
+        # wait behind the concurrency cap is visible as a wait.
+        "parent_turn_id": parent_turn_id or "",
+        "started_at": float(started_at) if started_at else None,
         "result": result,
         "delivery_state": delivery_state or DELIVERY_PENDING,
         "delivery_attempts": int(delivery_attempts or 0),
@@ -246,5 +259,5 @@ _SELECT = f"""SELECT dispatch_id, sender_session_id, sender_persona_id, target_p
                      notify_operator, dispatched_at, completed_at, updated_at,
                      result_json, delivery_state, delivery_attempts, delivered_at,
                      owner_pid, owner_started_at, relay_chain_json, delivery_error,
-                     remote_install_id
+                     remote_install_id, parent_turn_id, started_at
               FROM {_TABLE}"""
