@@ -78,7 +78,7 @@ def _bytecode_sweep_lock_holder_alive(lock_path: Path) -> bool:
     """
 
     try:
-        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        payload = json.loads(lock_path.read_text(encoding="utf-8-sig"))
         pid = int(payload["pid"])
         host = payload["host"]
         create_time = payload.get("create_time")
@@ -324,7 +324,7 @@ def _sweep_stale_bytecode_if_checkout_changed() -> None:
             if claim == _SWEEP_CLAIM_CLAIMED:
                 _release_bytecode_sweep_lock(lock_path)
     except Exception as exc:
-        logger.debug("Stale-bytecode launch sweep failed: %s", exc)
+        logger.debug("Stale-bytecode launch sweep failed: %s", exc, exc_info=True)
     finally:
         # Recorded even on the early returns and the exception path: "the sweep
         # decided in 4 ms that it had nothing to do" is exactly as much an
