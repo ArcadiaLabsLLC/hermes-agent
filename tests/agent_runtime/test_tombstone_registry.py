@@ -4793,7 +4793,8 @@ def _top_level_test_names(lines: list[str] | None) -> frozenset[str] | None:
 @functools.lru_cache(maxsize=None)
 def _upstream_side_test_names(relative: str) -> tuple[frozenset[str] | None, frozenset[str] | None]:
     """``relative``'s top-level test names at the upstream point the base had
-    merged, and at ``upstream/main`` — ``None`` where that side lacks the file."""
+    merged, and at the merge base the checkout carries now
+    (``_fork_scope.upstream_base``) — ``None`` where that side lacks the file."""
 
     root = _fork_scope.repo_root()
     then = _fork_scope._git(["cat-file", "blob", f"{_ROUND4_UPSTREAM_MERGED}:{relative}"], cwd=root)
@@ -4806,8 +4807,8 @@ def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: t
 
     True only when all three hold: upstream wrote the subject's definition
     (``_fork_scope.is_fork_authored`` on its ``def`` line), upstream carried
-    the deleted test at the point the base had merged, and ``upstream/main`` no
-    longer does — upstream retired its own test of its own code, and a merge
+    the deleted test at the point the base had merged, and the merge base the
+    checkout carries now (``_fork_scope.upstream_base``) no longer does — upstream retired its own test of its own code, and a merge
     brought the deletion in. The fork's gates police the fork's lines; the fork
     may not re-add an upstream test it would then owe at every merge. Anything
     unresolvable answers False, so the finding stays counted (fail closed).
