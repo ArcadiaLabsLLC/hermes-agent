@@ -487,11 +487,9 @@ packaging:
     - tools.file_operations
     - tools.file_operations_lint
     - tools.file_operations_search
-    # Memory-provider spawners (Byterover CLI, mem0's docker/ollama setup, OpenViking's local
-    # server); the HTTP memory providers stay.
+    # Memory-provider spawners (Byterover CLI; upstream v0.21.6 removed mem0 and OpenViking
+    # from core); the HTTP memory providers stay.
     - plugins.memory.byterover
-    - plugins.memory.mem0._setup
-    - plugins.memory.openviking
     # The skills hub's GitHub source and the hub modules that import it at module level (the hub
     # itself is above; installs are desktop, Spec §7.4).
     - tools.skills_hub_github
