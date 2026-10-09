@@ -1058,6 +1058,118 @@ def _is_retryable_timeout_result(
     return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after")
 
 
+def _announce_adaptive_jobs(our_args: list[str], jobs: int) -> None:
+    """Print the adaptive worker choice when neither ``-j`` nor HERMES_TEST_WORKERS set it."""
+    jobs_was_explicit = any(
+        token == "-j"
+        or token.startswith("-j")
+        or token == "--jobs"
+        or token.startswith("--jobs=")
+        for token in our_args
+    )
+    if not jobs_was_explicit and not os.environ.get("HERMES_TEST_WORKERS"):
+        print(
+            "Adaptive worker default: "
+            f"cpu_count={os.cpu_count() or 4}, "
+            f"cap={_DEFAULT_MAX_WORKERS}, selected={jobs}",
+            flush=True,
+        )
+
+
+def _print_run_header(
+    files: list[Path], roots: list[Path], approx_total_tests: int, jobs: int, our_args: list[str], repo_root: Path,
+) -> None:
+    """The run's opening lines: the adaptive worker choice, then what was discovered and at what -j."""
+    _announce_adaptive_jobs(our_args, jobs)
+
+    if roots:
+        roots_str = [str(r.relative_to(repo_root)) if r.is_relative_to(repo_root) else str(r) for r in roots]
+        print(
+            f"Discovered {len(files)} test files (~{approx_total_tests} tests) under "
+            f"{roots_str}; running with -j {jobs}",
+            flush=True,
+        )
+    else:
+        print(
+            f"Running {len(files)} test files (~{approx_total_tests} tests) "
+            f"with -j {jobs}",
+            flush=True,
+        )
+
+
+def _retry_timeouts_in_isolation(
+    failures: list[tuple[Path, str, dict[str, int]]],
+    file_times: list[tuple[Path, float]],
+    pytest_passthrough: list[str],
+    repo_root: Path,
+    file_timeout: float,
+    timeout_durations: dict[str, float],
+) -> dict[str, int]:
+    """Re-run timeout-shaped failures once, serially; mutates ``failures``/``file_times``, returns count deltas."""
+    delta = dict.fromkeys(("pass_count", "fail_count", "passed", "failed", "skipped", "collected"), 0)
+    # A file can trip pytest-timeout only because eight import-heavy subprocesses
+    # are contending at once. Retry timeout-shaped nonzero results exactly once,
+    # serially, after the pool drains. Assertion failures are never retried.
+    retryable = [
+        (file, output, summary)
+        for file, output, summary in failures
+        if _is_retryable_timeout_result(1, output, summary)
+    ]
+    if retryable:
+        print()
+        print(
+            f"Retrying {len(retryable)} timeout-affected file"
+            f"{'s' if len(retryable) != 1 else ''} at 1-worker isolation "
+            "(single bounded retry):",
+            flush=True,
+        )
+    for file, original_output, original_summary in retryable:
+        print(f"  RETRY {_format_file(file, repo_root)}", flush=True)
+        fpath, rc, output, summary, subproc_wall = _run_one_file(
+            file,
+            pytest_passthrough,
+            repo_root,
+            # Never tighter than the contended pool attempt it exists to rescue.
+            _effective_file_timeout(file, repo_root, file_timeout, timeout_durations),
+            # retries=0 on purpose: this IS the retry. The in-pool flake retry
+            # must not stack on top of the isolation re-run.
+            0,
+        )
+        file_times.append((fpath, subproc_wall))
+        failures.remove((file, original_output, original_summary))
+        delta["fail_count"] -= 1
+        delta["passed"] += summary.get("passed", 0)
+        delta["failed"] += summary.get("failed", 0)
+        delta["skipped"] += summary.get("skipped", 0)
+        # The straggler's outcomes count toward collection exactly as the
+        # pool's do. Without this main()'s nothing-ran guard can only ever see
+        # the KILLED first attempt, which by definition collected nothing, and a
+        # file that timed out in the pool and passed at 1-worker isolation would
+        # print "RETRY PASS" followed by "NO TESTS RAN — 0 collected". Same key set
+        # as _on_done, for the same reason: an all-skipped platform-gated file
+        # DID collect.
+        delta["collected"] += sum(
+            summary.get(key, 0)
+            for key in ("passed", "failed", "skipped", "errors", "xfailed", "xpassed")
+        )
+        if rc == 0:
+            delta["pass_count"] += 1
+            print(
+                f"  RETRY PASS {_format_file(fpath, repo_root)} "
+                f"({subproc_wall:.1f}s at 1 worker)",
+                flush=True,
+            )
+        else:
+            delta["fail_count"] += 1
+            failures.append((fpath, output, summary))
+            print(
+                f"  RETRY FAIL {_format_file(fpath, repo_root)} "
+                f"(exit {rc}, {subproc_wall:.1f}s at 1 worker)",
+                flush=True,
+            )
+    return delta
+
+
 def _pytest_flag_error(tokens: list[str]) -> Optional[str]:
     """Return pytest's own complaint about the bare passthrough tokens, if any.
 
@@ -1374,34 +1486,7 @@ def main() -> int:
         test_counts = {f: test_counts[f] for f in files if f in test_counts}
         approx_total_tests = sum(test_counts.values())
 
-    jobs_was_explicit = any(
-        token == "-j"
-        or token.startswith("-j")
-        or token == "--jobs"
-        or token.startswith("--jobs=")
-        for token in our_args
-    )
-    if not jobs_was_explicit and not os.environ.get("HERMES_TEST_WORKERS"):
-        print(
-            "Adaptive worker default: "
-            f"cpu_count={os.cpu_count() or 4}, "
-            f"cap={_DEFAULT_MAX_WORKERS}, selected={args.jobs}",
-            flush=True,
-        )
-
-    if roots:
-        roots_str = [str(r.relative_to(repo_root)) if r.is_relative_to(repo_root) else str(r) for r in roots]
-        print(
-            f"Discovered {len(files)} test files (~{approx_total_tests} tests) under "
-            f"{roots_str}; running with -j {args.jobs}",
-            flush=True,
-        )
-    else:
-        print(
-            f"Running {len(files)} test files (~{approx_total_tests} tests) "
-            f"with -j {args.jobs}",
-            flush=True,
-        )
+    _print_run_header(files, roots, approx_total_tests, args.jobs, our_args, repo_root)
 
     # Capture and print on completion (out-of-order is fine — keeps the
     # terminal clean rather than interleaving N parallel pytest outputs).
@@ -1500,66 +1585,12 @@ def main() -> int:
         for fut in futures:
             fut.result() if fut.exception() is None else None
 
-    # A file can trip pytest-timeout only because eight import-heavy subprocesses
-    # are contending at once. Retry timeout-shaped nonzero results exactly once,
-    # serially, after the pool drains. Assertion failures are never retried.
-    retryable = [
-        (file, output, summary)
-        for file, output, summary in failures
-        if _is_retryable_timeout_result(1, output, summary)
-    ]
-    if retryable:
-        print()
-        print(
-            f"Retrying {len(retryable)} timeout-affected file"
-            f"{'s' if len(retryable) != 1 else ''} at 1-worker isolation "
-            "(single bounded retry):",
-            flush=True,
-        )
-    for file, original_output, original_summary in retryable:
-        print(f"  RETRY {_format_file(file, repo_root)}", flush=True)
-        fpath, rc, output, summary, subproc_wall = _run_one_file(
-            file,
-            pytest_passthrough,
-            repo_root,
-            # Never tighter than the contended pool attempt it exists to rescue.
-            _effective_file_timeout(file, repo_root, args.file_timeout, timeout_durations),
-            # retries=0 on purpose: this IS the retry. The in-pool flake retry
-            # must not stack on top of the isolation re-run.
-            0,
-        )
-        file_times.append((fpath, subproc_wall))
-        failures.remove((file, original_output, original_summary))
-        fail_count -= 1
-        tests_passed += summary.get("passed", 0)
-        tests_failed += summary.get("failed", 0)
-        tests_skipped += summary.get("skipped", 0)
-        # The straggler's outcomes count toward collection exactly as the
-        # pool's do. Without this the nothing-ran guard below can only ever see
-        # the KILLED first attempt, which by definition collected nothing, and a
-        # file that timed out in the pool and passed at 1-worker isolation would
-        # print "RETRY PASS" followed by "NO TESTS RAN — 0 collected". Same key set
-        # as _on_done, for the same reason: an all-skipped platform-gated file
-        # DID collect.
-        tests_collected += sum(
-            summary.get(key, 0)
-            for key in ("passed", "failed", "skipped", "errors", "xfailed", "xpassed")
-        )
-        if rc == 0:
-            pass_count += 1
-            print(
-                f"  RETRY PASS {_format_file(fpath, repo_root)} "
-                f"({subproc_wall:.1f}s at 1 worker)",
-                flush=True,
-            )
-        else:
-            fail_count += 1
-            failures.append((fpath, output, summary))
-            print(
-                f"  RETRY FAIL {_format_file(fpath, repo_root)} "
-                f"(exit {rc}, {subproc_wall:.1f}s at 1 worker)",
-                flush=True,
-            )
+    retry = _retry_timeouts_in_isolation(
+        failures, file_times, pytest_passthrough, repo_root, args.file_timeout, timeout_durations,
+    )
+    pass_count, fail_count = pass_count + retry["pass_count"], fail_count + retry["fail_count"]
+    tests_passed, tests_failed = tests_passed + retry["passed"], tests_failed + retry["failed"]
+    tests_skipped, tests_collected = tests_skipped + retry["skipped"], tests_collected + retry["collected"]
 
     elapsed = time.monotonic() - started
     print()
