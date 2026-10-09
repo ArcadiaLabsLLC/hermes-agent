@@ -363,7 +363,8 @@ def _safe_tool_schema(value: Any) -> dict[str, Any] | None:
 #: The surface receipt's states (``agent_runtime.tool_surface.STATES``), spelled here so this
 #: policy module validates the foreign dict without importing the producer.
 _SURFACE_STATES = ("eager", "deferred", "unavailable", "blocked")
-_SURFACE_COUNT_KEYS = (*_SURFACE_STATES, "bridge", "callable_by_name")
+_SURFACE_COUNT_KEYS = (*_SURFACE_STATES, "bridge", "callable_by_name",
+                       *(f"mcp_{state}" for state in _SURFACE_STATES))
 
 
 def _safe_aliases(value: Any) -> dict[str, str]:
@@ -395,6 +396,25 @@ def _safe_surface_fields(value: dict[str, Any]) -> dict[str, Any]:
         "resolution_id": safe_assignment_token(surface.get("resolution_id")) or "",
         "tool_search": safe_assignment_token(surface.get("tool_search")) or "",
     }
+    safe.update(_safe_surface_states(surface))
+    # Schema v2: the admitted MCP servers' names ride apart (``tool_surface`` module docstring).
+    mcp = surface.get("mcp")
+    if isinstance(mcp, dict):
+        safe["mcp"] = _safe_surface_states(mcp)
+    safe["bridge"] = [token for item in (surface.get("bridge") or [])[:8]
+                      if (token := safe_assignment_token(item))]
+    counts = surface.get("counts") if isinstance(surface.get("counts"), dict) else {}
+    safe["counts"] = {key: non_negative_int(counts.get(key)) or 0 for key in _SURFACE_COUNT_KEYS}
+    safe["degraded"] = [token for item in (surface.get("degraded") or [])[:8]
+                        if (token := safe_assignment_text(item, limit=80))]
+    return {"surface": safe, "resolution_id": safe["resolution_id"]}
+
+
+def _safe_surface_states(surface: dict[str, Any]) -> dict[str, Any]:
+    """The four state groups of a surface (or of its ``mcp`` part): ``reason`` and
+    ``restorable_via`` per name, nothing else."""
+
+    safe: dict[str, Any] = {}
     for state in _SURFACE_STATES:
         rows: dict[str, Any] = {}
         raw_rows = surface.get(state)
@@ -408,13 +428,7 @@ def _safe_surface_fields(value: dict[str, Any]) -> dict[str, Any]:
                 kept["restorable_via"] = via
             rows[token] = kept
         safe[state] = rows
-    safe["bridge"] = [token for item in (surface.get("bridge") or [])[:8]
-                      if (token := safe_assignment_token(item))]
-    counts = surface.get("counts") if isinstance(surface.get("counts"), dict) else {}
-    safe["counts"] = {key: non_negative_int(counts.get(key)) or 0 for key in _SURFACE_COUNT_KEYS}
-    safe["degraded"] = [token for item in (surface.get("degraded") or [])[:8]
-                        if (token := safe_assignment_text(item, limit=80))]
-    return {"surface": safe, "resolution_id": safe["resolution_id"]}
+    return safe
 
 
 def _chat_history_context(*, session_db: Any | None, session_id: str | None) -> list[dict[str, Any]]:

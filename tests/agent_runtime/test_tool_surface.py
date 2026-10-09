@@ -69,14 +69,14 @@ def _surface(defer=NEKO_DEFER, **kw):
 
 
 def test_every_requested_name_has_exactly_one_disposition(harness_lane):
-    from agent_runtime.tool_surface import STATES, requested_tool_names
+    from agent_runtime.tool_surface import STATES, receipt_names, requested_tool_names
     from tools.tool_search import BRIDGE_TOOL_NAMES
 
     receipt = _surface(blocked_tool_names=("skill_manage",))
     universe = (requested_tool_names(ENABLED) | _names(harness_lane.raw)) - BRIDGE_TOOL_NAMES
     seen: dict[str, list[str]] = {}
     for state in STATES:
-        for name in receipt[state]:
+        for name in receipt_names(receipt, state):
             seen.setdefault(name, []).append(state)
     twice = {name: states for name, states in seen.items() if len(states) > 1}
     assert not twice, f"a name in two states: {twice}"
@@ -88,13 +88,14 @@ def test_every_requested_name_has_exactly_one_disposition(harness_lane):
 
 def test_each_absent_name_carries_the_rule_that_moved_it(harness_lane):
     receipt = _surface()
-    reasons = {name: row["reason"] for state in ("eager", "deferred") for name, row in receipt[state].items()}
+    reasons = {name: row["reason"] for part in (receipt, receipt["mcp"])
+               for state in ("eager", "deferred") for name, row in part[state].items()}
     assert reasons["todo_list"] == "curated_default_defer"
     assert reasons["browser_vault_list"] == "persona_defer"
     assert receipt["deferred"]["browser_vault_list"]["restorable_via"].endswith("chat_lane_defer_tools")
     assert reasons["agent_chat_open"] == "non_core_rule_defer", "R3: the fork's harness tools defer by upstream's rule"
     assert reasons[CAPTURE] == "mcp_defer"
-    assert OPEN_APP_TAB in receipt["eager"] and reasons[OPEN_APP_TAB] == "promoted_eager"
+    assert OPEN_APP_TAB in receipt["mcp"]["eager"] and reasons[OPEN_APP_TAB] == "promoted_eager"
     # Positive control: off the persona's list, the core tool is eager — the list moved it.
     control = _surface(defer=tuple(n for n in NEKO_DEFER if n != "browser_vault_list"))
     assert control["eager"]["browser_vault_list"] == {"reason": None}
@@ -127,7 +128,9 @@ def test_a_faulted_assembly_is_recorded_not_swallowed(harness_lane, monkeypatch)
     receipt = getattr(agent, AGENT_SURFACE_ATTR, None)
     assert receipt is not None, "the fault left no receipt: a WARNING line is the only record"
     assert receipt["degraded"] == ["assembly:RuntimeError"]
-    assert set(receipt["eager"]) == _names(before) - {"tool_search", "tool_call", "tool_describe"}
+    from agent_runtime.tool_surface import receipt_names
+
+    assert receipt_names(receipt, "eager") == _names(before) - {"tool_search", "tool_call", "tool_describe"}
 
 
 def test_the_browser_use_swap_is_an_unavailable_row(harness_lane, monkeypatch):
@@ -162,8 +165,9 @@ def test_tool_search_off_is_a_reason_not_a_silence(harness_lane):
     off = replace(ts.ToolSearchConfig.from_raw(None), enabled="off")
     receipt = _surface(tool_search_config=off)
     assert receipt["tool_search"] == "off"
-    assert receipt["deferred"] == {} and receipt["bridge"] == []
+    assert receipt["deferred"] == {} and receipt["mcp"]["deferred"] == {} and receipt["bridge"] == []
+    eager = {**receipt["eager"], **receipt["mcp"]["eager"]}
     for name in ("todo_list", "browser_vault_list", "agent_chat_open", CAPTURE):
-        assert receipt["eager"][name] == {"reason": "tool_search_off"}, name
+        assert eager[name] == {"reason": "tool_search_off"}, name
     # Positive control: a tool no rule would defer is eager with no reason, off or not.
     assert receipt["eager"]["terminal"] == {"reason": None}

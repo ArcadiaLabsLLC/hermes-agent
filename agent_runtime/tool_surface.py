@@ -17,6 +17,11 @@ One function, two callers on one input: the factory (``chat_lane_defer.apply_cha
 which attaches :meth:`ToolSurface.receipt` to the agent) and the preview (``persona tool-diff``,
 from the chat-lane bundle's ``tool_contract``). That is what makes the preview and the wire
 one answer instead of two equal ones.
+
+MCP tools ride apart in the receipt (``mcp``, and ``mcp_*`` counts): the factory sees the admitted
+servers' LIVE tool list and a shell preview cannot (no connection, another home), so the core
+states, their counts and :attr:`ToolSurface.resolution_id` are over the non-MCP names only — the
+part both sides can know — and the two agree on it.
 """
 
 from __future__ import annotations
@@ -34,7 +39,7 @@ __layer__ = "policy"
 
 #: The agent attribute that carries the surface receipt from construction to the turn's readers.
 AGENT_SURFACE_ATTR = "_hermes_tool_surface_receipt"
-TOOL_SURFACE_SCHEMA_VERSION = 1
+TOOL_SURFACE_SCHEMA_VERSION = 2
 
 STATE_EAGER = "eager"
 STATE_DEFERRED = "deferred"
@@ -101,6 +106,21 @@ def blocked_reason(
     return DispositionReason.SESSION_TOOL_POLICY
 
 
+def is_mcp_tool_name(name: str) -> bool:
+    """Whether ``name`` is an MCP server's tool (``mcp__<server>__<tool>``, upstream's spelling)."""
+
+    from tools.mcp_tool_schema import MCP_TOOL_NAME_PREFIX
+
+    return str(name).startswith(MCP_TOOL_NAME_PREFIX)
+
+
+def receipt_names(receipt: Mapping[str, Any], state: str) -> set[str]:
+    """Every name a receipt puts in ``state``: the core rows and the ``mcp`` rows together."""
+
+    mcp = receipt.get("mcp") if isinstance(receipt.get("mcp"), Mapping) else {}
+    return set(receipt.get(state) or {}) | set(mcp.get(state) or {})
+
+
 @dataclass(frozen=True, slots=True)
 class ToolDisposition:
     name: str
@@ -152,13 +172,16 @@ class ToolSurface:
 
     @property
     def resolution_id(self) -> str:
+        """Over the non-MCP names only (module docstring): a preview without the live MCP list
+        and the factory with it hash the same material."""
+
         material = {
             "enabled_toolsets": sorted(self.enabled_toolsets),
             "bridge": sorted(self.bridge),
             **{
                 state: sorted(
                     (d.name, d.reason.value if d.reason is not None else None)
-                    for d in self.dispositions if d.state == state
+                    for d in self.dispositions if d.state == state and not is_mcp_tool_name(d.name)
                 )
                 for state in STATES
             },
@@ -167,20 +190,24 @@ class ToolSurface:
         return f"toolsurf_{hashlib.sha256(encoded).hexdigest()[:16]}"
 
     def receipt(self) -> dict[str, Any]:
-        """Schema v1 (plan §2c): names, reasons and counts — never a schema body."""
+        """Schema v2 (plan §2c): names, reasons and counts — never a schema body. MCP names
+        are under ``mcp`` (same state keys) and counted as ``mcp_<state>``."""
 
         rows = {state: {} for state in STATES}
+        mcp = {state: {} for state in STATES}
         for d in sorted(self.dispositions, key=lambda item: item.name):
-            rows[d.state][d.name] = d.row()
+            (mcp if is_mcp_tool_name(d.name) else rows)[d.state][d.name] = d.row()
         counts = {state: len(rows[state]) for state in STATES}
         counts["bridge"] = len(self.bridge)
         counts["callable_by_name"] = counts[STATE_EAGER] + counts[STATE_DEFERRED] + counts[STATE_UNAVAILABLE]
+        counts.update({f"mcp_{state}": len(mcp[state]) for state in STATES})
         return {
             "schema_version": TOOL_SURFACE_SCHEMA_VERSION,
             "resolution_id": self.resolution_id,
             "enabled_toolsets": list(self.enabled_toolsets),
             "tool_search": self.tool_search,
             **rows,
+            "mcp": mcp,
             "bridge": sorted(self.bridge),
             "counts": counts,
             "degraded": list(self.degraded),
@@ -499,7 +526,9 @@ __all__ = [
     "blocked_reason",
     "assemble_surface",
     "compute_tool_surface",
+    "is_mcp_tool_name",
     "not_computed",
+    "receipt_names",
     "requested_tool_names",
     "unaliased_wire_names",
 ]

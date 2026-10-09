@@ -150,7 +150,18 @@ def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
     """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts."""
 
     buckets: dict[str, Any] = {}
-    deferred = surface.get("deferred") if isinstance(surface.get("deferred"), Mapping) else {}
+    # Schema v2 carries the admitted MCP servers' names under ``mcp``; the agent's line counts both.
+    mcp = surface.get("mcp") if isinstance(surface.get("mcp"), Mapping) else {}
+
+    def _rows(state: str) -> dict[str, Any]:
+        rows = {}
+        for part in (surface, mcp):
+            group = part.get(state)
+            if isinstance(group, Mapping):
+                rows.update(group)
+        return rows
+
+    deferred = _rows("deferred")
     if deferred:
         restorable: list[str] = []
         for row in deferred.values():
@@ -158,7 +169,7 @@ def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
             if via and via not in restorable:
                 restorable.append(via)
         buckets["deferred"] = {"count": len(deferred), "via": "tool_search", "restorable_via": restorable}
-    unavailable = surface.get("unavailable") if isinstance(surface.get("unavailable"), Mapping) else {}
+    unavailable = _rows("unavailable")
     if unavailable:
         buckets["unavailable"] = {"count": len(unavailable)}
     return buckets
