@@ -2545,7 +2545,7 @@ def _build_document_context_note(
 
 
 def _format_duration(seconds: float) -> str:
-    total = max(0, int(round(seconds)))
+    total = max(0, round(seconds))
     hours, rem = divmod(total, 3600)
     minutes, secs = divmod(rem, 60)
     if hours:
@@ -3348,8 +3348,6 @@ def _instantiate_builtin_adapter(platform: Platform, config: Any) -> Optional[Ba
             logger.warning("Signal: SIGNAL_HTTP_URL or SIGNAL_ACCOUNT not configured")
             return None
     return adapter_cls(config)
-
-
 
 
 class GatewayRunner(

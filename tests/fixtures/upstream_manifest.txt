@@ -1,4 +1,4 @@
-# base 302c5d9f67
+# base 1744a19e0df568c647e4f3ff9c37f2a284a282fb
 .coderabbit.yaml
 .dockerignore
 .env.example
@@ -1379,6 +1379,9 @@ apps/desktop/scripts/click-session-helpers.test.mjs
 apps/desktop/scripts/click-session.mjs
 apps/desktop/scripts/commit-bundles.windows.test.mjs
 apps/desktop/scripts/commit-stamp-identity.test.mjs
+apps/desktop/scripts/compiler-cache.d.mts
+apps/desktop/scripts/compiler-cache.mjs
+apps/desktop/scripts/compiler-cache.test.mjs
 apps/desktop/scripts/connector-rehearsal.mjs
 apps/desktop/scripts/desktop-update-ui.test.mjs
 apps/desktop/scripts/dev-no-hmr.mjs
@@ -4497,6 +4500,7 @@ contributors/emails/157689911+itsflownium@users.noreply.github.com
 contributors/emails/158067205+dreamfarer-space@users.noreply.github.com
 contributors/emails/158643445@qq.com
 contributors/emails/1600332149@qq.com
+contributors/emails/1601210807@pku.edu.cn
 contributors/emails/163799701+ryrenz@users.noreply.github.com
 contributors/emails/164521089+rainbowgits@users.noreply.github.com
 contributors/emails/165616139+YuYigeng@users.noreply.github.com
@@ -6773,7 +6777,6 @@ hermes_cli/auth_oauth_pkce_plugin.py
 hermes_cli/auth_openrouter.py
 hermes_cli/auth_plugin_providers.py
 hermes_cli/auth_qwen.py
-hermes_cli/auth_spotify.py
 hermes_cli/auth_xai.py
 hermes_cli/auth_zai_kimi.py
 hermes_cli/azure_detect.py
@@ -6911,6 +6914,7 @@ hermes_cli/gateway_multiplex_mode.py
 hermes_cli/gateway_multiplex_s6.py
 hermes_cli/gateway_multiplex_served.py
 hermes_cli/gateway_profile_lifecycle.py
+hermes_cli/gateway_service_owner.py
 hermes_cli/gateway_setup_wizard.py
 hermes_cli/gateway_supervised_restart.py
 hermes_cli/gateway_windows.py
@@ -8414,7 +8418,6 @@ plugin-catalog/alice-voice.yaml
 plugin-catalog/ando-platform.yaml
 plugin-catalog/android-emulator.yaml
 plugin-catalog/antigravity-agy.yaml
-plugin-catalog/antigravity-oauth-plus.yaml
 plugin-catalog/antigravity-oauth.yaml
 plugin-catalog/antigravity-subscription-directsdk.yaml
 plugin-catalog/anyrouter.yaml
@@ -8835,6 +8838,7 @@ plugin-catalog/snyk.yaml
 plugin-catalog/source-tray.yaml
 plugin-catalog/spectator.yaml
 plugin-catalog/spotify-desktop.yaml
+plugin-catalog/spotify.yaml
 plugin-catalog/stack.yaml
 plugin-catalog/stalkchain.yaml
 plugin-catalog/sticky-notes.yaml
@@ -9211,10 +9215,6 @@ plugins/security-guidance/README.md
 plugins/security-guidance/__init__.py
 plugins/security-guidance/patterns.py
 plugins/security-guidance/plugin.yaml
-plugins/spotify/__init__.py
-plugins/spotify/client.py
-plugins/spotify/plugin.yaml
-plugins/spotify/tools.py
 plugins/teams_pipeline/__init__.py
 plugins/teams_pipeline/cli.py
 plugins/teams_pipeline/meetings.py
@@ -9339,6 +9339,8 @@ scripts/aa_quality_sync.py
 scripts/add_contributor.py
 scripts/audit-old-updater-imports.py
 scripts/audit_pr_attribution.py
+scripts/build-bundle.ps1
+scripts/build-bundle.sh
 scripts/build/README.md
 scripts/build/agent.py
 scripts/build/desktop.mjs
@@ -10167,6 +10169,7 @@ tests/agent/test_codex_runtime_live_events.py
 tests/agent/test_codex_runtime_prompt_handoff.py
 tests/agent/test_codex_sdk_transform_bypass.py
 tests/agent/test_codex_soft_failure_pool_rotation.py
+tests/agent/test_codex_stream_rotating_item_ids.py
 tests/agent/test_codex_stream_supersession.py
 tests/agent/test_codex_token_expired_replay_recovery.py
 tests/agent/test_codex_ttfb_watchdog.py
@@ -12976,6 +12979,7 @@ tests/hermes_cli/test_gateway_scan_home_identity.py
 tests/hermes_cli/test_gateway_scm_feature_removed.py
 tests/hermes_cli/test_gateway_served_guard_ownership.py
 tests/hermes_cli/test_gateway_service.py
+tests/hermes_cli/test_gateway_service_owner.py
 tests/hermes_cli/test_gateway_service_paths.py
 tests/hermes_cli/test_gateway_start_attestation.py
 tests/hermes_cli/test_gateway_unit_paths.py
@@ -13680,7 +13684,6 @@ tests/hermes_cli/test_source_release_probe.py
 tests/hermes_cli/test_source_stamp.py
 tests/hermes_cli/test_spawn_gateway_restart_cooldown.py
 tests/hermes_cli/test_spawn_gateway_restart_reap.py
-tests/hermes_cli/test_spotify_auth.py
 tests/hermes_cli/test_sqlite3_cli_salvage_gate.py
 tests/hermes_cli/test_sqlite_runtime.py
 tests/hermes_cli/test_sqlite_util_canonical.py
@@ -14248,6 +14251,7 @@ tests/install/e2e-assets/verify-user-state.py
 tests/install/e2e-assets/window-input.cjs
 tests/install/e2e-assets/windows-bundle-metadata.ps1
 tests/install/e2e-assets/windows-bundle-metadata.test.ps1
+tests/install/e2e-assets/windows-bundle-plugin-smoke.ps1
 tests/install/e2e-assets/windows-bundled-drive-update.ps1
 tests/install/e2e-assets/windows-bundled-helpers.mjs
 tests/install/e2e-assets/windows-bundled-helpers.test.mjs
@@ -15397,7 +15401,6 @@ tests/tools/test_snapshot_multiline_session_env_injection.py
 tests/tools/test_snapshot_session_id_leak.py
 tests/tools/test_spawn_site_child_env.py
 tests/tools/test_spill_safety.py
-tests/tools/test_spotify_client.py
 tests/tools/test_ssh_bulk_upload.py
 tests/tools/test_ssh_environment.py
 tests/tools/test_ssh_remote_cwd.py

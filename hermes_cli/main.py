@@ -48,6 +48,7 @@ _bootstrap_root = os.path.realpath(os.path.join(os.path.dirname(__file__), os.pa
 if _bootstrap_root not in sys.path:
     sys.path.insert(0, _bootstrap_root)
 from hermes_cli import _startup_fast
+import itertools
 
 # A literal ``~``/``$VAR`` in HERMES_HOME (fish, or any quoted value) must become absolute
 # before the first reader — otherwise it resolves against cwd and scaffolds <cwd>/~/.hermes.
@@ -63,7 +64,7 @@ _startup_fast.normalize_hermes_home_env()
 # too — a pre-loop wedge is just as dead without a supervisor; GatewayRunner
 # disarms once the event loop is live.
 def _argv_is_gateway_run(argv: list) -> bool:
-    return any(a == "gateway" and b == "run" for a, b in zip(argv, argv[1:]))
+    return any(a == "gateway" and b == "run" for a, b in itertools.pairwise(argv))
 
 
 if _argv_is_gateway_run(sys.argv[1:]):
@@ -845,6 +846,7 @@ from hermes_cli.main_provider_setup import (
     _build_provider_picker_rows,
     _clear_stale_openai_base_url,
     _is_profile_api_key_provider,
+    _model_choice_save_count,
     _named_custom_provider_map,
     _offer_reasoning_after_pick,
     _prompt_main_reasoning_effort,
@@ -2096,6 +2098,7 @@ def select_provider_and_model(args=None):
     # Provider-specific setup + model selection. Flows resolve the
     # _model_flow_* names at call time so test monkeypatches on
     # hermes_cli.main keep intercepting.
+    saves_before = _model_choice_save_count()
     from hermes_cli.observability.shared_metrics_setup import cli_provider_setup
     with cli_provider_setup(selected_provider):
         flow = _PROVIDER_MODEL_FLOWS.get(selected_provider)
@@ -2124,9 +2127,7 @@ def select_provider_and_model(args=None):
         ):
             _model_flow_api_key_provider(config, selected_provider, current_model)
 
-    # Every flow persists through _save_model_choice; a changed model.default means a pick
-    # landed, so offer its reasoning effort here once instead of inside each flow.
-    _offer_reasoning_after_pick(current_model)
+    _offer_reasoning_after_pick(current_model, saves_before)
 
     # Post-switch cleanup: switching to a named provider (anything except
     # "custom") leaves a stale OPENAI_BASE_URL in ~/.hermes/.env that poisons
