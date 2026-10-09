@@ -99,7 +99,7 @@ def test_the_recorded_lane_carries_thirty_tools_before_the_defer(lane):
 @pytest.mark.parametrize(("defer", "eager"), [(NEKO_DEFER, NEKO_EAGER), (DEV_DEFER, DEV_EAGER)],
                          ids=["neko_supervisor", "dev"])
 def test_each_persona_ships_exactly_its_ruled_eager_set(lane, defer, eager):
-    from agent_runtime.chat_lane_defer import apply_chat_lane_defer
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
 
     _raw, build_agent = lane
     agent = build_agent()
@@ -151,7 +151,7 @@ def test_a_refresh_that_restores_the_profile_form_is_undone_before_the_next_requ
 
 
 def test_no_list_leaves_the_constructor_form_alone(lane):
-    from agent_runtime.chat_lane_defer import apply_chat_lane_defer
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
 
     _raw, build_agent = lane
     agent = build_agent()

@@ -23,12 +23,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.chat_lane_tool_form import (  # noqa: F401 — re-exported
-    AGENT_DEFER_ATTR,
-    apply_chat_lane_defer,
-)
-
 __layer__ = "policy"
+
+#: The agent attribute that carries the persona's defer set from construction to its turns.
+AGENT_DEFER_ATTR = "_chat_lane_defer_tools"
 
 
 def turn_defer_tools(agent: Any) -> frozenset[str]:
@@ -39,6 +37,5 @@ def turn_defer_tools(agent: Any) -> frozenset[str]:
 
 __all__ = [
     "AGENT_DEFER_ATTR",
-    "apply_chat_lane_defer",
     "turn_defer_tools",
 ]

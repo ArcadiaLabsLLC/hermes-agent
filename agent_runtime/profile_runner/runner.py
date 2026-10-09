@@ -389,9 +389,7 @@ def _default_agent_factory(**kwargs):
     # eternia-harness pre_llm_call hook): upstream's between-turns MCP refresh is switched off
     # through its own per-agent door; the owner lands this run's admitted MCP scope instead.
     agent._skip_mcp_refresh = True
-    from agent_runtime.chat_lane_defer import apply_chat_lane_defer
-    from agent_runtime.tool_blocks import prune_agent_tools
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
 
-    apply_chat_lane_defer(agent, chat_lane_defer_tools)
-    prune_agent_tools(agent, blocked_tool_names)
+    apply_chat_lane_defer(agent, chat_lane_defer_tools, blocked=blocked_tool_names)
     return agent

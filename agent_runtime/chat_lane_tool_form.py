@@ -35,15 +35,16 @@ from collections import OrderedDict
 from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
+from agent_runtime.chat_lane_defer import AGENT_DEFER_ATTR
 from agent_runtime.tool_blocks import _tool_name as _def_name
 
-__layer__ = "policy"
+__layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
 
-#: The agent attribute that carries the persona's defer set from construction to its turns.
-#: Its presence is also the owner's admission: only an actor the runner's factory built is settled.
-AGENT_DEFER_ATTR = "_chat_lane_defer_tools"
+#: :data:`AGENT_DEFER_ATTR` (``chat_lane_defer``) carries the persona's defer set from
+#: construction to its turns; its presence is also the owner's admission: only an actor the
+#: runner's factory built is settled.
 #: Every name a raw read of this actor's lane produced. A name that leaves the read
 #: (deregistered, out of scope) is dropped, never mistaken for a constructor-appended extra.
 _RAW_NAMES_ATTR = "_chat_lane_raw_names"
@@ -271,19 +272,34 @@ def settle_turn_tool_form(
     return receipt
 
 
-def apply_chat_lane_defer(agent: Any, defer_tools: Iterable[str] | None) -> bool:
+def apply_chat_lane_defer(
+    agent: Any, defer_tools: Iterable[str] | None, *, blocked: Iterable[str] | None = None,
+) -> bool:
     """Construction: bind the persona's defer set and settle the form; True when it changed.
 
-    With no list the constructor's (profile-wide) form stands until the first turn settles
-    it. The pin is the turn's, never the constructor's.
+    With no list the constructor's (profile-wide) form IS the settled form for this key --
+    upstream's own assembly of the same catalog -- recorded without a read, so a warm first
+    turn costs one compare (the prewarm owns the constructor's read; a read on the turn
+    imports what the prewarm already warmed). The run's block is pruned in the same settle.
+    The pin is the turn's, never the constructor's.
     """
 
     names = frozenset(str(n).strip() for n in (defer_tools or ()) if str(n).strip())
     setattr(agent, AGENT_DEFER_ATTR, names)
-    if not names:
+    if names:
+        receipt = settle_turn_tool_form(agent, blocked=blocked, pin=False)
+        return bool(receipt and receipt.published)
+    if not getattr(agent, "tools", None):
         return False
-    receipt = settle_turn_tool_form(agent, pin=False)
-    return bool(receipt and receipt.published)
+    try:
+        from agent_runtime.tool_blocks import prune_agent_tools
+        from tools.tool_search import load_config
+
+        prune_agent_tools(agent, blocked)
+        setattr(agent, _SETTLED_ATTR, (_form_key(agent, names, load_config()), _dump(agent.tools)))
+    except Exception:  # noqa: BLE001 - the first turn settles it instead
+        logger.debug("tool form: constructor form not recorded", exc_info=True)
+    return False
 
 
 __all__ = [
