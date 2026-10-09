@@ -21,16 +21,27 @@ the fork does not edit. Neither gate can act on them:
   an allowlist is how a gate turns into a list of exceptions nobody re-reads.
 
 So the answer is scope, not exemption: a file that is byte-identical to
-``upstream/main`` is upstream's to police, and the fork's gates look at the
+upstream's copy is upstream's to police, and the fork's gates look at the
 files the fork actually touched. This module answers that one question, once,
 for every gate that needs it.
+
+MEASURED AGAINST THE MERGE BASE, NOT THE ``upstream/main`` TIP
+==============================================================
+
+"Upstream's copy" is the copy the fork last MERGED: ``git merge-base HEAD
+upstream/main`` (:func:`upstream_base`), as ``scripts/upstream_footprint.py``
+measures the footprint. The fork merges release tags (owner, 2026-10-06), so the
+tip runs ahead of what the fork carries; against the tip, every upstream line
+changed after the base read as fork-authored and the fork's bans fired on
+upstream code the fork may not edit (``hermes_cli/bundles.py:72``: the base
+``ee5f49b943`` carries ``List[str]``, upstream ``d76cce4f11`` respelled it after,
+and the flag-binding ban flagged the unchanged line).
 
 WHAT "FORK-TOUCHED" MEANS, AND WHY A SECOND, NARROWER ANSWER EXISTS
 ===================================================================
 
-``is_fork_touched(path)`` is True when the working file is absent from
-``upstream/main`` OR its content differs from the blob ``upstream/main`` lists
-for it. It is a FILE-level answer, and for a file the fork wrote it is the only
+``is_fork_touched(path)`` is True when the working file is absent from the
+merge base OR its content differs from the blob the merge base lists for it. It is a FILE-level answer, and for a file the fork wrote it is the only
 answer needed.
 
 It is NOT sufficient for the file the fork EXTENDED. The fence is "a file
@@ -54,7 +65,8 @@ FAIL CLOSED
 ===========
 
 When the ``upstream/main`` ref is not there — a clone without the remote, CI
-that fetches one branch, a shallow checkout — or when any git invocation fails,
+that fetches one branch, a shallow checkout — when HEAD and it share no merge
+base, or when any git invocation fails,
 every file reads as fork-touched and the gates scan exactly what they scanned
 before this module existed. A scope helper that failed OPEN would silently turn
 a ban into a no-op on the one machine nobody was watching.
@@ -62,7 +74,7 @@ a ban into a no-op on the one machine nobody was watching.
 THE COST
 ========
 
-One ``git ls-tree -r upstream/main`` per process, cached; one
+One ``git merge-base`` and one ``git ls-tree -r <base>`` per process, cached; one
 ``git hash-object``, and at most one ``git cat-file``, per path actually asked
 about, cached. Callers ask about FINDINGS, not about every file they walk (see
 each gate), so those two are paid a handful of times at most, and a green gate
@@ -83,13 +95,15 @@ __all__ = [
     "is_fork_touched",
     "read_upstream_blobs",
     "repo_root",
+    "upstream_base",
     "upstream_blobs",
     "working_blob",
 ]
 
-#: The ref that answers "is this upstream's?". The fork integrates upstream by
-#: a history-preserving merge, so this ref is what a fork-owned line is
-#: measured against.
+#: The upstream ref the merge base is taken against. The fork integrates
+#: upstream by a history-preserving merge of release tags, so a fork-owned line
+#: is measured against ``git merge-base HEAD UPSTREAM_REF`` (:func:`upstream_base`),
+#: never against this ref's tip.
 UPSTREAM_REF = "upstream/main"
 
 _UNSET = object()
@@ -123,8 +137,28 @@ def _git(args: list[str], *, cwd: Path) -> bytes | None:
     return completed.stdout
 
 
-def read_upstream_blobs(root: Path, ref: str = UPSTREAM_REF) -> dict[str, str] | None:
+def read_merge_base(root: Path, ref: str = UPSTREAM_REF) -> str | None:
+    """``git merge-base HEAD <ref>`` in ``root``, or ``None`` (fail closed)."""
+
+    out = _git(["merge-base", "HEAD", ref], cwd=root)
+    if out is None:
+        return None
+    base = out.decode("ascii", "replace").strip()
+    return base or None
+
+
+@functools.lru_cache(maxsize=1)
+def upstream_base() -> str | None:
+    """The upstream commit this checkout last merged, once per process."""
+
+    return read_merge_base(repo_root())
+
+
+def read_upstream_blobs(root: Path, ref: str | None = None) -> dict[str, str] | None:
     """``{repo-relative posix path: blob sha}`` for ``ref``, or ``None``.
+
+    ``ref`` defaults to the merge base of HEAD and ``upstream/main`` in ``root``
+    (``None`` when there is none — the fail-closed answer).
 
     ``root`` and ``ref`` are parameters rather than module constants so a test
     can drive the fail-closed path against a real empty repository instead of
@@ -135,6 +169,10 @@ def read_upstream_blobs(root: Path, ref: str = UPSTREAM_REF) -> dict[str, str] |
     to the one the caller hands it.
     """
 
+    if ref is None:
+        ref = read_merge_base(root)
+        if ref is None:
+            return None
     out = _git(["ls-tree", "-r", "-z", ref], cwd=root)
     if out is None:
         return None
@@ -158,7 +196,8 @@ def read_upstream_blobs(root: Path, ref: str = UPSTREAM_REF) -> dict[str, str] |
 def upstream_blobs() -> dict[str, str] | None:
     """:func:`read_upstream_blobs` for this checkout, once per process."""
 
-    return read_upstream_blobs(repo_root())
+    base = upstream_base()
+    return read_upstream_blobs(repo_root(), base) if base is not None else None
 
 
 @functools.lru_cache(maxsize=None)
@@ -210,7 +249,7 @@ def is_fork_touched(path: str | Path, *, blobs: object = _UNSET) -> bool:
 
     listed = index.get(relative)
     if listed is None:
-        return True  # absent from upstream/main: fork-authored
+        return True  # absent from the merge base: fork-authored
 
     actual = working_blob(relative)
     if actual is None:
@@ -219,9 +258,12 @@ def is_fork_touched(path: str | Path, *, blobs: object = _UNSET) -> bool:
 
 
 def _upstream_text(relative: str) -> list[str] | None:
-    """``upstream/main``'s copy of ``relative``, as lines, or ``None``."""
+    """The merge base's copy of ``relative``, as lines, or ``None``."""
 
-    out = _git(["cat-file", "blob", f"{UPSTREAM_REF}:{relative}"], cwd=repo_root())
+    base = upstream_base()
+    if base is None:
+        return None
+    out = _git(["cat-file", "blob", f"{base}:{relative}"], cwd=repo_root())
     if out is None:
         return None
     return out.decode("utf-8", errors="replace").splitlines()
@@ -232,7 +274,7 @@ def fork_authored_lines(relative: str) -> frozenset[int] | None:
     """1-based WORKING line numbers the fork added, or ``None`` for "all of it".
 
     ``None`` is the whole-file answer and covers both the ordinary case (the
-    file is absent from ``upstream/main``, so every line is the fork's) and
+    file is absent from the merge base, so every line is the fork's) and
     every failure (no ref, unreadable blob, unreadable working file) — the same
     fail-closed direction as the rest of this module.
 
