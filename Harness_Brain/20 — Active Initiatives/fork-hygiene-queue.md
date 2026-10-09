@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-09 (final gates)
+
+- [ ] **`test_turn_cost_guard_downstream` span budget flakes under the 8-worker runner (turn 0 anchor->request_sent 488 ms > slowest warm 324 + 100)** · fork / suite · evidence: final-gates fix run 2026-10-09 (FLAKY attempt 1) · lane: make the budget load-relative or mark the file solo · UNCLAIMED
+
 ## Filed on arrival — 2026-10-08 (lane opus-w1-hermes)
 
 - [ ] **The 2026-10-07 carried-PR sync (`7625cb7dad`, `fa2677be7b`) landed eight upstream files with no ledger row and no `carried_prs.json` entry; four are NON-ADDITIVE (`plugins/plugin_loader.py`, `tools/file_tools_read_tracking.py`, `tests/hermes_cli/test_auth_commands.py`, `tests/hermes_cli/test_worktree_sync_base.py`), three put fork tests inside upstream test files (`tests/agent/test_turn_context.py`, `test_uninstall_dry_run.py`, `tests/tools/test_windows_agent_loop_papercuts.py`), and `_posix_match_forms` now lives in both `tools/file_tools.py` and `tools/file_tools_paths.py`; it also grew 67 deleted lines in ledgered rows. Name each hunk's PR or make it additive / move the tests to `*_downstream.py`, and make the sync job write ledger rows and the fixture in the commit that lands them** · fork-hygiene / footprint · evidence: ledger rows marked `W1 2026-10-08`, fixture reason 176 -> 184 · UNCLAIMED
