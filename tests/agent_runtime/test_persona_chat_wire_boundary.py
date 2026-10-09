@@ -94,6 +94,7 @@ from agent_runtime.persona_chat_continuity import (
     _MAX_ARGUMENTS,
     _MAX_CONTENT,
     native_wire_row,
+    record_wire_boundary_cut,
     record_wire_boundary_drift,
     safe_native_message,
 )
@@ -399,6 +400,11 @@ def test_the_flush_site_uses_the_typed_boundary_and_reports_drift():
         "the flush no longer reports wire-boundary drift — an unaccounted loss "
         "would again reach the model with nothing recording it"
     )
+    assert called("record_wire_boundary_cut"), (
+        "the flush no longer says when an accounted cut shortened a row — a "
+        "tool result cut at the flat bound would again reach the model with "
+        "no line in any log"
+    )
 
     # The write-back is what makes this the wire rather than the record. If it
     # ever stops happening, this file's premise is void and it should be
@@ -433,3 +439,55 @@ def test_the_wire_bound_is_documented_as_a_wire_bound():
     assert "WIRE BOUND, NOT A PERSISTENCE BOUND" in header, (
         "the ceiling that governs the prompt must say so where it is defined"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The accounted cut gets a receipt too
+# --------------------------------------------------------------------------- #
+def test_record_wire_boundary_cut_names_the_tool_and_the_sizes_never_the_content(caplog):
+    """On 2026-10-09 a 26,853-char ``launcher_generated_list`` reply was cut to
+    20,000 and the first evidence was a database dig: the drift reporter is
+    silent for an ACCOUNTED cut and only the composed user row warned."""
+
+    secret = "SENTINEL-" + "q" * 30_000
+    bound = native_wire_row({"role": "tool", "tool_name": "launcher_generated_list", "content": secret})
+
+    with caplog.at_level(logging.WARNING):
+        notes = record_wire_boundary_cut(bound)
+
+    assert notes == bound.notes and len(notes) == 1
+    assert "launcher_generated_list" in caplog.text
+    assert f"{len(secret)}->{_MAX_CONTENT}/{_MAX_CONTENT}" in caplog.text
+    assert "SENTINEL" not in caplog.text
+
+
+def test_record_wire_boundary_cut_is_silent_for_a_row_that_arrived_whole(caplog):
+    bound = native_wire_row({"role": "tool", "tool_name": "t", "content": "small"})
+
+    with caplog.at_level(logging.WARNING):
+        assert record_wire_boundary_cut(bound) == ()
+
+    assert "wire boundary cut" not in caplog.text
+
+
+def test_record_wire_boundary_cut_leaves_the_user_row_to_its_own_warning(caplog):
+    """The composed user row already warns from its bounding with per-part
+    arithmetic; a second line for the same cut would read as two cuts."""
+
+    bound = native_wire_row({"role": "user", "content": "u" * 30_000})
+    assert bound.notes
+
+    with caplog.at_level(logging.WARNING):
+        assert record_wire_boundary_cut(bound) == ()
+
+    assert "wire boundary cut" not in caplog.text
+
+
+def test_the_flat_bound_is_pinned_on_both_sides_of_the_launcher_wire():
+    """The launcher sizes every ``launcher.generated.*`` reply against this
+    figure (``lib/core/services/hermes/runtime/data/harness_tool_result_wire.dart``,
+    ``kHermesToolResultWireBound``) because the runtime does not announce it
+    over the serve link. Changing it here without changing it there puts the
+    tail of every catalog reply past the cut again."""
+
+    assert _MAX_CONTENT == 20_000
