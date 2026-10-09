@@ -812,17 +812,23 @@ class BootPhases:
         # that runs after the provider warmup does not pay the SDK import it
         # would otherwise pay itself. It only QUEUES here; the constructions run
         # on that module's own worker, which stands down for any live turn.
+        # A FOURTH step, last of all since 2026-10-08 (tool-visibility split,
+        # slice 2): the ``toolset_census`` log receipt — plugin toolsets no
+        # persona declares. Last because the provider warmup has discovered the
+        # plugins by then; a log line, never a key on the ``ready`` frame.
+        toolset_census = getattr(self, "toolset_census", None)
         if (
             self.snapshot_prewarm is not None
             or self.provider_prewarm is not None
             or self.actor_prewarm is not None
+            or toolset_census is not None
         ):
 
             def _prewarm_worker() -> None:
                 # Sequential, and each step isolated: a build that raised must
                 # still leave the providers warm (HY-H2), and an injected fake
                 # that raises must not silently cancel the step after it.
-                for step in (self.snapshot_prewarm, self.provider_prewarm, self.actor_prewarm):
+                for step in (self.snapshot_prewarm, self.provider_prewarm, self.actor_prewarm, toolset_census):
                     if step is None:
                         continue
                     try:

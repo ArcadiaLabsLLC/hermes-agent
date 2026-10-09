@@ -140,6 +140,7 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
     # Deferred to the one serve that publishes the anchor. (This used to say the file was exec'd into
     # harness.py's globals; that stopped at H4 `d567f07f62` — it is an ordinary module now.)
     from agent_runtime.root_anchor import publish_store_root_anchor
+    from agent_runtime.toolset_census import log_serve_toolset_census
 
     def _wake_reader() -> None:
         """Unblock a reader parked on an idle protocol pipe after a drain.
@@ -172,6 +173,10 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
             # reason the provider warmup is: it is policy, and a loop unit test
             # must not construct a persona agent to observe a ready frame.
             actor_prewarm=_prewarm_persona_chat_actors,
+            # Fourth and last on that thread (tool-visibility split, slice 2):
+            # the boot's ``toolset_census`` log receipt. Injected for the same
+            # reason — a loop unit test must not run plugin discovery.
+            toolset_census=log_serve_toolset_census,
             root_anchor=publish_store_root_anchor,
             # The installed-skill join. ON here and nowhere else, the same
             # contract as ``root_anchor`` beside it and for a sharper version of

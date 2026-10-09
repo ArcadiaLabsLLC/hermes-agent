@@ -155,6 +155,14 @@ def _cmd_persona_tool_diff(args) -> int:
         ),
     )
     data = {"ok": True, "tool_visibility": visibility}
+    # Slice 2 of the tool-visibility split: plugin toolsets THIS persona's
+    # declaration does not name — the Lens case, said out loud.
+    from agent_runtime.persona_profiles import declared_lane_toolsets
+    from agent_runtime.toolset_census import undeclared_registered_toolsets
+
+    data["undeclared_registered_toolsets"] = list(
+        undeclared_registered_toolsets([declared_lane_toolsets(persona)])
+    )
     # Inspection only: resolve_mcp_admission is pure policy — it never connects
     # to or registers an MCP server — so an operator can read exactly what a
     # persona WOULD be admitted before the kill switch is ever flipped.
@@ -190,6 +198,11 @@ def _cmd_persona_tool_diff(args) -> int:
             declared = ", ".join(declaration.get("declared") or []) or "-"
             where = declaration.get("config_path") or "no profile config"
             print(f"toolsets: {declared} ({declaration.get('source')}, {where})")
+        if data["undeclared_registered_toolsets"]:
+            print(
+                "registered but declared by no profile: "
+                + ", ".join(data["undeclared_registered_toolsets"])
+            )
         envelope = data.get("terminal_envelope")
         if envelope is not None:
             from agent_runtime.terminal_envelope_explain import (

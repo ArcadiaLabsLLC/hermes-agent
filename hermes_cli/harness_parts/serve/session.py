@@ -143,6 +143,11 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
     thread THIRD, on the same injection contract: it queues real agent
     constructions, so a loop unit test must never fire it by default.
 
+    ``toolset_census`` rides it FOURTH and last (tool-visibility split, slice 2):
+    one ``toolset_census`` log line naming plugin toolsets no persona declares.
+    Last because the provider warmup has already discovered plugins by then, and
+    injected because a loop unit test must not run plugin discovery.
+
     ``skill_install`` re-joins the runtime's installed canonical skill packages
     to this repo's copies (:func:`install_harness_skills_at_boot`) and takes the
     SAME injection contract as ``root_anchor``, for the same reason and with more
@@ -168,6 +173,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         snapshot_prewarm: Callable[[], None] | None = None,
         provider_prewarm: Callable[[], None] | None = None,
         actor_prewarm: Callable[[], None] | None = None,
+        toolset_census: Callable[[], Any] | None = None,
         root_anchor: Callable[[], Any] | None = None,
         skill_install: Callable[[], str] | None = None,
         drain_deadline_seconds: float = DEFAULT_DRAIN_DEADLINE_SECONDS,
@@ -203,6 +209,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.snapshot_prewarm = snapshot_prewarm
         self.provider_prewarm = provider_prewarm
         self.actor_prewarm = actor_prewarm
+        self.toolset_census = toolset_census
         self.root_anchor = root_anchor
         self.skill_install = skill_install
         self.drain_deadline_seconds = drain_deadline_seconds
