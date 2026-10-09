@@ -9,6 +9,7 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-08 (lane opus-w1-hermes)
 
+- [ ] **The 2026-10-07 carried-PR sync (`7625cb7dad`, `fa2677be7b`) landed eight upstream files with no ledger row and no `carried_prs.json` entry; four are NON-ADDITIVE (`plugins/plugin_loader.py`, `tools/file_tools_read_tracking.py`, `tests/hermes_cli/test_auth_commands.py`, `tests/hermes_cli/test_worktree_sync_base.py`), three put fork tests inside upstream test files (`tests/agent/test_turn_context.py`, `test_uninstall_dry_run.py`, `tests/tools/test_windows_agent_loop_papercuts.py`), and `_posix_match_forms` now lives in both `tools/file_tools.py` and `tools/file_tools_paths.py`; it also grew 67 deleted lines in ledgered rows. Name each hunk's PR or make it additive / move the tests to `*_downstream.py`, and make the sync job write ledger rows and the fixture in the commit that lands them** · fork-hygiene / footprint · evidence: ledger rows marked `W1 2026-10-08`, fixture reason 176 -> 184 · UNCLAIMED
 - [ ] **`tests/_fork_scope.py` answers "did the fork write this line?" against the `upstream/main` TIP (`UPSTREAM_REF`), but the fork merges release tags (owner 2026-10-06), so every upstream line changed after the merge base reads as fork-authored and the fork's AST bans (flag-binding, mid-test undo) red on upstream code the fork may not edit; measure against `git merge-base HEAD upstream/main` as `scripts/upstream_footprint.py` does (check the tombstone-registry callers that read `_upstream_text`)** · fork-hygiene / gates · evidence: the bundles.py:72 VERDICT above (`ee5f49b943` has `List[str]`, upstream `d76cce4f11` respelled it) · UNCLAIMED
 
 ## Filed on arrival — 2026-10-08 (warm send-prep qualification)
@@ -65,7 +66,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-04 (lane hb-a)
 
-- [ ] **`tests/scripts/test_upstream_footprint.py` is RED on main: live `files=175` vs fixture 172 — three upstream files carry fork lines with no ledger row and no fixture `reasons` entry (`tools/mcp_tool_handlers.py` +3, `tools/mcp_tool_health.py` +2, `tools/process_registry_notifications.py` +3); either make them additive behind a door or raise the fixture with a reason, then `--ledger`** · fork-hygiene · `scripts/upstream_footprint.py` on 99dbbe9ee7 printed `[up-fp] files=175 deleted_lines=882 heavy=4`, `tests/fixtures/upstream_footprint.json` says 172 · lane hb-a · QUALIFIED 2026-10-08: merge-base `74a64be15e` and warm-prep batch both 184 / 959 / four against fixture 176 / 883 / four; batch increment zero. [Proof](../../docs/agent-runtime-harness/planned/warm-prep-integration-2026-10-08.md) · **TAKEN 2026-10-08 opus-w1-hermes**
 
 ## Filed on arrival — 2026-10-03 (resident identity verification)
 
