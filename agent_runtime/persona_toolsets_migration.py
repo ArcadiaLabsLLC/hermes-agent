@@ -12,6 +12,13 @@ Same shape as ``local_llama_adapter.legacy_id_migration``: the report is written
 ``<store>/migrations/persona_toolsets_legacy_key.json`` and its presence makes the next
 start a single stat. Every stripped row is logged at WARNING with the list it carried.
 Fail-open: a row that cannot be read or written is reported, never raised.
+
+The PROFILE configs are the second carrier: the serve reads every
+``profiles/<name>/config.yaml``, and on 2026-10-09 five of them still carried
+``agent_runtime.personas.<id>.toolsets``. :func:`strip_legacy_persona_toolsets_from_configs`
+removes the key from each (and from the root ``config.yaml``) through the round-trip YAML
+writer, so the file's other keys and comments survive. It runs on every start, not behind
+the store marker: it is idempotent, and a file without the key is only read.
 """
 
 from __future__ import annotations
@@ -30,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 MARKER_NAME = "persona_toolsets_legacy_key.json"
 LEGACY_KEY = "toolsets"
+
+
+CONFIG_PERSONAS_PATH = ("agent_runtime", "personas")
 
 
 def marker_path(store_root: Path) -> Path:
@@ -80,3 +90,55 @@ def strip_legacy_persona_toolsets(store_root: Path) -> dict[str, Any]:
         "stripped": stripped,
         "errors": errors,
     }
+
+
+def _config_paths(hermes_root: Path) -> list[Path]:
+    root = Path(hermes_root)
+    paths = [root / "config.yaml"]
+    profiles = root / "profiles"
+    try:
+        paths.extend(sorted(entry / "config.yaml" for entry in profiles.iterdir() if entry.is_dir()))
+    except OSError:
+        pass
+    return [path for path in paths if path.is_file()]
+
+
+def _persona_ids_carrying_key(path: Path) -> list[str]:
+    from . import yaml_io
+
+    text = path.read_text(encoding="utf-8")
+    if LEGACY_KEY not in text:  # the common case is one read and no parse
+        return []
+    loaded = yaml_io.load(text)
+    node: Any = loaded
+    for part in CONFIG_PERSONAS_PATH:
+        node = node.get(part) if isinstance(node, dict) else None
+    if not isinstance(node, dict):
+        return []
+    return [str(pid) for pid, body in node.items() if isinstance(body, dict) and LEGACY_KEY in body]
+
+
+def strip_legacy_persona_toolsets_from_configs(hermes_root: Path | None = None) -> dict[str, Any]:
+    """Remove ``agent_runtime.personas.<id>.toolsets`` from the root and every profile config.
+
+    Round-trip YAML (``utils.atomic_roundtrip_yaml_update`` with ``None``), so comments,
+    order and the file's other keys survive; idempotent. Fail-open per file."""
+
+    from hermes_constants import get_default_hermes_root
+    from utils import atomic_roundtrip_yaml_update
+
+    root = Path(hermes_root) if hermes_root is not None else get_default_hermes_root()
+    stripped: list[dict[str, str]] = []
+    errors: list[dict[str, str]] = []
+    for path in _config_paths(root):
+        try:
+            persona_ids = _persona_ids_carrying_key(path)
+            for persona_id in persona_ids:
+                key = ".".join((*CONFIG_PERSONAS_PATH, persona_id, LEGACY_KEY))
+                atomic_roundtrip_yaml_update(path, key, None)
+                stripped.append({"path": str(path), "persona_id": persona_id})
+                logger.warning("persona_toolsets_config_key_stripped path=%s key=%s", path, key)
+        except Exception as exc:
+            errors.append({"path": str(path), "error": type(exc).__name__})
+            logger.warning("persona_toolsets_config_strip_failed path=%s error=%s", path, type(exc).__name__)
+    return {"stripped": stripped, "errors": errors}

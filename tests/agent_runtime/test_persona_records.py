@@ -171,3 +171,36 @@ def test_a_row_without_the_key_is_left_byte_identical(isolate_agent_runtime_root
 
     assert report["stripped"] == []
     assert clean.read_bytes() == before
+
+
+def test_the_config_migration_strips_the_key_from_every_profile_config(bundled_persona_profiles):
+    """The second carrier: ``profiles/*/config.yaml``. Comments and other keys survive; idempotent."""
+
+    from agent_runtime import yaml_io
+
+    from agent_runtime.persona_toolsets_migration import strip_legacy_persona_toolsets_from_configs
+    from hermes_cli.profiles import get_profile_dir
+    from hermes_constants import get_default_hermes_root
+
+    legacy = get_profile_dir("gpt-launcher") / "config.yaml"
+    legacy.write_text(_LEGACY_PROFILE_CONFIG, encoding="utf-8")
+    clean = get_profile_dir("qa") / "config.yaml"
+    clean.write_text("# untouched\nagent_runtime:\n  personas:\n    qa: {hermes_profile: qa}\n", encoding="utf-8")
+    clean_before = clean.read_bytes()
+
+    report = strip_legacy_persona_toolsets_from_configs(get_default_hermes_root())
+
+    assert report == {"stripped": [{"path": str(legacy), "persona_id": "neko_supervisor"}], "errors": []}
+    text = legacy.read_text(encoding="utf-8")
+    assert "# operator comment that must survive" in text
+    assert "# inline comment" in text
+    loaded = yaml_io.load(text)
+    assert loaded["model"] == {"default": "gpt-5.5"}
+    assert loaded["agent_runtime"]["personas"]["neko_supervisor"] == {
+        "hermes_profile": "gpt-launcher",
+        "display_name": "Neko",
+    }
+    assert clean.read_bytes() == clean_before
+    after = legacy.read_bytes()
+    assert strip_legacy_persona_toolsets_from_configs(get_default_hermes_root()) == {"stripped": [], "errors": []}
+    assert legacy.read_bytes() == after

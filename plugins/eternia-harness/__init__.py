@@ -353,11 +353,16 @@ def migrate_retired_local_llama_id() -> None:
 
 def migrate_legacy_persona_toolsets() -> None:
     """Ruling R2 (tool-visibility split, 2026-10-08): strip the deleted persona-level
-    ``toolsets`` key from store rows once per store (a marker makes it one-shot)."""
+    ``toolsets`` key from store rows once per store (a marker makes it one-shot), and from
+    the root and every profile ``config.yaml`` (idempotent, every start)."""
     try:
-        from agent_runtime.persona_toolsets_migration import migrate_legacy_persona_toolsets_once
+        from agent_runtime.persona_toolsets_migration import (
+            migrate_legacy_persona_toolsets_once,
+            strip_legacy_persona_toolsets_from_configs,
+        )
 
         migrate_legacy_persona_toolsets_once()
+        strip_legacy_persona_toolsets_from_configs()
     except Exception:  # a failed migration must not take plugin load down
         logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
 
