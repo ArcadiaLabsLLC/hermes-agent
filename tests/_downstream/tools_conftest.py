@@ -427,28 +427,7 @@ def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
     _KNOWN_DEFECT_TRACKER.report(terminalreporter, "KNOWN DEFECTS — deliberately not fenced")
 
 
-_TIRITH_CONFIG_MARK = "tirith_config_value_under_test"
-
-
-@pytest.fixture(autouse=True)
-def _tirith_config_value_under_test(request, _hermetic_environment, monkeypatch):
-    """Let a test that pins tirith's CONFIG value see it.
-
-    The fork resolves ``tirith_enabled`` / ``tirith_fail_open`` through
-    ``hermes_cli.tirith_config``, where the environment wins over config.yaml;
-    upstream's ``_hermetic_environment`` sets ``TIRITH_ENABLED=false`` for every
-    test, so a test about the config value would read the env instead. Applied
-    by test id from ``tests/_downstream/id_markers/``, so the upstream test
-    file carries no edit.
-    """
-    if request.node.get_closest_marker(_TIRITH_CONFIG_MARK) is None:
-        return
-    monkeypatch.delenv("TIRITH_ENABLED", raising=False)
-    monkeypatch.delenv("TIRITH_FAIL_OPEN", raising=False)
-
-
 __all__ = [
-    "_tirith_config_value_under_test",
     "_cached",
     "_no_posix_file_modes",
     "_no_posix_exec_bit",

@@ -11,5 +11,4 @@ def test_directory_half_is_registered_with_directory_scope(request):
     assert "_downstream_behavioral_vars_scrubbed" in request.fixturenames  # root half
     assert "_no_live_process_table" in request.fixturenames
     assert "_suppress_concurrent_hermes_gate" in request.fixturenames  # upstream half, same directory
-    assert "_tirith_config_value_under_test" not in request.fixturenames  # tools' half stays in tools
     assert request.config.pluginmanager.get_plugin("tests._downstream.hermes_cli_conftest:hooks") is not None

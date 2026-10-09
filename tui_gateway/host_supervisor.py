@@ -36,6 +36,7 @@ MUTATOR_ROUTE_TABLE: dict[str, str] = {
     "prompt.submit.truncate": "idle-gated", "slash.model": "idle-gated",
     "config.set.model": "idle-gated",
     "slash.personality": "idle-gated", "slash.prompt": "idle-gated", "slash.compress": "idle-gated",
+    "slash.refine": "idle-gated",
     "session.reset": "idle-gated", "session.history.reload": "idle-gated",
     "slash.retry": "idle-gated"}
 
@@ -103,7 +104,7 @@ def _check_output(argv: list[str], **kwargs: Any) -> str:
     """Stripped stdout of a short subprocess, or ``""`` on any failure."""
     with contextlib.suppress(Exception):
         return subprocess.check_output(
-            argv, text=True, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL,
+            argv, stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL,
             timeout=2, **kwargs).strip()
     return ""
 
