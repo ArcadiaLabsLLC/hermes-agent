@@ -10,7 +10,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field as dataclass_field
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from ..clock import now_iso_micro
 
@@ -51,6 +51,10 @@ class ResidentPersonaChatRuntime:
     #: the prewarm's own outcome, not only as the turn's rebuild.
     prewarmed: bool = False
     writer_lease: Any = None
+    #: The toolsets the actor was constructed from (the ``tool_contract``'s
+    #: enabled list), so a ``tool_contract`` rebuild can NAME the toolsets that
+    #: entered or left it. ``None`` when the caller supplied none.
+    toolsets: tuple[str, ...] | None = None
 
 
 #: One line per rebuild whose cause is a moved signature component. Component
@@ -60,6 +64,17 @@ class ResidentPersonaChatRuntime:
 #: moved to. Names come from a closed vocabulary — the keys of
 #: ``mission_chat_runtime_signature_components``.
 RESIDENT_SIGNATURE_DIFF_RECEIPT = "resident_signature_diff root=%s components=%s"
+#: The ``tool_contract`` half of that line, said in names: which toolsets entered
+#: and which left the actor's construction (``-`` for none — the contract then
+#: moved in its blocked or deferred names). Toolset names are a registry
+#: vocabulary, not prompt text. Only when both sides supplied their toolsets.
+RESIDENT_TOOL_CONTRACT_DIFF_RECEIPT = "resident_tool_contract_diff root=%s toolsets_entered=%s toolsets_left=%s"
+
+
+def _toolsets_or_none(toolsets: Iterable[str] | None) -> tuple[str, ...] | None:
+    if toolsets is None:
+        return None
+    return tuple(sorted({str(name) for name in toolsets if str(name).strip()}))
 
 
 def _signature_component_diff(
@@ -141,6 +156,7 @@ class PersonaChatRuntimeRegistry:
         signature_components: dict[str, str] | None = None,
         prewarm: bool = False,
         writer_generation: Any = None,
+        toolsets: Iterable[str] | None = None,
     ) -> tuple[ResidentPersonaChatRuntime, bool, str | None, tuple[str, ...]]:
         """Reuse this root's actor, or build one. Reports WHY, and WHAT moved.
 
@@ -154,6 +170,7 @@ class PersonaChatRuntimeRegistry:
 
         now = time.monotonic()
         components = dict(signature_components or {})
+        constructed_toolsets = _toolsets_or_none(toolsets)
         with self._lock:
             if getattr(self, "_closed", False):
                 raise RuntimeError("resident runtime registry is closed")
@@ -171,6 +188,14 @@ class PersonaChatRuntimeRegistry:
                         RESIDENT_SIGNATURE_DIFF_RECEIPT,
                         root_session_id,
                         ",".join(signature_diff),
+                    )
+                if "tool_contract" in signature_diff and None not in (entry.toolsets, constructed_toolsets):
+                    before, after = set(entry.toolsets), set(constructed_toolsets)
+                    logger.info(
+                        RESIDENT_TOOL_CONTRACT_DIFF_RECEIPT,
+                        root_session_id,
+                        ",".join(sorted(after - before)) or "-",
+                        ",".join(sorted(before - after)) or "-",
                     )
                 if entry.prewarmed and entry.turn_count == 0 and not prewarm:
                     self._prewarm_discards[root_session_id] = signature_diff
@@ -207,6 +232,7 @@ class PersonaChatRuntimeRegistry:
                         last_resumed_at=now_iso_micro(),
                         signature_components=components,
                         prewarmed=bool(prewarm),
+                        toolsets=constructed_toolsets,
                     )
                     self._record_transition(
                         root_session_id, "cold", "rebuilt" if rebuild_reason else "rehydrated"
