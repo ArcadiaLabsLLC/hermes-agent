@@ -643,14 +643,18 @@ def _config_reads_through_load_config(request, monkeypatch):
 
 
 
+def _guard_roots() -> list[Path] | None:
+    """``tests/conftest.py``'s live home-I/O guard root list, through its public door."""
+    import tests._downstream as _downstream
+
+    door = getattr(_downstream.root_conftest, "real_hermes_root_candidates", None)
+    return door() if door is not None else None
+
+
 def _real_hermes_roots() -> list[str]:
     """The home-I/O guard's own roots (``tests/conftest.py``), normcased; [] if unloaded."""
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
-    return []
+    roots = _guard_roots() or []
+    return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
 
 
 #: The operator's root as the root ``conftest.py`` recorded it (or the runner forwarded it).
@@ -664,13 +668,9 @@ def _home_io_guard_covers_recorded_root() -> None:
     if not _RECORDED_REAL_ROOT:
         return
     root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            if root not in roots:
-                roots.append(root)
-            return
+    roots = _guard_roots()
+    if roots is not None and root not in roots:
+        roots.append(root)
 
 
 _home_io_guard_covers_recorded_root()
