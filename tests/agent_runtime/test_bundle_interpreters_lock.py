@@ -36,3 +36,22 @@ def test_the_pinned_minor_is_one_the_dependency_lock_resolves():
     minor = tuple(int(p) for p in _load(LOCK)["version"].split("+")[0].split(".")[:2])
     assert lock["supported-markers"] == ["python_full_version >= '3.14'"]
     assert minor >= (3, 14)
+
+
+def test_the_posix_family_prunes_what_the_windows_family_prunes():
+    """L2.23: ``prune.posix`` was absent, so darwin/linux bundles shipped pip, idlelib,
+    tkinter, turtledemo, include/ and the terminfo tree (2,871 files, ``N/``/``n/`` case
+    twins) that the Windows list already drops. Every ``Lib/<x>`` the Windows family
+    prunes has its ``lib/python3.X/<x>`` twin in the POSIX family, at the minor the
+    layout's own POSIX site-packages names."""
+
+    lock = _load(LOCK)
+    posix_site = lock["layout"]["site_packages"]["posix"]  # lib/python3.X/site-packages
+    stdlib = posix_site.rsplit("/", 1)[0]
+    prune = lock["prune"]
+    posix = set(prune.get("posix", []))
+    expected = {
+        f"{stdlib}/{pattern[len('Lib/'):]}" for pattern in prune["win32"] if pattern.startswith("Lib/")
+    }
+    assert expected and expected <= posix, sorted(expected - posix)
+    assert {"share/terminfo", "include"} <= posix

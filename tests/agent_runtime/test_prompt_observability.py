@@ -867,3 +867,30 @@ def test_a_skill_view_trace_event_counts_as_used_only_when_it_finished_cleanly()
     clean = {("passed", s) for s in ("tool_finished", "completed", "finished", "")}
     clean |= {("", s) for s in ("tool_finished", "completed", "finished", "")}
     assert {key for key, used in counted.items() if used} == clean
+
+
+def test_used_skill_receipts_resolve_under_the_executing_personas_profile():
+    """L2.08 (correction turn agent-chat-send-a67c757f, 2026-10-07): a skill the
+    turn read through ITS profile was recorded ``used`` + ``resolution_status:
+    missing`` because the post-turn attach resolved against the ambient roots."""
+
+    from hermes_cli.profiles import get_profile_dir
+
+    profile_home = get_profile_dir("l2author")
+    skill_dir = profile_home / "skills" / "l2-author-only-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: l2-author-only-skill\ndescription: probe\n---\nbody\n", encoding="utf-8"
+    )
+    (profile_home / ".env").write_text("", encoding="utf-8")
+    persona = SimpleNamespace(id="l2author", hermes_profile="l2author", display_name="Author", role="dev")
+    trace = [{"tool_name": "skill_view", "status": "passed", "skill_name": "l2-author-only-skill"}]
+
+    ambient = attach_prompt_observability_turn_results({}, trace_events=trace)
+    scoped = attach_prompt_observability_turn_results({}, trace_events=trace, persona=persona)
+
+    assert ambient["used_skills"][0]["resolution_status"] == "missing"  # the defect, ambient roots
+    row = scoped["used_skills"][0]
+    assert row["name"] == "l2-author-only-skill"
+    assert row["resolution_status"] != "missing", row
+    assert row["content_hash"]

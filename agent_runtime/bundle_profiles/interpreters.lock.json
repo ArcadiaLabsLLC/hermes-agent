@@ -63,6 +63,25 @@
       "include",
       "libs",
       "Scripts"
+    ],
+    "posix": [
+      "lib/python3.14/site-packages/pip",
+      "lib/python3.14/site-packages/pip-*.dist-info",
+      "lib/python3.14/ensurepip",
+      "lib/python3.14/idlelib",
+      "lib/python3.14/tkinter",
+      "lib/python3.14/turtledemo",
+      "lib/python3.14/turtle.py",
+      "lib/python3.14/test",
+      "lib/python3.14/lib-dynload/_tkinter*",
+      "lib/python3.14/lib-dynload/_test*",
+      "lib/python3.14/lib-dynload/xxlimited*",
+      "lib/python3.14/lib-dynload/_ctypes_test*",
+      "share/terminfo",
+      "share/man",
+      "include",
+      "bin/pip*",
+      "bin/idle*"
     ]
   }
 }
