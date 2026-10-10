@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-10",
   "base": "818c13be1d",
-  "files": 186,
+  "files": 187,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane build-1011-B5 (design sweep D3.02, owner-ruled 2026-10-10): one additive guard in hermes_state_repair.preflight_db_writability skips a sidecar that no longer exists",
+      "files": "186 -> 187: hermes_state_repair.py (2 added, 0 deleted: the guard and its continue)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "os.access is False for a missing path, so a -wal/-shm SQLite unlinked between the preflight's listing and its access check (the last WAL connection closed) raised 'state.db is not writable ... -wal is read-only' on a writer open. Reproduced deterministically before the fix. Carried until the upstream PR can open; ledger row carry."
+    },
     {
       "change": "lane build-1011-B5 (design sweep D3.15, owner-ruled 2026-10-10): one additive guard in scripts/install.ps1 Set-LauncherUserPath honours HERMES_REGISTRY_WRITE_FENCE=1",
       "files": "185 -> 186: scripts/install.ps1 (2 added, 0 deleted: a comment and the guarded early return)",
