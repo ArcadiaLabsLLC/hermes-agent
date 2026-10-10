@@ -212,6 +212,11 @@ right; the design consequence is that the classifier must not key on the marker 
 | S2 pre-flight | admit-phase refusal on empty provider | `tests/agent_runtime/test_serve_rpc_chat_turn.py` (refusal in the settle frame) | remove the check → a write-ahead record exists for the refused turn → red |
 | S3 live | one no-credential turn through serve + Launcher; the composer shows the setup step; `TURN_MODEL_RECEIPT` and the settle frame kept as evidence | operator | — |
 
+**Build (lane build-1011-B3):** S0+S1 BUILT `7fbd3688e6` (the phase fact is
+`TurnCommit.provider_request_started`, set beside the mark — `TurnPhaseMarks` forbids
+branching on a mark; a resend replays the unavailable pair). S2 NOT BUILT per the owner
+ruling below (phase rule only). S3 OWED: operator live proof; launcher copy row filed.
+
 ### Risks / owner question
 
 - The pre-flight auth resolution must stay off the hot path: only when `effective_provider`
@@ -368,6 +373,10 @@ Rules:
 | S2 projection | marker test beside `test_terminal_turn_settlement.py`: interrupted marker carries `retried_as`, new operator row carries `retry_of` | build `retried_as` from the marker's own record instead of the lookup → red |
 | S3 queue | busy-root queue entry replays `retry_of` | strip it from the persisted params → red |
 
+**Build (lane build-1011-B3):** S1 BUILT `e09b0e15e2`, S2 BUILT `052c76306d` (operator row is
+`curation._OperatorCurator`, and `operator_channels/history_messages.py` carries both keys),
+S3 BUILT `f1d1affc66`. Launcher half filed as a launcher queue row.
+
 ### Risks
 
 - A retry target that was garbage-collected from the journal (the END publish's `"absent"`
@@ -442,6 +451,11 @@ Rules:
 | S1 store | `tests/agent_runtime/test_serve_settle_push.py`: an undelivered record re-armed is pushed on the next tick; `rearm_count` 1; acked is refused | keep `attempts` on re-arm → the first push marks it undelivered again → red |
 | S2 RPC | `tests/agent_runtime/test_serve_rpc_*` manifest tier test (both console) + list/rearm round trip through the in-memory transport | register `list` at `read` → tier test red |
 | S3 CLI | CLI contract fixture + one argv round trip | — |
+
+**Build (lane build-1011-B3):** S1 BUILT `bed4892f54` (fields additive under schema v1 —
+`read_versioned_receipt` refuses a foreign version, so v2 would orphan every v1 record; the
+no-listener hour restarts at the re-arm), S2 BUILT `7308e844a9`, S3 BUILT `05d7589b5e`.
+Launcher diagnostics half filed as a launcher queue row.
 
 ### Risk
 
