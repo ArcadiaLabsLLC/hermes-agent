@@ -166,7 +166,10 @@ def normalize_model_response(
         except Exception:
             pass
     elif content and agent.tool_progress_callback:
+        from agent_runtime.thinking_echo import begin_reply_echo, end_reply_echo  # fork: relayed text is the reply
+        _echo_token = begin_reply_echo()
         _relay_thinking(agent, content)
+        end_reply_echo(_echo_token)
 
     # Incomplete <REASONING_SCRATCHPAD> (opened, never closed): the model ran out of
     # output tokens mid-reasoning — retry up to 2 times, then save as partial.

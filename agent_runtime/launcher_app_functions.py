@@ -288,7 +288,7 @@ def latest_answerer(owners: Iterable[str]) -> str | None:
 
 def app_function_tools_registered() -> bool:
     """Does the registry hold any app-function tool? (The chat lane adds the
-    toolset only then; ``registry_epoch`` moves whenever this answer does.)"""
+    toolset only then; ``registry.generation`` moves whenever this answer does.)"""
 
     with _state.lock:
         return bool(_state.registered)
@@ -377,7 +377,7 @@ def _link_available() -> bool:
 def _sync_registry(entries: list[AppFunctionEntry]) -> None:
     """Make the registry hold exactly *entries*; untouched when nothing changed.
 
-    Idempotence is the point: a re-registration bumps ``registry_epoch``, which
+    Idempotence is the point: a re-registration bumps ``registry.generation``, which
     every chat-lane bundle memo keys on, so re-registering the same list each
     turn would rebuild every bundle every turn.
     """

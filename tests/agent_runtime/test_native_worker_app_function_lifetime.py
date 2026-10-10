@@ -362,13 +362,12 @@ def test_real_compute_host_transfers_the_link_even_with_minimal_session_fallback
     from tui_gateway.compute_host import ComputeHost
     host = SimpleNamespace(_transport=SimpleNamespace())
     if fallback:
-        # Existing fallback names a removed gateway helper; qualify ownership separately.
-        monkeypatch.setattr(gateway, '_sanitize_client_source', gateway._resolve_session_source, raising=False)
         def fail(*a, **kw):
             raise ValueError('side machinery failed')
         monkeypatch.setattr(gateway, '_hydrate_session_cwd', fail)
     registered = ComputeHost._build_server_session(host, gateway, {
         'sid': 'host', 'session_key': 'stored', 'source': 'eternia_intelligence'}, 'host')
     assert link_for('host', registered).sink is catalog[0][0]
+    assert registered['source'] == 'eternia_intelligence'
     registered['agent'] = gateway._make_agent('host', 'stored')
     assert len(catalog) == 1
