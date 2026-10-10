@@ -133,11 +133,20 @@ def settled(service, run):
     return view if any(e["kind"] == "room.activity" for e in view["log"]["events"]) else None
 
 
+# Twelve members' turns serialize on state.db: the linked SQLite (3.50.4) is in the
+# WAL-reset-bug range, so the DB runs in DELETE mode and every member's open waits in
+# ``hermes_state_wal._on_disk_journal_mode``'s PRAGMA (sampled 2026-10-10: ~31 of the
+# test's thread-seconds). One settle took ~18 s alone and passed the 45 s default at
+# 8 workers (v0.21.6 landing gate run 4), so this test's waits are bounded for that load.
+_TWELVE_SETTLE_SECONDS = 150
+
+
 @pytest.mark.slow_native
+@pytest.mark.timeout(3 * _TWELVE_SETTLE_SECONDS + 60)
 def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_history(engine):
     service, ctx = engine
     run = begin(service, 12)
-    view = wait_until(lambda: settled(service, run))
+    view = wait_until(lambda: settled(service, run), _TWELVE_SETTLE_SECONDS)
     assert len(ctx.calls) == 12
     assert len({a.session_id for a in ctx.calls}) == 12
     assert len({a.persona_instance_id for a in ctx.calls}) == 12
@@ -146,7 +155,7 @@ def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_his
     assert len(public) == 12
     assert len({e["payload"]["member_id"] for e in public}) == 12
     command(service, run, "end")
-    wait_until(lambda: (v if (v := service.view("ws", run["run_id"]))["run"]["phase"] == "ended" else None))
+    wait_until(lambda: (v if (v := service.view("ws", run["run_id"]))["run"]["phase"] == "ended" else None), _TWELVE_SETTLE_SECONDS)
     hosted_rooms.prune_disbanded_rooms(service.db_path, now=time.time() + 365 * 86400)
     assert len([e for e in service.view("ws", run["run_id"])["log"]["events"] if e["kind"] == "message.member"]) == 12
     # End released both definition edit and embodied-instance claims.
@@ -154,7 +163,7 @@ def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_his
     updated = service.definitions.save_table("ws", "table", table.spec, expect_revision=table.revision)
     second = service.begin("ws", "table", expect_revision=updated.revision, key="new-topic", topic="New topic", actor_id="operator")
     assert second["run_id"] != run["run_id"]
-    wait_until(lambda: settled(service, second))
+    wait_until(lambda: settled(service, second), _TWELVE_SETTLE_SECONDS)
     assert len(ctx.calls) == 24
     assert len({a.session_id for a in ctx.calls}) == 24
 

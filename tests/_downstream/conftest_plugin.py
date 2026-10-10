@@ -421,9 +421,19 @@ def _reset_snapshot_catalog_memos():
     bundle_module = sys.modules.get("agent_runtime.chat_lane_bundle")
     if bundle_module is not None:
         bundle_module.invalidate_chat_lane_bundles()
+    # The resident-chat registry is process-global (serve boot's
+    # ``initialize_persona_chat_runtime_registry``); one a test left enabled made every later
+    # history row in the process answer as ``serve:<pid>`` with a fresh observed_at, so the
+    # stream goldens and the overlay compare went red after its importers (lane h-turn1-title).
+    # Start every test with none; close what the last test left.
+    registry_module = sys.modules.get("agent_runtime.persona_chat_continuity.runtime_registry")
+    leftover = getattr(registry_module, "_REGISTRY", None)
+    if leftover is not None:
+        registry_module._REGISTRY = None
+        leftover.close()
     # h-idle-turn: the idle keeper's open turn windows and registered refreshes are process
     # state; a window another test left open would defer this test's catalog refresh.
-    keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
+    keeper_module =sys.modules.get("agent_runtime.idle_turn_keeper")
     if keeper_module is not None:
         keeper_module.reset_for_tests()
     yield

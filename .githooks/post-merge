@@ -49,6 +49,17 @@
 # canonical package. `install_harness_skill` writes nothing when they match.
 
 repo_root=$(git rev-parse --show-toplevel)
+
+# A LANE WORKTREE NEVER INSTALLS. core.hooksPath is per-clone, so this hook also
+# fires on a `git merge` inside a linked worktree, and that worktree's skills are
+# unlanded edits: installing them would put them in front of the live serve
+# (lane h-turn1-conn, 2026-10-06). Only the primary checkout - where git-dir is
+# the common dir - repairs the runtime copy; serve boot backstops the rest.
+if [ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]; then
+    echo "post-merge: $repo_root is a linked worktree; harness skills NOT installed (only the primary checkout installs)."
+    exit 0
+fi
+
 script="$repo_root/scripts/verify_harness_skill_install.py"
 
 if [ ! -f "$script" ]; then
