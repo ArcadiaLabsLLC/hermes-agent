@@ -129,6 +129,9 @@ def pytest_plugin_registered(plugin, plugin_name, manager):  # noqa: D401 — py
         return
     key = _key(plugin_name)
     if key == _ROOT_CONFTEST:
+        import tests._downstream as _downstream
+
+        _downstream.root_conftest = plugin
         manager.import_plugin(_ROOT_PLUGIN)
         return
     entry = _DIRECTORY_CONFTESTS.get(key)

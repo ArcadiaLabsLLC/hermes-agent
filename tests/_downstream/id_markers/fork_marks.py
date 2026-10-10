@@ -28,6 +28,7 @@ from tests._downstream.id_markers.reasons import (
     _NO_LIVE_GATEWAY,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
+    _STATE_DB_THROUGH_SCOPE,
     _STRIP_REAL_HOME_PATH,
     _UPSTREAM_WIRE_UNBRIEFED,
     _WIN,
@@ -95,6 +96,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_local_runtime.py::test_idle_sweep_unloads_idle_models": (
         pytest.mark.timeout(90),
     ),
+    # Two fetches of https://127.0.0.1:9, each of which uv retries three times
+    # (~15 s apiece): 36.97 s green on pure tag v0.21.6 818c13be1d, 2026-10-10.
+    "tests/pm/test_plugin_survival_contract.py::"
+    "test_update_sync_retries_a_fetch_failure_once_before_disabling": (pytest.mark.timeout(90),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
@@ -222,6 +227,13 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # An argless SessionDB() must resolve through the profile scope; the hermetic
+    # DEFAULT_DB_PATH pin (set only once hermes_state is imported) beat it whenever an
+    # earlier test in the process imported it (tests/_downstream/state_db_scope.py).
+    "tests/gateway/test_multiplex_residue_parity.py::"
+    "test_stale_served_turn_never_recreates_archived_profile": (_STATE_DB_THROUGH_SCOPE,),
+    "tests/gateway/test_multiplex_routing_authz.py::"
+    "test_completion_preflight_runs_in_target_profile_scope": (_STATE_DB_THROUGH_SCOPE,),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),

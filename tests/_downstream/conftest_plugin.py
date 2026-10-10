@@ -33,6 +33,7 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
+from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
 from tests._downstream import registry_write_fence
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -40,6 +41,7 @@ from tests._downstream.id_markers.reasons import (
     CONFIG_READS_THROUGH_LOAD_CONFIG_MARK as _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
+    STATE_DB_RESOLVES_THROUGH_SCOPE_MARK as _STATE_DB_RESOLVES_THROUGH_SCOPE_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
     UPSTREAM_WIRE_UNBRIEFED_MARK as _UPSTREAM_WIRE_UNBRIEFED_MARK,
 )
@@ -647,14 +649,18 @@ def _config_reads_through_load_config(request, monkeypatch):
 
 
 
+def _guard_roots() -> list[Path] | None:
+    """``tests/conftest.py``'s live home-I/O guard root list, through its public door."""
+    import tests._downstream as _downstream
+
+    door = getattr(_downstream.root_conftest, "real_hermes_root_candidates", None)
+    return door() if door is not None else None
+
+
 def _real_hermes_roots() -> list[str]:
     """The home-I/O guard's own roots (``tests/conftest.py``), normcased; [] if unloaded."""
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
-    return []
+    roots = _guard_roots() or []
+    return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
 
 
 #: The operator's root as the root ``conftest.py`` recorded it (or the runner forwarded it).
@@ -668,13 +674,9 @@ def _home_io_guard_covers_recorded_root() -> None:
     if not _RECORDED_REAL_ROOT:
         return
     root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            if root not in roots:
-                roots.append(root)
-            return
+    roots = _guard_roots()
+    if roots is not None and root not in roots:
+        roots.append(root)
 
 
 _home_io_guard_covers_recorded_root()
@@ -903,6 +905,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
         "test never waits on this machine's real unsupervised gateways (applied by "
         "id from tests/_downstream/id_markers/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_STATE_DB_RESOLVES_THROUGH_SCOPE_MARK}: hermes_state.DEFAULT_DB_PATH is unpinned, "
+        "so an argless SessionDB() resolves through the active profile scope (applied by id "
+        "from tests/_downstream/id_markers/; tests/_downstream/state_db_scope.py).",
     )
     config.addinivalue_line(
         "markers",
