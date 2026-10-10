@@ -422,6 +422,7 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--requested-by", default="cli")
     mission_chat_message.add_argument("--client-message-id", default=None)
     mission_chat_message.add_argument("--idempotency-key", default=None)
+    mission_chat_message.add_argument("--retry-of", dest="retry_of", default=None, help="client_message_id of the interrupted or budget-exhausted turn of this chat that this send re-runs (recorded as the turn's lineage; any other target is refused chat_turn_retry_target_invalid)")
     mission_chat_message.add_argument("--stream", action="store_true", help="Emit operator-chat deltas and the final payload as NDJSON")
     # Default is resolved at RUN time (agent_runtime.mission_chat.default_max_seconds
     # in the ROOT config.yaml, itself defaulting to 240s) rather than pinned in the

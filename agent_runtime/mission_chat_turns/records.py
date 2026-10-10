@@ -85,6 +85,9 @@ _JOURNAL_TEXT_FIELDS = {
     # without re-deriving the arithmetic.
     "budget_trigger": 80,
     "budget_summary": 400,
+    # D2.04: the client_message_id of the reply-less terminal turn this turn
+    # re-runs. Stored once, on the retry; the original record is never written.
+    "retry_of": 240,
 }
 
 

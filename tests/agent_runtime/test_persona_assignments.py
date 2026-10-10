@@ -3065,6 +3065,10 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
             pass
 
         def mission_chat_reply(self, persona, message, **kwargs):
+            # The request LEFT the process (the runner's agent-ready handoff),
+            # then its answer was lost: that is what makes the outcome unknown.
+            # A raise before this callback is `provider_unavailable` (D2.02).
+            kwargs["agent_ready_callback"](object())
             raise RuntimeError("provider unavailable")
 
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)

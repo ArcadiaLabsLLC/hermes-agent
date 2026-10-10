@@ -159,6 +159,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "persona_id",
     "persona_instance_id",
     "provider",
+    "retry_of",
     "session_id",
     "stream",
     "surface_prompt",
@@ -382,6 +383,15 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     new_session = _flag(params, "new_session")
     stream = _flag(params, "stream")
     correlation_id = _correlation_id(params)
+    # D2.04: the interrupted turn this send re-runs (its client_message_id). A
+    # retry always lives in an existing root, so it is refused without one;
+    # WHICH turns it may name is the turn's own admission rule.
+    retry_of = _text(params, "retry_of", limit=MAX_TURN_REQUEST_ID_LENGTH)
+    if retry_of and not session_id:
+        raise ChatTurnInvalid(
+            "retry_of_requires_session",
+            "invalid params: retry_of names a turn of an existing chat and requires session_id",
+        )
 
     if use_agent_default and (provider or model):
         # The argv handler's own rule (``_requested_chat_model_override`` raises
@@ -466,6 +476,8 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--surface-prompt", surface_prompt]
     if intent_hint and intent_hint != INTENT_HINT_DEFAULT:
         argv += ["--intent-hint", intent_hint]
+    if retry_of:
+        argv += ["--retry-of", retry_of]
 
     return ChatTurnRequest(
         verb=CHAT_MESSAGE_METHOD,

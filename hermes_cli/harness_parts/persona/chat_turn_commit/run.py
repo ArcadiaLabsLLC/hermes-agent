@@ -380,6 +380,7 @@ class _RunPhases:
             )
             return handle.close
         finally:
+            self.provider_request_started = True
             turn_phases.mark("provider_request_started")
 
     def _write_ahead(self) -> None:
@@ -414,6 +415,8 @@ class _RunPhases:
                 # turn that dies before the provider this is the ONLY phase
                 # block that ever lands, and its provider_* keys are absent.
                 MISSION_CHAT_TURN_PHASES_KEY: self.turn_phases.snapshot(),
+                # D2.04: stored once, here; every later persist merges it forward.
+                **({"retry_of": self.retry_of} if self.retry_of else {}),
             },
         )
         # C1h-bis: the turn's START, published the moment its row is real and
