@@ -32,9 +32,7 @@ import pytest
 from agent_runtime.mission_chat_outcome import ChatErrorKind
 from tests.agent_runtime.office_seed import seed_workspace_record
 from hermes_cli.harness_parts.persona import (
-    chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -102,13 +100,7 @@ def harness_with_stub_provider(monkeypatch):
             raise _ProviderReached("admission reached the provider")
 
     monkeypatch.setattr(
-        chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
-    )
-    monkeypatch.setattr(
         chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
-    )
-    monkeypatch.setattr(
-        chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
     )
     monkeypatch.setattr(
         chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig()

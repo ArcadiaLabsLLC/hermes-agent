@@ -23,7 +23,7 @@ from agent_runtime.persona_chat_session import _safe_chat_model_override_value
 
 __layer__ = "stores"
 __all__ = [
-    "_emit_persona_open_chat_payload",
+    "_emit_persona_verb_payload",
     "_invalid_chat_model_override_payload",
     "_missing_chat_message_payload",
     "_mission_chat_caller_refusal",
@@ -384,7 +384,7 @@ def _mission_chat_retired_target_refusal(
     )
 
 
-def _emit_persona_open_chat_payload(args, data: dict, *, plain: str | None = None) -> None:
+def _emit_persona_verb_payload(args, data: dict, *, plain: str | None = None) -> None:
     """Hand ONE open-chat / chat-delete / instance-create payload to whoever owns this call's transport.
 
     Lives here, below ``chat_open``, because ``chat_delete`` and

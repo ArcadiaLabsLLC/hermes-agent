@@ -86,20 +86,20 @@ def selection_mode(noun: str, switch_on: bool, items: list[str] | None, none: bo
 def realm_sync_status(realm_id: str, *, credential: Any = None) -> dict:
     from .realm_sync import realm_sync_status as status
 
-    return status(realm_id, credential=credential)
+    return attach_root_observability(status(realm_id, credential=credential))
 
 
 def realm_sync_pull(realm_id: str, *, credential: Any = None, dry_run: bool = False) -> dict:
     from .realm_sync import pull_realm_sync
 
-    return pull_realm_sync(realm_id, dry_run=dry_run, credential=credential)
+    return attach_root_observability(pull_realm_sync(realm_id, dry_run=dry_run, credential=credential))
 
 
 def realm_sync_publish(realm_id: str, *, credential: Any = None, dry_run: bool = False) -> dict:
     """Publish. The caller has already passed its door's ``--yes`` gate."""
     from .realm_sync import publish_realm_sync
 
-    return publish_realm_sync(realm_id, dry_run=dry_run, credential=credential)
+    return attach_root_observability(publish_realm_sync(realm_id, dry_run=dry_run, credential=credential))
 
 
 # ── sync: revert / resolve ───────────────────────────────────────────────────
@@ -145,7 +145,7 @@ def realm_sync_resolve(realm_id: str, *, key: str, take: str, dry_run: bool = Fa
         envelope = object_envelope("profile_artifact_hold", {"id": row["key"], **row})
     if dry_run:
         envelope["dry_run"] = True
-    return envelope
+    return attach_root_observability(envelope)
 
 
 # ── skills / agents selection ────────────────────────────────────────────────
@@ -176,7 +176,7 @@ def realm_skill_selection_envelope(realm) -> dict:
 def realm_skills_show(realm_id: str) -> dict:
     from .store import RealmStore
 
-    return realm_skill_selection_envelope(RealmStore().get(realm_id))
+    return attach_root_observability(realm_skill_selection_envelope(RealmStore().get(realm_id)))
 
 
 def realm_skills_set(
@@ -190,7 +190,7 @@ def realm_skills_set(
     envelope = realm_skill_selection_envelope(realm)
     if dry_run:
         envelope["dry_run"] = True
-    return envelope
+    return attach_root_observability(envelope)
 
 
 def realm_agent_selection_envelope(realm_id: str) -> dict:
@@ -201,7 +201,7 @@ def realm_agent_selection_envelope(realm_id: str) -> dict:
 
 
 def realm_agents_show(realm_id: str) -> dict:
-    return realm_agent_selection_envelope(realm_id)
+    return attach_root_observability(realm_agent_selection_envelope(realm_id))
 
 
 def _agent_selection_preview(envelope: dict, preview) -> None:
@@ -229,7 +229,7 @@ def realm_agents_set(
     envelope = realm_agent_selection_envelope(realm_id)
     if dry_run:
         _agent_selection_preview(envelope, preview)
-    return envelope
+    return attach_root_observability(envelope)
 
 
 # ── adopt ────────────────────────────────────────────────────────────────────
@@ -251,4 +251,4 @@ def realm_adopt(
             "HERMES_REALM_SYNC_CREDENTIAL.",
         )
     adopted = adopt_realms(credential, server_id=server_id, dry_run=dry_run)
-    return list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort))
+    return attach_root_observability(list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort)))

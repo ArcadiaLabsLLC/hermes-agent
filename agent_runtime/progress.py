@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable
+import logging
 import re
 
 from hermes_time import now
@@ -13,6 +14,8 @@ from .redaction_mode import redaction_observe_enabled
 from .stream_gap_receipt import REASONING_USAGE_STEP
 
 __layer__ = "lanes"
+
+_logger = logging.getLogger(__name__)
 
 _SAFE_PROGRESS_KEYS = {
     "type", "event_id", "phase", "severity", "step", "state", "tool", "tool_name", "status",
@@ -196,6 +199,8 @@ class ChatProgressSink:
         self.before_first_trace = before_first_trace
         self.on_trace = on_trace
         self._did_emit_first_trace = False
+        #: EventLog appends that failed after the live frame was forwarded.
+        self.lost_appends = 0
         # Per-turn ordinal for reasoning summaries (see `_stamp_reasoning_id`).
         self._reasoning_count = 0
 
@@ -230,19 +235,30 @@ class ChatProgressSink:
             if self.on_trace is not None:
                 self.on_trace(safe_payload)
             self._mirror_tool_line(event_type, safe_payload)
-            _append_bounded_event(
-                self.event_log,
-                Event(
-                    ts=now(),
-                    type=event_type,
-                    task_id=None,
-                    run_id=self.run_id,
-                    persona_id=self.persona_id,
-                    payload=safe_payload,
-                    session_id=self.session_id,
-                    turn_id=self.turn_id,
-                ),
-            )
+            try:
+                _append_bounded_event(
+                    self.event_log,
+                    Event(
+                        ts=now(),
+                        type=event_type,
+                        task_id=None,
+                        run_id=self.run_id,
+                        persona_id=self.persona_id,
+                        payload=safe_payload,
+                        session_id=self.session_id,
+                        turn_id=self.turn_id,
+                    ),
+                )
+            except Exception as exc:
+                # The live frame already went out (``on_trace`` above); a row
+                # that streamed and never persisted is counted and receipted,
+                # never silent.
+                self.lost_appends += 1
+                _logger.warning(
+                    "chat_trace_append_lost turn_id=%s event=%s reasoning_id=%s error=%s lost=%d",
+                    self.turn_id, event_type, safe_payload.get("reasoning_id"),
+                    type(exc).__name__, self.lost_appends,
+                )
         except Exception:
             return None
 

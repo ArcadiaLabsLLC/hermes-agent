@@ -913,3 +913,24 @@ def test_safe_progress_payload_bounds_the_patch_artifact_at_500():
 
     assert len(safe["patch_artifact"]) == 500
     assert safe["patch_artifact"].endswith("…")
+
+
+def test_chat_progress_sink_counts_and_receipts_a_lost_append(isolate_agent_runtime_root, caplog):
+    # The live frame is forwarded BEFORE the EventLog append; an append that
+    # raises must leave a count and a log receipt, not vanish in the sink's
+    # best-effort boundary.
+    class _RefusingLog(EventLog):
+        def append(self, event):
+            raise OSError("disk full")
+
+    frames = []
+    sink = ChatProgressSink(session_id="chat_1", persona_id="dev", turn_id="turn-1",
+                            event_log=_RefusingLog(), on_trace=frames.append)
+    with caplog.at_level("WARNING", logger="agent_runtime.progress"):
+        sink.emit("run.progress", {"type": "run.progress", "reasoning_summary": "Checking the runtime."})
+
+    assert len(frames) == 1  # the live row still streamed
+    assert sink.lost_appends == 1
+    receipt = [r.getMessage() for r in caplog.records if "chat_trace_append_lost" in r.getMessage()]
+    assert receipt and "turn_id=turn-1" in receipt[0] and "error=OSError" in receipt[0]
+    assert frames[0]["reasoning_id"] in receipt[0]

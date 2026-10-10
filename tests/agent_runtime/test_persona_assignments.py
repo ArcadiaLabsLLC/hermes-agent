@@ -578,7 +578,6 @@ def test_persona_instance_create_without_display_name_refuses_and_mints_nothing(
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     code = lifecycle_commands._cmd_persona_instance_create(
@@ -648,7 +647,6 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     code = lifecycle_commands._cmd_persona_instance_create(
@@ -684,7 +682,6 @@ def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolat
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
@@ -721,7 +718,6 @@ def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
@@ -759,7 +755,6 @@ def test_persona_instance_steer_cli_rejects_self_steer(monkeypatch, capsys, isol
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     PersonaInstanceStore().ensure_for_persona(_persona("dev"))
@@ -791,7 +786,6 @@ def test_persona_instance_steer_cli_rejects_missing_parent(monkeypatch, capsys, 
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     PersonaInstanceStore().ensure_for_persona(_persona("dev"))
@@ -858,7 +852,6 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     cfg = _assignment_config()
     session_db = _TranscriptDB()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
@@ -921,7 +914,6 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
     cfg = _assignment_config()
     session_db = _TranscriptDB()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
@@ -980,7 +972,6 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     existing = PersonaInstanceStore().create_operator_chat(
         persona_id="dev",
@@ -1043,7 +1034,6 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
     cfg = _assignment_config()
     session_db = _TranscriptDB()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
@@ -1077,7 +1067,6 @@ def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch,
     cfg = _assignment_config()
     session_db = _TranscriptDB()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
@@ -1118,7 +1107,6 @@ def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(
         chat_open,
@@ -1159,7 +1147,6 @@ def test_open_chat_cli_targets_the_session_owner_not_the_canonical(monkeypatch, 
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     sibling = PersonaInstanceStore().add_instance(
@@ -1338,7 +1325,6 @@ def test_open_chat_cli_add_instance_threads_explicit_display_name(
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     code = chat_open._cmd_persona_instance_open_chat(
@@ -1368,7 +1354,6 @@ def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_c
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     qa_persona = AgentPersona(
         id="qa",
@@ -2141,7 +2126,6 @@ def test_mission_chat_never_forwards_retired_goal_opt_in(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
@@ -2171,7 +2155,6 @@ def test_mission_chat_required_pre_model_transcript_failure_skips_provider(
             provider_calls.append("called")
             raise AssertionError("provider must not run after transcript persistence failure")
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(
         chat_turn_message,
@@ -2208,7 +2191,6 @@ def test_mission_chat_session_db_acquisition_failure_is_typed_and_skips_provider
         def __init__(self, *args, **kwargs):
             provider_calls.append("constructed")
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(hermes_state, "SessionDB", _fail_session_db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
@@ -2250,7 +2232,6 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
@@ -2280,7 +2261,6 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
@@ -2335,9 +2315,7 @@ def test_persona_chat_delete_removes_session_and_clears_binding(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -2379,9 +2357,7 @@ def test_persona_chat_delete_clears_stale_binding_when_session_already_missing(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -2419,9 +2395,7 @@ def test_persona_chat_delete_unbinds_every_row_pointing_at_the_deleted_session(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -2474,9 +2448,7 @@ def test_persona_chat_delete_leaves_a_pointer_to_another_session_alone(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -2516,9 +2488,7 @@ def test_persona_chat_delete_reports_missing_without_silent_success(
 ):
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: _TranscriptDB())
@@ -2547,9 +2517,7 @@ def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -2620,7 +2588,6 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
         "api_mode": "codex_responses",
         "hermes_profile": "profile-dev",
     }
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
@@ -2745,7 +2712,6 @@ def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
 ):
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     db = _TranscriptDB()
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
@@ -2786,7 +2752,6 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     from agent_runtime.queued_skills import pending_skills_for_next_turn
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     db = _TranscriptDB()
@@ -3016,7 +2981,6 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -3093,7 +3057,6 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
@@ -3144,7 +3107,6 @@ def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     instance = PersonaInstanceStore().open_chat(
@@ -3298,7 +3260,6 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -3368,7 +3329,6 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
@@ -3438,7 +3398,6 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -3511,7 +3470,6 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
     cfg = _assignment_config()
     db = _TranscriptDB()
     calls = {"count": 0}
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
 
@@ -3602,7 +3560,6 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
     cfg = _assignment_config()
     db = _TranscriptDB()
     captured = {}
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(
@@ -3677,7 +3634,6 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -3778,7 +3734,6 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
@@ -4272,7 +4227,6 @@ def test_persona_instance_close_cli_closes_only_free_floating_assignment(monkeyp
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     # S70: nothing can mint an assignment any more; seed the residual row the
@@ -4306,7 +4260,6 @@ def test_coordinator_close_own_spawned_instance_with_scope(monkeypatch, isolate_
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     assignment = _seed_assignment(persona_id="dev")
@@ -4340,7 +4293,6 @@ def test_coordinator_close_operator_placed_instance_needs_confirm(monkeypatch, c
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     assignment = _seed_assignment(persona_id="dev")
@@ -4811,7 +4763,6 @@ def test_open_chat_cli_reports_a_retired_root_as_retired_not_unknown(
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance(placement_id="dev_agent_2")
     session_id = instance.session_id
@@ -4861,7 +4812,6 @@ def test_open_chat_cli_still_rejects_a_genuinely_unknown_root(
 
     cfg = _assignment_config()
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance(placement_id="dev_agent_3")
     assert instance.id in {row.id for row in PersonaInstanceStore().list_all()}
@@ -4978,7 +4928,6 @@ def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_r
     from agent_runtime import paths
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     instance = _placement_instance()
@@ -5007,7 +4956,6 @@ def test_retire_cli_canonical_refusal_returns_typed_error(monkeypatch, capsys, i
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     canonical = PersonaInstanceStore().ensure_for_persona(_persona("dev"))
@@ -5037,7 +4985,6 @@ def test_retire_cli_coordinator_operator_placed_needs_confirm(monkeypatch, capsy
     from argparse import Namespace
 
     cfg = _assignment_config()
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     # A placement dropped by the operator is not owned by a coordinator, so a
@@ -5352,9 +5299,7 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
 
     cfg = _assignment_config()
     db = _TranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)
@@ -5418,9 +5363,7 @@ def test_persona_chat_delete_takes_the_compression_lineage_with_a_real_session_d
 
     cfg = _assignment_config()
     db = SessionDB(tmp_path / "state.db")
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_delete, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: db)

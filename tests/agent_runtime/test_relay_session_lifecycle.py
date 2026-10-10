@@ -46,7 +46,6 @@ from hermes_cli.harness_parts.persona import (
     chat_history_writes,
     chat_open,
     chat_request,
-    chat_target,
     chat_tickets_commands,
     chat_turn_message,
     inspect_commands,
@@ -1238,9 +1237,7 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
     from agent_runtime.config import AgentRuntimeConfig
 
     db = _DispatchTranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())

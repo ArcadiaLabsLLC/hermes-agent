@@ -42,7 +42,6 @@ from tests.agent_runtime.test_dispatch_delivery import (  # noqa: F401
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -693,9 +692,7 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
     monkeypatch.setattr(agent_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(init_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)

@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 
 from agent_runtime.cli_format import emit_json
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+from agent_runtime.config import ensure_persisted_personas
 from agent_runtime.models import AgentPersona
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
@@ -140,7 +140,6 @@ def _close_free_floating_assignments(persona_instance_id: str, *, reason: str, j
         FinalizationWarningKind,
     )
 
-    cfg = load_agent_runtime_config()
     normalized_instance = safe_assignment_token(persona_instance_id)
     store = PersonaAssignmentStore()
     matches = [
