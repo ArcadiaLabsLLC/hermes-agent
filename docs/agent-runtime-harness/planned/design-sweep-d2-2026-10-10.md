@@ -861,3 +861,14 @@ each, unchanged from plan §5:
   the `persona_chat_turn` overlay; with every subscriber declaring the token a build may stand
   aside for the whole admitted turn** · fork-owned (`snapshot_turn_yield.py::_turns_admitted`) ·
   evidence D2.06 · queue: `runtime-queue.md` § Fork-owned (fix-lane sized; replaces L4.30).
+
+## Owner rulings — 2026-10-10
+
+The owner took every recommendation ("go with recommendation").
+
+- D2.01: the aggregate decoded file limit is the composer's lower bound, so server and UI agree.
+- D2.02: no pre-flight refusal for a configured-but-unresolvable credential; the post-boundary phase rule only.
+- D2.03: a compressed-lineage branch child starts UNCOMPRESSED with full display rows (TUI behaviour).
+- D2.07: yes, a PROFILE conversation (no persona) honours `default_permission_mode()`.
+- D2.12: the prefab shelf is per profile NAME across the realm.
+- D2.14: plan §5 D2–D5 (HEIC, vault, ddgs, slash) remain OPEN for the owner's picks; G5 waits.
