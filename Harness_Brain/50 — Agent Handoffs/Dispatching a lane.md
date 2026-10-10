@@ -15,6 +15,7 @@ How an orchestrating session runs one or many subagents on this repo. Rules of r
 ```
 <Lane name>: <one sentence of the outcome>.
 Setup (from a neutral cwd, never inside X:/Eternia/hermes-agent): fetch; worktree add X:/Eternia/worktrees/<lane> -b <branch> origin/main; read <one page> and <section>.
+Scratch: every temp or commit-message file under <scratchpad>/<lane>/ (concurrent sessions share one scratchpad).
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the sheet, follow the tree and say so in the commit")
 Run: per `Running the tests.md` § "What a lane runs" (name the section; do not restate it).
 Commit/push rules: one MOVE, one CHANGE; push per commit; never main; never amend/force/rebase; leave the worktree.
@@ -28,7 +29,7 @@ End commit bodies with: Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 - Review-and-fix, exec, landing: Opus. Nothing on Sonnet.
 - Exec lanes uncapped in parallel (they only run touched tests). ONE landing lane at a time; it lands every branch finished when it starts; gates run concurrently; after a forced re-rebase only the tooling gates re-run.
 - Lanes report tool-call counts — the per-unit efficiency number (210 → 38–61 under this method on the launcher).
-- A landing runs the touched tests and the tooling gates only. The validated suite (tests/agent_runtime tests/hermes_cli tests/hermes_state, ~1 h) runs ONCE at the end of a program and before any upstream PR goes up — never per landing. Owner ruling 2026-09-23.
+- A landing runs one whole-tree fork gate per BATCH (`scripts/run_tests_bundled.sh tests`) plus the tooling gates: [[Running the tests]] § "What a landing runs". `--scope full` belongs to the release merge only (`Merging upstream.md` Step 7) and never runs on a workstation while the fork-hygiene P0 freeze row is open.
 
 ## What the orchestrator keeps
 

@@ -877,7 +877,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.environ["PYTHONPATH"] = os.pathsep.join(
         [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     )
-    durations = rtp._load_durations(repo_root)
+    durations = plan.load_durations_with_primary(repo_root, rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
     known_reds = plan.load_known_reds(repo_root)
     print(
