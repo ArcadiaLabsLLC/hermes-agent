@@ -1,10 +1,14 @@
 """Console history controls: the same exact-conversation RPC boundary."""
 from agent_runtime.call_authorization import TIER_CONSOLE
-from agent_runtime.operator_history import apply_operator_history, preview_operator_history, operator_history_status
+from agent_runtime.operator_history import apply_operator_history, preview_operator_history, operator_history_status, operator_history_origin
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_checkpoints import (
     list_operator_checkpoints, preview_operator_checkpoint, restore_operator_checkpoint, operator_checkpoint_status,
+    recover_operator_checkpoint,
 )
+from agent_runtime.operator_turn_changes import operator_turn_changes, preview_operator_undo
+from agent_runtime.operator_undo import apply_operator_undo, operator_undo_status, recover_operator_undo
+from agent_runtime.operator_history_recovery import operator_history_pending
 from .operator_inspection import _inspect_off_reader
 from .registry import method
 from .protocol import DEFERRED, deferred_reply, ok, err
@@ -49,10 +53,50 @@ def history_status(rid, params, context=None):
                               "runtime.operator.conversation.history.status", operator_history_status)
 
 
+@method("runtime.operator.conversation.history.origin", tier=TIER_CONSOLE)
+def history_origin(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.origin", operator_history_origin)
+
+
+@method("runtime.operator.conversation.history.pending", tier=TIER_CONSOLE)
+def history_pending(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.pending", operator_history_pending)
+
+
 @method("runtime.operator.conversation.checkpoint.status", tier=TIER_CONSOLE)
 def checkpoint_status(rid, params, context=None):
     return _inspect_off_reader(rid, params, context,
                               "runtime.operator.conversation.checkpoint.status", operator_checkpoint_status)
+
+
+@method("runtime.operator.conversation.turn.changes", tier=TIER_CONSOLE)
+def turn_changes(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.turn.changes", operator_turn_changes)
+
+
+@method("runtime.operator.conversation.undo.preview", tier=TIER_CONSOLE)
+def undo_preview(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.undo.preview", preview_operator_undo)
+
+
+@method("runtime.operator.conversation.undo.apply", tier=TIER_CONSOLE)
+def undo_apply(rid, params, context=None):
+    return _mutate_off_reader(rid, params, context, "runtime.operator.conversation.undo.apply", apply_operator_undo)
+
+
+@method("runtime.operator.conversation.undo.status", tier=TIER_CONSOLE)
+def undo_status(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.undo.status", operator_undo_status)
+
+
+@method("runtime.operator.conversation.undo.recover", tier=TIER_CONSOLE)
+def undo_recover(rid, params, context=None):
+    return _mutate_off_reader(rid, params, context, "runtime.operator.conversation.undo.recover", recover_operator_undo)
+
+
+@method("runtime.operator.conversation.checkpoint.recover", tier=TIER_CONSOLE)
+def checkpoint_recover(rid, params, context=None):
+    return _mutate_off_reader(rid, params, context, "runtime.operator.conversation.checkpoint.recover", recover_operator_checkpoint)
 
 
 def _mutate_off_reader(rid, params, context, operation, mutate):

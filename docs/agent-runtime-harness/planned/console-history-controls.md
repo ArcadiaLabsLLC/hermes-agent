@@ -177,7 +177,7 @@ optional writer digest/receipt and its carrier-aware rewind forwarding, and the
 additive CheckpointManager preview/apply/status API. The ledger owns their footprint.
 
 
-## Approved repair — 2026-10-10 (in progress)
+## Approved repair â€” 2026-10-10 (in progress)
 
 The approved Console design places Edit on the prompt, Branch here after the
 reply, and one compact Changed files card below the answer. Undo reviews Chat
