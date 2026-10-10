@@ -31,6 +31,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **Windowed transcript reads scan the conversation for every requested window.** `agent_runtime/persona_chat_history/content.py` reuses the existing curation and native lineage readers so ownership, redaction and hidden-row policy stay authoritative; each 16K response still pays for reading the session. Add a lineage-aware public indexed content lookup at the existing SessionDB boundary, with curation/redaction parity and revision checks, before optimizing this into another cache or store. Launcher reads only on demand. Evidence: chat-content-integrity implementation; response size is bounded, read cost is not. · UNCLAIMED · released 2026-10-10 (lane-1010 returned L1.01, seam; reason in `queue-sweep-2026-10-10/L1-outcomes.md`)
 
+### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
+
+- [ ] **`idle_turn_keeper` arms only after a serve's first `request_sent`, so idle write-backs (the D1.05 CF-2 frontmatter flush) never run in a serve that takes no turn, or in any CLI child** · fork / boot and idle · design-sweep-d1 § D1.05 build record (build-1011-B2) · lane: one idle-flush owner armed at boot or drain
+- [ ] **No CLI-to-serve RPC client: an argv write verb that should be RPC-first can only read the store directly in its own process (`harness serve settles rearm`)** · fork / RPC lane · build-1011-B3 D2.05 S3 (`settle_commands.py`) · lane: argv→RPC client door
+
 ### Filed on arrival — 2026-10-10 (Fable design sweep D1–D3, filed by the orchestrator)
 
 - [ ] **`mission_chat_workdir_for_persona` is resolved in `persona_runtime.mission_chat_reply` while its three inputs are first in hand in `mission_chat_turn_context`; move the resolve up (one write path per state)** · fork / chat turn · design-sweep-d1 § D1.12 S1
@@ -578,6 +583,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
+
+- [ ] **Upstream `tools/skills_tool._skill_catalog` parses every SKILL.md frontmatter itself, and the kanban environment gate costs 3 ms per tagged skill uncached plus a 1.3 s first-call import** · upstream / skill catalog · build-1011-B2 `9dc0b2ad19` (60/60 parses in a primed cold child) · lane: door, ties to design-sweep D1.10
 
 ### Filed on arrival — 2026-10-10 (Fable design sweep D1–D3, filed by the orchestrator)
 
