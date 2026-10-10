@@ -25,6 +25,15 @@ not a durable recovery promise. The real flush/replay, spill, redaction and
 receipt controls live in `tests/agent_runtime/test_native_result_policy_downstream.py`.
 Launcher owns its generated reply-page target independently of these policies.
 
+Native projection preserves upstream message fields, durable identities and all
+valid tool calls. `persona_chat_continuity/content.py` redacts readable content
+without flattening native blocks or scanning opaque media/signatures as text.
+SQLite still uses upstream's durable multimodal projection; preserving a live
+image does not promise that its bytes survive a restart. The native history
+loader requests upstream's replay repair so compression markers survive cold
+reads. These guarantees are exercised through the actual loader and SQLite flush
+in `tests/agent_runtime/test_native_representation_downstream.py`.
+
 ## Independent native conversations
 
 `agent_runtime/conversations/service.py::ConversationService` admits exact
