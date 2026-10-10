@@ -137,6 +137,10 @@ class McpAdmissionOutcome:
     #: ``register`` (tests, previews): classification reads the live transport
     #: map, and a custom registrar means there is no live transport to read.
     transport_paths: Mapping[str, str] = field(default_factory=dict)
+    #: The admitted servers whose resident registry scope this run reused (D1.01): no
+    #: registrar call, no ``registry.generation`` move. The runner's
+    #: ``mcp_admission_reused`` flag is 1 when this covers every admitted server.
+    reused: tuple[str, ...] = ()
 
     def denial_rows(self) -> list[dict[str, Any]]:
         return [denial.row() for denial in self.denied]

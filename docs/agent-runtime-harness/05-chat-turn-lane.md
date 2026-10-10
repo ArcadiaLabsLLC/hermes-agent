@@ -716,9 +716,14 @@ admission. The invariants it holds (`:19-63`):
    past `max_tool_calls_per_run` with `mcp_admission_budget_exhausted` (`:146`) — the CALL is
    refused, never the turn. Default 120, ~2× the heaviest honest Stage C drill (`:305`).
 
-`teardown_mcp_admission` (`:1593`) removes the run's registry scope at the end of every admitted run
-while the transport stays warm in `tools/mcp_tool._servers`; a teardown fault is a typed
-`mcp_admission_teardown_failed` row and never fails a finished turn. `read_only` admits from a
+Since D1.01 (owner ruling 2026-10-10) the admitted registry scope is RESIDENT
+(`mcp_admission/resident.py`): it lives while the server's transport session, its listed tools and
+the admitted config are unchanged, and isolation is `scope_toolsets_to_admission`. A run binds its
+`McpCallBudget` into the scope's slot; `release_mcp_admission` unbinds it at the end of every
+admitted run (a slot-less dispatch is refused), so `registry.generation` does not move and a reused
+actor's `get_tool_definitions` hits upstream's memo. The runner records
+`profile_timing.mcp_admission_reused` (1 = every admitted server's scope reused). A release fault
+is a typed `mcp_admission_teardown_failed` row and never fails a finished turn. `read_only` admits from a
 **positive** allowlist — the `reviewer` row of the launcher's own per-profile allowlist, pinned as a
 26-tool snapshot (`:190-258`) — so a tool the server grows later is denied by default rather than
 silently inherited; a server whose mutating tools cannot be named admits nothing

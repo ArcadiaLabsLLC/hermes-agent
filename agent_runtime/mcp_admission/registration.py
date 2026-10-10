@@ -326,6 +326,7 @@ class Admission:
             execution_denied=unregistered,
             call_budget=self.call_budget,
             transport_paths=self.transport_paths,
+            reused=tuple(name for name in self.reused if name in registered),
         )
 
 

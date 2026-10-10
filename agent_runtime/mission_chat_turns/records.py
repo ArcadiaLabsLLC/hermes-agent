@@ -121,9 +121,11 @@ _JOURNAL_RUN_BUDGET_FIELD = RUN_BUDGET_ACCOUNTING_KEY
 #:
 #: STRICTLY BOUNDED, and enforced here rather than trusted from the caller: the
 #: runner's dict is an open namespace that also carries the run-budget block,
-#: MCP transport labels and compaction receipts. Only three shapes are admitted
-#: — ``*_ms`` durations, ``resident_actor_reused``, and ``resident_rebuild_*``
-#: — every value coerced to a non-negative int. No free text can reach the
+#: MCP transport labels and compaction receipts. Only these shapes are admitted
+#: — ``*_ms`` durations, the 0/1 flags in ``_PROFILE_TIMING_FLAG_KEYS``
+#: (``resident_actor_reused``; ``mcp_admission_reused``, D1.01: every admitted
+#: MCP server's resident registry scope was reused), ``resident_rebuild_*`` and
+#: the two Stage 6 families below — every value coerced to a non-negative int. No free text can reach the
 #: record through this key, by construction rather than by scrubbing.
 #:
 #: THE HANDLER CONTRIBUTES TOO, so this block is a SUPERSET of the runner's dict
@@ -140,7 +142,7 @@ TURN_PROFILE_TIMING_KEY = "profile_timing"
 #: corrupt row, not a slow one. Same reasoning as ``mission_chat_phases``.
 _PROFILE_TIMING_MAX_MS = 24 * 60 * 60 * 1000
 _PROFILE_TIMING_MAX_KEYS = 64
-_PROFILE_TIMING_FLAG_KEY = "resident_actor_reused"
+_PROFILE_TIMING_FLAG_KEYS = frozenset({"resident_actor_reused", "mcp_admission_reused"})
 _PROFILE_TIMING_REBUILD_PREFIX = "resident_rebuild_"
 
 #: chat-turn-prep Stage 6's two additional 0/1 shapes.
@@ -180,7 +182,7 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
         if key.endswith("_ms"):
             ceiling = _PROFILE_TIMING_MAX_MS
         elif (
-            key == _PROFILE_TIMING_FLAG_KEY
+            key in _PROFILE_TIMING_FLAG_KEYS
             or key.startswith(_PROFILE_TIMING_REBUILD_PREFIX)
             or key.startswith(_PROFILE_TIMING_BUNDLE_REBUILD_PREFIX)
             or key.endswith(_PROFILE_TIMING_CACHED_SUFFIX)

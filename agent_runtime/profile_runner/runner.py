@@ -215,6 +215,11 @@ class ProfileAgentRunner:
             return None
         timing["mcp_admission_ms"] = _emit_request_timing(request, "mcp_admission", started)
         timing["mcp_admitted_servers"] = len(outcome.admitted)
+        # D1.01: 1 when every admitted server's resident scope was reused (no
+        # registration, no registry generation move), 0 when any was registered.
+        reused = bool(outcome.admitted) and set(outcome.admitted) <= set(outcome.reused)
+        if outcome.admitted:
+            timing["mcp_admission_reused"] = int(reused)
         # T2 (2026-08-09): WHY this turn's admission cost what it did. The
         # millisecond count alone cannot distinguish "MCP admission is
         # expensive" from "one server had to be started", so the LABEL is
@@ -244,7 +249,7 @@ class ProfileAgentRunner:
                         "step": "mcp_admission_resolved",
                         "status": "ok" if outcome.admitted else "warning",
                         "summary": (
-                            "MCP admission: "
+                            ("MCP admission (reused): " if reused else "MCP admission (registered): ")
                             + (", ".join(outcome.admitted) if outcome.admitted else "nothing admitted")
                         ),
                         "mcp_admission": {
@@ -252,6 +257,7 @@ class ProfileAgentRunner:
                             "denied": outcome.denial_rows(),
                             "duration_ms": outcome.duration_ms,
                             "transport": transport_paths,
+                            "reused": list(outcome.reused),
                         },
                     }
                 )
