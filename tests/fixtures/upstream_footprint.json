@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-08",
   "base": "818c13be1d",
-  "files": 186,
+  "files": 187,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -558,6 +558,12 @@
       "files": "185 -> 186: +hermes_cli/terminal_notify.py (9/0)",
       "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
       "reason": "on Windows '/dev/tty' resolves under the cwd drive's root, so where a \\dev folder exists the BEL/OSC went into a file instead of the terminal; write_tty has no caller-side seam (cli_modal_mixin calls it directly). Ledger row; upstream PR draft D5 retires it"
+    },
+    {
+      "change": "lane-1011-M3 (L6.12, 2026-10-10): a 5-line additive guard in hermes_cli/_launchers.py _expose_windows_user_bin calling fork-owned hermes_cli/launcher_root_owner.foreign_launcher_root",
+      "files": "186 -> 187: +hermes_cli/_launchers.py (5/0)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "a worktree booting under the live HERMES_HOME rebound the operator's $HERMES_HOME\\bin\\hermes.exe onto a tree with no dependency environment (hermes exited 1, 2026-10-01); the Windows expose path has no ownership guard and no seam before it publishes. Ledger row; the upstream PR (w5-fh verdict (a)) retires it"
     }
   ]
 }
