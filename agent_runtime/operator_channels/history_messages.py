@@ -24,7 +24,7 @@ from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..serde import safe_assignment_text, safe_assignment_token
 
-from .vocabulary import _TERMINAL_TURN_MARKER_PRESENTATION, _safe_conversation_text
+from .vocabulary import _TERMINAL_TURN_MARKER_PRESENTATION
 
 __layer__ = "policy"
 
@@ -173,15 +173,18 @@ class HistoryMessage:
         return message
 
     def gates(self) -> bool:
-        text = _safe_conversation_text(self.row.get("text"), limit=20000)
-        if not text:
+        # Curation owns display redaction and explicit preview windows. Another
+        # sanitizer here would change whitespace and detach the preview from its
+        # content revision. This adapter only shapes already-curated history.
+        text = self.row.get("text")
+        if not isinstance(text, str) or not text.strip():
             return False
         # The wire roles map through the ONE table (``persona_chat_history``'s
         # ``WIRE_ROLES``); a role it does not know renders as a system message.
         wire_role = safe_assignment_token(self.row.get("role")) or SYSTEM
         self.role = str(MessageRole.from_wire(wire_role) or MessageRole.SYSTEM)
         self.redaction_status = safe_assignment_token(self.row.get("redaction_status")) or "safe"
-        self.text = HIDDEN_TEXT if self.redaction_status in HIDDEN_REDACTION_STATUSES else text
+        self.text = HIDDEN_TEXT if self.redaction_status == "unsafe" else text
         return True
 
     def _base(self) -> dict[str, Any]:

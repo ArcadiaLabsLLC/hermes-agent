@@ -207,3 +207,47 @@ def test_synthesized_sidecar_is_redacted_only_on_the_native_seam(db, native):
     assert ("fixture-sidecar-secret" not in row["api_content"]) is native
     if not native:
         assert row["api_content"] == source
+
+
+def test_reasoning_metadata_inventory_tracks_upstreams_persisted_carriers():
+    from agent.session_persistence import _ROW_REASONING_KEYS
+    from agent_runtime.persona_chat_continuity.content import NATIVE_METADATA_REDACTORS
+
+    assert set(_ROW_REASONING_KEYS) == set(NATIVE_METADATA_REDACTORS) - {"api_content"}
+
+
+def test_readable_reasoning_redacts_through_sqlite_and_replay_without_changing_signed_carriers(db):
+    secret = "api_key=fixture-reasoning-secret"
+    signed = {"type": "thinking", "thinking": secret, "signature": "fixture-signature"}
+    encrypted = [{"type": "reasoning", "encrypted_content": secret}]
+    messages = [{"role": "assistant", "content": "Visible answer", "reasoning": secret,
+                 "reasoning_content": secret, "reasoning_details": [signed],
+                 "codex_reasoning_items": deepcopy(encrypted)}]
+    agent = _Agent(db)
+    assert agent._flush_messages_to_session_db(messages)
+    for rows in (messages, db.get_messages(agent.session_id), _replay(agent)):
+        row = rows[0]
+        for key in ("reasoning", "reasoning_content"):
+            assert "fixture-reasoning-secret" not in row[key]
+            assert row[key].startswith("api_key=")
+        for key, expected in (("reasoning_details", [signed]), ("codex_reasoning_items", encrypted)):
+            stored = row[key]
+            assert (json.loads(stored) if isinstance(stored, str) else stored) == expected
+    assert native_wire_row(messages[0]).row == messages[0]
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_api_sidecar_deduplicates_after_redaction_only_for_native_writes(db, native):
+    source = 'api_key=fixture-content-secret'
+    sidecar = 'api_key=fixture-sidecar-secret'
+    agent = _Agent(db, native=native)
+    messages = [{"role": "assistant", "content": source, "api_content": sidecar}]
+    assert agent._flush_messages_to_session_db(messages)
+    stored = db.get_messages(agent.session_id)[0]
+    if native:
+        assert stored["api_content"] is None
+        assert stored["content"] == _replay(agent)[0]["content"]
+        assert "fixture-content-secret" not in stored["content"]
+    else:
+        assert stored["content"] == source
+        assert stored["api_content"] == sidecar

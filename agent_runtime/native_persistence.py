@@ -33,3 +33,5 @@ def project_native_sidecar(row):
 
     if isinstance(row.get("api_content"), str):
         row["api_content"] = _redacted(row["api_content"])
+        if row["api_content"] == row.get("content"):
+            row["api_content"] = None

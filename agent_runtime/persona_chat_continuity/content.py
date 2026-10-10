@@ -12,6 +12,28 @@ from .bounds import _redacted
 __layer__ = "policy"
 
 
+def _readable_metadata(value: Any) -> Any:
+    return _redacted(value) if isinstance(value, str) else deepcopy(value)
+
+
+# This is the inventory of known upstream metadata carriers. Review additions
+# to upstream's durable reasoning fields here; never recurse into signed blocks.
+# Unknown extensions pass through for provider compatibility, without a promise
+# of redaction. The canon documents that exposure, including nested tool metadata.
+NATIVE_METADATA_REDACTORS = {
+    "api_content": _readable_metadata,
+    "reasoning": _readable_metadata,
+    "reasoning_content": _readable_metadata,
+    "reasoning_details": deepcopy,
+    "codex_reasoning_items": deepcopy,
+    "codex_message_items": deepcopy,
+}
+
+
+def redact_native_metadata(message: dict[str, Any]) -> dict[str, Any]:
+    return {key: redact(message[key]) for key, redact in NATIVE_METADATA_REDACTORS.items() if key in message}
+
+
 @singledispatch
 def redact_native_content(value: Any) -> Any:
     """Redact readable content, keeping opaque media/signatures byte-exact.

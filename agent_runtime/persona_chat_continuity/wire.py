@@ -15,7 +15,7 @@ from .bounds import (
     CONTENT_BOUND_PARTS, ContentBoundNote,
     _redacted, _redacted_content, bound_composed_user_content,
 )
-from .content import content_text_chars, redact_native_content
+from .content import content_text_chars, redact_native_content, redact_native_metadata
 
 __layer__ = "policy"
 
@@ -189,10 +189,7 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     # Upstream owns the message shape (reasoning, compression, durable identity
     # and repair metadata). Change our fields without rebuilding its allowlist.
     result: dict[str, Any] = {**message, "role": role, "content": content}
-    # Readable API text has the same redaction contract as displayed text;
-    # opaque reasoning/signature metadata remains upstream-owned.
-    if isinstance(result.get("api_content"), str):
-        result["api_content"] = _redacted(result["api_content"])
+    result.update(redact_native_metadata(message))
     for key in (
         "tool_call_id",
         "tool_name",
