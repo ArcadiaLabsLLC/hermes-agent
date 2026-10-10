@@ -99,6 +99,30 @@ def test_native_branch_revision_pin_is_checked_inside_writer(tmp_path):
         assert db.get_meta("receipt") is None
 
 
+def test_rewind_rehydrates_the_warm_actor_from_retained_native_history(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from agent_runtime.persona_chat_continuity.runtime_registry import PersonaChatRuntimeRegistry
+    from agent_runtime.persona_chat_session import _persona_chat_native_revision
+
+    target, before, _, request = setup(tmp_path, monkeypatch, "rewind")
+    registry = PersonaChatRuntimeRegistry()
+    session = target["session_id"]
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        def acquire():
+            return registry.acquire(root_session_id=session, active_session_id=session,
+                signature="unchanged-settings", revision=_persona_chat_native_revision(db, session),
+                factory=lambda: SimpleNamespace(history=db.get_messages_as_conversation(session)))
+
+        warm, _, _, _ = acquire()
+        assert len(warm.agent.history) == len(before)
+        assert "result" in call("history.apply", request)
+        fresh, reused, reason, _ = acquire()
+        assert not reused and reason == "disk_revision_changed"
+        assert fresh.agent is not warm.agent
+        assert [row["content"] for row in fresh.agent.history] == [row["content"] for row in before[:10]]
+    registry.close()
+
+
 def test_rewind_writer_race_is_a_definite_refusal_with_no_archival(tmp_path, monkeypatch):
     target, before, _, request = setup(tmp_path, monkeypatch, "rewind")
     original = SessionDB.rewind_to_message
