@@ -4992,8 +4992,8 @@
       "path": "scripts/god_file_fences.py",
       "symbol": "fence_crossings",
       "operator": "empty-intersection",
-      "find": "for path in sorted(set(touched) & upstream)]",
-      "replace": "for path in sorted(set(touched) & set())]",
+      "find": "for path in sorted(set(names.split()) & upstream)]",
+      "replace": "for path in sorted(set(names.split()) & set())]",
       "test": [
         "{python}",
         "-m",
