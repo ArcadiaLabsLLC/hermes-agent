@@ -36,9 +36,8 @@ The invariants this module exists to hold
    ``scope_toolsets_to_admission`` is still applied AFTER permission-mode
    resolution and still strips every ``mcp-*`` toolset (and alias) this run was
    not admitted: the property must hold by construction, not by the shape of
-   today's declarations. Since R2 the registry is ALSO empty between admitted
-   runs (see below), so this is the third line of defence rather than the
-   only one.
+   today's declarations. It is the isolation mechanism between personas: since
+   D1.01 an admitted scope stays registered between runs (see 5).
 4. **Registration is single-flight and bounded.** ``tools.registry`` and
    ``tools/mcp_tool._servers`` are process-global and a serve process is
    multi-persona (``ThreadPoolExecutor(4)``), so two interleaved admissions
@@ -46,13 +45,16 @@ The invariants this module exists to hold
    than raced. A registration that outruns its budget degrades to
    ``mcp_admission_timeout`` and the turn continues without those tools.
 
-5. **The registry scope belongs to the RUN, the transport belongs to the
-   process.** :func:`teardown_mcp_admission` removes the admitted
-   ``mcp-<server>`` tools (and, with the last tool, the toolset check and every
-   alias pointing at it) at the end of every admitted run, while the connection
-   in ``tools/mcp_tool._servers`` stays warm for the next one. Teardown never
-   fails a finished turn: every fault is a typed ``mcp_admission_teardown_failed``
-   row.
+5. **The registry scope lives with the transport session and the admission
+   content; the call budget belongs to the RUN** (D1.01, owner ruling
+   2026-10-10, superseding R2's per-run teardown). An admitted server's
+   ``mcp-<server>`` tools stay registered between runs while its session and
+   its admitted config are unchanged (``resident.py``); every admitting run
+   binds its own budget into the scope's slot and :func:`release_mcp_admission`
+   unbinds it, so ``registry.generation`` does not move on a reused actor's
+   turn. A changed filter or a re-registered tool re-registers the scope;
+   :func:`teardown_mcp_admission` is the explicit removal. Release never fails
+   a finished turn: every fault is a typed ``mcp_admission_teardown_failed`` row.
 6. **An admitted run is bounded in CALLS, not only in time.** Single-flight
    bounds how many admissions may be in flight; the wall budget and the AS0
    liveness watchdog bound the turn's clock. Neither bounds how many times an
@@ -129,12 +131,15 @@ first; no module imports one above it (W0-G6)::
                                 _default_registrar, classify_admission_transport,
                                 mcp_sdk_available, the live / parked reads, the parked wake,
                                 the warm re-registration
-      registration.py   lanes   the registry scope's two ends: admit_mcp_servers (Admission:
-                                acquire -> classify -> meter -> register_bounded -> outcome)
-                                and teardown_mcp_admission
+      resident.py       stores  the resident registry scope (D1.01): ResidentScope, BudgetSlot,
+                                the per-home memo, its validity, partition / record / release
+      registration.py   lanes   the registry scope's ends: admit_mcp_servers (Admission:
+                                acquire -> classify -> partition -> register_bounded -> bind
+                                budget -> outcome), release_mcp_admission (end of every run)
+                                and teardown_mcp_admission (removal)
 
     entry point                                           opens
-    admit_mcp_servers / teardown_mcp_admission (runner)   registration -> transport -> outcomes
+    admit_mcp_servers / release_mcp_admission (runner)    registration -> resident, transport -> outcomes
     resolve_mcp_admission (persona runtime, tool
       visibility, inspect, prewarm)                       resolve -> outcomes
     render_mcp_admission_line (persona runtime, mcp_lane) outcomes
@@ -154,7 +159,7 @@ from __future__ import annotations
 # Defined in .vocabulary (mcp_lane re-imports it from there); re-exported.
 from .vocabulary import MCP_NOT_REGISTERED_ON_LANE
 
-from . import outcomes, registration, resolve, transport, vocabulary
+from . import outcomes, registration, resident, resolve, transport, vocabulary
 from .outcomes import (
     McpAdmission,
     McpAdmissionDenial,
@@ -167,6 +172,7 @@ from .registration import (
     Admission,
     _ADMISSION_LOCK,
     admit_mcp_servers,
+    release_mcp_admission,
     teardown_mcp_admission,
 )
 from .resolve import (

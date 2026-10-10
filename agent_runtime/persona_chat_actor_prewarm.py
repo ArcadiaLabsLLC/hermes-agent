@@ -464,7 +464,7 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         logger.info(
             "persona_chat_actor_prewarm_first_turn root=%s runtime_resolve_ms=%s mcp_admission_ms=%s"
             " system_prompt_build_ms=%s connect_ms=%s"
-            " construct_ms=%s first_turn_warmup_ms=%s mcp_teardown_ms=%s",
+            " construct_ms=%s first_turn_warmup_ms=%s mcp_release_ms=%s",
             root,
             timing.get("runtime_resolve_ms", "absent"),
             timing.get("mcp_admission_ms", "absent"),
@@ -472,7 +472,7 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
             timing.get("prewarm_connect_ms", "absent"),
             timing.get("agent_construct_ms", "absent"),
             timing.get("prewarm_first_turn_warmup_ms", "absent"),
-            timing.get("mcp_teardown_ms", "absent"),
+            timing.get("mcp_release_ms", "absent"),
         )
         return (
             OUTCOME_ALREADY_RESIDENT
