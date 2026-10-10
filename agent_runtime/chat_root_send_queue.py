@@ -41,9 +41,10 @@ _VALID_STATES = frozenset({STATE_QUEUED, STATE_RUNNING})
 #: Set on the argument namespace of a send the runner executes FROM the queue, so
 #: the turn's pre-lease gate lets the head through instead of answering "queued".
 QUEUED_RUN_ARG = "queued_send_run"
-#: The persisted origin of the send's app-function link (``LauncherLink.origin``),
-#: ``None`` when the send had none; the serve's queued-turn stream binds it again.
-LINK_ORIGIN_ARG = "launcher_link_origin"
+#: Who sent the send, ``{"owner": <connection key> | "stdio" | None, "gateway": bool}``:
+#: the serve's queued-turn stream binds the link a direct run would and answers a
+#: paired-device sender (``hermes_cli/harness_parts/serve/queued_turn_origin.py``).
+ORIGIN_ARG = "send_origin"
 
 #: Fields of the send's argument namespace that are never persisted: the
 #: transport (the queued run is answered through the door's sink, never a
@@ -63,10 +64,11 @@ class QueuedSend:
     updated_at: str = ""
 
 
-def persistable_args(args: Any) -> dict[str, Any]:
-    """The send's argument namespace as JSON: every public, serializable field."""
+def persistable_args(args: Any, *, origin: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The send's argument namespace as JSON: every public, serializable field, plus
+    its *origin* under :data:`ORIGIN_ARG` when the caller knows it."""
 
-    kept: dict[str, Any] = {}
+    kept: dict[str, Any] = {} if origin is None else {ORIGIN_ARG: dict(origin)}
     for name, value in sorted(vars(args).items()):
         if name.startswith("_") or name in _TRANSIENT_ARGS or callable(value):
             continue

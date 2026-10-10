@@ -47,3 +47,16 @@ pushed when it runs (`turn_settled`, `request_id` `queued:<client_message_id>`).
 A queued turn running in the runner's pool counts as a chat turn in flight for the serve's
 drain (`QueuedSendRunner.inflight_request_ids`, request id `queued:<client_message_id>`), so a
 drain never completes, and the serve never exits, over one.
+
+## Origin
+
+Owner ruling 2026-10-10: a queued turn gets what a direct run of the same send gets. The
+door persists the send's origin on the entry (`chat_root_send_queue.ORIGIN_ARG`,
+`{"owner": <connection key> | "stdio" | null, "gateway": bool}`, from the serve request the
+send arrived on; `owner` null for a send with no serve request). When the turn runs, the
+stream (`hermes_cli/harness_parts/serve/queued_turn_origin.py::queued_turn_link`) binds the
+app-function link `ArgvLanes._bind_launcher_link` would: the sender's own connection while
+it is attached and answers `launcher.` requests (attached and not answering: no link, as
+direct); a sender that is gone, or a paired device, takes the gateway rule — the stdio
+starter, else the most recent local socket connection that declared it answers, else
+none — and the tools are refreshed against that link, as a direct turn's are.

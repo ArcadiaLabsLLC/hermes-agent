@@ -283,34 +283,93 @@ def test_a_queued_turn_streams_the_same_frames_a_sent_turn_does_to_a_subscriber(
     assert session.frames.frames == subscriber
 
 
-@pytest.mark.parametrize("origin", ["local", "paired_device"])
-def test_a_queued_turn_binds_the_app_function_link_a_direct_run_would(
-    origin, monkeypatch, capsys, isolate_agent_runtime_root
+class _Connection:
+    def __init__(self, key: str, transport: str = "socket") -> None:
+        self.key = key
+        self.transport = transport
+        self.frames: list[dict] = []
+
+    def emit(self, frame: dict) -> None:
+        self.frames.append(frame)
+
+
+def _origin_session(monkeypatch, *, answerers: set[str], connections: list[_Connection]):
+    """A serve session with the argv lanes' link rule and live connection sinks."""
+
+    from hermes_cli.harness_parts.serve import lanes, queued_turn_origin
+    from hermes_cli.harness_parts.serve.frames import _SafeSink
+    from hermes_cli.harness_parts.serve.settle_push import SettlePush
+
+    monkeypatch.setattr(lanes, "answers_launcher_requests", answerers.__contains__)
+    monkeypatch.setattr(queued_turn_origin, "answers_launcher_requests", answerers.__contains__)
+    monkeypatch.setattr(lanes, "latest_answerer",
+                        lambda owners: next((o for o in reversed(list(owners)) if o in answerers), None))
+
+    class _Session(SettlePush, lanes.ArgvLanes):
+        pass
+
+    base = _serve_session()
+    session = _Session()
+    session.__dict__.update(base.__dict__)
+    import threading
+
+    session.connection_sinks_lock = threading.Lock()
+    session.connection_sinks = {c.key: _SafeSink(c) for c in connections}
+    return session
+
+
+def _queue_from(handler, capsys, connection, cmid: str) -> None:
+    """Queue a send as the serve would run it: on a request from *connection*."""
+
+    from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink, _SafeSink
+
+    rid_token, sink_token = _request_id.set("req-1"), _request_sink.set(_SafeSink(connection))
+    try:
+        with persona_chat_root_lease(ROOT, observer_kind="cli"):
+            _send(handler, cmid, capsys)
+    finally:
+        _request_sink.reset(sink_token)
+        _request_id.reset(rid_token)
+
+
+@pytest.mark.parametrize(
+    "case, gateway, sender_answers, sender_gone, expect_sink",
+    [
+        ("sender-still-attached", False, True, False, "sender"),
+        ("sender-attached-not-a-launcher", False, False, False, None),
+        ("sender-gone-falls-back-to-stdio", False, True, True, "stdio"),
+        ("paired-device", True, False, False, "stdio"),
+    ],
+)
+def test_a_queued_send_gets_the_same_app_function_tools_as_a_direct_send(
+    case, gateway, sender_answers, sender_gone, expect_sink, monkeypatch, capsys,
+    isolate_agent_runtime_root,
 ):
     import dataclasses
 
     from agent_runtime import launcher_app_functions
+    from hermes_cli.harness_parts.serve import queued_turn_origin
     from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
 
     handler = _install_chat_lane(monkeypatch)
     _count_provider_calls(monkeypatch)
+    from hermes_cli.harness_parts.serve.constants import GATEWAY_TRANSPORT
+
+    sender = _Connection("sock-7", GATEWAY_TRANSPORT if gateway else "socket")
+    answerers = {"stdio", *(["sock-7"] if sender_answers else [])}
+    session = _origin_session(monkeypatch, answerers=answerers, connections=[sender])
     refreshed: list = []
-    monkeypatch.setattr(launcher_app_functions, "refresh_app_function_tools", refreshed.append)
+    monkeypatch.setattr(queued_turn_origin, "refresh_app_function_tools", refreshed.append)
 
-    launcher = object()
-    token = launcher_app_functions.bind_launcher_link(
-        launcher_app_functions.LauncherLink(object(), origin)
-    )
-    try:
-        with persona_chat_root_lease(ROOT, observer_kind="cli"):
-            _send(handler, "cm-link", capsys)
-    finally:
-        launcher_app_functions.reset_launcher_link(token)
-    entry = chat_root_send_queue.find(ROOT, "cm-link")
-    assert entry.args[chat_root_send_queue.LINK_ORIGIN_ARG] == origin
+    _queue_from(handler, capsys, sender, "cm-link")
+    origin = chat_root_send_queue.find(ROOT, "cm-link").args[chat_root_send_queue.ORIGIN_ARG]
+    assert origin == {"owner": "sock-7", "gateway": gateway}
 
-    session = _serve_session()
-    session._gateway_turn_launcher_sink = lambda: launcher
+    # The reference: the link the argv lanes bind for the same send run directly.
+    direct = session._launcher_link("sock-7", gateway, session.connection_sinks["sock-7"])
+    sender_sink = session.connection_sinks["sock-7"]
+    if sender_gone:
+        session.connection_sinks.clear()
     seen: list = []
     door = _door(handler, []).run_turn
 
@@ -320,9 +379,16 @@ def test_a_queued_turn_binds_the_app_function_link_a_direct_run_would(
 
     policy = dataclasses.replace(queued_turn_runner_policy(session), run_turn=run_turn)
     assert run_queued_sends_once(policy)["ran"] == 1
-    assert seen and seen[0] is not None, "a queued turn ran with no app-function link"
-    assert (seen[0].sink, seen[0].origin) == (launcher, origin)
-    assert refreshed == [seen[0]]
+    queued = seen[0]
+    if expect_sink is None:
+        assert queued is None and direct is None and refreshed == []
+        return
+    assert queued is not None, "a queued turn ran with no app-function link"
+    wanted = sender_sink if expect_sink == "sender" else session.frames
+    assert (queued.sink, queued.origin) == (wanted, "paired_device" if gateway else "local")
+    if not sender_gone:
+        assert (queued.sink, queued.origin) == (direct.sink, direct.origin), "not the direct turn's link"
+    assert refreshed == [queued], "the queued turn's tools were not refreshed as a direct turn's are"
     assert launcher_app_functions.current_launcher_link() is None
 
 

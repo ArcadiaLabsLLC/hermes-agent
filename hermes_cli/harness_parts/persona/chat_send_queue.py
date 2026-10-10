@@ -83,9 +83,13 @@ def _mission_chat_enqueue_busy(args: Any, *, session_id: str, client_message_id:
 
 
 def _enqueue_and_answer(args: Any, *, session_id: str, client_message_id: str) -> int:
-    persisted = chat_root_send_queue.persistable_args(args)
-    persisted.setdefault(chat_root_send_queue.LINK_ORIGIN_ARG, _bound_link_origin())
-    entry, position, replay = chat_root_send_queue.enqueue(session_id, client_message_id, persisted)
+    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
+    entry, position, replay = chat_root_send_queue.enqueue(
+        session_id,
+        client_message_id,
+        chat_root_send_queue.persistable_args(args, origin=send_origin()),
+    )
     data = {
         "ok": True,
         "capability_id": "mission.chat.message",
@@ -107,16 +111,6 @@ def _enqueue_and_answer(args: Any, *, session_id: str, client_message_id: str) -
         _wake_queued_send_runner()
     _mission_chat_emit(args, data, "message queued behind the current turn")
     return 0
-
-
-def _bound_link_origin() -> str | None:
-    """Who started this send, as the serve bound it (``local`` / ``paired_device``), so the
-    queued turn binds the same app-function link a direct run would."""
-
-    from agent_runtime.launcher_app_functions import current_launcher_link
-
-    link = current_launcher_link()
-    return None if link is None else link.origin
 
 
 def _wake_queued_send_runner() -> None:
