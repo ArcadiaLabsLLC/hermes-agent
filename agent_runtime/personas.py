@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from tools.toolset_manifest import builtin_tool_names_for_toolsets
+
 from .models import AgentPersona
 
 __layer__ = "models"
@@ -79,8 +81,8 @@ def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
 
 # Fork registry hygiene (T6c, 2026-07-18). Upstream toolsets the fork's effective
 # registry must never resolve on ANY agent-runtime lane: the whole ``kanban``
-# toolset (12 tools — superseded by the fork board/mission system) and the
-# ``feishu_doc`` + ``feishu_drive`` toolsets (5 tools — an irrelevant Feishu/Lark
+# toolset (superseded by the fork board/mission system) and the
+# ``feishu_doc`` + ``feishu_drive`` toolsets (an irrelevant Feishu/Lark
 # integration). The upstream tool files stay untouched (fork-sync cleanliness);
 # this fork-owned constant is the deregistration mechanism. It is enforced in TWO
 # places so no lane escapes:
@@ -93,35 +95,17 @@ def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
 # keep them registered (both are parallel-authority surfaces; a future lane that
 # enables either owns reconciling delegation-vs-harness-dispatch / upstream-memory-
 # vs-profile-memory).
+#
+# The block is by TOOLSET MEMBERSHIP, read from the generated builtin manifest
+# (``tools/toolset_manifest.json``, drift-gated by ``tests/tools/
+# test_toolset_manifest.py``), not a hand-kept tool list: upstream grows these
+# toolsets (+5 kanban verbs at the 2026-07-31 sync, ``kanban_schedule`` at
+# v0.21.6), and an enumerated list let each new verb resolve on a declaring lane
+# until someone noticed. Upstream kanban itself is KEPT (it is not the fork
+# board); it just must not resolve on an agent-runtime lane.
+REGISTRY_HYGIENE_BLOCKED_TOOLSETS = ("kanban", "feishu_doc", "feishu_drive")
 REGISTRY_HYGIENE_BLOCKED_TOOLS = frozenset(
-    {
-        # kanban toolset (12)
-        "kanban_show",
-        "kanban_list",
-        "kanban_create",
-        "kanban_complete",
-        "kanban_block",
-        "kanban_link",
-        "kanban_comment",
-        "kanban_unblock",
-        "kanban_heartbeat",
-        # +3 from the 2026-07-31 upstream sync: the kanban card-attachment
-        # verbs. Blocked for the same reason as the rest of the toolset —
-        # upstream kanban itself is KEPT (it is not the fork board), it just
-        # must not resolve on an agent-runtime lane.
-        "kanban_attach",
-        "kanban_attach_url",
-        "kanban_attachments",
-        "kanban_request_review",
-        "kanban_request_changes",
-        # feishu_doc toolset (1)
-        "feishu_doc_read",
-        # feishu_drive toolset (4)
-        "feishu_drive_list_comments",
-        "feishu_drive_list_comment_replies",
-        "feishu_drive_reply_comment",
-        "feishu_drive_add_comment",
-    }
+    builtin_tool_names_for_toolsets(REGISTRY_HYGIENE_BLOCKED_TOOLSETS)
 )
 
 
