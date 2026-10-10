@@ -23,7 +23,7 @@ from agent_runtime.persona_chat_continuity import (
     BOUND_PART_MESSAGE,
     BOUND_PART_RUNTIME_CONTEXT,
     BOUND_PART_SKILL_PRELOAD,
-    _MAX_CONTENT,
+    _MAX_OPERATOR_MESSAGE_CONTENT,
     _MAX_RUNTIME_CONTEXT_CONTENT,
     _MAX_USER_ROW_CONTENT,
     bound_composed_user_content,
@@ -244,13 +244,13 @@ def test_the_hud_is_served_before_the_preload_so_it_cannot_be_squeezed_out():
 
 def test_operator_text_is_bounded_before_the_preload_too():
     composed, _ = _composed_row(
-        message="M" * (_MAX_CONTENT * 3), skill_chars=_MAX_USER_ROW_CONTENT * 2
+        message="M" * (_MAX_OPERATOR_MESSAGE_CONTENT * 3), skill_chars=_MAX_USER_ROW_CONTENT * 2
     )
 
     bounded = bound_composed_user_content(composed)
 
     parts = split_composed_user_row(bounded.text)
-    assert len(parts.message) <= _MAX_CONTENT
+    assert len(parts.message) <= _MAX_OPERATOR_MESSAGE_CONTENT
     assert parts.message.endswith("… [truncated]"), "a cut says so, in band"
     by_part = {note.part: note for note in bounded.notes}
     assert set(by_part) == {BOUND_PART_MESSAGE, BOUND_PART_SKILL_PRELOAD}
@@ -278,25 +278,25 @@ def _bound_one(envelope, *, limit, part):
 
 
 # ---------------------------------------------------------------------------
-# T1 — nothing outside the composed operator row changes
+# T1 — operator composition bounds do not apply to other roles
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("role", ["assistant", "tool", "system"])
-def test_non_user_rows_keep_the_flat_bound(role):
-    row = safe_native_message({"role": role, "content": "x" * (_MAX_CONTENT * 2)})
+def test_non_user_rows_do_not_inherit_the_operator_message_bound(role):
+    content = "x" * (_MAX_OPERATOR_MESSAGE_CONTENT * 2)
+    row = safe_native_message({"role": role, "content": content})
 
-    assert len(row["content"]) <= _MAX_CONTENT
-    assert row["content"].endswith("… [truncated]")
+    assert row["content"] == content
 
 
 def test_a_plain_user_row_with_no_envelope_keeps_the_flat_bound():
-    row = safe_native_message({"role": "user", "content": "y" * (_MAX_CONTENT * 2)})
+    row = safe_native_message({"role": "user", "content": "y" * (_MAX_OPERATOR_MESSAGE_CONTENT * 2)})
 
-    assert len(row["content"]) <= _MAX_CONTENT
+    assert len(row["content"]) <= _MAX_OPERATOR_MESSAGE_CONTENT
     assert row["content"].endswith("… [truncated]")
 
 
 def test_the_hud_budget_is_a_slice_of_the_row_ceiling_not_a_rival_number():
     assert _MAX_RUNTIME_CONTEXT_CONTENT < _MAX_USER_ROW_CONTENT
-    assert _MAX_CONTENT < _MAX_USER_ROW_CONTENT
+    assert _MAX_OPERATOR_MESSAGE_CONTENT < _MAX_USER_ROW_CONTENT
