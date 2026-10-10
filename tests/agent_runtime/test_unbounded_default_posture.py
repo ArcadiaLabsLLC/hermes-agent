@@ -546,9 +546,10 @@ def test_read_only_blocks_is_the_single_mutation_set():
     """The 7-name duplication the plan called out: ``tool_visibility`` no longer
     keeps a second copy, it reads this one."""
 
-    from agent_runtime.tool_visibility import _mutating_tools
+    from agent_runtime.tool_visibility import _mutating_tools, _read_only_blocks
 
-    assert _mutating_tools() is READ_ONLY_BLOCKS
+    assert _read_only_blocks() is READ_ONLY_BLOCKS
+    assert READ_ONLY_BLOCKS <= _mutating_tools()  # plus the Launcher's mutating app functions
 
 
 # ── 6. the surfaces render the new state honestly ───────────────────────────
