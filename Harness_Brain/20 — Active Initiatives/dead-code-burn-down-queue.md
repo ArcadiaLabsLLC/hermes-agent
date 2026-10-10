@@ -25,7 +25,6 @@ Row grammar: `- [ ] **symbol** · file · lines · class · evidence · lane`. C
 
 ## Filed on arrival — 2026-10-06 (lane h-bundle-epoch)
 
-- [ ] **`tools.registry.registry_epoch` has no production caller after h-bundle-epoch (chat_lane_bundle keys on content + `check_fn_epoch`); only tests read it** · fork seam in upstream file · evidence: `bc43588550` · lane: dead-code slice · released 2026-10-10 (lane-1010 returned L5.15, upstream; reason in `queue-sweep-2026-10-10/L5-outcomes.md`) · **TAKEN 2026-10-10 lane-1011-M2**
 
 ## Owed censuses (rows arrive when they run)
 

@@ -1,0 +1,7 @@
+M3.01 = L4.03 · FIXED aab6ddd98d (plugin rebinds agent.tool_guardrails.IDEMPOTENT_TOOL_NAMES via agent_runtime/guardrail_mcp_names.py; zero footprint)
+M3.02 = L4.04 · FIXED 181911077c (additive os.name == "nt" stdout-and-return in write_tty; ledger row + [up-fp] 185->186)
+M3.03 = L6.12 · FIXED 73178abc0a (5-line additive guard in _expose_windows_user_bin -> fork hermes_cli/launcher_root_owner.py; ledger row + [up-fp] 186->187)
+M3.04 = L7.32 · FIXED 19205f4f01 (additive 60 s tolerant exit wait before pm/client._request's 5 s wait; ledger row + [up-fp] 187->188; worker's live exit time not measured)
+M3.05 = L8.12 · FIXED 3ce3399209 (additive _EXCLUDED_NAMES.add("serve_socket.lock") in hermes_cli/backup.py until PR #128853; ledger row + [up-fp] 188->189)
+M3.06 = L7.19 · FIXED c7f8766c6e (test side: NOUS_INFERENCE_BASE_URL scrubbed before every test + hermetic-blanking guard; route was wrong: gateway/run_profile_reconcile.py is pure upstream bytes, not carried; product env write under multiplex RETURNED upstream: load_hermes_dotenv(override=True) in the reconcile chore writes os.environ)
+M3.07 = L5.05 · FIXED 2e7e42f5cb (runtime.persona.chat.history.search over curated history rows, not the route's FTS join: FTS reads raw rows the history read hides; ~235 lines, one commit)
