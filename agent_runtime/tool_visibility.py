@@ -171,12 +171,15 @@ def _mutating_tools() -> frozenset[str]:
     ``read_only`` block set, two copies of one fact in two files that could only
     drift. The import is deferred because ``tool_permissions`` imports THIS
     module at load time; the constant is a frozenset of literals, so caching the
-    lookup costs one import and no staleness.
+    lookup costs one import and no staleness. Plus the Launcher app functions the
+    Launcher marks mutating (``read_only is False``), read from the live
+    registration — the same set ``read_only`` mode blocks.
     """
 
+    from .launcher_app_functions import mutating_app_function_tools
     from .tool_permissions import READ_ONLY_BLOCKS
 
-    return READ_ONLY_BLOCKS
+    return READ_ONLY_BLOCKS | mutating_app_function_tools()
 
 
 def _default_permission_mode_for_options() -> str:
