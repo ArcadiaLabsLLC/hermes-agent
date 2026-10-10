@@ -153,15 +153,17 @@ def test_a_stated_expected_ms_at_the_top_level_of_meta_is_read():
 
 
 def test_a_call_reporting_progress_outlives_its_base_timeout():
-    """Base 0.3 s; the server reports every 0.1 s for ~0.6 s, then answers. Without
-    reset-on-progress the call dies at 0.3 s."""
+    """Base 1.0 s; the server reports every 0.1 s for ~1.5 s, then answers. Without
+    reset-on-progress the call dies at 1.0 s. Each report lands 0.9 s inside the base, so a
+    loaded scheduler has ten report periods of slack (a 0.3 s base with 0.2 s of slack died
+    once under the 2026-10-02 landing gate's load)."""
 
-    server = _Server(0.3, {"max_total_timeout": 5})
+    server = _Server(1.0, {"max_total_timeout": 5})
     result, _calls, progress, _ = anyio.run(
-        lambda: _call({"tab": "library"}, server=server, reports=6, every=0.1, then=0.05))
+        lambda: _call({"tab": "library"}, server=server, reports=15, every=0.1, then=0.05))
 
     assert result.content[0].text == "built"
-    assert progress.updates == 6
+    assert progress.updates == 15
     # The outer deadline every handler registered from here waits on is the cap.
     assert server.tool_timeout == 5
 

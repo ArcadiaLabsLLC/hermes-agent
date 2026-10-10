@@ -45,14 +45,19 @@ def test_python_c_code_that_only_compares_backend_words_is_not_a_backend_start()
 
 # The word scan matches bare words (prose, comments); these carry the same bare words
 # as the inert case above, beside an identifier that could spawn, so they must still
-# refuse. (The scan does not see a quoted ``"hermes`` token at all - a separate gap.)
+# refuse. The last three quote the entry point the way code spells a command
+# (``run("hermes``, ``['hermes',``): the scan splits quotes and call punctuation off a word.
 @pytest.mark.parametrize("code", [
     'import subprocess\nx = 1  # then hermes gateway run',
     'import os\nnote = "stop/restart hermes gateway now"',
     'from hermes_cli.main import main\nnote = "stop/restart hermes gateway now"',
     '__import__("json")\nnote = "stop/restart hermes gateway now"',
     'note = "stop/restart hermes gateway now" +',  # unparseable
-], ids=["subprocess", "os", "hermes-cli-in-process", "dunder-import", "unparseable"])
+    'import subprocess; subprocess.run("hermes gateway run")',
+    "import subprocess; subprocess.run(['hermes', 'serve'])",
+    'import os; os.system("hermes dashboard")',
+], ids=["subprocess", "os", "hermes-cli-in-process", "dunder-import", "unparseable",
+        "quoted-string", "quoted-argv", "quoted-os-system"])
 def test_python_c_code_that_could_spawn_keeps_the_conservative_scan(code):
     with pytest.raises(RuntimeError, match="live-system guard: blocked"):
         subprocess.run([sys.executable, "-c", code], timeout=30,

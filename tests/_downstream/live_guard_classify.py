@@ -171,6 +171,9 @@ def _without_inert_python_c_code(raw: list) -> list:
     return raw
 
 
+_CODE_PUNCTUATION_RE = re.compile(r"""["'`()\[\]{},;]+""")
+
+
 def _cmd_tokens(cmd, cmd_to_string) -> list:
     # argv lists are tokenized by construction; only strings need shlex,
     # which on Windows would otherwise eat the backslashes in a path.
@@ -189,9 +192,13 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
     # backslashes in a Windows path) so the entry point inside it is
     # reachable. Splitting cannot invent an entry point: a path containing
     # spaces still ends in its own basename.
+    # A word inside code keeps its quotes and call punctuation (``subprocess.run("hermes``,
+    # ``run")``); splitting on them lets the entry point and the subcommand be seen. ``=`` is
+    # not split, so ``--name=gateway`` stays one flag.
     tokens = []
     for token in raw:
-        tokens.extend(script_words(token))
+        for word in script_words(token):
+            tokens.extend(part for part in _CODE_PUNCTUATION_RE.split(word) if part)
     return tokens
 
 

@@ -23,11 +23,14 @@ python scripts/doc_cite_adjacency.py --exclude archive --exclude planned        
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
 
-**Upstream-PR lanes pass `--base upstream/main` to `scripts/check`.** Its default base is the
-merge-base with the fork's `origin/main`, thousands of commits behind upstream, so from this clone it
-reports ~313 blocking findings over 2,756 files and hits its 900 s timeout (lanes up-door-modules,
-up-door-sdk, up-door-fixes, 2026-10-07): `python scripts/check --base upstream/main`. On this box
-`uvx ruff@0.15.10` can fail on a locked uv cache file (os error 32); use the test venv's `ruff`.
+**Upstream-PR and sync lanes pin the base by SHA and own their uv cache.** Run
+`UV_CACHE_DIR=<lane scratch>/uv-cache python scripts/check --base <sha>`, with the SHA read once
+(`git rev-parse upstream/main`) at the start of the lane. The default base (the merge-base with
+`origin/main`) is thousands of commits behind upstream: ~313 blocking findings over 2,756 files and
+its 900 s timeout (lanes up-door-*, 2026-10-07). A bare `--base upstream/main` moves when another
+lane fetches mid-run and the code-health ratchet reports false `FILE_LINES`/`BLE001` reds
+(up-sync-2, 2026-10-08). The shared uv cache locks under concurrent lanes (`os error 32`), hence the
+per-lane `UV_CACHE_DIR`; if `uvx ruff@0.15.10` still fails on it, use the test venv's `ruff`.
 
 **The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
