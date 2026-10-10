@@ -7,6 +7,10 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+## Filed on arrival — 2026-10-09 console history qualification
+
+- [ ] **Classify the doctor corruption and clean-close fixture failures reached by the Console SessionDB change.** `tests/hermes_cli/test_doctor_structural_corruption.py` fails its doctor repair assertion; `tests/hermes_state/test_clean_close_residual_poison.py` passes five bodies then errors in the shared-monkeypatch teardown witness. Observed in the 1,405-file fork gate and its isolated retries on `99c0f7371a`; unchanged-main comparison is pending. Preserve the corruption and profile-isolation guards. · fork / suite · UNCLAIMED
+
 ## Filed on arrival — 2026-10-09 (final gates)
 
 - [ ] **`test_turn_cost_guard_downstream` span budget flakes under the 8-worker runner (turn 0 anchor->request_sent 488 ms > slowest warm 324 + 100)** · fork / suite · evidence: final-gates fix run 2026-10-09 (FLAKY attempt 1) · lane: make the budget load-relative or mark the file solo · UNCLAIMED
