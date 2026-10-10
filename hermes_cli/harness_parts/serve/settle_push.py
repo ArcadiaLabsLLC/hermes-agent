@@ -146,8 +146,15 @@ class SettlePush:
             prune_acked(older_than_seconds=SETTLE_ACKED_RETENTION_SECONDS)
 
     def _deliver_settle_frame(self, frame: dict[str, Any]) -> int:
-        """Send a settle *frame* on the control channel. Returns how many sinks took it."""
+        """Send a settle *frame* on the control channel. Returns how many sinks took it.
 
+        A queued turn's settle also goes, once, to the paired device that sent it
+        (``queued_turn_origin``); that copy is not a launcher delivery and does not count.
+        """
+
+        from hermes_cli.harness_parts.serve.queued_turn_origin import deliver_to_queued_peer
+
+        deliver_to_queued_peer(self, frame)
         return self._deliver_control_frame(frame)
 
     def _deliver_control_frame(self, frame: dict[str, Any]) -> int:
@@ -159,7 +166,9 @@ class SettlePush:
         Stdio counts only when a launcher can be reading it: not detached, and
         not ``--service`` (whose stdio is the launcher's ``DEVNULL``). The
         socket's count is ``broadcast``'s own. The gateway door is excluded on
-        purpose — a paired device is not the launcher the ruling names.
+        purpose — a paired device is not the launcher the ruling names; the one
+        exception is targeted, not broadcast: a queued turn's frames and settle
+        reach the paired device that sent it (``serve.queued_turn_origin``).
         """
 
         delivered = 0

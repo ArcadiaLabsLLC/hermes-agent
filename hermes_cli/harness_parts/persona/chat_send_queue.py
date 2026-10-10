@@ -83,10 +83,12 @@ def _mission_chat_enqueue_busy(args: Any, *, session_id: str, client_message_id:
 
 
 def _enqueue_and_answer(args: Any, *, session_id: str, client_message_id: str) -> int:
+    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
     entry, position, replay = chat_root_send_queue.enqueue(
         session_id,
         client_message_id,
-        chat_root_send_queue.persistable_args(args),
+        chat_root_send_queue.persistable_args(args, origin=send_origin()),
     )
     data = {
         "ok": True,
