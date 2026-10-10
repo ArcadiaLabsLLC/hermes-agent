@@ -201,33 +201,30 @@ class SettlePush:
                 }
             )
             return None
-        from agent_runtime.chat_turn_settles import ack_settle, settle_id_for
+        from agent_runtime.chat_turn_settles import ack_settle, resolve_settle_id
 
-        settle_id = message.get("settle_id")
-        cmid = message.get("client_message_id")
-        if not isinstance(settle_id, str) or not settle_id.strip():
-            if isinstance(cmid, str) and cmid.strip():
-                session = message.get("session_id")
-                settle_id = settle_id_for(
-                    session if isinstance(session, str) else None, cmid.strip()
-                )
-            else:
-                sink.emit(
-                    {
-                        "id": message.get("id"),
-                        "event": "error",
-                        "error": "invalid_settle_ack",
-                        "detail": "settle_ack names a settle_id, or a client_message_id (+ session_id)",
-                    }
-                )
-                return None
+        settle_id = resolve_settle_id(
+            settle_id=message.get("settle_id"),
+            client_message_id=message.get("client_message_id"),
+            session_id=message.get("session_id"),
+        )
+        if settle_id is None:
+            sink.emit(
+                {
+                    "id": message.get("id"),
+                    "event": "error",
+                    "error": "invalid_settle_ack",
+                    "detail": "settle_ack names a settle_id, or a client_message_id (+ session_id)",
+                }
+            )
+            return None
         with self._settle_store_scope():
-            retired = ack_settle(settle_id.strip())
+            retired = ack_settle(settle_id)
         sink.emit(
             {
                 "id": message.get("id"),
                 "event": "settle_acked",
-                "settle_id": settle_id.strip(),
+                "settle_id": settle_id,
                 "retired": retired,
             }
         )
