@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-08",
+  "measured_at": "2026-10-09",
   "base": "ee5f49b943",
-  "files": 184,
-  "deleted_lines": 959,
+  "files": 186,
+  "deleted_lines": 962,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "console-history-controls: native atomic branch/rewind and reviewed checkpoint restoration",
+      "files": "184 -> 186: hermes_state_rewind.py (4/1), tools/checkpoint_manager.py (170/0); both have held upstream API-widening ledger rows",
+      "deleted_lines": "959 -> 962: three signature/base-list line replacements, one each in hermes_state.py, hermes_state_messages.py and hermes_state_rewind.py; behavior is additive and optional, no legacy body was replaced; heavy unchanged at 4",
+      "reason": "Native SessionDB must write a receipt in the same transaction as its branch/rewind; CheckpointManager must hold its own store lock while validating a reviewed subset and recovery snapshot. There is no upstream public door for either contract. Fork-only policy and RPC/UI stay outside those owners; the audit and tests live with console-history-controls.md."
+    },
     {
       "change": "lane opus-w1-hermes (fork-hygiene row: footprint red on main, qualified 184 / 959 / 4 on merge-base 74a64be15e and the warm-prep batch): baseline what the carried-PR sync landed unledgered",
       "files": "176 -> 184: plugins/plugin_loader.py (5/1), tools/file_tools_paths.py (6/0), tools/file_tools_read_tracking.py (12/4), tests/agent/test_turn_context.py (8/0), tests/hermes_cli/test_auth_commands.py (3/3), tests/hermes_cli/test_uninstall_dry_run.py (1/0), tests/hermes_cli/test_worktree_sync_base.py (1/1), tests/tools/test_windows_agent_loop_papercuts.py (23/0); all from 7625cb7dad / fa2677be7b, none named in carried_prs.json",
