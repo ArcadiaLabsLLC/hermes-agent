@@ -1393,7 +1393,8 @@ def build_skills_system_prompt(
     try:
         # Every non-local root as (tier, dir) in the shared precedence order: trusted project dirs (cwd/trust
         # are session-stable, so byte-stable), skills.create_dir, skills.external_dirs.
-        extra_roots = [(t, d) for t, d in get_skill_search_roots(skills_dir) if d != skills_dir]  # fork: the shared skills root is TIER_LOCAL too
+        extra_roots = [(t, d) for t, d in get_skill_search_roots(skills_dir)  # fork: the shared skills root is TIER_LOCAL too,
+                       if d != skills_dir and (t != TIER_LOCAL or d.is_dir())]  # and an absent one keeps upstream's early return
         if not skills_dir.exists() and not extra_roots:
             return ""
         return _build_skills_system_prompt_inner(
