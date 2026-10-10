@@ -45,6 +45,7 @@ __all__ = [
     "_runtime_chat_turn_resolve",
     "_runtime_persona_chat_delete",
     "_runtime_persona_chat_history",
+    "_runtime_persona_chat_history_search",
     "_runtime_persona_instance_create",
     "row_reply",
 ]
@@ -116,6 +117,27 @@ def _runtime_persona_chat_history(rid: Any, params: dict, context: RpcContext | 
     ):
         return _invalid(rid, "history", "session_id (string) is required; limit is an integer, before a string")
     return row_reply(rid, persona_chat_history_page(session_id.strip(), limit=limit, before=before), "history")
+
+
+@method("runtime.persona.chat.history.search", tier=TIER_CONSOLE)
+def _runtime_persona_chat_history_search(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Search one conversation's history; hits open through ``runtime.persona.chat.history``.
+    Params: ``session_id`` and ``query`` (required), ``limit`` (int, clamped 1..20),
+    ``before`` (the previous page's ``next_before``). Same tier as the history read."""
+    from agent_runtime.chat_verbs.history import persona_chat_history_search
+
+    params = _params(params)
+    session_id, query = params.get("session_id"), params.get("query")
+    limit, before = params.get("limit"), params.get("before")
+    if (
+        not isinstance(session_id, str)
+        or not session_id.strip()
+        or not isinstance(query, str)
+        or (limit is not None and (isinstance(limit, bool) or not isinstance(limit, int)))
+        or (before is not None and not isinstance(before, str))
+    ):
+        return _invalid(rid, "search", "session_id and query (strings) are required; limit is an integer, before a string")
+    return row_reply(rid, persona_chat_history_search(session_id.strip(), query, limit=limit, before=before), "search")
 
 
 @method("runtime.persona.instance.create", tier=TIER_CONSOLE)
