@@ -321,22 +321,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
         )
     },
-    # h10b-fix (owner 2026-09-29, reviewed): the harness plugin's register() setdefault()s
-    # HERMES_KANBAN_CLAIM_TTL_SECONDS on the process's first (lazy) plugin discovery, which in a
-    # cron-only process is inside run_job. Kept: the process-wide TTL default is the harness's
-    # intent and the operator's value wins.
-    **{
-        f"tests/cron/test_cron_kanban_env_isolation.py::TestRunJobKanbanIsolation::{test}": (
-            _fork_replaces(
-                "eternia-harness default_kanban_claim_ttl (process env default at plugin register)",
-                "tests/cron/test_cron_kanban_env_isolation_downstream.py",
-            ),
-        )
-        for test in (
-            "test_environment_is_left_untouched",
-            "test_concurrent_jobs_do_not_corrupt_worker_identity",
-        )
-    },
     # Upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
     **{
         node: (_SCOPED_UNDO,)

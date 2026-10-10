@@ -10,7 +10,6 @@ a prompt is being rendered. ``plugin.yaml`` declares both commands under
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 __layer__ = "wiring"
@@ -319,25 +318,10 @@ def record_kanban_crash_evidence(**kwargs):
     on_kanban_worker_exited(**kwargs)
 
 
-#: The harness's kanban claim lifetime. Long supervisor-style cards can spend more than
-#: upstream's 15 minutes inside one external call before they can `kanban_heartbeat`.
-KANBAN_CLAIM_TTL_SECONDS = 45 * 60
-
-
-def default_kanban_claim_ttl() -> None:
-    """Upstream reads ``HERMES_KANBAN_CLAIM_TTL_SECONDS`` for every claim AND the heartbeat
-    extension; a default here, with the operator's own env as the opt-out."""
-    os.environ.setdefault("HERMES_KANBAN_CLAIM_TTL_SECONDS", str(KANBAN_CLAIM_TTL_SECONDS))
-
-
-def default_no_venv_lazy_installs() -> None:
-    """Keep harness processes off upstream's startup venv sync. Upstream's
-    ``hermes_cli.venv_sync`` skips its sync-and-relaunch when
-    ``HERMES_DISABLE_LAZY_INSTALLS=1``, so a harness process never mutates or restarts the
-    running venv on its own. Setting the env yourself (``0``) is the opt-out. (The lazy
-    install door this env once shut, ``tools.lazy_deps``, is now a relaunch shim; owner
-    2026-09-29: the env stays.)"""
-    os.environ.setdefault("HERMES_DISABLE_LAZY_INSTALLS", "1")
+# Process-env defaults (kanban claim TTL, lazy installs) are NOT written here: plugin code
+# writes no process env, because discovery runs at unpredictable points in any process.
+# The serve and the conversation-worker composer apply
+# ``agent_runtime.process_env_defaults`` instead (v0216 plan §2).
 
 
 def migrate_retired_local_llama_id() -> None:
@@ -374,8 +358,6 @@ def register(ctx) -> None:
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
-    default_kanban_claim_ttl()
-    default_no_venv_lazy_installs()
     migrate_retired_local_llama_id()
     migrate_legacy_persona_toolsets()
     from agent_runtime.harness_toolset import ensure_harness_core

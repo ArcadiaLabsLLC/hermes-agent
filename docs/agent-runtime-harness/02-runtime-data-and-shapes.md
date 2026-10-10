@@ -365,7 +365,11 @@ resolve through `get_hermes_home()` (ContextVar-first) or an explicit path;
 binding's `profile_home` is always `<root>/profiles/<name>`; and the one raw-env
 reader it does reach — `hermes_cli.auth._global_auth_file_path`, on the provider
 probe — now reads `agent_runtime.profile_home.get_hermes_auth_home()`, which resolves the
-ContextVar first and the `HERMES_AUTH_HOME` env var second. The named residue is
+ContextVar first and the `HERMES_AUTH_HOME` env var second. The provider-access port
+(`agent/provider_access.py::current_access`) never runs plugin discovery: a bound read
+registers the harness's access itself (`agent_runtime.provider_access.
+ensure_shared_provider_access_registered`), an unbound one takes the native path
+(`planned/v0216-plugin-discovery-seams.md` §1). The named residue is
 `HOME`: POSIX `os.path.expanduser` has no context-scoped hook, so a `~` expanded
 under the binding (a `skills.external_dirs` entry, the `~/.codex` / `~/.qwen`
 singletons) resolves to the process home rather than `<profile>/home`. Inert on
