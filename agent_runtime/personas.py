@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from enum import StrEnum
-
-from tools.toolset_manifest import builtin_tool_names_for_toolsets
 
 from .models import AgentPersona
 
@@ -104,12 +103,8 @@ def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
 # until someone noticed. Upstream kanban itself is KEPT (it is not the fork
 # board); it just must not resolve on an agent-runtime lane.
 REGISTRY_HYGIENE_BLOCKED_TOOLSETS = ("kanban", "feishu_doc", "feishu_drive")
-REGISTRY_HYGIENE_BLOCKED_TOOLS = frozenset(
-    builtin_tool_names_for_toolsets(REGISTRY_HYGIENE_BLOCKED_TOOLSETS)
-)
 
-
-PERSONA_BLOCKED_TOOLS = frozenset(
+_BOUNDED_LANE_BLOCKED_TOOLS = frozenset(
     {
         "delegate_task",
         "clarify",
@@ -118,7 +113,37 @@ PERSONA_BLOCKED_TOOLS = frozenset(
         "cronjob",
         "cronjob_manage",  # upstream action-tool name; preserve the bounded-lane block
     }
-) | REGISTRY_HYGIENE_BLOCKED_TOOLS
+)
+
+
+@lru_cache(maxsize=1)
+def registry_hygiene_blocked_tools() -> frozenset[str]:
+    """``REGISTRY_HYGIENE_BLOCKED_TOOLS``, resolved on first use: importing this module
+    must not import ``tools`` (a bundle's forced tree mounts ``tools`` after
+    ``agent_runtime`` loads)."""
+    from tools.toolset_manifest import builtin_tool_names_for_toolsets
+
+    return frozenset(builtin_tool_names_for_toolsets(REGISTRY_HYGIENE_BLOCKED_TOOLSETS))
+
+
+@lru_cache(maxsize=1)
+def persona_blocked_tools() -> frozenset[str]:
+    """``PERSONA_BLOCKED_TOOLS``: the bounded-lane block plus registry hygiene."""
+    return _BOUNDED_LANE_BLOCKED_TOOLS | registry_hygiene_blocked_tools()
+
+
+_LAZY_CONSTANTS = {
+    "REGISTRY_HYGIENE_BLOCKED_TOOLS": registry_hygiene_blocked_tools,
+    "PERSONA_BLOCKED_TOOLS": persona_blocked_tools,
+}
+
+
+def __getattr__(name: str):
+    try:
+        return _LAZY_CONSTANTS[name]()
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 def role_from_persona(persona: AgentPersona) -> AgentRole | str:
     return coerce_agent_role(persona.role)
@@ -149,7 +174,7 @@ def blocked_tool_names() -> frozenset[str]:
     stays because it is the name the visibility/runtime lanes already call.
     """
 
-    return PERSONA_BLOCKED_TOOLS
+    return persona_blocked_tools()
 
 
 def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> list[str]:
@@ -165,7 +190,7 @@ def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> li
 
     names = list(requested or [])
     seen = set(names)
-    for name in sorted(REGISTRY_HYGIENE_BLOCKED_TOOLS):
+    for name in sorted(registry_hygiene_blocked_tools()):
         if name not in seen:
             names.append(name)
             seen.add(name)

@@ -4810,8 +4810,8 @@
       "path": "agent_runtime/local_llama_adapter/engine.py",
       "symbol": "validate_model",
       "operator": "weaken-shards",
-      "find": "if any(part.get(k) != info.get(k) for k in (\"general.name\", \"general.architecture\", \"split.count\")) or part.get(\"split.no\") != index:",
-      "replace": "if part.get(\"split.no\") != index:",
+      "find": "or any(k in part and part[k] != info.get(k) for k in (\"general.name\", \"general.architecture\"))):",
+      "replace": "):",
       "test": [
         "{python}",
         "-m",

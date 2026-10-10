@@ -13,6 +13,7 @@ the ``_check_subprocess_cmd`` chokepoint every spawn primitive funnels through.
 
 from __future__ import annotations
 
+import ast
 import re
 import shlex
 
@@ -122,6 +123,24 @@ _SPAWN_CAPABLE_NAMES = frozenset({
 _BACKEND_NAME_PARTS = ("hermes", "gateway", "serve", "dashboard")
 
 
+def _no_names(_node) -> tuple:
+    return ()
+
+
+def _alias_names(node) -> list:
+    return [*node.name.split("."), *([node.asname] if node.asname else [])]
+
+
+# The identifiers each AST node kind contributes: a name, an attribute, an import
+# alias, an ``import from`` module path. Every other node contributes nothing.
+_NODE_NAMES = {
+    ast.Name: lambda node: (node.id,),
+    ast.Attribute: lambda node: (node.attr,),
+    ast.alias: _alias_names,
+    ast.ImportFrom: lambda node: node.module.split(".") if node.module else (),
+}
+
+
 def _python_c_code_is_inert(code: str) -> bool:
     """True when CODE parses and names nothing that could spawn or boot a backend.
 
@@ -130,24 +149,13 @@ def _python_c_code_is_inert(code: str) -> bool:
     Anything else (unparseable, or any spawn-capable or backend-named identifier,
     import or attribute) keeps the conservative word scan.
     """
-    import ast
-
     try:
         tree = ast.parse(code)
     except (SyntaxError, ValueError):
         return False
     names = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            names.add(node.attr)
-        elif isinstance(node, ast.alias):
-            names.update(node.name.split("."))
-            if node.asname:
-                names.add(node.asname)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.update(node.module.split("."))
+        names.update(_NODE_NAMES.get(type(node), _no_names)(node))
     lowered = {name.lower() for name in names}
     if lowered & _SPAWN_CAPABLE_NAMES:
         return False

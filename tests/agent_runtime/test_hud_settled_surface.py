@@ -32,10 +32,12 @@ _LINE = "- 1 tool deferred (and 2 MCP tools), reachable through tool_search"
 
 @pytest.fixture
 def registry(monkeypatch):
-    import agent_runtime.persona_chat_continuity as continuity
+    # The registry's own state, which every reader reaches (patching the package's
+    # re-exported accessor would miss a module that bound it by import).
+    from agent_runtime.persona_chat_continuity import runtime_registry
 
     reg = PersonaChatRuntimeRegistry()
-    monkeypatch.setattr(continuity, "persona_chat_runtime_registry", lambda: reg)
+    monkeypatch.setattr(runtime_registry, "_REGISTRY", reg)
     return reg
 
 
@@ -71,15 +73,16 @@ def test_an_actor_the_turn_will_discard_is_not_described(registry):
 
 def test_a_not_computed_receipt_and_no_registry_cost_the_line_never_the_turn(registry, monkeypatch):
     from agent_runtime.chat_lane_tool_form import settled_surface_receipt
-    import agent_runtime.persona_chat_continuity as continuity
+    from agent_runtime.persona_chat_continuity import runtime_registry
 
     _resident(registry, root="chat-root-1", signature="sig", receipt={"state": "not_computed"})
     assert settled_surface_receipt("chat-root-1", signature="sig") is None
 
-    def _boom():
-        raise RuntimeError("registry torn down")
+    class _TornDown:
+        def resident_agent(self, *_a, **_k):
+            raise RuntimeError("registry torn down")
 
-    monkeypatch.setattr(continuity, "persona_chat_runtime_registry", _boom)
+    monkeypatch.setattr(runtime_registry, "_REGISTRY", _TornDown())
     assert settled_surface_receipt("chat-root-1", signature="sig") is None
     context = _build()
     assert _LINE not in context.volatile_tail.content and context.volatile_tail.content

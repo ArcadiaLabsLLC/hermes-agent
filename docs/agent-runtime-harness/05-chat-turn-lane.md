@@ -413,8 +413,8 @@ Every consumer reads one answer, from `permission_options_for_chat` (`:285-301`)
 does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope family lives since lane L5):
 
 - `_blocked_tool_names_for_chat` returns `[]` outright (`:583-586`), so the pre-ruling
-  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py:129-138`: `delegate_task`, `clarify`, `memory`,
-  `send_message`, `cronjob`) does not apply to the default posture. Registry-hygiene names are still
+  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py::persona_blocked_tools`: `delegate_task`, `clarify`,
+  `memory`, `send_message`, `cronjob`, plus registry hygiene) does not apply to the default posture. Registry-hygiene names are still
   unioned at agent construction on every lane — hygiene is junk removal, not a permission tier
   (`:594-597`).
 - `_enabled_toolsets_for_chat` (`:684`) runs the DECLARATION (§4c) → chat capability augmentation →

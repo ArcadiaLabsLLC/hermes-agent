@@ -291,7 +291,7 @@ earlier serve cost `build_ms=1948` and `3439`. The delta is per-process cache fi
 are named: `agent_runtime/parse_cache.py` (YAML/frontmatter/sha, `(path, mtime_ns, size)`-keyed,
 bounded 4096 — profiled as the dominant snapshot cost);
 `tool_visibility._cached_tool_names_for_toolsets` (`lru_cache(128)`, process lifetime,
-`tool_visibility.py:635-636`); `_cached_profile_readiness_for_visibility` (15 s TTL, `:586`);
+`tool_visibility.py:635-636`); `tool_visibility._cached_profile_readiness_for_visibility` (15 s TTL);
 `tools/registry.py::_check_fn_cached` (30 s TTL per `check_fn`, `registry.py:225`).
 
 The readiness section publishes its own split. Same cold boot:

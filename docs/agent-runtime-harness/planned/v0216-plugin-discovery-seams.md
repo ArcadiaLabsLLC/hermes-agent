@@ -214,8 +214,8 @@ own value still wins); the WRITER moves to where the fork composes a process.
    `TestRunJobKanbanIsolation` tests is deleted (an unmatched/unneeded row is coverage theatre; the
    upstream tests pass again). `tests/cron/test_cron_kanban_env_isolation_downstream.py` re-points
    at `apply_harness_process_env_defaults` (adds exactly the two keys; the operator's value wins).
-5. `tests/agent_runtime/test_background_completion.py::test_register_defaults_the_kanban_claim_ttl_and_the_operator_env_wins`
-   is replaced by the two S2 gates below; the middleware test in that file is unchanged.
+5. The old register-defaults test in `tests/agent_runtime/test_background_completion.py` is replaced
+   by `tests/agent_runtime/test_background_completion.py::test_register_writes_no_process_env` and the S2 gates below; the middleware test in that file is unchanged.
 
 ### 2.4 Stages
 

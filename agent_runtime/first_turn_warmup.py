@@ -89,6 +89,9 @@ FIRST_TURN_MODULES = (
     # Upstream v0.21.6 adds these to the turn path (voice route, Anthropic thinking replay,
     # the dead-connection sweep helpers).
     "agent.voice_turn_route", "agent.anthropic_thinking_replay", "agent.agent_runtime_helpers_dead_connections",
+    # ... and the local-runtime capability probe, and the stdlib netrc the HTTP client's
+    # credential lookup imports (the turn-cost guard saw both on turn 0, 2026-10-10).
+    "hermes_cli.local_runtime.capabilities", "netrc",
 )
 
 
@@ -173,7 +176,19 @@ def _warm_sdk_event_parse(agent: Any) -> None:
         pass
 
 
+def _warm_models_dev_catalog() -> None:
+    """Fill upstream's process-wide models.dev cache before turn 0. Since v0.21.6 the first
+    tool-definition build reaches it (``browser_use_cli`` schema -> vision fast path ->
+    ``agent.models_dev.get_model_capabilities``), so an empty cache put the catalogue fetch
+    inside the turn (turn-cost guard, 2026-10-10: ``settle_turn_tools`` 340-450 ms on turn 0,
+    ``fetch_models_dev`` -> ``requests.get``)."""
+    from agent.models_dev import fetch_models_dev
+
+    fetch_models_dev()
+
+
 _STEPS = (
+    ("models_dev_catalog", lambda agent: _warm_models_dev_catalog()),
     ("spinner_catalog", lambda agent: _warm_spinner_catalog()),
     ("request_modules", lambda agent: _warm_request_modules()),
     ("sdk_request_build", _warm_sdk_request_build),
