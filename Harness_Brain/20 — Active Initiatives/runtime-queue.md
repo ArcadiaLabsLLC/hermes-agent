@@ -27,6 +27,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Expose operator-text admission capabilities to the Console composer through the existing runtime connection.** `agent_runtime/operator_message.py::MAX_MESSAGE_LENGTH` owns 64,000 Unicode characters; Launcher `composerResourcesFor` independently consumes an entitlement quota (4,000 fallback) and clamps pasted text. Advertise the runtime admission value and counting unit, then let the existing Launcher composer policy resolve it with product entitlements and show any refusal before send without silently losing a paste. Preserve the server refusal as final authority; do not copy another numeric constant or invent a second quota owner. Launcher consumer: `EterniaLauncher/lib/features/messaging/input/composer_resources_binding.dart`. · content-boundary audit 2026-10-10 · UNCLAIMED
+
 - [ ] **Windowed transcript reads scan the conversation for every requested window.** `agent_runtime/persona_chat_history/content.py` reuses the existing curation and native lineage readers so ownership, redaction and hidden-row policy stay authoritative; each 16K response still pays for reading the session. Add a lineage-aware public indexed content lookup at the existing SessionDB boundary, with curation/redaction parity and revision checks, before optimizing this into another cache or store. Launcher reads only on demand. Evidence: chat-content-integrity implementation; response size is bounded, read cost is not. · UNCLAIMED · **TAKEN 2026-10-10 lane-1010-L1**
 
 ### Filed on arrival — 2026-10-10 (Console history PR #7 review)
