@@ -495,7 +495,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list",
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit",
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -645,8 +645,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         "produced (its combined diff) plus <SHA>..HEAD and working-tree edits (Merging upstream.md step 7)",
     )
     parser.add_argument("--manifest", type=Path, default=None, help="upstream manifest (default tests/fixtures/upstream_manifest.txt)")
+    parser.add_argument(
+        "--git-audit", action="store_true",
+        help="record every git a test runs against this checkout to .pytest_cache/hermes_git_in_checkout.jsonl",
+    )
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
+    if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
+        os.environ["HERMES_TEST_GIT_AUDIT"] = "1"
 
     if any("::" in p for p in args.paths):
         parser.error("node ids are not supported here; run the file with scripts/run_tests.sh")
