@@ -99,6 +99,20 @@ def test_native_branch_revision_pin_is_checked_inside_writer(tmp_path):
         assert db.get_meta("receipt") is None
 
 
+def test_rewind_writer_race_is_a_definite_refusal_with_no_archival(tmp_path, monkeypatch):
+    target, before, _, request = setup(tmp_path, monkeypatch, "rewind")
+    original = SessionDB.rewind_to_message
+    def competing_write(db, session_id, *args, **kwargs):
+        db.append_message(session_id, "user", "A concurrent writer")
+        return original(db, session_id, *args, **kwargs)
+    monkeypatch.setattr(SessionDB, "rewind_to_message", competing_write)
+    result = call("history.apply", request)
+    assert result["error"]["data"]["reason"] == "history_changed"
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        assert len(db.get_messages(target["session_id"])) == len(before) + 1
+        assert db.get_session(target["session_id"])["rewind_count"] == 0
+
+
 def test_profile_switch_rejects_old_install_and_can_return_to_original(tmp_path, monkeypatch):
     a, _, _, request = setup(tmp_path, monkeypatch)
     fixture(tmp_path / "other", monkeypatch, "Other")

@@ -1037,7 +1037,7 @@ class CheckpointManager:
             if not ok:
                 return {"success": False, "reason": "checkpoint_read_failed"}
             ledger = _load_ledger(store, self._ledger_key(working_dir))
-            files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger, index)
+            files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger)
                      for rel in filter(None, names.split("\x00"))]
             ok, diff, _ = _run_git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames",
                                     "-R", commit_hash], store, working_dir, index_file=index)
@@ -1051,7 +1051,7 @@ class CheckpointManager:
         finally:
             _run_git(["read-tree", _ref_name(_project_hash(working_dir))], store, working_dir, index_file=index)
 
-    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: Dict, index: Path) -> Dict:
+    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: Dict) -> Dict:
         path = Path(working_dir) / rel
         reason = None
         if _validate_file_path(rel, working_dir) or path.is_symlink() or any(
@@ -1098,7 +1098,7 @@ class CheckpointManager:
                 receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
                 if receipt["request_digest"] != digest:
                     return {"success": False, "reason": "operation_payload_changed"}
-                return {**receipt["result"], "replayed": True}
+                return {**self._settled_restore_receipt(receipt["result"]), "replayed": True}
             plan = self._restore_preview_locked(working_dir, commit_hash)
             if not plan.get("success"):
                 return plan
@@ -1112,14 +1112,14 @@ class CheckpointManager:
             if not backup or not self._restore_backup_matches(working_dir, backup[0]["hash"], selected_paths):
                 return {"success": False, "reason": "recovery_checkpoint_failed"}
             result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
-                      "failed_files": [], "recovery_checkpoint": backup[0]["hash"], "replayed": False}
+                      "failed_files": [], "review_paths": selected_paths,
+                      "recovery_checkpoint": backup[0]["hash"], "replayed": False}
             self._write_restore_receipt(receipt_path, digest, result)
             for rel in selected_paths:
                 row = by_path[rel]
                 path = Path(working_dir) / rel
                 checked = self._restore_file_preview(working_dir, commit_hash, rel,
-                    _load_ledger(_store_path(), self._ledger_key(working_dir)),
-                    _index_path(_store_path(), _project_hash(working_dir)))
+                    _load_ledger(_store_path(), self._ledger_key(working_dir)))
                 if not checked["eligible"] or checked["current_sha256"] != row["current_sha256"]:
                     result["failed_files"].append({"path": rel, "reason": "workspace_changed"})
                     continue
@@ -1177,7 +1177,18 @@ class CheckpointManager:
             raise ValueError("invalid restore operation")
         with store_lock(_resolve_checkpoint_base()):
             path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
-            return json.loads(path.read_text(encoding="utf-8"))["result"] if path.exists() else None
+            return self._settled_restore_receipt(json.loads(path.read_text(encoding="utf-8"))["result"]) if path.exists() else None
+
+    @staticmethod
+    def _settled_restore_receipt(result: Dict) -> Dict:
+        # Called ONLY while holding the same store lock as restore_preview:
+        # an in-progress writer cannot still own a pending receipt at this point.
+        # A crash left unknown individual writes; report review-required paths
+        # and expose its verified backup, never retry those writes automatically.
+        if result["reason"] != "restore_outcome_unknown":
+            return result
+        return {**result, "reason": "restore_interrupted", "failed_files": [
+            {"path": path, "reason": "review_required"} for path in result.get("review_paths", [])]}
 
     @staticmethod
     def _parse_shortstat(stat_line: str, entry: Dict) -> None:
