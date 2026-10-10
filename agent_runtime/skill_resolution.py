@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from hermes_constants import get_skills_dir
+from agent_runtime import idle_turn_keeper
+from agent_runtime.parse_cache import DiskTier
 from agent_runtime.profile_home import CANONICAL_SHARED_SKILL_IDS, get_shared_skills_dir
 from agent_runtime.skill_root_freshness import (
     TurnRootRegistries,
@@ -348,10 +350,9 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     manifest_aliases: dict[str, list[tuple[Path | None, Path]]] = {}
     for manifest in manifests:
         aliases = {manifest.parent.name}
-        try:
-            frontmatter, _ = _skills.parse_frontmatter(manifest.read_text(encoding="utf-8"))
-        except Exception:
-            frontmatter = {}
+        # The one parser of a manifest (D1.05 CF-1): the compatibility pass reads
+        # the same file through it, so a cold build parses each manifest once.
+        frontmatter = _cached_skill_frontmatter(manifest)
         declared = str(frontmatter.get("name") or "").strip()
         if declared:
             aliases.add(declared)
@@ -793,7 +794,21 @@ def _cached_skill_frontmatter(skill_md: Path) -> Dict[str, Any]:
         frontmatter, _ = _skills.parse_frontmatter(path.read_text(encoding="utf-8"))
         return frontmatter if isinstance(frontmatter, dict) else {}
 
-    return cached_by_mtime(skill_md, _load, default={})
+    return cached_by_mtime(skill_md, _load, default={}, disk=_FRONTMATTER_DISK)
+
+
+def flush_skill_frontmatter_disk_cache() -> bool:
+    """Write this process's fresh frontmatter parses to the store's derived cache."""
+    return _FRONTMATTER_DISK.flush()
+
+
+def _schedule_frontmatter_flush() -> None:
+    # The write-back runs on the idle keeper's tick, never on the turn thread.
+    idle_turn_keeper.register_refresh("skill_frontmatter_disk", flush_skill_frontmatter_disk_cache)
+
+
+#: D1.05 CF-2: the cross-process tier under the frontmatter memo.
+_FRONTMATTER_DISK = DiskTier("skill_frontmatter.json", on_dirty=_schedule_frontmatter_flush)
 
 def skill_runtime_compatibility(
     candidate: SkillResolutionCandidate | None,

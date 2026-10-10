@@ -348,6 +348,26 @@ which Windows preserves across copies — a copied store with same stamps and di
 is the one false hit; decision rule: also key on the manifest's inode-equivalent where the
 platform reports one, else accept (the same rule `parse_cache._stamp` already applies).
 
+**Build record (lane build-1011-B2, 2026-10-10).**
+- **CF-1 BUILT `defbee0ae6f`.** As planned. 2,000 manifests, cold process: 9.3–9.8 s / 4,000
+  parses → 5.3–6.1 s / 2,000.
+- **CF-2 BUILT `e05a8524f4`.** As planned, with two code-led differences: the entry is
+  validated by the memo's full stamp (dev, ino, ctime_ns, mtime_ns, size), and the cache
+  dir (`paths.DERIVED_CACHE_DIRNAME = "derived_cache"`) is excluded from the core cache's
+  store-root fingerprint as well as from realm sync — without the first, the idle flush
+  flips the core key every boot. Cold child, 2,000 manifests: 7.7–8.1 s → 1.6–1.7 s, 0 parses.
+  The write-back rides the idle keeper, which arms only after a serve's first
+  `request_sent`: a serve that boots and never takes a turn, and every CLI child, read the
+  cache but do not write it.
+- **CF-3 BUILT `9dc0b2ad19`.** Probe memo as planned, keyed on
+  `hermes_cli.auth.authentication_owner_stamps()` (the existing owner of that identity);
+  11 probes 197–210 ms → 42 ms. Kanban: measured, not built — 3.0 ms per tagged skill,
+  0.1 µs untagged, 1.3 s first-call import; its only caller is upstream
+  `tools/skills_tool._skill_catalog`, so the memo needs an upstream door. Residue named by
+  the gate: the upstream catalog walk parses every manifest itself (60 of 60 in the cold
+  child). Gate: `test_stream_relay.py` cold child, budgets 3,500 / 200 ms (2× the median),
+  plus a count — the fork's own manifest parses in a primed child are 0.
+
 ### D1.06 = L1.20 — `harness serve` cold boot: interpreter_ms 15,203 of total_ms 21,592
 
 **Verdict: INVESTIGATION** — the segments exist; which of them is I/O and which is CPU is not
@@ -576,6 +596,26 @@ transport if that reach is public, else not at all.
 **Owner question (blocks S3 only):** is a reach into the MCP SDK's stdio transport process
 handle acceptable as a seam row (`upstream-footprint-ledger.md` § Door map), or does the MCP
 host stay under the Launcher's `orphan_mcp_reap_policy` by ancestry?
+
+**Build record (lane build-1011-B2, 2026-10-10).**
+- **S1 BUILT `8ac3468730`.** `agent_runtime/process_index.py` as planned (atomic write, never
+  raises, `forget_child` removes only an identity this process recorded). Wired: the dispatch
+  child (`local._spawn_child` records, the supervisor forgets after the pumps are released)
+  and the sign-in child (`_PopenChild` records; `lines()` end and `terminate()` forget). The
+  byte format is pinned against `tests/fixtures/process_index/`, a byte copy of the
+  Launcher's `test/fixtures/process_index/` (launcher `7c88e35fc0`); `started_at_ticks` is
+  `serve_registry.default_process_probe().start_time` — centiseconds since the epoch off
+  Linux, the Launcher's `missionServeObservedStart` unit. Tests keep the operator's index
+  untouched through the autouse `_isolate_launcher_process_index` fixture.
+- **S2 BUILT `10396deaa3`** for the native conversation worker: `NativePeer` records the launcher
+  pid at construction and the worker pid at `bind_worker_identity`, and forgets both in
+  `_dispose`. The `hermes_cli/bundled_app.py` site is NOT built: the file is upstream (the
+  table above says fork), and `launch_detached` starts the desktop app for `hermes desktop`,
+  which then exits — not a hermes child of a serve.
+- **S3 DROPPED** by the owner ruling below: no seam into the MCP SDK stdio transport; MCP
+  hosts stay with the Launcher's `orphan_mcp_reap_policy`.
+- Owed on the launcher side (not this lane): a `hermes_child` entry in the Launcher's
+  `test/fixtures/process_index/` decoded by its reader, so the pin runs both ways.
 
 ## Cluster D — per-turn caches on upstream-shaped work (D1.10, D1.11, D1.12)
 

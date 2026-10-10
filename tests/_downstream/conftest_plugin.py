@@ -452,6 +452,24 @@ def _reset_snapshot_catalog_memos():
 
 
 @pytest.fixture(autouse=True)
+def _isolate_launcher_process_index(tmp_path, monkeypatch):
+    """Keep hermes' process-index entries out of the operator's real Launcher index (D1.09).
+
+    ``agent_runtime.process_index`` writes ``<pid>.json`` under
+    ``%LOCALAPPDATA%\\EterniaLauncher\\process_index``, which ``_hermetic_environment``
+    does not redirect; a test that reaches a spawn site would otherwise name its
+    pid in the directory the operator's Launcher sweeps. In-process only, like
+    the shim fixture below.
+    """
+    from agent_runtime import process_index
+
+    monkeypatch.setattr(process_index, "index_directory", lambda: tmp_path / "launcher-process-index")
+    process_index.reset_for_tests()
+    yield
+    process_index.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_hermes_shim_dir(tmp_path, monkeypatch, _hermetic_environment):
     """Keep `hermes postinstall`'s PATH shim out of the developer's real home.
 
