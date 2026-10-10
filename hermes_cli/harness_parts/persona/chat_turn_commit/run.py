@@ -713,6 +713,7 @@ class _RunPhases:
             model_selection=self.model_selection,
             turn_usage=turn_usage_from_result(chat_result),
             trace_events=self.trace_payloads,
+            persona=self.persona,
         )
         if turn_context.skills.missing:
             prompt_context["queued_skill_load_errors"] = [
