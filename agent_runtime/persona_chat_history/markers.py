@@ -108,6 +108,27 @@ def _silent_turn_marker_row(
     return marker_row
 
 
+def _retried_as_by_origin(records: list[dict[str, Any]]) -> dict[str, str]:
+    """``origin client_message_id -> the newest retry naming it`` (D2.04).
+
+    ``retry_of`` is stored once, on the retry's own record; the origin is a
+    terminal record and is never written again, so its ``retried_as`` is this
+    lookup. Newest by ``updated_at``; a retry of a retry chains naturally, each
+    marker naming its own successor.
+    """
+
+    newest: dict[str, tuple[str, str]] = {}
+    for record in records:
+        origin = safe_assignment_text(record.get("retry_of"), limit=240)
+        retry = safe_assignment_text(record.get("client_message_id"), limit=240)
+        if not origin or not retry:
+            continue
+        stamp = str(record.get("updated_at") or "")
+        if origin not in newest or stamp >= newest[origin][0]:
+            newest[origin] = (stamp, retry)
+    return {origin: retry for origin, (_stamp, retry) in newest.items()}
+
+
 def _terminal_turn_marker_rows(
     *,
     session_id: str,
@@ -136,6 +157,7 @@ def _terminal_turn_marker_rows(
     rows: list[dict[str, Any]] = []
     if records is None:
         records = mission_chat_turn_records(session_id=session_id)
+    retried_as = _retried_as_by_origin(records)
     for record in records:
         state = safe_assignment_token(record.get("state"))
         marker = TERMINAL_TURN_MARKERS.get(state or "")
@@ -164,6 +186,8 @@ def _terminal_turn_marker_rows(
             # row (a turn has a reply or a marker, never both).
             "turn_seq": TURN_SEQ_TERMINAL,
         }
+        if client_message_id in retried_as:
+            marker_row["retried_as"] = retried_as[client_message_id]
         _carry_run_budget(marker_row, record)
         rows.append(marker_row)
     return rows
