@@ -46,7 +46,7 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
     scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
     scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
 
@@ -506,7 +506,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
-    "--file-retries", "--unbundled-list", "--scope", "--since", "--manifest",
+    "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
     "--bundle-seconds", "--solo-seconds", "--skip-list",
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
@@ -647,9 +647,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
         "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
     )
-    parser.add_argument(
+    change = parser.add_mutually_exclusive_group()
+    change.add_argument(
         "--since", default=_DEFAULT_SINCE, metavar="REF",
         help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE})",
+    )
+    change.add_argument(
+        "--since-merge", metavar="SHA", help="--scope fork after a release merge: the change is what the merge "
+        "produced (its combined diff) plus <SHA>..HEAD and working-tree edits (Merging upstream.md step 7)",
     )
     parser.add_argument("--manifest", type=Path, default=None, help="upstream manifest (default tests/fixtures/upstream_manifest.txt)")
     parser.add_argument("paths", nargs="*", metavar="PATH")

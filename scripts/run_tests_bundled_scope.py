@@ -7,7 +7,9 @@ reaches (``select_scope``): the file itself changed, its convention-mapped
 source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
 a changed module, or a ``conftest.py`` above it changed. The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
-working-tree edits. ``full`` runs everything discovered — the weekly upstream
+working-tree edits; after a release merge it is ``--since-merge <merge>``
+(``changed_paths_for_merge``: what the merge itself produced, plus what came
+after it). ``full`` runs everything discovered — the weekly upstream
 merge lane, where the inherited set is the thing under test. In BOTH scopes a
 file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
 P0 freeze files) does not run unless it is named on the command line.
@@ -51,24 +53,62 @@ def load_manifest(path: Path) -> set[str]:
     return out
 
 
+def _git(repo_root: Path, *args: str) -> str:
+    """``git -C <repo_root> <args>``'s stdout. Raises ``RuntimeError`` when git
+    cannot answer, so an unknown diff is never read as an empty one."""
+
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
+    return proc.stdout
+
+
+def _git_paths(repo_root: Path, *args: str) -> set[str]:
+    return {Path(line.strip()).as_posix() for line in _git(repo_root, *args).splitlines() if line.strip()}
+
+
 def changed_paths(repo_root: Path, since: str) -> set[str]:
     """Paths the work under test changed: ``git diff --name-only <since>...HEAD``
     plus the tracked working-tree edits (``git diff --name-only HEAD``). Raises
     ``RuntimeError`` when git cannot answer, so an unknown diff is never read
     as an empty one."""
 
-    import subprocess
-
     out: set[str] = set()
     for spec in ([f"{since}...HEAD"], ["HEAD"]):
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only", *spec],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"git diff --name-only {' '.join(spec)} failed: {proc.stderr.strip()}")
-        out.update(Path(line.strip()).as_posix() for line in proc.stdout.splitlines() if line.strip())
+        out |= _git_paths(repo_root, "diff", "--name-only", *spec)
     return out
+
+
+def merge_parents(repo_root: Path, merge_sha: str) -> List[str]:
+    """``merge_sha``'s parents; ``RuntimeError`` unless it is a merge HEAD descends from."""
+
+    parents = _git(repo_root, "rev-list", "--parents", "-n", "1", merge_sha).split()[1:]
+    if len(parents) < 2:
+        raise RuntimeError(f"--since-merge {merge_sha} is not a merge commit")
+    try:
+        _git(repo_root, "merge-base", "--is-ancestor", merge_sha, "HEAD")
+    except RuntimeError:
+        raise RuntimeError(f"--since-merge {merge_sha} is not an ancestor of HEAD") from None
+    return parents
+
+
+def changed_paths_for_merge(repo_root: Path, merge_sha: str) -> set[str]:
+    """The change a release merge's gate tests (D3.07): the paths whose blob
+    differs from BOTH parents of ``merge_sha`` (git's combined diff — the
+    merge's resolutions and the fork hunks it re-applied onto upstream's new
+    versions), plus ``<merge>..HEAD`` (the ``fix(merge)`` commits) and the
+    working-tree edits. An upstream change the merge took verbatim is not in
+    it: upstream tested it at the tag, and ``--scope full`` remains the weekly
+    lane's instrument for the whole inherited set."""
+
+    merge_parents(repo_root, merge_sha)
+    merged = _git_paths(repo_root, "diff-tree", "-c", "--no-commit-id", "--name-only", "-r", merge_sha)
+    return merged | changed_paths(repo_root, merge_sha)
 
 
 def module_of(rel: str) -> Optional[str]:
@@ -211,7 +251,10 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
         manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
         try:
             inherited = load_manifest(manifest)
-            changed = changed_paths(repo_root, args.since)
+            if args.since_merge:
+                changed, since = changed_paths_for_merge(repo_root, args.since_merge), f"merge {args.since_merge}"
+            else:
+                changed, since = changed_paths(repo_root, args.since), args.since
         except (OSError, RuntimeError) as exc:
             print(
                 f"error: --scope fork cannot tell fork from inherited files: {exc}\n"
@@ -221,7 +264,7 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
             return None
         sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows)
         print(
-            f"Scope fork (since {args.since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
+            f"Scope fork (since {since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
             f"(touched {len(sel.touched)}, source {len(sel.source)}, importer {len(sel.importer)}, "
             f"conftest {len(sel.conftest)}, named {len(sel.named)}); "
