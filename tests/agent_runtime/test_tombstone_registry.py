@@ -3808,6 +3808,17 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "docs/downstream/session-skills.md",
         "docs/downstream/session-skills-verification.md",
     ),
+    *rows(
+        # Lane 1010-L5 (2026-10-10): dead-code queue row (landing
+        # prep/hermes-waves-reviewed) — the caller was retired by 33069ca1fc.
+        "s-1010-l5",
+        "HEAD",
+        Form.CODE,
+        "the client workspace-claim check; mission-chat message takes no "
+        "workspace claim since 33069ca1fc, so nothing reads one",
+        "workspace_claim_disagreement",
+        scope=_AR,
+    ),
 )
 
 

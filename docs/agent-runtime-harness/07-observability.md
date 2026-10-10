@@ -508,10 +508,8 @@ resolution the Runtime Situation scope line is named from, carried on the turn
 context as `lane_workspace`). The `--workspace-id` / `--workspace-name` a client
 passes on `mission-chat message` never decide it (2026-10-05): a client knows
 which workspace it was showing, not where the turn ran, and for a lane placed
-elsewhere the row used to name the wrong one. They are read for one thing: a
-claim that differs from the resolved workspace is logged as
-`client_workspace_claim_differs` with both sides named
-(`agent_runtime/workspace_scope.py::workspace_claim_disagreement`).
+elsewhere the row used to name the wrong one. The flags were retired
+(`33069ca1fc`); the verb takes no workspace claim at all.
 Two consumers: the live `chat.final`
 echo carries a slimmed projection (`slim_chat_final_observability`,
 `agent_runtime/prompt_observability/turn_results.py:107`); evicted rows are
