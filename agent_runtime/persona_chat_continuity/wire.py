@@ -227,6 +227,10 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     # Upstream owns the message shape (reasoning, compression, durable identity
     # and repair metadata). Change our fields without rebuilding its allowlist.
     result: dict[str, Any] = {**message, "role": role, "content": content}
+    # Readable API text has the same redaction contract as displayed text;
+    # opaque reasoning/signature metadata remains upstream-owned.
+    if isinstance(result.get("api_content"), str):
+        result["api_content"] = _redacted(result["api_content"])
     for key in (
         "tool_call_id",
         "tool_name",

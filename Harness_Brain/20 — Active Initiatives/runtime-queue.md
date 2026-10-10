@@ -444,6 +444,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-10 (native representation follow-up)
+
+- [ ] **Native persistence captures `api_content` before the fork redacts the message, leaving readable credentials in the SQLite sidecar.** · seam / `agent/session_persistence.py::_db_flush_row` captures the local value before `agent_runtime/native_persistence.py::project_native_message`; isolated real-flush probes on baseline `f43ffb8efe` and the representation repair both retain the fixture secret in storage, while the repair redacts live and cold model projections. Use the existing projection/persistence seam to persist the redacted sidecar without a second store or policy; preserve upstream replay parity and opaque reasoning fields. Evidence: [qualification](../../docs/downstream/native-representation-2026-10-10.json), `sidecar_storage`. · UNCLAIMED
+
 ### Filed on arrival — 2026-10-10 (release merge v0.21.6 reds)
 
 - [ ] **`get_plugin_manager` adopts a monkeypatched `_plugin_manager` under whatever home is current, so a call under the skills-home override (session DB parent) keys it away from the real home; the fork's provider_access discovery during AIAgent construction leaves the real-home slot already occupied** · seam (`agent/prompt_builder.py` extra_roots, plugin manager adoption) · `fd1e4cfde6` commit body (lane fix/v0216-c) · lane: key adoption by the real home

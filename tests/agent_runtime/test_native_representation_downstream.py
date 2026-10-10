@@ -175,6 +175,18 @@ def test_plain_json_arrays_keep_types_and_redact_nested_credentials():
     assert bound.holds
 
 
+@pytest.mark.parametrize("role", ["user", "assistant"])
+def test_api_text_sidecar_keeps_its_shape_and_redacts_on_live_and_cold_projection(db, role):
+    agent = _Agent(db)
+    sidecar = "context " * 4000 + "api_key=sidecar-secret"
+    messages = [{"role": role, "content": "display text", "api_content": sidecar}]
+    assert agent._flush_messages_to_session_db(messages)
+    for rows in (messages, _replay(agent)):
+        assert rows[0]["api_content"].startswith("context " * 4000)
+        assert "sidecar-secret" not in rows[0]["api_content"]
+        assert rows[0]["content"] == "display text"
+
+
 def test_distinct_durable_messages_are_not_deduplicated_by_equal_text():
     rows = [
         {"role": "assistant", "client_message_id": "turn", "content": "same", "message_uid": "first"},
