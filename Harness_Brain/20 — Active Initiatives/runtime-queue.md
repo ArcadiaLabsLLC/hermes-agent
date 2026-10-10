@@ -27,6 +27,24 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-10 (Console history PR #7 review)
+
+These are defects in the staged implementation that the two history rows under "launcher transcript capability audit" reuse. Fix them on the PR branch before landing. Evidence for every row: [review note](../../docs/agent-runtime-harness/planned/console-history-controls-review-2026-10-10.md).
+
+- [ ] **The writer's native guard refusals (`SessionTurnLeaseLostError`, `SessionCompressionInProgressError`, `CompressionSessionClosedError`) surface as `turn_outcome_unknown` for a rolled-back no-op.** `agent_runtime/operator_history.py` maps only `SessionActiveWriteGuardError` · review finding 1 · UNCLAIMED
+- [ ] **The new non-blocking `chat_history_admission_lock` wraps every `reserve_chat_turn`, so concurrent accepts on one scope (or any accept during a restore) get `chat_turn_lock_unavailable` with a wrong reason.** `agent_runtime/chat_turn_reservations.py` · review finding 2 · UNCLAIMED
+- [ ] **`require_history_idle` treats orphaned ACCEPTED receipts as busy, so a serve killed mid-turn blocks branch, rewind and restore for good; an orphaned new-chat receipt blocks every chat of the instance or persona.** `agent_runtime/operator_history.py` · review finding 3 · UNCLAIMED
+- [ ] **The checkpoint `store_lock` `PruneError` is unmapped, so restore says "outcome unknown" when nothing ran; a preview holding the profile-wide lock makes other chats skip pre-edit snapshots.** `agent_runtime/operator_checkpoints.py`, `tools/checkpoint_manager.py` · review finding 4 · UNCLAIMED
+- [ ] **Minor items from the history review:**
+  - curation read outside its typed try;
+  - restore validates its target after taking the write scope;
+  - agent-deleted files cannot be restored;
+  - stale footprint-fixture prose;
+  - no Seams row for the fork-only `hermes_state_history_controls.py`;
+  - the rewind kill-mutation does not discriminate, and the listed test gaps remain.
+
+  · review findings 5 and "Test quality" · UNCLAIMED
+
 ### Filed on arrival — 2026-10-10 (release merge v0.21.6 reds)
 
 - [ ] **Provider access runs a full `discover_plugins()` on every first credential read (`agent/provider_access.py::current_access`, the `_auth_file_path` seam): v0.21.6 enables 53 plugins (was 22), discovery 283 ms → ~1.4–1.6 s per process; reds upstream test_model_info_probe_timeout and test_anon_surfaces** · fork-owned runtime · lane fix/v0216-d report · design lane plan/v0216-discovery-design (Fable) **TAKEN 2026-10-10 Opus 5.5 (owner session)**
