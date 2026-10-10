@@ -151,21 +151,6 @@ def _no_posix_file_modes() -> bool:
         return stat.S_IMODE(os.stat(probe).st_mode) != 0o600
 
 
-@_cached
-def _no_posix_exec_bit() -> bool:
-    """True where a file cannot carry an executable bit.
-
-    Windows decides executability by extension, not by mode, so a git tree
-    built from the filesystem reports every blob as "file" and never "exec".
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        probe = os.path.join(tmp, "exec_probe")
-        with open(probe, "w", encoding="utf-8"):
-            pass
-        os.chmod(probe, 0o755)
-        return not os.stat(probe).st_mode & stat.S_IXUSR
-
-
 def _no_af_unix() -> bool:
     """True where socket.AF_UNIX is absent, so no unix socket can be bound."""
     return not hasattr(socket, "AF_UNIX")
@@ -229,17 +214,6 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'and they now pass',
             {
                 'TestAtomicWrite::test_patch_routes_through_atomic_write',
-            },
-        ),
-    ],
-    'test_skills_sync_client.py': [
-        (
-            _no_posix_exec_bit,
-            'expects a git blob mode of "exec"; this filesystem carries no '
-            'executable bit (Windows decides executability by extension), so '
-            'the tree builder correctly reports "file"',
-            {
-                'TestObjectBuilding::test_build_tree_blob_and_exec',
             },
         ),
     ],
@@ -430,7 +404,6 @@ def pytest_terminal_summary(terminalreporter):  # noqa: D401 — pytest hook
 __all__ = [
     "_cached",
     "_no_posix_file_modes",
-    "_no_posix_exec_bit",
     "_no_af_unix",
     "_no_process_groups",
     "_ENV_GAP_SKIPS",
