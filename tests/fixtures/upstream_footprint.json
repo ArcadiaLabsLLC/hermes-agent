@@ -1,10 +1,22 @@
 {
-  "measured_at": "2026-10-08",
+  "measured_at": "2026-10-10",
   "base": "818c13be1d",
-  "files": 191,
+  "files": 193,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "lane build-1011-B5 (design sweep D3.02, owner-ruled 2026-10-10): one additive guard in hermes_state_repair.preflight_db_writability skips a sidecar that no longer exists",
+      "files": "192 -> 193: hermes_state_repair.py (2 added, 0 deleted: the guard and its continue)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "os.access is False for a missing path, so a -wal/-shm SQLite unlinked between the preflight's listing and its access check (the last WAL connection closed) raised 'state.db is not writable ... -wal is read-only' on a writer open. Reproduced deterministically before the fix. Carried until the upstream PR can open; ledger row carry."
+    },
+    {
+      "change": "lane build-1011-B5 (design sweep D3.15, owner-ruled 2026-10-10): one additive guard in scripts/install.ps1 Set-LauncherUserPath honours HERMES_REGISTRY_WRITE_FENCE=1",
+      "files": "191 -> 192: scripts/install.ps1 (2 added, 0 deleted: a comment and the guarded early return)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "the Python audit-hook fence cannot see PowerShell, and install.ps1 driven by tests/scripts/test_install_ps1_desktop_stage.py (and the launcher's installer path) leaked <home>\bin onto the operator's user PATH. The marker is an env var both the pytest fence and the launcher sandboxes already export, so no caller changes. Carried until the upstream PR (-SkipUserPath + env honour) can open; ledger row carry."
+    },
     {
       "change": "release merge v0.21.6 (lane rel-0216): manifest re-based ee5f49b943 -> 818c13be1d (the tag), tirith retired, the daily branch's fix(merge) commits carried",
       "files": "184 -> 185: -4 tirith rows gone (cli.py, gateway/run.py, tools/approval_context.py, tools/tirith_security.py); +5 carried daily repairs on upstream files: agent/auxiliary_local_runtime.py (6/1) and tui_gateway/methods_complete.py (3/0) phone import boundaries (2230b236ea), tests/gateway/test_api_server_active_work_drain.py (2/0, c7769e4599), tui_gateway/methods_session_branch.py (2/0) and tui_gateway/methods_session_interrupt.py (7/0): the fork's session_construction scope and execution-id interrupt fence, re-homed because upstream moved both handlers out of methods_session.py (9e0e7183ff, de4637743f)",

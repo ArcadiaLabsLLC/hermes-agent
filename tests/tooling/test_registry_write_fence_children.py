@@ -13,6 +13,9 @@ A minimal tree that ships ``hermes_bootstrap`` without ``hermes_cli/_registry_wr
 must still start and still fence (the bootstrap's inline fallback): the ``absent`` case
 blocks that one module in the child.
 
+The PowerShell writer (``scripts/install.ps1::Set-LauncherUserPath``) honours the same inherited
+marker: ``tests/scripts/test_install_ps1_path_fence_downstream.py`` (D3.15), not a second mechanism.
+
 Mutation: replace the ``_fence_registry()`` call in ``hermes_bootstrap.py`` with ``pass``
 -> every ``test_an_inherited_child_*`` case is red (the child prints WROTE).
 Mutation: make the bootstrap's fallback ``_fence_registry`` a no-op -> the ``absent`` case

@@ -98,6 +98,8 @@ run, rather than warn, while another heavy process is alive? Default here: refus
 
 **Verdict: PLAN** (cause named from the code; the reproducer is stage 1 and decides it).
 
+**BUILT `7496ce9784`** (lane build-1011-B5, 2026-10-10): stage 1 reproduced on the unchanged tree (`-wal is read-only`), stage 2 guard + ledger row + fixture 186 -> 187. Stage 3 not measurable on this box: the test venv's SQLite 3.50.4 falls back to `journal_mode=DELETE`, so no `-wal` appears.
+
 **Decision and why.** `hermes_state_repair.preflight_db_writability` (upstream) builds its
 list as `[(p, False) for p in (db_path, *sidecars) if p.is_file()]`, then tests each with
 `os.access(p, os.R_OK | os.W_OK)`. `os.access` returns False for a path that does not exist.
@@ -201,6 +203,8 @@ that cannot be made additive without a wrapper, which is still a deletion at the
 
 **Verdict: PLAN** (the second path is named; the test gets a deterministic shape and a
 killing mutation).
+
+**BUILT `365ccfa725`** (lane build-1011-B5, 2026-10-10): stages 0, 2, 3. Code differs from this section: the consumer is `_Subscription._pump`, path (b) also releases via `_on_stream_drop -> _release_subscription`, and stage 0 saw both orders in three runs ((b) does not almost always win). The sibling test holds `_on_connection_closed` until the hub lets go, so (b) is deterministic.
 
 **Decision and why.** `tests/agent_runtime/test_serve_socket_lane.py::test_a_disconnect_unsubscribes_and_does_nothing_else`
 subscribes a `leaver` to `_fake_stream`, which yields a `delta` every 5 ms, closes the
@@ -721,6 +725,8 @@ run is the 25 files.
 
 **Verdict: PLAN** (one mechanism: the fence marker the writers must honour; the launcher's
 sandbox exports it already).
+
+**BUILT `805f8293c9` (stage 1), `4045fa25c8` (stage 2)** (lane build-1011-B5, 2026-10-10): the guard + fork test + ledger row (fixture 185 -> 186); the killing mutation ran on this box and wrote the user PATH twice (the runner re-runs a red file), both restored byte-identical at once. `prune_user_path.ps1` lists 29 of 55 entries (23 temp homes, 6 missing dirs); `-Apply` is the operator's. OPEN: stage 0 (Process Monitor on a launcher sandbox run, owner's box) and stage 3 (the upstream PR body).
 
 **Decision and why.** Three writers put `<home>\bin` on `HKCU\Environment\Path`:
 `hermes_cli/_launchers.py::_register_windows_user_path` (upstream, `winreg.SetValueEx`),
