@@ -3046,6 +3046,9 @@ def _format_gateway_process_notification(evt: dict) -> "str | None":
     if evt_type in ("async_delegation", "heartbeat"):
         from tools.process_registry_notifications import format_process_notification
         return format_process_notification(evt)
+    if evt_type == "mcp_job_finished":  # fork: an MCP server's job wake (tools/mcp_job_wake.py)
+        from tools.process_registry_notifications import format_process_notification
+        return format_process_notification(evt)
 
     return None
 
@@ -3067,6 +3070,8 @@ def _drain_gateway_watch_events(completion_queue) -> "list[dict]":
             watch_events.append(evt)
         elif evt_type == "async_delegation":
             requeue.append(evt)
+        elif evt_type == "mcp_job_finished":  # fork: no per-process watcher owns an MCP job wake
+            watch_events.append(evt)
         # else: process completion events are handled by the watcher task
     for evt in requeue:
         completion_queue.put(evt)

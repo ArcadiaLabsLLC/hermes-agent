@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-08",
   "base": "818c13be1d",
-  "files": 185,
+  "files": 186,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -552,6 +552,12 @@
       "files": "173 -> 173: agent/auxiliary_client.py was already in the footprint",
       "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
       "reason": "the title call closed the process-shared pool's warm connection mid-body, so a chat's next turn paid a new TLS connection; the adapter's stream has no hook between consume and close. Held-PR row in the upstream footprint ledger"
+    },
+    {
+      "change": "lane 1011-M2 (M2.01, 2026-10-10): two additive branches in gateway/run.py — _drain_gateway_watch_events keeps an mcp_job_finished event and _format_gateway_process_notification renders it through format_process_notification",
+      "files": "185 -> 186: gateway/run.py re-enters the footprint (5 added lines, 0 deleted)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "the gateway drain discarded every type but watch/heartbeat/async_delegation, so a fork MCP job wake (tools/mcp_job_wake.py) queued in a gateway process was eaten, never delivered; both functions are upstream with no door and no caller-side seam. Held-PR row in the upstream footprint ledger (generic: requeue or route unknown event types)"
     }
   ]
 }
