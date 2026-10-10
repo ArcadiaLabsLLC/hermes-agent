@@ -245,17 +245,19 @@ def read_chat_turn_receipt(turn_request_id: str) -> ChatTurnRecord | None:
     return _read_turn_record(path, digest=digest) if path.is_file() else None
 
 
-def unsettled_chat_receipts(session_scope: str) -> list[ChatTurnRecord]:
+def unsettled_chat_receipts(session_scope: str, *, peer_prefix: str | None = None) -> list[ChatTurnRecord]:
     """Recover the pre-journal admission window from its existing authority."""
     records = (_read_turn_record(path, digest=path.stem)
                for path in paths.chat_turn_reservations_dir().glob("*.json"))
     return [record for record in records
-            if record.session_scope == session_scope and record.state == STATE_ACCEPTED]
+            if record.state == STATE_ACCEPTED and (record.session_scope == session_scope or
+                (peer_prefix and record.session_scope.startswith(peer_prefix)
+                 and record.session_scope.partition('/')[2] == session_scope))]
 
 
 @contextmanager
 def reserve_chat_turn(
-    *, turn_request_id: str, verb: str, session_scope: str
+    *, turn_request_id: str, verb: str, session_scope: str, admission_scope: str | None = None
 ) -> Iterator[ChatTurnReservation]:
     """Open (or replay) the accept receipt for one remote chat turn.
 
@@ -279,7 +281,8 @@ def reserve_chat_turn(
         )
     digest = turn_request_digest(key)
     try:
-        with chat_turn_reservation_lock(digest):
+        from .locks import chat_history_admission_lock
+        with chat_history_admission_lock(admission_scope or session_scope), chat_turn_reservation_lock(digest):
             path = paths.chat_turn_reservation_path(digest)
             if path.exists():
                 record = _read_turn_record(path, digest=digest)

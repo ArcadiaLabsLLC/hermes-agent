@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import errno
 import os
 from pathlib import Path
@@ -66,6 +67,15 @@ else:
 
 class HarnessLockUnavailable(RuntimeError):
     pass
+
+
+@contextlib.contextmanager
+def chat_history_admission_lock(session_scope: str) -> Iterator[None]:
+    """Order send acceptance and history edits before either enters its writer."""
+    digest = hashlib.sha256(session_scope.encode("utf-8")).hexdigest()
+    with _file_lock(paths.store_root() / "chat_history_locks" / f"{digest}.lock",
+                    timeout_seconds=0.0):
+        yield
 
 
 @contextlib.contextmanager
