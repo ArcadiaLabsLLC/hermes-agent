@@ -95,6 +95,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_local_runtime.py::test_idle_sweep_unloads_idle_models": (
         pytest.mark.timeout(90),
     ),
+    # Two fetches of https://127.0.0.1:9, each of which uv retries three times
+    # (~15 s apiece): 36.97 s green on pure tag v0.21.6 818c13be1d, 2026-10-10.
+    "tests/pm/test_plugin_survival_contract.py::"
+    "test_update_sync_retries_a_fetch_failure_once_before_disabling": (pytest.mark.timeout(90),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"

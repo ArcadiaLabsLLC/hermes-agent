@@ -146,6 +146,7 @@ _NODES = (
         'tests/plugins/memory/test_holographic_profile_db_path.py::test_save_config_stores_only_this_profiles_default_path_as_the_placeholder[display]',
         'tests/pm/test_build_operations.py::test_frozen_export_preserves_git_commit_pin',
         'tests/pm/test_custom_root_union.py::test_home_layout_joins_sibling_union[default]',
+        'tests/pm/test_plugin_survival_contract.py::test_update_sync_survives_unreadable_secondary_profile',
         'tests/pm/test_pm_authority.py::test_failed_replacement_preserves_entry_and_facts[replacement-install-verify]',
         'tests/pm/test_pm_authority.py::test_failed_restore_preserves_both_interrupted_versions',
         'tests/pm/test_runtime_gc.py::test_lease_taken_while_a_peer_pruned_it_is_retaken',
