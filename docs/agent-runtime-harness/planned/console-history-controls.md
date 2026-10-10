@@ -1,6 +1,6 @@
 # Console history controls — audit and implementation contract
 
-Status: audited design; implementation and verification pending. 2026-10-09.
+Status: implemented on feature branches; focused verification in progress. Not landed. 2026-10-09.
 Scope: operator Console branching, conversation rewind, and filesystem checkpoint
 inspection/restoration. Failure navigation and retry lineage are separate work.
 
@@ -111,4 +111,27 @@ server still returns a durable operation receipt for recovery.
    mutation and recorded red; required repository gates and native Stage C proof.
    Only then mark queues complete, land, and sync both primary checkouts last.
 
-No production operation is implemented or proven by this document or a UI mock.
+## Implementation and evidence
+
+`operator_history.py` owns exact-target history preview/apply/status and shared
+send admission; `hermes_state_history_controls.py` is the native transaction door.
+`operator_checkpoints.py` resolves the profile/workspace and calls the existing
+CheckpointManager's reviewed API. `serve_rpc/operator_history.py` publishes both
+without blocking the serve reader. `persona_chat_history/history_evidence.py`
+projects retained activity against native membership; it queries archive identity
+columns rather than materializing old message bodies on every history read.
+
+The Launcher uses its existing prompt menu, chat sheet, draft registry and host
+selection. A local write-ahead receipt pointer survives closing/restarting the UI;
+only the runtime receipt confirms an outcome. Conversation-menu recovery stays
+reachable after rewinding the first prompt. History invalidation retires pending
+cache reads, and rewind waits on the existing host's fresh snapshot owner.
+
+Focused positive checks so far: 84 history/curation/attachment/checkpoint tests,
+plus the real checkpoint RPC round trip and native profile configuration test.
+Additional interruption, partial restore, UI recovery, mutation and landing gates
+remain in progress. A UI mock is design evidence only.
+
+The upstream API widenings are held PR candidates: SessionDB mixin admission,
+optional writer digest/receipt and its carrier-aware rewind forwarding, and the
+additive CheckpointManager preview/apply/status API. The ledger owns their footprint.
