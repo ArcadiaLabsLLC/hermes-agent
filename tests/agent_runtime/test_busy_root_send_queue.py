@@ -327,3 +327,98 @@ def test_a_blocked_turn_on_one_root_does_not_hold_a_queued_send_on_another(
     assert [cmid for cmid in ran if cmid.startswith("cm-a")] == ["cm-a1", "cm-a2"]
     assert not chat_root_send_queue.has_entries(root_a)
     assert not chat_root_send_queue.has_entries(root_b)
+
+
+# --------------------------------------------------------------------------- #
+# Only an OPERATOR send queues; the drain waits for a running queued turn       #
+# --------------------------------------------------------------------------- #
+
+
+def test_an_in_process_door_caller_with_no_sender_root_is_refused_not_queued(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """A discussion member turn (``discussions/native.py``) has no
+    ``requested_by_session`` but takes its reply on a ``payload_sink`` inside its
+    own call. Queued, it would read "uncertain" and the turn would run later
+    outside the discussion's scope — it keeps ``chat_busy``."""
+
+    handler = _install_chat_lane(monkeypatch)
+    calls = _count_provider_calls(monkeypatch)
+
+    with persona_chat_root_lease(ROOT, owner_id="held-by-the-test", observer_kind="cli"):
+        discussion = _args("cm-discussion")
+        discussion.requested_by = "discussion:run-1"
+        payloads: list[dict] = []
+        discussion.payload_sink = payloads.append
+        code = handler._cmd_mission_chat_message(discussion)
+        # Positive control: the same send with no sink (an operator's) queues.
+        control_code, control = _send(handler, "cm-operator", capsys)
+
+    assert code == 2 and payloads, payloads
+    assert payloads[-1].get("error_kind") == "chat_busy", payloads[-1]
+    assert chat_root_send_queue.find(ROOT, "cm-discussion") is None
+    assert control_code == 0 and control["queued"] is True
+    assert calls == []
+
+
+def test_the_runner_reports_a_running_queued_turn_until_it_ends(isolate_agent_runtime_root):
+    import threading
+
+    from agent_runtime.chat_root_send_runner import QueuedSendRunner
+
+    chat_root_send_queue.enqueue("persona_chat_root_d", "cm-d1", {})
+    started, release = threading.Event(), threading.Event()
+
+    def run_turn(args):
+        started.set()
+        assert release.wait(10)
+        return 0, {"ok": True}
+
+    runner = QueuedSendRunner(RunnerPolicy(root_is_idle=lambda root: True, run_turn=run_turn))
+    try:
+        assert runner.inflight_request_ids() == []
+        runner.dispatch_once()
+        assert started.wait(5)
+        assert runner.inflight_request_ids() == ["queued:cm-d1"]
+        release.set()
+        for _ in range(100):
+            if not runner.inflight_request_ids():
+                break
+            threading.Event().wait(0.05)
+        assert runner.inflight_request_ids() == []
+    finally:
+        release.set()
+        runner.shutdown(wait=True)
+
+
+def test_a_drain_waits_for_a_running_queued_turn(monkeypatch, isolate_agent_runtime_root):
+    """A queued turn has no serve request, so the drain's inflight table cannot
+    see it; it must still count as a chat turn in flight, or the drain completes
+    and the serve exits over a live turn."""
+
+    import threading
+
+    from agent_runtime import chat_root_send_runner
+    from tests.agent_runtime.test_serve_drain_accounting import _Pipe, _Sink, _run_serve
+
+    release = threading.Event()
+
+    class _Runner:
+        def inflight_request_ids(self):
+            return [] if release.is_set() else ["queued:cm-drain"]
+
+    monkeypatch.setattr(chat_root_send_runner, "start_queued_send_runner", lambda **_: _Runner())
+    pipe, sink = _Pipe(), _Sink()
+    result = _run_serve(pipe, sink, dispatch=lambda argv: 0)
+    try:
+        sink.wait_for("ready")
+        pipe.send({"op": "drain", "deadline_seconds": 30})
+        sink.wait_for("draining")
+        threading.Event().wait(0.5)
+        assert "drain_complete" not in sink.events(), "the drain finished over a running queued turn"
+        release.set()
+        assert sink.wait_for("drain_complete")
+    finally:
+        release.set()
+        pipe.close()
+        result["thread"].join(20)

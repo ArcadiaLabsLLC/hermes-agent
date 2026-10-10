@@ -7,10 +7,12 @@ queued-send runner (``agent_runtime.dispatch_delivery.queued_sends``) runs it af
 the current turn, in arrival order. Contract:
 ``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``.
 
-Who queues: an OPERATOR send — one with no ``requested_by_session``. An agent relay
-and a delivery forge name their sender's root there; both keep ``chat_busy``,
-because both already retry from a queue of their own (``dispatch_store``) or need
-the reply inside the calling turn (``agent_chat_send`` wait=true).
+Who queues: an OPERATOR send — one with no ``requested_by_session`` and no
+in-process ``payload_sink``. An agent relay and a delivery forge name their
+sender's root there; both keep ``chat_busy``, because both already retry from a
+queue of their own (``dispatch_store``) or need the reply inside the calling turn
+(``agent_chat_send`` wait=true). Every other in-process door caller (a discussion
+member turn) keeps it for the second reason.
 """
 
 from __future__ import annotations
@@ -31,9 +33,20 @@ __all__ = [
 
 
 def _busy_root_queues(args: Any) -> bool:
-    """True when a busy root queues this send rather than refusing ``chat_busy``."""
+    """True when a busy root queues this send rather than refusing ``chat_busy``.
 
-    return not str(getattr(args, "requested_by_session", None) or "").strip()
+    The runner's own run converges on its entry. Otherwise an operator send: no
+    ``requested_by_session`` AND no in-process ``payload_sink`` — a door caller
+    (a discussion member turn, an agent relay with no sender root) takes its
+    reply inside its own call, so a "queued" answer would strand it and run the
+    turn later outside the caller's scope.
+    """
+
+    if getattr(args, chat_root_send_queue.QUEUED_RUN_ARG, False):
+        return True
+    if str(getattr(args, "requested_by_session", None) or "").strip():
+        return False
+    return not callable(getattr(args, "payload_sink", None))
 
 
 def _mission_chat_queue_gate(args: Any, *, session_id: str, client_message_id: str) -> int | None:

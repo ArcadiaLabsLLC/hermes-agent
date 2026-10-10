@@ -21,7 +21,9 @@ thread runs the head of each idle root through the door and records its settle.
 
 ## Who queues
 
-Operator sends only: a send with no `requested_by_session`. Agent relays
+Operator sends only: a send with no `requested_by_session` and no in-process `payload_sink`
+(a door caller — a discussion member turn — takes its reply inside its own call and keeps
+`chat_busy`). Agent relays
 (`agent_chat_send` wait=true) and delivery forges (`dispatch_delivery`, which already
 have a durable retry queue in `dispatch_store`) keep `chat_busy` — a different
 meaning there: "retry from your own queue".
@@ -39,3 +41,9 @@ Exit code 0. `queue_position` is 1-based among this root's waiting entries.
 `idempotent_replay: true` when the same `client_message_id` was already queued. The
 answer is not a settle: the serve records no settle for it; the turn's settle is
 pushed when it runs (`turn_settled`, `request_id` `queued:<client_message_id>`).
+
+## Drain
+
+A queued turn running in the runner's pool counts as a chat turn in flight for the serve's
+drain (`QueuedSendRunner.inflight_request_ids`, request id `queued:<client_message_id>`), so a
+drain never completes, and the serve never exits, over one.

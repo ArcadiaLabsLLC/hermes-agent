@@ -642,6 +642,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.local_llama_bound_root = None
         self.discussion_owner = None
         self.conversation_owner = None
+        self.queued_send_runner = None
         sys.stdout, sys.stderr = self.stdout_proxy, self.stderr_proxy
 
     def _start_background_workers(self) -> None:
@@ -739,7 +740,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             from agent_runtime.chat_root_send_runner import start_queued_send_runner
             from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
 
-            start_queued_send_runner(
+            self.queued_send_runner = start_queued_send_runner(
                 stop_event=self.liveness_stop,
                 home=self.serve_request_home,
                 policy=queued_turn_runner_policy(self),

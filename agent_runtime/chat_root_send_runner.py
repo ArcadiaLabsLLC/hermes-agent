@@ -211,8 +211,10 @@ class QueuedSendRunner:
         self._pool = ThreadPoolExecutor(
             max_workers=max(1, int(max_workers)), thread_name_prefix="harness-serve-queued-send"
         )
-        self._active: set[str] = set()
+        #: root -> the client message id its worker is running.
+        self._active: dict[str, str] = {}
         self._lock = threading.Lock()
+        self.thread: threading.Thread | None = None
 
     def dispatch_once(self) -> dict[str, int]:
         """Hand every idle, unoccupied root's head to a worker. Never raises."""
@@ -242,14 +244,32 @@ class QueuedSendRunner:
                 tally["busy"] += 1
                 continue
             with self._lock:
-                self._active.add(root)
-            self._pool.submit(self._work, entry)
+                self._active[root] = entry.client_message_id
+            future = self._pool.submit(self._work, entry)
+            # A future cancelled by shutdown never reaches ``_work``'s release.
+            future.add_done_callback(
+                lambda done, root=root: done.cancelled() and self._release(root)
+            )
             tally["dispatched"] += 1
         return tally
 
     def busy_roots(self) -> set[str]:
         with self._lock:
             return set(self._active)
+
+    def inflight_request_ids(self) -> list[str]:
+        """The ``queued:<client_message_id>`` of every turn a worker is running.
+
+        The serve's drain counts these as chat turns in flight, so a drain never
+        recycles the process over a queued turn it is still running.
+        """
+
+        with self._lock:
+            return sorted(queued_request_id(cmid) for cmid in self._active.values())
+
+    def _release(self, root: str) -> None:
+        with self._lock:
+            self._active.pop(root, None)
 
     def shutdown(self, *, wait: bool = False) -> None:
         self._pool.shutdown(wait=wait, cancel_futures=True)
@@ -261,8 +281,7 @@ class QueuedSendRunner:
         except Exception:
             logger.warning("queued send %s could not run", entry.client_message_id, exc_info=True)
         finally:
-            with self._lock:
-                self._active.discard(entry.root_session_id)
+            self._release(entry.root_session_id)
             wake_queued_send_runner()  # the root is free: its next send may go
 
     def _home(self) -> ContextManager[None]:
@@ -280,8 +299,11 @@ def start_queued_send_runner(
     tick_seconds: float = RUNNER_TICK_SECONDS,
     policy: RunnerPolicy | None = None,
     max_workers: int = MAX_CONCURRENT_ROOTS,
-) -> threading.Thread:
+) -> QueuedSendRunner:
     """Run the dispatcher on a daemon thread until *stop_event* is set.
+
+    Returns the runner (its dispatcher thread is ``runner.thread``): the serve's
+    drain reads :meth:`QueuedSendRunner.inflight_request_ids` from it.
 
     *home* is the serve's request home, captured at boot and bound for every
     read and every worker, so the queue and the settle outbox are read and
@@ -305,5 +327,6 @@ def start_queued_send_runner(
             runner.shutdown(wait=False)
 
     thread = threading.Thread(target=_loop, name="harness-serve-queued-sends", daemon=True)
+    runner.thread = thread
     thread.start()
-    return thread
+    return runner
