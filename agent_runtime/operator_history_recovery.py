@@ -32,3 +32,29 @@ def operator_history_pending(params):
             clear_history_operation(params["session_id"], pending["operation_id"])
             pending = None
     return {**identity, "pending": pending}
+
+
+def cancel_unapplied_history(params):
+    """A failed retry can retire its local note only after this durable fence.
+
+    If any apply receipt exists, including a partial one, recovery still owns
+    it. A delayed original request must observe the tombstone before writing.
+    """
+    from .operator_undo import _writer, _key
+    from .operator_history import _receipt_key
+    from .operator_checkpoints import _checkpoint_session, _operation_key
+    from .history_cancellation import cancellation_key
+    from .operator_conversation import OperatorConversationRefused
+    action = params.get("action")
+    if action not in {"branch", "rewind", "undo", "restore"}:
+        raise OperatorConversationRefused("invalid_history_action")
+    with _writer(params) as db, history_write_scope(params):
+        applied = db.get_meta(_receipt_key(params)) or db.get_meta(_key(params))
+        if action == "restore":
+            with _checkpoint_session(params, receipt_only=True) as (identity, manager, workdir, _):
+                applied = applied or manager.restore_receipt(_operation_key(identity, workdir, params["operation_id"]))
+        if not applied:
+            db.set_meta(cancellation_key(_receipt_key(params)), "cancelled")
+            clear_history_operation(params["session_id"], params["operation_id"])
+        return {**inspection_identity(params, params.get("client_scope")),
+                "operation_id": params["operation_id"], "cancelled": not bool(applied)}

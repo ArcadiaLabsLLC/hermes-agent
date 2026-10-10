@@ -34,6 +34,26 @@ def restore_revision(result: dict) -> str:
     return hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
 
 
+def pin_restore_checkpoints(workdir: str, operation_id: str, target: str, backup: str) -> bool:
+    # Called inside the native store lock, before the command's first file write.
+    for name, commit in (("target", target), ("backup", backup)):
+        ok, _, _ = _run_git(["update-ref", f"refs/operator-restore/{operation_id}/{name}", commit], _store_path(), workdir)
+        if not ok:
+            return False
+    return True
+
+
+def release_restore_checkpoints(operation_id: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", operation_id or "") is None:
+        raise ValueError("invalid restore operation")
+    with store_lock(_resolve_checkpoint_base()):
+        for name in ("target", "backup"):
+            ok, _, _ = _run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
+                               _store_path(), str(_resolve_checkpoint_base()))
+            if not ok:
+                raise OSError("checkpoint recovery reference could not be released")
+
+
 def resume_restore(manager, operation_id: str, *, revision: str, rollback: bool = False) -> dict:
     if re.fullmatch(r"[0-9a-f]{64}", operation_id or "") is None:
         raise ValueError("invalid restore operation")

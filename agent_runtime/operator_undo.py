@@ -16,6 +16,7 @@ from .operator_conversation import OperatorConversationRefused
 from .operator_history import _receipt_key, _digest, _apply_native, history_write_scope
 from .operator_session_inspection import operator_session_read, inspection_identity
 from .operator_turn_changes import preview_operator_undo
+from .history_cancellation import require_not_cancelled
 
 __layer__ = "lanes"
 
@@ -71,7 +72,14 @@ def _finish(db, params, record):
     record.update(state="completed", reason=None)
     _save(db, params, record)
     clear_history_operation(params["session_id"], params["operation_id"])
+    _release_backup(params, record)
     return _result(params, record)
+
+
+def _release_backup(params, record):
+    if record["mode"] != "chat":
+        with _checkpoint_session({**params, "workspace_path": record["plan"]["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
+            manager.release_restore_checkpoints(_operation_key(identity, workdir, params["operation_id"]))
 
 
 def _restore_files(params, plan):
@@ -103,6 +111,7 @@ def apply_operator_undo(params):
         raise OperatorConversationRefused("invalid_undo_mode")
     digest = _digest(params)
     with _writer(params) as db, _workspace_writer(), history_write_scope(params):
+        require_not_cancelled(db, _receipt_key(params))
         raw = db.get_meta(_key(params))
         if raw:
             record = json.loads(raw)
@@ -140,6 +149,7 @@ def apply_operator_undo(params):
 def _reconcile(db, params, record):
     if record["state"] in {"completed", "rolled_back"}:
         clear_history_operation(params["session_id"], params["operation_id"])
+        _release_backup(params, record)
         return _result(params, record)
     # A status check observes only. Finishing the remaining writes is explicit.
     receipt = db.get_meta(_receipt_key(params))
@@ -148,6 +158,7 @@ def _reconcile(db, params, record):
         record["state"] = "completed"
         _save(db, params, record)
         clear_history_operation(params["session_id"], params["operation_id"])
+        _release_backup(params, record)
     elif record["mode"] != "chat":
         with _checkpoint_session({**params, "workspace_path": record["plan"]["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
             record["files"] = manager.restore_receipt(_operation_key(identity, workdir, params["operation_id"]))
@@ -157,6 +168,8 @@ def _reconcile(db, params, record):
             record["state"] = "rolled_back" if files.get("reason") == "rolled_back" else "completed"
             clear_history_operation(params["session_id"], params["operation_id"])
         _save(db, params, record)
+        if record["state"] in {"completed", "rolled_back"}:
+            _release_backup(params, record)
     return _result(params, record)
 
 
@@ -208,5 +221,6 @@ def recover_operator_undo(params):
             record.update(state="rolled_back", reason=None)
             _save(db, params, record)
             clear_history_operation(params["session_id"], params["operation_id"])
+            _release_backup(params, record)
             return _result(params, record)
         return _finish(db, params, record)

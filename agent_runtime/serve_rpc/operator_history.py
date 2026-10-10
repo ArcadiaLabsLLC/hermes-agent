@@ -8,7 +8,7 @@ from agent_runtime.operator_checkpoints import (
 )
 from agent_runtime.operator_turn_changes import operator_turn_changes, preview_operator_undo
 from agent_runtime.operator_undo import apply_operator_undo, operator_undo_status, recover_operator_undo
-from agent_runtime.operator_history_recovery import operator_history_pending
+from agent_runtime.operator_history_recovery import operator_history_pending, cancel_unapplied_history
 from .operator_inspection import _inspect_off_reader
 from .registry import method
 from .protocol import DEFERRED, deferred_reply, ok, err
@@ -61,6 +61,11 @@ def history_origin(rid, params, context=None):
 @method("runtime.operator.conversation.history.pending", tier=TIER_CONSOLE)
 def history_pending(rid, params, context=None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.pending", operator_history_pending)
+
+
+@method("runtime.operator.conversation.history.cancel_unapplied", tier=TIER_CONSOLE)
+def history_cancel_unapplied(rid, params, context=None):
+    return _mutate_off_reader(rid, params, context, "runtime.operator.conversation.history.cancel_unapplied", cancel_unapplied_history)
 
 
 @method("runtime.operator.conversation.checkpoint.status", tier=TIER_CONSOLE)
