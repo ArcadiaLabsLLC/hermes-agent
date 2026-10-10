@@ -23,7 +23,7 @@ MANIFEST = 'tests/fixtures/carried_prs.json'
 
 def git(repo, *args, env=None, input=None):
     result = subprocess.run(['git', '-C', str(repo), *args], input=input,
-                            capture_output=True, text=True, env=env, timeout=30)
+                            capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
     if result.returncode:
         raise ValueError(result.stderr.strip() or result.stdout.strip() or 'git command failed')
     return result.stdout
@@ -164,7 +164,7 @@ def fork_source(repo, path, ref):
         present = git(repo, 'ls-tree', '--name-only', ref, '--', path).strip()
         return git(repo, 'show', f'{ref}:{path}') if present else ''
     file = repo / path
-    return file.read_text() if file.exists() else ''
+    return file.read_text(encoding='utf-8') if file.exists() else ''
 
 
 def _check_lines(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
@@ -208,7 +208,7 @@ def _check_symbols(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
         raise ValueError('empty symbol selection')
     theirs = git(repo, 'show', f'{head}:{pr_path}')
     ours = (git(repo, 'show', f'{fork_ref}:{path}') if fork_ref
-            else (repo / path).read_text())
+            else (repo / path).read_text(encoding='utf-8'))
     matches = all(symbol_source(theirs, name) == symbol_source(ours, name)
                   for name in symbols)
     return matches, '', False
@@ -224,7 +224,7 @@ def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
             git(repo, 'add', '-A', '--', path, env=env)
         result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
                                  '--reverse', '--check', '-'], input=patch,
-                                capture_output=True, text=True, env=env, timeout=30)
+                                capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
         matches = result.returncode == 0
     return matches, '', False
 
@@ -247,10 +247,10 @@ def _reviewed_pin(repo, entry):
 
 def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
     repo = Path(repo)
-    pairs = ledger_pairs((repo / ledger).read_text())
+    pairs = ledger_pairs((repo / ledger).read_text(encoding='utf-8'))
     if not pairs:
         raise ValueError('ledger contains no open-PR file rows; refusing empty coverage')
-    data = json.loads((repo / manifest).read_text())
+    data = json.loads((repo / manifest).read_text(encoding='utf-8'))
     if data.get('version') != 1:
         raise ValueError('unsupported manifest version')
     checked = deferred = drift = errors = partial = 0
