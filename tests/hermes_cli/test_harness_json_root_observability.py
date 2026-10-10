@@ -303,7 +303,8 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     block, so the keys can only come from the delegate's own attach."""
 
     import agent_runtime.realm_revert as realm_revert
-    from agent_runtime import realm_verbs
+    from agent_runtime import realm_sync, realm_verbs, store
+    from tests._downstream.split_package_source import patch_where_bound
     from agent_runtime.chat_verbs.history import persona_chat_history_page
 
     monkeypatch.setattr(
@@ -315,8 +316,8 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     monkeypatch.setattr("agent_runtime.realm_sync.pull_realm_sync", lambda realm_id, **kw: {"id": realm_id})
     monkeypatch.setattr("agent_runtime.realm_sync.publish_realm_sync", lambda realm_id, **kw: {"id": realm_id})
     monkeypatch.setattr("agent_runtime.skill_sync.resolve_held_skill", lambda realm_id, key, **kw: {"id": key})
-    monkeypatch.setattr("agent_runtime.realm_sync.realm_agent_selection_state",
-                        lambda realm_id: {"required": [], "catalog": []})
+    patch_where_bound(monkeypatch, realm_sync, "realm_agent_selection_state",
+                      lambda realm_id: {"required": [], "catalog": []})
     monkeypatch.setattr("agent_runtime.realm_membership.adopt_realms", lambda credential, **kw: [])
 
     class _Store:
@@ -329,7 +330,7 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
         def set_agent_selection(self, realm_id, **kw):
             return None
 
-    monkeypatch.setattr("agent_runtime.store.RealmStore", _Store)
+    patch_where_bound(monkeypatch, store, "RealmStore", _Store)
     monkeypatch.setattr(realm_verbs, "realm_skill_selection_envelope", lambda realm: {"id": realm})
     produced = {
         "persona_chat_history_page": persona_chat_history_page("s1"),
