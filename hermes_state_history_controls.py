@@ -60,7 +60,7 @@ class SessionHistoryControlsMixin:
     def branch_before_message(
         self, session_id: str, target_message_id: int, *, child_session_id: str,
         expected_history_digest: str, operation_receipt: tuple[str, str],
-        model_config: dict, title: str,
+        model_config: dict, title: str, after_reply: bool = False,
     ) -> str:
         """Clone the exact active prefix into a new chat in ONE transaction.
 
@@ -78,7 +78,7 @@ class SessionHistoryControlsMixin:
             target = conn.execute(
                 "SELECT role FROM messages WHERE session_id = ? AND id = ? AND active = 1",
                 (session_id, target_message_id)).fetchone()
-            if source is None or target is None or target[0] != "user":
+            if source is None or target is None or target[0] != ("assistant" if after_reply else "user"):
                 raise HistoryControlError("target_unavailable")
             if conn.execute("SELECT 1 FROM sessions WHERE id = ?", (child_session_id,)).fetchone():
                 raise HistoryControlError("branch_already_exists")
@@ -92,8 +92,9 @@ class SessionHistoryControlsMixin:
                           started_at=time.time(), title=title, model_config=json.dumps(model_config))
             conn.execute(f"INSERT INTO sessions ({', '.join(copied)}) VALUES "
                          f"({', '.join('?' for _ in copied)})", tuple(copied.values()))
+            comparison = "<=" if after_reply else "<"
             prefix = [int(row[0]) for row in conn.execute(
-                "SELECT id FROM messages WHERE session_id = ? AND active = 1 AND id < ? ORDER BY id",
+                f"SELECT id FROM messages WHERE session_id = ? AND active = 1 AND id {comparison} ? ORDER BY id",
                 (session_id, target_message_id))]
             if prefix:
                 self._clone_message_rows(conn, prefix, session_id=child_session_id)

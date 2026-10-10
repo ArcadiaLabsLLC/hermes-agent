@@ -94,6 +94,7 @@ def _safe_curated_messages(
         )
     try:
         raw_messages = _read_raw_messages(session_db, session_id)
+        state = CurationState.for_session(session_id, session_db=session_db, raw_messages=raw_messages)
     except Exception as exc:
         return (
             [],
@@ -106,7 +107,6 @@ def _safe_curated_messages(
                 or type(exc).__name__,
             },
         )
-    state = CurationState.for_session(session_id, session_db=session_db, raw_messages=raw_messages)
     state.preview = preview
     # Curate the agent's raw working transcript into an operator-facing one.
     # The bound session is the agent's internal session, so its raw rows are

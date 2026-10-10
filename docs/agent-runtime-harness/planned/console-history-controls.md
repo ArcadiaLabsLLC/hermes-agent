@@ -175,3 +175,27 @@ review after the writer releases the lock; it never repeats unknown writes.
 The upstream API widenings are held PR candidates: SessionDB mixin admission,
 optional writer digest/receipt and its carrier-aware rewind forwarding, and the
 additive CheckpointManager preview/apply/status API. The ledger owns their footprint.
+
+
+## Approved repair — 2026-10-10 (in progress)
+
+The approved Console design places Edit on the prompt, Branch here after the
+reply, and one compact Changed files card below the answer. Undo reviews Chat
+and files / Chat only / Files only together; the file diff uses the existing
+chat drawer. Recovery belongs to the durable account/install/session, never to
+a mounted sheet. Closing a review does not cancel or acknowledge an operation.
+
+Repair contract: reuse SessionDB rewind/branch transactions, native checkpoints
+and exactly-once admission receipts. Add durable turn-to-checkpoint provenance
+before exposing per-reply changes or combined undo. A partial file restore must
+retain a verified backup and per-file progress; chat rewinds only after the
+reviewed files finish. Unknown results retain the same request identity until
+reconciled. Never infer success, death, or cancellation from a timeout.
+
+Current guard repair separates a short admission mutex from an active history
+writer, keeps status/stop available, records PID plus creation time on accepted
+turns for the existing boot orphan sweep, and maps native pre-write guards to
+definite refusals. Old receipts without owner evidence remain conservative.
+Branch's new after_reply boundary is explicit in the revision-pinned request;
+old before_prompt requests retain their behavior. Work remains unqualified
+until interruption, race, rollback, and mutation checks are recorded below.

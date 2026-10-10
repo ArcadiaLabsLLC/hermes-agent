@@ -20,7 +20,7 @@ __layer__ = "lanes"
 
 
 @contextmanager
-def _checkpoint_session(params):
+def _checkpoint_session(params, *, receipt_only=False):
     from agent.runtime_cwd import set_session_cwd, reset_session_cwd
     from tools.checkpoint_manager import CheckpointManager
     from .chat_lane_scope import apply_chat_lane_tool_scope
@@ -38,17 +38,18 @@ def _checkpoint_session(params):
         with persona_profile_scope(binding, runtime_root=paths.store_root()), chat_root_session_key_scope(params["session_id"]):
             options = apply_chat_lane_tool_scope(persona, permission_options_for_chat(
                 persona, session_id=params["session_id"]), session_id=params["session_id"])
-            workdir = current.get("cwd") or (options.mission_chat_workdir.path if options.mission_chat_workdir else None)
-            if not workdir or not Path(workdir).is_absolute() or not Path(workdir).is_dir():
+            workdir = (params.get("workspace_path") if receipt_only else
+                       current.get("cwd") or (options.mission_chat_workdir.path if options.mission_chat_workdir else None))
+            if not isinstance(workdir, str) or not Path(workdir).is_absolute() or (not receipt_only and not Path(workdir).is_dir()):
                 raise OperatorConversationRefused("workspace_unavailable")
             config = checkpoint_configuration()
             manager = CheckpointManager(**{key: config[key] for key in (
                 "enabled", "max_snapshots", "max_total_size_mb", "max_file_size_mb")})
             token = set_session_cwd(str(workdir))
             try:
-                if manager.unsupported_backend_reason():
+                if not receipt_only and manager.unsupported_backend_reason():
                     raise OperatorConversationRefused("checkpoint_backend_unsupported")
-                yield identity, manager, manager.get_working_dir_for_path(str(workdir)), config
+                yield identity, manager, workdir if receipt_only else manager.get_working_dir_for_path(str(workdir)), config
             finally:
                 reset_session_cwd(token)
 
@@ -84,7 +85,7 @@ def restore_operator_checkpoint(params):
     try:
         if agent_runs_in_flight():
             raise OperatorConversationRefused("workspace_busy")
-        with history_write_scope(params), _checkpoint_session(params) as (identity, manager, workdir, _):
+        with _checkpoint_session(params) as (identity, manager, workdir, _), history_write_scope(params):
             if workdir != params.get("workspace_path"):
                 raise OperatorConversationRefused("workspace_changed")
             operation_key = _operation_key(identity, workdir, operation)
@@ -102,8 +103,9 @@ def _operation_key(identity, workdir, operation):
 
 
 def operator_checkpoint_status(params):
-    with _checkpoint_session(params) as (identity, manager, workdir, _):
-        if workdir != params.get("workspace_path"):
-            raise OperatorConversationRefused("workspace_changed")
+    # The stored workspace participates only in the receipt key. No filesystem
+    # read/write uses it: ownership is revalidated against the durable session,
+    # even if that session subsequently changed workspace or the drive is gone.
+    with _checkpoint_session(params, receipt_only=True) as (identity, manager, workdir, _):
         result = manager.restore_receipt(_operation_key(identity, workdir, params.get("operation_id")))
         return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"], "result": result}

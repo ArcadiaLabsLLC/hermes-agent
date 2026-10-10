@@ -839,13 +839,13 @@ class CheckpointManager:
 
             path = _normalize_path(file_path)
             digest = _hash_file(path)
-            if digest is None:
+            if digest is None and path.exists():
                 return
-            with store_lock(_resolve_checkpoint_base()):
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
                 store = _store_path()
                 dir_hash = self._ledger_key(str(path))
                 ledger = _load_ledger(store, dir_hash)
-                ledger[str(path)] = {"sha256": digest, "ts": time.time()}
+                ledger[str(path)] = {"sha256": digest, "deleted": not path.exists(), "ts": time.time()}
                 _save_ledger(store, dir_hash, ledger)
         except Exception as exc:
             logger.debug("record_agent_write failed for %s: %s", file_path, exc)
@@ -934,13 +934,14 @@ class CheckpointManager:
         if abs_dir in self._checkpointed_dirs:
             return False
 
-        self._checkpointed_dirs.add(abs_dir)
-
         try:
             from tools.checkpoint_pruning import store_lock
 
-            with store_lock(_resolve_checkpoint_base()):
-                return self._take(abs_dir, reason)
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
+                taken = self._take(abs_dir, reason)
+                if taken:
+                    self._checkpointed_dirs.add(abs_dir)
+                return taken
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
             return False
@@ -1122,6 +1123,7 @@ class CheckpointManager:
                     _load_ledger(_store_path(), self._ledger_key(working_dir)))
                 if not checked["eligible"] or checked["current_sha256"] != row["current_sha256"]:
                     result["failed_files"].append({"path": rel, "reason": "workspace_changed"})
+                    self._write_restore_receipt(receipt_path, digest, result)
                     continue
                 try:
                     if row["target_blob"] is None:
@@ -1140,6 +1142,7 @@ class CheckpointManager:
                     _save_ledger(_store_path(), ledger_key, ledger)
                 except OSError:
                     result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
+                self._write_restore_receipt(receipt_path, digest, result)
             result.update(success=not result["failed_files"],
                           reason="restored" if not result["failed_files"] else "restore_partial")
             self._write_restore_receipt(receipt_path, digest, result)
@@ -1187,8 +1190,10 @@ class CheckpointManager:
         # and expose its verified backup, never retry those writes automatically.
         if result["reason"] != "restore_outcome_unknown":
             return result
+        known = set(result.get("restored_files", [])) | {row["path"] for row in result.get("failed_files", [])}
         return {**result, "reason": "restore_interrupted", "failed_files": [
-            {"path": path, "reason": "review_required"} for path in result.get("review_paths", [])]}
+            *result.get("failed_files", []),
+            *({"path": path, "reason": "review_required"} for path in result.get("review_paths", []) if path not in known)]}
 
     @staticmethod
     def _parse_shortstat(stat_line: str, entry: Dict) -> None:
