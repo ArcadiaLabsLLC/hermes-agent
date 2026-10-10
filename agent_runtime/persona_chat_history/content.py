@@ -69,12 +69,15 @@ def read_chat_content(params: dict[str, Any]) -> dict[str, Any]:
             or not isinstance(reference.get("id"), str) or not reference["id"]
             or type(offset) is not int or offset < 0):
         return {"ok": False, "error_kind": "invalid_content_request"}
+    requested_revision = reference.get("revision")
+    if ((requested_revision is not None and (not isinstance(requested_revision, str) or not requested_revision))
+            or (offset and requested_revision is None)):
+        return {"ok": False, "error_kind": "invalid_content_request"}
     try:
         with existing_chat_session(session_id=session_id, client_scope=params.get("client_scope")) as session:
             text = _READERS[reference["kind"]](session.db, session_id, reference["id"])
         revision = text_revision(text)
-        requested_revision = reference.get("revision")
-        if (requested_revision is not None and requested_revision != revision) or (offset and not requested_revision):
+        if requested_revision is not None and requested_revision != revision:
             raise ContentReadRefused("content_changed")
         if offset > len(text):
             raise ContentReadRefused("invalid_content_offset")

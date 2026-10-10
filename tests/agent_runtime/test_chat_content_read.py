@@ -1,9 +1,10 @@
 """Full content uses the real RPC and the same scoped SQLite transcript as history."""
 from contextlib import closing
 import json
+import pytest
 
 from agent_runtime import serve_rpc
-from agent_runtime.serve_rpc.protocol import ERR_CONFLICT
+from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS
 from agent_runtime.persona_chat_history.content import CONTENT_WINDOW_CHARS
 from hermes_state import SessionDB
 from tests.agent_runtime.test_operator_conversation_attachment import fixture, call
@@ -16,7 +17,7 @@ def _read(params):
 
 def test_history_preview_and_all_windows_preserve_full_multiline_unicode(tmp_path, monkeypatch):
     target = fixture(tmp_path / "home", monkeypatch, "Test")
-    text = "  local value = 1\n\treturn value\n🌍\n\n" * 1800 + "TAIL\n"
+    text = "  local value = 1  \n\treturn value\n🌍\n\n\n\n\n" * 1800 + "TAIL  \n"
     with closing(SessionDB(tmp_path / "home" / "state.db")) as db:
         db.append_message(target["session_id"], "assistant", text)
     row = call("read", target)["result"]["messages"][-1]
@@ -24,6 +25,12 @@ def test_history_preview_and_all_windows_preserve_full_multiline_unicode(tmp_pat
     assert row["text_total_chars"] == len(text)
     assert text.startswith(row["text"]) and len(row["text"]) <= 20_000
     reference = row["content_ref"]
+    from agent_runtime.operator_channels.history_messages import _conversation_history_message
+    displayed = _conversation_history_message(row, channel_id="test", index=0,
+        persona_id="builder", persona_instance_id=target["persona_instance_id"])
+    preview_matches = displayed["display_text"] == row["text"]
+    assert preview_matches, "operator projection changed the curated preview"
+    assert displayed["content_ref"] == reference
     offset = 0
     chunks = []
     while True:
@@ -107,3 +114,32 @@ def test_database_read_failure_is_unavailable_not_an_empty_result(tmp_path, monk
     answer = _read({**target, "content_ref": {"kind": "tool_result", "id": "call"}})
     assert answer["error"]["data"]["reason"] == "content_unavailable"
     assert "fixture-secret" not in json.dumps(answer)
+
+
+@pytest.mark.parametrize("revision", [None, "", 42, [], {}])
+def test_invalid_revision_is_refused_before_opening_storage(monkeypatch, revision):
+    from agent_runtime.persona_chat_history import content
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid continuation opened storage")
+    monkeypatch.setattr(content, "existing_chat_session", forbidden)
+    answer = _read({"session_id": "session", "content_ref": {
+        "kind": "message", "id": "row", "revision": revision}, "offset": 1})
+    assert answer["error"]["code"] == ERR_INVALID_PARAMS
+    assert answer["error"]["data"]["reason"] == "invalid_content_request"
+
+
+@pytest.mark.parametrize("observe", [False, True])
+def test_history_and_full_read_share_the_same_redacted_display(tmp_path, monkeypatch, observe):
+    from agent_runtime.persona_chat_history import text as text_policy
+    from agent_runtime.operator_channels.history_messages import _conversation_history_message
+    monkeypatch.setattr(text_policy, "redaction_observe_enabled", lambda: observe)
+    target = fixture(tmp_path / "home", monkeypatch, "Test")
+    with closing(SessionDB(tmp_path / "home" / "state.db")) as db:
+        db.append_message(target["session_id"], "assistant", "  Example  \napi_key=fixture-secret\n\n\n\nSafe tail  ")
+    row = call("read", target)["result"]["messages"][-1]
+    displayed = _conversation_history_message(row, channel_id="test", index=0,
+        persona_id="builder", persona_instance_id=target["persona_instance_id"])
+    answer = _read({**target, "content_ref": {"kind": "message", "id": row["id"]}})["result"]
+    assert answer["text"] == row["text"] == displayed["display_text"]
+    assert "fixture-secret" not in answer["text"]
+    assert ("Safe tail" in answer["text"]) is observe

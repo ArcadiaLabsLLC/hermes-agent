@@ -67,6 +67,33 @@ the same redaction policy as live/cold replay; non-native persistence and opaque
 reasoning fields remain upstream-owned. This does not rewrite historical rows.
 Controls: `tests/agent_runtime/test_native_representation_downstream.py`.
 
+### Native redaction boundary
+
+`persona_chat_continuity/wire.py::native_wire_row` owns native readable-content
+redaction for live messages and cold replay. It redacts `content` (text leaves
+and ordinary JSON credential values), `tool_calls[].function.arguments`, and
+metadata classified by `persona_chat_continuity/content.py::NATIVE_METADATA_REDACTORS`.
+That inventory is the authority for known metadata fields: readable strings
+are masked; provider carriers remain byte-exact, including signed thinking text
+paired with its signature. The upstream durable reasoning-field inventory is
+checked against it, so an upstream addition requires explicit classification.
+
+Unknown top-level extensions and extra tool-call/function metadata still pass
+through without a redaction guarantee. They remain live; only upstream's selected
+top-level fields and persisted nested structures reach SQLite. Opaque carriers
+can include readable text, so this boundary is not a guarantee that every secret
+is removed from provider state. Do not recursively scrub signed/encrypted/media
+payloads or drop unfamiliar provider keys. A newly introduced carrier needs a
+provider-aware review, not an inferred exemption for arbitrary readable text.
+
+The final native sidecar seam deduplicates only after redaction; upstream
+non-native writes and distinct API text remain unchanged. Display curation owns
+message redaction and preview slicing. The operator history adapter preserves
+that text and its content reference without another sanitizer or whitespace
+rewrite. Full reads use the same curation; tool reads retain native redaction.
+Missing or malformed continuation revisions are invalid requests before storage
+is opened; a valid but stale revision remains `content_changed`.
+
 ## Independent native conversations
 
 `agent_runtime/conversations/service.py::ConversationService` admits exact
