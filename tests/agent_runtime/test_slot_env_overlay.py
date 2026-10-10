@@ -94,3 +94,34 @@ def test_the_deepest_bound_slot_wins(slot, tmp_path):
     outer = SlotBinding(workspace, "launcher", str(checkout))
     assert env_overlay(checkout / "lib" / "src", [outer, nested]).slot == "docs"
     assert env_overlay(checkout, [outer, nested]).slot == "launcher"
+
+
+def test_a_command_spawned_in_another_slot_runs_with_that_slot_not_the_turn_workdir(slot, tmp_path, monkeypatch):
+    """The overlay keys on the command's spawn cwd (the terminal's tracked cwd after a ``cd``),
+    not the turn's workdir: drive the real ``LocalEnvironment._run_bash`` with Popen captured."""
+    import types
+
+    import tools.environments.local as local
+
+    workspace, checkout, prepend = slot
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    spawned: dict = {}
+
+    def fake_popen(args, **kwargs):
+        spawned.update(kwargs)
+        return types.SimpleNamespace(pid=os.getpid())
+
+    monkeypatch.setattr(local, "_find_bash", lambda: "bash")
+    monkeypatch.setattr(local.subprocess, "Popen", fake_popen)
+    terminal = local.LocalEnvironment.__new__(local.LocalEnvironment)
+    terminal.env, terminal.cwd = {}, str(checkout / "lib")
+    bindings = [SlotBinding(workspace, "launcher", str(checkout))]
+    with slot_env_scope(bindings, primary):
+        terminal._run_bash("true")
+        after = build_subprocess_env({"PATH": "/usr/bin"})
+
+    assert spawned["cwd"] == str(checkout / "lib")
+    assert _path(spawned["env"])[0] == prepend
+    assert spawned["env"]["ETERNIA_API_BASE"] == "https://api.test"
+    assert "ETERNIA_API_BASE" not in after  # the spawn cwd does not outlive its spawn
