@@ -511,8 +511,8 @@ which workspace it was showing, not where the turn ran, and for a lane placed
 elsewhere the row used to name the wrong one. The flags were retired
 (`33069ca1fc`); the verb takes no workspace claim at all.
 Two consumers: the live `chat.final`
-echo carries a slimmed projection (`slim_chat_final_observability`,
-`agent_runtime/prompt_observability/turn_results.py:107`); evicted rows are
+echo carries a slimmed projection
+(`agent_runtime/prompt_observability/turn_results.py::slim_chat_final_observability`); evicted rows are
 fetched by `harness prompt-context show --context-id <id> [--json]`
 (`hermes_cli/harness_parts/parser/surfaces.py::add_prompt_context`, handler `hermes_cli/harness_parts/prompt_context_commands.py::_cmd_prompt_context_show`) — read-only, honest
 `not_found` on absence. `trace_events` are the turn's tool-call trace, passed at
