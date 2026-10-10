@@ -189,7 +189,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 
-- [ ] **Read the Launcher's per-entry `read_only` mark (the Launcher sends it since lane mc-a, 2026-10-02): `AppFunctionEntry.parse` drops it, so `read_only` mode blocks by `requires_confirmation` and the HUD "mutating" label (`tool_visibility._mutating_tools`) cannot see app functions; block and label by `read_only is False` instead** · fork-owned / agent_runtime · `agent_runtime/launcher_app_functions.py::AppFunctionEntry`, `agent_runtime/tool_permissions.py::extra_blocked_tools_for_permission_mode` · **TAKEN 2026-10-09 h-toolvis-fix**
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-pidx, filed by the orchestrator)
 

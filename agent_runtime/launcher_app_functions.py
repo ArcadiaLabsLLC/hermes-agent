@@ -70,7 +70,7 @@ __all__ = [
     "LauncherLink",
     "bind_launcher_link",
     "call_app_function",
-    "confirm_app_function_tools",
+    "mutating_app_function_tools",
     "current_launcher_link",
     "forget_launcher_connection",
     "refresh_app_function_tools",
@@ -165,6 +165,19 @@ class AppFunctionEntry:
     #: Host-owned one-line WHEN rule, rendered in the prompt only while this
     #: tool is in the session's list (``plugins/eternia-harness`` tool guidance).
     guidance: str = ""
+    #: The Launcher's per-entry ``read_only`` mark (sent since lane mc-a, 2026-10-02):
+    #: ``True`` reads, ``False`` mutates, ``None`` when an older Launcher did not send it.
+    read_only: bool | None = None
+
+    @property
+    def mutating(self) -> bool:
+        """The mutation mark ``read_only`` mode blocks and the HUD labels: the Launcher's
+        ``read_only is False``; an entry without the mark falls back to its
+        ``requires_confirmation`` (the only mutation signal that wire carried)."""
+
+        if self.read_only is None:
+            return self.requires_confirmation
+        return self.read_only is False
 
     @classmethod
     def parse(cls, raw: Any) -> AppFunctionEntry | None:
@@ -182,12 +195,14 @@ class AppFunctionEntry:
             parameters = {"type": "object", "properties": {}}
         description = raw.get("description")
         reach = raw.get("reach")
+        read_only = raw.get("read_only")
         return cls(name, method, description if isinstance(description, str) else "", parameters,
                    requires_confirmation=raw.get("requires_confirmation") is True,
                    reach=reach if isinstance(reach, str) else "",
                    always_loaded=raw.get("always_loaded") is True,
                    guidance=" ".join(str(raw.get("guidance")).split())
-                   if isinstance(raw.get("guidance"), str) else "")
+                   if isinstance(raw.get("guidance"), str) else "",
+                   read_only=read_only if isinstance(read_only, bool) else None)
 
     def schema(self) -> dict[str, Any]:
         """The tool schema: the Launcher's name, description and parameters, with
@@ -331,12 +346,13 @@ def app_function_guidance_lines(tool_names: Iterable[str]) -> list[str]:
     return lines
 
 
-def confirm_app_function_tools() -> frozenset[str]:
-    """The registered tools the Launcher marks ``requires_confirmation`` — the
-    mutation mark on this wire; ``read_only`` blocks them (``tool_permissions``)."""
+def mutating_app_function_tools() -> frozenset[str]:
+    """The registered tools the Launcher marks mutating (:attr:`AppFunctionEntry.mutating`:
+    its ``read_only is False``) — ``read_only`` mode blocks them (``tool_permissions``) and
+    the HUD labels them (``tool_visibility._mutating_tools``)."""
 
     with _state.lock:
-        return frozenset(name for name, entry in _state.registered.items() if entry.requires_confirmation)
+        return frozenset(name for name, entry in _state.registered.items() if entry.mutating)
 
 
 def forget_launcher_connection(sink: Any) -> None:
