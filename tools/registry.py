@@ -440,8 +440,7 @@ class ToolRegistry:
 
         Read under the same lock the mutators bump it under, so a reader can
         never observe a half-applied registration's counter. Public because
-        memoizing callers outside this module (``agent_init``, and since 2026-08
-        ``agent_runtime.chat_lane_bundle`` through :func:`registry_epoch`) have
+        memoizing callers outside this module (``agent_init``) have
         to key on it; ``_generation`` stays the field.
         """
 
@@ -1163,46 +1162,16 @@ def probe_rounds_this_thread() -> int:
 
 
 def check_fn_epoch() -> int:
-    """The availability half of :func:`registry_epoch` alone (fork addition).
+    """The registry's availability counter (fork addition).
 
     Moves on every :func:`invalidate_check_fn_cache` and on nothing else. A
     memo that keys on registry CONTENT (``agent_runtime.chat_lane_bundle``)
     pairs this with that content instead of with ``registry.generation``,
     which also counts a register/deregister pair that left the content as it
-    was. Equality only, like the epoch.
+    was. Compare for equality only.
     """
 
     return _check_fn_epoch
-
-
-def registry_epoch() -> int:
-    """The registry's identity for cache keys: registration + availability.
-
-    Two counters, summed into one monotonically-increasing integer:
-
-    * ``registry.generation`` — every ``register`` / ``deregister`` /
-      ``register_toolset_alias``, which is also every MCP dynamic refresh.
-    * :data:`_check_fn_epoch` — every :func:`invalidate_check_fn_cache`, which
-      is what ``hermes tools enable`` and the credential/config paths call when
-      a backend's AVAILABILITY (not its registration) changes.
-
-    Both halves matter and neither implies the other: a toolset can stay
-    registered while its ``check_fn`` starts answering differently, and a
-    ``check_fn`` cache can stay warm while an MCP server registers new tools.
-    A memo that keyed on only one of them would go stale in the other
-    direction.
-
-    **Comparison is equality, not ordering.** The sum is monotone, but a step of
-    2 says "both halves moved", not "two registrations happened" — nothing may
-    read magnitude out of it. It exists so a caller can ask "is the registry
-    still the one I computed against?" in one integer compare.
-
-    The value is a snapshot the instant it is read; a caller memoizing against
-    it must re-read it on every lookup, which is exactly what makes an
-    invalidation that lands mid-turn visible on the next lookup.
-    """
-
-    return registry.generation + _check_fn_epoch
 
 
 def _kwargs_accepted_by(handler: Callable, kwargs: dict) -> dict:

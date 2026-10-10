@@ -3819,6 +3819,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "workspace_claim_disagreement",
         scope=_AR,
     ),
+    *rows(
+        # Lane 1011-M2 (2026-10-10): dead-code queue row (lane h-bundle-epoch) —
+        # chat_lane_bundle keys on registry content + check_fn_epoch since bc43588550.
+        "s-1011-m2",
+        "HEAD",
+        Form.ATTR,
+        "the summed registration+availability epoch; no production caller keys "
+        "on it, and a memo keyed on registry.generation rebuilds on every "
+        "MCP-admitting turn (h-bundle-epoch)",
+        "registry_epoch",
+        scope=("tools.registry",),
+    ),
 )
 
 

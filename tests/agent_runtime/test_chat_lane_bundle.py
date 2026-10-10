@@ -286,7 +286,7 @@ def test_an_admission_register_and_teardown_pair_does_not_rebuild_the_bundle():
     every such turn rebuilt (live: ``visibility_bundle_rebuild_component_
     registry_epoch=1`` on every turn record since 2026-09-08).
 
-    *Killing mutation:* key on ``registry_epoch()`` again — this row reds on a
+    *Killing mutation:* key on ``registry.generation`` again — this row reds on a
     rebuild for each of the two turns.
     """
 
@@ -372,13 +372,13 @@ def test_an_availability_invalidation_announces_itself_through_the_epoch():
 
     from tools.registry import (
         ToolRegistry,
+        check_fn_epoch,
         invalidate_check_fn_cache,
-        registry_epoch,
     )
 
-    before = registry_epoch()
+    before = check_fn_epoch()
     invalidate_check_fn_cache()
-    assert registry_epoch() != before
+    assert check_fn_epoch() != before
 
     # ...and the REGISTRATION half moves independently of it. Asserted on a
     # throwaway registry so the process-wide singleton every other test shares
