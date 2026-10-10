@@ -235,13 +235,20 @@ def checkpoint_nudge_text(
     *,
     now: float | None = None,
 ) -> str:
-    """The system-side nudge injected when the graceful checkpoint opens."""
+    """The system-side nudge injected when the graceful checkpoint opens.
+
+    The steer is composed NOW but delivered only after the running tool batch
+    returns, which may be after the wall has fired (live 2026-10-08: composed at
+    180 s, delivered at 244 s). So the sentence dates its count to the moment the
+    checkpoint opened instead of claiming it as the time left at delivery.
+    """
 
     remaining = 0.0 if budget is None else max(0.0, budget.remaining_seconds(now=now))
     return (
-        "[harness] Wall budget nearly exhausted — about "
-        f"{remaining:.0f}s left on this turn's clock, and no further tool calls will "
-        "run. Produce your FINAL checkpoint reply NOW: report honestly what you "
+        "[harness] Wall budget nearly exhausted — this turn's checkpoint opened "
+        f"with about {remaining:.0f}s left on its clock, and the clock kept running "
+        "while your last tool finished, so it may already have run out. No further "
+        "tool calls will run. Produce your FINAL checkpoint reply NOW: report honestly what you "
         "completed, what is still in flight, and exactly what the next turn must "
         "pick up. Do not start new work and do not claim anything you did not "
         "verify."

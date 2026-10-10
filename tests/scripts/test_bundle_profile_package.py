@@ -186,6 +186,22 @@ def test_the_serve_import_probe_refuses_an_interpreter_of_another_version(tmp_pa
     assert len(problems) == 1 and "needs a CPython 2.7 interpreter" in problems[0]
 
 
+def test_a_cross_target_run_can_skip_the_serve_probe_and_says_so(monkeypatch, capsys, tmp_path: Path):
+    # 2026-10-02 (pin 0b6560d1a4): `--target linux-x64` on Windows wrote complete outputs, then
+    # red on "serve import probe needs a CPython 3.14 interpreter (--python)" with no way past it.
+    import scripts.bundle_profile_package as pkg
+
+    seen: list = []
+    monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
+    monkeypatch.setattr(pkg, "verify_bundle", lambda out, manifest, index, python: seen.append(python) or [])
+    assert pkg.main(["--verify", str(tmp_path), "--no-serve-probe"]) == 0
+    assert seen == [None]
+    assert "serve import probe: SKIPPED (--no-serve-probe)" in capsys.readouterr().out
+    assert pkg.main(["--verify", str(tmp_path)]) == 0 and seen[-1] is not None  # positive control
+    with pytest.raises(SystemExit):
+        pkg.main(["--verify", str(tmp_path), "--no-serve-probe", "--python", "py"])
+
+
 def test_markers_are_evaluated_for_the_target_not_by_uv():
     exported = (
         "nemo-relay==0.8.4 ; (platform_machine == 'AMD64' and sys_platform == 'win32') \\\n"
