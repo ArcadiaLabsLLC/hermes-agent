@@ -127,18 +127,74 @@ def test_the_list_is_asked_once_per_connection_and_again_once_it_closed():
     assert len(_lists(launcher)) == 2
 
 
-def test_a_cached_catalog_is_resynced_after_another_connection_overwrote_the_registry():
+def test_a_second_connection_never_flips_the_registry():
+    """D1.03: the registry holds the UNION of every attached Launcher's catalog.
+
+    Before, a second connection with a shorter list deregistered the first one's tools and
+    the first one's next turn re-registered them: every flip a ``registry.generation`` move
+    and a chat-lane bundle rebuild. Now the first connection's tool stays registered while
+    any catalog holds it, and alternating turns move nothing.
+    """
+
     from tools.registry import registry
 
     first, second = _Launcher(), _Launcher(_TOOLS[:1])
     laf.refresh_app_function_tools(laf.LauncherLink(first, laf.ORIGIN_LOCAL))
     laf.refresh_app_function_tools(laf.LauncherLink(second, laf.ORIGIN_LOCAL))
-    assert registry.get_entry("launcher_navigation_open") is None
-
-    laf.refresh_app_function_tools(laf.LauncherLink(first, laf.ORIGIN_LOCAL))
-
     assert registry.get_entry("launcher_navigation_open") is not None
-    assert len(_lists(first)) == 1  # from the catalog, not the wire
+
+    generation = registry.generation
+    for _ in range(3):
+        laf.refresh_app_function_tools(laf.LauncherLink(first, laf.ORIGIN_LOCAL))
+        laf.refresh_app_function_tools(laf.LauncherLink(second, laf.ORIGIN_LOCAL))
+
+    assert registry.generation == generation
+    assert len(_lists(first)) == len(_lists(second)) == 1  # from the catalog, not the wire
+
+
+def _definition_names(link):
+    from model_tools import get_tool_definitions
+
+    token = laf.bind_launcher_link(link)
+    try:
+        return {d["function"]["name"] for d in get_tool_definitions(
+            enabled_toolsets=[laf.APP_FUNCTIONS_TOOLSET], quiet_mode=True,
+            skip_tool_search_assembly=True)}
+    finally:
+        laf.reset_launcher_link(token)
+
+
+_B_ONLY_TOOL = {
+    "name": "launcher_b_only_probe",
+    "method": "launcher.b_only.probe",
+    "description": "Only connection B declares this.",
+    "parameters": {"type": "object", "properties": {}},
+}
+
+
+def test_each_turn_sees_only_its_own_launchers_tools():
+    a, b = _Launcher(), _Launcher([_TOOLS[0], _B_ONLY_TOOL])
+    link_a, link_b = laf.LauncherLink(a, laf.ORIGIN_LOCAL), laf.LauncherLink(b, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link_a)
+    laf.refresh_app_function_tools(link_b)
+
+    assert _definition_names(link_a) == {"launcher_library_list", "launcher_navigation_open"}
+    assert _definition_names(link_b) == {"launcher_library_list", "launcher_b_only_probe"}
+    assert _definition_names(None) == set()  # no Launcher on the turn: nothing offered
+
+
+def test_forgetting_a_connection_removes_only_the_names_no_other_catalog_holds():
+    from tools.registry import registry
+
+    a, b = _Launcher(), _Launcher([_TOOLS[0], _B_ONLY_TOOL])
+    laf.refresh_app_function_tools(laf.LauncherLink(b, laf.ORIGIN_LOCAL))
+    laf.refresh_app_function_tools(laf.LauncherLink(a, laf.ORIGIN_LOCAL))  # A's turn last
+
+    laf.forget_launcher_connection(a)
+
+    assert registry.get_entry("launcher_navigation_open") is None  # A-only: gone
+    assert registry.get_entry("launcher_library_list") is not None  # B still declares it
+    assert registry.get_entry("launcher_b_only_probe") is not None
 
 
 def test_a_re_declaration_lists_afresh():
