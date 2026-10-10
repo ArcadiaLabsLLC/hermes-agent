@@ -70,6 +70,7 @@ def _target(db, session_id, row_id=None, client_message_id=None):
     from agent.context_compressor import user_originated_turn_view, retryable_user_text
     from .runtime_hud.envelopes import extract_runtime_context_envelope, extract_skill_preload_envelope
     from .persona_chat_history.text import _safe_display_body_text, _INTERNAL_SCAFFOLDING_MARKERS
+    from .persona_chat_history.vocabulary import logical_persona_chat_client_message_id
 
     tip = db.resolve_resume_session_id(session_id)
     revision = db.history_control_revision(tip)
@@ -77,7 +78,7 @@ def _target(db, session_id, row_id=None, client_message_id=None):
     users = [row for row in stored if user_originated_turn_view(row) is not None]
     matched = [row for row in users if (
         row.get("_row_id") == row_id if row_id is not None else
-        row.get("platform_message_id") == client_message_id)]
+        logical_persona_chat_client_message_id(row.get("message_id")) == client_message_id)]
     if len(matched) != 1:
         raise OperatorConversationRefused("target_unavailable")
     target = matched[0]
