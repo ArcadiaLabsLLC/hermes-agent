@@ -23,6 +23,13 @@ python scripts/doc_cite_adjacency.py --exclude archive --exclude planned        
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
 
+**Upstream-PR and sync lanes pin the base by SHA and own their uv cache.** Run
+`UV_CACHE_DIR=<lane scratch>/uv-cache python scripts/check --base <sha>`, with the SHA read once
+(`git rev-parse upstream/main`) at the start of the lane, never `--base upstream/main`: another
+lane's `fetch` moves that ref mid-run and the code-health ratchet then reports false
+`FILE_LINES`/`BLE001` reds (up-sync-2, 2026-10-08). The shared uv cache locks under concurrent
+lanes (`os error 32`), so each lane points `UV_CACHE_DIR` at its own scratch directory.
+
 **The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
 conftest. Given `tests/agent_runtime tests/hermes_cli tests/hermes_state` it only searches those
