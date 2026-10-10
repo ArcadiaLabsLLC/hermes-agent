@@ -132,6 +132,31 @@ plus the real checkpoint RPC round trip and native profile configuration test.
 Additional interruption, partial restore, UI recovery, mutation and landing gates
 remain in progress. A UI mock is design evidence only.
 
+Verification on 2026-10-09: disabling the native writer digest rejects neither
+a competing branch write nor a competing rewind write; both named regression
+tests fail. Disabling the Launcher cache generation check makes its late-read
+test return `removed` instead of `retained`. Both mutations were restored.
+The focused UI suite passes 11 tests, including restart recovery and a narrow
+sheet with enlarged text. A real rewind also invalidates the existing resident
+actor's native revision, and its replacement reads only the retained prefix.
+
+The whole-tree runtime gate selected 1,405 files, took 1,269.1 s at eight workers
+(82.8% utilization, 1,097.9 rerun-worker seconds), and reported 18 red files.
+The new seven-method manifest fixture was corrected; its three office test files
+then passed (129 tests). Every remaining failing node was compared using the
+per-file authority on unchanged runtime main `7df5194324`; the known gateway TLS,
+Windows path, doctor repair and teardown failures remain separately queued.
+The stream-gap timing failure and two multiplex isolation leaks are queued too.
+This is not a claim that the repository's full gate is green.
+
+Known boundaries: compressed ancestry cannot yet be copied into a lossless
+prefix branch, so it is explicitly refused; ambiguous merged prompts,
+attachments, redacted text and prompts over 64,000 characters are also refused
+instead of being flattened. Checkpoints remain workspace-scoped, with no invented
+turn association. External editors do not participate in the store lock.
+An interrupted restore exposes its verified recovery checkpoint and paths to
+review after the writer releases the lock; it never repeats unknown writes.
+
 The upstream API widenings are held PR candidates: SessionDB mixin admission,
 optional writer digest/receipt and its carrier-aware rewind forwarding, and the
 additive CheckpointManager preview/apply/status API. The ledger owns their footprint.
