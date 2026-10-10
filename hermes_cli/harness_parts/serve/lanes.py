@@ -98,6 +98,7 @@ class _RunState:
         "code",
         "fingerprint",
         "served_from_cache",
+        "settle_capturing",
         "sink",
     )
 
@@ -109,6 +110,9 @@ class _RunState:
         self.served_from_cache = False
         self.cache_age_ms = 0
         self.capturing = False
+        #: A chat turn this worker OWNS (not a duplicate refused by the claim):
+        #: its stdout tail is mirrored so its settle can be recorded and pushed.
+        self.settle_capturing = False
 
 
 class ArgvLanes:
@@ -145,6 +149,11 @@ class ArgvLanes:
             link_token = self._bind_launcher_link(request, state.sink)
             if accepted is not None:
                 accepted.link_bound = time.monotonic()
+            if claim_key is not None:
+                from agent_runtime.chat_turn_settles import RESULT_TAIL_LINES
+
+                self.stdout_proxy.begin_capture(request.rid, keep_last=RESULT_TAIL_LINES)
+                state.settle_capturing = True
             try:
                 self._execute_request(request, state)
             finally:
@@ -384,6 +393,12 @@ class ArgvLanes:
                 )
         self.stdout_proxy.flush_request(request.rid)
         self.stderr_proxy.flush_request(request.rid)
+        if state.settle_capturing:
+            # Settle push: durable BEFORE the exit frame and before the inflight
+            # pop, for the receipt's reason above. Never raises.
+            self._record_turn_settle(
+                request, self.stdout_proxy.end_capture(request.rid), state.code
+            )
         if state.capturing:
             self.read_cache.put(
                 state.cache_key,

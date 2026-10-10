@@ -36,6 +36,8 @@ drain               lanes   ``_DrainState``, deadline policy, ``DrainLane``
 request_pool        lanes   ``RequestPool`` (the shared and the chat-turn lane),
                             ``TurnClaims`` (one handler per client message id)
 lanes               lanes   ``ArgvLanes``: ``_run`` and the two pool seams
+settle_push         lanes   ``SettlePush``: record, push and retire chat-turn
+                            settles (``settle_ack``) on the control channel
 subscriptions       lanes   ``SubscriptionLanes``: stream hub, fold room, sockets
 handle_message      lanes   ``MessageHandling`` and the ``OP_HANDLERS`` table
 session             lanes   ``ServeSession``: fields, boot order, liveness;
@@ -47,7 +49,8 @@ in_memory           lanes   ``InMemoryPipe``, ``EmbeddedServe``, the app folder
 Stores written: ``<store_root>/serve_instances/`` (through ``serve_registry``),
 the end-reason sidecar (through ``serve_registry``), the device and pairing
 stores (through ``serve_gateway_credentials`` -> ``serve_gateway_auth`` /
-``gateway_peers``). Never imported from here: ``hermes_cli.harness``.
+``gateway_peers``), the settle-push outbox ``<store_root>/chat_turn_settles/``
+(through ``chat_turn_settles``). Never imported from here: ``hermes_cli.harness``.
 
 Only PUBLIC names are re-exported below; a private helper is imported from the
 module that owns it.
