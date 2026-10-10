@@ -1,0 +1,261 @@
+{
+  "date": "2026-10-10",
+  "scope": "native representation and valid tool-call count; fork-owned source only",
+  "candidate": "89fbed71b1c16e641977d13387dc5537e39554e6",
+  "claim_review": {
+    "dead_receipt": {
+      "verdict": "Confirmed cleanup, not the cause of data loss",
+      "source": "agent_runtime/persona_chat_continuity/wire.py::record_wire_boundary_cut",
+      "detail": "User rows are excluded; other roles produce no bound notes. Historical cut constants have no live producer. The non-user wrapper still supplies accounting."
+    },
+    "operator_input": {
+      "verdict": "Real mismatch, but the no-client-cap and single-limit claims are incorrect",
+      "runtime_admission_chars": 64000,
+      "handler_cut_chars": 12000,
+      "plain_user_projection_chars": 20000,
+      "composer": "eternia_launcher/lib/features/messaging/input/composer_resources_binding.dart -> TierFeatureGate.composerTextMax -> ComposerInputField LengthLimitingTextInputFormatter",
+      "composer_fallback": 4000,
+      "detail": "The composer limit is entitlement-derived. A 25K Console paste arriving at Hermes is not established. Longer non-UI input is admitted then shortened and whitespace-normalized by _AdmitPhases._select_model."
+    },
+    "display_caps": {
+      "verdict": "Confirmed for specific reply, journal and display projections",
+      "detail": "Native SQLite tool history can retain the full upstream-sized result. Do not describe all persisted transcript content as capped at 20K. Trace detail previews also have smaller bounds."
+    },
+    "app_function_threshold": {
+      "verdict": "100K is the generic default spill threshold, not a fixed ceiling",
+      "source": "agent_runtime/launcher_app_functions.py::_sync_registry; tools/budget_config.py::BudgetConfig.resolve_threshold and budget_for_context_window",
+      "detail": "Registration supplies no tool-specific override and names lack the mcp_ prefix. Upstream scales the threshold for smaller contexts and owns the aggregate budget and compression."
+    },
+    "evidence_location": {
+      "verdict": "False on current main",
+      "actual_path": "docs/downstream/native-result-policy-2026-10-10.json"
+    }
+  },
+  "full_fork_gate": {
+    "command": "scripts/run_tests_bundled.sh tests --file-timeout 180 --file-retries 0",
+    "candidate": "2d9ad31e07",
+    "files": 942,
+    "passed": 11897,
+    "failed": 94,
+    "errors": 4,
+    "skipped": 49
+  },
+  "baseline_comparison": {
+    "baseline": "f43ffb8efe",
+    "branch_nodes": 98,
+    "base_nodes": 97,
+    "branch_only": [
+      "tests/tooling/test_no_ladder_routing.py::test_no_new_ladder"
+    ],
+    "base_only": []
+  },
+  "branch_only_repaired": "The two new content.py type-routing ladders were replaced with singledispatch; unchanged routing gate now passes.",
+  "final_focused": {
+    "files": 9,
+    "passed": 163,
+    "failed": 0,
+    "runs": [
+      {
+        "log": "sidecar-focused.log",
+        "files": 8,
+        "passed": 158
+      },
+      {
+        "log": "sidecar-duplicates.log",
+        "files": 1,
+        "passed": 5
+      }
+    ],
+    "includes": "Six focused files plus routing, duplicate-helper and legibility gates; includes JSON-array and API-sidecar redaction regressions."
+  },
+  "controls": [
+    "restore calls[:64]",
+    "restore the row field allowlist",
+    "flatten native content",
+    "disable upstream cold replay repair",
+    "drop durable identity from deduplication",
+    "plain JSON array credential regression observed red before repair",
+    "Both user and assistant API-sidecar cases observed red before applying existing text redaction; both green after repair"
+  ],
+  "mutation_restoration": "Five temporary mutations restored byte-for-byte; assertion failures recorded before restoration.",
+  "drift_comparison": "Only the two repaired routing entries differed from baseline; other NEW/GREW violation lists match.",
+  "upstream_owned_files_changed": [],
+  "remaining_failures": {
+    "tests/agent_runtime/test_agent_chat_runtime_roster.py": [
+      "tests/agent_runtime/test_agent_chat_runtime_roster.py::test_inline_head_scope_keeps_target_and_relay_refusals",
+      "tests/agent_runtime/test_agent_chat_runtime_roster.py::test_plain_head_caller_keeps_ambiguity_and_exact_handle_admission",
+      "tests/agent_runtime/test_agent_chat_runtime_roster.py::test_real_inline_relay_uses_head_roster_and_keeps_sibling_threads_distinct",
+      "tests/agent_runtime/test_agent_chat_runtime_roster.py::test_unbound_home_override_still_refuses_transcript_creation"
+    ],
+    "tests/agent_runtime/test_gateway_media_fetch_e2e.py": [
+      "tests/agent_runtime/test_gateway_media_fetch_e2e.py::test_a_device_paired_at_read_is_refused_the_whole_family_on_the_real_lane",
+      "tests/agent_runtime/test_gateway_media_fetch_e2e.py::test_a_paired_device_fetches_a_real_artifact_and_the_bytes_are_the_file",
+      "tests/agent_runtime/test_gateway_media_fetch_e2e.py::test_a_path_and_an_unknown_handle_are_refused_over_the_real_wire",
+      "tests/agent_runtime/test_gateway_media_fetch_e2e.py::test_an_unpaired_caller_never_reaches_the_verb_because_it_never_reaches_the_lane",
+      "tests/agent_runtime/test_gateway_media_fetch_e2e.py::test_the_oversize_artifact_is_indexed_unfetchable_and_refused_with_the_cap"
+    ],
+    "tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py": [
+      "tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py::test_a_chat_turn_crosses_an_operator_approved_install_edge",
+      "tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py::test_a_revoked_edge_is_refused_before_a_row_exists",
+      "tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py::test_an_install_that_stops_answering_converges_to_peer_unreachable"
+    ],
+    "tests/agent_runtime/test_gateway_peer_cross_install_media_e2e.py": [
+      "tests/agent_runtime/test_gateway_peer_cross_install_media_e2e.py::test_a_device_on_A_opens_a_picture_that_exists_only_on_B",
+      "tests/agent_runtime/test_gateway_peer_cross_install_media_e2e.py::test_a_read_tier_device_is_refused_the_whole_family_remote_rows_included"
+    ],
+    "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py": [
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_cli_join_beside_a_running_serve_is_visible_with_no_restart",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_completed_join_leaves_both_caches_saying_reachable",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_join_walks_past_an_unroutable_first_candidate_and_lands_on_the_second",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_peer_code_scoped_to_one_install_is_refused_to_any_other_on_the_wire",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_revoke_on_b_reaches_a_as_revoked_you_before_the_next_send",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_a_second_install_cannot_spend_the_code_a_first_one_redeemed",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_introduce_on_b_join_on_a_and_the_device_half_redeems",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_the_roster_and_one_far_thread_cross_the_wire_on_real_serves",
+      "tests/agent_runtime/test_gateway_peer_two_roots_e2e.py::test_two_isolated_installs_pair_through_both_verbs_and_ping_across_the_edge"
+    ],
+    "tests/agent_runtime/test_gateway_tls.py": [
+      "tests/agent_runtime/test_gateway_tls.py::test_a_real_client_completes_a_tls_handshake_and_sees_the_pinned_fingerprint"
+    ],
+    "tests/agent_runtime/test_harness_core_ratchet.py": [
+      "tests/agent_runtime/test_harness_core_ratchet.py::test_a_declaration_that_names_the_hygiene_toolsets_brings_the_17_back",
+      "tests/agent_runtime/test_harness_core_ratchet.py::test_every_mission_persona_resolves_the_same_declared_count[backend_dev]",
+      "tests/agent_runtime/test_harness_core_ratchet.py::test_every_mission_persona_resolves_the_same_declared_count[dev]",
+      "tests/agent_runtime/test_harness_core_ratchet.py::test_every_mission_persona_resolves_the_same_declared_count[neko_supervisor]",
+      "tests/agent_runtime/test_harness_core_ratchet.py::test_every_mission_persona_resolves_the_same_declared_count[qa]"
+    ],
+    "tests/agent_runtime/test_harness_tool_inventory.py": [
+      "tests/agent_runtime/test_harness_tool_inventory.py::test_the_committed_inventory_matches_the_live_registry"
+    ],
+    "tests/agent_runtime/test_local_llama_adapter.py": [
+      "tests/agent_runtime/test_local_llama_adapter.py::test_a_split_model_needs_every_matching_shard"
+    ],
+    "tests/agent_runtime/test_local_llama_adapter_gateway.py": [
+      "tests/agent_runtime/test_local_llama_adapter_gateway.py::test_console_device_can_configure_only_the_served_host",
+      "tests/agent_runtime/test_local_llama_adapter_gateway.py::test_read_device_cannot_view_paths_or_mutate"
+    ],
+    "tests/agent_runtime/test_no_midtest_monkeypatch_undo.py": [
+      "tests/agent_runtime/test_no_midtest_monkeypatch_undo.py::test_no_test_in_the_tree_unwinds_the_shared_monkeypatch"
+    ],
+    "tests/agent_runtime/test_scope_use_serve_acceptance.py": [
+      "tests/agent_runtime/test_scope_use_serve_acceptance.py::test_a_console_device_keeps_the_console_verbs_it_already_had",
+      "tests/agent_runtime/test_scope_use_serve_acceptance.py::test_a_paired_device_is_refused_and_the_pointer_does_not_move[runtime.workspace.use-workspace_id-console]",
+      "tests/agent_runtime/test_scope_use_serve_acceptance.py::test_a_paired_device_is_refused_and_the_pointer_does_not_move[runtime.workspace.use-workspace_id-read]"
+    ],
+    "tests/agent_runtime/test_serve_gateway_chat_reply_lanes.py": [
+      "tests/agent_runtime/test_serve_gateway_chat_reply_lanes.py::test_a_device_tier_turn_reports_which_lane_carries_its_start_and_reply",
+      "tests/agent_runtime/test_serve_gateway_chat_reply_lanes.py::test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane"
+    ],
+    "tests/agent_runtime/test_serve_gateway_lane.py": [
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_code_is_one_shot_and_the_second_attempt_is_refused",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_console_device_passes_the_gate_on_a_console_verb",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_device_may_not_drain_the_runtime_other_clients_are_using",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_hello_carrying_both_a_code_and_a_device_id_is_refused",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_paired_device_completes_the_handshake_over_tls_with_a_pinned_cert",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_paired_device_never_shows_its_credential_on_the_connections_block",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_pairing_code_becomes_a_credential_in_one_round_trip",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_plaintext_peer_gets_no_challenge_and_no_information",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_proof_stolen_from_the_loopback_lane_does_not_verify_here",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_read_device_is_refused_a_console_verb_with_the_typed_reason",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_read_device_may_still_call_a_read_verb",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_revoked_device_is_refused_at_the_hello",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_a_wrong_code_is_refused_and_looks_like_every_other_credential_failure",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_an_attached_device_is_named_on_the_connections_block",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_an_unknown_device_and_a_wrong_proof_are_indistinguishable",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_the_argv_lane_is_unreachable_from_a_device_at_every_tier",
+      "tests/agent_runtime/test_serve_gateway_lane.py::test_the_root_token_is_not_a_credential_on_this_lane"
+    ],
+    "tests/agent_runtime/test_serve_gateway_peer_lane.py": [
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_device_credential_is_refused_on_the_peer_hello",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_device_pairing_code_is_refused_as_a_peer_code_and_the_reverse",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_hello_naming_both_a_device_and_a_peer_is_refused",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_join_that_names_no_install_is_refused_and_writes_nothing",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_joined_peer_never_shows_its_secret_on_the_connections_block",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_paired_install_completes_the_handshake_over_tls_with_a_pinned_cert",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_calling_runtime_agent_retire_is_refused_scope_denied",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_code_becomes_an_edge_in_one_round_trip",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_code_is_one_shot_and_the_second_attempt_is_refused",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_credential_is_refused_on_the_device_hello",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_is_refused_a_read_verb_a_device_may_call",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_may_not_drain_the_runtime_other_clients_are_using",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_peer_proof_minted_for_the_loopback_port_does_not_verify_here",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_a_revoked_peer_is_refused_at_the_hello",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_an_attached_peer_is_named_on_the_connections_block_without_a_tier",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_an_unpaired_install_and_a_wrong_secret_are_indistinguishable",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_dial_peer_uses_the_endpoint_on_the_row_and_pins_its_fingerprint",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_peer_ping_answers_over_the_gateway_listener_with_the_peer_credential",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_argv_lane_is_unreachable_from_a_peer",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_greeting_never_carries_a_peer_verifier",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_last_seen_stamp_lands_on_the_cache_after_a_handshake",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_manual_ceremony_still_mints_an_edge_that_never_expires",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_peered_block_carries_the_expiry_when_the_code_had_a_ttl_and_null_otherwise",
+      "tests/agent_runtime/test_serve_gateway_peer_lane.py::test_the_root_token_is_not_a_credential_on_the_peer_field_either"
+    ],
+    "tests/agent_runtime/test_turn_cost_guard_downstream.py": [
+      "tests/agent_runtime/test_turn_cost_guard_downstream.py::test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard"
+    ],
+    "tests/hermes_cli/test_kanban_blocked_pm_tick.py": [
+      "tests/hermes_cli/test_kanban_blocked_pm_tick.py::test_a_dispatch_tick_routes_the_blocked_card_to_pm"
+    ],
+    "tests/scripts/test_doc_cite_adjacency.py": [
+      "tests/scripts/test_doc_cite_adjacency.py::test_the_live_canon_carries_no_foreign_line_cite",
+      "tests/scripts/test_doc_cite_adjacency.py::test_the_live_canon_is_capped_by_its_baseline"
+    ],
+    "tests/test_coverage_claims_resolve.py": [
+      "tests/test_coverage_claims_resolve.py::test_every_coverage_claim_names_a_test_that_exists"
+    ],
+    "tests/test_env_gap_registry.py": [
+      "tests/test_env_gap_registry.py::test_no_skip_row_points_at_a_deleted_test[tools]"
+    ],
+    "tests/test_no_source_grep_assertions.py": [
+      "tests/test_no_source_grep_assertions.py::test_no_new_positive_source_grep_assertion"
+    ],
+    "tests/test_path_identity_gate.py": [
+      "tests/test_path_identity_gate.py::test_no_unregistered_raw_path_comparison_under_tools"
+    ],
+    "tests/tooling/test_no_silent_package_patches.py": [
+      "tests/tooling/test_no_silent_package_patches.py::test_no_new_silent_package_patch"
+    ],
+    "tests/tools/test_toolset_manifest.py": [
+      "tests/tools/test_toolset_manifest.py::test_the_committed_manifest_matches_a_fresh_scan",
+      "tests/tools/test_toolset_manifest.py::test_the_generator_check_mode_agrees_byte_for_byte",
+      "tests/tools/test_toolset_manifest.py::test_the_manifest_agrees_with_the_live_registry"
+    ],
+    "tests/tui_gateway/test_contract_catalog.py": [
+      "tests/tui_gateway/test_contract_catalog.py::test_an_answer_the_shape_refuses_pydantic_refuses_too",
+      "tests/tui_gateway/test_contract_catalog.py::test_an_unknown_key_anywhere_is_refused_with_pydantics_words[METHODS]",
+      "tests/tui_gateway/test_contract_catalog.py::test_an_unknown_key_anywhere_is_refused_with_pydantics_words[SERVER_REQUESTS]",
+      "tests/tui_gateway/test_contract_catalog.py::test_the_committed_catalog_is_the_live_models",
+      "tests/tui_gateway/test_contract_catalog.py::test_the_seam_follows_the_switch_and_the_worker_routes_profile_identically"
+    ]
+  },
+  "limits": "No live operator or latency acceptance. Upstream owns durable multimodal projection; live image preservation is not a promise of image-byte recovery after restart.",
+  "post_rebase_tooling": {
+    "files": 9,
+    "passed": 154,
+    "skipped": 11,
+    "failed": 0,
+    "log": "post-rebase-tooling.log",
+    "scope": "After docs-only rebase; before final sidecar change, whose affected checks are included in final_focused."
+  },
+  "sidecar_storage": {
+    "source": "agent/session_persistence.py::_db_flush_row captures api_content before project_native_message and uses the earlier local value in the DB row",
+    "probe": "Isolated SessionDB and SessionPersistenceMixin native agent; flush one assistant row with display text and an api_key fixture in api_content, then inspect live rows, get_messages and safe_native_history(_persona_chat_native_history(...)). No real credentials or live store used.",
+    "baseline": {
+      "revision": "f43ffb8efe",
+      "live_sidecar_present": false,
+      "live_contains_fixture_secret": false,
+      "stored_contains_fixture_secret": true,
+      "replay_sidecar_present": false,
+      "replay_contains_fixture_secret": false
+    },
+    "candidate": {
+      "live_sidecar_present": true,
+      "live_contains_fixture_secret": false,
+      "stored_contains_fixture_secret": true,
+      "replay_sidecar_present": true,
+      "replay_contains_fixture_secret": false
+    },
+    "disposition": "Pre-existing at-rest redaction gap filed in runtime-queue.md under Seams; live and cold model projection redacted by this repair. Upstream persistence file unchanged."
+  }
+}

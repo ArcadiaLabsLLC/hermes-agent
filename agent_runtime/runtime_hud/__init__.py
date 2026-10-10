@@ -124,7 +124,11 @@ from agent_runtime.runtime_hud.envelopes import (
     split_composed_user_row,
 )
 from agent_runtime.runtime_hud.hud import render_situational_hud_block, resolve_situational_hud
-from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
+from agent_runtime.runtime_hud.capability import (
+    render_capability_block,
+    resolve_capability_block,
+    with_tool_surface,
+)
 from agent_runtime.runtime_hud.capability_account import capability_block_for_persona
 from agent_runtime.runtime_hud.ambient import (
     installs_block,
@@ -168,4 +172,5 @@ __all__ = [
     "skill_preload_revision",
     "split_composed_user_row",
     "stable_hud_fields",
+    "with_tool_surface",
 ]

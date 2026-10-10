@@ -146,15 +146,32 @@ def resolve_capability_block(
     return block
 
 
+def with_tool_surface(
+    capability: Mapping[str, Any] | None, surface: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """``capability`` plus the ``deferred`` / ``unavailable`` buckets of ``surface``, as a NEW dict.
+
+    The capability account is resolved at bundle build and memoized with the bundle; the
+    cost layer's receipt is per turn (the tool form's owner settles it on the actor), so the
+    two are joined here, per turn, never inside the memoized account. ``surface`` ``None``
+    (no settled receipt yet — a cold actor, a CLI one-shot) or a ``not_computed`` receipt
+    leaves the account as it was: the HUD loses the deferred line, never the turn.
+    """
+
+    block = dict(capability or {})
+    if not isinstance(surface, Mapping) or surface.get("state") == "not_computed":
+        return block
+    block.update(_surface_buckets(surface))
+    return block
+
+
 def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
     """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts.
 
     ``deferred.count`` is the receipt's ``counts.deferred`` — the non-MCP deferred names —
-    and the admitted MCP servers' deferred names ride apart as ``deferred.mcp_count``. One
-    definition for both readers: the HUD is resolved at bundle build, usually from the
-    PREVIEW surface, which cannot see MCP tools (admission registers them per run), while
-    the prompt record's receipt is the factory's, which can. Counting them together made
-    the HUD say 15 where the same turn's receipt said 49 (ctx_74748dd3f4f23190, 2026-10-09).
+    and the admitted MCP servers' deferred names ride apart as ``deferred.mcp_count``: one
+    definition for the HUD and the prompt record, which read the SAME settled receipt (the
+    factory's, after MCP admission and the constructor's extras).
     """
 
     buckets: dict[str, Any] = {}

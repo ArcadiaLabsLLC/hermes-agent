@@ -279,6 +279,36 @@ def settle_turn_tool_form(
     return receipt
 
 
+def settled_surface_receipt(root_session_id: str | None, *, signature: str | None = None) -> dict | None:
+    """The tool surface this owner last SETTLED for the actor that runs ``root_session_id``'s turn.
+
+    The turn's bound agent when there is one, else the resident actor the turn will reuse
+    (the runtime registry's entry under the same ``signature``). That receipt is the
+    factory's — after MCP admission and the constructor's extras — never a preview. ``None``
+    when no settle has happened yet (a cold or rebuilt actor, a CLI one-shot with no
+    registry) or the account was ``not_computed``: the HUD then loses its deferred line,
+    never the turn. Never raises.
+    """
+
+    try:
+        from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+        agent = current_persona_turn_agent()
+        if agent is None and root_session_id and signature:
+            from agent_runtime.persona_chat_continuity import persona_chat_runtime_registry
+
+            registry = persona_chat_runtime_registry()
+            if registry is not None:
+                agent = registry.resident_agent(str(root_session_id), signature=str(signature))
+        receipt = getattr(agent, AGENT_SURFACE_ATTR, None) if agent is not None else None
+    except Exception:  # noqa: BLE001 - a receipt read decorates a turn, it never blocks one
+        logger.debug("tool surface: settled receipt unreadable", exc_info=True)
+        return None
+    if not isinstance(receipt, dict) or receipt.get("state") == "not_computed":
+        return None
+    return receipt
+
+
 def _account_constructor_form(agent: Any, key: tuple, names: frozenset[str], base: Any, blocked) -> None:
     """The account of a form the owner did not assemble (a persona with no defer list keeps the
     constructor's form): paid once per actor, on its first settle — the raw read through the
@@ -365,4 +395,5 @@ __all__ = [
     "apply_chat_lane_defer",
     "clear_tool_form_memo",
     "settle_turn_tool_form",
+    "settled_surface_receipt",
 ]

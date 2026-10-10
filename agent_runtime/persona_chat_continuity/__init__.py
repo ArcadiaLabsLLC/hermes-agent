@@ -13,6 +13,7 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
       __init__.py          stores   this map; re-exports the importer and test names
       bounds.py            policy   the composed-user-content bound: per-part ceilings,
                                     ContentBoundNote / BoundedUserContent, _redacted
+      content.py           policy   native text/JSON redaction; provider blocks stay typed
       wire.py              policy   THE wire boundary: native_wire_row, safe_native_*,
                                     record_wire_boundary_drift, native_history_revision
       lease.py             stores   the chat-root lease + the scopes a turn holds
@@ -55,8 +56,7 @@ from .bounds import (
     CONTENT_BOUND_PARTS,
     BoundedUserContent,
     ContentBoundNote,
-    _MAX_ARGUMENTS,
-    _MAX_CONTENT,
+    _MAX_OPERATOR_MESSAGE_CONTENT,
     _MAX_RUNTIME_CONTEXT_CONTENT,
     _MAX_USER_ROW_CONTENT,
     _bound_envelope,

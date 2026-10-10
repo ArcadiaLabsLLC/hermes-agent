@@ -252,6 +252,26 @@ class PersonaChatRuntimeRegistry:
                 self._record_transition(evicted_root, "cold", "evicted")
             return entry, reused, rebuild_reason, signature_diff
 
+    def resident_agent(self, root_session_id: str, *, signature: str) -> Any:
+        """The actor this root's next turn would REUSE under ``signature``, else ``None``.
+
+        A peek: no LRU touch, no eviction, no transition. An entry built under a
+        different signature is the actor that turn will DISCARD, so it answers
+        ``None`` rather than describe a form the turn will not run.
+
+        LOCK-FREE on purpose: ``acquire`` holds ``_lock`` across ``factory()`` (seconds for
+        an MCP-admitting build or a prewarm), and this peek runs on every turn's context
+        build, so taking the lock would queue a turn behind ANOTHER root's actor build. One
+        ``dict.get`` is atomic, and an entry is built whole before it is stored (its
+        ``signature`` and ``agent`` never change afterwards); a root mid-rebuild is popped,
+        so it reads ``None`` — no settled receipt yet.
+        """
+
+        entry = self._entries.get(root_session_id)
+        if entry is None or entry.signature != signature:
+            return None
+        return entry.agent
+
     def take_prewarm_discard(self, root_session_id: str) -> tuple[str, ...] | None:
         """The components of the prewarmed actor the last acquire discarded, once.
 

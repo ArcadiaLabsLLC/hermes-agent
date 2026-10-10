@@ -3748,8 +3748,8 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "s-h10",
         "HEAD",
         Form.CODE,
-        "the flat, unaccounted truncation the per-role accounting replaced "
-        "(_bounded_free_text says when it cuts); a public rename would collide "
+        "the flat, unaccounted truncation retired from native history "
+        "(upstream owns result sizing); a public rename would collide "
         "with serde.bounded_text",
         "_safe_text",
         scope=("agent_runtime.persona_chat_continuity",),

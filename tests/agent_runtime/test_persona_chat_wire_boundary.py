@@ -1,83 +1,12 @@
-"""The persona-chat WIRE boundary — every character it removes is named.
+"""Native wire accounting and redaction; upstream owns non-user size policy.
 
-=============================================================================
-THE COUPLING THIS PINS
-=============================================================================
-
-``run_agent`` flushes each turn's messages to the session DB for crash
-resilience. That flush hands every persona-chat row through
-:func:`~agent_runtime.persona_chat_continuity.native_wire_row` and then writes
-the result back into the LIVE actor's message list::
-
-    bound = native_wire_row({...})
-    native = bound.row
-    msg.clear()
-    msg.update(native)
-
-``msg`` is the same dict object the provider call reads, and the flush runs
-BEFORE the first API call of the turn. So a function that reads as persistence
-is in fact the last thing to touch the prompt: **whatever it cuts, the model
-never sees.**
-
-On 2026-08-09 that cost a real turn. ``_MAX_CONTENT = 20_000`` — a persistence
-bound by every appearance — was applied to a composed operator row and delivered
-37% of a required skill cut mid-sentence, with the runtime HUD amputated
-entirely; the cut took the ``</skill_preload>`` closing tag with it, which made
-the ``unchanged`` dedupe structurally unreachable and re-shipped ~3.7 k tokens
-every turn thereafter. The per-part bounds that fixed it landed in ``23c684cb3``.
-
-What did NOT land was an invariant. In the fixing agent's own words: *"There is
-still no invariant asserting 'what the boundary produced == what was submitted'.
-The receipt reports drift after the fact rather than preventing it."* Every
-future change to a bound in that module could still silently change the prompt,
-and three of the four roles were still losing content with no note at all.
-
-=============================================================================
-THE INVARIANT, AND WHY IT IS NOT "wire == submitted"
-=============================================================================
-
-The boundary is SUPPOSED to shorten content — that is its job. A bare equality
-assertion could therefore only ever be false, which is precisely why the
-previous receipt could report drift and never prevent it. The checkable
-invariant is one level up:
-
-    every character between the submitted content and the wire content is
-    accounted for, either by redaction or by a typed :class:`ContentBoundNote`.
-
-:attr:`WireBoundaryRow.unaccounted_loss` is that residue, and
-:attr:`~WireBoundaryRow.holds` is the invariant. A non-zero residue means
-content is reaching the model in a shape no receipt describes.
-
-**Assertion here, fail-loud row in production.** The hard assertions live in
-this file, over the PURE function, where they cost nothing. Production reports
-via :func:`record_wire_boundary_drift` instead: the flush runs on the live agent
-turn loop, and raising there would convert an accounting bug into a lost turn on
-a conversation that is otherwise healthy — worse than the drift being reported,
-in the one place a user cannot cheaply retry. That split is the answer to "why
-not just assert in the runtime": the runtime is concurrency-adjacent core code
-and the invariant is fully checkable off it.
-
-RED-PROOF (each reverted after):
-
-* deleting the ``notes=`` argument from ``_bounded_free_text``'s truncating
-  return makes :func:`test_a_truncated_free_text_row_accounts_for_every_lost_char`
-  and the assistant/tool/system cases fail with a 10,000-char residue — this is
-  the silent class the change retires, reproduced;
-* restoring ``_safe_text(...)`` in place of the accounted call for non-user
-  roles fails the same tests;
-* netting :attr:`argument_loss` into :attr:`accounted_loss` (the bug this file's
-  ``CONTENT_BOUND_PARTS`` split exists to prevent) makes
-  :func:`test_argument_loss_cannot_cancel_a_content_residue` fail;
-* removing ``record_wire_boundary_drift`` from the flush fails
-  :func:`test_the_flush_site_uses_the_typed_boundary_and_reports_drift`.
+Operator composition keeps its explicit per-part bounds. Other content and tool
+arguments must survive projection without another size cut. Real flush/replay
+coverage lives in test_native_result_policy_downstream.py.
 """
-
 from __future__ import annotations
 
-import ast
-import inspect
 import logging
-from pathlib import Path
 
 import pytest
 
@@ -91,8 +20,6 @@ from agent_runtime.persona_chat_continuity import (
     WIRE_BOUNDARY,
     ContentBoundNote,
     WireBoundaryRow,
-    _MAX_ARGUMENTS,
-    _MAX_CONTENT,
     native_wire_row,
     record_wire_boundary_cut,
     record_wire_boundary_drift,
@@ -156,24 +83,14 @@ def test_a_short_row_reaches_the_wire_whole_and_unbounded(role: str):
 
 
 @pytest.mark.parametrize("role", ["assistant", "tool", "system"])
-def test_a_truncated_free_text_row_accounts_for_every_lost_char(role: str):
-    """The silent class. These three roles were bounded with no note at all.
-
-    A 30 KB tool result was cut to 20 K on the way to the MODEL — not merely on
-    the way to disk — and nothing anywhere recorded it. The per-part accounting
-    added for the composed operator row covered ``user`` only.
-    """
-
-    content = "x" * 30_000
+def test_non_user_content_arrives_whole_without_bound_notes(role: str):
+    content = "x" * 300_000 + " END OF RESULT"
     bound = native_wire_row({"role": role, "content": content})
 
-    assert bound.wire_chars == _MAX_CONTENT
-    assert bound.redacted_chars == 30_000
-    assert [(n.part, n.action) for n in bound.notes] == [
-        (BOUND_PART_CONTENT, BOUND_ACTION_TRUNCATED)
-    ]
-    assert bound.accounted_loss == 30_000 - _MAX_CONTENT
-    assert bound.unaccounted_loss == 0, "the bound must be fully explained by its note"
+    assert bound.row["content"] == content
+    assert bound.wire_chars == bound.redacted_chars == len(content)
+    assert bound.notes == ()
+    assert bound.accounted_loss == 0
     assert bound.holds
 
 
@@ -215,18 +132,16 @@ def test_a_dropped_part_is_accounted_as_a_drop_not_a_silent_absence():
     assert bound.holds
 
 
-def test_tool_call_arguments_are_bounded_and_accounted():
-    bound = native_wire_row(
-        {
-            "role": "assistant",
-            "content": "calling a tool",
-            "tool_calls": [{"id": "c1", "function": {"name": "terminal", "arguments": "a" * 9_000}}],
-        }
-    )
+def test_tool_call_arguments_arrive_whole_without_bound_notes():
+    arguments = '{"source":"' + "a" * 12_000 + ' END"}'
+    bound = native_wire_row({
+        "role": "assistant", "content": "calling a tool",
+        "tool_calls": [{"id": "c1", "function": {"name": "terminal", "arguments": arguments}}],
+    })
 
-    assert len(bound.row["tool_calls"][0]["function"]["arguments"]) == _MAX_ARGUMENTS
-    assert [n.part for n in bound.notes] == [BOUND_PART_TOOL_ARGUMENTS]
-    assert bound.argument_loss == 9_000 - _MAX_ARGUMENTS
+    assert bound.row["tool_calls"][0]["function"]["arguments"] == arguments
+    assert bound.notes == ()
+    assert bound.argument_loss == 0
     assert bound.holds
 
 
@@ -248,7 +163,7 @@ def test_argument_loss_cannot_cancel_a_content_residue():
                 action=BOUND_ACTION_TRUNCATED,
                 original_chars=9_000,
                 bounded_chars=4_000,
-                limit=_MAX_ARGUMENTS,
+                limit=4_000,
             ),
         ),
         submitted_chars=1_000,
@@ -357,61 +272,7 @@ def test_record_wire_boundary_drift_reports_loudly_and_never_raises(caplog):
 # --------------------------------------------------------------------------- #
 # The coupling site itself
 # --------------------------------------------------------------------------- #
-def test_the_flush_site_uses_the_typed_boundary_and_reports_drift():
-    """The flush must go through the TYPED boundary and check the residue.
 
-    Structural (AST) rather than textual, per the repo rule: a reformat must not
-    fail this, and a comment mentioning the function must not satisfy it. What
-    is pinned is the shape of the coupling — the write-back into the live actor
-    is what makes this the wire, so the boundary that feeds it has to be the one
-    that reports.
-    """
-
-    from agent_runtime import native_persistence
-    from agent import session_persistence
-
-    persistence_tree = ast.parse(inspect.getsource(session_persistence))
-    assert any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "project_native_message"
-        for node in ast.walk(persistence_tree)
-    )
-    source = Path(native_persistence.__file__)
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-
-    def called(name: str) -> list[ast.Call]:
-        return [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and (
-                (isinstance(node.func, ast.Name) and node.func.id == name)
-                or (isinstance(node.func, ast.Attribute) and node.func.attr == name)
-            )
-        ]
-
-    assert called("native_wire_row"), (
-        "the flush no longer goes through the typed wire boundary; "
-        "`safe_native_message` alone drops the accounting that makes the "
-        "silent-amputation class detectable"
-    )
-    assert called("record_wire_boundary_drift"), (
-        "the flush no longer reports wire-boundary drift — an unaccounted loss "
-        "would again reach the model with nothing recording it"
-    )
-    assert called("record_wire_boundary_cut"), (
-        "the flush no longer says when an accounted cut shortened a row — a "
-        "tool result cut at the flat bound would again reach the model with "
-        "no line in any log"
-    )
-
-    # The write-back is what makes this the wire rather than the record. If it
-    # ever stops happening, this file's premise is void and it should be
-    # rewritten rather than left asserting a coupling that no longer exists.
-    assert called("clear") and called("update"), (
-        "the flush no longer writes the bounded row back into the live actor"
-    )
 
 
 def test_safe_native_message_still_returns_the_plain_row():
@@ -424,40 +285,24 @@ def test_safe_native_message_still_returns_the_plain_row():
     assert isinstance(safe_native_message(message), dict)
 
 
-def test_the_wire_bound_is_documented_as_a_wire_bound():
-    """The whole defect was a wire bound that read as a persistence bound.
 
-    Naming is the fix that prevents recurrence, so it is pinned: the constant's
-    own documentation has to say what it governs. Checked on the module doc
-    comment rather than on layout.
-    """
-
-    from agent_runtime.persona_chat_continuity import bounds
-
-    source = inspect.getsource(bounds)
-    header = source[: source.index("_MAX_CONTENT = ")]
-    assert "WIRE BOUND, NOT A PERSISTENCE BOUND" in header, (
-        "the ceiling that governs the prompt must say so where it is defined"
-    )
 
 
 # --------------------------------------------------------------------------- #
 # The accounted cut gets a receipt too
 # --------------------------------------------------------------------------- #
 def test_record_wire_boundary_cut_names_the_tool_and_the_sizes_never_the_content(caplog):
-    """On 2026-10-09 a 26,853-char ``launcher_generated_list`` reply was cut to
-    20,000 and the first evidence was a database dig: the drift reporter is
-    silent for an ACCOUNTED cut and only the composed user row warned."""
-
-    secret = "SENTINEL-" + "q" * 30_000
-    bound = native_wire_row({"role": "tool", "tool_name": "launcher_generated_list", "content": secret})
-
+    # Preserve receipts for accounted degradation independently of retired cuts.
+    bound = WireBoundaryRow(
+        row={"role": "tool", "tool_name": "launcher_generated_list", "content": "SENTINEL"},
+        notes=(ContentBoundNote(BOUND_PART_CONTENT, BOUND_ACTION_TRUNCATED, 30_000, 20_000, 20_000),),
+    )
     with caplog.at_level(logging.WARNING):
         notes = record_wire_boundary_cut(bound)
 
     assert notes == bound.notes and len(notes) == 1
     assert "launcher_generated_list" in caplog.text
-    assert f"{len(secret)}->{_MAX_CONTENT}/{_MAX_CONTENT}" in caplog.text
+    assert "30000->20000/20000" in caplog.text
     assert "SENTINEL" not in caplog.text
 
 
@@ -481,13 +326,3 @@ def test_record_wire_boundary_cut_leaves_the_user_row_to_its_own_warning(caplog)
         assert record_wire_boundary_cut(bound) == ()
 
     assert "wire boundary cut" not in caplog.text
-
-
-def test_the_flat_bound_is_pinned_on_both_sides_of_the_launcher_wire():
-    """The launcher sizes every ``launcher.generated.*`` reply against this
-    figure (``lib/core/services/hermes/runtime/data/harness_tool_result_wire.dart``,
-    ``kHermesToolResultWireBound``) because the runtime does not announce it
-    over the serve link. Changing it here without changing it there puts the
-    tail of every catalog reply past the cut again."""
-
-    assert _MAX_CONTENT == 20_000

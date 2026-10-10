@@ -53,3 +53,7 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 ## Filed on arrival — 2026-10-07 (landing prep/hermes-waves-reviewed)
 
 - [ ] **`workspace_claim_disagreement` is a test-only production function since 33069ca1fc retired its only caller** · dead code · `agent_runtime/workspace_scope.py`, `tests/agent_runtime/test_workspace_scope.py` · lane: delete with its test
+
+## Filed on arrival — 2026-10-10 (native representation review)
+
+- [ ] **`record_wire_boundary_cut`, `BOUND_PART_CONTENT` and `BOUND_PART_TOOL_ARGUMENTS` have no live note producer after non-user cuts were retired.** · `agent_runtime/persona_chat_continuity/wire.py`, `bounds.py`, `agent_runtime/native_persistence.py` · DELETE / audit related receipt-only fields · the warning rejects user rows and all non-user projections produce empty notes; the positive receipt test manufactures unreachable production notes. Remove the dead producer-era vocabulary and call with its tests, preserving real operator-bound and unaccounted-drift receipts; historical persisted text needs no live constants. · lane: dead-code slice
