@@ -52,8 +52,9 @@ The invariants this module exists to hold
    its admitted config are unchanged (``resident.py``); every admitting run
    binds its own budget into the scope's slot and :func:`release_mcp_admission`
    unbinds it, so ``registry.generation`` does not move on a reused actor's
-   turn. A changed filter or a re-registered tool re-registers the scope;
-   :func:`teardown_mcp_admission` is the explicit removal. Release never fails
+   turn. A changed filter, a replaced or lost session, a re-listed server or a
+   lost tool re-registers the scope; :func:`drop_resident_scopes` is the
+   explicit removal. Release never fails
    a finished turn: every fault is a typed ``mcp_admission_teardown_failed`` row.
 6. **An admitted run is bounded in CALLS, not only in time.** Single-flight
    bounds how many admissions may be in flight; the wall budget and the AS0
@@ -135,8 +136,8 @@ first; no module imports one above it (W0-G6)::
                                 the per-home memo, its validity, partition / record / release
       registration.py   lanes   the registry scope's ends: admit_mcp_servers (Admission:
                                 acquire -> classify -> partition -> register_bounded -> bind
-                                budget -> outcome), release_mcp_admission (end of every run)
-                                and teardown_mcp_admission (removal)
+                                budget -> outcome), release_mcp_admission (end of every run),
+                                teardown_mcp_admission / drop_resident_scopes (removal)
 
     entry point                                           opens
     admit_mcp_servers / release_mcp_admission (runner)    registration -> resident, transport -> outcomes
@@ -172,6 +173,7 @@ from .registration import (
     Admission,
     _ADMISSION_LOCK,
     admit_mcp_servers,
+    drop_resident_scopes,
     release_mcp_admission,
     teardown_mcp_admission,
 )

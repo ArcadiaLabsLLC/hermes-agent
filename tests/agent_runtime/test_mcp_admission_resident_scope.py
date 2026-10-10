@@ -200,3 +200,83 @@ def test_a_narrower_admission_re_registers_instead_of_inheriting(registry, warm_
     assert _raw(registry) == set(READ_ONLY_INCLUDED_TOOLS[_SERVER])
     for mutator in READ_ONLY_EXCLUDED_TOOLS[_SERVER]:
         assert mutator not in _raw(registry)
+
+
+# ── S2: invalidation — the scope stands only while its session, list and tools do ──
+
+
+class _CountingDefaultRegistrar:
+    """The production registrar, counted."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, servers):
+        from agent_runtime.mcp_admission import _default_registrar
+
+        self.calls += 1
+        return _default_registrar(servers)
+
+
+def test_a_replaced_session_re_registers(registry, warm_server):
+    registrar = _CountingDefaultRegistrar()
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+
+    warm_server.session = object()  # a reconnect: same server task, new session
+    second = admit_mcp_servers(_admission(), register=registrar)
+    release_mcp_admission(second.admitted)
+
+    assert second.admitted == (_SERVER,)
+    assert registrar.calls == 2
+
+
+def test_a_session_lost_during_the_run_drops_the_scope_at_release(registry, warm_server):
+    first = admit_mcp_servers(_admission(), register=_CountingDefaultRegistrar())
+    assert _raw(registry)
+
+    warm_server.session = None  # parked mid-run: the handlers point at a dead session
+    released = release_mcp_admission(first.admitted)
+
+    assert released.ok
+    assert len(released.removed_tool_names) == len(_FULL_SURFACE)
+    assert _raw(registry) == set()
+
+
+def test_a_server_that_re_listed_its_tools_re_registers(registry, warm_server):
+    registrar = _CountingDefaultRegistrar()
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+
+    warm_server._tools = warm_server._tools + [_FakeMcpTool("mcp_launcher_qa_new_verb")]
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+
+    assert registrar.calls == 2
+    assert "mcp_launcher_qa_new_verb" in _raw(registry)
+
+
+def test_a_partial_registration_is_re_registered_whole(registry):
+    registrar = _CountingRegistrar(registry)
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+
+    registry.deregister(registrar.prefixed("run_actions"))  # e.g. a failed meter removed it
+    second = admit_mcp_servers(_admission(), register=registrar)
+    release_mcp_admission(second.admitted)
+
+    assert registrar.registrations == 2
+    assert set(registry.get_tool_names_for_toolset(_TOOLSET)) == {
+        registrar.prefixed(tool) for tool in registrar.tools
+    }
+
+
+@pytest.mark.parametrize("named", [True, False])
+def test_drop_resident_scopes_empties_the_registry_of_that_server(registry, named):
+    from agent_runtime.mcp_admission import drop_resident_scopes
+
+    registrar = _CountingRegistrar(registry)
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+
+    dropped = drop_resident_scopes([_SERVER] if named else None)
+
+    assert dropped.ok and dropped.servers == (_SERVER,)
+    assert registry.get_tool_names_for_toolset(_TOOLSET) == []
+    release_mcp_admission(admit_mcp_servers(_admission(), register=registrar).admitted)
+    assert registrar.registrations == 2

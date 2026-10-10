@@ -79,6 +79,13 @@ class ResidentScope:
     filter_revision: str
     tool_names: frozenset[str]
     slot: BudgetSlot
+    #: The live session object the tools were registered off (compared by identity; ``None``
+    #: when no transport holds the server, e.g. a caller-supplied registrar). A reconnect, a
+    #: park or a disconnect replaces it, and the registered handlers may point at a dead one.
+    session: Any = None
+    #: The tool names the server task has listed. Upstream's ``list_changed`` refresh updates
+    #: the list without reconnecting; the resident names are then stale (D1.01 risk 2).
+    listed_names: tuple[str, ...] = ()
 
 
 #: ``(hermes_home_key(), server) -> ResidentScope``. Keyed by home because MCP tools may live in
@@ -115,6 +122,21 @@ def registered_tool_names(server: str) -> frozenset[str]:
         return frozenset()
 
 
+def _live_identity(server: str) -> tuple[Any, tuple[str, ...]]:
+    """``(session, listed tool names)`` of the server's live transport, ``(None, ())`` if none."""
+
+    from .transport import _current_mcp_servers
+
+    try:
+        task = _current_mcp_servers().get(server)
+    except Exception:  # pragma: no cover - MCP SDK absent: no transport holds anything
+        return None, ()
+    if task is None:
+        return None, ()
+    listed = tuple(str(getattr(tool, "name", "")) for tool in (getattr(task, "_tools", None) or ()))
+    return getattr(task, "session", None), listed
+
+
 def _metered_by(registry: Any, tool_names: Iterable[str], slot: BudgetSlot) -> bool:
     for name in tool_names:
         entry = registry.get_entry(name)
@@ -128,6 +150,11 @@ def _invalid_reason(scope: ResidentScope, config: Mapping[str, Any] | None) -> s
 
     if config is not None and scope.filter_revision != config_revision(config):
         return "admission content changed"
+    session, listed = _live_identity(scope.server)
+    if session is not scope.session:
+        return "transport session replaced or gone"
+    if listed != scope.listed_names:
+        return "server re-listed its tools"
     names = registered_tool_names(scope.server)
     if names != scope.tool_names:
         return "registered tools changed"
@@ -172,23 +199,48 @@ def record_resident_scope(server: str, config: Mapping[str, Any] | None, slot: B
     if not names:
         _RESIDENT_SCOPES.pop(key, None)
         return
+    session, listed = _live_identity(server)
     _RESIDENT_SCOPES[key] = ResidentScope(
         home_key=key[0],
         server=server,
         filter_revision=config_revision(config),
         tool_names=names,
         slot=slot,
+        session=session,
+        listed_names=listed,
     )
 
 
-def release_slots(servers: Iterable[str]) -> None:
-    """Clear the budget slots of ``servers``' resident scopes in the current home."""
+def release_slots(servers: Iterable[str]) -> list[str]:
+    """Clear the budget slots of ``servers``' resident scopes in the current home.
+
+    A scope that no longer stands (its session went away or was replaced during the run, a
+    tool was deregistered by a failed meter) is removed here rather than kept: its handlers may
+    point at a dead session, and the next admission re-registers it whole. Returns the tool
+    names removed that way; raises on a registry fault (the caller types it).
+    """
 
     home = _home_key()
+    removed: list[str] = []
     for name in servers:
         scope = _RESIDENT_SCOPES.get((home, name))
-        if scope is not None:
-            scope.slot.clear()
+        if scope is None:
+            continue
+        scope.slot.clear()
+        reason = _invalid_reason(scope, None)
+        if reason is None:
+            continue
+        logger.info("MCP admission drops %r's resident scope at release: %s", name, reason)
+        _RESIDENT_SCOPES.pop((home, name), None)
+        removed.extend(deregister_server_tools(name))
+    return removed
+
+
+def resident_server_names() -> tuple[str, ...]:
+    """Servers holding a resident scope in the current home."""
+
+    home = _home_key()
+    return tuple(sorted(server for key_home, server in _RESIDENT_SCOPES if key_home == home))
 
 
 def forget(servers: Iterable[str]) -> None:

@@ -592,13 +592,16 @@ def release_mcp_admission(
     if not names:
         return McpTeardownOutcome()
     failures: list[McpAdmissionDenial] = []
+    removed: list[str] = []
     # A registration whose CALLER timed out keeps running on its worker thread;
     # waiting for it here keeps its late bind from landing after this release.
     held = _ADMISSION_LOCK.acquire(timeout=max(0.0, float(lock_timeout_seconds)))
     if not held:
         failures.append(_in_flight_denial(names))
     try:
-        resident.release_slots(names)
+        # Only a scope that no longer stands is deregistered (session gone or
+        # replaced, a tool lost); a valid one is kept with its slot cleared.
+        removed = resident.release_slots(names)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("MCP admission release failed: %s", exc, exc_info=True)
         failures.append(_registry_fault_denial(", ".join(names), exc))
@@ -607,9 +610,25 @@ def release_mcp_admission(
             _ADMISSION_LOCK.release()
     return McpTeardownOutcome(
         servers=tuple(names),
+        removed_tool_names=tuple(removed),
         failures=tuple(failures),
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
+
+
+def drop_resident_scopes(
+    servers: Iterable[str] | None = None,
+    *,
+    lock_timeout_seconds: float = 5.0,
+) -> McpTeardownOutcome:
+    """Retire resident scopes explicitly: ``servers``, or every one in the current home.
+
+    The registry tools go and the memo forgets them; the transport stays (process exit
+    owns connections, ``tools.mcp_tool.shutdown_mcp_servers``). Never raises.
+    """
+
+    names = resident.resident_server_names() if servers is None else servers
+    return teardown_mcp_admission(names, lock_timeout_seconds=lock_timeout_seconds)
 
 
 def _in_flight_denial(names: Sequence[str]) -> McpAdmissionDenial:
