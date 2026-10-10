@@ -14,7 +14,7 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 `agent_runtime/persona_chat_continuity/wire.py::native_wire_row` redacts native
 history without applying a second size ceiling to tool results, assistant/system
 content or tool-call arguments. Upstream sizes results through its own three
-layers: per-result handling, aggregate budgeting and context compression. The
+layers (tool caps, spillover, aggregate budgets) and owns context compression. The
 fork's operator-message and composed-user limits remain in
 `agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`.
 

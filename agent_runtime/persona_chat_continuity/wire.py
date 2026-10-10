@@ -201,8 +201,8 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     The persistence adapter writes this projection back into live messages.
     It redacts sensitive values and preserves tool structure and ordering ids.
     Only composed operator content has fork-owned bounds. Upstream sizes results
-    through its own three layers: per-result spill, aggregate budgeting and
-    context compression. This projection must not clip those results, replies,
+    through its own three layers (tool caps, spillover, aggregate budgets), and
+    also owns context compression. This projection must not clip results, replies,
     system content or canonical tool-call arguments a second time.
 
     Applying this more than once is stable, so warm memory and cold persistence
