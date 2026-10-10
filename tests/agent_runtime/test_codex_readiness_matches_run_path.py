@@ -146,7 +146,6 @@ def _persona() -> AgentPersona:
         model=MODEL,
         provider=PROVIDER,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="personas/alice/system.md",
     )
 

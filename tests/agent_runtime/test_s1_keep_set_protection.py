@@ -119,7 +119,6 @@ def test_promotion_clones_the_role_template_and_binds_the_profile():
         model="m",
         provider="p",
         api_mode="chat",
-        toolsets=["file", "search"],
         system_prompt_path="agent_runtime/prompts/qa.md",
     )
     store = AgentStore()
@@ -132,7 +131,7 @@ def test_promotion_clones_the_role_template_and_binds_the_profile():
     assert persona.id == "launcher-qa"
     assert persona.hermes_profile == "launcher-qa"
     assert persona.role == "qa"
-    assert persona.toolsets == ["file", "search"]
+    assert persona.system_prompt_path == "agent_runtime/prompts/qa.md"
     assert store.get("launcher-qa").hermes_profile == "launcher-qa"
 
 
@@ -150,7 +149,6 @@ def test_promotion_unknown_role_does_not_clone_an_unrelated_stored_persona():
             model="qa-model",
             provider="qa-provider",
             api_mode="chat",
-            toolsets=["vision"],
             system_prompt_path="agent_runtime/prompts/qa.md",
         )
     )
@@ -161,7 +159,7 @@ def test_promotion_unknown_role_does_not_clone_an_unrelated_stored_persona():
 
     assert persona.role == "builder"
     assert persona.hermes_profile == "fresh-builder"
-    assert persona.toolsets == []
+    assert persona.model != "qa-model"
 
 
 # ── items 3-5: the Stage C Python capture lane (retired in S14) ───────────

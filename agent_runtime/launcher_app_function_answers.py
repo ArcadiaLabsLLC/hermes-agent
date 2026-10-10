@@ -49,8 +49,11 @@ class RefusalMeaning:
 LAUNCHER_REFUSALS: Mapping[str, RefusalMeaning] = {
     "unknown_function": RefusalMeaning(
         RETRY_NEVER, "the Launcher has no such app function; it may have been removed since it was listed"),
+    # Not "did not validate against the schema": the Launcher answers this code
+    # for any argument it cannot use, a JSON syntax error inside one string
+    # argument included, and the message names what to change.
     "invalid_arguments": RefusalMeaning(
-        RETRY_AFTER_CHANGE, "the arguments did not validate against the function's schema; fix them before calling again"),
+        RETRY_AFTER_CHANGE, "the Launcher rejected these arguments; its message says what to change before calling again"),
     "refused_by_policy": RefusalMeaning(
         RETRY_NEVER, "the Launcher's policy refuses this function to agents"),
     "not_reachable_from_caller": RefusalMeaning(

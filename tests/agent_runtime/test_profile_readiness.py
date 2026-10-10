@@ -17,7 +17,6 @@ def test_profile_readiness_reports_missing_profile_without_secret_paths():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="definitely-missing-stage9-profile",
         skills=["definitely-missing-stage9-skill"],
@@ -58,7 +57,6 @@ def test_profile_readiness_checks_skills_inside_bound_profile(tmp_path, monkeypa
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/qa/system.md",
         hermes_profile="qa",
         skills=["profile-only-skill"],
@@ -89,7 +87,6 @@ def test_profile_readiness_finds_nested_profile_skills_by_frontmatter_name(tmp_p
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/dev/system.md",
         hermes_profile="dev",
         skills=["github-code-review"],
@@ -148,7 +145,6 @@ def test_profile_readiness_reports_provider_auth_attention(monkeypatch):
         model="gpt-5.1-codex-max",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="personas/dev/system.md",
     )
 
@@ -178,7 +174,6 @@ def test_profile_readiness_reports_runtime_dependency_missing_before_auth(monkey
         model="gpt-5.1-codex-max",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="personas/dev/system.md",
     )
 
@@ -201,7 +196,6 @@ def test_profile_readiness_requires_explicit_mcp_declaration_for_visual_scope(mo
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/qa/system.md",
     )
     declared = AgentPersona(
@@ -211,7 +205,6 @@ def test_profile_readiness_requires_explicit_mcp_declaration_for_visual_scope(mo
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=["file"],
         system_prompt_path="personas/reviewer/system.md",
         required_mcp_servers=["launcher_qa"],
     )
@@ -284,7 +277,6 @@ def test_provider_issue_memo_is_scoped_per_profile_home(monkeypatch):
         model="gpt-5",
         provider="openai",
         api_mode=None,
-        toolsets=[],
         system_prompt_path="personas/dev/system.md",
         hermes_profile=None,
         skills=[],
@@ -335,7 +327,6 @@ def test_provider_issue_memo_is_scoped_per_contextvar_override(monkeypatch):
         model="gpt-5",
         provider="openai",
         api_mode=None,
-        toolsets=[],
         system_prompt_path="personas/dev/system.md",
         hermes_profile=None,
         skills=[],

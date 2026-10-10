@@ -483,8 +483,8 @@ preview read 32 toolsets / 79 tools. It also carries the typed account of what t
 ### 4c. The declared toolset (S0a, 2026-09-03)
 
 The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
-`declared_lane_toolsets` (`agent_runtime/personas.py:243-346`) and handed to every caller through
-`effective_toolsets` (`agent_runtime/personas.py:347-357`). A profile that declares nothing — or only the upstream default
+`agent_runtime/persona_profiles.py::declared_lane_toolsets` and handed to every caller through
+`agent_runtime/persona_profiles.py::effective_toolsets`. A profile that declares nothing — or only the upstream default
 `["hermes-cli"]` that `hermes_cli/config_defaults.py` writes for an unset key — resolves
 `agent_runtime/personas.py::HARNESS_LANE_DEFAULT_TOOLSETS` = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;

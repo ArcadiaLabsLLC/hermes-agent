@@ -80,7 +80,6 @@ def _persona(persona_id: str = "dev", *, role: str = "dev") -> AgentPersona:
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "terminal", "todo"],
         system_prompt_path="",
     )
 

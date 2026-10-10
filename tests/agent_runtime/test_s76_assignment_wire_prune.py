@@ -62,7 +62,7 @@ CUT_PATHS = (
 
 def _seed_persona() -> None:
     AgentStore().save(
-        AgentPersona("dev", "Dev", "custom", None, None, None, ["file"], "")
+        AgentPersona("dev", "Dev", "custom", None, None, None, "")
     )
 
 

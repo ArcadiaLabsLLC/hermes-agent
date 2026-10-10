@@ -2164,7 +2164,6 @@ def _task_bound_goal_instance(goal_id: str = "goal_alpha", persona_id: str = "de
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file"],
         system_prompt_path="agent_runtime/prompts/dev.md",
         hermes_profile=None,
     )

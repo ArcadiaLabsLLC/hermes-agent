@@ -121,7 +121,7 @@ def _seed_persona() -> None:
     # turn 1 signs (it was discarded on ``instance_revision`` before the prewarm made that stamp).
     AgentStore().save(AgentPersona(
         id="dev", display_name="Dev Persona", role="dev", model=MODEL, provider="openai-codex",
-        api_mode="codex_responses", toolsets=["file", "search", "terminal"],
+        api_mode="codex_responses", 
         system_prompt_path="agent_runtime/prompts/dev.md",
     ))
 

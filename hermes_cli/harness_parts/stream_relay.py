@@ -32,7 +32,7 @@ import uuid
 from typing import Any, TextIO
 
 __layer__ = "lanes"
-__all__ = ["RELAY_CLIENT_NAME", "relay_stream_via_serve", "stream_relay_argv"]
+__all__ = ["RELAY_CLIENT_NAME", "relay_stream_via_serve", "stream_relay_argv", "write_relay_line"]
 
 _log = logging.getLogger("agent_runtime.stream.relay")
 
@@ -88,7 +88,7 @@ def _receipt(lane: str, **fields: Any) -> None:
         pass
 
 
-def _write_line(out: TextIO, line: str) -> bool:
+def write_relay_line(out: TextIO, line: str) -> bool:
     try:
         out.write(line + "\n")
         out.flush()
@@ -155,12 +155,12 @@ def relay_stream_via_serve(args: Any, *, out: TextIO | None = None) -> int | Non
                 continue
             event = frame.get("event")
             if event == "line":
-                if not _write_line(sink, str(frame.get("line") or "")):
+                if not write_relay_line(sink, str(frame.get("line") or "")):
                     # The consumer is gone; closing the socket ends the serve's reader.
                     return 0
                 relayed += 1
             elif event == "stderr":
-                _write_line(sys.stderr, str(frame.get("line") or ""))
+                write_relay_line(sys.stderr, str(frame.get("line") or ""))
             elif event in _TERMINAL_EVENTS:
                 error = frame.get("error")
                 if error and relayed == 0:

@@ -79,7 +79,6 @@ def qa_persona(isolate_agent_runtime_root):
         model="gpt-test",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)

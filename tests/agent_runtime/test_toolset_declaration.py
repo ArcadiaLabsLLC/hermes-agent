@@ -35,7 +35,9 @@ from agent_runtime.personas import (
     HARNESS_LANE_DEFAULT_TOOLSETS,
     TOOLSET_SOURCE_LANE_DEFAULT,
     TOOLSET_SOURCE_PROFILE_CONFIG,
+    TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE,
     TOOLSET_SOURCE_PROFILE_UNRESOLVED,
+    DeclarationIssueKind,
 )
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 
@@ -47,7 +49,7 @@ HARNESS_CORE_MEMBERS = [
 ]
 
 
-def _persona(profile: str | None = "gpt-launcher", *, toolsets=None) -> AgentPersona:
+def _persona(profile: str | None = "gpt-launcher") -> AgentPersona:
     return AgentPersona(
         id="dev",
         display_name="Launcher Dev Agent",
@@ -55,7 +57,6 @@ def _persona(profile: str | None = "gpt-launcher", *, toolsets=None) -> AgentPer
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=list(toolsets if toolsets is not None else ["file", "terminal"]),
         system_prompt_path="",
         hermes_profile=profile,
     )
@@ -175,14 +176,79 @@ def test_a_stale_explicit_list_is_honored_verbatim(profile_config):
 
 def test_malformed_yaml_resolves_narrow_rather_than_wide(profile_config):
     """A config fault must never hand out MORE capability — the asymmetry
-    ``default_permission_mode`` applies to an unparseable permission mode."""
+    ``default_permission_mode`` applies to an unparseable permission mode.
+
+    Since slice 1 of the tool-visibility split (2026-10-08) it is also NAMED: a
+    file that will not parse is ``profile_config_unreadable``, not the
+    ``lane_default`` an honest undeclared profile answers."""
 
     persona = profile_config("toolsets: [harness_core\n  broken: : :\n")
 
     declaration = declared_lane_toolsets(persona)
 
-    assert declaration.source == TOOLSET_SOURCE_LANE_DEFAULT
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE
+    assert [issue.kind for issue in declaration.issues] == [DeclarationIssueKind.CONFIG_READ_FAILED]
     assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS
+
+
+# ── slice 1: the declaration tells the truth (tool-visibility split, 2026-10-08) ──
+
+
+def test_an_unreadable_config_is_typed_rather_than_a_debug_line(profile_config):
+    """A ``config.yaml`` that EXISTS and will not read used to answer
+    ``lane_default`` with a DEBUG log — indistinguishable from a profile that
+    declares nothing. Now: its own source, one typed issue naming the exception
+    class (never the message), and still the narrow set."""
+
+    persona = profile_config(None)
+    from hermes_cli.profiles import get_profile_dir
+
+    (get_profile_dir("gpt-launcher") / "config.yaml").mkdir()
+    clear_parse_cache()
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG_UNREADABLE
+    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS
+    assert len(declaration.issues) == 1
+    issue = declaration.issues[0]
+    assert issue.kind is DeclarationIssueKind.CONFIG_READ_FAILED
+    assert issue.detail in {"IsADirectoryError", "PermissionError"}
+    row = declaration.row()
+    assert row["source"] == "profile_config_unreadable"
+    assert [item["code"] for item in row["issues"]] == ["config_read_failed"]
+
+
+def test_an_unknown_declared_name_is_named(profile_config):
+    """A typo'd ``eternia_lense`` used to pass through ``expand_toolset_names``
+    verbatim, resolve zero tools, and say nothing (ruling R4: a typed warning,
+    the rest of the declaration resolves)."""
+
+    persona = profile_config("toolsets:\n  - harness_core\n  - eternia_lense\n")
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
+    assert declaration.unknown == ("eternia_lense",)
+    assert [(issue.kind, issue.detail) for issue in declaration.issues] == [
+        (DeclarationIssueKind.UNKNOWN_TOOLSET, "eternia_lense")
+    ]
+    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS + ["eternia_lense"]
+    assert declaration.row()["unknown"] == ["eternia_lense"]
+
+
+def test_a_readable_known_declaration_carries_no_issue(profile_config):
+    """Positive control for the two cases above: the same fixture, readable and
+    spelled right, carries no issue rows — so an issue row is the fixture's
+    doing, never the reader's default."""
+
+    persona = profile_config("toolsets:\n  - harness_core\n  - spotify\n")
+
+    declaration = declared_lane_toolsets(persona)
+
+    assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
+    assert declaration.issues == ()
+    assert declaration.unknown == ()
 
 
 def test_an_unresolvable_profile_is_typed_rather_than_silent():
@@ -201,37 +267,19 @@ def test_a_persona_with_no_bound_profile_resolves_the_lane_default():
     assert declared_lane_toolsets(persona).source == TOOLSET_SOURCE_PROFILE_UNRESOLVED
 
 
-# ── the persona field is inert (R-S0a-3) ─────────────────────────────────────
+# ── the declaration is the only list (R-S0a-3; field deleted 2026-10-08) ─────
 
 
-def test_effective_toolsets_ignores_the_persona_level_list(profile_config):
-    """The one authority, asserted at the seam every caller goes through.
-
-    A persona whose field says ``["kanban"]`` — the exact class of stale row the
-    operator's store carries — still resolves the profile's declaration, and the
-    stale list is reported beside it rather than obeyed.
-    """
-
-    persona = profile_config("agent:\n  model: gpt-5.5\n")
-    persona.toolsets = ["kanban", "messaging"]
-
-    declaration = declared_lane_toolsets(persona)
-
-    assert effective_toolsets(persona) == HARNESS_CORE_MEMBERS
-    assert "kanban" not in effective_toolsets(persona)
-    assert declaration.persona_list == ("kanban", "messaging")
-
-
-def test_the_wire_row_carries_declaration_and_the_legacy_list(profile_config):
+def test_the_wire_row_carries_the_declaration_and_no_legacy_list(profile_config):
     persona = profile_config("toolsets:\n  - harness_core\n")
-    persona.toolsets = ["kanban"]
 
     row = declared_lane_toolsets(persona).row()
 
     assert row["declared"] == ["harness_core"]
     assert row["source"] == TOOLSET_SOURCE_PROFILE_CONFIG
-    assert row["persona_list"] == ["kanban"]
+    assert "persona_list" not in row
     assert row["toolsets"] == HARNESS_CORE_MEMBERS
+    assert effective_toolsets(persona) == HARNESS_CORE_MEMBERS
     assert row["profile"] == "gpt-launcher"
 
 
@@ -254,7 +302,7 @@ def test_the_declaration_read_never_imports_model_tools(tmp_path):
         "from agent_runtime.models import AgentPersona\n"
         "from agent_runtime.persona_profiles import declared_lane_toolsets\n"
         "persona = AgentPersona(id='dev', display_name='dev', role='dev', model=None,\n"
-        "    provider=None, api_mode='codex_responses', toolsets=['file'],\n"
+        "    provider=None, api_mode='codex_responses',\n"
         "    system_prompt_path='', hermes_profile='gpt-launcher')\n"
         "declaration = declared_lane_toolsets(persona)\n"
         "assert len(declaration.toolsets) == 15, declaration\n"

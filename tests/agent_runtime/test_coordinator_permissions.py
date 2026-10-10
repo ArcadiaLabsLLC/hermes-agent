@@ -28,7 +28,6 @@ def _persona(autonomy: str = "autonomous") -> AgentPersona:
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=[],
         system_prompt_path="personas/neko_supervisor/system.md",
         autonomy=autonomy,
     )

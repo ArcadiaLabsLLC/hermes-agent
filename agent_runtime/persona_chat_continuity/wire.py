@@ -168,6 +168,32 @@ def record_wire_boundary_drift(bound: WireBoundaryRow) -> dict[str, Any] | None:
     return row
 
 
+def record_wire_boundary_cut(bound: WireBoundaryRow) -> tuple[ContentBoundNote, ...]:
+    """Say so when an ACCOUNTED cut shortened a non-user row on its way to the model.
+
+    :func:`record_wire_boundary_drift` reports only the unaccounted residue, and
+    the composed user row warns from its own bounding, so an ordinary tool
+    result cut at the flat bound left no line anywhere: on 2026-10-09 a
+    26,853-character ``launcher_generated_list`` reply was cut to 20,000 — the
+    worked example the model then mis-closed three times was the part past the
+    cut — and the first evidence was a database dig. One warning, naming the
+    tool and the sizes and never the content, is the receipt that was missing.
+    """
+
+    if not bound.notes or bound.row.get("role") == WIRE_ROLE_USER:
+        return ()
+    logger.warning(
+        "persona chat wire boundary cut a %s row%s before the model saw it: %s",
+        bound.row.get("role") or "?",
+        f" (tool={bound.row['tool_name']})" if bound.row.get("tool_name") else "",
+        ", ".join(
+            f"{note.part}={note.action}({note.original_chars}->{note.bounded_chars}/{note.limit})"
+            for note in bound.notes
+        ),
+    )
+    return bound.notes
+
+
 def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     """THE persona-chat wire boundary.
 

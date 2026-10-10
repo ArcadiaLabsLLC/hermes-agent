@@ -217,7 +217,7 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
     if _is_first_turn(agent):
         logger.info(
             "prompt_surface tools=%d tool_chars=%d promoted_mcp_chars=%d listing_chars=%d "
-            "system_chars=%d skills_entries=%d hud_chars=%d",
+            "system_chars=%d skills_entries=%d hud_chars=%d deferred=%d unavailable=%d",
             *(surface[key] for key in _PROMPT_SURFACE_LOG_KEYS),
         )
     return {
@@ -256,6 +256,12 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
             # turn, so a cut lands against a number (lane h-prompt-tools S0). Tokens
             # are chars/4 — upstream's rule — never a tokenizer the venv lacks.
             "per_tool_chars": per_tool_chars,
+            # The transport's bridge alias, reversed by ``tool_surface.unaliased_wire_names``.
+            **({"bridge_aliases": aliases} if (aliases := _agent_wire_aliases(agent)) else {}),
+            # The cost layer's account of this form (toolvis slice 4): every name the persona
+            # may call that is NOT above, and the one rule that moved it. Absent — never
+            # fabricated — when the tool form's owner did not derive one for this actor.
+            **_surface_fields(agent),
         },
         # The first-turn composition by part, in chars (names and counts only).
         "prompt_surface": surface,
@@ -488,7 +494,7 @@ def _rendered_skills_prompt_chars(agent) -> int | None:
 #: The ``prompt_surface`` log line's fields, in order — one spelling for the line and its test.
 _PROMPT_SURFACE_LOG_KEYS = (
     "tools", "tool_chars", "promoted_mcp_chars", "listing_chars",
-    "system_chars", "skills_entries", "hud_chars",
+    "system_chars", "skills_entries", "hud_chars", "deferred", "unavailable",
 )
 
 _BLOCK_HEAD_RE = re.compile(r"^(#{1,2} \S.*|<([A-Za-z_][\w-]*)[^>/]*>)\s*$")
@@ -553,6 +559,9 @@ def _prompt_surface(
         "hud_chars": len(hud.group(0)) if hud else 0,
         "user_chars": len(user_message or ""),
         "chars_per_token": 4,
+        # The surface's counts (0 when no surface was derived — ``tool_schema.surface`` absent).
+        "deferred": _surface_count(agent, "deferred"),
+        "unavailable": _surface_count(agent, "unavailable"),
     }
 
 
@@ -597,6 +606,35 @@ def _agent_tools_json_bytes(agent) -> int | None:
         return len(json.dumps(tools, ensure_ascii=False, default=str).encode("utf-8"))
     except Exception:
         return None
+
+
+def _surface_receipt(agent) -> dict[str, Any] | None:
+    from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
+
+    receipt = getattr(agent, AGENT_SURFACE_ATTR, None)
+    return receipt if isinstance(receipt, dict) else None
+
+
+def _surface_fields(agent) -> dict[str, Any]:
+    from agent_runtime.tool_surface import not_computed
+
+    receipt = _surface_receipt(agent)
+    if receipt is None:
+        # Never silent: an actor no tool-form settle reached says so.
+        return {"surface": not_computed("no_tool_form_settle")}
+    return {"surface": receipt, "resolution_id": receipt.get("resolution_id")}
+
+
+def _surface_count(agent, state: str) -> int:
+    receipt = _surface_receipt(agent)
+    counts = receipt.get("counts") if receipt is not None else None
+    return int((counts or {}).get(state) or 0)
+
+
+def _agent_wire_aliases(agent) -> dict[str, str]:
+    receipt = getattr(agent, "_hermes_turn_wire_tool_receipt", None)
+    aliases = receipt.get("bridge_aliases") if isinstance(receipt, dict) else None
+    return dict(aliases) if isinstance(aliases, dict) else {}
 
 
 def _agent_tool_names(agent) -> list[str]:

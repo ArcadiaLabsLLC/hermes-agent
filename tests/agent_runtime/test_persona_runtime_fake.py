@@ -969,7 +969,6 @@ def test_mission_chat_reply_honors_include_profile_memory(tmp_path, monkeypatch)
             model="gpt-5.5",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "search", "skills"],
             system_prompt_path="",
             hermes_profile=None,
             include_profile_memory=include_memory,
@@ -1017,7 +1016,6 @@ def test_profile_role_sentinel_resolves_to_supervisor_capabilities():
         model="gpt-5.5",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file", "search", "session_search", "todo", "skills"],
         system_prompt_path="",
         hermes_profile="alice",
     )
@@ -1031,9 +1029,6 @@ def test_profile_role_sentinel_resolves_to_supervisor_capabilities():
     declaration = declared_lane_toolsets(profile)
     assert declaration.source in {"lane_default", "profile_config", "profile_unresolved"}
     assert effective_toolsets(profile) == list(declaration.toolsets)
-    assert declaration.persona_list == (
-        "file", "search", "session_search", "todo", "skills",
-    )
 
 
 def test_mission_chat_reply_runs_for_profile_persona(tmp_path, monkeypatch):
@@ -1050,7 +1045,6 @@ def test_mission_chat_reply_runs_for_profile_persona(tmp_path, monkeypatch):
         model="gpt-5.5",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file", "search", "session_search", "todo", "skills"],
         system_prompt_path="",
         # None -> binding "inherits active profile" so the test does not depend on a
         # profile on disk; the role="profile" sentinel still drives toolset resolution.
@@ -1116,7 +1110,6 @@ def test_mission_chat_reply_has_no_api_call_cap_and_keeps_iteration_failsafe(
         model="gpt-5.5",
         provider="openai-codex",
         api_mode="codex_responses",
-        toolsets=["file", "search"],
         system_prompt_path="",
         hermes_profile=None,
     )
@@ -1167,7 +1160,6 @@ def test_mission_chat_reply_honors_core_context_file_opt_in(tmp_path, monkeypatc
             model="gpt-5.5",
             provider="openai-codex",
             api_mode="codex_responses",
-            toolsets=["file", "search", "skills"],
             system_prompt_path="",
             hermes_profile=None,
             include_core_context_files=include_core,

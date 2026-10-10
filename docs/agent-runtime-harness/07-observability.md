@@ -270,9 +270,11 @@ regression check (h-live-check, decision 0014): it reads the newest N turns' rec
 `chat_turn_accept_to_anchor` from the serve home's `agent.log`, `send_prep_receipt` and the
 `send_window_receipt` / `stream_gap_receipt` that follow it from every profile's `agent.log` (a turn
 logs under its persona's profile), and the Launcher's `[MissionChatTiming]` line when the diag log
-exists — groups them cold / after-idle / warm, and prints one PASS / FAIL line per span with the
+exists (for its `send=` and end stamp only) — groups them cold / after-idle / warm, and prints one PASS / FAIL line per span with the
 observed range, the budget and its baseline from `agent_runtime/turn_latency_budgets.json`; exit 1
 on any FAIL. Provider spans are reported, never failed (`agent_runtime/turn_latency_check.py`).
+Launcher UI spans (`send_to_admit`, `ui_build_max`, `ui_build_sum`, `ui_apply_to_paint`) are out of
+its scope: the launcher's budget registry `EterniaLauncher/tool/perf_budgets/budgets.json` owns them (owner D2).
 Run it after any rebuild that touches the chat path.
 
 ### The core-cache family and its census

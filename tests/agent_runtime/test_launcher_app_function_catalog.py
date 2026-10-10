@@ -389,3 +389,15 @@ def test_the_invocation_carries_persona_instance_and_profile_when_the_lane_knows
     with launcher_invocation("operator", "chat-1", "turn-2"):
         _call("launcher_library_list", {}, link)
     assert set(launcher.sent[-1]["params"]["_meta"]["invocation"]) == {"channel", "session_id", "turn_id"}
+
+
+def test_invalid_arguments_is_not_read_to_the_model_as_a_schema_failure():
+    """The Launcher answers ``invalid_arguments`` for any argument it cannot use —
+    on 2026-10-09 a JSON syntax error inside ``document_json`` — so a fixed
+    'did not validate against the schema' sent the model to repair the wrong
+    thing. The message carries the specifics; the reading must not contradict it."""
+
+    meaning = answers.LAUNCHER_REFUSALS["invalid_arguments"]
+    assert meaning.retry == answers.RETRY_AFTER_CHANGE
+    assert "schema" not in meaning.detail
+    assert "message" in meaning.detail

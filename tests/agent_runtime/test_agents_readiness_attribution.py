@@ -71,7 +71,6 @@ def one_runtime_persona(isolate_agent_runtime_root):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)

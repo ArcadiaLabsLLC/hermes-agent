@@ -85,7 +85,6 @@ def reconcile_profile_personas(
                 model=None,
                 provider=None,
                 api_mode=None,
-                toolsets=[],
                 autonomy=AutonomyLevel.PROPOSE_ONLY.value,
                 hermes_profile=name,
                 include_profile_memory=True,

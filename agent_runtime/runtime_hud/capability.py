@@ -55,6 +55,7 @@ def resolve_capability_block(
     envelope: dict[str, Any] | None = None,
     permission_mode: str | None = None,
     permission_source: str | None = None,
+    surface: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble this lane's capability account: what was DROPPED, what is REFUSED.
 
@@ -78,6 +79,11 @@ def resolve_capability_block(
       DEFAULT, silence is no longer honest for it: an empty block used to mean
       "nothing was taken away", which a reader could only interpret against an
       assumed bounded baseline. The posture is stated explicitly instead.
+
+    * ``surface`` — the cost layer's receipt (``agent_runtime.tool_surface.ToolSurface.receipt``,
+      toolvis slice 4): how many callable tools ride the ``tool_search`` listing instead of
+      the schema, and how many this process cannot run. Without it the agent was told
+      ``unbounded``, saw a short schema, and read a deferred tool as an absent one.
 
     Returns ``{}`` when there is genuinely nothing to account for — a bounded
     lane with no drops and an ungoverned lane refuse nothing, so neither pays a
@@ -109,6 +115,9 @@ def resolve_capability_block(
         # honest if a future dropper ever restores through a different setting.
         block["restorable_via"] = restorable
 
+    if isinstance(surface, Mapping):
+        block.update(_surface_buckets(surface))
+
     if isinstance(envelope, dict) and envelope.get("governed"):
         grantable = {
             str(name) for name in (envelope.get("grantable_command_classes") or ())
@@ -135,6 +144,35 @@ def resolve_capability_block(
             block["envelope"] = envelope_block
 
     return block
+
+
+def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
+    """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts."""
+
+    buckets: dict[str, Any] = {}
+    # Schema v2 carries the admitted MCP servers' names under ``mcp``; the agent's line counts both.
+    mcp = surface.get("mcp") if isinstance(surface.get("mcp"), Mapping) else {}
+
+    def _rows(state: str) -> dict[str, Any]:
+        rows = {}
+        for part in (surface, mcp):
+            group = part.get(state)
+            if isinstance(group, Mapping):
+                rows.update(group)
+        return rows
+
+    deferred = _rows("deferred")
+    if deferred:
+        restorable: list[str] = []
+        for row in deferred.values():
+            via = str((row or {}).get("restorable_via") or "").strip() if isinstance(row, Mapping) else ""
+            if via and via not in restorable:
+                restorable.append(via)
+        buckets["deferred"] = {"count": len(deferred), "via": "tool_search", "restorable_via": restorable}
+    unavailable = _rows("unavailable")
+    if unavailable:
+        buckets["unavailable"] = {"count": len(unavailable)}
+    return buckets
 
 
 def render_capability_block(capability: dict[str, Any] | None) -> str:
@@ -200,6 +238,22 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
             "NOT a permission problem and no permission mode you can reach restores "
             f"it.{restore} Report the absence plainly; do not hunt for a mode and do "
             "not improvise a workaround."
+        )
+
+    deferred = section(capability, "deferred")
+    if deferred and deferred.get("count"):
+        count = int(deferred["count"])
+        lines.append(
+            f"- {count} tool{'' if count == 1 else 's'} deferred, reachable through tool_search "
+            "(find it, then call it with tool_call); nothing is missing. A tool you do not see in "
+            "your schema is deferred before it is absent — search before you report it."
+        )
+    unavailable = section(capability, "unavailable")
+    if unavailable and unavailable.get("count"):
+        count = int(unavailable["count"])
+        lines.append(
+            f"- {count} declared tool{'' if count == 1 else 's'} cannot run in this process (a "
+            "backend swap or an unmet requirement) — not a permission problem; report it plainly."
         )
 
     envelope = section(capability, "envelope")

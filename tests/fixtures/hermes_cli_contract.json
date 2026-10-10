@@ -5613,6 +5613,14 @@
           "required": false,
           "type": null
         },
+        "--in-process": {
+          "action": "store_true",
+          "canonical": "--in-process",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
         "--intent-hint": {
           "action": "store",
           "canonical": "--intent-hint",

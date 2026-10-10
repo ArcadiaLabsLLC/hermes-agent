@@ -194,7 +194,6 @@ def _persona_with_dev_toolkit():
         model=None,
         provider=None,
         api_mode="codex_responses",
-        toolsets=["file", "search", "terminal", "browser", "vision", "code_execution", "skills"],
         system_prompt_path="personas/neko_supervisor/system.md",
     )
 

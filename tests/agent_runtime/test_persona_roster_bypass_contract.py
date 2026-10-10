@@ -120,7 +120,6 @@ def test_any_non_none_persona_short_circuits_the_roster_check(monkeypatch):
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
 

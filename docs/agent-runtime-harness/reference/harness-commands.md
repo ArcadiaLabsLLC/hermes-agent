@@ -3111,7 +3111,7 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--relay-chain RELAY_CHAIN]
                                            [--relay-deadline-epoch RELAY_DEADLINE_EPOCH]
                                            [--requested-by-session REQUESTED_BY_SESSION]
-                                           [--defer-thread-policy] [--json]
+                                           [--defer-thread-policy] [--json] [--in-process]
 
 options:
   -h, --help            show this help message and exit
@@ -3166,6 +3166,9 @@ options:
                         agent_runtime.mission_chat.dispatch_session_policy decide (the tri-state
                         'unset' the in-process dispatch lane forwards). Overrides --new-session
   --json
+  --in-process          Run the turn in THIS process with this shell's home and credentials instead
+                        of handing it to the live serve (the default whenever a serve is live for
+                        the runtime root)
 ```
 
 ## hermes harness mission-chat queue-skill

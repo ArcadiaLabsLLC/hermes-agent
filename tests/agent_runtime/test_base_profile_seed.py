@@ -13,13 +13,11 @@ def _config() -> AgentRuntimeConfig:
                 "role": "profile",
                 "display_name": "Base Agent",
                 "hermes_profile": "base",
-                "toolsets": ["file", "terminal", "board", "agent_chat"],
             },
             "reviewer-one": {
                 "role": "custom-reviewer",
                 "display_name": "Reviewer One",
                 "hermes_profile": "reviewer-one",
-                "toolsets": ["search", "board"],
             },
         }
     )
@@ -32,7 +30,7 @@ def test_config_personas_are_data_owned_and_keep_unknown_roles():
 
 
 def test_ensure_merges_config_and_persisted_rows_without_writing_defaults():
-    stored = AgentPersona("stored", "Stored", "another-role", None, None, None, ["file"], "")
+    stored = AgentPersona("stored", "Stored", "another-role", None, None, None, "")
     AgentStore().save(stored)
     resolved = {item.id: item for item in ensure_persisted_personas(_config())}
     assert set(resolved) == {"base", "reviewer-one", "stored"}
@@ -40,14 +38,14 @@ def test_ensure_merges_config_and_persisted_rows_without_writing_defaults():
 
 
 def test_persisted_row_wins_over_config_row_with_the_same_id():
-    stored = AgentPersona("base", "Operator Override", "operator-role", None, None, None, ["file"], "")
+    stored = AgentPersona("base", "Operator Override", "operator-role", None, None, None, "")
     AgentStore().save(stored)
     personas = {persona.id: persona for persona in ensure_persisted_personas(_config())}
     assert personas["base"].display_name == "Operator Override"
 
 
 def test_snapshot_surfaces_only_persisted_persona_rows():
-    AgentStore().save(AgentPersona("stored", "Stored", "custom", None, None, None, ["file"], ""))
+    AgentStore().save(AgentPersona("stored", "Stored", "custom", None, None, None, ""))
     snapshot = build_snapshot()
     assert [row["persona_id"] for row in snapshot["agents"]] == ["stored"]
 

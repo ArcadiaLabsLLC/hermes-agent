@@ -7,6 +7,15 @@ real tools when asked (permission-gated), and **never fabricates** tool output. 
 are recorded redaction-safe by `ChatProgressSink` (session-keyed `run.tool.*` events) and
 surface in the Trace lane via `persona_chat_trace_summary`. Quick live checks:
 
+`mission-chat message` typed in a shell hands the turn to the **live serve** over its
+socket argv lane and relays the serve's output and exit code, so the turn runs with the
+serve's home and credentials, never your shell's `HERMES_HOME`. With no live serve for the
+runtime root it runs in-process and prints one stderr line saying why
+(`running in-process (no live serve for this runtime root)`); `--in-process` forces that
+path, with this shell's home and credentials. Target one instance with
+`--persona-instance-id <personainst_…>` (a bare `--persona` resolves the persona's default
+placement).
+
 ```powershell
 # conversational reply (no tools needed)
 hermes harness mission-chat message --persona neko_supervisor --message "hey, how are you" --json

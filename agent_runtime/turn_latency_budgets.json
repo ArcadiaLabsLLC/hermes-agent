@@ -10,15 +10,7 @@
      "baseline": "253–263 ms warm, n6, 2026-10-08", "ruling": "owner 2026-10-08: ~1.5x measured",
      "receipt": "send_prep_receipt total_ms"},
     {"span": "conn", "source": "hermes", "equals": "reused", "warm_only": true,
-     "baseline": "reused 4/4", "receipt": "send_window_receipt conn"},
-    {"span": "send_to_admit", "source": "launcher", "max_ms": 250, "warm_only": false,
-     "baseline": "97-173 ms", "receipt": "[MissionChatTiming] send_to_admit_ms"},
-    {"span": "ui_build_max", "source": "launcher", "max_ms": 180, "warm_only": false,
-     "baseline": "96-143 ms", "receipt": "[MissionChatTiming] ui_build_max_ms"},
-    {"span": "ui_build_sum", "source": "launcher", "max_ms": 1500, "warm_only": false,
-     "baseline": "954-1162 ms", "receipt": "[MissionChatTiming] ui_build_sum_ms"},
-    {"span": "ui_apply_to_paint", "source": "launcher", "max_ms": 100, "warm_only": false,
-     "baseline": "21-55 ms", "receipt": "[MissionChatTiming] ui_apply_to_paint_ms"}
+     "baseline": "reused 4/4", "receipt": "send_window_receipt conn"}
   ],
   "reported": [
     {"span": "server_wait", "source": "provider", "baseline": "658-920 ms",

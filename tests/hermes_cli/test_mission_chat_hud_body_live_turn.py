@@ -201,7 +201,7 @@ def test_a_live_turn_with_no_open_cards_feeds_the_body_without_a_board_line(
 # --------------------------------------------------------------------------- #
 # 4. The lane driven above is the one the parser runs                         #
 # --------------------------------------------------------------------------- #
-def test_the_turn_body_driven_here_is_the_one_the_parser_runs():
+def test_the_turn_body_driven_here_is_the_one_the_parser_runs(monkeypatch):
     """Stated as an assertion so this file cannot quietly decay into a unit test.
 
     Since lanes H1/H3 (2026-09-24) the turn's front door is the real module
@@ -220,5 +220,14 @@ def test_the_turn_body_driven_here_is_the_one_the_parser_runs():
     assert inspect.unwrap(turn).__globals__ is vars(chat_turn_message)
     parser = argparse.ArgumentParser(prog="harness")
     harness_parser.populate_parser(parser)
-    args = parser.parse_args(["mission-chat", "message", "--persona", "dev", "--message", "hi"])
-    assert args.func is turn, "the parser no longer runs the turn body this file drives"
+    # Since 751f805273 the parser's func is the serve-route front
+    # (``chat_serve_route.cmd_mission_chat_send``); in-process it must land in
+    # THIS module's turn body, looked up at call time so ``_seed`` patches reach it.
+    args = parser.parse_args(
+        ["mission-chat", "message", "--persona", "dev", "--message", "hi", "--in-process"]
+    )
+    seen: list[object] = []
+    monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message",
+                        lambda a: seen.append(a) or 0)
+    assert args.func(args) == 0
+    assert seen == [args], "the parser no longer runs the turn body this file drives"

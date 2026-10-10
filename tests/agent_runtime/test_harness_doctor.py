@@ -17,7 +17,6 @@ def _persona() -> AgentPersona:
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
 
@@ -455,7 +454,6 @@ def _qa_persona_saved():
         model=None,
         provider=None,
         api_mode=None,
-        toolsets=[],
         system_prompt_path="",
     )
     AgentStore().save(persona)
