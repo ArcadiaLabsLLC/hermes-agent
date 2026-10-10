@@ -12,11 +12,11 @@ __layer__ = "stores"
 def history_turn_records(db, session_id, raw_messages):
     visible = {_logical(row) for row in raw_messages if isinstance(row, dict)} - {None}
     records = mission_chat_turn_records(session_id=session_id)
-    if not callable(getattr(db, "get_messages", None)) or not callable(getattr(db, "get_session", None)):
+    if not callable(getattr(db, "archived_history_message_ids", None)) or not callable(getattr(db, "get_session", None)):
         return records
     tip = db.resolve_resume_session_id(session_id)
-    archived = {_logical(row) for row in db.get_messages(tip, include_inactive=True, include_ancestors=True)
-                if row.get("active") == 0 and not row.get("compacted")} - visible - {None}
+    archived = {logical_persona_chat_client_message_id(value)
+                for value in db.archived_history_message_ids(tip)} - visible - {None}
     own = [row for row in records if row.get("client_message_id") not in archived]
     inherited = []
     seen = {session_id}
