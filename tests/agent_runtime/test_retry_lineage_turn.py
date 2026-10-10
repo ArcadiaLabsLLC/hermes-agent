@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import pytest
 
+from agent_runtime import chat_root_send_queue
+from agent_runtime.chat_root_send_runner import run_queued_sends_once
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.journal import persist_mission_chat_turn
-from tests.agent_runtime.test_busy_root_send_queue import _count_provider_calls
+from agent_runtime.persona_chat_continuity import persona_chat_root_lease
+from tests.agent_runtime.test_busy_root_send_queue import _count_provider_calls, _door
 from tests.agent_runtime.test_chat_lease_finalization_tail import (
     ROOT,
     _args,
@@ -84,3 +87,23 @@ def test_a_retry_naming_anything_else_is_refused_before_the_write_ahead(
     assert answer["retry_of"] == retry_of
     assert calls == []
     assert mission_chat_turn_record(session_id=ROOT, client_message_id="cm-retry") is None
+
+
+def test_a_retry_queued_behind_a_busy_root_keeps_its_retry_of(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    handler = _install_chat_lane(monkeypatch)
+    calls = _count_provider_calls(monkeypatch)
+    _seed_target("cm-orig", "interrupted")
+
+    with persona_chat_root_lease(ROOT, owner_id="held-by-the-test", observer_kind="cli"):
+        code, answer = _retry(handler, "cm-retry", "cm-orig", capsys)
+    assert code == 0 and answer["queued"] is True, answer
+    entry = chat_root_send_queue.find(ROOT, "cm-retry")
+    assert entry is not None and entry.args.get("retry_of") == "cm-orig"
+
+    ran: list[str] = []
+    assert run_queued_sends_once(_door(handler, ran))["ran"] == 1
+    assert len(calls) == 1
+    record = mission_chat_turn_record(session_id=ROOT, client_message_id="cm-retry")
+    assert record["retry_of"] == "cm-orig"
