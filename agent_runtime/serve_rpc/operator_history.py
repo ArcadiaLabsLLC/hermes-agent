@@ -8,6 +8,7 @@ from agent_runtime.operator_checkpoints import (
 from .operator_inspection import _inspect_off_reader
 from .registry import method
 from .protocol import DEFERRED, deferred_reply, ok, err
+from tools.checkpoint_pruning import CheckpointStoreBusy
 
 __layer__ = "lanes"
 
@@ -60,6 +61,8 @@ def _mutate_off_reader(rid, params, context, operation, mutate):
             return ok(rid, mutate(params))
         except OperatorConversationRefused as exc:
             return err(rid, 4090, "This operation could not be applied.", {"reason": exc.reason})
+        except CheckpointStoreBusy:
+            return err(rid, 4090, "File history is busy. Try again shortly.", {"reason": "checkpoint_store_busy"})
         except Exception:
             return err(rid, -32000, "The operation's outcome could not be confirmed.",
                        {"reason": "turn_outcome_unknown"})

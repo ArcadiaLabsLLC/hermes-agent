@@ -74,6 +74,15 @@ def chat_history_admission_lock(session_scope: str) -> Iterator[None]:
     """Order send acceptance and history edits before either enters its writer."""
     digest = hashlib.sha256(session_scope.encode("utf-8")).hexdigest()
     with _file_lock(paths.store_root() / "chat_history_locks" / f"{digest}.lock",
+                    timeout_seconds=2.0):
+        yield
+
+
+@contextlib.contextmanager
+def chat_history_mutation_lock(session_scope: str) -> Iterator[None]:
+    """An active history writer, distinct from the brief send admission mutex."""
+    digest = hashlib.sha256(session_scope.encode("utf-8")).hexdigest()
+    with _file_lock(paths.store_root() / "chat_history_locks" / f"{digest}.writer",
                     timeout_seconds=0.0):
         yield
 
