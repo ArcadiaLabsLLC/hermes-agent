@@ -33,3 +33,27 @@ def test_a_sleeper_script_with_a_serve_tail_is_not_a_backend_start(tmp_path):
 def test_a_real_entry_point_with_serve_is_still_refused(tmp_path, argv):
     with pytest.raises(RuntimeError, match="would START a hermes backend"):
         subprocess.Popen(argv(tmp_path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def test_python_c_code_that_only_compares_backend_words_is_not_a_backend_start():
+    # v0.21.6's approval-scan tests feed "stop/restart hermes gateway" prose to a
+    # detector inside ``python -c``: a literal the code compares, not a command.
+    code = 'cases = {"hermes gateway restart": "stop/restart hermes gateway (kills agents)"}\nassert cases'
+    subprocess.run([sys.executable, "-c", code], check=True, timeout=30,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# The word scan matches bare words (prose, comments); these carry the same bare words
+# as the inert case above, beside an identifier that could spawn, so they must still
+# refuse. (The scan does not see a quoted ``"hermes`` token at all - a separate gap.)
+@pytest.mark.parametrize("code", [
+    'import subprocess\nx = 1  # then hermes gateway run',
+    'import os\nnote = "stop/restart hermes gateway now"',
+    'from hermes_cli.main import main\nnote = "stop/restart hermes gateway now"',
+    '__import__("json")\nnote = "stop/restart hermes gateway now"',
+    'note = "stop/restart hermes gateway now" +',  # unparseable
+], ids=["subprocess", "os", "hermes-cli-in-process", "dunder-import", "unparseable"])
+def test_python_c_code_that_could_spawn_keeps_the_conservative_scan(code):
+    with pytest.raises(RuntimeError, match="live-system guard: blocked"):
+        subprocess.run([sys.executable, "-c", code], timeout=30,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -113,6 +113,56 @@ def _without_python_c_argv(raw: list) -> list:
     return raw
 
 
+# Identifiers through which ``python -c CODE`` could start a process or reach a hermes
+# backend in-process. The fence does not follow the child, so CODE is scanned here.
+_SPAWN_CAPABLE_NAMES = frozenset({
+    "subprocess", "os", "pty", "asyncio", "multiprocessing", "runpy", "importlib",
+    "exec", "eval", "compile", "__import__", "ctypes", "sys",
+})
+_BACKEND_NAME_PARTS = ("hermes", "gateway", "serve", "dashboard")
+
+
+def _python_c_code_is_inert(code: str) -> bool:
+    """True when CODE parses and names nothing that could spawn or boot a backend.
+
+    Only then are its string literals data rather than a command line: the words
+    ``hermes gateway`` inside a literal the code merely compares cannot start one.
+    Anything else (unparseable, or any spawn-capable or backend-named identifier,
+    import or attribute) keeps the conservative word scan.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return False
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.add(node.attr)
+        elif isinstance(node, ast.alias):
+            names.update(node.name.split("."))
+            if node.asname:
+                names.add(node.asname)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.update(node.module.split("."))
+    lowered = {name.lower() for name in names}
+    if lowered & _SPAWN_CAPABLE_NAMES:
+        return False
+    return not any(part in name for name in lowered for part in _BACKEND_NAME_PARTS)
+
+
+def _without_inert_python_c_code(raw: list) -> list:
+    """*raw* without CODE when it is ``python [opts] -c CODE`` and CODE is inert."""
+    if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
+        str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    ) and _python_c_code_is_inert(str(raw[-1])):
+        return raw[:-1]
+    return raw
+
+
 def _cmd_tokens(cmd, cmd_to_string) -> list:
     # argv lists are tokenized by construction; only strings need shlex,
     # which on Windows would otherwise eat the backslashes in a path.
@@ -124,7 +174,7 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
             raw = shlex.split(cmd_str)
         except ValueError:
             raw = cmd_str.split()
-    raw = _without_python_c_argv(raw)
+    raw = _without_inert_python_c_code(_without_python_c_argv(raw))
     # A wrapper's argument is itself a whole command: ``["bash", "-c",
     # "hermes gateway run"]`` arrives as THREE elements, the last of which
     # is the command. Split on whitespace (not shlex — it would eat the
