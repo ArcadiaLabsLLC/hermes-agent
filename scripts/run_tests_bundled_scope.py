@@ -8,8 +8,8 @@ source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it import
 a changed module, or a ``conftest.py`` above it changed. The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits; after a release merge it is ``--since-merge <merge>``
-(``changed_paths_for_merge``: what the merge itself produced, plus what came
-after it). ``full`` runs everything discovered — the weekly upstream
+(``merge_change``: what the merge itself produced, plus what came after it,
+less each conftest whose standing fork hunk the merge left unchanged). ``full`` runs everything discovered — the weekly upstream
 merge lane, where the inherited set is the thing under test. In BOTH scopes a
 file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
 P0 freeze files) does not run unless it is named on the command line.
@@ -22,7 +22,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 
 def _rel_posix(path: Path, repo_root: Path) -> str:
@@ -106,9 +106,77 @@ def changed_paths_for_merge(repo_root: Path, merge_sha: str) -> set[str]:
     it: upstream tested it at the tag, and ``--scope full`` remains the weekly
     lane's instrument for the whole inherited set."""
 
-    merge_parents(repo_root, merge_sha)
+    _, merged, after = _merge_parts(repo_root, merge_sha)
+    return merged | after
+
+
+def _merge_parts(repo_root: Path, merge_sha: str) -> Tuple[List[str], set[str], set[str]]:
+    """``(parents, combined-diff paths, paths changed after the merge)``."""
+
+    parents = merge_parents(repo_root, merge_sha)
     merged = _git_paths(repo_root, "diff-tree", "-c", "--no-commit-id", "--name-only", "-r", merge_sha)
-    return merged | changed_paths(repo_root, merge_sha)
+    return parents, merged, changed_paths(repo_root, merge_sha)
+
+
+def _delta_lines(diff: str) -> List[str]:
+    """The ``+``/``-`` lines of a one-file ``git diff -U0``: what it changes, not where."""
+
+    lines = diff.splitlines()
+    first_hunk = next((i for i, line in enumerate(lines) if line.startswith("@@")), len(lines))
+    return [line for line in lines[first_hunk:] if line[:1] in ("+", "-")]
+
+
+def conftest_hunk_unchanged(repo_root: Path, path: str, merge_sha: str) -> bool:
+    """True when the fork's hunk in ``path`` is identical across the merge: the
+    fork's delta at the previous upstream point (``merge-base(parent1, parent2)
+    → parent1``) has the same ``+``/``-`` lines as its delta at the tag
+    (``parent2 → merge``). The merge then re-applied the fork's hunk and changed
+    nothing of it; upstream tested its own part at the tag."""
+
+    parents = merge_parents(repo_root, merge_sha)
+    base = _git(repo_root, "merge-base", parents[0], parents[1]).strip()
+
+    def delta(old: str, new: str) -> List[str]:
+        return _delta_lines(_git(repo_root, "diff", "-U0", "--no-color", "--no-ext-diff", old, new, "--", path))
+
+    return delta(base, parents[0]) == delta(parents[1], merge_sha)
+
+
+@dataclass
+class MergeChange:
+    """What ``--since-merge`` treats as changed, and what it left out (D3.07)."""
+
+    merge: str
+    merged: set[str]  # its combined diff: paths whose blob differs from BOTH parents
+    after: set[str]  # ``<merge>..HEAD`` and working-tree edits
+    first_parent: int  # paths of ``git diff <parent1> <merge>``, the spelling this replaces
+    standing: List[str]  # conftests in ``merged`` whose fork hunk the merge left unchanged
+
+    @property
+    def paths(self) -> set[str]:
+        return (self.merged | self.after) - set(self.standing)
+
+    def account(self) -> str:
+        return (
+            f"Since merge {self.merge}: {len(self.merged)} path(s) in its combined diff (against its first "
+            f"parent: {self.first_parent}) + {len(self.after)} after it; conftest(s) whose fork hunk the merge "
+            f"left unchanged, not reaching: {', '.join(self.standing) or 'none'}"
+        )
+
+
+def merge_change(repo_root: Path, merge_sha: str) -> MergeChange:
+    """``changed_paths_for_merge`` less each ``conftest.py`` the merge only
+    re-applied a standing fork hunk to (``conftest_hunk_unchanged``) and nothing
+    after the merge touched: such a conftest is "changed" against the tag
+    forever, and would otherwise reach every upstream test below it."""
+
+    parents, merged, after = _merge_parts(repo_root, merge_sha)
+    standing = sorted(
+        rel for rel in merged - after
+        if rel.rsplit("/", 1)[-1] == "conftest.py" and conftest_hunk_unchanged(repo_root, rel, merge_sha)
+    )
+    first_parent = len(_git_paths(repo_root, "diff", "--name-only", parents[0], merge_sha))
+    return MergeChange(merge_sha, merged, after, first_parent, standing)
 
 
 def module_of(rel: str) -> Optional[str]:
@@ -252,7 +320,9 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
         try:
             inherited = load_manifest(manifest)
             if args.since_merge:
-                changed, since = changed_paths_for_merge(repo_root, args.since_merge), f"merge {args.since_merge}"
+                merge = merge_change(repo_root, args.since_merge)
+                changed, since = merge.paths, f"merge {args.since_merge}"
+                print(merge.account(), flush=True)
             else:
                 changed, since = changed_paths(repo_root, args.since), args.since
         except (OSError, RuntimeError) as exc:

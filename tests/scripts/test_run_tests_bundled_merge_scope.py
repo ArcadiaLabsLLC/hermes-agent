@@ -102,3 +102,51 @@ def test_a_non_merge_or_a_merge_head_does_not_descend_from_is_refused(tmp_path):
     _git(repo, "checkout", "-q", "-f", "upstream")
     with pytest.raises(RuntimeError, match="is not an ancestor of HEAD"):
         scope.changed_paths_for_merge(repo, merge)
+
+
+def _reach(repo: Path, change: set[str]) -> dict[str, list[str]]:
+    files = [repo / "tests/pkg/test_a.py"]
+    sel = bundled.select_scope(files, repo, {"tests/pkg/test_a.py"}, change)
+    return {"conftest": _rels(repo, sel.conftest), "excluded": _rels(repo, sel.excluded)}
+
+
+def _rels(repo: Path, paths) -> list[str]:
+    return [p.resolve().relative_to(repo.resolve()).as_posix() for p in paths]
+
+
+def test_a_conftest_whose_fork_hunk_the_merge_left_unchanged_does_not_reach(tmp_path):
+    repo = tmp_path / "repo"
+    merge = _released_fork(repo)
+
+    change = scope.merge_change(repo, merge)
+
+    assert _reach(repo, change.paths) == {"conftest": [], "excluded": ["tests/pkg/test_a.py"]}
+    assert change.standing == ["tests/conftest.py"]
+    assert change.paths == {"pkg/both.py", "pkg/fix.py", "fork/f.py"}
+    assert scope.conftest_hunk_unchanged(repo, "tests/conftest.py", merge)
+    assert "not reaching: tests/conftest.py" in change.account()
+    assert "2 path(s) in its combined diff (against its first parent: 4) + 2 after it" in change.account()
+
+
+def test_a_conftest_whose_fork_hunk_the_merge_rewrote_still_reaches(tmp_path):
+    repo = tmp_path / "repo"
+    merge = _released_fork(repo, rewrite_fork_hunk_in_merge=True)
+
+    assert not scope.conftest_hunk_unchanged(repo, "tests/conftest.py", merge)
+    change = scope.merge_change(repo, merge)
+
+    assert change.standing == []
+    assert "tests/conftest.py" in change.paths
+    assert _reach(repo, change.paths) == {"conftest": ["tests/pkg/test_a.py"], "excluded": []}
+
+
+def test_a_conftest_edited_after_the_merge_still_reaches(tmp_path):
+    repo = tmp_path / "repo"
+    merge = _released_fork(repo)
+    conftest = repo / "tests/conftest.py"
+    conftest.write_text(conftest.read_text(encoding="utf-8") + "LATER = 1\n", encoding="utf-8", newline="\n")
+
+    change = scope.merge_change(repo, merge)
+
+    assert change.standing == []
+    assert _reach(repo, change.paths)["conftest"] == ["tests/pkg/test_a.py"]
