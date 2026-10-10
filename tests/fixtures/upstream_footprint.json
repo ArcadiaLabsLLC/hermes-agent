@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-08",
   "base": "818c13be1d",
-  "files": 188,
+  "files": 189,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -570,6 +570,12 @@
       "files": "187 -> 188: +pm/client.py (10/0)",
       "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
       "reason": "the 5 s budget for a worker EXIT after its result arrived failed a completed source-update completion while the machine was loaded (2026-10-09), leaving the install on its previous dependencies; the wait sits inside _request with no seam. Ledger row; upstream PR candidate retires it"
+    },
+    {
+      "change": "lane-1011-M3 (L8.12, 2026-10-10): one additive _EXCLUDED_NAMES.add(\"serve_socket.lock\") in hermes_cli/backup.py (plus a two-line comment)",
+      "files": "188 -> 189: +hermes_cli/backup.py (3/0)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "a sole unreadable agent-runtime/serve_socket.lock (the live serve byte-locks it) marked a full backup holding every profile database incomplete (2026-09-29); backup.py has no exclusion hook. Ledger row; upstream PR #128853 retires it"
     }
   ]
 }
