@@ -45,6 +45,10 @@ def _scopes(params):
 def require_history_idle(params):
     from .serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
     session = params["session_id"]
+    from .history_recovery import pending_history_operation
+    pending = pending_history_operation(session)
+    if pending is not None and pending != params.get("operation_id"):
+        raise OperatorConversationRefused("history_recovery_required")
     protected = INFLIGHT_TURN_STATES | SETTLING_TURN_STATES
     if (any(turn["state"] in protected for turn in mission_chat_turn_records(session_id=session))
             or unsettled_chat_receipts(set(_scopes(params)), peer_prefix=PEER_REQUESTED_BY_PREFIX)
@@ -195,6 +199,20 @@ def _with_branch_entry(db, result):
     entry = _history_row(row, persona_id=result["persona_id"], instance_id=result["persona_instance_id"],
                          session_id=child, session_db=db, message_tail=1)
     return {**result, "branch": entry}
+
+
+def operator_history_origin(params):
+    from .persona_chat_history.history_rows import _history_row
+    with operator_session_read(params) as (_, session):
+        config = json.loads(session.row.get("model_config") or "{}")
+        source = config.get("_branched_from")
+        row = session.db.get_session(source) if source else None
+        origin = None
+        if row is not None:
+            require_session_owner(row, params.get("client_scope"))
+            origin = _history_row(row, persona_id=params["persona_id"], instance_id=params["persona_instance_id"],
+                                  session_id=source, session_db=session.db, message_tail=1)
+        return {**inspection_identity(params, session.owner), "origin": origin}
 
 
 def apply_operator_history(params):

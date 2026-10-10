@@ -160,6 +160,9 @@ class ChatTurnReservation:
         this lane takes the over-claim.
         """
 
+        owner_started = _process_started(os.getpid())
+        if owner_started is None:
+            raise ChatTurnReservationError("accept_owner_unavailable", "The runtime could not record its process identity. No turn was accepted.")
         self.record = replace(
             self.record,
             state=STATE_ACCEPTED,
@@ -167,7 +170,7 @@ class ChatTurnReservation:
             ack=dict(ack),
             updated_at=_timestamp(),
             owner_pid=os.getpid(),
-            owner_started=_process_started(os.getpid()),
+            owner_started=owner_started,
         )
         _write(self.record)
         return self.record
@@ -341,6 +344,9 @@ def reserve_chat_turn(
                     pass
             except HarnessLockUnavailable as exc:
                 raise ChatTurnReservationError("history_in_progress", "A history edit is being applied to this chat.") from exc
+            from .history_recovery import pending_history_operation
+            if pending_history_operation(admission_scope or session_scope) is not None:
+                raise ChatTurnReservationError("history_recovery_required", "Resolve the history operation before continuing this chat.")
         try:
             locks.enter_context(chat_turn_reservation_lock(digest))
         except HarnessLockUnavailable as exc:

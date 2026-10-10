@@ -795,6 +795,9 @@ class CheckpointManager:
         self.max_total_size_mb = max(0, int(max_total_size_mb))
         self.max_file_size_mb = max(0, int(max_file_size_mb))
         self._checkpointed_dirs: Set[str] = set()
+        # Optional runtime observer. Called under the store lock, at the same
+        # boundary as the native snapshot/write evidence; never inferred later.
+        self.history_observer = None
 
     # ------------------------------------------------------------------
     # Turn lifecycle
@@ -847,6 +850,8 @@ class CheckpointManager:
                 ledger = _load_ledger(store, dir_hash)
                 ledger[str(path)] = {"sha256": digest, "deleted": not path.exists(), "ts": time.time()}
                 _save_ledger(store, dir_hash, ledger)
+                if self.history_observer is not None:
+                    self.history_observer.write(self.get_working_dir_for_path(str(path)), path, ledger[str(path)])
         except Exception as exc:
             logger.debug("record_agent_write failed for %s: %s", file_path, exc)
 
@@ -1115,7 +1120,9 @@ class CheckpointManager:
             result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
                       "failed_files": [], "review_paths": selected_paths,
                       "recovery_checkpoint": backup[0]["hash"], "replayed": False}
-            self._write_restore_receipt(receipt_path, digest, result)
+            self._write_restore_receipt(receipt_path, digest, result, request={
+                "working_dir": working_dir, "checkpoint": commit_hash, "revision": revision,
+                "selected_paths": selected_paths, "plan": {rel: by_path[rel] for rel in selected_paths}})
             for rel in selected_paths:
                 row = by_path[rel]
                 path = Path(working_dir) / rel
@@ -1164,14 +1171,20 @@ class CheckpointManager:
         return True
 
     @staticmethod
-    def _write_restore_receipt(path: Path, digest: str, result: Dict) -> None:
+    def _write_restore_receipt(path: Path, digest: str, result: Dict, *, request=None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+        if request is None and path.exists():
+            request = json.loads(path.read_text(encoding="utf-8")).get("request")
         temporary = path.with_suffix(".tmp")
         with temporary.open("w", encoding="utf-8") as handle:
-            json.dump({"request_digest": digest, "result": result}, handle)
+            json.dump({"request_digest": digest, "request": request, "result": result}, handle)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+
+    def resume_restore(self, operation_id: str, *, revision: str, rollback: bool = False) -> Dict:
+        from tools.checkpoint_recovery import resume_restore
+        return resume_restore(self, operation_id, revision=revision, rollback=rollback)
 
     def restore_receipt(self, operation_id: str) -> Optional[Dict]:
         """Read an immutable apply receipt; this never retries filesystem work."""
@@ -1679,6 +1692,8 @@ class CheckpointManager:
             )
             if ok_diff:
                 logger.debug("Checkpoint skipped: no changes in %s", working_dir)
+                if self.history_observer is not None:
+                    self.history_observer.checkpoint(working_dir, ref_commit)
                 return False
         else:
             # No ref yet — skip only if the index is empty.
@@ -1687,7 +1702,7 @@ class CheckpointManager:
                 store, working_dir,
                 index_file=index_file,
             )
-            if ok_ls and not ls_out.strip():
+            if ok_ls and not ls_out.strip() and self.history_observer is None:
                 logger.debug("Checkpoint skipped: empty tree in %s", working_dir)
                 return False
 
@@ -1738,6 +1753,8 @@ class CheckpointManager:
             return False
 
         logger.debug("Checkpoint taken in %s: %s (%s)", working_dir, reason, new_sha[:8])
+        if self.history_observer is not None:
+            self.history_observer.checkpoint(working_dir, new_sha)
 
         # Count and size budgets share one failure boundary.
         if prune:

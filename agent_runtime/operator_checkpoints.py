@@ -15,6 +15,8 @@ from .operator_conversation import OperatorConversationRefused
 from .operator_history import history_write_scope
 from .operator_session_inspection import _inspection_persona, inspection_identity, operator_session_read
 from .profile_context import persona_profile_scope, resolve_persona_profile
+from .history_recovery import fence_history_operation, clear_history_operation, pending_history_operation
+from tools.checkpoint_recovery import restore_revision
 
 __layer__ = "lanes"
 
@@ -89,9 +91,20 @@ def restore_operator_checkpoint(params):
             if workdir != params.get("workspace_path"):
                 raise OperatorConversationRefused("workspace_changed")
             operation_key = _operation_key(identity, workdir, operation)
-            result = manager.restore_preview(workdir, params.get("checkpoint"), revision=params.get("revision"),
-                selected_paths=selected, operation_id=operation_key)
-            return {**identity, "operation_id": operation, "workspace_path": workdir, **result}
+            previous = pending_history_operation(params["session_id"])
+            fence_history_operation(params["session_id"], operation, action="restore", workspace=workdir)
+            from tools.checkpoint_pruning import CheckpointStoreBusy
+            try:
+                result = manager.restore_preview(workdir, params.get("checkpoint"), revision=params.get("revision"),
+                    selected_paths=selected, operation_id=operation_key)
+            except CheckpointStoreBusy:
+                if previous is None:
+                    clear_history_operation(params["session_id"], operation)
+                raise
+            if result.get("success") or result.get("recovery_checkpoint") is None:
+                clear_history_operation(params["session_id"], operation)
+            return {**identity, "operation_id": operation, "workspace_path": workdir, **result,
+                    "recovery_revision": restore_revision(result)}
     finally:
         _WORKDIR_LOCK.release()
 
@@ -108,4 +121,23 @@ def operator_checkpoint_status(params):
     # even if that session subsequently changed workspace or the drive is gone.
     with _checkpoint_session(params, receipt_only=True) as (identity, manager, workdir, _):
         result = manager.restore_receipt(_operation_key(identity, workdir, params.get("operation_id")))
-        return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"], "result": result}
+        if result is not None and result.get("success"):
+            clear_history_operation(params["session_id"], params["operation_id"])
+        return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"],
+                "result": {**result, "recovery_revision": restore_revision(result)} if result else None}
+
+
+def recover_operator_checkpoint(params):
+    from .operator_undo import _workspace_writer
+    direction = params.get("direction")
+    if direction not in {"finish", "rollback"}:
+        raise OperatorConversationRefused("invalid_recovery_direction")
+    with _checkpoint_session(params, receipt_only=True) as (identity, manager, workdir, _), _workspace_writer(), history_write_scope(params):
+        key = _operation_key(identity, workdir, params.get("operation_id"))
+        result = manager.resume_restore(key, revision=params.get("recovery_revision"), rollback=direction == "rollback")
+        if result.get("recovery_stale"):
+            raise OperatorConversationRefused("recovery_changed")
+        if result.get("success"):
+            clear_history_operation(params["session_id"], params["operation_id"])
+        return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"], **result,
+                "recovery_revision": restore_revision(result)}
