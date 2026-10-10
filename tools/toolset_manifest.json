@@ -47,10 +47,6 @@
     "feishu_drive_reply_comment": "feishu_drive",
     "focus_pane": "desktop_ui",
     "gui_tour": "desktop_ui",
-    "ha_call_service": "homeassistant",
-    "ha_get_state": "homeassistant",
-    "ha_list_entities": "homeassistant",
-    "ha_list_services": "homeassistant",
     "harness_query": "agent_chat",
     "image_generate": "image_gen",
     "kanban_attach": "kanban",
@@ -65,9 +61,10 @@
     "kanban_list": "kanban",
     "kanban_request_changes": "kanban",
     "kanban_request_review": "kanban",
+    "kanban_schedule": "kanban",
     "kanban_show": "kanban",
     "kanban_unblock": "kanban",
-    "manage_catalog": "setup",
+    "manage_catalog": "catalog",
     "manage_connections": "connections",
     "memory": "memory",
     "patch": "file",
@@ -78,10 +75,12 @@
     "read_window_below": "desktop_ui",
     "search_files": "file",
     "session_search": "session_search",
+    "setup_choose": "setup",
     "show_tip": "desktop_ui",
     "skill_manage": "skills",
     "skill_view": "skills",
     "skills_list": "skills",
+    "start_chat": "start_chat",
     "terminal": "terminal",
     "text_to_speech": "tts",
     "todo_list": "todo",
@@ -195,12 +194,6 @@
     "focus_pane_tool": [
       "focus_pane"
     ],
-    "homeassistant_tool": [
-      "ha_call_service",
-      "ha_get_state",
-      "ha_list_entities",
-      "ha_list_services"
-    ],
     "image_generation_tool": [
       "image_generate"
     ],
@@ -217,6 +210,7 @@
       "kanban_list",
       "kanban_request_changes",
       "kanban_request_review",
+      "kanban_schedule",
       "kanban_show",
       "kanban_unblock"
     ],
@@ -244,12 +238,18 @@
     "session_search_tool": [
       "session_search"
     ],
+    "setup_choose_tool": [
+      "setup_choose"
+    ],
     "skill_manager_tool": [
       "skill_manage"
     ],
     "skills_tool": [
       "skill_view",
       "skills_list"
+    ],
+    "start_chat_tool": [
+      "start_chat"
     ],
     "terminal_tool": [
       "terminal"
