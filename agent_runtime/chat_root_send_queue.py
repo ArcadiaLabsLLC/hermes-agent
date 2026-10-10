@@ -85,7 +85,7 @@ def enqueue(
     queues a second turn. ``position`` is 1-based among the root's entries.
     """
 
-    root, cmid = _entry_key(root_session_id, client_message_id)
+    root, cmid = _queued_send_key(root_session_id, client_message_id)
     with chat_root_send_queue_lock(root):
         existing = _read_or_none(root, cmid)
         if existing is not None:
@@ -105,14 +105,14 @@ def enqueue(
 
 
 def find(root_session_id: str, client_message_id: str) -> QueuedSend | None:
-    root, cmid = _entry_key(root_session_id, client_message_id)
+    root, cmid = _queued_send_key(root_session_id, client_message_id)
     return _read_or_none(root, cmid)
 
 
 def position(root_session_id: str, client_message_id: str) -> int:
     """1-based place of the entry in its root's order, 0 when it is not queued."""
 
-    root, cmid = _entry_key(root_session_id, client_message_id)
+    root, cmid = _queued_send_key(root_session_id, client_message_id)
     return _position_of(root, cmid)
 
 
@@ -152,7 +152,7 @@ def mark(root_session_id: str, client_message_id: str, *, state: str, attempts: 
 
     if state not in _VALID_STATES:
         raise ValueError(f"unknown queued-send state {state!r}")
-    root, cmid = _entry_key(root_session_id, client_message_id)
+    root, cmid = _queued_send_key(root_session_id, client_message_id)
     with chat_root_send_queue_lock(root):
         entry = _read_or_none(root, cmid)
         if entry is None:
@@ -170,7 +170,7 @@ def mark(root_session_id: str, client_message_id: str, *, state: str, attempts: 
 def remove(root_session_id: str, client_message_id: str) -> bool:
     """Delete an entry whose turn has run. True when a file was removed."""
 
-    root, cmid = _entry_key(root_session_id, client_message_id)
+    root, cmid = _queued_send_key(root_session_id, client_message_id)
     with chat_root_send_queue_lock(root):
         path = _entry_path(root, cmid)
         if not path.is_file():
@@ -183,7 +183,7 @@ def remove(root_session_id: str, client_message_id: str) -> bool:
         return True
 
 
-def _entry_key(root_session_id: str, client_message_id: str) -> tuple[str, str]:
+def _queued_send_key(root_session_id: str, client_message_id: str) -> tuple[str, str]:
     root = str(root_session_id or "").strip()
     cmid = str(client_message_id or "").strip()
     if not root or not cmid:
