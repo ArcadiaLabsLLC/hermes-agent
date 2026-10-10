@@ -147,7 +147,15 @@ def resolve_capability_block(
 
 
 def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
-    """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts."""
+    """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts.
+
+    ``deferred.count`` is the receipt's ``counts.deferred`` — the non-MCP deferred names —
+    and the admitted MCP servers' deferred names ride apart as ``deferred.mcp_count``. One
+    definition for both readers: the HUD is resolved at bundle build, usually from the
+    PREVIEW surface, which cannot see MCP tools (admission registers them per run), while
+    the prompt record's receipt is the factory's, which can. Counting them together made
+    the HUD say 15 where the same turn's receipt said 49 (ctx_74748dd3f4f23190, 2026-10-09).
+    """
 
     buckets: dict[str, Any] = {}
     # Schema v2 carries the admitted MCP servers' names under ``mcp``; the agent's line counts both.
@@ -168,7 +176,11 @@ def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
             via = str((row or {}).get("restorable_via") or "").strip() if isinstance(row, Mapping) else ""
             if via and via not in restorable:
                 restorable.append(via)
-        buckets["deferred"] = {"count": len(deferred), "via": "tool_search", "restorable_via": restorable}
+        core = surface.get("deferred") if isinstance(surface.get("deferred"), Mapping) else {}
+        mcp_deferred = mcp.get("deferred") if isinstance(mcp.get("deferred"), Mapping) else {}
+        buckets["deferred"] = {"count": len(core), "via": "tool_search", "restorable_via": restorable}
+        if mcp_deferred:
+            buckets["deferred"]["mcp_count"] = len(mcp_deferred)
     unavailable = _rows("unavailable")
     if unavailable:
         buckets["unavailable"] = {"count": len(unavailable)}
@@ -241,10 +253,12 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
         )
 
     deferred = section(capability, "deferred")
-    if deferred and deferred.get("count"):
-        count = int(deferred["count"])
+    if deferred and (deferred.get("count") or deferred.get("mcp_count")):
+        count = int(deferred.get("count") or 0)
+        mcp_count = int(deferred.get("mcp_count") or 0)
+        mcp_part = f" (and {mcp_count} MCP tool{'' if mcp_count == 1 else 's'})" if mcp_count else ""
         lines.append(
-            f"- {count} tool{'' if count == 1 else 's'} deferred, reachable through tool_search "
+            f"- {count} tool{'' if count == 1 else 's'} deferred{mcp_part}, reachable through tool_search "
             "(find it, then call it with tool_call); nothing is missing. A tool you do not see in "
             "your schema is deferred before it is absent — search before you report it."
         )
