@@ -197,6 +197,30 @@ def test_forgetting_a_connection_removes_only_the_names_no_other_catalog_holds()
     assert registry.get_entry("launcher_b_only_probe") is not None
 
 
+def test_a_name_two_launchers_declare_differently_carries_each_turns_schema():
+    a_tool = dict(_TOOLS[1], parameters={"type": "object", "properties": {"page": {"type": "string"}}})
+    b_tool = dict(_TOOLS[1], parameters={"type": "object", "properties": {"route": {"type": "string"}}})
+    a, b = _Launcher([a_tool]), _Launcher([b_tool])
+    link_a, link_b = laf.LauncherLink(a, laf.ORIGIN_LOCAL), laf.LauncherLink(b, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link_a)
+    laf.refresh_app_function_tools(link_b)
+
+    def _parameters(link):
+        from model_tools import get_tool_definitions
+
+        token = laf.bind_launcher_link(link)
+        try:
+            (only,) = get_tool_definitions(enabled_toolsets=[laf.APP_FUNCTIONS_TOOLSET], quiet_mode=True,
+            skip_tool_search_assembly=True)
+            return set(only["function"]["parameters"]["properties"])
+        finally:
+            laf.reset_launcher_link(token)
+
+    assert _parameters(link_a) == {"page"}
+    assert _parameters(link_b) == {"route"}
+    assert _parameters(link_a) == {"page"}  # and back: the memo never lends one link's list to the other
+
+
 def test_a_re_declaration_lists_afresh():
     launcher = _Launcher()
     link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)

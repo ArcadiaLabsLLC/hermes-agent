@@ -396,6 +396,17 @@ def _offered_to_bound_link(name: str) -> bool:
     return entries is not None and name in entries
 
 
+def _bound_schema(name: str) -> dict[str, Any] | None:
+    """The bound link's schema for *name*, merged onto the registered one at definition time.
+
+    Two Launchers may declare one name with different parameters; the bound link's wins.
+    None (the registered schema stands) when no link is bound or it does not declare the name.
+    """
+
+    entry = (_bound_catalog_entries() or {}).get(name)
+    return entry.schema() if entry is not None else None
+
+
 def _call_bound(name: str, registered: AppFunctionEntry, args: Mapping[str, Any]) -> str:
     """Dispatch *name* with the bound link's entry for it (method, confirmation), else the
     registered one — so a same-named entry two Launchers declare differently runs as THIS
@@ -410,9 +421,15 @@ def _union_of_catalogs() -> dict[str, AppFunctionEntry]:
     recently listed catalog's entry is the registered (static) one. Caller holds the lock."""
 
     union: dict[str, AppFunctionEntry] = {}
+    declared_by: dict[str, list[AppFunctionEntry]] = {}
     for _sink, entries, _token in _state.catalog.values():
         for entry in entries:
             union[entry.name] = entry
+            declared_by.setdefault(entry.name, []).append(entry)
+    for name, entries in declared_by.items():
+        if len({json.dumps(entry.schema(), sort_keys=True, default=str) for entry in entries}) > 1:
+            logger.info("launcher app function %r is declared with %d different schemas across "
+                        "attached Launchers; each turn sees its own Launcher's", name, len(entries))
     return union
 
 
@@ -422,8 +439,9 @@ def _sync_registry_union() -> None:
     Untouched when the union did not change, so two attached Launchers with different lists no
     longer flip the registry turn by turn: a flip moves no ``registry.generation`` and no
     chat-lane bundle key. Which entries a turn may SEE is answered per entry at definition time
-    from the bound link's catalog (``check_fn``); :func:`forget_launcher_connection` removes
-    only names no surviving catalog holds.
+    from the bound link's catalog (``check_fn``), with that catalog's schema
+    (``dynamic_schema_overrides``); :func:`forget_launcher_connection` removes only names no
+    surviving catalog holds.
     """
 
     from tools.registry import no_cache_check_fn, registry
@@ -443,6 +461,7 @@ def _sync_registry_union() -> None:
             handler=lambda args, _name=name, _entry=entry, **_kw: _call_bound(_name, _entry, args),
             check_fn=no_cache_check_fn(partial(_offered_to_bound_link, name)),
             description=entry.description,
+            dynamic_schema_overrides=partial(_bound_schema, name),
         )
     _state.registered = wanted
 
