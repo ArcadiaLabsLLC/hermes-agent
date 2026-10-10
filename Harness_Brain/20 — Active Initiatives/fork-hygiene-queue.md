@@ -9,7 +9,8 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-09 console history qualification
 
-- [ ] **Classify the doctor corruption and clean-close fixture failures reached by the Console SessionDB change.** `tests/hermes_cli/test_doctor_structural_corruption.py` fails its doctor repair assertion; `tests/hermes_state/test_clean_close_residual_poison.py` passes five bodies then errors in the shared-monkeypatch teardown witness. Observed in the 1,405-file fork gate and its isolated retries on `99c0f7371a`; unchanged-main comparison is pending. Preserve the corruption and profile-isolation guards. · fork / suite · UNCLAIMED
+- [ ] **Repair the doctor corruption and clean-close fixtures reached by the Console SessionDB change.** `tests/hermes_cli/test_doctor_structural_corruption.py` fails its doctor repair assertion; `tests/hermes_state/test_clean_close_residual_poison.py` passes five bodies then errors in the shared-monkeypatch teardown witness. The same failing node sets reproduce on unchanged runtime main `7df5194324` using the authoritative per-file runner (2026-10-09); first observed in the 1,405-file fork gate on `99c0f7371a`. Preserve the corruption and profile-isolation guards. · fork / suite · UNCLAIMED
+- [ ] **Isolate the multiplex profile fixtures in bundled runs.** `tests/gateway/test_multiplex_residue_parity.py::test_stale_served_turn_never_recreates_archived_profile` and `tests/gateway/test_multiplex_routing_authz.py::test_completion_preflight_runs_in_target_profile_scope` failed bundled but passed independently in the Console history gate on `99c0f7371a`; both also pass with the per-file runner on unchanged runtime main `7df5194324`. Investigate inherited process/profile state without weakening either profile fence. · fork / suite · UNCLAIMED
 
 ## Filed on arrival — 2026-10-09 (final gates)
 
