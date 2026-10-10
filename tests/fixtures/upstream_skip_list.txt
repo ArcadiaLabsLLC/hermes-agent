@@ -19,3 +19,4 @@ tests/hermes_cli/test_source_check.py · P0: in flight at both 2026-10-05 workst
 tests/hermes_cli/test_source_launcher_publication.py · P0: same freeze set; republishes the running hermes.exe (h10-fhrel verdict) · ee5f49b943
 tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
+tests/tools/test_fal_sdk.py · env: collection ImportError - the fal SDK is not in the test venv (red on pure tag v0.21.6 and on main, 2026-10-10) · 818c13be1d
