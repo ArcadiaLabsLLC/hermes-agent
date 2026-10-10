@@ -216,6 +216,15 @@ def chat_turn_reservation_lock(key_digest: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def chat_turn_settle_lock(settle_id: str) -> Iterator[None]:
+    """Serialize one settle record's read-modify-write (record, push, ack)."""
+    with _file_lock(
+        paths.lock_dir() / "chat_turn_settles" / f"{paths.safe_path_token(settle_id)}.lock"
+    ):
+        yield
+
+
+@contextlib.contextmanager
 def archive_lock() -> Iterator[None]:
     with _file_lock(paths.lock_dir() / "archive.lock"):
         yield

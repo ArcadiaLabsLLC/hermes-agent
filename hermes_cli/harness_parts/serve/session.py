@@ -58,6 +58,7 @@ from hermes_cli.harness_parts.serve.frames import (
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
 from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
+from hermes_cli.harness_parts.serve.settle_push import SettlePush
 from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
@@ -66,7 +67,7 @@ __layer__ = "lanes"
 __all__ = ["ServeSession", "serve_loop"]
 
 
-class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane):
+class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush):
     """Core dispatch loop over explicit streams. stdio is transport #1; the
     localhost socket is transport #2, and both feed THIS dispatcher.
 
@@ -651,6 +652,9 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             name="harness-serve-liveness",
             daemon=True,
         ).start()
+        # Settle push: resumes any pending settle a previous serve left on disk,
+        # and stops with the liveness pump.
+        self._start_settle_pusher()
         # Detached-dispatch delivery. This is the half that makes
         # `agent_chat_send(wait=false)` honest: the target's turn ran in the
         # background, its answer is durable, and this thread forges it back into

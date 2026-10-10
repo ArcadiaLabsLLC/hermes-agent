@@ -308,6 +308,7 @@ def test_stdio_learns_the_op_set_from_ready_and_can_re_ask_version():
             "drain",
             "drain_if_idle",
             "ping",
+            "settle_ack",
             "shutdown",
             "stacks",
             "subscribe",
@@ -356,6 +357,7 @@ def test_the_socket_greeting_advertises_the_ops_it_will_actually_answer():
                     "drain",
                     "drain_if_idle",
                     "ping",
+                    "settle_ack",
                     "stacks",
                     "subscribe",
                     "unsubscribe",
@@ -398,6 +400,7 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
         "subscribe": "subscribed",
         "unsubscribe": "unsubscribed",
         "cancel": "cancel_denied",
+        "settle_ack": "settle_acked",
     }
     gate = threading.Event()
     try:
@@ -409,6 +412,8 @@ def test_every_advertised_op_is_answered_by_the_dispatcher():
             sink.wait_for(answers["unsubscribe"])
             pipe.send({"op": "cancel", "id": "no-such-request"})
             sink.wait_for(answers["cancel"])
+            pipe.send({"op": "settle_ack", "settle_id": "no-such-settle"})
+            sink.wait_for(answers["settle_ack"])
             pipe.send({"op": "shutdown"})
             sink.wait_for("shutdown")
         errors = [

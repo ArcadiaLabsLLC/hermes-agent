@@ -88,6 +88,19 @@ def chat_turn_reservation_path(key_digest: str) -> Path:
     return chat_turn_reservations_dir() / f"{safe_path_token(key_digest)}.json"
 
 
+def chat_turn_settles_dir() -> Path:
+    """Settle-push records: one per settled chat turn, until the launcher acks it.
+
+    Not a turn-outcome authority (the journal is): a delivery outbox for the
+    serve's ``turn_settled`` push (``chat_turn_settles``).
+    """
+    return store_root() / "chat_turn_settles"
+
+
+def chat_turn_settle_path(settle_id: str) -> Path:
+    return chat_turn_settles_dir() / f"{safe_path_token(settle_id)}.json"
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 
