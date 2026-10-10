@@ -144,20 +144,20 @@ def outcome_from_result_lines(lines: Iterable[str]) -> TurnOutcome:
 def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
     error = data.get("error")
     envelope = error if isinstance(error, dict) else {}
-    refusal = _text(data.get("error_kind")) or _text(envelope.get("code"))
+    refusal = _settle_text(data.get("error_kind")) or _settle_text(envelope.get("code"))
     if refusal is None and data.get("ok") is False:
-        refusal = _text(data.get("code"))
+        refusal = _settle_text(data.get("code"))
     fix_hint = (
-        _text(data.get("fix_hint"))
-        or _text(envelope.get("hint"))
-        or (_text(data.get("next_expected")) if refusal else None)
+        _settle_text(data.get("fix_hint"))
+        or _settle_text(envelope.get("hint"))
+        or (_settle_text(data.get("next_expected")) if refusal else None)
     )
-    summary = _text(data.get("summary")) or _text(envelope.get("message"))
+    summary = _settle_text(data.get("summary")) or _settle_text(envelope.get("message"))
     if summary is None and isinstance(error, str):
-        summary = _text(error)
+        summary = _settle_text(error)
     return TurnOutcome(
-        session_id=_text(data.get("session_id")) or _text(data.get("root_chat_session_id")),
-        turn_id=_text(data.get("turn_id")),
+        session_id=_settle_text(data.get("session_id")) or _settle_text(data.get("root_chat_session_id")),
+        turn_id=_settle_text(data.get("turn_id")),
         refusal_class=refusal,
         fix_hint=_scrubbed(fix_hint),
         summary=_scrubbed(summary),
@@ -178,7 +178,7 @@ def _scrubbed(value: str | None) -> str | None:
     try:
         from agent.redact import redact_sensitive_text
 
-        return _text(redact_sensitive_text(value, force=True, redact_url_credentials=True))
+        return _settle_text(redact_sensitive_text(value, force=True, redact_url_credentials=True))
     except Exception:
         return None
 
@@ -201,7 +201,7 @@ def record_settle(
     cmid = str(client_message_id or "").strip()
     if not cmid or outcome.refusal_class in NON_TERMINAL_REFUSALS:
         return None
-    session = _text(session_id) or outcome.session_id
+    session = _settle_text(session_id) or outcome.session_id
     settle_id = settle_id_for(session, cmid)
     with chat_turn_settle_lock(settle_id):
         existing = _read_or_none(settle_id)
@@ -321,7 +321,7 @@ def list_settles(*, state: str | None = None) -> list[SettleRecord]:
     records = []
     for path in sorted(directory.glob("*.json")):
         try:
-            record = _read(path.stem)
+            record = _read_settle_file(path.stem)
         except Exception:
             continue
         if state is None or record.state == state:
@@ -332,10 +332,10 @@ def list_settles(*, state: str | None = None) -> list[SettleRecord]:
 def _read_or_none(settle_id: str) -> SettleRecord | None:
     if not settle_id or not paths.chat_turn_settle_path(settle_id).is_file():
         return None
-    return _read(settle_id)
+    return _read_settle_file(settle_id)
 
 
-def _read(settle_id: str) -> SettleRecord:
+def _read_settle_file(settle_id: str) -> SettleRecord:
     raw, state = read_versioned_receipt(
         paths.chat_turn_settle_path(settle_id),
         schema_version=_SCHEMA_VERSION,
@@ -358,7 +358,7 @@ def _write(record: SettleRecord) -> None:
     atomic_json_write(paths.chat_turn_settle_path(record.settle_id), payload, indent=2, sort_keys=True)
 
 
-def _text(value: Any) -> str | None:
+def _settle_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     cleaned = value.strip()
