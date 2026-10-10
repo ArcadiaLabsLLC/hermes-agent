@@ -673,7 +673,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **The evicted final_model_input frame stub drops tool_schema.surface, so a launcher shows the eager/deferred/unavailable split only after a detail fetch.** `agent_runtime/prompt_observability/hoist.py::_final_model_input_stub` copies only `tool_count`/`json_bytes`; copy `surface.counts` (and `resolution_id`) forward. Launcher half: launcher mission-control-queue row "The inline Permissions & tools "Tools" fact…" (l-toolvis-console, 2026-10-09). · **TAKEN 2026-10-09 h-hud-receipt**
 
 ## Filed on arrival — 2026-10-09 (lane h-toolvis-fix)
-- [ ] **`tool_visibility._mutating_tools()` is now uncached and is called once PER TOOL** in `_tool_entry` / `_blocked_tool_entries` (each call takes `launcher_app_functions._state.lock` and rebuilds the frozenset): hoist one read per resolve and pass it down. Also `execute.py` hands the resident registry `request.enabled_toolsets`, not `_enabled_toolsets_for_run(...)` (which adds admitted MCP servers), so `resident_tool_contract_diff` cannot name an MCP toolset entering/leaving — confirm which list `tool_contract` hashes. (landing review land-h-toolvis, 2026-10-09) · **TAKEN 2026-10-09 h-hud-receipt**
 
 ## Filed on arrival — 2026-10-09 (owner ruling: settles are pushed and acknowledged, never polled)
 
