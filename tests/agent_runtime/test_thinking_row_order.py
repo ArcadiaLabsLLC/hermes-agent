@@ -177,3 +177,21 @@ def test_a_filtered_row_keeps_the_other_rows_ids(frames, isolate_agent_runtime_r
     assert [rid for _, rid, _ in _live_ids(frames)] == [_id(1), _id(2), _id(3)]
     assert [rid for _, rid in _stored_trace_ids(trace)] == [_id(n) for n in stored]
     assert [rid for _, rid in _stored_conversation_ids(channels)] == [_id(n) for n in stored]
+
+
+def test_a_later_turn_repeating_an_earlier_turns_thinking_keeps_its_row():
+    # The repeat dedupe is per turn: turn B thinking turn A's words is a new
+    # row (its live frame pairs by reasoning_id), while a repeat inside one
+    # turn still drops.
+    from agent_runtime.operator_channels import _dedupe_conversation_messages
+
+    def thinking(turn_id, text, n):
+        return {"kind": "thinking_summary", "turn_id": turn_id, "display_text": text,
+                "reasoning_id": f"{turn_id}_reasoning_{n}"}
+
+    kept = _dedupe_conversation_messages([
+        thinking("turn-a", "Checking the runtime.", 1),
+        thinking("turn-a", "Checking the runtime.", 2),
+        thinking("turn-b", "Checking the runtime.", 1),
+    ])
+    assert [m["reasoning_id"] for m in kept] == ["turn-a_reasoning_1", "turn-b_reasoning_1"]
