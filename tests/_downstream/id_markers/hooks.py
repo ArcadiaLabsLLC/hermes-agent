@@ -8,7 +8,10 @@ fact a test can pin. The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import ast
+import functools
 import importlib.util
+import inspect
 import os
 from pathlib import Path
 
@@ -19,7 +22,7 @@ from tests._downstream.id_markers import (
 )
 from tests._downstream.id_markers.distributions import REQUIRES_DISTRIBUTION
 from tests._downstream.id_markers.posix_marks import IMPORT_TIME_POSIX_MODULES, IMPORT_TIME_POSIX_SHIMS
-from tests._downstream.id_markers.reasons import NO_LIVE_GATEWAY_MARK
+from tests._downstream.id_markers.reasons import NO_LIVE_GATEWAY_MARK, SCOPED_MONKEYPATCH_UNDO_MARK, _SCOPED_UNDO
 
 __layer__ = "lanes"
 
@@ -127,6 +130,35 @@ def _narrowed_files(config) -> set[str]:
     return out
 
 
+@functools.lru_cache(maxsize=None)
+def _undo_calling_def_lines(path: str) -> frozenset[int]:
+    """Every line a ``def`` (or one of its decorators) starts on, for each function in *path*
+    whose body calls ``<expr>.undo()``. A file without the text ``.undo(`` is never parsed."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return frozenset()
+    if ".undo(" not in text:
+        return frozenset()
+    lines: set[int] = set()
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
+            isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == "undo"
+            for call in ast.walk(node)
+        ):
+            lines.update({node.lineno, *(deco.lineno for deco in node.decorator_list)})
+    return frozenset(lines)
+
+
+def body_calls_monkeypatch_undo(item) -> bool:
+    """True when *item* takes ``monkeypatch`` and its test function's own body calls ``.undo()``."""
+    func = getattr(item, "function", None)
+    if func is None or "monkeypatch" not in getattr(item, "fixturenames", ()):
+        return False
+    code = getattr(inspect.unwrap(func), "__code__", None)
+    return code is not None and code.co_firstlineno in _undo_calling_def_lines(code.co_filename)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
     """Apply ``ID_MARKS`` before upstream's own modifyitems reads the marks."""
@@ -143,6 +175,9 @@ def pytest_collection_modifyitems(config, items):  # noqa: D401 — pytest hook
             matched.add(key)
             for mark in marks:
                 item.add_marker(mark)
+        # A mid-body ``monkeypatch.undo()`` is found by the AST, never kept by id per release.
+        if item.get_closest_marker(SCOPED_MONKEYPATCH_UNDO_MARK) is None and body_calls_monkeypatch_undo(item):
+            item.add_marker(_SCOPED_UNDO)
     checkable = collected_files - _narrowed_files(config)
     stale = sorted(
         node for node in ID_MARKS

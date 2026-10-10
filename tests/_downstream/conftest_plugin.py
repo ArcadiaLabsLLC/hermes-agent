@@ -759,8 +759,9 @@ def pytest_pyfunc_call(pyfuncitem):
 
     Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
     per-test instance, fixtures' hermetic pins included, and redden
-    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied by
-    id from ``tests/_downstream/id_markers/``) ``undo`` is narrowed, for the call
+    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied at
+    collection to every test whose body calls ``.undo()``,
+    ``id_markers.hooks.body_calls_monkeypatch_undo``) ``undo`` is narrowed, for the call
     only, to the entries the BODY pushed: the stack length is taken once every
     fixture has set up, and an undo replays only the tail above it. Upstream's
     bytes run unchanged; what they drop is exactly what they patched.
@@ -873,7 +874,7 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "markers",
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
-        "pins hold (applied by id from tests/_downstream/id_markers/).",
+        "pins hold (applied at collection by an AST walk of the test body).",
     )
     config.addinivalue_line(
         "markers",

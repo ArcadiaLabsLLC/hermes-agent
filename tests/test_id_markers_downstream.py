@@ -21,11 +21,6 @@ from tests._downstream import conftest_plugin
 from tests._downstream import hermes_cli_conftest
 from tests._downstream.id_markers import hooks
 
-_TCC_ALIAS = (
-    "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
-    "test_alias_failure_leaves_anchor_unmarked"
-)
-
 #: A fork timeout raise (fork_marks: the payload build runs 72-245 s) AND an
 #: upstream Windows red (upstream_reds: the win32 launcher imports
 #: hermes_bootstrap, which the fixture never copies) — cross-class on purpose
@@ -47,17 +42,66 @@ _UPSTREAM_UNREGISTERED = frozenset({"spawns_gateway_lookalike"})
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the cross-class keys are win32 rows")
 def test_a_key_in_two_classes_carries_both_marks():
-    """The TCC alias id is a scoped-undo row (fork) AND a POSIX-venv xfail
-    (posix). The assembler CONCATENATES, in class order, so it carries both —
-    an assembler that overrode instead would silently drop one."""
+    """The bundle-native id is a timeout raise (fork) AND an upstream red. The
+    assembler CONCATENATES, in class order, so it carries both — an assembler
+    that overrode instead would silently drop one."""
 
-    names = [mark.name for mark in hooks.ID_MARKS[_TCC_ALIAS]]
-
-    assert names == ["scoped_monkeypatch_undo", "xfail"]
     assert [mark.name for mark in hooks.ID_MARKS[_BUNDLE_NATIVE]] == ["timeout", "xfail"]
     # This set moves only when a lane adds a cross-class row on purpose — and
     # then says so here (_BUNDLE_NATIVE: lane h11-env, 2026-09-29).
-    assert hooks.SHARED_KEYS == frozenset({_TCC_ALIAS, _BUNDLE_NATIVE})
+    assert hooks.SHARED_KEYS == frozenset({_BUNDLE_NATIVE})
+
+
+_UNDO_MODULE = """
+def drops_its_stub(monkeypatch):
+    monkeypatch.setattr("os.sep", "x")
+    monkeypatch.undo()
+
+def decorated(fn):
+    return fn
+
+@decorated
+def decorated_dropper(mp):
+    mp.undo()
+
+def keeps_its_stub(monkeypatch):
+    monkeypatch.setattr("os.sep", "x")
+"""
+
+
+class _Item:
+    def __init__(self, nodeid, function, fixturenames=("monkeypatch",)):
+        self.nodeid, self.function, self.fixturenames, self.marks = nodeid, function, fixturenames, []
+
+    def add_marker(self, mark):
+        self.marks.append(mark)
+
+    def get_closest_marker(self, name):
+        return next((m for m in self.marks if m.name == name), None)
+
+
+def test_a_mid_body_undo_is_found_by_the_ast_and_scoped_at_collection(tmp_path):
+    """No id row: an upstream test that calls ``.undo()`` in its body gets the
+    scoped-undo mark at collection, whatever the receiver is spelled; one that
+    does not, or that takes no ``monkeypatch``, gets nothing."""
+
+    import importlib.util
+
+    path = tmp_path / "undo_mod.py"
+    path.write_text(_UNDO_MODULE, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("undo_mod", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    items = [
+        _Item("x.py::drops_its_stub", mod.drops_its_stub),
+        _Item("x.py::decorated_dropper", mod.decorated_dropper),
+        _Item("x.py::keeps_its_stub", mod.keeps_its_stub),
+        _Item("x.py::no_fixture", mod.drops_its_stub, fixturenames=()),
+    ]
+    hooks.pytest_collection_modifyitems(SimpleNamespace(args=[], rootpath=tmp_path), items)
+
+    scoped = [item.nodeid for item in items if item.get_closest_marker("scoped_monkeypatch_undo")]
+    assert scoped == ["x.py::drops_its_stub", "x.py::decorated_dropper"]
 
 
 @pytest.mark.skipif(

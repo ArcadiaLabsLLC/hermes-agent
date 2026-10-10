@@ -28,7 +28,6 @@ from tests._downstream.id_markers.reasons import (
     _NO_LIVE_GATEWAY,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
-    _SCOPED_UNDO,
     _STRIP_REAL_HOME_PATH,
     _UPSTREAM_WIRE_UNBRIEFED,
     _WIN,
@@ -155,10 +154,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_text_mode_an_undecodable_or_an_unshrinkable_image_keeps_the_string_result",
         )
     },
-    "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
-    "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
-    "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
-    "test_fallback_follows_active_profile_home": (_SCOPED_UNDO,),
     # MCF-66: these files drive the real ~/.claude/.credentials.json
     # reader/writer; the fork opts them in AND points Path.home() at tmp_path.
     **{
@@ -175,30 +170,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     **{
         f"tests/agent/test_anthropic_keychain.py::{cls}": (_CREDENTIALS_FILE,)
         for cls in ("TestReadClaudeCodeCredentialsPriority", "TestReadClaudeCodeCredentialsDesync")
-    },
-    **{
-        node: (_SCOPED_UNDO,)
-        for node in (
-            "tests/hermes_cli/test_serve_runtime_inventory.py::"
-            "test_inventory_classifies_remote_desktop_ssh_serve_as_its_clients",
-            "tests/agent/test_anthropic_credential_persist_failure.py::"
-            "test_reauthentication_clears_the_persist_failure_quarantine",
-            "tests/agent/test_canon_args_memo_parity.py::TestComplexityProof::"
-            "test_json_loads_linear_not_quadratic",
-            "tests/cron/test_cron_profile_isolation.py::test_cron_storage_anchors_at_profile_home",
-            "tests/hermes_state/test_append_messages_batch.py::TestAppendMessagesBatch::"
-            "test_atomicity_all_or_nothing",
-            "tests/hermes_state/test_retired_wal_generation_capture.py::"
-            "test_close_refuses_to_settle_without_a_capture",
-            "tests/hermes_state/test_retired_wal_generation_capture.py::"
-            "test_failed_capture_still_pins_the_handle_and_surfaces_through_the_registry",
-            "tests/hermes_state/test_session_db_read_conn_pool.py::"
-            "test_permits_are_not_stranded_by_a_failed_open",
-            "tests/plugins/memory/test_holographic_store.py::TestConcurrency::"
-            "test_failed_write_does_not_pin_write_lock",
-            "tests/plugins/platforms/photon/test_sidecar_paths.py::"
-            "test_adapter_import_does_not_resolve_sidecar_dir",
-        )
     },
     "tests/agent/test_external_skills.py::TestGetAllSkillsDirs::test_local_always_first": (
         _fork_replaces(
@@ -322,45 +293,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
             "test_telegram_onboarding_apply_reports_restart_failure_after_save",
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
-        )
-    },
-    # Upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
-    **{
-        node: (_SCOPED_UNDO,)
-        for node in (
-            "tests/hermes_cli/test_kanban_worker_pid_fingerprint.py::"
-            "test_unverified_fingerprint_capture_never_authorizes_a_signal",
-            "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
-            "test_alias_failure_leaves_anchor_unmarked",
-            "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::test_failed_discovery_is_not_cached",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_swap_rolls_back_every_earlier_swap",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_file_swap_failure_restores_the_original_file",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_staging_leaves_no_orphaned_copies",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
-            "tests/hermes_cli/test_update_zip_two_phase.py::"
-            "test_commit_failure_plus_discard_leaves_no_staging_litter",
-            # v0.21.6: new mid-body undo() callers in the updater's lock / swap / git-lock tests.
-            "tests/hermes_cli/test_update_zip_two_phase.py::"
-            "test_a_symlink_planted_at_the_staging_path_after_the_sweep_is_never_written_through",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_root_files_never_go_missing_mid_swap",
-            "tests/hermes_cli/test_update_zip_two_phase.py::"
-            "test_a_failed_swap_keeps_a_file_the_user_made_at_a_never_installed_entry",
-            "tests/hermes_cli/test_update_lock.py::test_failed_exclusive_create_leaves_no_torn_claim",
-            "tests/hermes_cli/test_update_lock.py::test_withdrawing_a_torn_claim_never_deletes_a_replacement",
-            "tests/hermes_cli/test_update_lock.py::test_unreadable_creation_time_gets_the_v1_ceiling",
-            "tests/hermes_cli/test_gitlock.py::"
-            "test_lock_keeping_git_is_recognised_in_every_form_and_by_path_components",
-            "tests/agent/test_session_row_under_live_agent_persist.py::"
-            "test_flush_fails_closed_when_row_cannot_be_recreated",
-            # v0.21.6: three hermes_state files drop a stub with undo() mid-body.
-            "tests/hermes_state/test_clean_close_residual_poison.py::"
-            "test_clean_close_never_causes_false_sticky_loss",
-            "tests/hermes_state/test_never_active_keyed_prune.py::TestPruneSkipsLiveTurns::"
-            "test_guarded_row_survives_and_keeps_its_routing_entry",
-            "tests/hermes_state/test_session_list_index_choice.py::"
-            "test_session_listings_search_messages_only_through_the_timestamp_index",
-            "tests/tools/test_skills_guard.py::TestScanSkillCached::"
-            "test_cached_verdict_rescans_after_scanner_version_bump",
         )
     },
 }
