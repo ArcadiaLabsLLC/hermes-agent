@@ -41,6 +41,7 @@ __all__ = [
     "dispatch_streams",
     "doctor_section",
     "gateway_agent_pending_sentinel",
+    "gguf_file_header",
     "iter_named_profile_dirs",
     "looks_like_help_or_version_command",
     "pid_exists",
@@ -360,3 +361,15 @@ def piper_engine_importable() -> bool:
     except ImportError:
         return False
     return True
+
+
+def gguf_file_header(path: Path):
+    """``hermes_cli.local_runtime.gguf._read_part`` — ONE file's own GGUF header.
+
+    Since v0.21.6 the public ``read_gguf_header`` reads a MODEL: a split member
+    answers with the first part's metadata and the parts' summed tensors, so it
+    cannot say what a given shard file holds. The local llama adapter's shard check
+    needs each file's own ``split.*`` keys. Door wanted: publish ``_read_part``."""
+    from hermes_cli.local_runtime.gguf import _read_part
+
+    return _read_part(Path(path))
