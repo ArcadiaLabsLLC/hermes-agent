@@ -67,6 +67,13 @@ def test_branch_here_includes_selected_reply_and_links_origin(tmp_path, monkeypa
         assert [row["content"] for row in db.get_messages(child)] == ["first", "Done first"]
     assert len(messages(tmp_path, target)) == 4
     assert call("history.origin", {**target, "session_id": child})["result"]["origin"]["session_id"] == target["session_id"]
+    inherited = call("turn.changes", {**target, "session_id": child, "client_message_id": "first"})
+    assert {row["path"] for row in inherited["result"]["files"]} == {"one.txt", "two.txt"}
+    # Rewinding the source does not erase the child's copied prefix or attribution.
+    source_undo = call("undo.preview", {**target, "client_message_id": "first"})["result"]
+    assert call("undo.apply", {**target, "client_message_id": "first", "mode": "chat",
+        "preview_token": source_undo["preview_token"], "operation_id": "source-after-branch"})["result"]["state"] == "completed"
+    assert call("turn.changes", {**target, "session_id": child, "client_message_id": "first"})["result"]["files"] == inherited["result"]["files"]
 
 
 def test_partial_restore_survives_status_and_can_rollback(tmp_path, monkeypatch):

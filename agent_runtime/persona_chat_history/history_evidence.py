@@ -19,7 +19,18 @@ def history_turn_records(db, session_id, raw_messages):
                 for value in db.archived_history_message_ids(tip)} - visible - {None}
     own = [row for row in records if row.get("client_message_id") not in archived]
     inherited = []
-    seen = {session_id}
+    for source in history_source_sessions(db, session_id):
+        inherited.extend({**record, "_history_source_session": source}
+                         for record in mission_chat_turn_records(session_id=source)
+                         if record.get("client_message_id") in visible)
+    by_id = {record["client_message_id"]: record for record in reversed(inherited)}
+    by_id.update({record["client_message_id"]: record for record in own})
+    return list(by_id.values())
+
+
+def history_source_sessions(db, session_id):
+    """Native prefix-branch provenance shared by activity and file attribution."""
+    seen, sources = {session_id}, []
     current = session_id
     # Follow explicit branch provenance, never compression ancestry or an
     # ambient default chat. Read retained source journals even if the source
@@ -32,13 +43,9 @@ def history_turn_records(db, session_id, raw_messages):
         if not source or source in seen or len(seen) > 100:
             break
         seen.add(source)
-        inherited.extend({**record, "_history_source_session": source}
-                         for record in mission_chat_turn_records(session_id=source)
-                         if record.get("client_message_id") in visible)
+        sources.append(source)
         current = source
-    by_id = {record["client_message_id"]: record for record in reversed(inherited)}
-    by_id.update({record["client_message_id"]: record for record in own})
-    return list(by_id.values())
+    return sources
 
 
 def _logical(row):

@@ -6,8 +6,26 @@ from .operator_conversation import OperatorConversationRefused
 from .operator_history import _target, _plan, _digest, require_history_idle
 from .operator_session_inspection import operator_session_read
 from .turn_checkpoints import read_turn_checkpoint, checkpoint_for_tree
+from .persona_chat_history.history_evidence import history_source_sessions
+from .conversation_owner import require_session_owner
 
 __layer__ = "lanes"
+
+
+def _sources(session, params):
+    sources = [params["session_id"], *history_source_sessions(session.db, params["session_id"])]
+    for source in sources:
+        require_session_owner(session.db.get_session(source), params.get("client_scope"))
+    return sources
+
+
+def _turn_record(sources, turn):
+    if turn:
+        for source in sources:
+            record = read_turn_checkpoint(source, turn)
+            if record is not None:
+                return record
+    return None
 
 
 def operator_turn_changes(params):
@@ -16,9 +34,10 @@ def operator_turn_changes(params):
         raise OperatorConversationRefused("invalid_history_target")
     with operator_session_read(params) as (_, session):
         _target(session.db, params["session_id"], client_message_id=turn, after_reply=True)
+        sources = _sources(session, params)
     try:
         with _checkpoint_session(params) as (identity, manager, workdir, _):
-            record = read_turn_checkpoint(params["session_id"], turn)
+            record = _turn_record(sources, turn)
             workspace = (record or {}).get("workspaces", {}).get(workdir)
             checkpoint = checkpoint_for_tree(manager, workdir, workspace["before_tree"]) if workspace else None
             return {**identity, "client_message_id": turn, "workspace_path": workdir,
@@ -45,6 +64,7 @@ def preview_operator_undo(params):
         rows = session.db.get_messages_as_conversation(history["tip"], include_row_ids=True)
         turns = [logical_persona_chat_client_message_id(row.get("message_id")) for row in rows
                  if row["_row_id"] >= history["row_id"] and user_originated_turn_view(row) is not None]
+        sources = _sources(session, params)
     files, checkpoint, restore, reason, workspace_path = [], None, None, None, None
     try:
         with _checkpoint_session(params) as (_, manager, workdir, _):
@@ -52,7 +72,7 @@ def preview_operator_undo(params):
             baseline = None
             attributed = {}
             for turn in turns:
-                record = read_turn_checkpoint(params["session_id"], turn) if turn else None
+                record = _turn_record(sources, turn)
                 if record and set(record["workspaces"]) - {workdir}:
                     reason = "multiple_workspaces"
                 workspace = (record or {}).get("workspaces", {}).get(workdir)
