@@ -357,3 +357,198 @@ build, the bytecode sweep, or page-cache misses.
 
 **Not a fix candidate before the measurement:** moving imports lazy on a disk-cold number — the
 page-cache cost moves with the import, it does not shrink.
+
+## Cluster C — ownership: who may cancel, who reads params, who stamps a child (D1.07, D1.08, D1.09)
+
+### D1.07 = L1.06 — a dispatch supervised by another process cannot be cancelled from this one
+
+**Verdict: PLAN** (the cross-install half); the same-machine second-serve half is one owner
+question away from a stage.
+
+**What the code does today.** `tools/agent_chat_dispatch/local.py::request_cancel` answers
+`not_owned_here` when `dispatch_id` is not in `dispatch_store.supervision.supervised_dispatch_ids()`
+(the process-local set of dispatches a live supervisor thread in THIS process answers for);
+`running_work/surface.py::_cancel_dispatch` routes `cancel_work("dispatch:…")` to it and
+passes the typed refusal through. A cross-install dispatch is sent as
+`peer.agent_chat.execute` (`remote.py::build_peer_execute_params`): the far install B runs it
+as a turn whose `turn_request_id` is derived from the dispatch id (R8's idempotent replay);
+the sender's row carries `remote_install_id`. There is no peer verb that names a turn to stop:
+`serve_rpc/peer.py` declares `ping`, `agent_chat.execute`, `media.get`, `announce`,
+`roster.list`, `thread.read` (and `call_authorization` lists the same six). So a Stop on a
+relay that crossed an install boundary has nowhere to go.
+
+**Decision.** Cancel is owned by the process that supervises the work; a non-owner never kills
+by pid. Across installs, the sender asks the owner with a peer verb carrying the dispatch id,
+authenticated exactly as the execute was (same peer session, same tier); the owner resolves the
+derived `turn_request_id` and interrupts its live turn through the existing turn-interrupt
+seam (`cancel_work`'s turn kinds / the chat Stop door), settling the sender's row from the
+answer.
+
+**Files and symbols (fork-owned).**
+- `agent_runtime/chat_turn.py`: `PEER_CHAT_CANCEL_METHOD = "peer.agent_chat.cancel"` beside
+  `PEER_CHAT_EXECUTE_METHOD`.
+- `agent_runtime/serve_rpc/peer.py`: `@method("peer.agent_chat.cancel", tier=TIER_CONSOLE)`:
+  params `{dispatch_id, reason}`; derives the turn request id the same way execute did;
+  answers one of `stopping` (live turn found and interrupted), `already_finished`
+  (settled; state echoed), `not_running` (no such turn here). `call_authorization`'s peer list
+  gains the name.
+- `tools/agent_chat_dispatch/remote.py`: `request_remote_cancel(row, reason)` — one dial with
+  `PEER_DIAL_TIMEOUT_SECONDS`, no retry loop (a cancel that cannot reach the peer is reported
+  `peer_unreachable`, the row's existing reason vocabulary); on `stopping` the sender's row is
+  marked `cancel_requested` and the normal remote settle path records the terminal state the
+  peer later reports.
+- `tools/agent_chat_dispatch/local.py::request_cancel`: before answering `not_owned_here`, a row
+  with `remote_install_id != ""` routes to `request_remote_cancel`; a local row another process
+  owns keeps `not_owned_here` (see the owner question).
+- `running_work/surface.py::_cancel_dispatch`: passes the new outcomes through typed, no
+  pretend success.
+
+**Stages.**
+1. **S1 the verb.** Tests (`tests/agent_runtime/test_peer_agent_chat_cancel.py`, fake peer
+   session as the execute tests use): cancel of a live derived turn → `stopping` and the turn's
+   interrupt seam called once with the derived request id; cancel of a settled one →
+   `already_finished`; unknown → `not_running`; a caller below `TIER_CONSOLE` is refused by the
+   tier gate. Killing mutation: derive the request id from `dispatch_id` with a different salt
+   → `not_running` for a live turn (red named).
+2. **S2 the sender's leg.** Tests: `request_cancel` on a row with `remote_install_id` dials
+   exactly once and returns the peer's outcome; peer down → `peer_unreachable`, row untouched;
+   `cancel_work("dispatch:…")` surfaces the outcome. Killing mutation: keep the
+   `not_owned_here` short-circuit ahead of the remote check → the remote test gets
+   `not_owned_here`.
+3. **S3 docs:** `03-transport-and-wire.md` peer verb table; `05-chat-turn-lane.md` cancel
+   semantics ("a cancel is a request to the supervisor; `not_owned_here` names the case a
+   local non-supervisor cannot route").
+
+**Size.** ~160 lines code, ~160 lines tests, one lane (Opus).
+
+**Owner questions.** (1) Same-machine, second serve: the row holds `owner_pid` /
+`owner_started_at` (the child's identity) but not the supervising serve's. Either stamp
+`supervisor_pid` on the row at `_mark_supervised` and have the non-owner answer
+`not_owned_here` with `supervised_by` so the console re-aims at that serve's socket, or write a
+durable `cancel_requested` column the supervisor polls (today the mark is checked before spawn
+and after exit only; a mid-run poll is new). Which? (2) Is a peer-initiated cancel allowed to
+interrupt a turn that already produced partial output on B (Stop semantics), or only to refuse
+a turn not yet started? The verb above assumes Stop semantics, matching the local
+`request_cancel`'s `stopping`.
+
+### D1.08 = L1.08 — params / JSON-doc readers recur per module, renamed apart to pass W0-G3
+
+**Verdict: PLAN.** The family is three families, and one of them already has its owner.
+
+**What the code holds** (`d04f2766ca` renamed them apart; the gate
+`tests/agent_runtime/test_duplicate_helper_bodies.py` is why):
+
+| family | members | refusal each raises |
+|---|---|---|
+| RPC params reader | `serve_rpc/realm.py::_param_text/_param_flag/_param_strings`; `chat_turn.py::_text/_flag/_strings`; `serve_rpc/console_operations.py::_console_text` | `_Refused("invalid_request", msg)`; `ChatTurnInvalid(f"{key}_invalid", msg)`; `ValueError(key)` |
+| versioned JSON document reader (default shape on fault) | `workspace_slot_env.py::_read`; `workspace_slot_runs.py::_read_runs` | none — returns `{"schema_version": …, <collection>: {}}` on `OSError`/`ValueError`/shape mismatch |
+| CLI verb runner (refusal → `emit_harness_error`) | `persona/slots_commands.py::_run_slot_verb`; `workspace_slots_commands.py::_run_workspace_slot_verb` | catches `SlotAssignmentRefused` / `(SlotRefused, SlotEnvRefused)` |
+
+`bundle_profiles/manifest.py::_strings` is NOT a member: it is a validating manifest parser
+that raises `ProfileManifestError`; a defaulting reader is the wrong shape for it. The owner
+that already exists: `agent_runtime/serve_rpc/params.py` — `_text_param` plus `ParamRefused`
+(one exception, `frame(rid, **data)` → `-32602` with `RpcRefusal`), today used by the office /
+level / map verbs.
+
+**Decision — the refusal-type injection shape.** A reader takes `refuse: Callable[[str, str], BaseException]`
+— `(key, sentence) → exception` — and raises what it is handed. Each lane supplies its own
+constructor once, at module top: realm `lambda key, msg: _Refused("invalid_request", msg)`;
+chat_turn `lambda key, msg: ChatTurnInvalid(f"{key}_invalid", msg)`; console
+`lambda key, msg: ValueError(key)`; the office verbs `lambda key, msg: ParamRefused(msg, RpcRefusal.…)`.
+Two arguments, no kwargs, no base class the lanes must share: each lane's error envelope is
+untouched, which is what the lane result asked for.
+
+**Files and symbols (fork-owned).**
+- `agent_runtime/serve_rpc/params.py`: `read_text(params, key, *, refuse, required=False, limit=None)`,
+  `read_flag(params, key, *, refuse, default=False)`, `read_strings(params, key, *, refuse)`;
+  `_text_param` keeps its lenient `None`-on-malformed contract (its callers rely on it).
+- `agent_runtime/json_document.py` (new, `__layer__ = "models"`):
+  `read_versioned_document(path, *, schema_version, collection) -> dict` — the default shape
+  on `OSError`, `ValueError`, non-dict payload or non-dict collection; used by
+  `workspace_slot_env._read` and `workspace_slot_runs._read_runs` (the two become one-line
+  calls or are deleted in favour of direct calls).
+- `hermes_cli/harness_parts/verb_runner.py` (new): `run_refusing_verb(args, kind, action, *, refusals: tuple[type[BaseException], ...], code="invalid_payload")`
+  — the shared body of the two `_run_*_verb`s; the message format `f"{exc.reason}: {exc.detail}"`
+  is the contract both already share.
+
+**Stages** (one lane, three CHANGE-sized steps; one MOVE commit if the helpers are relocated
+rather than deleted).
+1. **S1 params readers.** The three lanes delete their local readers and call the shared ones
+   with their constructor. Tests: each lane's existing refusal tests stay green (the envelope
+   is unchanged by construction); `tests/agent_runtime/test_duplicate_helper_bodies.py` loses
+   its three STALE/NEW rows. Killing mutation: re-add `_param_text` to `realm.py` → the
+   duplicate-bodies gate goes red (its red is the recorded one).
+2. **S2 JSON document reader.** Tests: the two stores return the default shape on a missing
+   file, a corrupt file, a dict without the collection; a valid file round-trips. Killing
+   mutation: drop the collection-shape check → the "collection is a list" case returns the
+   malformed payload.
+3. **S3 verb runner.** Tests: a refusal of each listed type emits `invalid_payload` with the
+   reason/detail sentence; an unlisted exception propagates. Killing mutation: catch
+   `Exception` → the propagation test fails.
+
+**Size.** ~90 lines new, ~110 lines deleted, ~120 lines tests.
+
+**Owner question:** none. Decision rule for a fourth family member found during the lane: add
+it if its refusal fits `(key, sentence)`; otherwise file it, do not widen the shape.
+
+### D1.09 = L2.20 — hermes children are invisible to the Launcher's process index
+
+**Verdict: PLAN**, with one correction to the row: the serve's gateway is not a child
+process. `serve/gateway_listener.py::start_gateway_listener` is a listener thread inside the
+serve (`boot_phases.py`), so "the upstream-spawned gateway (seam)" names nothing that can
+outlive the serve. The children that can:
+
+| spawn site | owner | can outlive the parent | stamp |
+|---|---|---|---|
+| `tools/agent_chat_dispatch/local.py::_spawn_child` (detached dispatch turn) | fork | yes — by design (`child.py` detached contract) | at spawn / at settle |
+| `agent_runtime/provider_signin_child.py` (`subprocess.Popen` in the sign-in child owner) | fork | yes, on a hard serve exit | at spawn / on close |
+| the `tui_gateway` worker handed to `conversations/native_peer.NativePeer(process=…)` | fork (the spawner that constructs it) | yes, on a hard serve exit | at construction / on close |
+| `hermes_cli/bundled_app.py` child | fork (bundled runner) | yes | at spawn / on exit |
+| stdio MCP hosts, `tools/mcp_tool.py` `subprocess.Popen` inside the SDK's stdio client | upstream | yes — the known orphan class (the Launcher already has `orphan_mcp_reap_policy.dart` by ancestry) | after admission, from `mcp_admission/transport.py`, IF the pid is reachable (see owner question) |
+
+Everything else in the fork is `subprocess.run` (bounded, waited) and needs no entry.
+
+**The Launcher's contract** (`EterniaLauncher/lib/core/services/hermes/runtime/hygiene/mission_process_index.dart`,
+`mission_process_index_io.dart`): directory `%LOCALAPPDATA%\EterniaLauncher\process_index`
+(else `~/.eternia_launcher/process_index`); one `<pid>.json` per process:
+`{pid, started_at_ticks?, store_root, purpose, recorded_by_pid?}`; `purpose` wire values
+`serve_runtime | serve_starter | qa_launcher | qa_mcp_server | hermes_child | unknown`; the
+reader spares a pid it names by identity (pid + `started_at_ticks` compared with the host
+record's observed start). The unit of `started_at_ticks` is the launcher's
+`host_process_record.dart` — the first stage reads it and pins it in the fixture (cross-repo
+contract fact; name it in the commit body).
+
+**Decision.** One fork chokepoint owns the entry: `agent_runtime/process_index.py` —
+`record_child(pid, *, purpose, started_at_ticks) -> Entry | None` (writes `<pid>.json`
+atomically — temp file + replace — never raises; `None` when no directory resolves),
+`forget_child(pid)` (unlink, never raises), `index_directory()` (the launcher's resolution
+rule, env `LOCALAPPDATA` then home). `store_root` from `agent_runtime.paths.store_root()`,
+`recorded_by_pid=os.getpid()`. The four fork spawn sites call it in pairs; the serve itself is
+NOT written here (the Launcher's `serve_register_source` already knows the serve by its own
+register). Upstream's MCP host: no edit to `tools/mcp_tool.py`; the stamp is post-hoc from
+`mcp_admission/transport.py` after a cold spawn, reading the pid off the SDK session's
+transport if that reach is public, else not at all.
+
+**Stages.**
+1. **S1 the chokepoint + two sites.** `process_index.py` with `_spawn_child` and
+   `provider_signin_child` wired. Tests (`tests/agent_runtime/test_process_index.py`, tmp
+   `LOCALAPPDATA`): a spawn writes `<pid>.json` with the five keys and `purpose="hermes_child"`;
+   settle / close unlinks it; an unresolvable directory writes nothing and raises nothing; the
+   JSON matches a fixture copied from the Launcher's test fixture
+   (`EterniaLauncher/test/fixtures/…`, pinned both sides). Killing mutation: write
+   `started_at_ticks` in the wrong unit → the fixture compare goes red.
+2. **S2 the remaining fork sites.** `native_peer` worker spawner and `bundled_app`. Same test
+   shape per site.
+3. **S3 the MCP host.** Measure first: can the fork read the stdio transport's process from
+   `tools/mcp_tool._servers[name]` through `_upstream_doors` without a private reach? If yes,
+   stamp after `_default_registrar`'s cold path and forget at `shutdown_mcp_servers`
+   (a fork callback registered on the serve's shutdown path, not an upstream edit). If not, the
+   MCP host stays with the Launcher's ancestry policy and this stage is a DROP with the reason
+   recorded.
+
+**Size.** ~140 lines code, ~160 lines tests, one lane (Opus); the launcher half (reading
+`hermes_child` entries in the sweep) is already in place per the row.
+
+**Owner question (blocks S3 only):** is a reach into the MCP SDK's stdio transport process
+handle acceptable as a seam row (`upstream-footprint-ledger.md` § Door map), or does the MCP
+host stay under the Launcher's `orphan_mcp_reap_policy` by ancestry?
