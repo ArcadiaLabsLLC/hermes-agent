@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-08",
   "base": "818c13be1d",
-  "files": 185,
+  "files": 186,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -552,6 +552,12 @@
       "files": "173 -> 173: agent/auxiliary_client.py was already in the footprint",
       "deleted_lines": "883 -> 883: additive only; heavy unchanged at 4",
       "reason": "the title call closed the process-shared pool's warm connection mid-body, so a chat's next turn paid a new TLS connection; the adapter's stream has no hook between consume and close. Held-PR row in the upstream footprint ledger"
+    },
+    {
+      "change": "lane-1011-M3 (L4.04, 2026-10-10): an additive os.name == 'nt' stdout-and-return block at the top of hermes_cli/terminal_notify.py write_tty",
+      "files": "185 -> 186: +hermes_cli/terminal_notify.py (9/0)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "on Windows '/dev/tty' resolves under the cwd drive's root, so where a \\dev folder exists the BEL/OSC went into a file instead of the terminal; write_tty has no caller-side seam (cli_modal_mixin calls it directly). Ledger row; upstream PR draft D5 retires it"
     }
   ]
 }
