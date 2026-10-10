@@ -21,6 +21,7 @@ only on an idle box: ``scripts/run_tests_idle.sh``).
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -76,8 +77,8 @@ def _git(repo_root: Path, *args: str) -> str:
 
     import subprocess
 
-    proc = subprocess.run(
-        ["git", "-C", str(repo_root), *args],
+    proc = subprocess.run(  # no opportunistic index refresh: a killed runner leaves no index.lock (D3.16)
+        ["git", "-C", str(repo_root), *args], env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if proc.returncode != 0:
