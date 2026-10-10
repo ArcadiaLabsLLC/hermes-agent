@@ -21,36 +21,17 @@ logger = logging.getLogger(__name__)
 # from ``[^\s,;]+`` to ``\S+``, which only removes MORE of the offending run.
 _SECRET_RE = TEXT_SECRET_ASSIGNMENT_RE
 
-#: Flat ceiling for one opaque free-text row.
-#:
-#: **THIS IS A WIRE BOUND, NOT A PERSISTENCE BOUND.** It reads like the latter —
-#: it lives in the continuity module, beside the session-DB flush, and it was
-#: introduced to keep persisted rows small. But the flush hands its result back
-#: into the LIVE actor's message list (``msg.clear(); msg.update(native)`` in
-#: ``run_agent``) BEFORE the first provider call of the turn, so whatever this
-#: number cuts, the model never sees.
-#:
-#: That is not a hypothetical. On 2026-08-09 this single flat 20,000 applied to
-#: a COMPOSED operator row and delivered 37% of a required skill, cut
-#: mid-sentence, with the runtime HUD amputated entirely — and because the cut
-#: took the ``</skill_preload>`` closing tag with it, the ``unchanged`` dedupe
-#: became structurally unreachable and re-shipped ~3.7 k tokens every turn. The
-#: composed row now has its own per-part ceilings (below); this one still
-#: governs every other role, and it still governs the wire.
-#:
-#: Anyone changing it is changing the prompt. :func:`native_wire_row` is the
-#: named boundary that says so, and it accounts for every character this number
-#: removes so the loss can never again be silent.
-_MAX_CONTENT = 20_000
-_MAX_ARGUMENTS = 4_000
+#: Operator-authored message slice, including plain user rows. This does not
+#: limit assistant/system content, tool results or tool-call arguments.
+_MAX_OPERATOR_MESSAGE_CONTENT = 20_000
 
 #: Total ceiling for ONE composed operator user row (message · skill_preload ·
-#: runtime_context). Deliberately much larger than :data:`_MAX_CONTENT`, and
+#: runtime_context). Deliberately much larger than :data:`_MAX_OPERATOR_MESSAGE_CONTENT`, and
 #: deliberately the ONLY ceiling on that row — the per-part limits below are
 #: priority slices of this one number, not independent budgets that could
 #: silently disagree with it.
 #:
-#: 256 KiB is ~4.6x the largest real preload measured on this lane (qa's
+#: 262,144 characters is ~4.6x the largest real preload measured on this lane (qa's
 #: ``launcher-mcp-operations``, formerly ``launcher-stagec-mcp-screenshot``,
 #: 54 KB) and it is paid at most ONCE per
 #: thread: turn 2+ delivers the compact ``unchanged`` stub, so steady-state rows
@@ -68,14 +49,9 @@ _MAX_RUNTIME_CONTEXT_CONTENT = 32_000
 BOUND_PART_MESSAGE = "message"
 BOUND_PART_SKILL_PRELOAD = "skill_preload"
 BOUND_PART_RUNTIME_CONTEXT = "runtime_context"
-#: The whole content of a row that is opaque free text (every role but ``user``:
-#: assistant replies, tool results, system notes). Not composed, so not split —
-#: but bounded, and therefore accounted, by the same boundary.
+#: Historical free-text and tool-argument notes remain part of the receipt
+#: vocabulary. Current native projection redacts these fields without clipping.
 BOUND_PART_CONTENT = "content"
-#: One tool call's serialized arguments, bounded at :data:`_MAX_ARGUMENTS`. The
-#: same silent-loss class as the free-text rows and on the same wire: these ride
-#: back into the live actor with the rest of the row, so a truncated argument
-#: blob is what the model sees its own previous call as having made.
 BOUND_PART_TOOL_ARGUMENTS = "tool_arguments"
 
 #: The parts that make up a row's ``content``, and therefore the only ones whose
@@ -246,7 +222,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     3. the skill preload — largest and the only part with its own re-delivery
        machinery, so it absorbs whatever room is left.
 
-    A row carrying neither envelope is bounded exactly as before (:data:`_MAX_CONTENT`
+    A row carrying neither envelope is bounded exactly as before (:data:`_MAX_OPERATOR_MESSAGE_CONTENT`
     on the whole thing), so nothing outside the mission-chat composition changes.
     """
 
@@ -264,7 +240,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     text = _redacted(value)
     parts = split_composed_user_row(text)
     if not parts.has_envelope:
-        bounded = _truncate(text, _MAX_CONTENT)
+        bounded = _truncate(text, _MAX_OPERATOR_MESSAGE_CONTENT)
         if bounded == text:
             return BoundedUserContent(text=text, source_chars=len(text))
         return BoundedUserContent(
@@ -275,7 +251,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
                     action=BOUND_ACTION_TRUNCATED,
                     original_chars=len(text),
                     bounded_chars=len(bounded),
-                    limit=_MAX_CONTENT,
+                    limit=_MAX_OPERATOR_MESSAGE_CONTENT,
                 ),
             ),
             source_chars=len(text),
@@ -294,7 +270,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
         notes.append(note)
     remaining -= len(hud)
 
-    message = _truncate(parts.message, min(_MAX_CONTENT, remaining))
+    message = _truncate(parts.message, min(_MAX_OPERATOR_MESSAGE_CONTENT, remaining))
     if len(message) != len(parts.message):
         notes.append(
             ContentBoundNote(
@@ -302,7 +278,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
                 action=BOUND_ACTION_TRUNCATED,
                 original_chars=len(parts.message),
                 bounded_chars=len(message),
-                limit=min(_MAX_CONTENT, remaining),
+                limit=min(_MAX_OPERATOR_MESSAGE_CONTENT, remaining),
             )
         )
     remaining -= len(message)
@@ -332,33 +308,7 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     )
 
 
-def _bounded_free_text(
-    value: Any, *, limit: int = _MAX_CONTENT, part: str = BOUND_PART_CONTENT
-) -> BoundedUserContent:
-    """Bound one opaque free-text row, and SAY SO when it cuts.
-
-    A flat ``_truncate`` returning a bare string does the same cut, which is
-    how the assistant/tool/system rows have been losing content silently: the
-    per-part accounting added for the composed operator row covered ``user``
-    only, while the other three roles kept a flat cap with no note, no log and
-    no receipt. A 25 KB tool result was cut to 20 K on the way to the model and
-    nothing anywhere recorded that it had been.
-    """
-
+def _redacted_content(value: Any) -> BoundedUserContent:
+    """Redact a native row without competing with upstream's size policy."""
     text = _redacted(value)
-    bounded = _truncate(text, limit)
-    if bounded == text:
-        return BoundedUserContent(text=text, source_chars=len(text))
-    return BoundedUserContent(
-        text=bounded,
-        notes=(
-            ContentBoundNote(
-                part=part,
-                action=BOUND_ACTION_TRUNCATED,
-                original_chars=len(text),
-                bounded_chars=len(bounded),
-                limit=limit,
-            ),
-        ),
-        source_chars=len(text),
-    )
+    return BoundedUserContent(text=text, source_chars=len(text))

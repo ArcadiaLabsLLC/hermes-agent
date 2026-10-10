@@ -9,6 +9,22 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
 
+## Native result delivery
+
+`agent_runtime/persona_chat_continuity/wire.py::native_wire_row` redacts native
+history without applying a second size ceiling to tool results, assistant/system
+content or tool-call arguments. Upstream sizes results through its own three
+layers: per-result handling, aggregate budgeting and context compression. The
+fork's operator-message and composed-user limits remain in
+`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`.
+
+`agent_runtime/native_persistence.py::project_native_message` feeds the live
+message and the SQLite row, so both must preserve the upstream-selected result
+and canonical arguments. Spill paths retain upstream's cache lifecycle; they are
+not a durable recovery promise. The real flush/replay, spill, redaction and
+receipt controls live in `tests/agent_runtime/test_native_result_policy_downstream.py`.
+Launcher owns its generated reply-page target independently of these policies.
+
 ## Independent native conversations
 
 `agent_runtime/conversations/service.py::ConversationService` admits exact
