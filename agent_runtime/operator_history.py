@@ -177,6 +177,7 @@ def _with_branch_entry(db, result):
 def apply_operator_history(params):
     from hermes_state_history_controls import HistoryControlError
     from hermes_state_errors import SessionActiveWriteGuardError
+    from hermes_state_rewind import RewindTargetUnavailableError
 
     key = _receipt_key(params)
     request_digest = _digest(params)
@@ -204,6 +205,11 @@ def apply_operator_history(params):
                 return _with_branch_entry(db, _apply_native(db, params, plan, config, title, key, request_digest))
     except HistoryControlError as exc:
         raise OperatorConversationRefused(exc.reason) from exc
+    except RewindTargetUnavailableError as exc:
+        # The canonical rewind wraps writer ValueErrors. Preserve the pin's
+        # refusal, rather than reporting an unknown outcome after no write.
+        reason = exc.__cause__.reason if isinstance(exc.__cause__, HistoryControlError) else "target_unavailable"
+        raise OperatorConversationRefused(reason) from exc
     except SessionActiveWriteGuardError as exc:
         raise OperatorConversationRefused("conversation_busy") from exc
 
