@@ -929,3 +929,12 @@ worktree that should not fight the shared checkout for the queue files):
   reads `os.access` on a sidecar it listed a moment earlier; a WAL unlinked in between
   reports as read-only (`os.access` is False for a missing path)** · fork / upstream-owned ·
   D3.02 · lane: D3.02 (reproducer first).
+
+## Owner rulings — 2026-10-10
+
+The owner took every recommendation ("go with recommendation").
+
+- D3.03: upstream-test-edit licence granted to the footprint lane; the two non-additive fixes (`plugin_loader`, `file_tools_read_tracking`) are rewritten additively where possible and carried only where that is impossible.
+- D3.05: yes, sanitized shapes of the operator's profile configs (persona/toolset/model names; no secrets, no paths) may be committed.
+- D3.15: run the install.ps1 killing mutation on this box, accept one user-PATH write and prune it at once; carry the additive install.ps1 hunk until the PR can open.
+- D3.02: accept the 2-line carried hunk in `hermes_state_repair.py` until the PR can open.
