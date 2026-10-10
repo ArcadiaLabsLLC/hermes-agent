@@ -63,10 +63,6 @@ if _WIN:
         "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_from_terminal_cwd_when_registry_empty": (
             pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
         ),
-        "tests/hermes_cli/test_doctor_structural_corruption.py::"
-        "test_doctor_routes_structural_damage_to_recover_not_fts_rebuild": (
-            _up_red("an FTS-only stomp reads as structural damage; no Windows marker in the text"),
-        ),
         **{
             f"tests/hermes_cli/test_gateway.py::{test}": (
                 _up_red_skip("the stop test outlives the 30 s thread timeout, which kills "
@@ -211,8 +207,6 @@ if _WIN:
         **{node: (_up_red('red on pure upstream/main 067fa1a257 on Windows (upstream-new file, 2026-09-25 merge)'),) for node in (
             'tests/hermes_cli/test_backup_preflight.py::test_preflight_captures_committed_wal_without_application_imports',
             'tests/hermes_cli/test_install_bucket_separation.py::TestProfileCopyExclusions::test_copies_profile_payload_without_install_artifacts[export]',
-            'tests/hermes_cli/test_memory_dependency_admission.py::test_setup_requires_dependencies_and_keeps_the_existing_union[False]',
-            'tests/hermes_cli/test_memory_dependency_admission.py::test_setup_requires_dependencies_and_keeps_the_existing_union[True]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-False]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-True]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[9-False]',
@@ -261,12 +255,6 @@ if _WIN:
             'tests/hermes_cli/test_venv_sync_currency.py::test_own_tree_sync_reuses_pm_without_writing_an_extra_stamp',
             'tests/hermes_cli/test_version_info.py::test_get_version_info_derives_identity_from_reachable_release_tag',
             'tests/hermes_cli/test_version_info.py::test_get_version_info_takes_the_version_a_calver_only_release_shipped',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pip_dependencies-cli]',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pip_dependencies-dashboard]',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pyproject-cli]',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pyproject-dashboard]',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-cli]',
-            'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-dashboard]',
         )},
         "tests/hermes_cli/test_isolated_serve_ledger_marker.py::"
         "test_isolated_serve_ledger_row_is_marked_and_ordinary_serve_is_not": (

@@ -232,6 +232,9 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/plugins/dashboard_auth/test_nous_provider.py::TestConfigYamlSource",
             "tests/plugins/dashboard_auth/test_nous_provider_downstream.py::TestConfigYamlSource",
             "tests/plugins/dashboard_auth/test_self_hosted_provider.py::TestPluginRegister",
+            # v0.21.6: the new clock-skew file patches load_config, the fork reads the readonly twin.
+            "tests/plugins/dashboard_auth/test_jwt_clock_skew_leeway.py::TestSelfHostedConfig",
+            "tests/plugins/dashboard_auth/test_jwt_clock_skew_leeway.py::TestNousConfig",
         )
     },
     **{
@@ -349,6 +352,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_lock_keeping_git_is_recognised_in_every_form_and_by_path_components",
             "tests/agent/test_session_row_under_live_agent_persist.py::"
             "test_flush_fails_closed_when_row_cannot_be_recreated",
+            # v0.21.6: three hermes_state files drop a stub with undo() mid-body.
+            "tests/hermes_state/test_clean_close_residual_poison.py::"
+            "test_clean_close_never_causes_false_sticky_loss",
+            "tests/hermes_state/test_never_active_keyed_prune.py::TestPruneSkipsLiveTurns::"
+            "test_guarded_row_survives_and_keeps_its_routing_entry",
+            "tests/hermes_state/test_session_list_index_choice.py::"
+            "test_session_listings_search_messages_only_through_the_timestamp_index",
+            "tests/tools/test_skills_guard.py::TestScanSkillCached::"
+            "test_cached_verdict_rescans_after_scanner_version_bump",
         )
     },
 }
