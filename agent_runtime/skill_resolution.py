@@ -348,10 +348,9 @@ def _skill_root_registry(root: Path) -> _SkillRootRegistry:
     manifest_aliases: dict[str, list[tuple[Path | None, Path]]] = {}
     for manifest in manifests:
         aliases = {manifest.parent.name}
-        try:
-            frontmatter, _ = _skills.parse_frontmatter(manifest.read_text(encoding="utf-8"))
-        except Exception:
-            frontmatter = {}
+        # The one parser of a manifest (D1.05 CF-1): the compatibility pass reads
+        # the same file through it, so a cold build parses each manifest once.
+        frontmatter = _cached_skill_frontmatter(manifest)
         declared = str(frontmatter.get("name") or "").strip()
         if declared:
             aliases.add(declared)
