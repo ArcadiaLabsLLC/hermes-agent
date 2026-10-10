@@ -101,6 +101,13 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A
   `known-red` line was NOT run alone this time; it is not evidence of a leak either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+- A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
+  log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test
+  process, and the bundled runner passes it to its own git, so git's opportunistic index refresh no
+  longer takes the lock (design sweep D3.16). To name a test that still runs git against the checkout,
+  run the gate with `--git-audit` (`scripts/run_tests_bundled.sh --git-audit tests`) and read
+  `.pytest_cache/hermes_git_in_checkout.jsonl` (`{file, nodeid, argv, cwd}` per call; it
+  over-approximates — every verb, and a positional repo path is not parsed).
 
 ## How to run a heavy command (measured — do not improvise)
 

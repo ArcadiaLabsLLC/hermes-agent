@@ -71,7 +71,7 @@ def load_manifest(path: Path) -> set[str]:
     return out
 
 
-def _git(repo_root: Path, *args: str) -> str:
+def _scope_git(repo_root: Path, *args: str) -> str:
     """``git -C <repo_root> <args>``'s stdout. Raises ``RuntimeError`` when git
     cannot answer, so an unknown diff is never read as an empty one."""
 
@@ -87,7 +87,7 @@ def _git(repo_root: Path, *args: str) -> str:
 
 
 def _git_paths(repo_root: Path, *args: str) -> set[str]:
-    return {Path(line.strip()).as_posix() for line in _git(repo_root, *args).splitlines() if line.strip()}
+    return {Path(line.strip()).as_posix() for line in _scope_git(repo_root, *args).splitlines() if line.strip()}
 
 
 def changed_paths(repo_root: Path, since: str) -> set[str]:
@@ -105,11 +105,11 @@ def changed_paths(repo_root: Path, since: str) -> set[str]:
 def merge_parents(repo_root: Path, merge_sha: str) -> List[str]:
     """``merge_sha``'s parents; ``RuntimeError`` unless it is a merge HEAD descends from."""
 
-    parents = _git(repo_root, "rev-list", "--parents", "-n", "1", merge_sha).split()[1:]
+    parents = _scope_git(repo_root, "rev-list", "--parents", "-n", "1", merge_sha).split()[1:]
     if len(parents) < 2:
         raise RuntimeError(f"--since-merge {merge_sha} is not a merge commit")
     try:
-        _git(repo_root, "merge-base", "--is-ancestor", merge_sha, "HEAD")
+        _scope_git(repo_root, "merge-base", "--is-ancestor", merge_sha, "HEAD")
     except RuntimeError:
         raise RuntimeError(f"--since-merge {merge_sha} is not an ancestor of HEAD") from None
     return parents
@@ -152,10 +152,10 @@ def conftest_hunk_unchanged(repo_root: Path, path: str, merge_sha: str) -> bool:
     nothing of it; upstream tested its own part at the tag."""
 
     parents = merge_parents(repo_root, merge_sha)
-    base = _git(repo_root, "merge-base", parents[0], parents[1]).strip()
+    base = _scope_git(repo_root, "merge-base", parents[0], parents[1]).strip()
 
     def delta(old: str, new: str) -> List[str]:
-        return _delta_lines(_git(repo_root, "diff", "-U0", "--no-color", "--no-ext-diff", old, new, "--", path))
+        return _delta_lines(_scope_git(repo_root, "diff", "-U0", "--no-color", "--no-ext-diff", old, new, "--", path))
 
     return delta(base, parents[0]) == delta(parents[1], merge_sha)
 
