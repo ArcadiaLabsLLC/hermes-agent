@@ -1881,7 +1881,9 @@ class SessionMessagesMixin:
 
     def rewind_to_message(self, session_id: str, target_message_id: int, *, preserve_compaction_handoff: bool = False,
                           expected_active_ids: Optional[List[int]] = None,
-                          expected_target_content: Any = None) -> Dict[str, Any]:
+                          expected_target_content: Any = None,
+                          expected_history_digest: Optional[str] = None,
+                          operation_receipt: Optional[Tuple[str, str]] = None) -> Dict[str, Any]:
         """Soft-delete (``active=0``) every message with id >= *target_message_id*, target included (the caller
         pre-fills it as the next prompt). Returns ``{"rewound_count", "target_message", "new_head_id"}``, plus
         ``replacement_message_id`` with ``preserve_compaction_handoff`` (archives a composite summary carrier,
@@ -1890,8 +1892,10 @@ class SessionMessagesMixin:
         in-txn before any mutation (presentation-only metadata changes don't invalidate a rewind). A live turn
         lease refuses; expired/dead holders are reclaimed. ``rewind_count`` always increments."""
         def _do(conn):
+            from hermes_state_history_controls import check_history_digest, write_history_receipt
             self._check_transcript_write_guards(
                 conn, session_id, None, reject_active_turn_lease=True, reject_active_compression_lock=True)
+            check_history_digest(conn, session_id, expected_history_digest)
             if expected_active_ids is not None:
                 active_rows = conn.execute(_ACTIVE_IDS_SQL, (session_id,)).fetchall()
                 if [int(r[0]) for r in active_rows] != expected_active_ids:
@@ -1919,6 +1923,7 @@ class SessionMessagesMixin:
             conn.execute(f"{_SET_COUNTERS_SQL} WHERE id = ?", (message_count, tool_call_count, session_id))
             head_id = conn.execute(
                 "SELECT MAX(id) FROM messages WHERE session_id = ? AND active = 1", (session_id,)).fetchone()[0]
+            write_history_receipt(conn, operation_receipt)
             return target_row, ids, head_id, replacement
         target_row, rewound, new_head_id, replacement = self._execute_write(_do)
         # Decode for the prompt-buffer prefill without a second fallible DB operation.

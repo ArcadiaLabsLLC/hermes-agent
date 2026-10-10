@@ -737,6 +737,8 @@ def perform_chat_turn(
             turn_request_id=request.turn_request_id,
             verb=request.verb,
             session_scope=request.session_scope,
+            admission_scope=(request.session_scope.partition('/')[2]
+                             if verb == PEER_CHAT_EXECUTE_METHOD else request.session_scope),
         ) as reservation:
             reservation.verify_payload(request.argv)
             if reservation.replayed and reservation.state is not None:
