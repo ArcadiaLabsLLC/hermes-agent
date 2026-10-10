@@ -148,7 +148,39 @@ manifest: 188 upstream files, 951 deleted lines, 5 heavy files. The widening
 stays in native owners and is recorded as held upstream PR candidates in the
 footprint ledger, not claimed as an already opened upstream PR.
 
-Required whole-fork gates and native Launcher qualification remain outstanding.
+Final fork-scope landing run: **1,465 files; 18,574 passed, 110 failed, 233
+skipped**. This was a red full gate, not a green qualification. Repeating its
+27 failing files on untouched main `7094d8b3ba` reproduced **99 identical failed
+node IDs**, plus the same `test_serve_exit_flush.py` process failure before a
+complete test summary. Those failures remain tracked by the existing runtime
+and fork-hygiene queues.
+
+The 11 other failed nodes were resolved or explained individually:
+
+- Four structural checks now pass after splitting the Undo coordinator helpers,
+  reusing the native history-action enum, naming the SQLite writer specifically,
+  and giving the pre-prompt boundary the precise `before_user_message` value.
+  No gate exemption or baseline was expanded.
+- Six manifest assertions correctly found nine recovery methods absent from the
+  reviewed expected manifest. The producer regenerated exactly those nine
+  console-tier entries; all six assertions pass on the final source.
+- The test-tree layout check found an empty retired `tests/honcho_plugin`
+  directory left in this long-lived worktree, with no tracked or untracked
+  files. A fresh detached checkout of the final commit passes the same gate.
+
+The final focused safety/architecture run passed **96 tests in 11 files**. A
+fresh-checkout manifest/layout run passed **131 tests in 4 files**, with one
+recorded retry: the office-subscribe suite's test fixture intermittently sees
+`hermes_state` before `_STATE_DB_GUARD_EXTRA_DENY_ROOTS` exists. Its first attempt
+was 81 passed / 1 setup error; its retry was 82 passed. This is filed for suite
+repair and is not presented as a clean first-attempt pass.
+
+Evidence under `console-history-evidence/runtime`: `repair-landing.log`,
+`repair-landing.json`, `repair-baseline.log`, `baseline-comparison.json`,
+`repair-final-gates.log`, and `repair-clean-final.log`. No repeated whole-fork
+run was used to hide the original reds.
+
+Native Launcher qualification remains outstanding.
 The Launcher QA schema still exposes PrintWindow rather than required in-app
 capture; its policy blocks native verification until the connected server is
 refreshed. Do not mark this work landed or feature qualification complete.
