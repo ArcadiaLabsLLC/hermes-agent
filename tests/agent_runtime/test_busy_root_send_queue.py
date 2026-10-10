@@ -283,6 +283,49 @@ def test_a_queued_turn_streams_the_same_frames_a_sent_turn_does_to_a_subscriber(
     assert session.frames.frames == subscriber
 
 
+@pytest.mark.parametrize("origin", ["local", "paired_device"])
+def test_a_queued_turn_binds_the_app_function_link_a_direct_run_would(
+    origin, monkeypatch, capsys, isolate_agent_runtime_root
+):
+    import dataclasses
+
+    from agent_runtime import launcher_app_functions
+    from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
+
+    handler = _install_chat_lane(monkeypatch)
+    _count_provider_calls(monkeypatch)
+    refreshed: list = []
+    monkeypatch.setattr(launcher_app_functions, "refresh_app_function_tools", refreshed.append)
+
+    launcher = object()
+    token = launcher_app_functions.bind_launcher_link(
+        launcher_app_functions.LauncherLink(object(), origin)
+    )
+    try:
+        with persona_chat_root_lease(ROOT, observer_kind="cli"):
+            _send(handler, "cm-link", capsys)
+    finally:
+        launcher_app_functions.reset_launcher_link(token)
+    entry = chat_root_send_queue.find(ROOT, "cm-link")
+    assert entry.args[chat_root_send_queue.LINK_ORIGIN_ARG] == origin
+
+    session = _serve_session()
+    session._gateway_turn_launcher_sink = lambda: launcher
+    seen: list = []
+    door = _door(handler, []).run_turn
+
+    def run_turn(args):
+        seen.append(launcher_app_functions.current_launcher_link())
+        return door(args)
+
+    policy = dataclasses.replace(queued_turn_runner_policy(session), run_turn=run_turn)
+    assert run_queued_sends_once(policy)["ran"] == 1
+    assert seen and seen[0] is not None, "a queued turn ran with no app-function link"
+    assert (seen[0].sink, seen[0].origin) == (launcher, origin)
+    assert refreshed == [seen[0]]
+    assert launcher_app_functions.current_launcher_link() is None
+
+
 def test_a_blocked_turn_on_one_root_does_not_hold_a_queued_send_on_another(
     isolate_agent_runtime_root,
 ):

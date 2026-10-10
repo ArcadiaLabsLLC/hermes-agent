@@ -17,11 +17,14 @@ Contract: ``docs/agent-runtime-harness/planned/busy-root-queue-2026-10-10.md``.
 from __future__ import annotations
 
 import contextlib
+import logging
 from typing import Any, Iterator
 
 from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink
 
 __layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["QueuedTurnStream", "queued_turn_runner_policy"]
 
@@ -59,16 +62,40 @@ class QueuedTurnStream:
         self.sink.emit({"id": self.rid, "event": "exit", "code": int(exit_code)})
 
 
+def _queued_turn_link(session: Any, entry: Any) -> Any:
+    """The app-function link a direct run of this send would have had: the origin persisted
+    at enqueue, answered by the local Launcher that answers now (the requester's own
+    connection ended with the "queued" answer). ``None`` when the send had none."""
+
+    from agent_runtime.chat_root_send_queue import LINK_ORIGIN_ARG
+    from agent_runtime.launcher_app_functions import LauncherLink, refresh_app_function_tools
+
+    origin = (getattr(entry, "args", None) or {}).get(LINK_ORIGIN_ARG)
+    answerer = getattr(session, "_gateway_turn_launcher_sink", None)
+    sink = answerer() if origin and callable(answerer) else None
+    if sink is None:
+        return None
+    link = LauncherLink(sink, origin)
+    try:
+        refresh_app_function_tools(link)
+    except Exception:  # a tool list must never cost the turn
+        logger.warning("launcher app-function refresh failed for a queued turn", exc_info=True)
+    return link
+
+
 @contextlib.contextmanager
 def _queued_turn_stream(session: Any, entry: Any) -> Iterator[QueuedTurnStream]:
     from agent_runtime.chat_root_send_runner import queued_request_id
+    from agent_runtime.launcher_app_functions import bind_launcher_link, reset_launcher_link
 
     stream = QueuedTurnStream(session, queued_request_id(entry.client_message_id))
     rid_token = _request_id.set(stream.rid)
     sink_token = _request_sink.set(stream.sink)
+    link_token = bind_launcher_link(_queued_turn_link(session, entry))
     try:
         yield stream
     finally:
+        reset_launcher_link(link_token)
         _request_sink.reset(sink_token)
         _request_id.reset(rid_token)
 

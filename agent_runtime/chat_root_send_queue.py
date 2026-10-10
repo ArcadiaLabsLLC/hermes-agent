@@ -41,6 +41,9 @@ _VALID_STATES = frozenset({STATE_QUEUED, STATE_RUNNING})
 #: Set on the argument namespace of a send the runner executes FROM the queue, so
 #: the turn's pre-lease gate lets the head through instead of answering "queued".
 QUEUED_RUN_ARG = "queued_send_run"
+#: The persisted origin of the send's app-function link (``LauncherLink.origin``),
+#: ``None`` when the send had none; the serve's queued-turn stream binds it again.
+LINK_ORIGIN_ARG = "launcher_link_origin"
 
 #: Fields of the send's argument namespace that are never persisted: the
 #: transport (the queued run is answered through the door's sink, never a
