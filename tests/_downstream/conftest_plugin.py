@@ -262,6 +262,12 @@ _DOWNSTREAM_BEHAVIORAL_VARS = frozenset({
     "HERMES_TUI_DIR",
     "HERMES_WEB_DIST",
     "HERMES_REAL_HOME",
+    # Upstream's MCP reconcile chore (``gateway/run_profile_reconcile.py::_mcp_config_reconciler``
+    # -> ``load_hermes_dotenv(override=True)``) writes a served profile's .env into os.environ
+    # under a multiplexed gateway, past monkeypatch: tests/gateway/test_housekeeping_profile_scope.py
+    # left ``https://a.example/v1`` here for every later test in the process (L7.19, 7 reds in
+    # test_anon_auth_core.py / test_anon_failure_modes.py). Unset is what CI has.
+    "NOUS_INFERENCE_BASE_URL",
 })
 
 
