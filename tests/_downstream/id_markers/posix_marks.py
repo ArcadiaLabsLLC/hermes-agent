@@ -4,7 +4,7 @@ The unconditional block is the fork's own ``platforms("linux")`` marks (they gat
 themselves on every host); every other row is win32 only.
 
 ``_posix_only`` skips and ``_posix_xfail`` strict xfails, the WSL-premise skips, the
-tirith no-build skips, the TCC POSIX-venv rows, and ``IMPORT_TIME_POSIX_SHIMS``. Every
+TCC POSIX-venv rows, and ``IMPORT_TIME_POSIX_SHIMS``. Every
 row retires with the open branch ``up/win-posix-only-apis``.
 
 One ``ROWS`` table, already host-filtered; ``hooks._merge`` concatenates the four.

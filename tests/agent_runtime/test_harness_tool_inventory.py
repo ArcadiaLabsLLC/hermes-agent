@@ -186,8 +186,12 @@ def test_a_manual_that_names_an_unregistered_tool_reds(emitter, repo_copy, capsy
 
     path = repo_copy / emitter.SKILL_MD
     text = path.read_text(encoding="utf-8")
+    # A prose mention outside the generated block; if the manual is reworded,
+    # repoint the anchor rather than letting this test pass on a no-op edit.
+    anchor = "and `agent_chat_send` (agent \u2192 agent)"
+    assert anchor in text, "the manual no longer carries the prose anchor this test renames"
     path.write_text(
-        text.replace("the in-model `agent_chat_send` tool", "the in-model `agent_chat_holler` tool", 1),
+        text.replace(anchor, anchor.replace("agent_chat_send", "agent_chat_holler"), 1),
         encoding="utf-8",
         newline="",
     )

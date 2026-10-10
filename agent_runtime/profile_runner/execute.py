@@ -766,6 +766,9 @@ class AgentRunExecution:
                     "resolved_runtime": runtime_revision,
                 },
                 prewarm=bool(request.prewarm_only),
+                # The tool contract's enabled list, so a ``tool_contract``
+                # rebuild names the toolsets that entered or left it.
+                toolsets=request.enabled_toolsets,
             )
         )
         if reused:

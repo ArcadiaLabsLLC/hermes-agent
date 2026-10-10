@@ -31,6 +31,12 @@ fi
 __BUNDLED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 exec() {
+  # run_tests.sh re-executes ITSELF under run-in-hermes-env when the checkout's
+  # environment is stale (`exec run-in-hermes-env "$BASH" run_tests.sh ARGS`);
+  # re-enter this wrapper instead, so the second pass is still bundled.
+  if [ -z "${RUNNER_PATH:-}" ] && [ "$#" -ge 3 ] && [ "$1" = "$__BUNDLED_DIR/run-in-hermes-env" ]; then
+    builtin exec "$1" "$2" "$__BUNDLED_DIR/run_tests_bundled.sh" "${@:4}"
+  fi
   if [ -z "${RUNNER_PATH:-}" ]; then
     echo "error: run_tests.sh reached exec without setting RUNNER_PATH — the bundled wrapper is out of date" >&2
     builtin exit 2

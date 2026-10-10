@@ -327,7 +327,7 @@ def test_read_only_blocks_the_confirm_entries_through_the_one_chokepoint():
 
     laf.refresh_app_function_tools(laf.LauncherLink(_Launcher([*_TOOLS, _CONFIRM_TOOL]), laf.ORIGIN_LOCAL))
 
-    assert laf.confirm_app_function_tools() == {"launcher_settings_set"}
+    assert laf.mutating_app_function_tools() == {"launcher_settings_set"}
     assert set(extra_blocked_tools_for_permission_mode(PERMISSION_MODE_READ_ONLY)) == READ_ONLY_BLOCKS | {"launcher_settings_set"}
     assert extra_blocked_tools_for_permission_mode(PERMISSION_MODE_UNBOUNDED) == []
 
@@ -338,6 +338,33 @@ def test_read_only_blocks_the_confirm_entries_through_the_one_chokepoint():
     assert "launcher_settings_set" in options.blocked_tool_names
     assert "launcher_library_list" not in options.blocked_tool_names
     assert "launcher_settings_set" in _blocked_tool_names_for_chat(persona, session_id="chat-ro")
+
+
+def test_read_only_blocks_and_labels_by_the_launchers_read_only_mark():
+    """The Launcher marks each entry ``read_only`` (lane mc-a): a mutating entry that needs
+    no approval is still blocked in ``read_only`` mode and labelled mutating, and a confirm
+    entry the Launcher marks read-only is not. Positive control: an entry with no mark
+    falls back to ``requires_confirmation``."""
+
+    from agent_runtime.permission_modes import PERMISSION_MODE_READ_ONLY
+    from agent_runtime.tool_permissions import extra_blocked_tools_for_permission_mode
+    from agent_runtime.tool_visibility import _mutating_tools
+
+    silent_write = {**_TOOLS[0], "name": "launcher_queue_clear", "method": "launcher.queue.clear",
+                    "requires_confirmation": False, "read_only": False}
+    confirmed_read = {**_CONFIRM_TOOL, "name": "launcher_vault_peek", "method": "launcher.vault.peek",
+                      "read_only": True}
+    unmarked_confirm = {k: v for k, v in _CONFIRM_TOOL.items() if k != "read_only"}
+    assert "launcher_queue_clear" not in _mutating_tools()  # read BEFORE the catalog lands: no stale cache
+    laf.refresh_app_function_tools(laf.LauncherLink(
+        _Launcher([*_TOOLS, silent_write, confirmed_read, unmarked_confirm]), laf.ORIGIN_LOCAL))
+
+    blocked = set(extra_blocked_tools_for_permission_mode(PERMISSION_MODE_READ_ONLY))
+    assert "launcher_queue_clear" in blocked
+    assert "launcher_vault_peek" not in blocked
+    assert "launcher_settings_set" in blocked  # no mark: the confirm fallback
+    assert {"launcher_queue_clear", "launcher_settings_set"} <= _mutating_tools()
+    assert "launcher_vault_peek" not in _mutating_tools()
 
 
 # ── the Studio set stays behind the Launcher's gate ────────────────────────────
@@ -389,3 +416,15 @@ def test_the_invocation_carries_persona_instance_and_profile_when_the_lane_knows
     with launcher_invocation("operator", "chat-1", "turn-2"):
         _call("launcher_library_list", {}, link)
     assert set(launcher.sent[-1]["params"]["_meta"]["invocation"]) == {"channel", "session_id", "turn_id"}
+
+
+def test_invalid_arguments_is_not_read_to_the_model_as_a_schema_failure():
+    """The Launcher answers ``invalid_arguments`` for any argument it cannot use —
+    on 2026-10-09 a JSON syntax error inside ``document_json`` — so a fixed
+    'did not validate against the schema' sent the model to repair the wrong
+    thing. The message carries the specifics; the reading must not contradict it."""
+
+    meaning = answers.LAUNCHER_REFUSALS["invalid_arguments"]
+    assert meaning.retry == answers.RETRY_AFTER_CHANGE
+    assert "schema" not in meaning.detail
+    assert "message" in meaning.detail

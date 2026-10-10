@@ -705,7 +705,6 @@
     "symbol": "_hermes_exe_dirs",
     "kind": "bare_which",
     "reason": "fork: finding the hermes console-script on PATH is the question (the last rung, after sys.executable and argv[0]); answers are kept only when absolute"
-
   },
   {
     "path": "hermes_cli/update_pause_record.py",

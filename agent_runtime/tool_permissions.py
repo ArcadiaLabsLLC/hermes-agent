@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 #: The mutating-tool set. ONE definition: ``read_only`` blocks exactly the tools
 #: that cross the mutation boundary, so ``tool_visibility``'s mutation labelling
-#: reads this constant (via its ``_mutating_tools()`` accessor) instead of
+#: reads this constant (via its ``_read_only_blocks()`` accessor) instead of
 #: maintaining a second copy of the same 7 names — they drifted apart in two
 #: files until 2026-08-09.
 READ_ONLY_BLOCKS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "terminal", "write_file"})
@@ -340,17 +340,17 @@ def extra_blocked_tools_for_permission_mode(mode: str) -> list[str]:
     """The names ``read_only`` blocks on top of the bounded tier.
 
     ``READ_ONLY_BLOCKS`` plus every Launcher app function the Launcher marks
-    ``requires_confirmation`` (Stage 7): on that wire the confirm mark IS the
-    mutation mark — install, change a setting — and a session the operator
-    held at ``read_only`` must not reach them through the Launcher either.
+    mutating (its per-entry ``read_only is False``; ``requires_confirmation`` only
+    for an entry that carries no mark) — install, change a setting — so a session
+    the operator held at ``read_only`` cannot reach them through the Launcher either.
     Read from the live registration, never a copy, so a Launcher that lists a
     new confirm entry is blocked the moment it is registered.
     """
 
     if effective_permission_mode(mode) == PERMISSION_MODE_READ_ONLY:
-        from .launcher_app_functions import confirm_app_function_tools
+        from .launcher_app_functions import mutating_app_function_tools
 
-        return sorted(READ_ONLY_BLOCKS | confirm_app_function_tools())
+        return sorted(READ_ONLY_BLOCKS | mutating_app_function_tools())
     return []
 
 

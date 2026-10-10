@@ -396,8 +396,9 @@ class _TripwireContext:
     about the CALL SITE rather than about the helper the call site uses.
     """
 
-    @property
-    def user_message(self):
+    def __getattr__(self, name):
+        # Any field: upstream's voice route (v0.21.6) reads ``messages`` before the
+        # loop unpacks ``user_message``; the window ends at whichever read comes first.
         raise _Sentinel
 
 

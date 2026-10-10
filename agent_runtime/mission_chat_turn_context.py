@@ -115,6 +115,7 @@ from .runtime_hud import (
     situational_hud_revision,
     skill_preload_delivery,
     skill_preload_revision,
+    with_tool_surface,
 )
 from .turn_budget import TurnWallBudget, render_turn_budget_line, resolve_turn_wall_budget
 from .volatile_tail import VolatileTail, VolatileTailBuilder
@@ -261,6 +262,13 @@ def _default_capability_block(persona: Any, *, session_id: str | None) -> dict[s
     return chat_lane_bundle(persona, session_id=session_id).capability()
 
 
+def _default_settled_tool_surface(session_id: str, *, signature: str) -> dict[str, Any] | None:
+    # The tool form's owner: the receipt it settled on the actor this turn reuses.
+    from .chat_lane_tool_form import settled_surface_receipt
+
+    return settled_surface_receipt(session_id, signature=signature)
+
+
 def _default_situational_hud(
     instance: Any, *, turn_budget: dict[str, Any], capability: dict[str, Any]
 ) -> dict[str, Any]:
@@ -334,6 +342,8 @@ class MissionChatTurnResolvers:
     #: The instance's repo-slot context (build plan §3.3); None = no assignment.
     load_slot_context: Callable[[Any], Any] = _default_load_slot_context
     capability_block: Callable[..., dict[str, Any]] = _default_capability_block
+    #: The cost layer's settled receipt for this turn's actor, or None (no settle yet).
+    settled_tool_surface: Callable[..., dict[str, Any] | None] = _default_settled_tool_surface
     situational_hud: Callable[..., dict[str, Any]] = _default_situational_hud
     #: The workspace this lane's turn is in. The SAME function the HUD's scope
     #: line is named from, so the record and the agent's picture agree.
@@ -576,6 +586,16 @@ def build_mission_chat_turn_context(
     # the agent was told) AND the volatile tail for the agent — never the hashed
     # body.
     capability = resolvers.capability_block(persona, session_id=session_id) or {}
+    # The deferred / unavailable split is the SETTLED receipt of the actor this turn reuses
+    # (after MCP admission and the constructor's extras), joined here per turn — the account
+    # above is memoized with the bundle and never computes a preview surface. No receipt yet
+    # ⇒ no deferred line; never a failed turn.
+    try:
+        capability = with_tool_surface(
+            capability, resolvers.settled_tool_surface(session_id, signature=runtime_signature)
+        )
+    except Exception:  # pragma: no cover - a context line must never fail a turn
+        logger.debug("settled tool surface unavailable for this turn", exc_info=True)
 
     _started = time.monotonic()
     situational_hud = (

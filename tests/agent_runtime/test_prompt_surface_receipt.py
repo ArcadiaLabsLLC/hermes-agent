@@ -158,7 +158,7 @@ def _factory_agent(lane):
 
 def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):  # noqa: F811
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent, capture_final_request_tools
-    from agent_runtime.tool_surface import unaliased_wire_names
+    from agent_runtime.tool_surface import receipt_names, unaliased_wire_names
 
     agent = _factory_agent(harness_lane)
     agent.api_mode = "codex_responses"
@@ -180,7 +180,7 @@ def test_the_wire_names_are_the_surface_eager_set_plus_bridge(harness_lane):  # 
 
     assert "hermes_tool_search" in schema["final_model_tools"], "the record keeps the wire's spelling"
     joined = unaliased_wire_names({"names": schema["final_model_tools"], "bridge_aliases": schema["bridge_aliases"]})
-    assert sorted(joined) == sorted([*surface["eager"], *surface["bridge"]])
+    assert sorted(joined) == sorted([*receipt_names(surface, "eager"), *surface["bridge"]])
     assert schema["resolution_id"] == surface["resolution_id"]
     assert agent._hermes_turn_wire_tool_receipt["listing_chars"] > 0, "the aliased bridge's listing read as 0"
     # Anti-vacuity: the block and the persona's defer both moved names off this wire.
@@ -191,14 +191,21 @@ def test_hud_renders_the_deferred_line(harness_lane):  # noqa: F811
     from agent_runtime.runtime_hud.capability import render_capability_block, resolve_capability_block
     from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
 
+    from agent_runtime.tool_surface import receipt_names
+
     receipt = getattr(_factory_agent(harness_lane), AGENT_SURFACE_ATTR)
     block = resolve_capability_block(surface=receipt)
-    count = len(receipt["deferred"])
-    assert count >= 15, receipt["deferred"]
+    # ONE definition of "deferred" for both readers: the HUD's count IS the receipt's
+    # ``counts.deferred`` (non-MCP); the admitted MCP servers' names ride as ``mcp_count``.
+    count = receipt["counts"]["deferred"]
+    mcp_count = len(receipt["mcp"]["deferred"])
+    assert mcp_count, "anti-vacuity: the lane defers MCP names"
+    assert count == len(receipt["deferred"]) and count + mcp_count == len(receipt_names(receipt, "deferred"))
     assert block["deferred"]["count"] == count and block["deferred"]["via"] == "tool_search"
+    assert block["deferred"]["mcp_count"] == mcp_count
     assert "agent_runtime.personas.<persona>.chat_lane_defer_tools" in block["deferred"]["restorable_via"]
     text = render_capability_block(block)
-    assert f"- {count} tools deferred, reachable through tool_search" in text
+    assert f"- {count} tools deferred (and {mcp_count} MCP tools), reachable through tool_search" in text
     assert "nothing is missing" in text
     # Positive control: no surface, no line — the account stays silent when it knows nothing.
     assert "deferred" not in render_capability_block(resolve_capability_block())
@@ -217,10 +224,12 @@ def test_the_safe_view_keeps_reasons_and_counts_only(harness_lane):  # noqa: F81
     })
     surface = safe["surface"]
     assert set(surface) == {"schema_version", "resolution_id", "tool_search", "eager", "deferred",
-                            "unavailable", "blocked", "bridge", "counts", "degraded"}
-    for state in ("eager", "deferred", "unavailable", "blocked"):
-        for name, row in surface[state].items():
-            assert set(row) <= {"reason", "restorable_via"}, (state, name, row)
+                            "unavailable", "blocked", "mcp", "bridge", "counts", "degraded"}
+    for part in (surface, surface["mcp"]):
+        for state in ("eager", "deferred", "unavailable", "blocked"):
+            for name, row in part[state].items():
+                assert set(row) <= {"reason", "restorable_via"}, (state, name, row)
+    assert surface["mcp"] == receipt["mcp"], "the MCP rows survive the whitelist"
     assert "SECRET" not in repr(surface) and "per_tool_chars" not in surface
     assert surface["counts"] == receipt["counts"]
     # Positive control: the reasons themselves survive the whitelist.

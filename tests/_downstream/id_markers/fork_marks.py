@@ -30,12 +30,30 @@ from tests._downstream.id_markers.reasons import (
     _REAL_PAUSE,
     _SCOPED_UNDO,
     _STRIP_REAL_HOME_PATH,
+    _UPSTREAM_WIRE_UNBRIEFED,
     _WIN,
 )
 
 __layer__ = "models"
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # Upstream's wire snapshots (v0.21.6) pin the registry's tool descriptions; the
+    # fork's llm_request brief rewrites them. The fixture turns the brief off for these.
+    # v0.21.6's #82010 test expects platform_toolsets.cli: [] to resolve to no toolsets; the
+    # fork's eternia-harness plugin registers a default-on plugin toolset ("skills", for
+    # skill_search) and upstream's _enabled_plugin_toolsets keeps default-on plugin toolsets
+    # on an explicit empty list (queue row, release merge v0.21.6).
+    "tests/tui_gateway/test_gui_surface_toolsets.py::TestExplicitEmptySelection::"
+    "test_explicit_empty_list_yields_no_toolsets": (
+        _fork_replaces(
+            "plugins/eternia-harness skill_search toolset 'skills' (a default-on plugin toolset)",
+            "tests/agent_runtime/test_chat_lane_toolsets.py",
+        ),
+    ),
+    **{
+        f"tests/agent/transports/test_provider_wire_snapshot.py::{name}": (_UPSTREAM_WIRE_UNBRIEFED,)
+        for name in ("test_provider_wire_matches_snapshot", "test_base_url_only_wire_matches_snapshot")
+    },
     # The fork's standalone tool_describe rides every non-empty tool list, so the web
     # toolset serves three names once a web key lights it.
     "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
@@ -132,6 +150,9 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/tools/test_vision_tools.py::TestHandleVisionAnalyze",
             "tests/tools/test_vision_tools.py::TestVisionConfig",
             "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
+            # v0.21.6: MCP native image attach shares vision's fast-path gate.
+            "tests/tools/test_mcp_image_content.py::TestNativeImageAttach::"
+            "test_text_mode_an_undecodable_or_an_unshrinkable_image_keeps_the_string_result",
         )
     },
     "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"

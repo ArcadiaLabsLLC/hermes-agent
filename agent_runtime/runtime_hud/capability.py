@@ -146,19 +146,59 @@ def resolve_capability_block(
     return block
 
 
+def with_tool_surface(
+    capability: Mapping[str, Any] | None, surface: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """``capability`` plus the ``deferred`` / ``unavailable`` buckets of ``surface``, as a NEW dict.
+
+    The capability account is resolved at bundle build and memoized with the bundle; the
+    cost layer's receipt is per turn (the tool form's owner settles it on the actor), so the
+    two are joined here, per turn, never inside the memoized account. ``surface`` ``None``
+    (no settled receipt yet — a cold actor, a CLI one-shot) or a ``not_computed`` receipt
+    leaves the account as it was: the HUD loses the deferred line, never the turn.
+    """
+
+    block = dict(capability or {})
+    if not isinstance(surface, Mapping) or surface.get("state") == "not_computed":
+        return block
+    block.update(_surface_buckets(surface))
+    return block
+
+
 def _surface_buckets(surface: Mapping[str, Any]) -> dict[str, Any]:
-    """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts."""
+    """The ``deferred`` / ``unavailable`` buckets, from the receipt's own rows and counts.
+
+    ``deferred.count`` is the receipt's ``counts.deferred`` — the non-MCP deferred names —
+    and the admitted MCP servers' deferred names ride apart as ``deferred.mcp_count``: one
+    definition for the HUD and the prompt record, which read the SAME settled receipt (the
+    factory's, after MCP admission and the constructor's extras).
+    """
 
     buckets: dict[str, Any] = {}
-    deferred = surface.get("deferred") if isinstance(surface.get("deferred"), Mapping) else {}
+    # Schema v2 carries the admitted MCP servers' names under ``mcp``; the agent's line counts both.
+    mcp = surface.get("mcp") if isinstance(surface.get("mcp"), Mapping) else {}
+
+    def _rows(state: str) -> dict[str, Any]:
+        rows = {}
+        for part in (surface, mcp):
+            group = part.get(state)
+            if isinstance(group, Mapping):
+                rows.update(group)
+        return rows
+
+    deferred = _rows("deferred")
     if deferred:
         restorable: list[str] = []
         for row in deferred.values():
             via = str((row or {}).get("restorable_via") or "").strip() if isinstance(row, Mapping) else ""
             if via and via not in restorable:
                 restorable.append(via)
-        buckets["deferred"] = {"count": len(deferred), "via": "tool_search", "restorable_via": restorable}
-    unavailable = surface.get("unavailable") if isinstance(surface.get("unavailable"), Mapping) else {}
+        core = surface.get("deferred") if isinstance(surface.get("deferred"), Mapping) else {}
+        mcp_deferred = mcp.get("deferred") if isinstance(mcp.get("deferred"), Mapping) else {}
+        buckets["deferred"] = {"count": len(core), "via": "tool_search", "restorable_via": restorable}
+        if mcp_deferred:
+            buckets["deferred"]["mcp_count"] = len(mcp_deferred)
+    unavailable = _rows("unavailable")
     if unavailable:
         buckets["unavailable"] = {"count": len(unavailable)}
     return buckets
@@ -230,10 +270,12 @@ def render_capability_block(capability: dict[str, Any] | None) -> str:
         )
 
     deferred = section(capability, "deferred")
-    if deferred and deferred.get("count"):
-        count = int(deferred["count"])
+    if deferred and (deferred.get("count") or deferred.get("mcp_count")):
+        count = int(deferred.get("count") or 0)
+        mcp_count = int(deferred.get("mcp_count") or 0)
+        mcp_part = f" (and {mcp_count} MCP tool{'' if mcp_count == 1 else 's'})" if mcp_count else ""
         lines.append(
-            f"- {count} tool{'' if count == 1 else 's'} deferred, reachable through tool_search "
+            f"- {count} tool{'' if count == 1 else 's'} deferred{mcp_part}, reachable through tool_search "
             "(find it, then call it with tool_call); nothing is missing. A tool you do not see in "
             "your schema is deferred before it is absent — search before you report it."
         )

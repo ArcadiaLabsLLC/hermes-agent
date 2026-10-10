@@ -87,6 +87,9 @@ def build_dispatch_argv(spec: dict[str, Any], *, deadline_epoch: float) -> list[
         "--message",
         str(spec["message"]),
         "--json",
+        # The spawner chose this process (its home, its deadline, its kill):
+        # the child runs the turn itself rather than handing it to the serve.
+        "--in-process",
         "--intent-hint",
         str(spec.get("intent_hint") or "chat"),
         "--requested-by",

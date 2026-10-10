@@ -28,8 +28,9 @@ operator-authored document per owner (`graph_id: runtime:<owner>`) and reconcile
 routes nothing, picks no next agent, creates no instances and binds no work.** Never
 answer "what runs next?" from it — nothing runs next.
 
-**Two messaging paths, and only two:** `mission-chat message` (operator/CLI) and
-the in-model `agent_chat_send` tool (agent → agent). There is no assignment surface.
+**Two messaging paths, and only two:** `mission-chat message` (operator/CLI; the live
+serve runs it, `--in-process` forces this shell) and `agent_chat_send` (agent → agent).
+There is no assignment surface.
 
 **The Mission Board is planning state only.** A card never starts, routes, or changes anything.
 

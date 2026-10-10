@@ -163,8 +163,8 @@ def get_toolset_for_tool(name: str) -> str | None:
 
 
 @lru_cache(maxsize=1)
-def _mutating_tools() -> frozenset[str]:
-    """The tools that cross the mutation boundary.
+def _read_only_blocks() -> frozenset[str]:
+    """The tools that cross the mutation boundary, built-in half.
 
     ONE definition, in ``tool_permissions.READ_ONLY_BLOCKS`` — the same 7 names
     used to be maintained here as ``_MUTATING_TOOLS`` and there as the
@@ -179,10 +179,21 @@ def _mutating_tools() -> frozenset[str]:
     return READ_ONLY_BLOCKS
 
 
+def _mutating_tools() -> frozenset[str]:
+    """:func:`_read_only_blocks` plus the Launcher app functions the Launcher marks
+    mutating (``read_only is False``) — the same set ``read_only`` mode blocks. Never
+    cached: the app-function half is the LIVE registration, which a Launcher
+    connection changes at any time."""
+
+    from .launcher_app_functions import mutating_app_function_tools
+
+    return _read_only_blocks() | mutating_app_function_tools()
+
+
 def _default_permission_mode_for_options() -> str:
     """The runtime default, for an options object nobody threaded a mode into.
 
-    Deferred + never-raising for the same reason as :func:`_mutating_tools`.
+    Deferred + never-raising for the same reason as :func:`_read_only_blocks`.
     ``snapshot._agent_summary`` / ``_agent_tool_detail`` call
     ``resolve_tool_visibility(agent)`` with no options at all, so without this
     the agents drawer would keep rendering the pre-2026-08-09 bounded posture
@@ -291,6 +302,9 @@ def resolve_tool_visibility(
         final_blocked = frozenset(unique_texts(opts.chat_lane_blocked_tool_names))
     else:
         final_blocked = persona_blocked | requested_blocked
+    # ONE read per resolve: the live app-function half takes the Launcher link lock and builds
+    # a frozenset, so it is read here and handed down, never once per tool.
+    mutating = _mutating_tools()
     candidate_tools = _tool_names_for_toolsets(resolved_toolsets, blocked_tool_names=[])
     final_tools = _tool_names_for_toolsets(resolved_toolsets, blocked_tool_names=sorted(final_blocked))
     blocked_entries = _blocked_tool_entries(
@@ -299,6 +313,7 @@ def resolve_tool_visibility(
         persona_denies=PERSONA_BLOCKED_TOOLS,
         requested_denies=requested_blocked,
         registry_hygiene_denies=REGISTRY_HYGIENE_BLOCKED_TOOLS,
+        mutating=mutating,
     )
     candidate_set = set(candidate_tools)
     withheld_tools = [entry for entry in blocked_entries if entry["name"] in candidate_set]
@@ -357,7 +372,7 @@ def resolve_tool_visibility(
         "persona_candidate_tools": candidate_tools,
         "profile_candidate_tools": candidate_tools,
         "final_model_tools": final_tools,
-        "callable_tools": [_tool_entry(name) for name in final_tools],
+        "callable_tools": [_tool_entry(name, mutating) for name in final_tools],
         "final_tool_count": len(final_tools),
         # Backwards-compatible scalar. New consumers use the typed estimate so
         # the UI never presents this name-length heuristic as an exact bill.
@@ -388,7 +403,7 @@ def resolve_tool_visibility(
         # Additive and empty when admission is disabled; it exists so that
         # "admitted is not a failure" does not become "admitted is invisible".
         "admitted_mcp_servers": admitted_mcp_servers,
-        "mutation_boundary": _mutation_boundary(final_tools),
+        "mutation_boundary": _mutation_boundary(final_tools, mutating),
         "expires_at": opts.expires_at,
         "turns_remaining": opts.turns_remaining,
         "resolved_at": resolved_at,
@@ -688,6 +703,7 @@ def _blocked_tool_entries(
     persona_denies: frozenset[str],
     requested_denies: frozenset[str],
     registry_hygiene_denies: frozenset[str],
+    mutating: frozenset[str],
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for name in names:
@@ -704,17 +720,17 @@ def _blocked_tool_entries(
                 "name": name,
                 "toolset": get_toolset_for_tool(name),
                 "reason": reason,
-                "mutating": name in _mutating_tools(),
+                "mutating": name in mutating,
             }
         )
     return entries
 
 
-def _tool_entry(name: str) -> dict[str, Any]:
+def _tool_entry(name: str, mutating: frozenset[str]) -> dict[str, Any]:
     return {
         "name": name,
         "toolset": get_toolset_for_tool(name),
-        "mutating": name in _mutating_tools(),
+        "mutating": name in mutating,
     }
 
 
@@ -742,9 +758,9 @@ def _tool_resolution_id(
     return f"toolres_{hashlib.sha256(encoded).hexdigest()[:16]}"
 
 
-def _mutation_boundary(tool_names: list[str]) -> dict[str, Any]:
+def _mutation_boundary(tool_names: list[str], mutating_tools: frozenset[str]) -> dict[str, Any]:
     names = set(tool_names)
-    mutating = sorted(names & _mutating_tools())
+    mutating = sorted(names & mutating_tools)
     return {
         "can_mutate_files": bool(names & {"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"}),
         "can_run_terminal": "terminal" in names,

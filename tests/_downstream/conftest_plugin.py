@@ -41,6 +41,7 @@ from tests._downstream.id_markers.reasons import (
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
+    UPSTREAM_WIRE_UNBRIEFED_MARK as _UPSTREAM_WIRE_UNBRIEFED_MARK,
 )
 
 # Process-wide, at import: no test in this process writes the real Windows registry.
@@ -701,6 +702,24 @@ def _strip_real_home_path_entries(request, monkeypatch, _hermetic_environment):
 
 
 @pytest.fixture(autouse=True)
+def _upstream_wire_unbriefed(request, monkeypatch):
+    """Let an upstream wire-snapshot test see upstream's tool descriptions.
+
+    The eternia-harness plugin's ``llm_request`` middleware collapses every tool's
+    wire description to one line (``tools.downstream_schema.brief_request_tools``);
+    upstream's snapshots pin the registry text. For the ids the table marks the
+    brief returns "unchanged", so the snapshot still proves every OTHER wire byte;
+    the brief itself is proven by tests/tools/test_downstream_schema.py and
+    tests/tools/test_t6b_brief_descriptions.py.
+    """
+    if request.node.get_closest_marker(_UPSTREAM_WIRE_UNBRIEFED_MARK) is None:
+        return
+    import tools.downstream_schema as _schema
+
+    monkeypatch.setattr(_schema, "brief_request_tools", lambda _request: None)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_orphan_reap(request, monkeypatch):
     """Keep an upstream web-server test off the machine's real process table.
 
@@ -838,6 +857,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_NO_REAL_ORPHAN_REAP_MARK}: the gateway orphan reap finds nothing, so the "
         "test never waits on this machine's real unsupervised gateways (applied by "
         "id from tests/_downstream/id_markers/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_UPSTREAM_WIRE_UNBRIEFED_MARK}: the fork's one-line tool-description brief is "
+        "off, so an upstream wire snapshot sees the registry text (applied by id from "
+        "tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

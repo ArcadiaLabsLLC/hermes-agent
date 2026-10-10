@@ -9,6 +9,22 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
 
+## Native result delivery
+
+`agent_runtime/persona_chat_continuity/wire.py::native_wire_row` redacts native
+history without applying a second size ceiling to tool results, assistant/system
+content or tool-call arguments. Upstream sizes results through its own three
+layers (tool caps, spillover, aggregate budgets) and owns context compression. The
+fork's operator-message and composed-user limits remain in
+`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`.
+
+`agent_runtime/native_persistence.py::project_native_message` feeds the live
+message and the SQLite row, so both must preserve the upstream-selected result
+and canonical arguments. Spill paths retain upstream's cache lifecycle; they are
+not a durable recovery promise. The real flush/replay, spill, redaction and
+receipt controls live in `tests/agent_runtime/test_native_result_policy_downstream.py`.
+Launcher owns its generated reply-page target independently of these policies.
+
 ## Independent native conversations
 
 `agent_runtime/conversations/service.py::ConversationService` admits exact
@@ -483,8 +499,8 @@ preview read 32 toolsets / 79 tools. It also carries the typed account of what t
 ### 4c. The declared toolset (S0a, 2026-09-03)
 
 The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
-`declared_lane_toolsets` (`agent_runtime/personas.py:243-346`) and handed to every caller through
-`effective_toolsets` (`agent_runtime/personas.py:347-357`). A profile that declares nothing — or only the upstream default
+`agent_runtime/persona_profiles.py::declared_lane_toolsets` and handed to every caller through
+`agent_runtime/persona_profiles.py::effective_toolsets`. A profile that declares nothing — or only the upstream default
 `["hermes-cli"]` that `hermes_cli/config_defaults.py` writes for an unset key — resolves
 `agent_runtime/personas.py::HARNESS_LANE_DEFAULT_TOOLSETS` = `harness_core`, reported as
 `toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;

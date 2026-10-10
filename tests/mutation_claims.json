@@ -3661,7 +3661,7 @@
     {
       "id": "sh-loader-registers-without-binding-the-parent",
       "path": "plugins/plugin_loader.py",
-      "symbol": "load_plugin_module",
+      "symbol": "_load_plugin_module_locked",
       "operator": "stop-one-step-short-of-an-import",
       "find": "        setattr(parent_mod, child_name, mod)",
       "replace": "        pass",
@@ -3676,7 +3676,7 @@
     {
       "id": "sh-loader-failed-exec-leaves-module-published",
       "path": "plugins/plugin_loader.py",
-      "symbol": "load_plugin_module",
+      "symbol": "_load_plugin_module_locked",
       "operator": "retain-failed-module-registration",
       "find": "    if not _exec(mod, logger):\n        sys.modules.pop(module_name, None)\n        return None",
       "replace": "    if not _exec(mod, logger):\n        return None",

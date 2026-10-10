@@ -11,7 +11,10 @@ from typing import Any
 
 from ..serde import safe_assignment_text
 
-from .bounds import BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote, _MAX_ARGUMENTS, _bounded_free_text, bound_composed_user_content
+from .bounds import (
+    BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote,
+    _redacted, _redacted_content, bound_composed_user_content,
+)
 
 __layer__ = "policy"
 
@@ -62,8 +65,8 @@ class WireBoundaryRow:
     def accounted_loss(self) -> int:
         """Characters the notes explain, counting only the CONTENT parts.
 
-        Tool-call arguments are bounded and noted too, but they live in a
-        different field of the row and are NOT part of the content arithmetic.
+        Historical tool-call bound notes live in a different field of the row
+        and are NOT part of the content arithmetic.
         Summing them here would let an argument truncation cancel out a real
         content residue and drive :attr:`unaccounted_loss` to zero — a check
         that hides the thing it exists to find.
@@ -144,11 +147,9 @@ def record_wire_boundary_drift(bound: WireBoundaryRow) -> dict[str, Any] | None:
     The hard equality assertion lives where it is free: the unit tests over the
     pure boundary, which is the seam the invariant actually belongs to.
 
-    The row is also the honest shape for the check. The boundary is SUPPOSED to
-    shorten content; the invariant is not "wire == submitted" but "every
-    character of the difference is named". A bare assert could only express the
-    former, which is why the previous receipt could report drift and never
-    prevent it.
+    Operator composition and redaction can still shorten content. The invariant
+    is that every character of the difference is named, not that every role
+    inherits a common size ceiling.
     """
 
     row = bound.drift_row()
@@ -168,20 +169,44 @@ def record_wire_boundary_drift(bound: WireBoundaryRow) -> dict[str, Any] | None:
     return row
 
 
+def record_wire_boundary_cut(bound: WireBoundaryRow) -> tuple[ContentBoundNote, ...]:
+    """Say so when an ACCOUNTED cut shortened a non-user row on its way to the model.
+
+    :func:`record_wire_boundary_drift` reports only the unaccounted residue, and
+    the composed user row warns from its own bounding, so an ordinary tool
+    result cut at the flat bound left no line anywhere: on 2026-10-09 a
+    26,853-character ``launcher_generated_list`` reply was cut to 20,000 — the
+    worked example the model then mis-closed three times was the part past the
+    cut — and the first evidence was a database dig. One warning, naming the
+    tool and the sizes and never the content, is the receipt that was missing.
+    """
+
+    if not bound.notes or bound.row.get("role") == WIRE_ROLE_USER:
+        return ()
+    logger.warning(
+        "persona chat wire boundary cut a %s row%s before the model saw it: %s",
+        bound.row.get("role") or "?",
+        f" (tool={bound.row['tool_name']})" if bound.row.get("tool_name") else "",
+        ", ".join(
+            f"{note.part}={note.action}({note.original_chars}->{note.bounded_chars}/{note.limit})"
+            for note in bound.notes
+        ),
+    )
+    return bound.notes
+
+
 def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     """THE persona-chat wire boundary.
 
-    Named for what it decides rather than where it is called from. The flush in
-    ``run_agent`` writes this result back into the live actor's message list, so
-    this function — not the provider call, not the composition step — is what
-    settles the bytes the model receives on this lane. That coupling is the
-    reason the module's bounds are wire bounds (see :data:`_MAX_CONTENT`), and
-    it used to be recorded only in a comment at the call site.
+    The persistence adapter writes this projection back into live messages.
+    It redacts sensitive values and preserves tool structure and ordering ids.
+    Only composed operator content has fork-owned bounds. Upstream sizes results
+    through its own three layers (tool caps, spillover, aggregate budgets), and
+    also owns context compression. This projection must not clip results, replies,
+    system content or canonical tool-call arguments a second time.
 
-    Tool structure and ordering identifiers survive, while raw/unbounded
-    payloads and provider-specific residue do not. Applying this more than once
-    is stable, which lets warm memory and cold persistence share the same
-    boundary without representation drift.
+    Applying this more than once is stable, so warm memory and cold persistence
+    share the same boundary without representation drift or filesystem writes.
     """
 
     role = str(message.get("role") or "").strip().lower()
@@ -192,12 +217,12 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     submitted = message.get("content")
     # The operator user row is the ONE composed row on this lane — a join of
     # three parts with three different contracts — so it is bounded per part
-    # (see :func:`bound_composed_user_content`). Every other role is opaque free
-    # text and keeps the flat bound it always had — but now reports it.
+    # (see :func:`bound_composed_user_content`). Other roles retain upstream's
+    # result/context policy; redaction does not introduce another size budget.
     bounded = (
         bound_composed_user_content(submitted)
         if role == WIRE_ROLE_USER
-        else _bounded_free_text(submitted)
+        else _redacted_content(submitted)
     )
     content = bounded.text
     result: dict[str, Any] = {"role": role, "content": content}
@@ -228,19 +253,12 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
             name = safe_assignment_text(function.get("name") or raw.get("name"), limit=240)
             if not call_id or not name:
                 continue
-            # Accounted for the same reason the row content is: this rides back
-            # into the live actor and reaches the model.
-            arguments = _bounded_free_text(
-                function.get("arguments"),
-                limit=_MAX_ARGUMENTS,
-                part=BOUND_PART_TOOL_ARGUMENTS,
-            )
-            notes += arguments.notes
+            arguments = _redacted(function.get("arguments"))
             safe_calls.append(
                 {
                     "id": call_id,
                     "type": "function",
-                    "function": {"name": name, "arguments": arguments.text},
+                    "function": {"name": name, "arguments": arguments},
                 }
             )
         if safe_calls:

@@ -1886,6 +1886,33 @@ def test_25_registry_names_the_signature_components_that_moved(caplog):
     assert "ZZ" not in lines[0] and "YY" not in lines[0]
 
 
+def test_25b_a_tool_contract_rebuild_names_the_toolsets_that_entered_or_left(caplog):
+    """The 61-vs-71 ``tool_contract`` mismatch (2026-10-09) had to be inferred from code:
+    the line named the component, not that ``launcher_app_functions`` had entered it.
+    Positive control: a rebuild where ``tool_contract`` did NOT move writes no such line."""
+
+    import logging
+
+    registry = PersonaChatRuntimeRegistry()
+
+    def acquire(signature, contract, toolsets):
+        return registry.acquire(
+            root_session_id="root", active_session_id="tip", signature=signature, revision="rev",
+            factory=object, toolsets=toolsets,
+            signature_components={"persona_revision": "aa", "tool_contract": contract},
+        )
+
+    acquire("one", "bb", ["board", "file", "web"])
+    with caplog.at_level(logging.INFO, logger="agent_runtime.persona_chat_continuity"):
+        acquire("two", "ZZ", ["board", "file", "launcher_app_functions"])
+        acquire("three", "ZZ", ["board", "file", "launcher_app_functions"])  # control: contract still
+
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("resident_tool_contract_diff")]
+    assert lines == [
+        "resident_tool_contract_diff root=root toolsets_entered=launcher_app_functions toolsets_left=web"
+    ]
+
+
 def test_26_a_component_that_appeared_or_vanished_counts_as_moved():
     """A composition that GAINED or LOST a component is exactly the change this
     receipt exists to surface; treating an absent digest as unchanged would hide

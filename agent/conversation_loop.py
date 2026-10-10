@@ -1640,14 +1640,14 @@ def _run_conversation_turn(
         )
     except PreflightCompressionTimedOut as _preflight_timeout_exc:
         return _preflight_timeout_result(agent, _preflight_timeout_exc, conversation_history)
+    _emit_conversation_timing(agent, "turn_context", _turn_context_started,
+        system_prompt_restored=bool(getattr(agent, "_system_prompt_restored_from_session", False)))
+    _emit_phase_marker(agent, CONVERSATION_TURN_CONTEXT_BUILT_STEP)
+
     # Voice turns may run on auxiliary.voice_chat: bound after the prompt/row/compaction were settled
     # against the main model, undone in finalize_turn (and run_conversation's finally on early exits).
     from agent.voice_turn_route import begin_voice_turn_route
     _ctx.active_system_prompt = begin_voice_turn_route(agent, _ctx.messages, _ctx.active_system_prompt)
-
-    _emit_conversation_timing(agent, "turn_context", _turn_context_started,
-        system_prompt_restored=bool(getattr(agent, "_system_prompt_restored_from_session", False)))
-    _emit_phase_marker(agent, CONVERSATION_TURN_CONTEXT_BUILT_STEP)
 
     # Per-turn agent state (the gateway caches agents across turns, so none of this may
     # leak into the next message): interim-commentary dedup spans the whole turn but not
