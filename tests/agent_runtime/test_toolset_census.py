@@ -102,3 +102,64 @@ def test_the_serve_boot_logs_one_census_line(lens_plugin, isolate_agent_runtime_
     assert LENS in records[0].getMessage()
     assert census is not None and LENS in census.undeclared
     assert f"registered={len(census.registered)}" in records[0].getMessage()
+
+
+def test_the_serve_entry_point_wires_the_real_census(monkeypatch):
+    """The loop's ``toolset_census`` defaults OFF, so the production wiring in
+    ``serve/commands.py`` is what makes the boot receipt real — pin it, or the
+    census ships dead with every loop test green.
+
+    *Killing mutation:* drop ``toolset_census=log_serve_toolset_census`` from
+    ``_cmd_serve``'s ``serve_loop`` call."""
+
+    import os
+    from types import SimpleNamespace
+
+    from hermes_cli.harness_parts.serve import commands as serve_mod
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        serve_mod,
+        "_claim_protocol_pipes",
+        lambda: (os.open(os.devnull, os.O_RDONLY), os.open(os.devnull, os.O_WRONLY)),
+    )
+    monkeypatch.setattr(serve_mod, "serve_loop", lambda reader, writer, **kw: captured.update(kw) or 0)
+
+    assert serve_mod._cmd_serve(SimpleNamespace(ndjson=True, pool_size=1, no_socket=True)) == 0
+    assert captured.get("toolset_census") is log_serve_toolset_census
+
+
+def test_the_census_runs_fourth_and_last_on_the_one_prewarm_thread():
+    """After the provider warmup has discovered the plugins, so the census reads a
+    populated registry. Positive control: the census alone still gets a thread.
+
+    *Killing mutation:* move ``toolset_census`` ahead of ``self.actor_prewarm``
+    in the prewarm worker's step tuple."""
+
+    import io
+    import threading
+
+    from hermes_cli.harness_parts.serve import serve_loop
+
+    order: list[str] = []
+    done = threading.Event()
+    serve_loop(
+        iter(['{"id":"1","op":"shutdown"}']),
+        io.StringIO(),
+        dispatch=lambda argv: 0,
+        snapshot_prewarm=lambda: order.append("snapshot"),
+        provider_prewarm=lambda: order.append("provider"),
+        actor_prewarm=lambda: order.append("actor"),
+        toolset_census=lambda: (order.append("census"), done.set()),
+    )
+    assert done.wait(10)
+    assert order == ["snapshot", "provider", "actor", "census"]
+
+    alone = threading.Event()
+    serve_loop(
+        iter(['{"id":"1","op":"shutdown"}']),
+        io.StringIO(),
+        dispatch=lambda argv: 0,
+        toolset_census=alone.set,
+    )
+    assert alone.wait(10)
