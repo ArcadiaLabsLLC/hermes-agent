@@ -216,3 +216,39 @@ def test_list_and_rearm_round_trip_through_the_method_lane(monkeypatch):
         acked = _rpc(pipe, sink, "r5", "runtime.settles.rearm", {"settle_id": record.settle_id})
         assert acked["error"]["data"]["reason"] == "settle_acked"
 
+
+
+# ── the argv fallback (D2.05 S3) ────────────────────────────────────────────
+
+
+def _harness(argv, capsys):
+    import argparse
+
+    from hermes_cli.harness_parts.parser import populate_parser
+
+    parser = argparse.ArgumentParser(prog="harness")
+    populate_parser(parser)
+    args = parser.parse_args(argv)
+    code = args.func(args)
+    return code, capsys.readouterr().out
+
+
+def test_the_argv_verbs_list_and_rearm_over_the_same_store(capsys):
+    record = _undelivered_by_budget()
+
+    code, out = _harness(["serve", "settles", "--state", "undelivered", "--json"], capsys)
+    listed = json.loads(out)
+    assert code == 0 and listed["counts"]["undelivered"] == 1
+    assert [r["settle_id"] for r in listed["settles"]] == [record.settle_id]
+
+    code, out = _harness(["serve", "settles", "rearm", CMID, "--session-id", SESSION, "--json"], capsys)
+    rearmed = json.loads(out)
+    assert code == 0 and rearmed["rearmed"] is True
+    assert read_settle(record.settle_id).state == STATE_PENDING
+
+    code, out = _harness(["serve", "settles", "rearm", record.settle_id], capsys)
+    assert code == 0 and json.loads(out)["rearmed"] is False  # a stored settle id, now pending
+    code, out = _harness(["serve", "settles", "rearm", "nope"], capsys)
+    assert code == 2 and json.loads(out)["reason"] == "settle_not_found"
+    code, out = _harness(["serve", "settles"], capsys)
+    assert code == 0 and out.startswith("acked=0 pending=1 undelivered=0")
