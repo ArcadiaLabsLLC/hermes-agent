@@ -1,4 +1,4 @@
-# base 1744a19e0df568c647e4f3ff9c37f2a284a282fb
+# base dce1e9b37581dd62e480a9064dc04a709c2940d3
 .coderabbit.yaml
 .dockerignore
 .env.example
@@ -358,6 +358,7 @@ agent/skill_bundles.py
 agent/skill_commands.py
 agent/skill_preprocessing.py
 agent/skill_utils.py
+agent/skills_index_delta.py
 agent/ssl_verify.py
 agent/status_output.py
 agent/stream_delivery.py
@@ -1703,8 +1704,6 @@ apps/desktop/src/app/chat/composer/inline-references.test.ts
 apps/desktop/src/app/chat/composer/inline-refs.ts
 apps/desktop/src/app/chat/composer/large-paste.test.ts
 apps/desktop/src/app/chat/composer/large-paste.ts
-apps/desktop/src/app/chat/composer/local-setup-card.test.tsx
-apps/desktop/src/app/chat/composer/local-setup-card.tsx
 apps/desktop/src/app/chat/composer/micro-actions.tsx
 apps/desktop/src/app/chat/composer/model-pill.test.tsx
 apps/desktop/src/app/chat/composer/model-pill.tsx
@@ -3186,6 +3185,7 @@ apps/desktop/src/components/version-details.tsx
 apps/desktop/src/contrib/events.ts
 apps/desktop/src/contrib/index.ts
 apps/desktop/src/contrib/kanban-i18n.test.tsx
+apps/desktop/src/contrib/plugin-pet.test.tsx
 apps/desktop/src/contrib/plugin.test.ts
 apps/desktop/src/contrib/plugin.ts
 apps/desktop/src/contrib/plugins-store.ts
@@ -3965,6 +3965,7 @@ apps/desktop/src/sdk/i18n.ts
 apps/desktop/src/sdk/index.test.ts
 apps/desktop/src/sdk/index.ts
 apps/desktop/src/sdk/open-session-refresh-in-place.test.ts
+apps/desktop/src/sdk/plugin-contract.ts
 apps/desktop/src/sdk/plugin-open-session-plan.test.ts
 apps/desktop/src/sdk/plugin-open-session-plan.ts
 apps/desktop/src/sdk/profile-routing.test.ts
@@ -4106,6 +4107,7 @@ apps/desktop/src/store/local-models-flag.ts
 apps/desktop/src/store/local-models-surfaces.test.tsx
 apps/desktop/src/store/local-runtime-jobs.test.ts
 apps/desktop/src/store/local-runtime-jobs.ts
+apps/desktop/src/store/local-setup-offer.test.ts
 apps/desktop/src/store/local-setup-offer.ts
 apps/desktop/src/store/managed-updates.test.ts
 apps/desktop/src/store/managed-updates.ts
@@ -4140,6 +4142,7 @@ apps/desktop/src/store/pet-gallery.test.ts
 apps/desktop/src/store/pet-gallery.ts
 apps/desktop/src/store/pet-generate.ts
 apps/desktop/src/store/pet-overlay.ts
+apps/desktop/src/store/pet-plugin-messages.ts
 apps/desktop/src/store/pet.test.ts
 apps/desktop/src/store/pet.ts
 apps/desktop/src/store/plugin-catalog-install.test.ts
@@ -4829,6 +4832,7 @@ contributors/emails/armaandhawan61@gmail.com
 contributors/emails/armandasvaicikauskas@protonmail.com
 contributors/emails/artiefisher123@gmail.com
 contributors/emails/asaxinw@gmail.com
+contributors/emails/asharma@es.iitr.ac.in
 contributors/emails/aslater3@googlemail.com
 contributors/emails/asscan@189.cn
 contributors/emails/assiri@gmail.com
@@ -5294,6 +5298,7 @@ contributors/emails/hello@shehjad.dev
 contributors/emails/hello@steveafrost.com
 contributors/emails/hello@zaar.me
 contributors/emails/hellofrommorgan@users.noreply.github.com
+contributors/emails/hellohanchen@gmail.com
 contributors/emails/henrino3@gmail.com
 contributors/emails/henrycmdhgg@outlook.com
 contributors/emails/hereicq@users.noreply.github.com
@@ -5842,6 +5847,7 @@ contributors/emails/quangphucqp@gmail.com
 contributors/emails/quexl1@chinatelecom.cn
 contributors/emails/qwertyuiop97@users.noreply.github.com
 contributors/emails/r.vecchi92@gmail.com
+contributors/emails/raaaas@users.noreply.github.com
 contributors/emails/raajkumars@users.noreply.github.com
 contributors/emails/rafael.zendron22@gmail.com
 contributors/emails/rafael@amora.com.br
@@ -5966,6 +5972,7 @@ contributors/emails/shuohw@gmail.com
 contributors/emails/shuwen.wu@bytedance.com
 contributors/emails/siage@139.com
 contributors/emails/siddhartha.joy@gmail.com
+contributors/emails/silentpr0@users.noreply.github.com
 contributors/emails/silviomanuel297@gmail.com
 contributors/emails/simon@everythingmma.com.au
 contributors/emails/simonmmafs@users.noreply.github.com
@@ -6087,6 +6094,7 @@ contributors/emails/trkim@vms-solutions.com
 contributors/emails/tron@chriswykel.com
 contributors/emails/troy.rowe@re-source.au
 contributors/emails/tsungyuan.hung@gmail.com
+contributors/emails/tuancookiez@users.noreply.github.com
 contributors/emails/tudor.pastor@glencore.com
 contributors/emails/tugrulgunr@gmail.com
 contributors/emails/turgut.kural@gmail.com
@@ -6139,6 +6147,7 @@ contributors/emails/viteballoons@gmail.com
 contributors/emails/vitor@vitorcepedalopes.com
 contributors/emails/vittoria3103.123@gmail.com
 contributors/emails/vjpixel@users.noreply.github.com
+contributors/emails/vlad.zablotski@adaptionlabs.ai
 contributors/emails/volleyballlive@googlemail.com
 contributors/emails/voodoo-pixels@Mac.localdomain
 contributors/emails/vovik-assistant@proton.me
@@ -7421,6 +7430,7 @@ hermes_platform/__init__.py
 hermes_platform/declaration.py
 hermes_platform/host/__init__.py
 hermes_platform/host/facts.py
+hermes_platform/host/gpu_adapters.py
 hermes_platform/host/products.py
 hermes_platform/host/runtime.py
 hermes_platform/resolver/__init__.py
@@ -8397,9 +8407,11 @@ package.json
 plugin-catalog/0bull.yaml
 plugin-catalog/README.md
 plugin-catalog/acedatacloud.yaml
+plugin-catalog/adaption.yaml
 plugin-catalog/adspirer.yaml
 plugin-catalog/afterforge.yaml
 plugin-catalog/agent-analytics.yaml
+plugin-catalog/agent-batch.yaml
 plugin-catalog/agent-hold-em.yaml
 plugin-catalog/agent-log.yaml
 plugin-catalog/agent-mail-gateway.yaml
@@ -8459,8 +8471,10 @@ plugin-catalog/cloudflare-sandbox.yaml
 plugin-catalog/cloudflare-web-search.yaml
 plugin-catalog/cloudflare-workers-ai-provider.yaml
 plugin-catalog/coder.yaml
+plugin-catalog/codex-account-switch.yaml
 plugin-catalog/codex-chat-look.yaml
 plugin-catalog/cognee.yaml
+plugin-catalog/command-ledger.yaml
 plugin-catalog/command-tray.yaml
 plugin-catalog/commandcode-oauth.yaml
 plugin-catalog/compartment.yaml
@@ -8476,6 +8490,7 @@ plugin-catalog/cursor-provider.yaml
 plugin-catalog/custodian.yaml
 plugin-catalog/custom-dangerous-patterns.yaml
 plugin-catalog/darkmoon.yaml
+plugin-catalog/dashboard-auth-feishu.yaml
 plugin-catalog/dashboard-auth-ldap.yaml
 plugin-catalog/dashboard-button.yaml
 plugin-catalog/dashscope-image.yaml
@@ -8491,11 +8506,13 @@ plugin-catalog/deskrpg.yaml
 plugin-catalog/dexio.yaml
 plugin-catalog/diaktoros.yaml
 plugin-catalog/diff-review.yaml
+plugin-catalog/discord-tps.yaml
 plugin-catalog/document-reader.yaml
 plugin-catalog/done-bell.yaml
 plugin-catalog/drag-to-pin-session.yaml
 plugin-catalog/eatwise.yaml
 plugin-catalog/echarts-in-chat.yaml
+plugin-catalog/enchanted-composer.yaml
 plugin-catalog/entropicmem.yaml
 plugin-catalog/epistemic-harness.yaml
 plugin-catalog/error-ledger.yaml
@@ -8526,7 +8543,6 @@ plugin-catalog/github_app.yaml
 plugin-catalog/glasser.yaml
 plugin-catalog/gmail.yaml
 plugin-catalog/go-whatsapp.yaml
-plugin-catalog/gods-eye-view.yaml
 plugin-catalog/gondola-provider.yaml
 plugin-catalog/gonogo.yaml
 plugin-catalog/good-student.yaml
@@ -8576,6 +8592,7 @@ plugin-catalog/hermes-muse-code.yaml
 plugin-catalog/hermes-newswire.yaml
 plugin-catalog/hermes-nous-prices.yaml
 plugin-catalog/hermes-office.yaml
+plugin-catalog/hermes-openwhispr.yaml
 plugin-catalog/hermes-opper.yaml
 plugin-catalog/hermes-pets-all.yaml
 plugin-catalog/hermes-pickup.yaml
@@ -8619,6 +8636,7 @@ plugin-catalog/hermes-terminal.yaml
 plugin-catalog/hermes-toolsmith.yaml
 plugin-catalog/hermes-town.yaml
 plugin-catalog/hermes-trove.yaml
+plugin-catalog/hermes-video-editor.yaml
 plugin-catalog/hermes-windows-computer-use.yaml
 plugin-catalog/hermes-workbench.yaml
 plugin-catalog/hermes-worker-monitor.yaml
@@ -8632,6 +8650,7 @@ plugin-catalog/homeassistant.yaml
 plugin-catalog/honcho.yaml
 plugin-catalog/hopper.yaml
 plugin-catalog/hud-teach.yaml
+plugin-catalog/huddo.yaml
 plugin-catalog/hyatlas.yaml
 plugin-catalog/hydradb.yaml
 plugin-catalog/icarus.yaml
@@ -8774,6 +8793,7 @@ plugin-catalog/pixel-worlds.yaml
 plugin-catalog/plan-mode.yaml
 plugin-catalog/pocket-watch.yaml
 plugin-catalog/pricewin.yaml
+plugin-catalog/print-job-watch.yaml
 plugin-catalog/prism.yaml
 plugin-catalog/privacy-gateway.yaml
 plugin-catalog/profile-models.yaml
@@ -8805,6 +8825,7 @@ plugin-catalog/reading-buddy.yaml
 plugin-catalog/reasoning-switch.yaml
 plugin-catalog/recency-anchor.yaml
 plugin-catalog/redaction-pack.yaml
+plugin-catalog/redline.yaml
 plugin-catalog/remarkable.yaml
 plugin-catalog/reme.yaml
 plugin-catalog/removed.yaml
@@ -8898,6 +8919,7 @@ plugin-catalog/wechat-social-assistant.yaml
 plugin-catalog/whatsapp-agent-platform.yaml
 plugin-catalog/wiki-ref.yaml
 plugin-catalog/woof.yaml
+plugin-catalog/wyoming-voice-bridge.yaml
 plugin-catalog/xmemo.yaml
 plugin-catalog/yantrikdb-hermes-dashboard.yaml
 plugin-catalog/yantrikdb.yaml
@@ -10765,6 +10787,7 @@ tests/agent/test_skill_todo_retention_parity.py
 tests/agent/test_skill_utils.py
 tests/agent/test_skills_auto_load.py
 tests/agent/test_skills_guidance_content_filter.py
+tests/agent/test_skills_index_delta.py
 tests/agent/test_skip_background_review.py
 tests/agent/test_skip_memory_store.py
 tests/agent/test_soul_legacy_bot_protocol.py
@@ -10961,6 +10984,7 @@ tests/ci/test_plugin_validate_action.py
 tests/ci/test_protected_canary_publication.py
 tests/ci/test_required_results.py
 tests/ci/test_stable_release_graph.py
+tests/ci/test_strict_ruff_target.py
 tests/ci/test_tag_builds_summary.py
 tests/ci/test_termux_input_archive.py
 tests/ci/test_timings_report.py
@@ -13176,6 +13200,7 @@ tests/hermes_cli/test_local_runtime_recovery.py
 tests/hermes_cli/test_local_runtime_updates.py
 tests/hermes_cli/test_local_server_lifecycle.py
 tests/hermes_cli/test_local_window_compute.py
+tests/hermes_cli/test_local_windows_igpu_pool.py
 tests/hermes_cli/test_login_cli_command.py
 tests/hermes_cli/test_logs.py
 tests/hermes_cli/test_loops.py
@@ -13691,6 +13716,7 @@ tests/hermes_cli/test_sse_done.py
 tests/hermes_cli/test_ssh_ownership_endpoint.py
 tests/hermes_cli/test_ssh_session_token_parser.py
 tests/hermes_cli/test_ssh_workspace_fs.py
+tests/hermes_cli/test_stable_forward_only_shallow.py
 tests/hermes_cli/test_stale_aux_local_endpoint.py
 tests/hermes_cli/test_stale_pid_guard.py
 tests/hermes_cli/test_stale_root_module_bridge.py
@@ -13759,6 +13785,7 @@ tests/hermes_cli/test_top_level_value_flags_parity.py
 tests/hermes_cli/test_transformed_stream_output.py
 tests/hermes_cli/test_tts_picker.py
 tests/hermes_cli/test_tui_bundled.py
+tests/hermes_cli/test_tui_first_run_routing.py
 tests/hermes_cli/test_tui_heap_sizing.py
 tests/hermes_cli/test_tui_launcher_skips_plugin_discovery.py
 tests/hermes_cli/test_tui_mouse_residue_suppression.py
@@ -14029,6 +14056,7 @@ tests/hermes_cli/web_routers/test_codex_device_login_transient_retry.py
 tests/hermes_platform/__init__.py
 tests/hermes_platform/test_declaration.py
 tests/hermes_platform/test_facts.py
+tests/hermes_platform/test_gpu_adapters.py
 tests/hermes_platform/test_import_hygiene.py
 tests/hermes_platform/test_products.py
 tests/hermes_platform/test_resolver_app.py
@@ -14433,6 +14461,7 @@ tests/pm/test_activation_setup.py
 tests/pm/test_agent_browser_package.py
 tests/pm/test_archive_safety.py
 tests/pm/test_artifact_mirror.py
+tests/pm/test_baked_selection.py
 tests/pm/test_bootstrap_import_closure.py
 tests/pm/test_build_operations.py
 tests/pm/test_chromium.py
@@ -14456,6 +14485,7 @@ tests/pm/test_extras.py
 tests/pm/test_feature_inventory.py
 tests/pm/test_features.py
 tests/pm/test_ffmpeg_resolution.py
+tests/pm/test_filesystem_is_junction.py
 tests/pm/test_generation_durability.py
 tests/pm/test_held_entry_windows_live.py
 tests/pm/test_index_bridging.py
@@ -14530,6 +14560,7 @@ tests/pm/test_update_failure_status.py
 tests/pm/test_update_pin_isolation.py
 tests/pm/test_update_request_reuse.py
 tests/pm/test_uv_cache.py
+tests/pm/test_uv_cache_publication.py
 tests/pm/test_uv_cache_seed.py
 tests/pm/test_uv_python.py
 tests/pm/test_venv_command.py
@@ -14624,6 +14655,7 @@ tests/scripts/test_bash_shebangs.py
 tests/scripts/test_bootstrap_mirror.py
 tests/scripts/test_bootstrap_pins_fragment.py
 tests/scripts/test_build_skills_index_health.py
+tests/scripts/test_build_skills_index_resolve.py
 tests/scripts/test_bundle_native.py
 tests/scripts/test_bundle_npm.py
 tests/scripts/test_bundle_payload.py
@@ -14926,6 +14958,7 @@ tests/tools/test_browser_snapshot_threshold.py
 tests/tools/test_browser_ssrf_local.py
 tests/tools/test_browser_supervisor.py
 tests/tools/test_browser_supervisor_capture.py
+tests/tools/test_browser_supervisor_capture_dispatch.py
 tests/tools/test_browser_supervisor_healthcheck.py
 tests/tools/test_browser_supervisor_reconnect.py
 tests/tools/test_browser_suspect_recycle.py
@@ -15387,6 +15420,7 @@ tests/tools/test_skills_hub.py
 tests/tools/test_skills_hub_browse_sh.py
 tests/tools/test_skills_hub_clawhub.py
 tests/tools/test_skills_hub_generic_dir.py
+tests/tools/test_skills_hub_github_fetch.py
 tests/tools/test_skills_list_modified_diff.py
 tests/tools/test_skills_runtime_cache.py
 tests/tools/test_skills_sync.py
@@ -15490,6 +15524,7 @@ tests/tools/test_tts_command_providers.py
 tests/tools/test_tts_container_repair.py
 tests/tools/test_tts_deepinfra.py
 tests/tools/test_tts_dotenv_fallback.py
+tests/tools/test_tts_failure_preserves_existing.py
 tests/tools/test_tts_gemini.py
 tests/tools/test_tts_identifier_speech.py
 tests/tools/test_tts_importers.py
@@ -15637,6 +15672,7 @@ tests/tui_gateway/test_delegation_session_lifecycle.py
 tests/tui_gateway/test_desktop_session_login_identity.py
 tests/tui_gateway/test_desktop_session_row_git_meta.py
 tests/tui_gateway/test_desktop_session_workspace_persistence.py
+tests/tui_gateway/test_detached_loop_keepalive.py
 tests/tui_gateway/test_diagnostic_notification_presentation.py
 tests/tui_gateway/test_diagnostic_turn_end_to_end.py
 tests/tui_gateway/test_diagnostics_share_nous.py
