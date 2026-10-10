@@ -72,3 +72,43 @@ def test_a_listed_files_tests_carry_the_marker():
     other = _Item("tests/agent_runtime/test_other.py::test_y")
     idle_box.pytest_collection_modifyitems_idle_box([listed, other])
     assert (listed.marks, other.marks) == ([idle_box.IDLE_BOX_MARK], [])
+
+
+def _fake_tree(root: Path) -> list[Path]:
+    paths = []
+    for rel in ("tests/pkg/test_timing.py", "tests/pkg/test_plain.py", "tests/pkg/test_upstream.py"):
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+        paths.append(path)
+    return paths
+
+
+def test_the_runner_leaves_a_listed_file_to_the_idle_box_in_both_scopes(tmp_path):
+    from scripts import run_tests_bundled as bundled
+
+    files = _fake_tree(tmp_path)
+    listed = {"tests/pkg/test_timing.py"}
+    inherited = {"tests/pkg/test_upstream.py"}
+    fork = bundled.select_scope(files, tmp_path, inherited, set(), idle_box=listed)
+    full = bundled.select_scope(files, tmp_path, set(), set(), full=True, idle_box=listed)
+
+    for sel in (fork, full):
+        assert [p.name for p in sel.idle_box] == ["test_timing.py"]
+        assert "test_timing.py" not in [p.name for p in sel.selected]
+    assert [p.name for p in fork.fork_only] == ["test_plain.py"]
+
+
+def test_a_named_listed_file_runs(tmp_path):
+    from scripts import run_tests_bundled as bundled
+
+    files = _fake_tree(tmp_path)
+    sel = bundled.select_scope(files, tmp_path, set(), set(), named=[files[0]], idle_box={"tests/pkg/test_timing.py"})
+    assert ([p.name for p in sel.named], sel.idle_box) == (["test_timing.py"], [])
+
+
+def test_the_runner_and_the_plugin_read_one_list():
+    from scripts import run_tests_bundled_scope as scope
+
+    assert idle_box.load_idle_box_files() == scope.load_path_list(_REPO_ROOT / scope.IDLE_BOX_LIST)
+    assert scope.load_path_list(_REPO_ROOT / "no-such-list.txt") == frozenset()

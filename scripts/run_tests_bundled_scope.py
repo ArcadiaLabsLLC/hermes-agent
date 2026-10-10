@@ -12,7 +12,9 @@ working-tree edits; after a release merge it is ``--since-merge <merge>``
 less each conftest whose standing fork hunk the merge left unchanged). ``full`` runs everything discovered — the weekly upstream
 merge lane, where the inherited set is the thing under test. In BOTH scopes a
 file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
-P0 freeze files) does not run unless it is named on the command line.
+P0 freeze files) does not run unless it is named on the command line, and nor
+does a file on ``scripts/test_idle_box_files.txt`` (the timing files that run
+only on an idle box: ``scripts/run_tests_idle.sh``).
 
 ``scripts/run_tests_bundled.py`` owns execution and re-exports these names.
 """
@@ -38,6 +40,21 @@ SCOPE_FORK = "fork"
 SCOPE_FULL = "full"
 _DEFAULT_MANIFEST = Path("tests") / "fixtures" / "upstream_manifest.txt"
 _DEFAULT_SINCE = "origin/main"
+#: files that run only on an idle box, serial (owner ruling 2026-10-10; design sweep D3.01)
+IDLE_BOX_LIST = Path("scripts") / "test_idle_box_files.txt"
+
+
+def load_path_list(path: Path) -> frozenset[str]:
+    """Repo-relative POSIX paths a list file names: one per line, ``#`` starts a
+    comment (the reason belongs on the path's line), blank lines ignored. A
+    missing file names nothing."""
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return frozenset()
+    entries = (line.split("#", 1)[0].strip() for line in text.splitlines())
+    return frozenset(Path(entry).as_posix() for entry in entries if entry)
 
 
 def load_manifest(path: Path) -> set[str]:
@@ -247,6 +264,7 @@ class ScopeSelection:
     full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
     excluded: List[Path] = field(default_factory=list)
     skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
+    idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
 
     @property
     def selected(self) -> List[Path]:
@@ -264,6 +282,7 @@ def select_scope(
     named: Iterable[Path] = (),
     skipped: Iterable[str] = (),
     full: bool = False,
+    idle_box: Iterable[str] = (),
 ) -> ScopeSelection:
     """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
     manifest), plus each inherited file the change could reach — the file
@@ -273,17 +292,22 @@ def select_scope(
 
     A file on the upstream skip list (``skipped``) goes to ``skipped_red`` and
     nowhere else, in both scopes, unless it is named (owner ruling O1: skip
-    wins over reach). ``full=True`` puts every other file in ``full``."""
+    wins over reach). A file on the idle-box list (``idle_box``) goes to
+    ``idle_box`` the same way: it runs only when named, or on an idle box
+    through ``scripts/run_tests_idle.sh`` (owner ruling 2026-10-10). ``full=True``
+    puts every other file in ``full``."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
     changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
-    skipped = set(skipped)
+    skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection()
     for path in files:
         rel = _rel_posix(path, repo_root)
         if rel in skipped and path.resolve() not in named_real:
             sel.skipped_red.append(path)
+        elif rel in idle_box:
+            (sel.named if path.resolve() in named_real else sel.idle_box).append(path)
         elif full:
             (sel.named if path.resolve() in named_real else sel.full).append(path)
         elif rel not in inherited:
@@ -313,8 +337,9 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
     scope cannot tell fork from inherited files (``main`` exits 2)."""
 
     named = [r for r in roots if r.is_file()]
+    idle_box = load_path_list(repo_root / IDLE_BOX_LIST)
     if args.scope == SCOPE_FULL:
-        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, full=True)
+        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, full=True, idle_box=idle_box)
     else:
         manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
         try:
@@ -332,7 +357,7 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
                 file=sys.stderr,
             )
             return None
-        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows)
+        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows, idle_box=idle_box)
         print(
             f"Scope fork (since {since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
@@ -344,4 +369,6 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
     for path in sel.skipped_red:  # a run says what it did not run, and why
         rel = _rel_posix(path, repo_root)
         print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")
+    if sel.idle_box:
+        print(f"  idle-box: {len(sel.idle_box)} file(s) not run — scripts/run_tests_idle.sh, box idle (owner ruling 2026-10-10)")
     return sel

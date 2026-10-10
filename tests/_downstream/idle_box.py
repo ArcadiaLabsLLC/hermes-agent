@@ -21,20 +21,16 @@ import pytest
 
 IDLE_BOX_MARK = "idle_box"
 IDLE_BOX_ENV = "HERMES_TEST_IDLE_BOX"
-IDLE_BOX_LIST = Path(__file__).resolve().parents[2] / "scripts" / "test_idle_box_files.txt"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 SKIP_REASON = "idle-box file (owner ruling 2026-10-10): run scripts/run_tests_idle.sh"
 
 
-def load_idle_box_files(path: Path = IDLE_BOX_LIST) -> frozenset[str]:
-    """Repo-relative POSIX paths the list names (``#`` starts a comment). A
-    missing list names nothing."""
+def load_idle_box_files() -> frozenset[str]:
+    """The list, read by the bundled runner's own reader (one owner)."""
 
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return frozenset()
-    entries = (line.split("#", 1)[0].strip() for line in text.splitlines())
-    return frozenset(Path(entry).as_posix() for entry in entries if entry)
+    from scripts import run_tests_bundled_scope as scope
+
+    return scope.load_path_list(_REPO_ROOT / scope.IDLE_BOX_LIST)
 
 
 @pytest.hookimpl(specname="pytest_configure")

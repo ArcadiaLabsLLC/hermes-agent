@@ -105,22 +105,10 @@ def _rel(path: Path, repo_root: Path) -> str:
 
 
 def load_unbundled(path: Path) -> set[str]:
-    """Repo-relative POSIX paths listed in the unbundled file.
+    """Repo-relative POSIX paths listed in the unbundled file (``#`` starts the
+    observed diff that put the file there); a missing file is an empty list."""
 
-    One path per line; ``#`` starts a comment (the observed diff that put the
-    file there belongs on its line); blank lines ignored; a missing file is an
-    empty list."""
-
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return set()
-    out: set[str] = set()
-    for line in text.splitlines():
-        entry = line.split("#", 1)[0].strip()
-        if entry:
-            out.add(Path(entry).as_posix())
-    return out
+    return set(scope.load_path_list(path))
 
 
 def _group_key(rel: str) -> Tuple[str, ...]:
