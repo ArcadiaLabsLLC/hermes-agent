@@ -207,30 +207,10 @@ if _WIN:
         **{node: (_up_red('red on pure upstream/main 067fa1a257 on Windows (upstream-new file, 2026-09-25 merge)'),) for node in (
             'tests/hermes_cli/test_backup_preflight.py::test_preflight_captures_committed_wal_without_application_imports',
             'tests/hermes_cli/test_install_bucket_separation.py::TestProfileCopyExclusions::test_copies_profile_payload_without_install_artifacts[export]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-False]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[0-True]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[9-False]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_atexit_recovers_only_stopped_serves_after_cached_update[9-True]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-False]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-True]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-False]',
             'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-True]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[unrelated-False]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[unrelated-True]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[update_cmd-False]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_only_known_early_updater_restarts_with_original_arguments[update_cmd-True]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-7]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-sig-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[False-utf-8-sig-7]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-7]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-sig-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[None-utf-8-sig-7]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-7]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-sig-0]',
-            'tests/hermes_cli/test_old_updater_takeover.py::test_takeover_waits_propagates_status_and_never_reenters_old_code[True-utf-8-sig-7]',
             'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[cli]',
             'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[serve]',
             'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[\\xff]',
@@ -397,14 +377,6 @@ if _WIN:
         )},
         # Host-conditional (lane w5-fh, 2026-10-02): each was a strict XPASS on a host
         # without the condition, so the condition is the classification.
-        'tests/hermes_cli/test_cli_clarify_batch.py::TestClarifyBellOnPrompt::test_bell_on_prompt_rings_and_off_is_silent': (
-            # Evaluated against the cwd's drive, which is the drive the test's own
-            # open("/dev/tty") resolves against.
-            _up_red_when(os.path.isdir("/dev"), (
-                "terminal_notify.write_tty opens '/dev/tty', which Windows resolves under "
-                "the root of the cwd's drive; when that dev directory exists the BEL lands in a FILE and "
-                "never reaches the patched stdout, and on a drive without it the test passes")),
-        ),
         'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait': (
             _up_red_when(sys.version_info < (3, 13), (
                 "orders events by time.monotonic(), which is GetTickCount64 (15.6 ms) on "
