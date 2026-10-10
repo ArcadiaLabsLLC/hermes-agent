@@ -616,7 +616,7 @@ class AgentRunExecution:
             ),
         )
         self.mcp_scope.callback(
-            self.runner._teardown_mcp_admission,
+            self.runner._release_mcp_admission,
             request,
             self.admitted_servers,
             self.timing,

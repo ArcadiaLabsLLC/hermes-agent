@@ -117,6 +117,19 @@ toolset scope above.
 **Size.** ~220 lines code, ~180 lines tests, two canon doc edits. One lane (Opus), one MOVE
 (the rename) + one CHANGE.
 
+**Built (lane build-1011-B1, 2026-10-10).** S1 BUILT `5260a6b87fb`, S2 BUILT `7069d9adeb9`,
+S3 BUILT `f925cebe8d`. Where the code differed from this plan: the resident logic is its own
+module (`mcp_admission/resident.py`, stores); the memo key is `(hermes_home_key(), server)`
+because MCP tools may live in a profile overlay; `teardown_mcp_admission` stays as the removal
+verb beside the new `release_mcp_admission`, so there was no rename MOVE; the filter-revision
+check landed in S1 (a narrower admission must never inherit, even between commits); a slot-less
+dispatch is refused with `mcp_admission_budget_exhausted`; the actor-eviction hook was NOT built
+— `ResidentPersonaChatRuntime` holds no admission and the ruling ties the scope's lifetime to
+the transport session plus content; `mcp_admission_reused` is documented in `07-observability.md`
+(where the record vocabulary lives), not `02`. Measured (60-tool warm server, 40 admitting
+runs): admit 5.55 → 0.92 ms median, end-of-run 2.30 → 0.56 ms, generation +121 → 0 per run,
+tool-defs memo 0/40 → 39/40 hits.
+
 **Risks.** (1) A tool the fork never calls between runs still appears in the serve process's
 `get_tool_definitions(quiet_mode=True)` at boot (`serve/boot.py`) — that call runs before any
 admission, so unaffected; `tool_surface.read_surface` always passes an admission-scoped
@@ -134,7 +147,8 @@ gate.
 miss (202–215 ms rebuild vs 0.1–0.5 ms warm; generation +2 per probe on a 44-tool home). The
 D1.01 resident scope removes the per-run bumps, so `_tool_defs_cache_key` (which also carries
 `app_function_tool_scope()`, the profile scope and the config signature) hits on a reused
-actor's turn. D1.01 S3 is this row's gate. The upstream-PR alternative (key the memo on
+actor's turn. D1.01 S3 is this row's gate (BUILT `f925cebe8d`:
+`tests/agent_runtime/test_tool_defs_memo_survives_admission.py`). The upstream-PR alternative (key the memo on
 content) is rejected above: schemas and handlers are what that memo caches, and admission
 swaps every admitted handler for a metered one. The callers that pay the miss on a reused
 actor are `agent/tool_executor.py` (tool_search scoped names, per search call) and
@@ -201,6 +215,14 @@ nothing; `forget_launcher_connection` removes only names no surviving catalog ho
    `_sync_registry` to the single-list form → the component flag reads 1.
 
 **Size.** ~110 lines code, ~150 lines tests. One lane, one CHANGE commit (no MOVE).
+
+**Built (lane build-1011-B1, 2026-10-10).** S1 BUILT `0df2a3a79c`, S2 BUILT `d75fbb323f`, S3
+BUILT in the commit that carries this line. Where the code differed: the handler also dispatches
+with the bound link's entry for the name (`_call_bound`), so a same-named entry runs with THIS
+turn's method and confirmation; S3's receipt is proven on the component's source
+(`chat_lane_bundle.registry_content_revision` per alternating turn), not through a serve
+harness. Measured (two Launchers, 40 alternating turns): generation moves 40 → 0, tool-defs
+memo misses 40 → 0, `get_tool_definitions` median 11.81 → 0.09 ms.
 
 **Risks.** `always_loaded_app_function_tools` and the guidance lines already read the bound
 link's catalog, so discovery classification is unchanged. `tool_contract()`'s

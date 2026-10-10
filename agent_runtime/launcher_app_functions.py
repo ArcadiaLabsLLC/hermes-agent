@@ -43,6 +43,7 @@ import json
 import logging
 import threading
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Iterable, Mapping
 
 from .launcher_app_function_answers import refusal_result, success_result
@@ -357,39 +358,99 @@ def mutating_app_function_tools() -> frozenset[str]:
 
 def forget_launcher_connection(sink: Any) -> None:
     """The connection behind *sink* is gone: drop its catalog and silence latch,
-    fail its open requests now, and — when no catalog is left — empty the
-    toolset, so a turn with no Launcher is offered nothing stale."""
+    fail its open requests now, and remove the tools no other attached Launcher
+    still declares — when no catalog is left the toolset is empty, so a turn with
+    no Launcher is offered nothing stale."""
 
     with _state.lock:
         _state.catalog.pop(id(sink), None)
         _state.unanswered.pop(id(sink), None)
-        if not _state.catalog:
-            _sync_registry([])
+        # Only names no surviving catalog holds go; none left empties the toolset.
+        _sync_registry_union()
     abandoned = CLIENT_REQUESTS.abandon(sink)
     if abandoned:
         logger.info("launcher connection closed with %d app-function request(s) open; failed, not resent", abandoned)
 
 
-def _link_available() -> bool:
-    return current_launcher_link() is not None
+def _bound_catalog_entries() -> dict[str, AppFunctionEntry] | None:
+    """The bound link's catalog by name, or None (no link, or its catalog is not held).
+
+    Read at definition time and at call time, never cached: the union registry is shared by
+    every attached Launcher, and which entries THIS turn may see is the bound link's answer.
+    """
+
+    link = current_launcher_link()
+    if link is None:
+        return None
+    with _state.lock:
+        held = _state.catalog.get(id(link.sink))
+        if held is None or held[0] is not link.sink:
+            return None
+        return {entry.name: entry for entry in held[1]}
 
 
-def _sync_registry(entries: list[AppFunctionEntry]) -> None:
-    """Make the registry hold exactly *entries*; untouched when nothing changed.
+def _offered_to_bound_link(name: str) -> bool:
+    """Is *name* in the bound link's catalog? (A turn with no link: False, as before.)"""
 
-    Idempotence is the point: a re-registration bumps ``registry.generation``, which
-    every chat-lane bundle memo keys on, so re-registering the same list each
-    turn would rebuild every bundle every turn.
+    entries = _bound_catalog_entries()
+    return entries is not None and name in entries
+
+
+def _bound_schema(name: str) -> dict[str, Any] | None:
+    """The bound link's schema for *name*, merged onto the registered one at definition time.
+
+    Two Launchers may declare one name with different parameters; the bound link's wins.
+    None (the registered schema stands) when no link is bound or it does not declare the name.
+    """
+
+    entry = (_bound_catalog_entries() or {}).get(name)
+    return entry.schema() if entry is not None else None
+
+
+def _call_bound(name: str, registered: AppFunctionEntry, args: Mapping[str, Any]) -> str:
+    """Dispatch *name* with the bound link's entry for it (method, confirmation), else the
+    registered one — so a same-named entry two Launchers declare differently runs as THIS
+    turn's Launcher declared it."""
+
+    entry = (_bound_catalog_entries() or {}).get(name, registered)
+    return call_app_function(entry, args)
+
+
+def _union_of_catalogs() -> dict[str, AppFunctionEntry]:
+    """Every held catalog's entries by name; for a name several catalogs declare, the most
+    recently listed catalog's entry is the registered (static) one. Caller holds the lock."""
+
+    union: dict[str, AppFunctionEntry] = {}
+    declared_by: dict[str, list[AppFunctionEntry]] = {}
+    for _sink, entries, _token in _state.catalog.values():
+        for entry in entries:
+            union[entry.name] = entry
+            declared_by.setdefault(entry.name, []).append(entry)
+    for name, entries in declared_by.items():
+        if len({json.dumps(entry.schema(), sort_keys=True, default=str) for entry in entries}) > 1:
+            logger.info("launcher app function %r is declared with %d different schemas across "
+                        "attached Launchers; each turn sees its own Launcher's", name, len(entries))
+    return union
+
+
+def _sync_registry_union() -> None:
+    """Make the registry hold the UNION of every live catalog (D1.03). Caller holds the lock.
+
+    Untouched when the union did not change, so two attached Launchers with different lists no
+    longer flip the registry turn by turn: a flip moves no ``registry.generation`` and no
+    chat-lane bundle key. Which entries a turn may SEE is answered per entry at definition time
+    from the bound link's catalog (``check_fn``), with that catalog's schema
+    (``dynamic_schema_overrides``); :func:`forget_launcher_connection` removes only names no
+    surviving catalog holds.
     """
 
     from tools.registry import no_cache_check_fn, registry
 
-    wanted = {entry.name: entry for entry in entries}
+    wanted = _union_of_catalogs()
     if wanted == _state.registered:
         return
     for name in set(_state.registered) - set(wanted):
         registry.deregister(name)
-    check = no_cache_check_fn(_link_available)
     for name, entry in wanted.items():
         if _state.registered.get(name) == entry:
             continue
@@ -397,19 +458,21 @@ def _sync_registry(entries: list[AppFunctionEntry]) -> None:
             name=name,
             toolset=APP_FUNCTIONS_TOOLSET,
             schema=entry.schema(),
-            handler=lambda args, _entry=entry, **_kw: call_app_function(_entry, args),
-            check_fn=check,
+            handler=lambda args, _name=name, _entry=entry, **_kw: _call_bound(_name, _entry, args),
+            check_fn=no_cache_check_fn(partial(_offered_to_bound_link, name)),
             description=entry.description,
+            dynamic_schema_overrides=partial(_bound_schema, name),
         )
     _state.registered = wanted
 
 
 def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
-    """Make the registry hold *link*'s connection's app functions as tools.
+    """Make the registry offer *link*'s connection's app functions as tools.
 
     The list is asked ONCE per connection: a catalog already held for this sink
     is re-synced into the registry (idempotent, no wire) and its names
-    returned. Returns the tool names, or None when the list failed. A
+    returned. The registry holds the union of every attached Launcher's catalog;
+    this link's turn sees only its own entries (:func:`_sync_registry_union`). Returns the tool names, or None when the list failed. A
     connection that stayed silent or has no such method is latched and not
     asked again; an error reply from a real responder is not latched. A
     malformed entry is skipped and logged, never registered half-built.
@@ -420,7 +483,9 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
             return None
         held = _state.catalog.get(id(link.sink))
         if held is not None:
-            _sync_registry(held[1])
+            # The registry already holds the union; a re-sync is a no-op unless a
+            # catalog was added or removed since (no generation move on a flip).
+            _sync_registry_union()
             return [entry.name for entry in held[1]]
     try:
         result = link.request(LIST_METHOD, {})
@@ -440,7 +505,7 @@ def refresh_app_function_tools(link: LauncherLink) -> list[str] | None:
         entries.append(entry)
     with _state.lock:
         _state.catalog[id(link.sink)] = (link.sink, entries, object())
-        _sync_registry(entries)
+        _sync_registry_union()
     return [entry.name for entry in entries]
 
 

@@ -420,7 +420,8 @@ something larger than it. Beside them the handler folds
 component that moved (CP-7): the same NAMES-never-values rule as
 `resident_signature_diff` above, and the same shape as the record's
 `resident_rebuild_component_<name>` family. `safe_turn_profile_timing` admits
-`*_ms`, `*_cached`, `resident_actor_reused`, `resident_rebuild_*` and
+`*_ms`, `*_cached`, the 0/1 flags `resident_actor_reused` and `mcp_admission_reused`
+(D1.01: every admitted MCP server's resident scope was reused), `resident_rebuild_*` and
 `visibility_bundle_rebuild_*` and nothing else, so no free text can reach a
 durable record through this key — by construction, not by scrubbing.
 

@@ -1,6 +1,7 @@
 """The registry scope's two ends (invariants 4-6): ``admit_mcp_servers`` under
-the single-flight mutex with its per-run call budget, and
-``teardown_mcp_admission``."""
+the single-flight mutex with its per-run call budget, ``release_mcp_admission``
+(the end of every admitted run: the budget is unbound, the resident scope kept),
+and ``teardown_mcp_admission`` (the scope removed)."""
 
 from __future__ import annotations
 
@@ -14,8 +15,10 @@ from .vocabulary import MCP_NOT_REGISTERED_ON_LANE
 from ..serde import positive_float
 
 from .outcomes import McpAdmission, McpAdmissionDenial, McpAdmissionOutcome, McpCallBudget, McpTeardownOutcome
+from . import resident
+from .resident import SLOT_ATTR, BudgetSlot, ResidentScope
 from .transport import _default_registrar, classify_admission_transport, mcp_sdk_available
-from .vocabulary import MCP_ADMISSION_LANE_BUSY, MCP_CLIENT_DISABLED, MCP_ADMISSION_TEARDOWN_FAILED, MCP_ADMISSION_TIMEOUT, MCP_SDK_UNAVAILABLE, _MCP_TOOLSET_PREFIX, logger
+from .vocabulary import MCP_ADMISSION_BUDGET_EXHAUSTED, MCP_ADMISSION_LANE_BUSY, MCP_CLIENT_DISABLED, MCP_ADMISSION_TEARDOWN_FAILED, MCP_ADMISSION_TIMEOUT, MCP_SDK_UNAVAILABLE, _MCP_TOOLSET_PREFIX, logger
 
 __layer__ = "lanes"
 
@@ -155,6 +158,8 @@ class Admission:
         self.done = threading.Event()
         self.box: dict[str, Any] = {}
         self.transport_paths: dict[str, str] = {}
+        #: Servers whose resident scope this admission reused (no registrar, no generation move).
+        self.reused: tuple[str, ...] = ()
         # One meter per admission ⇒ the budget resets per run by construction, with
         # no reset path to forget to call.
         self.call_budget = McpCallBudget(admission.max_tool_calls_per_run)
@@ -213,14 +218,21 @@ class Admission:
 
     def _work(self) -> None:
         try:
-            registrar = self.register or _default_registrar
-            self.box["tools"] = registrar(self.servers)
+            # D1.01: a server whose resident scope still stands for this admission is not
+            # re-registered; only the rest reach the registrar.
+            reused, fresh = resident.partition_admission(self.servers)
+            self.reused = tuple(name for name in self.admission.server_names if name in reused)
+            if fresh:
+                registrar = self.register or _default_registrar
+                self.box["tools"] = registrar(dict(fresh))
             # Meter INSIDE the worker, still holding the admission mutex, so a
             # registration that outran the caller's timeout and lands late is
             # metered too. An admitted tool that is not counted would be exactly
             # the unbounded surface this budget exists to retire.
-            _install_call_budget(
+            _bind_call_budget(
                 self.admission.server_names,
+                self.servers,
+                reused,
                 self.call_budget,
                 on_exhausted=self.on_budget_exhausted,
             )
@@ -314,6 +326,7 @@ class Admission:
             execution_denied=unregistered,
             call_budget=self.call_budget,
             transport_paths=self.transport_paths,
+            reused=tuple(name for name in self.reused if name in registered),
         )
 
 
@@ -363,8 +376,10 @@ def _unregistered_denial(name: str, *, sdk_missing: bool) -> McpAdmissionDenial:
 #
 # Mechanically: ``registry.dispatch`` reads ``entry.handler`` per call, so
 # replacing that attribute with a metered wrapper is a complete interception —
-# no upstream edit, no parallel dispatch path, and the wrapper dies with the
-# registry scope at teardown.
+# no upstream edit, no parallel dispatch path. Since D1.01 the wrapper lives as
+# long as the resident scope and reads the run's budget from the scope's
+# :class:`~.resident.BudgetSlot` at call time, so binding a run's budget is an
+# attribute write, never a registration (no ``registry.generation`` move).
 
 #: Attribute the wrapper stashes the original handler under. Also the marker
 #: that answers "is this handler already metered?", which is what keeps a
@@ -372,19 +387,23 @@ def _unregistered_denial(name: str, *, sdk_missing: bool) -> McpAdmissionDenial:
 _UNMETERED_HANDLER_ATTR = "_mcp_admission_unmetered_handler"
 
 
-def _install_call_budget(
+def _bind_call_budget(
     servers: Iterable[str],
+    configs: Mapping[str, Mapping[str, Any]],
+    reused: Mapping[str, ResidentScope],
     budget: "McpCallBudget",
     *,
     on_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None = None,
 ) -> list[str]:
-    """Meter every registered tool of the admitted servers. Fails CLOSED.
+    """Bind this run's budget to every admitted server's scope. Fails CLOSED.
 
-    A tool that cannot be metered is DEREGISTERED rather than left callable:
-    an unbounded admitted tool is the exact exposure the budget exists to close,
-    and removing it degrades into surfaces that already exist — if that empties
-    the server's scope, the caller's registry read reports the server as
-    ``mcp_not_registered_on_lane`` and the turn takes the fallback lane.
+    A reused (resident) scope gets the budget written into its slot. A freshly
+    registered one gets a new slot, every tool metered against it, and is
+    remembered as resident. A tool that cannot be metered is DEREGISTERED rather
+    than left callable: an unbounded admitted tool is the exact exposure the
+    budget exists to close, and removing it degrades into surfaces that already
+    exist — if that empties the server's scope, the caller's registry read
+    reports the server as ``mcp_not_registered_on_lane``.
 
     Returns the prefixed names it could not meter (and therefore removed).
     """
@@ -404,27 +423,14 @@ def _install_call_budget(
 
     unmetered: list[str] = []
     for server in names:
-        toolset = f"{_MCP_TOOLSET_PREFIX}{server}"
-        try:
-            tool_names = list(registry.get_tool_names_for_toolset(toolset) or [])
-        except Exception:  # pragma: no cover - defensive
-            logger.warning("MCP admission could not list %r for metering", toolset, exc_info=True)
+        scope = reused.get(server)
+        if scope is not None:
+            scope.slot.bind(budget, on_exhausted)
             continue
-        for tool_name in tool_names:
-            if _meter_registered_tool(
-                registry, server, tool_name, budget, on_exhausted=on_exhausted
-            ):
-                continue
-            unmetered.append(tool_name)
-            try:
-                registry.deregister(tool_name)
-            except Exception:  # pragma: no cover - defensive
-                logger.error(
-                    "MCP admission could neither meter nor remove %r; it is admitted "
-                    "WITHOUT a per-run call bound",
-                    tool_name,
-                    exc_info=True,
-                )
+        slot = BudgetSlot()
+        slot.bind(budget, on_exhausted)
+        unmetered.extend(_meter_server(registry, server, slot))
+        resident.record_resident_scope(server, configs.get(server), slot)
     if unmetered:
         logger.warning(
             "MCP admission removed %d admitted tool(s) it could not meter: %s",
@@ -434,15 +440,34 @@ def _install_call_budget(
     return unmetered
 
 
-def _meter_registered_tool(
-    registry: Any,
-    server: str,
-    tool_name: str,
-    budget: "McpCallBudget",
-    *,
-    on_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None = None,
-) -> bool:
-    """Swap one registered tool's handler for a budget-metered one."""
+def _meter_server(registry: Any, server: str, slot: BudgetSlot) -> list[str]:
+    """Meter every registered tool of ``mcp-<server>`` against ``slot``; remove the rest."""
+
+    toolset = f"{_MCP_TOOLSET_PREFIX}{server}"
+    try:
+        tool_names = list(registry.get_tool_names_for_toolset(toolset) or [])
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("MCP admission could not list %r for metering", toolset, exc_info=True)
+        return []
+    unmetered: list[str] = []
+    for tool_name in tool_names:
+        if _meter_registered_tool(registry, server, tool_name, slot):
+            continue
+        unmetered.append(tool_name)
+        try:
+            registry.deregister(tool_name)
+        except Exception:  # pragma: no cover - defensive
+            logger.error(
+                "MCP admission could neither meter nor remove %r; it is admitted "
+                "WITHOUT a per-run call bound",
+                tool_name,
+                exc_info=True,
+            )
+    return unmetered
+
+
+def _meter_registered_tool(registry: Any, server: str, tool_name: str, slot: BudgetSlot) -> bool:
+    """Swap one registered tool's handler for a slot-metered one."""
 
     try:
         entry = registry.get_entry(tool_name)
@@ -467,13 +492,28 @@ def _meter_registered_tool(
         # otherwise meter a meter, and the outer one's budget would be the only
         # one anybody could read.
         base = getattr(handler, _UNMETERED_HANDLER_ATTR, handler)
-        entry.handler = _metered_handler(
-            base, server=server, tool_name=tool_name, budget=budget, on_exhausted=on_exhausted
-        )
+        entry.handler = _metered_handler(base, server=server, tool_name=tool_name, slot=slot)
         return True
     except Exception:
         logger.warning("MCP admission could not meter %r", tool_name, exc_info=True)
         return False
+
+
+def _unbound_denial(server: str, tool_name: str) -> McpAdmissionDenial:
+    """The refusal for a resident tool dispatched while no admitted run holds its budget."""
+
+    return McpAdmissionDenial(
+        server=server,
+        code=MCP_ADMISSION_BUDGET_EXHAUSTED,
+        summary=(
+            f"'{tool_name}' was refused: no admitted run holds a call budget for "
+            f"'{server}' right now, so it has no calls to spend."
+        ),
+        fix_hint=(
+            "Only a run that admitted the server may call its tools. Finish without it "
+            "and say what went unverified."
+        ),
+    )
 
 
 def _metered_handler(
@@ -481,18 +521,25 @@ def _metered_handler(
     *,
     server: str,
     tool_name: str,
-    budget: "McpCallBudget",
-    on_exhausted: Callable[[McpAdmissionDenial, dict[str, Any]], None] | None = None,
+    slot: BudgetSlot,
 ) -> Callable[..., Any]:
-    """``handler(args, **kwargs) -> str``, charged against the run's call budget.
+    """``handler(args, **kwargs) -> str``, charged against the bound run's call budget.
 
     On exhaustion it returns the typed row INSTEAD of dispatching, in the same
     ``{"error": ...}`` JSON envelope the MCP handlers already return for their
     circuit breaker — so the model reads it as a normal tool refusal with a
     reason, the turn keeps running, and the agent can still write up what it has.
+    An empty slot (no admitted run) refuses every call: the fail-closed direction.
     """
 
     def _metered(*args: Any, **kwargs: Any) -> Any:
+        budget, on_exhausted = slot.current()
+        if budget is None:
+            denial = _unbound_denial(server, tool_name)
+            payload = dict(denial.row())
+            payload["error"] = denial.summary
+            payload["tool"] = tool_name
+            return json.dumps(payload, ensure_ascii=False)
         denial = budget.consume(server, tool_name)
         if denial is None:
             return handler(*args, **kwargs)
@@ -520,7 +567,100 @@ def _metered_handler(
         return json.dumps(payload, ensure_ascii=False)
 
     setattr(_metered, _UNMETERED_HANDLER_ATTR, handler)
+    setattr(_metered, SLOT_ATTR, slot)
     return _metered
+
+
+def release_mcp_admission(
+    servers: Iterable[str] | None,
+    *,
+    lock_timeout_seconds: float = 5.0,
+) -> McpTeardownOutcome:
+    """The end of an admitted run: unbind its call budget, KEEP the resident scope.
+
+    D1.01 (owner ruling 2026-10-10, superseding R2's per-run teardown): the scope
+    lives for the transport session plus the admission content; isolation is
+    ``scope_toolsets_to_admission``. So the registry is left exactly as the run
+    found it (``registry.generation`` unmoved) and the next admitting run binds
+    its own budget into the same slot.
+
+    Never raises. Every fault becomes a typed ``mcp_admission_teardown_failed``
+    row: a finished turn must never be failed by its own cleanup.
+    """
+
+    names = [str(name).strip() for name in servers or () if str(name or "").strip()]
+    started = time.perf_counter()
+    if not names:
+        return McpTeardownOutcome()
+    failures: list[McpAdmissionDenial] = []
+    removed: list[str] = []
+    # A registration whose CALLER timed out keeps running on its worker thread;
+    # waiting for it here keeps its late bind from landing after this release.
+    held = _ADMISSION_LOCK.acquire(timeout=max(0.0, float(lock_timeout_seconds)))
+    if not held:
+        failures.append(_in_flight_denial(names))
+    try:
+        # Only a scope that no longer stands is deregistered (session gone or
+        # replaced, a tool lost); a valid one is kept with its slot cleared.
+        removed = resident.release_slots(names)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("MCP admission release failed: %s", exc, exc_info=True)
+        failures.append(_registry_fault_denial(", ".join(names), exc))
+    finally:
+        if held:
+            _ADMISSION_LOCK.release()
+    return McpTeardownOutcome(
+        servers=tuple(names),
+        removed_tool_names=tuple(removed),
+        failures=tuple(failures),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+    )
+
+
+def drop_resident_scopes(
+    servers: Iterable[str] | None = None,
+    *,
+    lock_timeout_seconds: float = 5.0,
+) -> McpTeardownOutcome:
+    """Retire resident scopes explicitly: ``servers``, or every one in the current home.
+
+    The registry tools go and the memo forgets them; the transport stays (process exit
+    owns connections, ``tools.mcp_tool.shutdown_mcp_servers``). Never raises.
+    """
+
+    names = resident.resident_server_names() if servers is None else servers
+    return teardown_mcp_admission(names, lock_timeout_seconds=lock_timeout_seconds)
+
+
+def _in_flight_denial(names: Sequence[str]) -> McpAdmissionDenial:
+    return McpAdmissionDenial(
+        server=", ".join(names),
+        code=MCP_ADMISSION_TEARDOWN_FAILED,
+        summary=(
+            "An MCP admission was still in flight when this run's scope was released; "
+            "a late registration may bind its budget after the release."
+        ),
+        fix_hint=(
+            "Bounded by agent_runtime.mcp_admission.connect_timeout_seconds. The "
+            "next run's toolset scope still refuses any MCP toolset it was not "
+            "admitted, so this is residue, not exposure."
+        ),
+    )
+
+
+def _registry_fault_denial(server: str, exc: BaseException) -> McpAdmissionDenial:
+    return McpAdmissionDenial(
+        server=server,
+        code=MCP_ADMISSION_TEARDOWN_FAILED,
+        summary=(
+            f"'{server}' scope could not be released after the run "
+            f"({type(exc).__name__}), so its registry scope outlived it unchanged."
+        ),
+        fix_hint=(
+            "Isolation falls back to the per-run toolset scope until the process "
+            "recycles. Check tools/registry.py deregister for this toolset."
+        ),
+    )
 
 
 def teardown_mcp_admission(
@@ -528,9 +668,11 @@ def teardown_mcp_admission(
     *,
     lock_timeout_seconds: float = 5.0,
 ) -> McpTeardownOutcome:
-    """Remove an admitted run's registry scope. Keeps the transport warm.
+    """Remove an admitted server's resident registry scope. Keeps the transport warm.
 
-    Deregisters every tool in each admitted ``mcp-<server>`` toolset.
+    Not the end of a run any more (that is :func:`release_mcp_admission`, D1.01):
+    this is the explicit retirement verb, and it forgets the resident memo for
+    the servers it removes. Deregisters every tool in each admitted ``mcp-<server>`` toolset.
     ``registry.deregister`` exempts ``mcp-*`` from the plugin-ownership gate, and
     dropping the LAST tool of a toolset also drops its toolset check and every
     alias pointing at it — so both spellings a run could have resolved
@@ -541,7 +683,7 @@ def teardown_mcp_admission(
     instead of paying a fresh spawn + handshake. Process exit still owns the
     connections (``tools.mcp_tool.shutdown_mcp_servers``).
 
-    Only ever called with servers THIS run admitted, and admission only ever runs
+    Only ever called with servers an admission registered, and admission only ever runs
     on the harness lane (``persona_runtime.mission_chat_reply`` is the sole
     producer of ``AgentRunRequest.mcp_admission``), so this can never remove a
     scope that an MCP-registering entry point's ``discover_mcp_tools()`` created.
@@ -579,6 +721,7 @@ def teardown_mcp_admission(
             )
         )
     try:
+        resident.forget(names)
         removed = _deregister_toolset_scopes(names, failures)
     finally:
         if held:
@@ -612,11 +755,8 @@ def _deregister_toolset_scopes(
 
     removed: list[str] = []
     for name in names:
-        toolset = f"{_MCP_TOOLSET_PREFIX}{name}"
         try:
-            for tool_name in list(registry.get_tool_names_for_toolset(toolset) or []):
-                registry.deregister(tool_name)
-                removed.append(tool_name)
+            removed.extend(resident.deregister_server_tools(name, registry))
         except Exception as exc:
             logger.warning("MCP admission teardown failed for %r: %s", name, exc, exc_info=True)
             failures.append(

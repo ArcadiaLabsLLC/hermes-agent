@@ -1336,9 +1336,13 @@ transport facts follow. Registration is **single-flight**, because
 `tools.registry` and `tools/mcp_tool._servers` are process-global while a serve
 process is multi-persona (`ThreadPoolExecutor(4)`) — interleaved admissions are
 refused as `mcp_admission_lane_busy` rather than raced. And **the registry scope
-belongs to the run while the transport belongs to the process**:
-`teardown_mcp_admission` removes the admitted tools at every admitted run's end
-while the connection in `tools/mcp_tool._servers` stays warm for the next
+lives with the transport session and the admission content, while the call budget
+belongs to the run** (D1.01, owner ruling 2026-10-10, superseding R2's per-run
+teardown): `agent_runtime/mcp_admission/resident.py` keeps an admitted server's
+tools registered between runs while its session, its listed tools and its admitted
+config are unchanged; `release_mcp_admission` unbinds the run's budget at every
+admitted run's end and `drop_resident_scopes` is the explicit removal. Isolation
+between personas is `resolve.py::scope_toolsets_to_admission`
 (`agent_runtime/mcp_admission/resolve.py::resolve_mcp_admission`). Admission POLICY belongs to the
 chat-lane doc. Relay hops are gated by `agent_runtime/relay_policy.py` — one
 authority, so in-process tool relay, CLI and serve transport get the same depth
@@ -1365,8 +1369,9 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
 6. **A shared producer promotes on the INTERSECTION of its room's declarations**
    and echoes what it accepted; widening it may only name entities every
    fielded client already folds.
-7. **The harness lane never registers MCP globally.** Admission is per-run,
-   single-flight, torn down at run end.
+7. **The harness lane never registers MCP globally.** Admission is per-run and
+   single-flight; the admitted scope stays resident between runs, scoped out of
+   every run that did not admit it.
 8. **`agent_runtime/` is fork-only.** Any edit outside
    `agent/ | agent_runtime/ | hermes_cli/harness*` needs a boundary-ledger row.
 9. **A listener beyond loopback is opt-in per install, forever**; it is TLS-only

@@ -215,6 +215,11 @@ class ProfileAgentRunner:
             return None
         timing["mcp_admission_ms"] = _emit_request_timing(request, "mcp_admission", started)
         timing["mcp_admitted_servers"] = len(outcome.admitted)
+        # D1.01: 1 when every admitted server's resident scope was reused (no
+        # registration, no registry generation move), 0 when any was registered.
+        reused = bool(outcome.admitted) and set(outcome.admitted) <= set(outcome.reused)
+        if outcome.admitted:
+            timing["mcp_admission_reused"] = int(reused)
         # T2 (2026-08-09): WHY this turn's admission cost what it did. The
         # millisecond count alone cannot distinguish "MCP admission is
         # expensive" from "one server had to be started", so the LABEL is
@@ -244,7 +249,7 @@ class ProfileAgentRunner:
                         "step": "mcp_admission_resolved",
                         "status": "ok" if outcome.admitted else "warning",
                         "summary": (
-                            "MCP admission: "
+                            ("MCP admission (reused): " if reused else "MCP admission (registered): ")
                             + (", ".join(outcome.admitted) if outcome.admitted else "nothing admitted")
                         ),
                         "mcp_admission": {
@@ -252,6 +257,7 @@ class ProfileAgentRunner:
                             "denied": outcome.denial_rows(),
                             "duration_ms": outcome.duration_ms,
                             "transport": transport_paths,
+                            "reused": list(outcome.reused),
                         },
                     }
                 )
@@ -259,24 +265,26 @@ class ProfileAgentRunner:
                 pass
         return outcome
 
-    def _teardown_mcp_admission(
+    def _release_mcp_admission(
         self,
         request: AgentRunRequest,
         servers: tuple[str, ...],
         timing: dict[str, Any],
         budget: Any | None = None,
     ) -> None:
-        """Remove this run's MCP registry scope. Advisory — never fails the turn.
+        """Unbind this run's MCP call budget; the resident scope stays. Advisory.
 
         Runs on the way out of ``_execute_agent_run`` for BOTH the completed and
         the raised path, while the run still holds ``_WORKDIR_LOCK`` and is still
-        inside ``persona_profile_context``, so no other persona's run can observe
-        the scope between the last tool call and its removal. The transport stays
-        warm; only the registry entries and the toolset alias go.
+        inside ``persona_profile_context``. Since D1.01 (owner ruling 2026-10-10)
+        the admitted registry scope lives with its transport session and its
+        admission content; isolation between personas is
+        ``scope_toolsets_to_admission``, so nothing is deregistered here and the
+        registry generation does not move.
 
         ``budget`` is this run's call meter, read here for its final accounting:
-        the meter dies with the scope, so end-of-run is the last moment "how many
-        admitted MCP calls did this turn actually make" is answerable.
+        end-of-run is the last moment "how many admitted MCP calls did this turn
+        actually make" is answerable.
         """
 
         if not servers:
@@ -288,38 +296,32 @@ class ProfileAgentRunner:
                 timing["mcp_calls_refused"] = int(snapshot.get("refused") or 0)
             except Exception:  # pragma: no cover - accounting must never fail a turn
                 pass
-        from ..mcp_admission import teardown_mcp_admission
+        from ..mcp_admission import release_mcp_admission
 
         started = time.perf_counter()
         try:
-            outcome = teardown_mcp_admission(servers)
-        except Exception:  # pragma: no cover - teardown_mcp_admission already swallows
-            timing["mcp_teardown_ms"] = _emit_request_timing(
-                request, "mcp_teardown", started, status="failed"
+            outcome = release_mcp_admission(servers)
+        except Exception:  # pragma: no cover - release_mcp_admission already swallows
+            timing["mcp_release_ms"] = _emit_request_timing(
+                request, "mcp_release", started, status="failed"
             )
             return
-        timing["mcp_teardown_ms"] = _emit_request_timing(
-            request, "mcp_teardown", started, status="ok" if outcome.ok else "warning"
+        timing["mcp_release_ms"] = _emit_request_timing(
+            request, "mcp_release", started, status="ok" if outcome.ok else "warning"
         )
-        timing["mcp_teardown_tools"] = len(outcome.removed_tool_names)
-        if request.progress_callback is None:
+        if outcome.ok or request.progress_callback is None:
             return
         try:
             request.progress_callback(
                 {
                     "type": "run.progress",
                     "phase": "mcp_admission",
-                    "severity": "info" if outcome.ok else "warning",
-                    "step": "mcp_admission_torn_down",
-                    "status": "ok" if outcome.ok else "warning",
-                    "summary": (
-                        "MCP admission scope removed: "
-                        + ", ".join(outcome.servers)
-                        + f" ({len(outcome.removed_tool_names)} tool(s))"
-                    ),
-                    "mcp_teardown": {
+                    "severity": "warning",
+                    "step": "mcp_admission_released",
+                    "status": "warning",
+                    "summary": "MCP admission release: " + ", ".join(outcome.servers),
+                    "mcp_release": {
                         "servers": list(outcome.servers),
-                        "removed_tool_names": list(outcome.removed_tool_names),
                         "failures": outcome.failure_rows(),
                         "duration_ms": outcome.duration_ms,
                     },
