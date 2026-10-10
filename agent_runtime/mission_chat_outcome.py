@@ -67,6 +67,9 @@ __all__ = [
     "OK_EXECUTION_STATES",
     "PROVIDER_REFUSAL_STATUS_CODES",
     "PROVIDER_REFUSED_OUTCOME",
+    "PROVIDER_UNAVAILABLE_OUTCOME",
+    "PROVIDER_UNAVAILABLE_REASON",
+    "PROVIDER_UNAVAILABLE_STATUS_CODE",
     "ProviderRefusal",
     "TurnOutcome",
     "classify_turn_failure",
@@ -187,6 +190,12 @@ class ChatErrorKind(StrEnum):
     #: 429 rendered as "Hermes cannot prove whether this turn completed", and
     #: the operator resent into the same wall.
     CHAT_TURN_PROVIDER_REFUSED = "chat_turn_provider_refused"
+    #: The turn crossed the provider boundary but its request never left the
+    #: process: no provider configured, a credential that would not resolve, a
+    #: client that would not construct (D2.02). Nothing ran, so this is as
+    #: KNOWN as a refusal and settles the same terminal way; it is its own kind
+    #: because the remedy is setup (configure a provider), not waiting.
+    CHAT_TURN_PROVIDER_UNAVAILABLE = "chat_turn_provider_unavailable"
     CHAT_TURN_NOT_SUBMITTED = "chat_turn_not_submitted"
     CHAT_TURN_RESOLUTION_MISMATCH = "chat_turn_resolution_mismatch"
     #: This exact ``client_message_id`` is the turn RUNNING on the root right
@@ -230,6 +239,7 @@ TURN_LIFECYCLE_ERROR_KINDS = frozenset(
         ChatErrorKind.CHAT_TURN_BUDGET_EXHAUSTED,
         ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN,
         ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED,
+        ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
         ChatErrorKind.CHAT_TURN_NOT_SUBMITTED,
         ChatErrorKind.CHAT_TURN_RESOLUTION_MISMATCH,
         ChatErrorKind.CHAT_TURN_DUPLICATE_IN_FLIGHT,
@@ -281,6 +291,12 @@ DELEGATED_ERROR_KIND_SOURCES = {
 #: on the provider's side, which is exactly what separates them from the
 #: genuinely ambiguous failures below.
 PROVIDER_REFUSAL_STATUS_CODES = frozenset({401, 402, 403, 404, 429})
+
+#: The harness-authored refusal block's ``reason`` for a turn whose request
+#: never left the process (D2.02). ``status_code`` 0 says no HTTP status
+#: exists — the provider was never asked — so no consumer can read it as one.
+PROVIDER_UNAVAILABLE_REASON = "provider_unavailable"
+PROVIDER_UNAVAILABLE_STATUS_CODE = 0
 
 #: A 400 is the one status that is a refusal on the WIRE and not a refusal in
 #: MEANING. These classified reasons say the request as SENT was malformed or
@@ -363,6 +379,12 @@ class ProviderRefusal:
         old behaviour did was send operators to that verb.
         """
 
+        if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
+            return (
+                "no model provider could take this request and it never left Hermes; "
+                "configure a provider for this profile (`hermes model`), then send a "
+                "NEW client_message_id — this turn is settled and needs NO turn-resolve"
+            )
         resets_in = self.resets_in_seconds(now=now)
         wait = ""
         if resets_in is not None:
@@ -529,6 +551,15 @@ PROVIDER_REFUSED_OUTCOME = TurnOutcome(
     ExecutionState.FAILED, ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED
 )
 
+#: The outcome of a turn that crossed the boundary but whose request never
+#: started (D2.02, the empty-Base-console incident). Outside the table for the
+#: refusal's reason: it is PHASE evidence, a third fact the two booleans do not
+#: carry, and it is asked after the provider's own verdict (a refusal is itself
+#: proof the request left) and before the table. ``FAILED``: nothing ran.
+PROVIDER_UNAVAILABLE_OUTCOME = TurnOutcome(
+    ExecutionState.FAILED, ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
+)
+
 
 def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> bool:
     """Did ``exc`` end this turn on its declared WALL budget?
@@ -547,7 +578,7 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 
 
 def classify_turn_failure(
-    exc: BaseException, *, provider_submitted: bool
+    exc: BaseException, *, provider_submitted: bool, request_started: bool = True
 ) -> TurnOutcome:
     """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing.
 
@@ -556,6 +587,14 @@ def classify_turn_failure(
     table is what is left when neither spoke. The budget is asked first because
     a turn killed at its own deadline never received a provider answer at all —
     whatever the request would have done is moot once we stopped waiting.
+
+    ``request_started`` is the PHASE evidence (D2.02): did the request leave
+    the process? ``provider_submitted`` is set when the boundary is journaled,
+    BEFORE the provider is resolved, so on its own it cannot tell "the answer
+    was lost" from "there was nobody to ask". A boundary crossed with no
+    request started is a known, terminal ``provider_unavailable``. The default
+    is the conservative answer for a caller with no phase evidence: assume the
+    request may have started, which keeps ``outcome_unknown`` honest.
     """
 
     budget_tripped = wall_budget_exceeded(exc, provider_submitted=provider_submitted)
@@ -563,6 +602,15 @@ def classify_turn_failure(
         refusal = provider_refusal(exc)
         if refusal is not None:
             return replace(PROVIDER_REFUSED_OUTCOME, provider_refusal=refusal)
+        if not request_started:
+            return replace(
+                PROVIDER_UNAVAILABLE_OUTCOME,
+                provider_refusal=ProviderRefusal(
+                    status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
+                    reason=PROVIDER_UNAVAILABLE_REASON,
+                    message=_text(str(exc)),
+                ),
+            )
     return _FAILURE_TABLE[(budget_tripped, provider_submitted)]
 
 
@@ -882,7 +930,8 @@ def _guard_turn_outcome_vocabulary() -> None:  # pragma: no cover - import contr
     # precisely the thing a table-shaped guard stops seeing, so it is named
     # here rather than left to the reader to notice.
     for key, outcome in list(_FAILURE_TABLE.items()) + [
-        ("PROVIDER_REFUSED_OUTCOME", PROVIDER_REFUSED_OUTCOME)
+        ("PROVIDER_REFUSED_OUTCOME", PROVIDER_REFUSED_OUTCOME),
+        ("PROVIDER_UNAVAILABLE_OUTCOME", PROVIDER_UNAVAILABLE_OUTCOME),
     ]:
         if outcome.execution_state not in states:
             raise RuntimeError(

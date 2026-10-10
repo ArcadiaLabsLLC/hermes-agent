@@ -35,6 +35,7 @@ from agent_runtime.mission_chat_outcome import (
     MISSION_CHAT_EXIT_FAILURE,
     MISSION_CHAT_EXIT_OK,
     OK_EXECUTION_STATES,
+    PROVIDER_UNAVAILABLE_OUTCOME,
     TurnOutcome,
     classify_turn_failure,
 )
@@ -75,6 +76,8 @@ CHAT_ERROR_KIND_WIRE = {
     "CHAT_TURN_BUDGET_EXHAUSTED": "chat_turn_budget_exhausted",
     "CHAT_TURN_OUTCOME_UNKNOWN": "chat_turn_outcome_unknown",
     "CHAT_TURN_PROVIDER_REFUSED": "chat_turn_provider_refused",
+    # D2.02: the boundary was crossed but the request never left the process.
+    "CHAT_TURN_PROVIDER_UNAVAILABLE": "chat_turn_provider_unavailable",
     "CHAT_TURN_NOT_SUBMITTED": "chat_turn_not_submitted",
     "CHAT_TURN_RESOLUTION_MISMATCH": "chat_turn_resolution_mismatch",
     "CHAT_TURN_DUPLICATE_IN_FLIGHT": "chat_turn_duplicate_in_flight",
@@ -289,6 +292,56 @@ def test_a_failed_turn_always_exits_two():
         assert outcome.exit_code == MISSION_CHAT_EXIT_FAILURE
     assert MISSION_CHAT_EXIT_OK == 0
     assert MISSION_CHAT_EXIT_FAILURE == 2
+
+
+def test_a_boundary_crossed_with_no_request_started_is_provider_unavailable():
+    """D2.02: ``provider_submitted`` is journaled before the provider resolves, so
+    a turn whose request never left the process is KNOWN, not ambiguous."""
+
+    outcome = classify_turn_failure(
+        RuntimeError("No LLM provider configured."),
+        provider_submitted=True,
+        request_started=False,
+    )
+    assert (outcome.execution_state, outcome.error_kind) == (
+        ExecutionState.FAILED,
+        ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
+    )
+    block = outcome.provider_refusal.as_dict()
+    assert block == {
+        "status_code": 0,
+        "reason": "provider_unavailable",
+        "message": "No LLM provider configured.",
+    }
+    assert "needs NO turn-resolve" in outcome.provider_refusal.next_expected()
+
+
+def test_the_phase_rule_ranks_below_the_budget_and_the_provider_verdict():
+    """A wall-budget death and a provider-authored refusal outrank the phase: the
+    first is what the harness knows, the second is itself proof the request left."""
+
+    wall = classify_turn_failure(
+        _budget_error(wall_budget={"trigger": "wall_budget_hard_wall"}),
+        provider_submitted=True,
+        request_started=False,
+    )
+    assert wall.error_kind is ChatErrorKind.CHAT_TURN_BUDGET_EXHAUSTED
+    refused = classify_turn_failure(
+        _refusal_error(status_code=429, reason="usage_limit_reached"),
+        provider_submitted=True,
+        request_started=False,
+    )
+    assert refused.error_kind is ChatErrorKind.CHAT_TURN_PROVIDER_REFUSED
+    # Not submitted at all is still the retryable `not_submitted` row.
+    unsent = classify_turn_failure(
+        RuntimeError("x"), provider_submitted=False, request_started=False
+    )
+    assert unsent.error_kind is ChatErrorKind.CHAT_TURN_NOT_SUBMITTED
+    # A started request whose answer is lost keeps its meaning.
+    lost = classify_turn_failure(
+        RuntimeError("x"), provider_submitted=True, request_started=True
+    )
+    assert lost.error_kind is ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN
 
 
 def test_turn_outcome_is_immutable():
@@ -641,6 +694,9 @@ def test_every_owned_member_has_a_producer_in_the_cli_lane():
     for row in FAILURE_TABLE:
         spelled.add(row[2].name)
         spelled.add(row[3].name)
+    # ...plus the classifier's phase rule (D2.02), produced the same way.
+    spelled.add(PROVIDER_UNAVAILABLE_OUTCOME.execution_state.name)
+    spelled.add(PROVIDER_UNAVAILABLE_OUTCOME.error_kind.name)
     # ...plus the declared literal exception.
     for member in DECLARED_LITERAL_EXCEPTIONS.values():
         spelled.add(member.name)

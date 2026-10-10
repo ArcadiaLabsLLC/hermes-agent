@@ -209,6 +209,9 @@ def _wall_budget_provider(wall_budget):
             pass
 
         def mission_chat_reply(self, *args, **kwargs):
+            # A budget trips while the agent RUNS: the request has left the
+            # process (the runner's agent-ready handoff) before any budget can.
+            kwargs["agent_ready_callback"](object())
             raise RunBudgetExceeded(
                 "wall budget exhausted after 240s", wall_budget=wall_budget
             )

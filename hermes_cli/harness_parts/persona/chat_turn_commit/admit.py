@@ -13,7 +13,11 @@ from agent_runtime.operator_message import OperatorMessageInvalid, normalize_ope
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
-from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
+from agent_runtime.mission_chat_outcome import (
+    PROVIDER_UNAVAILABLE_REASON,
+    ChatErrorKind,
+    ExecutionState,
+)
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
@@ -85,6 +89,16 @@ def _provider_refused_payload(turn) -> dict[str, Any]:
     }
     if isinstance(refusal_block, dict):
         data["provider_refusal"] = refusal_block
+        if refusal_block.get("reason") == PROVIDER_UNAVAILABLE_REASON:
+            # D2.02: the harness-authored block — the request never left Hermes.
+            # A resend gets the same typed pair the first attempt settled with.
+            data.update(
+                {
+                    "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
+                    "error": "no model provider could take this turn and it never ran; it is settled and needs no resolution",
+                    "next_expected": "configure a provider for this profile, then send a new client_message_id; no turn-resolve is required",
+                }
+            )
     return data
 
 

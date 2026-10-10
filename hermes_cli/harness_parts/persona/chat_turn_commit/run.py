@@ -380,6 +380,7 @@ class _RunPhases:
             )
             return handle.close
         finally:
+            self.provider_request_started = True
             turn_phases.mark("provider_request_started")
 
     def _write_ahead(self) -> None:

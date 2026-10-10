@@ -93,6 +93,10 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
         # is unchanged for every healthy send — its presence is the whole signal.
         self.finalization_warnings: list[FinalizationWarning] = []
         self.provider_submitted = False
+        # D2.02: did the request actually leave the process? Set by the runner's
+        # agent-ready callback, the handoff to the model turn. A fact of its own,
+        # never read off ``turn_phases`` (that instrument decides nothing).
+        self.provider_request_started = False
         self.terminal_outcome = None
 
     def _warn(self, kind, detail: object, *, step: str | None = None) -> None:

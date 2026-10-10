@@ -52,6 +52,8 @@ def _refusing_provider(**provider_error):
             pass
 
         def mission_chat_reply(self, *args, **kwargs):
+            # The provider answered, so the request left the process first.
+            kwargs["agent_ready_callback"](object())
             raise ProfileRunnerError(
                 LIVE_SUMMARY, provider_error=provider_error or None
             )
