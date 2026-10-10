@@ -123,6 +123,11 @@ def test_level_mutations_are_console_and_reads_are_read() -> None:
     assert tiers["runtime.map.get"] == TIER_CONSOLE
     assert tiers["runtime.map.set"] == TIER_CONSOLE
     assert tiers["runtime.map.clear"] == TIER_CONSOLE
+    # D2.05: the settle outbox. Both console: a settle names a chat session and
+    # a turn, and ``read`` is a paired viewer device — the list as much as the
+    # re-arm (design-sweep-d2 § D2.05).
+    assert tiers["runtime.settles.list"] == TIER_CONSOLE
+    assert tiers["runtime.settles.rearm"] == TIER_CONSOLE
 
 
 def test_adding_the_tiers_block_did_not_move_the_contract_integer() -> None:

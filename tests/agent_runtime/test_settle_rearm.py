@@ -177,3 +177,42 @@ def test_the_serve_pushes_a_rearmed_settle_on_its_next_tick(monkeypatch):
     assert frame["settle_id"] == record.settle_id
     assert frame["client_message_id"] == CMID
     assert frame["attempt"] == 1
+
+
+# ── the method lane (D2.05 S2) ──────────────────────────────────────────────
+
+
+def _rpc(pipe, sink, rid, method, params):
+    pipe.send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+    return _wait(lambda: [f for f in sink.frames() if f.get("id") == rid and "jsonrpc" in f])[0]
+
+
+def test_list_and_rearm_round_trip_through_the_method_lane(monkeypatch):
+    monkeypatch.setattr(
+        "hermes_cli.harness_parts.serve.settle_push.SETTLE_PUSH_TICK_SECONDS", 0.02
+    )
+    record = _undelivered_by_budget()
+    with _stdio_serve() as (pipe, sink):
+        listed = _rpc(pipe, sink, "l1", "runtime.settles.list", {"state": "undelivered"})
+        assert listed["result"]["counts"]["undelivered"] == 1
+        assert [r["settle_id"] for r in listed["result"]["settles"]] == [record.settle_id]
+
+        rearmed = _rpc(pipe, sink, "r1", "runtime.settles.rearm",
+                       {"client_message_id": CMID, "session_id": SESSION})
+        assert rearmed["result"]["rearmed"] is True
+        assert rearmed["result"]["settle"]["rearm_count"] == 1
+        frame = _wait(lambda: _settled_frames(sink))[0]
+        assert frame["settle_id"] == record.settle_id and frame["attempt"] == 1
+
+        again = _rpc(pipe, sink, "r2", "runtime.settles.rearm", {"settle_id": record.settle_id})
+        assert again["result"]["rearmed"] is False  # pending now: a no-op
+        missing = _rpc(pipe, sink, "r3", "runtime.settles.rearm", {"settle_id": "nope"})
+        assert missing["error"]["data"]["reason"] == "settle_not_found"
+        bare = _rpc(pipe, sink, "r4", "runtime.settles.rearm", {})
+        assert bare["error"]["data"]["reason"] == "settle_ref_required"
+        bad = _rpc(pipe, sink, "l2", "runtime.settles.list", {"state": "lost"})
+        assert bad["error"]["data"]["reason"] == "state_invalid"
+        ack_settle(record.settle_id)
+        acked = _rpc(pipe, sink, "r5", "runtime.settles.rearm", {"settle_id": record.settle_id})
+        assert acked["error"]["data"]["reason"] == "settle_acked"
+

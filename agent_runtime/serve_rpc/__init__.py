@@ -50,6 +50,8 @@ chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
+settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
+                                 outbox's operator verbs)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -95,6 +97,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     chat_verbs,
     realm,
     client,
+    settles,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,
