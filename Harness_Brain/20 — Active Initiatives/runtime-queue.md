@@ -695,3 +695,7 @@ implementation is committed and pushed to the existing draft PR #7, paired
 with Launcher #55; reuse those heads rather than starting a parallel owner.
 No row is closed as shipped. Final runtime evidence and baseline findings are
 recorded in the PR's `docs/agent-runtime-harness/planned/console-history-controls.md`.
+
+## Filed on arrival — 2026-10-10 (launcher lane q-turn)
+
+- [ ] **`interrupted` chat turns have no operator resolution: `turn-resolve` accepts only `outcome_unknown` (`agent_runtime/chat_verbs/turn_resolve.py`, `OPERATOR_RESOLVABLE_TURN_STATES`), so a stale "Turn interrupted" card can only be cleared by moving the journal file (the launcher QA tool now archives QA-home files that way); add a dismiss resolution for `interrupted`.** Launcher side: `eternia_launcher/tool/stagec_qa_mcp_server/bin/archive_interrupted_turns.dart` · UNCLAIMED
