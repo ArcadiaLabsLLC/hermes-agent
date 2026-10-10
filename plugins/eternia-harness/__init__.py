@@ -366,6 +366,9 @@ def register(ctx) -> None:
     from agent_runtime.skill_config_cache import install_bounded_skill_config_cache
 
     install_bounded_skill_config_cache()  # one parsed config.yaml per persona home, not one per process
+    from agent_runtime.guardrail_mcp_names import add_registry_spelled_filesystem_reads
+
+    add_registry_spelled_filesystem_reads()  # the no-progress guard reads mcp__filesystem__* names
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
     ctx.register_system_prompt_section("eternia-harness.windows-tooling", render_windows_tooling)
     ctx.register_middleware("llm_request", brief_tool_descriptions)

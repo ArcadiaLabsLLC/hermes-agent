@@ -60,6 +60,14 @@ upstream's separate replay policy. No new transcript store exists. Each window
 currently scans the session; the indexed-lookup improvement is in `runtime-queue`.
 Tests: `tests/agent_runtime/test_chat_content_read.py`.
 
+`runtime.persona.chat.history.search` (same file, same Console tier as the history read) searches one
+conversation's history without loading it: `persona_chat_history/search.py::persona_chat_session_search`
+scans the curated, un-truncated rows the history read pages (the whole compression lineage), so a hit
+never shows text that read hides. Every query term must occur in one message (case-folded substring,
+so CJK needs no tokenizer); hits come newest-first with a snippet and an `open_before` history cursor
+whose page ends at the hit. Upstream's FTS `search_messages` was not used: it reads raw rows and has no
+session filter (L5.05).
+
 The existing SQLite flush seam calls
 `agent_runtime/native_persistence.py::project_native_sidecar` after upstream has
 assembled `api_content`, including synthesized sidecars. New native writes use
