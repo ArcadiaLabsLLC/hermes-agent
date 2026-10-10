@@ -216,11 +216,11 @@ def test_safe_progress_payload_passes_operator_detail_lane():
         "test/a_test.dart",
     ]
     assert payload["skill_name"] == "harness-dev-delivery"
-    # Output keeps line structure; the secret LINE is redacted, not the field.
+    # Output keeps line structure; the secret VALUE is scrubbed, not the line.
     assert "All tests passed!" in payload["output"]
     assert "last line" in payload["output"]
     assert "SECRET-VALUE" not in payload["output"]
-    assert "[redacted line" in payload["output"]
+    assert "api_key=[REDACTED]" in payload["output"]
 
 
 def test_safe_progress_payload_bounds_operator_output_tail():
@@ -885,9 +885,9 @@ def test_safe_progress_payload_keeps_a_patch_artifact_path_containing_spaces():
 
 
 def test_safe_progress_payload_drops_a_secret_bearing_patch_artifact():
-    # Paths are allowed on this field; secrets are not. The operator-line scrub
-    # is what draws that line, and it is the reason this field cannot simply be
-    # declared "pathish and therefore fine".
+    # Paths are allowed on this field; secret VALUES are not. The operator-line
+    # scrub is what draws that line, and it is the reason this field cannot
+    # simply be declared "pathish and therefore fine".
     safe = _safe_progress_payload(
         "run.tool.finished",
         {
@@ -897,7 +897,8 @@ def test_safe_progress_payload_drops_a_secret_bearing_patch_artifact():
         },
     )
 
-    assert "patch_artifact" not in safe
+    assert "SECRET-VALUE" not in safe.get("patch_artifact", "")
+    assert safe["patch_artifact"].startswith("/store/patch_diffs/api_key=[REDACTED]")
 
 
 def test_safe_progress_payload_bounds_the_patch_artifact_at_500():

@@ -709,7 +709,7 @@ def test_progress_adapter_surfaces_operator_command_and_scrubbed_output():
     # Output is surfaced for terminal-class tools, with the secret LINE redacted
     # and the path line kept.
     assert "api_key=SECRET" not in payload["output"]
-    assert "[redacted line" in payload["output"]
+    assert "api_key=[REDACTED]" in payload["output"]
     assert "/home/x/foo/bar.dart" in payload["output"]
     assert payload["exit_code"] == 1
 
@@ -1055,8 +1055,10 @@ def test_progress_adapter_sanitizes_sensitive_tool_names_and_summaries():
             "status": "started",
             "summary": "Started tool",
             # The tool NAME and summary are still withheld. The input record
-            # scrubs secret VALUES only (2026-10-02): a file NAMED for a secret
-            # is a path, not a secret, and the operator sees it.
+            # and the target lane scrub secret VALUES only (2026-10-02, L2.21):
+            # a file NAMED for a secret is a path, not a secret, and the
+            # operator sees it (absolute, so trimmed to its trailing segments).
+            "target_label": "…/Users/example/secret_token.txt",
             "tool_input": 'path: "C:/Users/example/secret_token.txt"',
         }
     ]

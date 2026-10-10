@@ -649,10 +649,10 @@ def _observe_text(value: str, *, limit: int) -> str:
 
 
 def _safe_operator_line(value: str, *, limit: int) -> str | None:
-    """One-line operator-console text: paths allowed, secrets blocked, bounded."""
+    """One-line operator-console text: paths allowed, secret VALUES scrubbed, bounded."""
 
-    text = " ".join(value.strip().split())
-    if not text or _looks_sensitive(text):
+    text = scrub_secret_values(" ".join(value.strip().split()))
+    if not text:
         return None
     return f"{text[: limit - 1]}…" if len(text) > limit else text
 
@@ -688,11 +688,7 @@ def _safe_operator_output_tail(value: str) -> str | None:
     text = value.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return None
-    lines = [
-        "[redacted line — contained a secret]" if _looks_sensitive(line) else line
-        for line in text.split("\n")
-    ]
-    text = "\n".join(lines)
+    text = "\n".join(scrub_secret_values(line) for line in text.split("\n"))
     if len(text) > _OPERATOR_OUTPUT_TAIL_MAX:
         text = f"…(earlier output truncated)…\n{text[-_OPERATOR_OUTPUT_TAIL_MAX:]}"
     return text
@@ -722,8 +718,8 @@ def _safe_operator_path_list(value: list[Any]) -> list[str]:
 
     paths: list[str] = []
     for item in value:
-        text = " ".join(str(item or "").strip().split()).replace("\\", "/")
-        if not text or _looks_sensitive(text):
+        text = scrub_secret_values(" ".join(str(item or "").strip().split()).replace("\\", "/"))
+        if not text:
             continue
         if re.match(r"^([A-Za-z]:/|//|/|~)", text):
             continue
