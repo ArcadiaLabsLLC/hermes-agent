@@ -1,5 +1,7 @@
 # Design sweep D2 — fourteen rows the fix lanes returned as too big (2026-10-10)
 
+**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); build lanes pending.
+
 Lane fable-design-D2. Rows: `lanes-1011d/D2-rows.md` (the queue rows carry the claims).
 One section per row, verdict first: **PLAN** (implementation-ready for an Opus lane),
 **PROGRAM-EXISTS** (a plan already owns it), **INVESTIGATION** (the cause is unknown; the

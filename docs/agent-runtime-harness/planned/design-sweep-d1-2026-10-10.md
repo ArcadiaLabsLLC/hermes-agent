@@ -1,5 +1,7 @@
 # Design sweep D1 — admission memo, prewarm and import cost, cancel / params / spawn ownership, preload and slot caches (2026-10-10)
 
+**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); build lanes pending.
+
 Lane fable-design-D1. Twelve runtime-queue rows a fix lane returned as too big or a design
 job, each read against the code before a verdict. Verdicts: **PLAN** (implementation-ready
 for an Opus build lane), **PROGRAM-EXISTS** (a plan already owns it), **INVESTIGATION** (the

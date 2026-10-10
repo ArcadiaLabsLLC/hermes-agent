@@ -1,5 +1,7 @@
 # Design sweep D3 — suite isolation, timing flakes, footprint, release-gate scope (2026-10-10)
 
+**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); build lanes pending.
+
 Lane fable-design-D3 over the 17 rows a lane-1010 fix lane returned as too big
 (`Harness_Brain/20 — Active Initiatives/queue-sweep-2026-10-10/D3-rows.md` is the sheet;
 each `Ln.NN` is that lane's outcome line). Design only: no production or test code changed
@@ -169,7 +171,7 @@ no reason and no manifest entry — exactly what happened.
   `test_duplicate_helper_bodies` goes green on it); ledger rows rewritten for all eight;
   `tests/fixtures/upstream_footprint.json` regenerated in the same commit (files 185 → 182
   expected; `reasons` rows for the two held carries).
-- GATE: `tests/scripts/test_upstream_footprint.py::test_no_ledger_row_is_unreviewed_or_unledgered`
+- GATE (new test, to be written): `tests/scripts/test_upstream_footprint.py::test_no_ledger_row_is_unreviewed_or_unledgered`
   — red when any ledger row's reason starts `unreviewed` or contains `landed unledgered`.
   A negative source-walk over the ledger, which is the artefact itself, so over-approximation
   is the safe direction. Killing mutation: run `scripts/upstream_footprint.py --ledger` after
