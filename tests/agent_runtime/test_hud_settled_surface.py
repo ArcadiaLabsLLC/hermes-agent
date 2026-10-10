@@ -83,3 +83,41 @@ def test_a_not_computed_receipt_and_no_registry_cost_the_line_never_the_turn(reg
     assert settled_surface_receipt("chat-root-1", signature="sig") is None
     context = _build()
     assert _LINE not in context.volatile_tail.content and context.volatile_tail.content
+
+
+def test_the_peek_never_waits_on_another_roots_actor_build(registry):
+    """``acquire`` holds the registry lock across ``factory()`` (seconds, for an MCP-admitting
+    build or a prewarm). The HUD read runs on every turn's context build, so it must not
+    queue behind another root's build: the peek is lock-free."""
+
+    import threading
+
+    from agent_runtime.chat_lane_tool_form import settled_surface_receipt
+
+    _resident(registry, root="chat-root-1", signature="sig", receipt=_RECEIPT)
+    building, release = threading.Event(), threading.Event()
+
+    def _slow_factory():
+        building.set()
+        release.wait(10)
+        return SimpleNamespace()
+
+    builder = threading.Thread(
+        target=lambda: registry.acquire(root_session_id="other-root", active_session_id="other-root",
+                                        signature="s2", revision="r", factory=_slow_factory),
+        daemon=True,
+    )
+    builder.start()
+    try:
+        assert building.wait(5)
+        result: list = []
+        reader = threading.Thread(
+            target=lambda: result.append(settled_surface_receipt("chat-root-1", signature="sig")),
+            daemon=True,
+        )
+        reader.start()
+        reader.join(1.0)
+        assert result == [_RECEIPT], "the HUD read waited on another root's actor build"
+    finally:
+        release.set()
+        builder.join(5)
