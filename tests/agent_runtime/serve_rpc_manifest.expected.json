@@ -193,6 +193,7 @@
       "persona_id",
       "persona_instance_id",
       "provider",
+      "retry_of",
       "session_id",
       "stream",
       "surface_prompt",

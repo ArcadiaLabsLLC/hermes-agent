@@ -97,6 +97,8 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
         # agent-ready callback, the handoff to the model turn. A fact of its own,
         # never read off ``turn_phases`` (that instrument decides nothing).
         self.provider_request_started = False
+        # D2.04: the reply-less terminal turn this send re-runs, once admitted.
+        self.retry_of: str | None = None
         self.terminal_outcome = None
 
     def _warn(self, kind, detail: object, *, step: str | None = None) -> None:
@@ -132,6 +134,8 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
         code = self._bind_instance()
         if code is None:
             code = self._answer_prior_attempt()
+        if code is None:
+            code = self._admit_retry()
         if code is not None:
             return code
         self._build_context()

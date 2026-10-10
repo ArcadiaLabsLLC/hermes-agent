@@ -390,6 +390,44 @@ class _AdmitPhases:
         self.journal = journal
         self.journal_state = journal_state
 
+    def _admit_retry(self) -> int | None:
+        """D2.04: a send carrying ``retry_of`` re-runs a reply-less terminal turn of THIS root.
+
+        Checked after the prior-attempt answer (a replay of this id is answered
+        from its own record) and before the write-ahead, so a refused retry
+        leaves no journal record. The value is stamped on the write-ahead only.
+        """
+
+        from agent_runtime.persona_chat_history.vocabulary import TERMINAL_TURN_MARKERS
+
+        retry_of = safe_assignment_text(getattr(self.args, "retry_of", None), limit=240)
+        if not retry_of:
+            return None
+        target = None
+        if retry_of != self.client_message_id:
+            target = mission_chat_turn_record(session_id=self.session_id, client_message_id=retry_of)
+        target_state = safe_assignment_token((target or {}).get("state")) or None
+        if target_state in TERMINAL_TURN_MARKERS:
+            self.retry_of = retry_of
+            return None
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.REJECTED,
+            "error_kind": ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
+            "persona_instance_id": self.instance.id,
+            "persona_id": self.normalized_persona,
+            "session_id": self.session_id,
+            "root_chat_session_id": self.session_id,
+            "client_message_id": self.client_message_id,
+            "retry_of": retry_of,
+            "retry_target_state": target_state,
+            "error": "retry_of names no interrupted or budget-exhausted turn of this chat",
+            "next_expected": "send the message again without retry_of; nothing was run",
+        }
+        _mission_chat_emit(self.args, data)
+        return 2
+
     def _answer_prior_attempt(self) -> int | None:
         """Answer from the prior attempt when it already speaks for this id; ``None`` to run the turn."""
 

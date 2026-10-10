@@ -5725,6 +5725,14 @@
           "required": false,
           "type": null
         },
+        "--retry-of": {
+          "action": "store",
+          "canonical": "--retry-of",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--session-id": {
           "action": "store",
           "canonical": "--session-id",

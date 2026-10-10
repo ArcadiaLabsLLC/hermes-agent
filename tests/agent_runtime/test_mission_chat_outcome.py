@@ -64,6 +64,8 @@ CHAT_ERROR_KIND_WIRE = {
     "PERSONA_INSTANCE_MISMATCH": "persona_instance_mismatch",
     "RETIRED_PERSONA_INSTANCE": "retired_persona_instance",
     "INVALID_CHAT_MODEL_OVERRIDE": "invalid_chat_model_override",
+    # D2.04: a retry_of that names no reply-less terminal turn of the root.
+    "CHAT_TURN_RETRY_TARGET_INVALID": "chat_turn_retry_target_invalid",
     "UNKNOWN_CHAT_SESSION": "unknown_chat_session",
     "FOREIGN_CHAT_SESSION": "foreign_chat_session",
     "CHAT_BUSY": "chat_busy",

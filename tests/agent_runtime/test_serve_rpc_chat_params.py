@@ -246,6 +246,30 @@ def test_a_malformed_new_key_is_refused_with_a_machine_readable_reason(params, r
 
 
 
+def test_retry_of_rides_the_turn_as_its_own_flag():
+    """D2.04: the interrupted turn a send re-runs, lowered to ``--retry-of``."""
+
+    assert _message(session_id="root-1", retry_of="cm-old") == [
+        *BASE_ARGV, "--session-id", "root-1", "--retry-of", "cm-old",
+    ]
+
+
+def test_retry_of_without_a_session_is_refused_at_the_door():
+    """A retry always lives in an existing root; with no ``session_id`` it can
+    name nothing, so the door refuses it rather than mint a thread for it."""
+
+    body = {"turn_request_id": "k1", "persona_id": "neko", "message": "hi", "retry_of": "cm-old"}
+    with pytest.raises(ChatTurnInvalid) as caught:
+        normalize_chat_message(body)
+    assert caught.value.reason == "retry_of_requires_session"
+    outcome = perform_chat_turn(body, verb=CHAT_MESSAGE_METHOD, spawn=lambda *_: None)
+    assert outcome.refusal.code == serve_rpc.ERR_INVALID_PARAMS
+    assert outcome.refusal.data["reason"] == "retry_of_requires_session"
+    bad = dict(body, session_id="root-1", retry_of=7)
+    outcome = perform_chat_turn(bad, verb=CHAT_MESSAGE_METHOD, spawn=lambda *_: None)
+    assert outcome.refusal.data["reason"] == "retry_of_invalid"
+
+
 def test_an_unknown_param_is_still_ignored_rather_than_refused():
     """The contract R-C8 leaves alone, and the reason the ``params`` block had
     to exist: a runtime cannot refuse a client for a key it does not know, so
@@ -294,6 +318,7 @@ _EVERY_MESSAGE_PARAM = {
     "clarify_token": "clr_9f2a",
     "surface_prompt": "be brief",
     "intent_hint": "plan",
+    "retry_of": "cm-interrupted",
 }
 
 _EVERY_STEER_PARAM = {

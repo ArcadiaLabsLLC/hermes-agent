@@ -161,6 +161,10 @@ class ChatErrorKind(StrEnum):
     PERSONA_INSTANCE_MISMATCH = "persona_instance_mismatch"
     RETIRED_PERSONA_INSTANCE = "retired_persona_instance"
     INVALID_CHAT_MODEL_OVERRIDE = "invalid_chat_model_override"
+    #: D2.04: ``retry_of`` names no interrupted / budget-exhausted turn of THIS
+    #: root (absent, another state, or the send itself). A retry of a completed
+    #: turn is "regenerate", out of scope; the client falls back to a plain send.
+    CHAT_TURN_RETRY_TARGET_INVALID = "chat_turn_retry_target_invalid"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -217,6 +221,7 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.PERSONA_INSTANCE_MISMATCH,
         ChatErrorKind.RETIRED_PERSONA_INSTANCE,
         ChatErrorKind.INVALID_CHAT_MODEL_OVERRIDE,
+        ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(
