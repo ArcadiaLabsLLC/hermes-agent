@@ -40,3 +40,25 @@ def test_tool_diff_prints_the_split(bound_profile_home, capsys):  # noqa: F811
     for state in ("deferred", "unavailable"):
         for reason in {row["reason"] for row in surface[state].values()}:
             assert f"{state} ({reason})" in out, (state, reason)
+
+
+def test_tool_diff_computes_the_surface_once(bound_profile_home, capsys, monkeypatch):  # noqa: F811
+    """Owner ruling 2026-10-09: one surface per preview. The bundle's capability account no
+    longer computes a preview surface (the HUD reads the settled receipt), so a fresh bundle
+    build plus ``_preview_tool_surface`` is ONE ``compute_tool_surface``, not two."""
+
+    import agent_runtime.tool_surface as tool_surface
+    from agent_runtime.chat_lane_bundle import invalidate_chat_lane_bundles
+
+    _seed_persona()
+    calls = []
+    real = tool_surface.compute_tool_surface
+    monkeypatch.setattr(tool_surface, "compute_tool_surface",
+                        lambda **kw: calls.append(kw) or real(**kw))
+    invalidate_chat_lane_bundles()
+
+    assert _tool_diff("dev", "--json") == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["tool_surface"]["contract_source"] == "chat_lane_bundle"
+    assert len(calls) == 1, f"{len(calls)} surface computes for one preview"

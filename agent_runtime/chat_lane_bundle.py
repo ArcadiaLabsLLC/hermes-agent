@@ -574,9 +574,7 @@ def _build_bundle(
     # changed".
     degraded: list[str] = []
     try:
-        capability = capability_block_for_persona(
-            persona, session_id=session_id, tool_contract=tool_contract
-        ) or {}
+        capability = capability_block_for_persona(persona, session_id=session_id) or {}
     except Exception as exc:
         logger.debug("chat-lane capability account unavailable for this turn", exc_info=True)
         capability = {}
