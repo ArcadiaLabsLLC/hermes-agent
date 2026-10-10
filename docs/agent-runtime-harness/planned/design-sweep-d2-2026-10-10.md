@@ -19,6 +19,12 @@ Verdict table (filled as batches land):
 | D2.06 = L4.30 | DROP | the mechanism landed: `persona_chat_turn` overlay carries `running_work` at start (h-turn1 C2) and `running_work_frame` ships at end; the yield docstring is what is stale |
 | D2.07 = L1.25 | PLAN | `worker_app_functions.create_agent` is the one native factory chokepoint: resolve `permission_options_for_chat` there, keyed `profile:<name>` until an instance owns the route |
 | D2.08 = L2.26 | PROGRAM-EXISTS | `instance-conversations-2026-10-01.md` § Remaining before cutover; next stage is the parity qualification, with D2.07 as its permission arm |
+| D2.09 = L3.07 | PLAN | the fork modules already exist (`tui_gateway/session_execution.py` and five siblings); two MOVE clusters shrink 7 files to one-line call sites, three files are door PRs, not moves |
+| D2.10 = L4.25 | PLAN | four read-tier twins over the existing payload builders; pixels as the `runtime.media.get` block shape, bounded by `withinConsoleBudget`; one MOVE first |
+| D2.11 = L4.26 | PLAN | six console-tier twins in `serve_rpc/board.py` over `BoardStore`, the office write twin as template; no fold in this lane |
+| D2.12 = L2.28 | PLAN | the THIRD whole-document family files the class: `realm_sync/document_family.py` carries level, map and prefab; prefab is one descriptor |
+| D2.13 = L1.27 | PROGRAM-EXISTS | `eternia-lens-in-hermes.md` §5 L0; all four §6 rulings given 2026-10-02; nothing under `agent_runtime/lens/` yet |
+| D2.14 = L1.30 | PROGRAM-EXISTS | `phone-gate-to-zero-plan-2026-09-30.md`; G2/G3/G6 landed (gate 164 → 16 before G6); next is a re-take, then G5 on the owner's D2–D5 |
 
 ---
 
@@ -563,3 +569,158 @@ contracts and current-account history, qualified end to end before any Launcher 
 profile worker retires. This sweep adds two arms to that stage without new design:
 D2.01 (reviewed files — the "attachment parity" item) and D2.07 (permission mode). The row
 stays; it is the program's pointer. No owner question.
+
+---
+
+## D2.09 = L3.07 — Native conversation recovery lives inside ~15 upstream `tui_gateway/` files
+
+**Verdict: PLAN** — a MOVE program of two clusters plus a PR cluster, after the next release
+merge lands (the row's own gate). Size: cluster A ~−120/+40 lines across 4 upstream files,
+cluster B ~−60/+20 across 3; the PR cluster moves nothing.
+
+### What the code says (the row's premise is half stale)
+
+The fork module that owns recovery EXISTS, as six fork-only files inside the upstream package
+directory (not in `upstream/main`): `tui_gateway/session_execution.py` (the execution fence:
+`admit`, `submitted`, `uncertain`, `rejected`, `snapshot`, `request_stop`, `interrupt`, `adopt`,
+`control`, `checkpoint_guard`), `session_recovery.py`, `session_retirement.py`,
+`recovery_history.py`, `recovery_history_delivery.py`, `answer_receipts.py`, plus
+`contracts/recovery.py`, `inflight_recovery.py`, `execution_result.py`,
+`compute_model_selection.py`. What remains in upstream files is the CALL SITES, and
+`git diff upstream/main -- tui_gateway/` shows them in three shapes:
+
+| file (ledger +/−) | fork hunks | shape | disposition |
+|---|---|---|---|
+| `compute_host.py` (46/5) | `_handle_observe` (12-line method), the `expected_execution_id` interrupt arm, the turn-start `adopt`/`control` block + `_persist_session_row_for_submit` refusal, `@session_construction`, `"observe"` route entry | additive bodies | **MOVE A**: bodies → `session_recovery.handle_observe(server, frame, reply)` and `session_execution.begin_turn(server, sid, session, frame, reply) -> bool`; each site one line |
+| `compute_host_bridge.py` (30/7) | `_answer_compute_host_request` (ack/expired protocol), `_compute_host_active` on native execution | mixed: a rewrite of `_relay_compute_host_response`'s tail | **MOVE A** for the new function (→ `answer_receipts`); the 7 deleted lines are a door: upstream's relay drops the ack — PR candidate "answer acknowledgement result" |
+| `prompt_turn.py` (39/18) | `submitted`/`rejected`/`uncertain` calls, `admit` on `execution_id`, `reject_if_busy`, cancel-requested completion, `spawn_context_thread` | 1–3-line calls already | **leave**: already one-liners; the 18 deletions are the `reject_if_busy` carry (ledger S2) |
+| `session_lifecycle.py` (13/3), `session_reaper.py` (11/2), `session_auto_continue.py` (1/1) | `control(session)` inside the work scope; `close_app_functions`, `discard_history`, `forget_session` on finalize; `observe_only` skips | 1–2-line calls | **MOVE B**: the three finalize calls → one `session_retirement.on_finalize(session)`; the rest stays as single lines |
+| `methods_session.py` (17/7) | `observe_only` threading into the resume ctor (`lazy or observe_only`, `record["observe_only"]`, `retire` skipped, `child_history(repair=not observing)`), `@session_construction` on the branch build | in-place flag threading | **door PR**: `observe_only` on `session.resume` upstream (ledger: carry until then) |
+| `event_replay.py` (20/0) | `checkpoint(sid, last_seen, include_events)`, `forget_session` over module privates | additive functions on private state | **door PR**: a replay checkpoint API; cannot move without reaching `_replay_lock` |
+| `server_requests.py` (11/2) | `AnswerReceipts` hook in `resolve_response(session_id=)` | 3 in-place lines | **door PR** with the bridge's ack result |
+| `rpc_dispatch.py` (34/24) | `_enqueue_rpc` (retirement hold on queued work) + `_relay_response` onto the pool | a RESTRUCTURE of upstream's enqueue | **door PR** ("queued RPC work holds retirement"); not movable |
+| `contracts/sessions.py` (3/0) | `observe_only`, `expected_execution_id`, `include_events` fields | additive contract fields | rides the `observe_only` PR |
+
+So: seven files get smaller by MOVE; four need upstream doors and are PR rows in the ledger,
+not lanes. The ~15-file count in the row includes the fork-only modules themselves.
+
+### Stages (one MOVE commit each, no CHANGE)
+
+| lane | files | done-test | killing mutation |
+|---|---|---|---|
+| MOVE A (compute host) | `compute_host.py`, `compute_host_bridge.py` → `session_recovery.py`, `session_execution.py`, `answer_receipts.py` | `tests/tui_gateway/test_compute_host*.py`, `tests/agent_runtime/test_native_conversation_worker.py`, `test_native_conversation_roundtrip.py` byte-identical before/after; `[up-fp]` line for the two files drops | — (a move; the existing recovery tests are the gate) |
+| MOVE B (lifecycle) | `session_lifecycle.py`, `session_reaper.py` → `session_retirement.on_finalize` | `test_native_conversation_retention.py` | drop `forget_session` from `on_finalize` → the replay buffer survives retirement → red |
+| PR cluster | `methods_session.py`, `event_replay.py`, `server_requests.py`, `rpc_dispatch.py` | three ledger rows named `door PR` with the hunk inventory above | — |
+
+Owner question: none. Risk: the daily integration branch resolves these files on every merge;
+the MOVE must land between two merges and the rerere cache re-trained after it.
+
+---
+
+## D2.10 = L4.25 — Read twins `runtime.characters.list/status/thumb/sprite`
+
+**Verdict: PLAN.** Size: one MOVE (~120 lines relocated), one CHANGE (~180 production, ~220
+test lines), 2 stages + launcher.
+
+### What the code says
+
+- The four argv verbs are thin: `hermes_cli/harness_parts/characters/commands.py`
+  `_cmd_characters_list` → `CharacterDraft.list_drafts()` + `_characters_draft_summary` /
+  `_characters_installed_rows` (`characters/payloads.py`); `_cmd_characters_status` →
+  `CharacterDraft.load(id).status_payload()` (`agent/charsheet/draft/status.py`);
+  `_cmd_characters_thumb` → `draft.row_thumb` / `draft.direction_thumb`
+  (`agent/charsheet/draft/thumbs.py`), answering a PATH by design (plan A-4: the launcher reads
+  the disk) plus `withinConsoleBudget` / `withinOwnSheet`; `_cmd_characters_sprite` →
+  `agent/charsheet/draft/installed.py::sprite_payload(slug, include_sheet)`, which inlines
+  `spritesheetBase64` (468 KiB on the live sheet) unless `--no-sheet`. `agent/charsheet/` is
+  fork-owned. `_characters_emit` adds the draftsman block to every payload.
+- The media-style pixel payload already has one shape: `serve_rpc/media.py::_media_get_frame`
+  → `{contract, handle, media_type, size_bytes, encoding: "base64", data}` (`MEDIA_CONTRACT`).
+- The launcher sites are WARM (`dispatch_argv` through serve; census rows 16–19), so the twin
+  buys a typed contract and remote (Mac) readability — a path answer is useless off-box.
+
+### The design decisions
+
+1. **One MOVE first**: `_characters_draft_summary`, `_characters_installed_rows` and the
+   draftsman block builder leave `hermes_cli/harness_parts/characters/payloads.py` for
+   `agent/charsheet/draft/payloads.py` (fork-owned, importable from `agent_runtime`); the argv
+   handlers call the moved names. `agent_runtime` must not import `hermes_cli`.
+2. **Four methods, `TIER_READ`** (views; the census marks all four R), in
+   `agent_runtime/serve_rpc/characters.py`: `list` (no params) and `status` (`draft`) return
+   the argv payloads verbatim; `thumb` (`draft`, `row` | `direction`, `attempt`, `frame`,
+   `scale`, `square`) returns the crop result dict PLUS `media`: the `_media_get_frame` block
+   (extracted to `media_handles.media_block(data, media_type)` so the shape has one owner)
+   when `withinConsoleBudget`, else `media: null` and the existing `path` + which bound was
+   missed; `sprite` (`slug`, `include_sheet`) returns the metadata-only `sprite_payload` and,
+   when asked, `sheet_media` as the same block in place of a bare base64 string. The argv
+   payload shapes do not change.
+3. **Refusals** map `_CHARACTERS_EXPECTED` to `ERR_INVALID_PARAMS` / `ERR_HANDLER_FAILED` with
+   the same `reason` codes `_characters_error` already emits (one vocabulary).
+4. Honoured keys are module constants (`CHARACTERS_*_PARAMS`) so the manifest `params` block
+   can publish them (the L4.22 ruling's mechanism, D1/D3's lane).
+
+### Stages, tests, killing mutation
+
+| stage | test | killing mutation |
+|---|---|---|
+| MOVE | `tests/agent_runtime/test_serve_charsheet_fake_draftsman_child_e2e.py` + the characters CLI tests byte-identical | — |
+| CHANGE | `tests/agent_runtime/test_serve_rpc_characters.py` (new): each twin equals its argv payload; thumb over budget → `media: null` + path; tier test (all `read`) | skip the budget check → an over-ceiling crop ships inline → red; register `thumb` at `console` → tier test red |
+| launcher | `hermes_character_client.dart` list/readStatus/thumb/sprite RPC-first, argv on Unavailable | — |
+
+Owner question: none.
+
+---
+
+## D2.11 = L4.26 — `runtime.board.card.add/move/edit/archive/restore`, `runtime.board.resolve_conflict`
+
+**Verdict: PLAN.** Size: one MOVE (~90 lines), one CHANGE (~220 production, ~260 test), 2
+stages + launcher. The 2026-08-22 plan `board-surface-rpc-lane.md` asked "measure before
+designing" because the argument was spawn latency; the 2026-10-03 census retired that argument
+(the sites are warm through `dispatch_argv`) and the standing RPC-first ruling makes the twin
+the lane. Its other two rules still bind: refusals terminal, the ack echoes store truth; and
+**no fold in this lane** (rule 3: a fold needs a producer inside the store lock — a follow-on
+row).
+
+### What the code says
+
+- `hermes_cli/harness_parts/board.py` `_cmd_board_card_*` / `_cmd_board_resolve_conflict` are
+  thin over `agent_runtime/board_store/store.py::BoardStore.add_card / edit_card / move_card /
+  archive_card / restore_card / resolve_conflict`; they project with `_card_row(card,
+  full=True)` (and `_board_row`, `_column_kind`) which live in the CLI module.
+- The store raises typed errors: `errors.NotFound`, `errors.AlreadyExists`,
+  `store_conflicts.check_revision` → `errors.StaleRevision`, `ValueError("invalid_request")`,
+  and `card_mechanics.IdempotentReplayUnresolved` / `IdempotencyKeyVerbMismatch`. It already
+  takes `expect_revision` and `idempotency_key`.
+- The template is `serve_rpc/office_surface_writes.py::_runtime_office_surface_update`:
+  validate params → store call → `office_errors.translate(exc, TABLE, scope)` →
+  `log_office_write` → ack with the store's normalized row and post-write revision.
+
+### The design decisions
+
+1. **MOVE first**: `_card_row`, `_board_row`, `_column_kind`, `_board_active_card_count` →
+   `agent_runtime/board_store/rows.py`; the CLI imports them.
+2. **Six methods, `TIER_CONSOLE`**, in `agent_runtime/serve_rpc/board.py`, params = the argv
+   flags by name (`board_id`, `workspace_id`, `title`, `description`, `column_id`, `priority`,
+   `labels` (list), `assignee`, `clear_assignee`, `before`/`after`, `take`, `expect_revision`,
+   `idempotency_key`, `correlation_id`); result = `{"card": rows.card_row(card, full=True)}`
+   from the STORE's return (never the request echoed). `resolve_conflict` with an archived
+   outcome answers `{"card": null, "card_id", "state": "archived", "take"}` as the CLI does.
+3. **One error table** `BOARD_WRITE_ERRORS` for `office_errors.translate`: `StaleRevision →
+   stale_revision` (the office's spelling), `NotFound → unknown_card | unknown_board` (by the
+   message prefix the store already writes), `AlreadyExists → card_exists`, `ValueError →
+   invalid params`, the two idempotency classes → `idempotent_replay_unresolved` /
+   `idempotency_key_verb_mismatch`. A refusal is terminal; no argv retry.
+4. Honoured keys as `BOARD_*_PARAMS` constants (L4.22's manifest publication).
+5. `expect_revision` stays the client's guard (the board already sends it; the office does
+   not) — the twin passes it through unchanged.
+
+### Stages, tests, killing mutation
+
+| stage | test | killing mutation |
+|---|---|---|
+| MOVE | `tests/agent_runtime/test_board_store.py` + board CLI tests byte-identical | — |
+| CHANGE | `tests/agent_runtime/test_serve_rpc_board.py` (new): each verb's ack equals the store's row; stale `expect_revision` → `stale_revision` and no write; same `idempotency_key` twice → one card; tier test (all `console`) | ack built from params instead of the store row → red; drop `expect_revision` passthrough → the stale write lands → red |
+| launcher | `harness_board_capabilities.dart` the six capabilities RPC-first, argv on Unavailable | — |
+
+Owner question: none. Follow-on row (not this lane): a `board_card` fold with its producer
+inside `board_lock`, per `board-surface-rpc-lane.md` rule 3.
