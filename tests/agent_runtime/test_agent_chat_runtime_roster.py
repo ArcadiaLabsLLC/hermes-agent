@@ -14,7 +14,7 @@ from agent_runtime.profile_home import (
     hermes_head_home_is_authoritative,
 )
 from agent_runtime.profile_runner import AgentRunResult, ProfileAgentRunner
-from hermes_cli.config import atomic_config_write
+from hermes_cli.config import atomic_config_replace, atomic_config_write
 from hermes_constants import get_hermes_home
 from tools.agent_chat_tool import agent_chat_open, agent_chat_threads
 from tools.registry import registry
@@ -35,7 +35,10 @@ def relay_runtime(tmp_path, monkeypatch):
     for home in (head, *homes.values()):
         home.mkdir(parents=True)
         atomic_config_write(home / "config.yaml", {"toolsets": []})
-    atomic_config_write(
+    # The two seeds below REPLACE the bare config written above (dropping its
+    # ``toolsets`` key on purpose), so they say so: atomic_config_write refuses
+    # a write that deletes a key by omission.
+    atomic_config_replace(
         head / "config.yaml",
         {
             "agent_runtime": {
@@ -51,7 +54,7 @@ def relay_runtime(tmp_path, monkeypatch):
             },
         },
     )
-    atomic_config_write(
+    atomic_config_replace(
         homes["sender_b"] / "config.yaml",
         {
             "agent_runtime": {
