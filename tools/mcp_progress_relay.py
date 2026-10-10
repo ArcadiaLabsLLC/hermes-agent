@@ -55,7 +55,6 @@ relay never fails the call.
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import itertools
 import logging
@@ -294,6 +293,10 @@ async def _idle_bounded(coro: Any, server_name: str, op: str, token: str | None)
     if limits is None:
         return await coro
     base, cap = limits
+    # Deferred: tools.registry imports this module, and a module-scope asyncio import puts
+    # the event-loop stack (sockets/_overlapped on Windows) on every registry import path.
+    import asyncio
+
     started = time.monotonic()
     task = asyncio.ensure_future(coro)
     try:

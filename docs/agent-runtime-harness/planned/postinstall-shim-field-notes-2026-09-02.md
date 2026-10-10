@@ -216,8 +216,9 @@ agent.* dragged in: []
 ```
 
 That matters because `tests/hermes_cli/test_tirith_config.py::TestImportWeight`
-puts a number on the alternative: `hermes_cli.config` costs >100 transitive
-modules. `path_setup` imports `os`, `shutil`, `stat`, `sys`, `dataclasses` and
+(since deleted with `hermes_cli/tirith_config.py` in the v0.21.6 merge, owner ruling
+2026-10-07; no test now pins the number) put a number on the alternative:
+`hermes_cli.config` costs >100 transitive modules. `path_setup` imports `os`, `shutil`, `stat`, `sys`, `dataclasses` and
 `pathlib` and nothing of ours, so the fixture is cheap enough to be autouse.
 The import-purity assertions in the tree that could have been disturbed were
 enumerated and are unaffected — the only one about our own modules
