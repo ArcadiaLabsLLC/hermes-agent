@@ -15,6 +15,7 @@ from .bounds import (
     BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote,
     _redacted, _redacted_content, bound_composed_user_content,
 )
+from .content import content_text_chars, redact_native_content
 
 __layer__ = "policy"
 
@@ -48,7 +49,7 @@ class WireBoundaryRow:
 
     row: dict[str, Any]
     notes: tuple[ContentBoundNote, ...] = ()
-    #: Length of the content handed to the boundary, before redaction.
+    #: String-leaf characters in the content handed to the boundary, before redaction.
     submitted_chars: int = 0
     #: Length after redaction — the input the BOUND was actually applied to.
     #: Redaction is a separate, intended transform; separating the two keeps a
@@ -219,13 +220,13 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     # three parts with three different contracts — so it is bounded per part
     # (see :func:`bound_composed_user_content`). Other roles retain upstream's
     # result/context policy; redaction does not introduce another size budget.
-    bounded = (
-        bound_composed_user_content(submitted)
-        if role == WIRE_ROLE_USER
-        else _redacted_content(submitted)
-    )
-    content = bounded.text
-    result: dict[str, Any] = {"role": role, "content": content}
+    bounded = None
+    if isinstance(submitted, str):
+        bounded = bound_composed_user_content(submitted) if role == WIRE_ROLE_USER else _redacted_content(submitted)
+    content = bounded.text if bounded is not None else redact_native_content(submitted)
+    # Upstream owns the message shape (reasoning, compression, durable identity
+    # and repair metadata). Change our fields without rebuilding its allowlist.
+    result: dict[str, Any] = {**message, "role": role, "content": content}
     for key in (
         "tool_call_id",
         "tool_name",
@@ -241,11 +242,14 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
         value = safe_assignment_text(raw_value, limit=240)
         if value:
             result[key] = value
-    notes: list[ContentBoundNote] = list(bounded.notes)
+        else:
+            result.pop(key, None)
+    notes = bounded.notes if bounded is not None else ()
     calls = message.get("tool_calls")
+    result.pop("tool_calls", None)
     if isinstance(calls, list):
         safe_calls: list[dict[str, Any]] = []
-        for raw in calls[:64]:
+        for raw in calls:
             if not isinstance(raw, dict):
                 continue
             function = raw.get("function") if isinstance(raw.get("function"), dict) else {}
@@ -256,19 +260,20 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
             arguments = _redacted(function.get("arguments"))
             safe_calls.append(
                 {
+                    **raw,
                     "id": call_id,
                     "type": "function",
-                    "function": {"name": name, "arguments": arguments},
+                    "function": {**function, "name": name, "arguments": arguments},
                 }
             )
         if safe_calls:
             result["tool_calls"] = safe_calls
     return WireBoundaryRow(
         row=result,
-        notes=tuple(notes),
-        submitted_chars=len(submitted) if isinstance(submitted, str) else 0,
-        redacted_chars=bounded.source_chars,
-        wire_chars=len(content),
+        notes=notes,
+        submitted_chars=content_text_chars(submitted),
+        redacted_chars=bounded.source_chars if bounded is not None else content_text_chars(content),
+        wire_chars=content_text_chars(content),
     )
 
 
@@ -316,7 +321,7 @@ def safe_native_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 sort_keys=True,
                 separators=(",", ":"),
             )
-            key = (item["role"], logical_client_id, payload)
+            key = (item["role"], str(item.get("message_uid") or logical_client_id), payload)
             if key in seen_logical_rows:
                 continue
             seen_logical_rows.add(key)
@@ -372,7 +377,7 @@ def native_lineage_summary(session_db: Any, root_session_id: str) -> dict[str, A
 
 def native_history_revision(session_db: Any, root_session_id: str) -> str:
     tip = session_db.resolve_resume_session_id(root_session_id)
-    history = session_db.get_messages_as_conversation(tip, include_ancestors=True)
+    history = session_db.get_messages_as_conversation(tip, include_ancestors=True, repair_alternation=True)
     return native_history_revision_of(tip, history)
 
 
