@@ -15,6 +15,7 @@ How an orchestrating session runs one or many subagents on this repo. Rules of r
 ```
 <Lane name>: <one sentence of the outcome>.
 Setup (from a neutral cwd, never inside X:/Eternia/hermes-agent): fetch; worktree add X:/Eternia/worktrees/<lane> -b <branch> origin/main; read <one page> and <section>.
+Scratch: every temp or commit-message file under <scratchpad>/<lane>/ (concurrent sessions share one scratchpad).
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the sheet, follow the tree and say so in the commit")
 Run: per `Running the tests.md` § "What a lane runs" (name the section; do not restate it).
 Commit/push rules: one MOVE, one CHANGE; push per commit; never main; never amend/force/rebase; leave the worktree.
