@@ -78,6 +78,17 @@ def route_blocked_events(board: Optional[str] = None) -> list[str]:
     pm_config, dispatch_after_create = settings
 
     from hermes_cli import kanban_db as kb
+
+    # The ticking board is the dispatcher's iteration variable, not user intent: resolve it
+    # env-pin-first like upstream's own board-enumerating flows, or a pinned
+    # HERMES_KANBAN_DB dispatcher reads an empty per-slug file and routes nothing.
+    with kb.pin_first_board_resolution():
+        return _route_blocked_events_on(board, kb, pm_config, dispatch_after_create)
+
+
+def _route_blocked_events_on(
+    board: Optional[str], kb: Any, pm_config: Any, dispatch_after_create: bool,
+) -> list[str]:
     from hermes_cli import kanban_db_connect, kanban_db_dispatch
     from hermes_cli.kanban_blocked_pm import handle_blocked_event, unseen_blocked_events
 
