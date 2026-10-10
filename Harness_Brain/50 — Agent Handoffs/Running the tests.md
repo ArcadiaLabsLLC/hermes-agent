@@ -18,6 +18,7 @@ scripts/run_tests_bundled.sh tests                              # THE LANDING GA
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
+scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
 python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
@@ -152,6 +153,26 @@ includes them; run them alone after a re-merge); (c) `changed_line_mutation_chec
 gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.dart` files that
 import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
 commit touches a file the batch touches.
+
+## The idle-box files: after the gate, on an idle box
+
+The timing positive controls and the turn-cost guard keep their absolute budgets and run only on an
+idle box, serial, never inside a parallel gate (owner ruling 2026-10-10; design sweep D3.01 / D3.09:
+under gate load the OS starves the GIL hog instead of the reader, and a 500 ms stall floor read
+76–232 ms). `scripts/test_idle_box_files.txt` lists them; their tests skip unless
+`HERMES_TEST_IDLE_BOX=1`, and the bundled gate does not select them unless named (it prints
+`idle-box: N file(s) not run`). A lane running `scripts/run_tests.sh` on one of them sees it skipped,
+by design.
+
+When a batch touches `agent_runtime/send_window_receipt.py`, `agent_runtime/stream_gap_receipt.py`,
+`agent_runtime/transport_phase_trace.py` or the turn-cost path (anything
+`tests/agent_runtime/test_turn_cost_guard_downstream.py` imports), the landing runs
+`scripts/run_tests_idle.sh` AFTER the gate, with nothing else running. It refuses (exit 3) and names
+every live pytest / `run_tests` process while the box is busy; `--check` asks only that. It runs the
+list at one worker with `HERMES_TEST_IDLE_BOX=1` and appends `{"kind": "idle", …}` to
+`.pytest_cache/hermes_bundled_runs.jsonl` (the known-red read skips that line): quote it in the
+landing report. An idle run that still reds is a new row carrying its receipt line
+(`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
 
 ## After a landing that touches the chat path: the live latency check
 

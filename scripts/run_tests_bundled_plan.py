@@ -224,6 +224,8 @@ def render(summary: Mapping[str, object]) -> List[str]:
 
 #: beside pytest's own last-failed cache, in a directory git already ignores
 RUNS_FILE = ".pytest_cache/hermes_bundled_runs.jsonl"
+#: ``kind`` of the line scripts/run_tests_idle.sh appends (owner ruling 2026-10-10)
+IDLE_RUN_KIND = "idle"
 
 
 def primary_checkout(repo_root: Path) -> Optional[Path]:
@@ -266,9 +268,13 @@ def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
         return {}
     for line in reversed(lines):
         try:
-            red = json.loads(line).get("red") or {}
-        except (json.JSONDecodeError, AttributeError):
+            entry = json.loads(line)
+        except json.JSONDecodeError:
             continue
+        # the idle-box lane's line (scripts/run_tests_idle.sh) carries no red map
+        if not isinstance(entry, dict) or entry.get("kind") == IDLE_RUN_KIND:
+            continue
+        red = entry.get("red") or {}
         return {rel: frozenset(ids) for rel, ids in red.items() if ids}
     return {}
 
