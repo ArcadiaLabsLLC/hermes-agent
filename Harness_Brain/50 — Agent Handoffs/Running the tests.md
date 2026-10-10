@@ -16,6 +16,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
+scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
