@@ -164,6 +164,17 @@ def test_upstream_extensions_survive_without_another_field_allowlist():
     assert bound.holds
 
 
+def test_plain_json_arrays_keep_types_and_redact_nested_credentials():
+    value = [{"api_key": "tiny", "nested": [{"password": "short"}]}, False, None, 0]
+    original = deepcopy(value)
+    bound = native_wire_row({"role": "tool", "content": value})
+    assert value == original
+    assert bound.row["content"] == [
+        {"api_key": "[redacted]", "nested": [{"password": "[redacted]"}]}, False, None, 0,
+    ]
+    assert bound.holds
+
+
 def test_distinct_durable_messages_are_not_deduplicated_by_equal_text():
     rows = [
         {"role": "assistant", "client_message_id": "turn", "content": "same", "message_uid": "first"},
