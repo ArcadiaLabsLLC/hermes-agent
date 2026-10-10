@@ -68,4 +68,14 @@ else
     exit 1
 fi
 
+# A LINKED worktree verifies and writes nothing. Its packages are a branch's bytes, and
+# `core.hooksPath` is per-clone, so the hook also fires in a lane's worktree with the
+# operator's inherited HERMES_HOME: a repair there copies a branch into the operator's
+# install (docs/agent-runtime-harness/planned/isolated-worktree-hook-home-2026-10-07.md).
+# The primary checkout repairs; serve boot repairs from the tree it runs.
+if [ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]; then
+    "$py" "$script" --check
+    exit $?
+fi
+
 "$py" "$script"
