@@ -49,6 +49,7 @@ __all__ = [
     "profiles_root",
     "session_async_delivery_unset",
     "session_async_delivery_var",
+    "skill_utils_raw_config_cache",
     "skills_sync_primitives",
     "skills_tool_inspection_doors",
     "skills_walker",
@@ -119,6 +120,16 @@ def skills_tool_inspection_doors():
 
     return (_find_all_skills, _sort_skills, _skill_lookup_path_error, _skill_search_dirs,
             _locate_skill)
+
+
+def skill_utils_raw_config_cache():
+    """``agent.skill_utils`` ITSELF plus the names ``_RAW_CONFIG_CACHE`` / ``_raw_config_cache_clear``
+    it holds — rebound by ``agent_runtime.skill_config_cache`` (a bounded cache for a process that
+    switches profiles; upstream's one-entry cache clears on every new key). Held widening row:
+    a bounded multi-entry ``_load_raw_config`` cache upstream (draft H)."""
+    import agent.skill_utils as skill_utils
+
+    return skill_utils, "_RAW_CONFIG_CACHE", "_raw_config_cache_clear"
 
 
 def sanitize_surrogates(text: str) -> str:
