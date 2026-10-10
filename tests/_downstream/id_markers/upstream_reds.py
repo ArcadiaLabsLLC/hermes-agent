@@ -63,6 +63,10 @@ if _WIN:
         "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_from_terminal_cwd_when_registry_empty": (
             pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
         ),
+        "tests/hermes_cli/test_doctor_structural_corruption.py::"
+        "test_doctor_routes_structural_damage_to_recover_not_fts_rebuild": (
+            _up_red("an FTS-only stomp reads as structural damage; no Windows marker in the text"),
+        ),
         **{
             f"tests/hermes_cli/test_gateway.py::{test}": (
                 _up_red_skip("the stop test outlives the 30 s thread timeout, which kills "
