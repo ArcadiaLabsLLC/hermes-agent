@@ -1,6 +1,7 @@
 # Console history controls — audit and implementation contract
 
-Status: implemented on feature branches; focused verification in progress. Not landed. 2026-10-09.
+Status: implemented and verified on feature branches; native Launcher visual
+qualification is held on a stale connected QA MCP server. Not landed. 2026-10-09.
 Scope: operator Console branching, conversation rewind, and filesystem checkpoint
 inspection/restoration. Failure navigation and retry lineage are separate work.
 
@@ -127,10 +128,24 @@ only the runtime receipt confirms an outcome. Conversation-menu recovery stays
 reachable after rewinding the first prompt. History invalidation retires pending
 cache reads, and rewind waits on the existing host's fresh snapshot owner.
 
-Focused positive checks so far: 84 history/curation/attachment/checkpoint tests,
-plus the real checkpoint RPC round trip and native profile configuration test.
-Additional interruption, partial restore, UI recovery, mutation and landing gates
-remain in progress. A UI mock is design evidence only.
+Focused positive checks include 84 history/curation/attachment/checkpoint tests
+and the real checkpoint RPC round trip and native profile configuration test.
+The final runtime authority run passes 30 tests, including partial/interrupted
+restore, immutable receipts, revision races and warm-actor rehydration; Ruff and
+the architecture probe are green. The Launcher final run passes 452 boundary,
+projection and widget checks and 11 full Console picture tests. Its host proof
+caught and fixed a dropped durable channel session id in compact snapshots.
+Three additional host tests pin draft preservation and late-completion isolation.
+Six Flutter-rendered baselines cover branch, rewind and restore at both supported
+window sizes. A mock and test renders do not establish native capture parity.
+
+The release QA build launched with its exact commit and isolated fixture pins,
+but the connected MCP server offered retired PrintWindow capture and refused
+with `helper_not_configured`; current source uses `captureFrame`. No alternate
+desktop capture was used. A current MCP connection and native in-app review of
+the final feature tip remain the integration landing hold. The Launcher queue
+records that tool deployment gap. Temporary QA configuration and the owned QA
+process were cleaned up without touching the operator session.
 
 Verification on 2026-10-09: disabling the native writer digest rejects neither
 a competing branch write nor a competing rewind write; both named regression
