@@ -178,6 +178,37 @@ def test_final_model_input_evicted_to_typed_stub():
     assert stub["system_prompt_sections"] == fmi["system_prompt_sections"]
 
 
+def test_the_stub_carries_the_surface_split_and_resolution_id():
+    """A launcher shows eager / deferred / unavailable from the frame without a detail fetch:
+    the stub copies the surface receipt's ``counts`` (only) and ``resolution_id`` forward."""
+
+    counts = {"eager": 27, "deferred": 15, "unavailable": 11, "blocked": 19, "bridge": 3,
+              "callable_by_name": 53, "mcp_deferred": 34}
+    fmi = {
+        "message_count": 1,
+        "messages": [],
+        "tool_schema": {
+            "tool_count": 27, "json_bytes": 9000, "resolution_id": "toolres_abc123",
+            "surface": {"resolution_id": "toolres_abc123", "counts": counts,
+                        "deferred": {"memory": {"reason": "persona_defer"}}},
+        },
+    }
+    rows = [_row("ctx_s", available=[], accessible=[], fmi=fmi)]
+
+    po.hoist._evict_final_model_input(rows)
+
+    schema = rows[0]["final_model_input"]["tool_schema"]
+    assert schema["resolution_id"] == "toolres_abc123"
+    assert schema["surface"] == {"counts": {**dict.fromkeys(
+        ("eager", "deferred", "unavailable", "blocked", "bridge", "callable_by_name",
+         "mcp_eager", "mcp_deferred", "mcp_unavailable", "mcp_blocked"), 0), **counts}}
+    # A not-computed account stays typed, never a fake-zero split.
+    fmi["tool_schema"]["surface"] = {"state": "not_computed", "reason": "x"}
+    rows = [_row("ctx_n", available=[], accessible=[], fmi=fmi)]
+    po.hoist._evict_final_model_input(rows)
+    assert rows[0]["final_model_input"]["tool_schema"]["surface"] == {"state": "not_computed"}
+
+
 def test_final_model_input_stub_omits_absent_tool_schema():
     # A row whose final_model_input carried no tool_schema block must not grow a
     # fabricated one — the stub omits the key entirely (never a fake-empty {}).
