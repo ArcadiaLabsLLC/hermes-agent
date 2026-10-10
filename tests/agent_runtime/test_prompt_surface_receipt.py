@@ -195,14 +195,17 @@ def test_hud_renders_the_deferred_line(harness_lane):  # noqa: F811
 
     receipt = getattr(_factory_agent(harness_lane), AGENT_SURFACE_ATTR)
     block = resolve_capability_block(surface=receipt)
-    # The agent's line counts the admitted MCP servers' deferred names too (schema v2 ``mcp``).
-    count = len(receipt_names(receipt, "deferred"))
-    assert receipt["mcp"]["deferred"], "anti-vacuity: the lane defers MCP names"
-    assert count >= 15, receipt["deferred"]
+    # ONE definition of "deferred" for both readers: the HUD's count IS the receipt's
+    # ``counts.deferred`` (non-MCP); the admitted MCP servers' names ride as ``mcp_count``.
+    count = receipt["counts"]["deferred"]
+    mcp_count = len(receipt["mcp"]["deferred"])
+    assert mcp_count, "anti-vacuity: the lane defers MCP names"
+    assert count == len(receipt["deferred"]) and count + mcp_count == len(receipt_names(receipt, "deferred"))
     assert block["deferred"]["count"] == count and block["deferred"]["via"] == "tool_search"
+    assert block["deferred"]["mcp_count"] == mcp_count
     assert "agent_runtime.personas.<persona>.chat_lane_defer_tools" in block["deferred"]["restorable_via"]
     text = render_capability_block(block)
-    assert f"- {count} tools deferred, reachable through tool_search" in text
+    assert f"- {count} tools deferred (and {mcp_count} MCP tools), reachable through tool_search" in text
     assert "nothing is missing" in text
     # Positive control: no surface, no line — the account stays silent when it knows nothing.
     assert "deferred" not in render_capability_block(resolve_capability_block())
