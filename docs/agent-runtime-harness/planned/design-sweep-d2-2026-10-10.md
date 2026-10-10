@@ -15,6 +15,10 @@ Verdict table (filled as batches land):
 | D2.02 = L2.07 | PLAN | `provider_submitted` is set before the provider is resolved, so a no-provider turn settles `outcome_unknown`; refuse pre-flight, classify by phase after |
 | D2.03 = L5.03 | PLAN (gated on PR #7) | branch the LINEAGE display rows the way upstream's `/branch` already does; the child is a root, never a compression descendant |
 | D2.04 = L5.04 | PLAN | `retry_of` written once on the new record; `retried_as` projected onto the old marker from it; no write-back |
+| D2.05 = L5.09 | PLAN | `runtime.settles.list` / `.rearm` (console tier) + `harness serve settles`; re-arm = `undelivered → pending`, attempts 0, same `settle_id`, `rearm_count` stamped |
+| D2.06 = L4.30 | DROP | the mechanism landed: `persona_chat_turn` overlay carries `running_work` at start (h-turn1 C2) and `running_work_frame` ships at end; the yield docstring is what is stale |
+| D2.07 = L1.25 | PLAN | `worker_app_functions.create_agent` is the one native factory chokepoint: resolve `permission_options_for_chat` there, keyed `profile:<name>` until an instance owns the route |
+| D2.08 = L2.26 | PROGRAM-EXISTS | `instance-conversations-2026-10-01.md` § Remaining before cutover; next stage is the parity qualification, with D2.07 as its permission arm |
 
 ---
 
@@ -361,3 +365,201 @@ Rules:
 - A retry target that was garbage-collected from the journal (the END publish's `"absent"`
   case) is refused `retry_target_invalid`; the launcher should fall back to a plain send,
   not fail the click. Name it in the launcher row.
+
+---
+
+## D2.05 = L5.09 — Undelivered chat-turn settles have no operator verb
+
+**Verdict: PLAN.** Size: ~140 production lines (store 30, RPC 60, CLI 50), ~180 test lines,
+3 stages + a launcher diagnostics stage.
+
+### What the code says
+
+- `agent_runtime/chat_turn_settles.py` is the durable outbox: `SettleRecord` with
+  `state ∈ {pending, acked, undelivered}`, `attempts`, `next_attempt_at`,
+  `undelivered_reason ∈ {retry_budget_exhausted, no_listener}`; `settle_id_for(session_id,
+  client_message_id)` is DETERMINISTIC (one settle per turn — a "new settle_id" on re-arm is
+  not possible and would break the launcher's `settle_ack` by `client_message_id`).
+  `note_push` moves a record to `undelivered` after `MAX_ATTEMPTS = 6` (2–32 s backoff) or
+  `NO_LISTENER_SECONDS = 3600` with nobody attached; `ack_settle` accepts
+  `undelivered → acked`; `list_settles(state=)` and `read_settle` are the reads;
+  `_write` is the one writer (versioned receipt).
+- The serve's pusher (`hermes_cli/harness_parts/serve/settle_push.py::_push_due_settles`)
+  pushes `due_settles()` = pending records whose `next_attempt_at` has passed, every
+  `SETTLE_PUSH_TICK_SECONDS = 1.0`, and logs `serve_settle_undelivered` once; `_op_settle_ack`
+  is the only inbound settle op (local launcher only; refused on a gateway connection).
+- The read-tier pattern for a serve twin is `serve_rpc/health.py::_runtime_health` (no
+  params, a fork payload builder); `harness health` is registered in
+  `hermes_cli/harness_parts/parser/machine.py`.
+
+### The design decisions (the lane's question: what does re-arm do?)
+
+1. **Re-arm is `undelivered → pending`, `attempts = 0`, `next_attempt_at = now`,
+   `undelivered_reason = None`, same `settle_id`,** plus two new fields `rearm_count` (+1) and
+   `rearmed_at`. Resetting attempts is what makes the record DUE again under the pusher's own
+   rule; a re-arm that kept `attempts = 6` would be undelivered again on the first push. The
+   history is kept by the count, not by a second record. `acked` is never re-armed (the
+   launcher already took it); `pending` re-arm is a no-op returning the record.
+2. **One new store function** `rearm_settle(settle_id) -> SettleRecord | None`, under the
+   same per-settle lock `_write` uses (`locks.py` `chat_turn_settles/<id>.lock`), the only
+   writer of this transition. The pusher needs no change: the next tick (≤ 1 s) pushes it.
+3. **Two serve methods, console tier** (a settle names a session and a turn; `read` is a
+   paired read device): `runtime.settles.list` params `{state?}` → `{counts: {pending,
+   undelivered, acked}, settles: [frame fields + state, attempts, undelivered_reason,
+   rearm_count, next_attempt_at]}`; `runtime.settles.rearm` params `{settle_id}` or
+   `{client_message_id, session_id?}` (the same two addressings `_op_settle_ack` accepts) →
+   the updated record, `{"rearmed": bool}`. The count the row wants "connections-adjacent"
+   rides the list result; nothing is added to `runtime.health` (its contract is `harness
+   health --json` verbatim) or to any frame envelope.
+4. **CLI verbs**, RPC-first per the standing rule (argv is the fallback): `harness serve
+   settles [--state S] [--json]` and `harness serve settles rearm <settle_id|client_message_id>
+   [--session-id]`, both thin over the same two functions, so the CLI contract fixture is
+   re-dumped once and the launcher re-vendors once.
+
+### Files and symbols
+
+- `agent_runtime/chat_turn_settles.py` — `rearm_settle`, `SettleRecord.rearm_count /
+  rearmed_at` (schema version 2; v1 records read with 0/None), `settle_counts()`.
+- `agent_runtime/serve_rpc/settles.py` (new) — the two methods; registered in the manifest
+  with their tiers (`registry.method`).
+- `hermes_cli/harness_parts/parser/machine.py` — the `serve settles` subcommands;
+  `hermes_cli/harness_parts/serve/commands.py` — the handlers.
+- Launcher half (new methods): the diagnostics panel lists undelivered settles and offers
+  Re-arm; it keeps acking by `client_message_id` as today. Launcher queue row.
+
+### Stages, tests, killing mutation
+
+| stage | test | killing mutation |
+|---|---|---|
+| S1 store | `tests/agent_runtime/test_serve_settle_push.py`: an undelivered record re-armed is pushed on the next tick; `rearm_count` 1; acked is refused | keep `attempts` on re-arm → the first push marks it undelivered again → red |
+| S2 RPC | `tests/agent_runtime/test_serve_rpc_*` manifest tier test (both console) + list/rearm round trip through the in-memory transport | register `list` at `read` → tier test red |
+| S3 CLI | CLI contract fixture + one argv round trip | — |
+
+### Risk
+
+- A record re-armed with no launcher attached lives one more `NO_LISTENER_SECONDS` hour before
+  it is undelivered again; the panel should say so. No owner question.
+
+---
+
+## D2.06 = L4.30 — Publish turn start/end as state patches so no core build runs during a turn
+
+**Verdict: DROP** — the mechanism the row asks for already landed, under another name, and the
+row's evidence is a docstring that was not updated.
+
+### The evidence
+
+- `agent_runtime/stream/frames.py::persona_chat_turn_frames` (plan h-turn1 §2 C2, 2026-10-05,
+  `patch_coverage.PERSONA_CHAT_TURN_CAPABILITY`): a turn batch — `persona_chat.turn_started`,
+  `.projected`, `.turn_ended` — is handed to a declaring subscriber as ONE
+  `persona_chat_turn` frame per root carrying the sections the turn moved, and
+  `_with_running_work` puts the serve's `running_work` section in it (read last, on the serve,
+  because its lanes are in-process). `stream/build.py::_turn_batch_frames` yields only the
+  overlays when the whole room declares the token — "no core, no job, no liveness".
+- `agent_runtime/stream/session.py::flush` ships `running_work_frame` alone when a batch ends
+  a turn (2026-10-01), before any core.
+- The launcher declares the token (`mission_stream_lane.dart`: `'persona_chat_turn'`), so on
+  the operator's own console the start row rides an overlay, not a core build.
+- `tests/agent_runtime/test_stream_turn_section.py` and
+  `test_stream_running_work_on_turn_end.py` are the gates; the row's cited test
+  (`test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane`) pairs a device
+  client that does not declare the token, so it exercises the demote core — the fallback,
+  by design ("every mixed pair degrades to today's wire").
+
+What is stale is `agent_runtime/snapshot_turn_yield.py`'s docstring ("between those windows
+the stream lane's builds are what carry the turn's own start row … so they must still
+happen during a turn") and the yield rule it justifies: with every attached subscriber
+declaring `persona_chat_turn`, a build may stand aside for the WHOLE admitted turn, not only
+its hot windows. That is a fix-lane row, not a design: one predicate (`accepted_fold_entities`
+∋ the token for every subscriber) widening the hot-window test in `_turns_admitted`, with
+`test_snapshot_turn_yield.py` as the gate (mutation: drop the predicate → a build leads
+mid-turn with all subscribers declaring → red). Filed as a runtime-queue row from this lane's
+report; the L4.30 row is deleted on landing.
+
+---
+
+## D2.07 = L1.25 — The native conversation engine has no permission mode
+
+**Verdict: PLAN**, as the permission stage of the cutover remainder (D2.08). Size: ~100
+production lines, ~160 test lines, 2 stages.
+
+### What the code says
+
+- The operator lane resolves "what may this turn do" ONCE in
+  `agent_runtime/tool_permissions.py::permission_options_for_chat(persona, session_id=…)`:
+  the `ChatToolPermissionStore` record keyed `_key(persona_id, session_id)` wins when it has
+  an opinion, else `default_permission_mode()`; the answer's `blocked_tool_names` is
+  `extra_blocked_tools_for_permission_mode(mode)`, which already includes every Launcher app
+  function whose entry is mutating (`launcher_app_functions` entry `read_only is False`, or
+  `requires_confirmation` when the mark is absent). The runner applies it through
+  `AgentRunRequest.blocked_tool_names` → `profile_runner/execute.py::_blocked_tool_names_for_run`.
+- The native engine builds its agent at ONE fork site: `tui_gateway/server.py` calls
+  `agent_runtime/conversations/worker_app_functions.py::create_agent(AIAgent, sid, session,
+  **kwargs)`, which already rewrites `kwargs["enabled_toolsets"]` to add the app-functions
+  toolset when the Launcher link answers `refresh_app_function_tools`. Nothing in that path
+  consults a permission; a native conversation gets every listed app function.
+- The native route carries `ConversationScope(actor, client, profile)` and a route id (the
+  conversation `session_id`); a profile conversation has no persona, an instance conversation
+  (the cutover) has one.
+
+### The design decisions
+
+1. **Resolve in `create_agent`, nowhere else.** It is the chokepoint for every native agent
+   build (eager and deferred), it runs inside the worker where the toolset is decided, and it
+   already edits the kwargs. It reads `permission_options_for_chat` and passes
+   `blocked_tool_names` (and the HUD's `permission_mode`) into the factory kwargs the same way
+   the runner does; `read_only` therefore blocks the same app functions on both lanes by the
+   same table.
+2. **The key (the lane's question).** The store key is `(persona_id, session_id)`. For an
+   instance conversation the persona is the instance's persona and `session_id` is the native
+   route id — the SAME record an operator sets with `runtime.persona.permission.set` on that
+   chat. For a profile conversation (no persona) the persona slot is the typed sentinel
+   `profile:<profile name>` and `session_id` the route id; `permission.preview/set` accept
+   that sentinel so a profile conversation can be held at `read_only` too. One store, one
+   resolver, two key spellings, both typed (`conversations/model.py::permission_key(scope,
+   route)`).
+3. **Where the worker learns it.** `ChatToolPermissionStore()` reads one JSON file under the
+   runtime store root; the worker child inherits the root through
+   `tools/environments/local.py::served_profile_child_env`. Stage 1 asserts the child resolves
+   the same path as the serve (a receipt on `session.create`), or the test is red before any
+   permission test can pass.
+4. **Turns-bounded grants** (`consume_turn`) are consumed by the conversation `send`
+   (`ConversationService.send`, after `store.admit`), not by the worker — one consumer per
+   lane, as the operator lane does in its admit phase.
+
+### Files and symbols
+
+- `agent_runtime/conversations/worker_app_functions.py::create_agent` — resolve + kwargs.
+- `agent_runtime/conversations/model.py::permission_key` — the two spellings.
+- `agent_runtime/conversations/service.py::send` — `consume_turn`.
+- `agent_runtime/serve_rpc/console_operations.py` `runtime.persona.permission.preview/set` —
+  accept the `profile:` sentinel (validation in `tool_permissions`).
+- Launcher: none for stage 1 (the HUD already renders `permission_mode`); the Console's
+  permission control binds to the native route in the cutover.
+
+### Stages, tests, killing mutation
+
+| stage | test | killing mutation |
+|---|---|---|
+| S1 resolve | `tests/agent_runtime/test_native_conversation_worker.py`: a route held `read_only` builds an agent whose `blocked_tool_names` equals `extra_blocked_tools_for_permission_mode("read_only")`, mutating app functions included; the child's store path equals the serve's | ignore the record in `create_agent` → the blocked list is empty → red |
+| S2 consume | a 2-turn `read_only` grant lapses after two native sends | consume in the worker too → lapses after one → red |
+
+### Owner question
+
+- Should a PROFILE conversation (no persona) honour `default_permission_mode()` at all, or
+  stay unbounded as today until an instance owns the route? Recommend: honour it (one
+  default, both engines).
+
+---
+
+## D2.08 = L2.26 — Instance-conversation cutover remainder
+
+**Verdict: PROGRAM-EXISTS.** Plan:
+`docs/agent-runtime-harness/planned/instance-conversations-2026-10-01.md`, § "Remaining before
+cutover" (the foundation landed 2026-10-02; the resident-identity repair and native model
+controls landed 2026-10-03). Next stage, in the plan's words: rich model/skills/context/
+attachment and recovery parity with the Direct transport, then the neutral Launcher
+contracts and current-account history, qualified end to end before any Launcher glue or the
+profile worker retires. This sweep adds two arms to that stage without new design:
+D2.01 (reviewed files — the "attachment parity" item) and D2.07 (permission mode). The row
+stays; it is the program's pointer. No owner question.
