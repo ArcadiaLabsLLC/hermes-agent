@@ -101,6 +101,16 @@ def chat_turn_settle_path(settle_id: str) -> Path:
     return chat_turn_settles_dir() / f"{safe_path_token(settle_id)}.json"
 
 
+def chat_root_send_queue_dir() -> Path:
+    """Operator sends accepted while their chat root was busy, waiting to run.
+
+    One sub-directory per chat root, one JSON entry per ``client_message_id``
+    (``chat_root_send_queue``). Not a turn-outcome authority (the journal is):
+    the entry is deleted once its turn has run and its settle is recorded.
+    """
+    return store_root() / "chat_root_send_queue"
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 

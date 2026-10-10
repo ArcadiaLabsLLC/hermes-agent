@@ -108,6 +108,16 @@ def _args(client_message_id: str):
     return _mission_chat_test_args(client_message_id)
 
 
+def _relay_args(client_message_id: str):
+    """An agent-relay send: it names its sender's root, so a busy target still
+    refuses it ``chat_busy`` (an OPERATOR send is queued instead — owner ruling
+    2026-10-10, ``test_busy_root_send_queue``)."""
+
+    args = _args(client_message_id)
+    args.requested_by_session = "persona_chat_relay_sender"
+    return args
+
+
 def _envelopes(capsys) -> list[dict]:
     """Decode every JSON object on stdout.
 
@@ -246,7 +256,7 @@ def test_a_send_refused_by_a_busy_root_records_a_durable_event(
     harness = _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, owner_id="held-by-the-test", observer_kind="cli"):
-        assert chat_turn_message._cmd_mission_chat_message(_args("cm-refused-1")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-1")) == 2
 
     frames = _envelopes(capsys)
     refusals = [f for f in frames if f.get("error_kind") == "chat_busy"]
@@ -282,7 +292,7 @@ def test_the_refusal_record_never_carries_the_operator_message_text(
     harness = _install_chat_lane(monkeypatch)
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        chat_turn_message._cmd_mission_chat_message(_args("cm-refused-2"))
+        chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-2"))
     capsys.readouterr()
 
     rows = [e for e in EventLog().tail(20) if e.type == "persona_chat.send_refused"]
@@ -308,7 +318,7 @@ def test_the_refusal_record_satisfies_its_registered_contract(
 
     harness = _install_chat_lane(monkeypatch)
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        chat_turn_message._cmd_mission_chat_message(_args("cm-refused-3"))
+        chat_turn_message._cmd_mission_chat_message(_relay_args("cm-refused-3"))
     capsys.readouterr()
 
     rows = [e for e in EventLog().tail(20) if e.type == "persona_chat.send_refused"]
@@ -442,15 +452,16 @@ def test_a_busy_root_running_a_DIFFERENT_message_is_still_chat_busy(
 ):
     """The narrowing must be about identity, not about busyness.
 
-    A root busy with somebody else's turn is exactly today's refusal: the
-    operator's message really did not land, and ``chat_busy`` is the truth.
+    A root busy with somebody else's turn refuses a RELAY send ``chat_busy``:
+    its message really did not land, and the relay retries from its own side.
+    (An operator send is queued instead: ``test_busy_root_send_queue``.)
     """
 
     harness = _install_chat_lane(monkeypatch)
     _seed_journal("cm-somebody-elses-turn", "executing")
 
     with persona_chat_root_lease(ROOT, observer_kind="cli"):
-        assert chat_turn_message._cmd_mission_chat_message(_args("cm-mine")) == 2
+        assert chat_turn_message._cmd_mission_chat_message(_relay_args("cm-mine")) == 2
 
     frames = [f for f in _envelopes(capsys) if f.get("capability_id") == "mission.chat.message"]
     assert frames[-1]["error_kind"] == "chat_busy", (

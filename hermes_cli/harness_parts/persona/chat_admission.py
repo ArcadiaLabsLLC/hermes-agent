@@ -30,6 +30,7 @@ from .chat_history_writes import (
     _redact_persona_chat_text,
 )
 from .chat_reply_stamps import _stamp_reply_media, _stamp_turn_visibility
+from .chat_send_queue import _busy_root_queues, _mission_chat_enqueue_busy
 
 __layer__ = "lanes"
 __all__ = [
@@ -261,6 +262,19 @@ def _busy_refused(send: _BusySend) -> int:
     return 2
 
 
+def _busy_other_turn(send: _BusySend) -> int:
+    # Somebody else's turn holds the root. An operator send is accepted and
+    # queued behind it (owner ruling 2026-10-10, ``chat_send_queue``); an agent
+    # relay or a delivery forge keeps ``chat_busy`` and retries from its own queue.
+    if _busy_root_queues(send.args):
+        return _mission_chat_enqueue_busy(
+            send.args,
+            session_id=send.session_id,
+            client_message_id=send.client_message_id,
+        )
+    return _busy_refused(send)
+
+
 #: The outcome -> its answer. A ``None`` from an answer (a replay with nothing
 #: to replay) falls through to ``BUSY``'s.
 _BUSY_OUTCOMES: Final[Mapping[BusyOutcome, Callable[[_BusySend], int | None]]] = MappingProxyType(
@@ -268,7 +282,7 @@ _BUSY_OUTCOMES: Final[Mapping[BusyOutcome, Callable[[_BusySend], int | None]]] =
         BusyOutcome.DUPLICATE_IN_FLIGHT: _busy_duplicate_in_flight,
         BusyOutcome.OUTCOME_UNKNOWN: _busy_outcome_unknown,
         BusyOutcome.REPLAY: _busy_replay,
-        BusyOutcome.BUSY: _busy_refused,
+        BusyOutcome.BUSY: _busy_other_turn,
     }
 )
 
@@ -310,9 +324,11 @@ def _mission_chat_busy_outcome(
       non-terminal: do not resend a new id, do not resolve, re-present THIS id)
     * this message's, already answered → the idempotent replay, served read-only
     * this message's, unprovable   → the existing ``chat_turn_outcome_unknown``
-    * somebody else's              → ``chat_busy``, exactly as before
+    * somebody else's              → an operator send is queued behind it
+      (``chat_send_queue``, owner ruling 2026-10-10); an agent relay or a
+      delivery forge is refused ``chat_busy``, exactly as before
 
-    A torn or missing journal read simply falls through to ``chat_busy`` — the
+    A torn or missing journal read simply falls through to that last arm — the
     degraded answer, never a wrong one.
     """
 
@@ -337,7 +353,7 @@ def _mission_chat_busy_outcome(
         turn_id=journal.get("turn_id") or client_message_id,
     )
     code = _BUSY_OUTCOMES[_busy_outcome_for(journal_state)](send)
-    return _busy_refused(send) if code is None else code
+    return _busy_other_turn(send) if code is None else code
 
 
 def _bind_mission_chat_delivery_capability() -> bool:

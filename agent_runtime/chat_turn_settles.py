@@ -70,6 +70,9 @@ class TurnOutcome:
     refusal_class: str | None = None
     fix_hint: str | None = None
     summary: str | None = None
+    #: The answer was "accepted and queued" (a busy root): the turn has not run,
+    #: so this is not its settle. Its settle is recorded when it runs.
+    queued: bool = False
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,16 @@ def outcome_from_result_lines(lines: Iterable[str]) -> TurnOutcome:
     return TurnOutcome()
 
 
+def outcome_from_payload(data: Any) -> TurnOutcome:
+    """The same reading as :func:`outcome_from_result_lines`, over a payload dict.
+
+    For a turn run in-process through the mission-chat door (the queued-send
+    runner), whose result never reaches a stdout capture.
+    """
+
+    return _outcome_from(data) if isinstance(data, dict) else TurnOutcome()
+
+
 def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
     error = data.get("error")
     envelope = error if isinstance(error, dict) else {}
@@ -161,6 +174,7 @@ def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
         refusal_class=refusal,
         fix_hint=_scrubbed(fix_hint),
         summary=_scrubbed(summary),
+        queued=data.get("queued") is True,
     )
 
 
@@ -193,13 +207,15 @@ def record_settle(
 ) -> SettleRecord | None:
     """Durable BEFORE the exit frame. ``None`` when there is nothing to push.
 
+    A "queued" answer is not a settle (the turn has not run) and records nothing.
+
     Idempotent on (session, client message id): a record that already exists is
     returned unchanged — the first settle of a turn is its settle, and a replayed
     presentation of a committed turn reports the same outcome.
     """
 
     cmid = str(client_message_id or "").strip()
-    if not cmid or outcome.refusal_class in NON_TERMINAL_REFUSALS:
+    if not cmid or outcome.queued or outcome.refusal_class in NON_TERMINAL_REFUSALS:
         return None
     session = _settle_text(session_id) or outcome.session_id
     settle_id = settle_id_for(session, cmid)

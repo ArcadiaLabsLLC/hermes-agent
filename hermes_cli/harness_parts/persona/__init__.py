@@ -28,6 +28,7 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   ``chat_coordinator`` (coordinator scope and the steer/queue-skill verbs),
   ``chat_tickets_commands`` (clarify tickets, redeliver, turn resolve),
   ``chat_admission`` (the busy/lease/visibility admission half of a turn),
+  ``chat_send_queue`` (an operator send to a busy root is queued, never refused),
   ``chat_turn_message`` (``_cmd_mission_chat_message``, the turn's front door) and
   ``chat_turn_commit`` (the turn's run-and-commit half).
 
