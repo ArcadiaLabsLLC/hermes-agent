@@ -268,3 +268,26 @@ def test_a_duplicate_in_flight_answer_is_not_a_settle(refusal):
         client_message_id=CMID, session_id=SESSION, request_id="r1",
         exit_code=2, outcome=TurnOutcome(refusal_class=refusal),
     ) is None
+
+
+# ── the settle record is a new durable surface: no secret reaches it ────────
+
+_LEAKED_KEY = "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        {"ok": False, "error_kind": "chat_provider_failed",
+         "error": f"invalid key {_LEAKED_KEY}",
+         "next_expected": f"replace {_LEAKED_KEY} in .env"},
+        {"kind": "error", "error": {"code": "provider_auth", "message": f"key {_LEAKED_KEY} rejected",
+                                     "hint": f"rotate {_LEAKED_KEY}"}},
+    ],
+)
+def test_summary_and_fix_hint_are_redacted_before_they_are_recorded(line):
+    outcome = settles.outcome_from_result_lines([json.dumps(line)])
+    # Positive control: the line DID carry text into both fields.
+    assert outcome.summary and outcome.fix_hint
+    assert _LEAKED_KEY not in outcome.summary
+    assert _LEAKED_KEY not in outcome.fix_hint

@@ -159,9 +159,28 @@ def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
         session_id=_text(data.get("session_id")) or _text(data.get("root_chat_session_id")),
         turn_id=_text(data.get("turn_id")),
         refusal_class=refusal,
-        fix_hint=fix_hint,
-        summary=summary,
+        fix_hint=_scrubbed(fix_hint),
+        summary=_scrubbed(summary),
     )
+
+
+def _scrubbed(value: str | None) -> str | None:
+    """Redact free text before it reaches the durable record and the push.
+
+    ``summary`` / ``fix_hint`` are free text a provider error can carry a key in,
+    and the settle record is a NEW durable surface (written to disk, re-broadcast
+    for up to an hour). A safety boundary, so ``force=True``, and fail CLOSED: if
+    redaction itself fails the text is dropped, never written raw.
+    """
+
+    if value is None:
+        return None
+    try:
+        from agent.redact import redact_sensitive_text
+
+        return _text(redact_sensitive_text(value, force=True, redact_url_credentials=True))
+    except Exception:
+        return None
 
 
 def record_settle(
