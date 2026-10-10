@@ -85,4 +85,4 @@ def preview_operator_undo(params):
         reason = exc.reason
     body = {"history": history, "restore": restore, "files_reason": reason,
             "workspace_path": workspace_path, "files": files}
-    return {**history, **body, "preview_token": _digest(body)}
+    return {**history, **body, "client_message_id": params["client_message_id"], "preview_token": _digest(body)}

@@ -209,7 +209,7 @@ def recover_operator_undo(params):
                         result = manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
                             selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key)
                 else:
-                    from tools.checkpoint_recovery import restore_revision
+                    from tools.checkpoint_manager import restore_revision
                     result = manager.resume_restore(key, revision=restore_revision(result), rollback=direction == "rollback")
                 record["files"] = result
             _save(db, params, record)

@@ -1,7 +1,7 @@
 # Console history controls — audit and implementation contract
 
-Status: implemented and verified on feature branches; native Launcher visual
-qualification is held on a stale connected QA MCP server. Not landed. 2026-10-09.
+Status: approved repair implemented; qualification in progress. Not landed.
+2026-10-10. The repair section supersedes the original product plan.
 Scope: operator Console branching, conversation rewind, and filesystem checkpoint
 inspection/restoration. Failure navigation and retry lineage are separate work.
 
@@ -55,7 +55,7 @@ inspection/restoration. Failure navigation and retry lineage are separate work.
   console admission tier and deferred-reply mechanism. No CLI fallback.
 * One history service owns preview/apply and typed refusals. Native SessionDB
   owns the atomic transcript mutations. Existing checkpoint manager owns file
-  snapshot/restore mechanics. These are separate operations and receipts.
+  snapshot/restore mechanics. Each native owner retains its own receipt; the Undo coordinator joins them.
 * An opaque operation ID provides replay after lost acknowledgements. Store the
   receipt with the native mutation, not after it. A changed target, payload, owner,
   transcript or workspace invalidates the preview. No automatic destructive retry.
@@ -63,139 +63,92 @@ inspection/restoration. Failure navigation and retry lineage are separate work.
   and compression. Original chats are never ended by a branch or rebound as a
   side effect. Warm actors must reload the new durable revision before continuation.
 
-## Product behavior
+## Approved repair, 2026-10-10
 
-Use the existing operator prompt ellipsis (`agent_console_turn_context_content_renderer`)
-and the existing local chat sheet. Do not extend human DM actions or create a
-parallel chat/history catalog. Preserve the agent avatar, connected activity steps,
-copy controls, existing context-at-send action, and the current transcript layout.
+Status: isolated repair branch, not landed. The earlier prompt-menu UI and its
+qualification claims are superseded by this section. The original audit is
+retained in console-history-controls-review-2026-10-10.md.
 
-**Branch from here:** show the selected prompt and number of earlier turns copied.
-Create a new chat containing the prefix before that prompt; return the selected
-prompt as an editable draft. Original chat remains intact. State that both chats
-share the same workspace and that files are not copied or restored. Open the child
-through the host's existing chat selection writer using its verified identity.
+Edit operates on a saved prompt and resends through the existing Launcher outbox.
+Branch here operates AFTER a completed reply, including that reply in the child.
+The original chat stays intact and both chats share the existing workspace.
+Changed files and Undo require durable turn attribution; they are not inferred
+from tool labels. Undo reviews chat/files/both before applying. Advanced File
+history remains available for independently reviewed checkpoints.
 
-**Rewind to here:** show the exact selected prompt, affected turn count and retained
-prefix. Explicit final action: Rewind conversation. Archive selected and later
-native rows, retain evidence, return the prompt as a draft, and invalidate cached
-history. Files stay as they are. Preserve an existing unsent draft through the
-existing draft owner instead of silently overwriting it.
+### Authority map
 
-**File checkpoints:** a separate Changes sheet, labelled Workspace checkpoints
-until a genuine turn association exists. List retained snapshots and provenance;
-preview additions/modifications/deletions and diffs. Show unavailable binary/large
-file previews, ignored/oversized files, unsupported backend, no ledger, externally
-edited paths, expired checkpoints, and failed writes/deletes honestly. Only
-explicitly selected eligible paths may be restored. Never imply changes belong to
-the selected turn without durable evidence.
+- `operator_history.py` resolves exact native rows, reviews revisions and invokes
+  the native SessionDB history owner. `hermes_state_history_controls.py` owns
+  atomic branch transactions and history receipts. Canonical rewind uses the
+  existing rewind writer with an in-transaction revision check and receipt.
+- `chat_turn_reservations.py` separates brief, bounded send admission from the
+  long history writer fence. Status/stop can still observe a pending operation.
+  Accepted receipts record PID and process start time. Startup retires only
+  proven dead/reused owners; unknown legacy ownership remains conservative.
+- `CheckpointManager` owns snapshots, file evidence, verified recovery backups,
+  per-file receipts, resumable restore and retention pins. New public observer
+  APIs expose a stable tree, proven file diff and namespaced metadata location.
+  Fork code does not import its private store/index/ledger helpers.
+- `turn_checkpoints.py` owns attribution only: exact root session and operator
+  request, first baseline across agent iterations, proven paths and bounded
+  recorded diffs. `profile_runner/execute.py` binds the observer on each run,
+  including reused resident agents. No second Git store or file writer exists.
+- `operator_turn_changes.py` joins canonical turns to attribution. Undo includes
+  the selected and later turns, refuses multiple workspaces or expired snapshots,
+  and excludes another chat's or a person's later writes. The UI only receives
+  attributed paths, never an unrelated whole-workspace diff.
+- `operator_undo.py` coordinates existing owners with a durable SessionDB record.
+  Files finish before canonical rewind. It does not claim filesystem/SQLite
+  atomicity. A partial result retains the original request and backup. Status
+  reconciles crashes between native receipts and coordinator writes.
+- `history_recovery.py` stores a minimal admission fence, not outcomes or prompt
+  content. `operator_history_recovery.py` discovers pending work or proves a
+  pre-write crash empty. `history_cancellation.py` rejects a delayed command
+  after verified unapplied cancellation. Partial writes can never be discarded.
+- Recovery compares the reviewed revision. Finish and rollback preserve later
+  external edits. Terminal receipts replay terminal results; stale UI cannot
+  reverse an already finished command. Backup refs are released after settlement.
+- `serve_rpc/operator_history.py` uses the existing console admission tier and
+  deferred replies. No CLI fallback and no new conversation selection owner.
 
-Attachments or compressed targets that cannot be replayed losslessly are refused
-with an explanation; they must not be silently flattened or sent automatically.
-Changing chat/runtime while a request is pending discards that UI response. The
-server still returns a durable operation receipt for recovery.
+### Review findings closed by the repair
 
-## Verification and landing order
+Native write guards now map to definite refusal when nothing was written.
+Concurrent sends serialize briefly instead of reporting a false history conflict.
+Proven orphaned accepted turns no longer permanently fence a chat after restart.
+Pending operations survive closed drawers, reconnection and lost client records.
+Launcher request persistence is encrypted and keyed by durable session identity.
+The UI only acknowledges a rewind after canonical history has been refreshed.
 
-1. Native atomic prefix branching and rewind receipts, exact row targeting,
-   immutable inherited activity, and admission ordering. Test original unchanged,
-   source prefix byte identity, foreign ownership/profile refusal, compression and
-   attachment behavior, stale previews, busy/queued sends, and duplicate requests.
-2. Guarded checkpoint preview/apply through the existing manager. Use temporary
-   workspaces only. Test project isolation, traversal/symlinks, missing ledger,
-   external edits/deletions, oversized files, recovery snapshot failure, expired
-   hashes, partial I/O failure, and replay without a second restore.
-3. Typed adapter and neutral Console port/controller; existing prompt menu and
-   sheet, host selection and draft restoration. Test A→B→A scope changes, duplicate
-   clicks, failed reads, lost acknowledgement, keyboard operation and narrow UI.
-4. Feature-complete checkpoint; focused authority tests with a named killing
-   mutation and recorded red; required repository gates and native Stage C proof.
-   Only then mark queues complete, land, and sync both primary checkouts last.
+### Evidence
 
-## Implementation and evidence
+Focused runtime qualification after the owner-API refactor: **45 tests passed**
+across test_operator_turn_undo, test_operator_history_repair,
+test_turn_checkpoint_provenance, test_operator_history_controls,
+test_operator_checkpoints, and test_checkpoint_reviewed_restore_downstream.
+They use actual isolated SQLite stores and temporary native Git workspaces.
 
-`operator_history.py` owns exact-target history preview/apply/status and shared
-send admission; `hermes_state_history_controls.py` is the native transaction door.
-`operator_checkpoints.py` resolves the profile/workspace and calls the existing
-CheckpointManager's reviewed API. `serve_rpc/operator_history.py` publishes both
-without blocking the serve reader. `persona_chat_history/history_evidence.py`
-projects retained activity against native membership; it queries archive identity
-columns rather than materializing old message bodies on every history read.
+The prior append-race rewind test could fail because of alternation repair and
+was not a valid positive control for the revision pin. That claim is withdrawn.
+The new in-place edit keeps IDs, role order and row count unchanged. Disabling
+`check_history_digest` makes precisely that test fail. Disabling the recovery
+revision comparison makes the stale-choice test fail. Both mutations restored.
+Evidence logs: revision-pin-red.log, recovery-revision-red.log and
+repair-final-focused.log in the task's local console-history-evidence/runtime.
 
-The Launcher uses its existing prompt menu, chat sheet, draft registry and host
-selection. A local write-ahead receipt pointer survives closing/restarting the UI;
-only the runtime receipt confirms an outcome. Conversation-menu recovery stays
-reachable after rewinding the first prompt. History invalidation retires pending
-cache reads, and rewind waits on the existing host's fresh snapshot owner.
+New coverage includes new/deleted/net-unchanged files, first operator baseline
+across iterations, unproven/oversized writes, another chat's subsequent write,
+manual edits during partial recovery, backup survival through native pruning,
+branch-after-reply lineage, cancellation versus delayed dispatch, file/chat/both
+modes, replay and crash after files but before rewind.
 
-Focused positive checks include 84 history/curation/attachment/checkpoint tests
-and the real checkpoint RPC round trip and native profile configuration test.
-The final runtime authority run passes 30 tests, including partial/interrupted
-restore, immutable receipts, revision races and warm-actor rehydration; Ruff and
-the architecture probe are green. The Launcher final run passes 452 boundary,
-projection and widget checks and 11 full Console picture tests. Its host proof
-caught and fixed a dropped durable channel session id in compact snapshots.
-Three additional host tests pin draft preservation and late-completion isolation.
-Six Flutter-rendered baselines cover branch, rewind and restore at both supported
-window sizes. A mock and test renders do not establish native capture parity.
+The upstream footprint is remeasured against the repository's current v0.21.6
+manifest: 188 upstream files, 951 deleted lines, 5 heavy files. The widening
+stays in native owners and is recorded as held upstream PR candidates in the
+footprint ledger, not claimed as an already opened upstream PR.
 
-The release QA build launched with its exact commit and isolated fixture pins,
-but the connected MCP server offered retired PrintWindow capture and refused
-with `helper_not_configured`; current source uses `captureFrame`. No alternate
-desktop capture was used. A current MCP connection and native in-app review of
-the final feature tip remain the integration landing hold. The Launcher queue
-records that tool deployment gap. Temporary QA configuration and the owned QA
-process were cleaned up without touching the operator session.
-
-Verification on 2026-10-09: disabling the native writer digest rejects neither
-a competing branch write nor a competing rewind write; both named regression
-tests fail. Disabling the Launcher cache generation check makes its late-read
-test return `removed` instead of `retained`. Both mutations were restored.
-The focused UI suite passes 11 tests, including restart recovery and a narrow
-sheet with enlarged text. A real rewind also invalidates the existing resident
-actor's native revision, and its replacement reads only the retained prefix.
-
-The whole-tree runtime gate selected 1,405 files, took 1,269.1 s at eight workers
-(82.8% utilization, 1,097.9 rerun-worker seconds), and reported 18 red files.
-The new seven-method manifest fixture was corrected; its three office test files
-then passed (129 tests). Every remaining failing node was compared using the
-per-file authority on unchanged runtime main `7df5194324`; the known gateway TLS,
-Windows path, doctor repair and teardown failures remain separately queued.
-The stream-gap timing failure and two multiplex isolation leaks are queued too.
-This is not a claim that the repository's full gate is green.
-
-Known boundaries: compressed ancestry cannot yet be copied into a lossless
-prefix branch, so it is explicitly refused; ambiguous merged prompts,
-attachments, redacted text and prompts over 64,000 characters are also refused
-instead of being flattened. Checkpoints remain workspace-scoped, with no invented
-turn association. External editors do not participate in the store lock.
-An interrupted restore exposes its verified recovery checkpoint and paths to
-review after the writer releases the lock; it never repeats unknown writes.
-
-The upstream API widenings are held PR candidates: SessionDB mixin admission,
-optional writer digest/receipt and its carrier-aware rewind forwarding, and the
-additive CheckpointManager preview/apply/status API. The ledger owns their footprint.
-
-
-## Approved repair — 2026-10-10 (in progress)
-
-The approved Console design places Edit on the prompt, Branch here after the
-reply, and one compact Changed files card below the answer. Undo reviews Chat
-and files / Chat only / Files only together; the file diff uses the existing
-chat drawer. Recovery belongs to the durable account/install/session, never to
-a mounted sheet. Closing a review does not cancel or acknowledge an operation.
-
-Repair contract: reuse SessionDB rewind/branch transactions, native checkpoints
-and exactly-once admission receipts. Add durable turn-to-checkpoint provenance
-before exposing per-reply changes or combined undo. A partial file restore must
-retain a verified backup and per-file progress; chat rewinds only after the
-reviewed files finish. Unknown results retain the same request identity until
-reconciled. Never infer success, death, or cancellation from a timeout.
-
-Current guard repair separates a short admission mutex from an active history
-writer, keeps status/stop available, records PID plus creation time on accepted
-turns for the existing boot orphan sweep, and maps native pre-write guards to
-definite refusals. Old receipts without owner evidence remain conservative.
-Branch's new after_reply boundary is explicit in the revision-pinned request;
-old before_prompt requests retain their behavior. Work remains unqualified
-until interruption, race, rollback, and mutation checks are recorded below.
+Required whole-fork gates and native Launcher qualification remain outstanding.
+The Launcher QA schema still exposes PrintWindow rather than required in-app
+capture; its policy blocks native verification until the connected server is
+refreshed. Do not mark this work landed or feature qualification complete.

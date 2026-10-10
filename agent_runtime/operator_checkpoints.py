@@ -16,7 +16,7 @@ from .operator_history import history_write_scope
 from .operator_session_inspection import _inspection_persona, inspection_identity, operator_session_read
 from .profile_context import persona_profile_scope, resolve_persona_profile
 from .history_recovery import fence_history_operation, clear_history_operation, pending_history_operation
-from tools.checkpoint_recovery import restore_revision
+from tools.checkpoint_manager import restore_revision
 
 __layer__ = "lanes"
 
