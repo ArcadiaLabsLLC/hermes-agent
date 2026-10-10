@@ -760,3 +760,92 @@ def test_redeliver_is_reachable_from_the_cli(isolate_agent_runtime_root):
 
     assert args.func is chat_tickets_commands._cmd_mission_chat_dispatch_redeliver
     assert args.dispatch_id == "dispatch-2540634d5cf3"
+
+
+# --------------------------------------------------------------------------- #
+# a retired owner's chat stays deletable                                      #
+# --------------------------------------------------------------------------- #
+
+
+def _retired_root(db, *, persona_id="dev", placement_id="dev_agent_retired"):
+    """A placement instance with its own chat root, then retired: the root stays."""
+
+    store = PersonaInstanceStore()
+    instance = store.add_instance(persona_id=persona_id, placement_id=placement_id)
+    db.create_session(
+        instance.session_id,
+        "agent_runtime_persona_chat",
+        model_config=json.dumps(
+            {
+                "source": "agent_runtime_persona_chat",
+                "persona_instance_id": instance.id,
+            }
+        ),
+    )
+    store.retire(instance.id, reason="placement deleted")
+    assert instance.id not in {row.id for row in store.list_all()}
+    return instance
+
+
+def _delete_args(session_id, *, persona_id=None, persona_instance_id=None):
+    return SimpleNamespace(
+        session_id=session_id,
+        persona_id=persona_id,
+        persona_instance_id=persona_instance_id,
+        requested_by="test",
+        json=True,
+    )
+
+
+def test_chat_delete_deletes_a_retired_owners_chat_unpinned(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """2026-10-09 live: "Amelia (2) chat" refused ``foreign_chat_session`` twice.
+
+    The fence read the owner through the LIVE store only; a retired owner's row
+    lives in the ``*_retire`` archive, so ``owner_instance`` was ``None``.
+    """
+
+    db = _canonical_db()
+    _chat_lane(monkeypatch, db)
+    retired = _retired_root(db)
+
+    code = chat_delete._cmd_persona_chat_delete(_delete_args(retired.session_id))
+
+    assert code == 0, _envelopes(capsys)
+    assert db.get_session(retired.session_id) is None
+
+
+def test_chat_delete_accepts_a_pin_to_the_personas_live_instance_for_a_retired_owner(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """The launcher projects the orphan under the persona's live instance and pins that."""
+
+    db = _canonical_db()
+    _chat_lane(monkeypatch, db)
+    live = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    retired = _retired_root(db)
+
+    code = chat_delete._cmd_persona_chat_delete(
+        _delete_args(retired.session_id, persona_id="dev", persona_instance_id=live.id)
+    )
+
+    assert code == 0, _envelopes(capsys)
+    assert db.get_session(retired.session_id) is None
+
+
+def test_chat_delete_refuses_a_retired_owners_chat_to_another_persona(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    db = _canonical_db()
+    _chat_lane(monkeypatch, db)
+    bob = PersonaInstanceStore().create_operator_chat(persona_id="profile:bob", display_name="Bob")
+    retired = _retired_root(db)
+
+    code = chat_delete._cmd_persona_chat_delete(
+        _delete_args(retired.session_id, persona_instance_id=bob.id)
+    )
+
+    assert code == 2
+    assert _envelopes(capsys)[-1]["error_kind"] == "foreign_chat_session"
+    assert db.get_session(retired.session_id) is not None
