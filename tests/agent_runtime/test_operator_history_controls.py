@@ -49,12 +49,16 @@ def test_branch_copies_exact_prefix_leaves_source_and_default_binding_and_replay
 
 def test_rewind_archives_instead_of_deleting_and_receipt_survives_restart(tmp_path, monkeypatch):
     target, before, _, request = setup(tmp_path, monkeypatch, "rewind")
+    from agent_runtime.persona_chat_session import _persona_chat_native_revision
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        old_revision = _persona_chat_native_revision(db, target["session_id"])
     result = call("history.apply", request)
     assert "result" in result, result
     with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
         assert len(db.get_messages(target["session_id"])) == 10
         assert len(db.get_messages(target["session_id"], include_inactive=True)) == len(before)
         assert db.get_session(target["session_id"])["rewind_count"] == 1
+        assert _persona_chat_native_revision(db, target["session_id"]) != old_revision
     assert call("history.apply", request)["result"]["replayed"]
     altered = call("history.apply", {**request, "row_id": before[8]["id"]})
     assert altered["error"]["data"]["reason"] == "operation_payload_changed"
@@ -115,7 +119,8 @@ def test_archived_marker_is_hidden_and_branch_keeps_inherited_trace(tmp_path, mo
         db.append_message(root, "assistant", "done", platform_message_id="first")
         db.append_message(root, "user", "second", platform_message_id="second")
     persist_mission_chat_turn(session_id=root, client_message_id="first", turn_id="first", state="completed",
-        elements=[{"kind": "thinking", "text": "Saved reasoning"}])
+        elements=[{"kind": "segment", "id": "first-thought", "turn_id": "first", "seq": 1,
+                   "state": "done", "seg_type": "plan", "text": "Saved reasoning"}])
     persist_mission_chat_turn(session_id=root, client_message_id="second", turn_id="second", state="interrupted", elements=[])
     plan = call("history.preview", {**target, "action": "branch", "client_message_id": "second"})
     assert "result" in plan, plan
@@ -132,3 +137,19 @@ def test_archived_marker_is_hidden_and_branch_keeps_inherited_trace(tmp_path, mo
     assert "result" in result, result
     visible = call("read", target)["result"]["messages"]
     assert not any(row.get("client_message_id") == "second" for row in visible)
+    after_source_rewind = call("read", {**target, "session_id": child})["result"]
+    assert after_source_rewind["messages"] == read["messages"]
+
+
+def test_compacted_or_attached_targets_are_explicit_refusals(tmp_path, monkeypatch):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        db.clear_messages(target["session_id"])
+        row = db.append_message(target["session_id"], "user", "Question\n[Operator attached image: image.png]")
+    refused = call("history.preview", {**target, "action": "rewind", "row_id": row})
+    assert refused["error"]["data"]["reason"] == "prompt_attachments_not_restorable"
+    # The native alternating-turn repair must never silently merge two prompts.
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        second = db.append_message(target["session_id"], "user", "Second question")
+    refused = call("history.preview", {**target, "action": "rewind", "row_id": second})
+    assert refused["error"]["data"]["reason"] == "target_requires_compaction_review"

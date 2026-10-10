@@ -1,6 +1,6 @@
 """Native checkpoint configuration under the caller's active profile."""
 
-__layer__ = "config"
+__layer__ = "stores"
 
 
 def checkpoint_configuration():
