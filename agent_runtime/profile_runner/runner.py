@@ -367,6 +367,7 @@ def _normalize_result(result: Any, *, agent) -> AgentRunResult:
 
 def _default_agent_factory(**kwargs):
     from run_agent import AIAgent
+    from agent_runtime.checkpoint_config import checkpoint_constructor_kwargs
 
     # ``cache_scope_id`` is a fork-runtime, header-only codex cache-scope hint —
     # NOT part of the upstream AIAgent constructor. Pop it before construction so
@@ -382,7 +383,7 @@ def _default_agent_factory(**kwargs):
     # the eager list is re-assembled with the persona's names deferred, BEFORE the block is
     # pruned, since the re-assembly starts from the lane's unpruned definitions.
     chat_lane_defer_tools = kwargs.pop("chat_lane_defer_tools", None)
-    agent = AIAgent(**kwargs)
+    agent = AIAgent(**{**checkpoint_constructor_kwargs(), **kwargs})
     if cache_scope_id:
         agent.cache_scope_id = cache_scope_id
     # The tool form has one owner (agent_runtime.chat_lane_tool_form, settled in the
