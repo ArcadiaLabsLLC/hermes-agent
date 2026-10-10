@@ -22,7 +22,7 @@ __layer__ = "lanes"
 
 
 @contextmanager
-def _writer(params):
+def _undo_store_writer(params):
     with operator_session_read(params) as (_, session):
         scope = session.scope
     db = chat_session_scope.open_chat_session_db(scope, access=chat_session_scope.SessionDbAccess.WRITE)
@@ -110,7 +110,7 @@ def apply_operator_undo(params):
     if mode not in {"both", "chat", "files"}:
         raise OperatorConversationRefused("invalid_undo_mode")
     digest = _digest(params)
-    with _writer(params) as db, _workspace_writer(), history_write_scope(params):
+    with _undo_store_writer(params) as db, _workspace_writer(), history_write_scope(params):
         require_not_cancelled(db, _receipt_key(params))
         raw = db.get_meta(_key(params))
         if raw:
@@ -174,7 +174,7 @@ def _reconcile(db, params, record):
 
 
 def operator_undo_status(params):
-    with _writer(params) as db:
+    with _undo_store_writer(params) as db:
         raw = db.get_meta(_key(params))
         if not raw:
             return {**inspection_identity(params, params.get("client_scope")), "operation_id": params["operation_id"], "result": None}
@@ -187,7 +187,7 @@ def recover_operator_undo(params):
     direction = params.get("direction")
     if direction not in {"finish", "rollback"}:
         raise OperatorConversationRefused("invalid_recovery_direction")
-    with _writer(params) as db, _workspace_writer(), history_write_scope(params):
+    with _undo_store_writer(params) as db, _workspace_writer(), history_write_scope(params):
         raw = db.get_meta(_key(params))
         if not raw:
             raise OperatorConversationRefused("restore_receipt_unavailable")
@@ -198,20 +198,8 @@ def recover_operator_undo(params):
         if params.get("recovery_revision") != _result(params, record)["recovery_revision"]:
             raise OperatorConversationRefused("recovery_changed")
         if record["mode"] != "chat":
-            restore = record["plan"]["restore"]
-            with _checkpoint_session({**params, "workspace_path": restore["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
-                key = _operation_key(identity, workdir, params["operation_id"])
-                result = manager.restore_receipt(key)
-                if result is None:
-                    if direction == "rollback":
-                        result = {"success": True, "reason": "rolled_back", "restored_files": [], "failed_files": []}
-                    else:
-                        result = manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
-                            selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key)
-                else:
-                    from tools.checkpoint_manager import restore_revision
-                    result = manager.resume_restore(key, revision=restore_revision(result), rollback=direction == "rollback")
-                record["files"] = result
+            result = _recover_undo_files(params, record, rollback=direction == "rollback")
+            record["files"] = result
             _save(db, params, record)
             if not result.get("success"):
                 record["state"] = "partial"
@@ -224,3 +212,17 @@ def recover_operator_undo(params):
             _release_backup(params, record)
             return _result(params, record)
         return _finish(db, params, record)
+
+
+def _recover_undo_files(params, record, *, rollback):
+    restore = record["plan"]["restore"]
+    with _checkpoint_session({**params, "workspace_path": restore["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
+        key = _operation_key(identity, workdir, params["operation_id"])
+        result = manager.restore_receipt(key)
+        if result is None:
+            if rollback:
+                return {"success": True, "reason": "rolled_back", "restored_files": [], "failed_files": []}
+            return manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
+                selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key)
+        from tools.checkpoint_manager import restore_revision
+        return manager.resume_restore(key, revision=restore_revision(result), rollback=rollback)

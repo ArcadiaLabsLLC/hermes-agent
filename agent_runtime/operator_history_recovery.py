@@ -16,9 +16,9 @@ def operator_history_pending(params):
     scoped = {**params, "operation_id": pending["operation_id"]}
     with history_write_scope(scoped):
         if pending["action"] == "undo":
-            from .operator_undo import _writer, _key, _reconcile
+            from .operator_undo import _undo_store_writer, _key, _reconcile
             import json
-            with _writer(scoped) as db:
+            with _undo_store_writer(scoped) as db:
                 raw = db.get_meta(_key(scoped))
                 result = _reconcile(db, scoped, json.loads(raw)) if raw else None
         else:
@@ -40,15 +40,15 @@ def cancel_unapplied_history(params):
     If any apply receipt exists, including a partial one, recovery still owns
     it. A delayed original request must observe the tombstone before writing.
     """
-    from .operator_undo import _writer, _key
-    from .operator_history import _receipt_key
+    from .operator_undo import _undo_store_writer, _key
+    from .operator_history import _receipt_key, HistoryAction
     from .operator_checkpoints import _checkpoint_session, _operation_key
     from .history_cancellation import cancellation_key
     from .operator_conversation import OperatorConversationRefused
     action = params.get("action")
-    if action not in {"branch", "rewind", "undo", "restore"}:
+    if action not in {*HistoryAction, "undo", "restore"}:
         raise OperatorConversationRefused("invalid_history_action")
-    with _writer(params) as db, history_write_scope(params):
+    with _undo_store_writer(params) as db, history_write_scope(params):
         applied = db.get_meta(_receipt_key(params)) or db.get_meta(_key(params))
         if action == "restore":
             with _checkpoint_session(params, receipt_only=True) as (identity, manager, workdir, _):

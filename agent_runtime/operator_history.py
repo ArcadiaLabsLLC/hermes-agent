@@ -142,8 +142,8 @@ def _plan(params, session):
         raise OperatorConversationRefused("invalid_history_target")
     if row_id is None and (not isinstance(client_id, str) or not client_id or len(client_id) > 240):
         raise OperatorConversationRefused("invalid_history_target")
-    boundary = params.get("boundary", "before_prompt")
-    if boundary not in {"before_prompt", "after_reply"} or (boundary == "after_reply" and action != HistoryAction.BRANCH):
+    boundary = params.get("boundary", "before_user_message")
+    if boundary not in {"before_user_message", "after_reply"} or (boundary == "after_reply" and action != HistoryAction.BRANCH):
         raise OperatorConversationRefused("invalid_history_target")
     target = _target(session.db, params["session_id"], row_id, client_id, after_reply=boundary == "after_reply")
     target["boundary"] = boundary

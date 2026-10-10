@@ -54,6 +54,43 @@ def operator_turn_changes(params):
 
 
 
+def _collect_attribution(sources, turns, workdir):
+    baseline, attributed, reason = None, {}, None
+    for turn in turns:
+        record = _turn_record(sources, turn)
+        if record and set(record["workspaces"]) - {workdir}:
+            reason = "multiple_workspaces"
+        workspace = (record or {}).get("workspaces", {}).get(workdir)
+        if workspace:
+            baseline = baseline or workspace["before_tree"]
+            attributed.update(workspace["files"])
+    return baseline, attributed, reason
+
+
+def _preview_attributed_restore(manager, workdir, sources, turns):
+    baseline, attributed, reason = _collect_attribution(sources, turns, workdir)
+    plan = {"workspace_path": workdir, "files": [], "restore": None, "files_reason": reason}
+    if reason:
+        return plan
+    if not baseline:
+        plan["files_reason"] = "no_tracked_changes" if not attributed else None
+        return plan
+    checkpoint = checkpoint_for_tree(manager, workdir, baseline)
+    if checkpoint is None:
+        return {**plan, "files_reason": "checkpoint_expired"}
+    restore = manager.preview_restore(workdir, checkpoint)
+    if not restore.get("success"):
+        return {**plan, "files_reason": restore["reason"]}
+    # Unattributed changes remain untouched, including another chat's writes.
+    files = [row for row in restore["files"] if row["path"] in attributed]
+    for row in files:
+        if row["current_sha256"] != attributed[row["path"]]["sha256"]:
+            row.update(eligible=False, reason="changed_after_turn")
+    # Do not disclose the whole-workspace diff when only attributed paths apply.
+    restore = {**restore, "workspace_path": workdir, "files": files, "diff": "", "diff_truncated": False}
+    return {**plan, "restore": restore, "files": files}
+
+
 def preview_operator_undo(params):
     from agent.context_compressor import user_originated_turn_view
     from .persona_chat_history.vocabulary import logical_persona_chat_client_message_id
@@ -65,44 +102,12 @@ def preview_operator_undo(params):
         turns = [logical_persona_chat_client_message_id(row.get("message_id")) for row in rows
                  if row["_row_id"] >= history["row_id"] and user_originated_turn_view(row) is not None]
         sources = _sources(session, params)
-    files, checkpoint, restore, reason, workspace_path = [], None, None, None, None
+    file_plan = {"workspace_path": None, "files": [], "restore": None, "files_reason": None}
     try:
         with _checkpoint_session(params) as (_, manager, workdir, _):
-            workspace_path = workdir
-            baseline = None
-            attributed = {}
-            for turn in turns:
-                record = _turn_record(sources, turn)
-                if record and set(record["workspaces"]) - {workdir}:
-                    reason = "multiple_workspaces"
-                workspace = (record or {}).get("workspaces", {}).get(workdir)
-                if workspace:
-                    baseline = baseline or workspace["before_tree"]
-                    attributed.update(workspace["files"])
-            if baseline and reason is None:
-                checkpoint = checkpoint_for_tree(manager, workdir, baseline)
-                if checkpoint is None:
-                    reason = "checkpoint_expired"
-                else:
-                    restore = manager.preview_restore(workdir, checkpoint)
-                    if not restore.get("success"):
-                        reason = restore["reason"]
-                        restore = None
-                    else:
-                        # Unattributed changes remain untouched, even if another
-                        # chat happened to write them inside this workspace.
-                        files = [row for row in restore["files"] if row["path"] in attributed]
-                        for row in files:
-                            evidence = attributed[row["path"]]
-                            if row["current_sha256"] != evidence["sha256"]:
-                                row.update(eligible=False, reason="changed_after_turn")
-                        # Review uses the exact attributed paths. The workspace
-                        # diff can contain another chat's work and is not shown.
-                        restore = {**restore, "workspace_path": workdir, "files": files, "diff": "", "diff_truncated": False}
-            elif not attributed and reason is None:
-                reason = "no_tracked_changes"
+            file_plan["workspace_path"] = workdir
+            file_plan = _preview_attributed_restore(manager, workdir, sources, turns)
     except OperatorConversationRefused as exc:
-        reason = exc.reason
-    body = {"history": history, "restore": restore, "files_reason": reason,
-            "workspace_path": workspace_path, "files": files}
+        file_plan["files_reason"] = exc.reason
+    body = {"history": history, **file_plan}
     return {**history, **body, "client_message_id": params["client_message_id"], "preview_token": _digest(body)}
