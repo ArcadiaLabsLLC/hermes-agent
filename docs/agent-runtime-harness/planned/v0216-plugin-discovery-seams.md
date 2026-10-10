@@ -1,6 +1,14 @@
 # v0.21.6 — plugin discovery leaves the credential path; process-env defaults leave `register()`
 
-> **Status: DESIGN, not built** (lane `plan/v0216-discovery-design`, 2026-10-10, cut from
+> **Status: BUILT 2026-10-10** on `plan/v0216-discovery-design` (P1 `change(provider-access)`, P2
+> `change(process-env)`). Review deviations: P1 registers the harness whenever it is missing (not
+> only on an empty registry) and adds no binder calls (the port's bound-read registration covers
+> them). P2 review gap: upstream's kanban dispatcher runs in upstream's messaging gateway, NOT in the
+> serve tree (§2.3 rule 2 was wrong about that); owner 2026-10-10: that gateway is not run, and a
+> persona gateway will be fork-composed, so it applies the table like the serve. Q1/Q2 answered as
+> recommended.
+>
+> Original status: **DESIGN, not built** (lane `plan/v0216-discovery-design`, 2026-10-10, cut from
 > `fix/v0216-fork-reds`). Two fork weaknesses the v0.21.6 release merge exposed as upstream reds.
 > Every number in §0 was measured on the operator's PC on 2026-10-10 (test venv
 > `~/.venvs/hermes-test`, fresh subprocess per phase, three runs); nothing here is attributed
