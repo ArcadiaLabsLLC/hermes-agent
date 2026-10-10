@@ -163,29 +163,37 @@ def get_toolset_for_tool(name: str) -> str | None:
 
 
 @lru_cache(maxsize=1)
-def _mutating_tools() -> frozenset[str]:
-    """The tools that cross the mutation boundary.
+def _read_only_blocks() -> frozenset[str]:
+    """The tools that cross the mutation boundary, built-in half.
 
     ONE definition, in ``tool_permissions.READ_ONLY_BLOCKS`` — the same 7 names
     used to be maintained here as ``_MUTATING_TOOLS`` and there as the
     ``read_only`` block set, two copies of one fact in two files that could only
     drift. The import is deferred because ``tool_permissions`` imports THIS
     module at load time; the constant is a frozenset of literals, so caching the
-    lookup costs one import and no staleness. Plus the Launcher app functions the
-    Launcher marks mutating (``read_only is False``), read from the live
-    registration — the same set ``read_only`` mode blocks.
+    lookup costs one import and no staleness.
     """
 
-    from .launcher_app_functions import mutating_app_function_tools
     from .tool_permissions import READ_ONLY_BLOCKS
 
-    return READ_ONLY_BLOCKS | mutating_app_function_tools()
+    return READ_ONLY_BLOCKS
+
+
+def _mutating_tools() -> frozenset[str]:
+    """:func:`_read_only_blocks` plus the Launcher app functions the Launcher marks
+    mutating (``read_only is False``) — the same set ``read_only`` mode blocks. Never
+    cached: the app-function half is the LIVE registration, which a Launcher
+    connection changes at any time."""
+
+    from .launcher_app_functions import mutating_app_function_tools
+
+    return _read_only_blocks() | mutating_app_function_tools()
 
 
 def _default_permission_mode_for_options() -> str:
     """The runtime default, for an options object nobody threaded a mode into.
 
-    Deferred + never-raising for the same reason as :func:`_mutating_tools`.
+    Deferred + never-raising for the same reason as :func:`_read_only_blocks`.
     ``snapshot._agent_summary`` / ``_agent_tool_detail`` call
     ``resolve_tool_visibility(agent)`` with no options at all, so without this
     the agents drawer would keep rendering the pre-2026-08-09 bounded posture

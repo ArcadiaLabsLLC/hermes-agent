@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 #: The mutating-tool set. ONE definition: ``read_only`` blocks exactly the tools
 #: that cross the mutation boundary, so ``tool_visibility``'s mutation labelling
-#: reads this constant (via its ``_mutating_tools()`` accessor) instead of
+#: reads this constant (via its ``_read_only_blocks()`` accessor) instead of
 #: maintaining a second copy of the same 7 names — they drifted apart in two
 #: files until 2026-08-09.
 READ_ONLY_BLOCKS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "terminal", "write_file"})

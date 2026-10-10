@@ -355,6 +355,7 @@ def test_read_only_blocks_and_labels_by_the_launchers_read_only_mark():
     confirmed_read = {**_CONFIRM_TOOL, "name": "launcher_vault_peek", "method": "launcher.vault.peek",
                       "read_only": True}
     unmarked_confirm = {k: v for k, v in _CONFIRM_TOOL.items() if k != "read_only"}
+    assert "launcher_queue_clear" not in _mutating_tools()  # read BEFORE the catalog lands: no stale cache
     laf.refresh_app_function_tools(laf.LauncherLink(
         _Launcher([*_TOOLS, silent_write, confirmed_read, unmarked_confirm]), laf.ORIGIN_LOCAL))
 
