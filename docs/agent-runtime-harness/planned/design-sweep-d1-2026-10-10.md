@@ -208,3 +208,152 @@ reads the gateway sink's catalog exactly as today.
 **Owner question:** none blocking. Decision rule for a schema conflict: the bound link's
 schema wins at definition time; the registered (static) schema is the most recently listed
 catalog's.
+
+## Cluster B — a new process pays the world again (D1.04, D1.05, D1.06)
+
+### D1.04 = L2.10 — prewarm holds `_WORKDIR_LOCK` through steps it cannot interrupt
+
+**Verdict: INVESTIGATION** — the row's figures were taken under the boot pile-up its sibling
+row describes, and the fork cannot split the two steps it names.
+
+**What the code does.** `profile_runner/execute.py::AgentRunExecution.run` holds
+`_WORKDIR_LOCK` (first in `scopes()`) for the whole prewarm and asks `yield_point` at every
+phase boundary (`lock_acquired`, `runtime_resolved`, `mcp_admitted`, `agent_acquired`,
+`system_prompt_stashed`, then per `warm_first_turn_paths` step); MCP admission polls the gauge
+every 50 ms (`registration._ABANDON_POLL_SECONDS`). The two steps that cannot yield are
+`construct_agent` (upstream `AIAgent.__init__`, one call) and
+`prewarmed_system_prompt.stash_prewarmed_system_prompt` (upstream `agent._build_system_prompt`,
+one call). Both need the lock: `persona_profile_context` sets process-global `HERMES_HOME`
+and `_agent_workdir` chdirs, which is what the lock serialises. Moving either off the lock
+means making profile context per-thread — the god-file program's seam work, not a prewarm
+lane; splitting either means an upstream PR that makes `AIAgent.__init__` resumable, which is
+not a reasonable door.
+
+**Why the numbers are suspect.** The row's line (agent.log 2026-10-06 20:23:47,
+`system_prompt_build_ms=7855 construct_ms=5318`) was logged by serve `5c0f130723`, which
+already contains h-prewarm-order (`b62278749f`, 02:38 that day) and the process-once warm
+(`first_turn_warmup.PROCESS_ONCE_WARM_RECEIPT`: scratch prune 3,050 ms and the
+`openai.resources.responses` import ~1,420 ms are paid on the boot thread). The same minute is
+the h-boot-pileup window (`9dba646bb1` body: the serve's first core build 70 s, two CLI
+children each building a full core beside it). Offline, uncontended, the first system-prompt
+build after the process-once warm is 39 ms and construction is ~1.4–1.8 s tool-setup
+(`execute.py::build_turn_state` comment). A 7.9 s prompt build is CPU starvation, not a step
+to split.
+
+**Protocol.** On the operator's serve, current build, idle box (no snapshot build in flight —
+confirm with no `snapshot_build_core` line in the preceding 60 s): open five chats on five
+roots and read each `prewarm_first_turn … system_prompt_build_ms=… construct_ms=…` line;
+repeat once with a core build deliberately in flight (`harness snapshot --rebuild` or a cold
+boot). Decision rule: uncontended medians `system_prompt_build_ms` < 200 and `construct_ms`
+< 2,000 → DROP this row (its cause is Cluster B's other two rows: the fix for a turn waiting on
+a prewarm during a boot pile-up is to stop the pile-up); `construct_ms` ≥ 2,000 uncontended →
+file ONE row naming the construction phase that dominates (take a `py-spy dump` of the prewarm
+worker mid-construct, or wrap `_agent_factory` with the existing `_emit_request_timing` parts)
+against `agent/agent_init.py` as upstream-owned, caller-side memo candidates only.
+
+**Not a fix candidate:** "yield mid-construct" — a turn that arrives mid-construction of its
+OWN root finds the actor the prewarm built (the NO-OP case the module docstring describes);
+a turn on another root waits at most one step, and h-prewarm-order's `chat_turns_accepted`
+gauge stops a prewarm from starting a step once a turn is accepted.
+
+### D1.05 = L2.11 — every new process pays the cold snapshot sections again
+
+**Verdict: PLAN**, landing as stages CF-1..CF-3 of the owning doc
+[`cold-first-core-build-cost.md`](cold-first-core-build-cost.md) (which today says "no stage
+is aimed at the number"). The 2026-10-06 verdict stands: upstream changed none of the four
+walkers since the merge base; this is ours.
+
+**The four costs, where each sits, and the fix per cost** (idle box, copy of the operator's
+store, 11 personas, ~2,000 SKILL.md; `9dba646bb1` body):
+
+| cost (first build) | owner | why it repeats | fix |
+|---|---|---|---|
+| `parse_frontmatter` × 2,004, ~4.8 s | `agent_runtime/skill_resolution.py::_skill_root_registry` parses every manifest with `_skills.parse_frontmatter(manifest.read_text())` directly, while `_cached_skill_frontmatter` (same module, `parse_cache.cached_by_mtime`) exists for the compatibility pass | two parsers of one file; the mtime memo is per process | CF-1: one parser; CF-2: a disk tier under the memo |
+| skill catalog walk 3.8 s + installed catalog 2.0 s | `prompt_observability/skills_resolver.py::_installed_skill_catalog` → `_walk_skill_catalog(upstream _find_all_skills)` | TTL memo per process; the walker parses frontmatter itself | CF-2 feeds it where the fork owns the call; CF-3 measures the residue |
+| provider probe / credential pool 2.7 s | `agent_runtime/provider_probes.py::codex_credentials_resolvable_read_only` → `load_pool("openai-codex").peek()` per snapshot | `load_pool` rebuilds the pool from its files every call | CF-3: build-scoped memo keyed on the pool file and auth-store file signatures |
+| kanban toolset detection 2.9 s | upstream `tools/skills_tool.skill_matches_environment` (offer-time gate) per skill per fork walk | called once per manifest per walk | CF-3: measure what inside it costs (env read vs probe); memo per build keyed on `HERMES_KANBAN_TASK` and the probe's inputs — caller-side, fork walk only |
+
+Imports and plugin discovery (~5.7 s of the 17.9 s) are the process's own and stay; the
+bytecode recompile after a checkout change is D1.06's.
+
+**Stages.**
+- **CF-1 one parser (fork-owned, `skill_resolution.py`).** `_skill_root_registry` reads each
+  manifest's frontmatter through `_cached_skill_frontmatter(manifest)`. Test
+  (`tests/agent_runtime/test_skill_root_registry_single_parse.py`): a fixture root with 40
+  manifests, count `agent.skill_utils.parse_frontmatter` calls (monkeypatch wrapper) across one
+  `_skill_root_registry` build plus one `skill_runtime_compatibility` pass per skill = 40.
+  Killing mutation: restore the direct `parse_frontmatter` call → 80 (red recorded).
+  ~15 lines.
+- **CF-2 cross-process frontmatter cache (fork-owned, `agent_runtime/parse_cache.py`).**
+  `cached_by_mtime` gains an optional disk tier for ONE loader family — skill frontmatter —
+  at `<store_root>/cache/skill_frontmatter.json`: `{resolved_path: [mtime_ns, size, frontmatter]}`,
+  loaded once per process on first miss (one JSON read of ~2,000 small dicts, ~10–20 ms),
+  written back on the idle path (`idle_turn_keeper.register_refresh`, never on the turn
+  thread; a crashed process loses at most the unwritten deltas). Validity is the file
+  signature already used by the memo; a stale entry misses and re-parses. The frontmatter
+  dict is read-only by contract (docstring of `_cached_skill_frontmatter`). Test
+  (`tests/agent_runtime/test_skill_frontmatter_disk_cache.py`): process A builds the registry
+  over the fixture root and flushes; a child interpreter (subprocess, same store root) builds
+  it with `parse_frontmatter` counted via an env-guarded counter receipt = 0 parses; edit one
+  manifest → exactly 1. Killing mutation: skip the disk read on cold miss → 40 parses in the
+  child. ~120 lines + the cache dir in the realm-sync hard-exclusion list
+  (`realm_sync/families.py::_is_hard_excluded_path`) with its pin test. **Owner question:** a
+  derived cache under the store root (beside `core_cache`), or under the profile's cache dir —
+  name the directory; the sync exclusion follows.
+- **CF-3 build-scoped memos for the probe and the gates (fork-owned).**
+  `provider_probes.codex_credentials_resolvable_read_only` memoised per snapshot build keyed
+  on `(pool file signature, auth.json signature)` (both paths are the pool's own; read them
+  through `parse_cache.cached_by_mtime`'s stamp) — a readiness build asks it once per persona
+  today, 11 times per build. Kanban: time `skill_matches_environment` on the fixture root
+  first (a 1.5 ms env read × 2,000 is 3 s; if the cost is a probe, memo the probe's answer per
+  build keyed on its inputs; if it is import-time, it is a one-time cost mis-attributed to the
+  walk). Tests: probe called once per build across 11 personas (killing mutation: drop the
+  memo → 11); kanban gate ≤ 1 call per distinct (manifest, env) per build. ~150 lines.
+- **Gate for the whole:** extend `tests/agent_runtime/test_stream_relay.py`'s warm budget
+  (`agents_readiness` / `prompt_observability` ≤ 1,500 ms warm over the seeded store) with a
+  COLD-process budget on the same seed (60 skills, 4 personas; child interpreter with the
+  disk cache primed): record the measured numbers in the commit body, set the budget at 2×.
+
+**Size.** Three stages, one lane (Opus), ~300 lines code, ~250 lines tests. Value: the per-process
+cold half (~12 s of 17.9 s on the operator's store) drops to the imports (~5.7 s) plus the
+unparsed residue CF-3 names; the serve's boot snapshot and every CLI child stop paying the
+frontmatter twice.
+
+**Risks.** A disk cache is a second source of truth: validity rests on `(mtime_ns, size)`,
+which Windows preserves across copies — a copied store with same stamps and different bytes
+is the one false hit; decision rule: also key on the manifest's inode-equivalent where the
+platform reports one, else accept (the same rule `parse_cache._stamp` already applies).
+
+### D1.06 = L1.20 — `harness serve` cold boot: interpreter_ms 15,203 of total_ms 21,592
+
+**Verdict: INVESTIGATION** — the segments exist; which of them is I/O and which is CPU is not
+yet measured, and the two have different fixes.
+
+**What exists.** `hermes_cli/_boot_clock.import_tax_segments` already splits `interpreter_ms`
+into `interpreter_boot_ms` (process start → `main.py` import start), `main_import_ms`,
+`dispatch_ms` (main entered → the serve's timeline start), with `bytecode_sweep_ms` and
+`harness_parser_ms` reported beside `dispatch_ms`; `serve/boot.py::_annotate_import_tax`
+puts them on the boot frame the Launcher parses. The QA-seed figures (interpreter_boot 5,196 /
+main_import 4,016 / dispatch 5,991, disk-cold) do not say whether `dispatch_ms` is parser
+build, the bytecode sweep, or page-cache misses.
+
+**Protocol** (QA seed machine; one checkout change between runs to force the recompile case):
+1. Five boots each in three states — disk-cold after a checkout change (bytecode invalid),
+   disk-cold with valid bytecode (reboot, no change), warm (second boot within a minute) —
+   reading the five segments off the boot frame. Record medians per state.
+2. `python -X importtime -c "import hermes_cli.main"` warm, sorted by cumulative; and the same
+   with the harness parser built (`python -X importtime -m hermes_cli.main harness --help`).
+3. Decision rules, per segment: (a) cold ≥ 3× warm and the recompile state is ≥ 1.5× the
+   valid-bytecode cold state → the cost is bytecode + page cache; the fix is a precompile
+   step at install/checkout-change time (fork-owned `scripts/precompile_tree.py` running
+   `compileall` over the 149 package dirs, invoked by the Launcher's build step — launcher half
+   filed to `mission-control-queue.md`) and nothing lazy; (b) warm `harness_parser_ms`
+   ≥ 500 → the harness subparsers build per verb (fork-owned `hermes_cli/harness_parts`
+   parser), gated by a test that `harness serve --help` imports no verb module but
+   `serve`'s; (c) a warm `main_import_ms` module ≥ 300 ms in `importtime` → named as an
+   upstream-owned caller-side lazy import candidate (a `main.py` edit is non-additive;
+   the row is a marker). Serve readiness semantics do not move in any branch: the ready
+   frame is still emitted after the same phases (`boot_phases.py`).
+
+**Not a fix candidate before the measurement:** moving imports lazy on a disk-cold number — the
+page-cache cost moves with the import, it does not shrink.
