@@ -150,6 +150,12 @@ _REAL_ROOT = _real_hermes_root()
 
 
 _PYTHON_BASENAME_RE = re.compile(r"^pythonw?(\d+(\.\d+)*)?(\.exe)?$")
+_INTERPRETER_BASENAME_RE = re.compile(r"^(pythonw?(\d+(\.\d+)*)?|node)(\.exe)?$")
+
+
+def _is_interpreter_token(token: str) -> bool:
+    """True when *token* (shell quotes stripped) names a Python or Node interpreter."""
+    return bool(_INTERPRETER_BASENAME_RE.match(_basename(str(token).strip("'\""))))
 
 
 def _without_python_c_argv(raw: list[str]) -> list[str]:
@@ -319,9 +325,13 @@ def classify(cmd, env=None) -> str | None:
     # ``sys.executable`` spawn in this directory was refused (2026-10-07: 80
     # refusals, ~15 reds on main). The store is reached through HERMES_HOME or
     # through an argument that names it; both stay refused.
-    store_text = " ".join(
-        token for token in tokens if not _PYTHON_BASENAME_RE.match(_basename(token))
-    )
+    #
+    # The same holds for the provisioned Node (``<root>/tools/node-*/node.exe``,
+    # spawned by upstream's desktop build-freshness recorder) and for an
+    # interpreter quoted inside a ``bash -lic '...'`` wrapper string, where the
+    # token arrives as ``'<path>/python.exe'`` (v0.21.6 merge, 2026-10-10: 11
+    # refusals across test_desktop_update_verify / test_completion_backlog).
+    store_text = " ".join(token for token in tokens if not _is_interpreter_token(token))
     if _names_real_root(store_text, env):
         return (
             f"it would run hermes against the operator's REAL store ({_REAL_ROOT}). "

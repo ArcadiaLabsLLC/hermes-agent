@@ -399,7 +399,6 @@ if _WIN:
         )},
         **{node: (_up_red('fake executable is an extensionless #! script, neither run nor found via PATHEXT (class e-EXE)'),) for node in (
             'tests/hermes_cli/test_goal_gates.py::test_run_gate_fail_captures_output',
-            'tests/hermes_cli/test_web_server_git.py::test_gh_auth_refresh_waits_out_a_probe_started_before_it',
             'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_pr_tree_is_reaped',
             'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_verdict_memoized_by_branch_and_head',
         )},
