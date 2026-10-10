@@ -99,6 +99,12 @@ class ExecutionState(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     #: The turn ran and settled.
     COMPLETED = "completed"
+    #: The message was accepted while its chat root was busy and is queued to run
+    #: after the current turn (``chat_root_send_queue``, owner ruling
+    #: 2026-10-10). A success: nothing was refused, and the turn's own settle is
+    #: pushed when it runs. Not the retired ``QUEUED`` (S70 tombstone): that was
+    #: the free-floating assignment queue, a different lane with no consumer.
+    ACCEPTED = "accepted"
     # S70 removed ``QUEUED``: its only emitter was the free-floating assignment
     # queue envelope, retired with that lane (a queued row had no consumer
     # since the 2026-07-30 chat-only purge removed ticking).
@@ -111,6 +117,7 @@ class ExecutionState(StrEnum):
 OK_EXECUTION_STATES = frozenset(
     {
         ExecutionState.COMPLETED,
+        ExecutionState.ACCEPTED,
     }
 )
 FAILURE_EXECUTION_STATES = frozenset(

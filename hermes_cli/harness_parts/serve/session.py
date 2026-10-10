@@ -734,6 +734,18 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
+        # Same owner as the drain: one serve runs the busy-root send queue.
+        try:
+            from agent_runtime.chat_root_send_runner import start_queued_send_runner
+
+            start_queued_send_runner(stop_event=self.liveness_stop, home=self.serve_request_home)
+        except Exception:
+            import logging as _queue_logging
+
+            _queue_logging.getLogger(__name__).warning(
+                "queued-send runner did not start; sends queued behind a busy root wait for "
+                "the next serve", exc_info=True,
+            )
 
     def _bind_subscription_lanes(self) -> None:
 

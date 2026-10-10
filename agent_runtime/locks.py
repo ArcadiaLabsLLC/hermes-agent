@@ -225,6 +225,22 @@ def chat_turn_settle_lock(settle_id: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def chat_root_send_queue_lock(root_session_id: str) -> Iterator[None]:
+    """Serialize one chat root's send queue (enqueue, position, run, remove).
+
+    Held for a directory read and one file write, never across a turn, and
+    never around the chat-root lease: the queue runner takes it, releases it,
+    then runs the turn.
+    """
+    with _file_lock(
+        paths.lock_dir()
+        / "chat_root_send_queue"
+        / f"{paths.safe_path_token(root_session_id)}.lock"
+    ):
+        yield
+
+
+@contextlib.contextmanager
 def archive_lock() -> Iterator[None]:
     with _file_lock(paths.lock_dir() / "archive.lock"):
         yield

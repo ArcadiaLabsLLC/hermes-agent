@@ -50,6 +50,9 @@ EXECUTION_STATE_WIRE = {
     "BLOCKED": "blocked",
     "BUDGET_EXHAUSTED": "budget_exhausted",
     "COMPLETED": "completed",
+    # A send accepted while its chat root was busy and queued behind the current
+    # turn (``chat_root_send_queue``, owner ruling 2026-10-10).
+    "ACCEPTED": "accepted",
     # S70 removed QUEUED: its only emitter was the retired free-floating
     # assignment queue envelope (tombstone registry, wave s70).
 }
