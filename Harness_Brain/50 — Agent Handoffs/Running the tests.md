@@ -23,6 +23,12 @@ python scripts/doc_cite_adjacency.py --exclude archive --exclude planned        
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
 
+**Upstream-PR lanes pass `--base upstream/main` to `scripts/check`.** Its default base is the
+merge-base with the fork's `origin/main`, thousands of commits behind upstream, so from this clone it
+reports ~313 blocking findings over 2,756 files and hits its 900 s timeout (lanes up-door-modules,
+up-door-sdk, up-door-fixes, 2026-10-07): `python scripts/check --base upstream/main`. On this box
+`uvx ruff@0.15.10` can fail on a locked uv cache file (os error 32); use the test venv's `ruff`.
+
 **The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
 conftest. Given `tests/agent_runtime tests/hermes_cli tests/hermes_state` it only searches those
