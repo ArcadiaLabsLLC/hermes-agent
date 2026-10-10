@@ -18,8 +18,11 @@ class HistoryControlError(ValueError):
 
 def history_digest(conn, session_id: str) -> str:
     """Pin payloads as well as row membership; metadata changes are conservative."""
-    rows = [dict(row) for row in conn.execute(
+    rows = [{key: {"sqlite_blob": value.hex()} if isinstance(value, bytes) else value
+             for key, value in dict(row).items()} for row in conn.execute(
         "SELECT * FROM messages WHERE session_id = ? AND active = 1 ORDER BY id", (session_id,))]
+    # Native message rows include binary payloads (for example token caches).
+    # Tag their lossless representation rather than dropping them from the pin.
     return hashlib.sha256(json.dumps(rows, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
 
 
@@ -40,6 +43,16 @@ def write_history_receipt(conn, receipt: tuple[str, str] | None) -> None:
 
 
 class SessionHistoryControlsMixin:
+    def archived_history_message_ids(self, session_id: str) -> list[str]:
+        """Only identity columns for rewind archives; never reload message bodies."""
+        lineage = self._resume_lineage_ids(session_id)
+        with self._read_ctx() as conn:
+            return [row[0] for row in conn.execute(
+                "SELECT platform_message_id FROM messages WHERE session_id IN ("
+                + ", ".join("?" for _ in lineage)
+                + ") AND active = 0 AND COALESCE(compacted, 0) = 0 AND platform_message_id IS NOT NULL",
+                tuple(lineage))]
+
     def history_control_revision(self, session_id: str) -> str:
         with self._read_ctx() as conn:
             return history_digest(conn, session_id)
