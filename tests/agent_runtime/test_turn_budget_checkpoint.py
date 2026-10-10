@@ -275,6 +275,12 @@ def test_gate_stops_new_tool_work_and_nudges_once_under_the_threshold():
     # The agent is TOLD, in-band, to produce a final checkpoint reply...
     assert len(agent.steers) == 1
     assert "final checkpoint reply" in agent.steers[0].lower()
+    # The steer is delivered only after the running tool batch returns (maybe past
+    # the wall), so its count is dated to when the checkpoint opened, never claimed
+    # as the time left at delivery (live 2026-10-08: "about 60s left" read at 244 s).
+    assert "checkpoint opened with about 40s left" in agent.steers[0]
+    assert "may already have run out" in agent.steers[0]
+    assert "left on this turn's clock" not in agent.steers[0]
     # ...and the loop can launch no further iterations, so no new tool batch and
     # no new tool-bearing provider call starts.
     assert agent.iteration_budget.remaining == 0
