@@ -9,7 +9,7 @@ tags: [handoff, program/upstream-sync]
 The weekly merge of the latest `NousResearch/hermes-agent` RELEASE tag into the fork — never `upstream/main` (owner, 2026-10-06). Rule: [[0006 — Upstream sync is a real merge, per-file reconciliation retired]]. State: [[Upstream Sync]].
 
 > [!important] Never in the primary checkout, never a rebase, never `main` from a lane
-> Cut a worktree from a NEUTRAL cwd; merge there; push the candidate branch; the operator lands fast-forward after the validated suite.
+> Cut a worktree from a NEUTRAL cwd; merge there; push the candidate branch; the operator lands fast-forward after the Step 7 gate.
 
 ## Steps
 
