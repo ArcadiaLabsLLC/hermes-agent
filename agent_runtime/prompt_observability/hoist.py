@@ -12,6 +12,7 @@ from typing import Any
 from ..serde import safe_assignment_token
 from ..serde import non_negative_int, to_jsonable
 from .safe_views import (
+    _SURFACE_COUNT_KEYS,
     _safe_cache_routing,
     _safe_system_prompt_sections,
     _safe_user_message_wire,
@@ -124,7 +125,7 @@ def _final_model_input_stub(final_model_input: dict[str, Any], context_id: Any) 
     payload.
 
     Also carries a slim ``tool_schema`` accounting block (``tool_count`` +
-    ``json_bytes``) and the already-small, one-way ``cache_routing`` evidence
+    ``json_bytes``, the surface receipt's ``counts`` and its ``resolution_id``) and the already-small, one-way ``cache_routing`` evidence
     when present. The tool schemas are the single largest fixed slice of the
     prompt after the system message, and cache-routing fingerprints must remain
     comparable between warm and cold turns on the eviction lane. Both are
@@ -154,6 +155,19 @@ def _final_model_input_stub(final_model_input: dict[str, Any], context_id: Any) 
             "tool_count": non_negative_int(tool_schema.get("tool_count")),
             "json_bytes": non_negative_int(tool_schema.get("json_bytes")),
         }
+        # The cost layer split rides the stub (counts only, through the safe view's key set), so a
+        # launcher shows eager / deferred / unavailable without a detail fetch.
+        surface = tool_schema.get("surface")
+        if isinstance(surface, dict) and surface.get("state") == "not_computed":
+            stub["tool_schema"]["surface"] = {"state": "not_computed"}
+        elif isinstance(surface, dict) and isinstance(surface.get("counts"), dict):
+            counts = surface["counts"]
+            stub["tool_schema"]["surface"] = {
+                "counts": {key: non_negative_int(counts.get(key)) or 0 for key in _SURFACE_COUNT_KEYS}
+            }
+        resolution_id = safe_assignment_token(tool_schema.get("resolution_id"))
+        if resolution_id:
+            stub["tool_schema"]["resolution_id"] = resolution_id
     cache_routing = _safe_cache_routing(final_model_input.get("cache_routing"))
     if cache_routing is not None:
         # Unlike messages/tool bodies, this block is already tiny and contains
