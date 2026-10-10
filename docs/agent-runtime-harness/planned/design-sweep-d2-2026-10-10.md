@@ -724,3 +724,140 @@ row).
 
 Owner question: none. Follow-on row (not this lane): a `board_card` fold with its producer
 inside `board_lock`, per `board-surface-rpc-lane.md` rule 3.
+
+---
+
+## D2.12 = L2.28 — User prefabs do not travel: a realm-sync family beside `map_sync`
+
+**Verdict: PLAN**, and the design decision is that prefab is the THIRD instance of one class,
+so the class is built first. Size: MOVE ~−550 net lines (two ~600-line modules onto one
+~450-line family module plus two ~80-line descriptors), CHANGE ~140 production + ~200 test for
+prefab. Prerequisite (the row's own): the launcher binds `UserPrefabStore` to
+`runtime.prefab.*` first (launcher queue).
+
+### What the code says
+
+- `agent_runtime/level_sync.py` (599 lines) and `agent_runtime/map_sync.py` (633) are the same
+  module twice: `validate_*_document`, `*_document_hash`, `stored_*_sha256`,
+  `*_expectation_matches`, `*_document_row`, a `*Store` (read/write/clear/list), `read_*_baseline`
+  / `write_*_baseline` / `update_*_baseline_after_publish`, `read_remote_*`, a `*PullSummary`
+  with the same six arms (`adopted`, `converged`, `kept_local`, `held`, `upstream_absent`,
+  `refused`, `source`), `apply_*_pull` over `agent_runtime/sync_merge.py::classify_three_way_pull`,
+  and `_write_conflict_sidecar`. They plug into realm sync at four seams:
+  `realm_sync/families.py` (`SyncFamily.LEVEL/MAP`, `SyncPathFamily(..., owner=...)` so the
+  generic pull skips `store/levels/*`, `store/maps/*`), `publish_scans.py::_level_publish_scan /
+  _map_publish_scan`, `pull.py::_pull_level / _pull_map`, `status.py::_level_status_row /
+  _map_status_row` (top-level rows, deliberately not `store_drift` because neither has a revert
+  arm — runtime-queue row "A realm-synced LEVEL has no revert arm"), and
+  `publish.py` (`_published_row`, `update_*_baseline_after_publish`).
+- `agent_runtime/prefab_store.py::PrefabStore` already has the store half (validate, hash,
+  read/write/clear/list, `label_holder`), per PROFILE under `paths.prefabs_root(profile)`;
+  `serve_rpc/prefab.py` owns the four verbs. Nothing in `realm_sync/` knows prefabs.
+
+A third copy would be the third patch on one class (the weakness-escalation rule: the third
+instance files the CLASS). The class is "a whole-document family: adopt, keep or HOLD, never
+merged, baseline-keyed, sidecar on hold, no revert arm".
+
+### The design decisions
+
+1. **`agent_runtime/realm_sync/document_family.py`** — a `DocumentFamily` descriptor
+   (`family: SyncFamily`, `published_prefix`, `baseline_key(token)`, `store_for(token)` →
+   read/write, `validate(raw)`, `document_hash(raw)`, `tokens()` (what this install publishes),
+   `conflict_path(realm_id, token)`, `summary_key` (`level_sync` / `map_sync` / `prefab_sync`,
+   the wire names kept)) and the generic functions `read_remote_documents(subtree, family)`,
+   `apply_document_pull(realm_id, subtree, family) -> DocumentPullSummary`,
+   `document_publish_scan(family) -> DocumentPublishScan`, `document_status_row(realm_id,
+   family)`, `update_document_baseline_after_publish`. The arms, the refusal codes and the
+   sidecar schema are the map module's, verbatim.
+2. **MOVE level and map onto it** behaviour-preserving: `level_sync.py` and `map_sync.py` keep
+   their public names as thin re-exports (`apply_level_pull = partial(apply_document_pull,
+   family=LEVEL_FAMILY)`), their `*PullSummary.as_dict()` key sets unchanged (the pull ack's
+   `result["level_sync"]` / `result["map_sync"]` are wire), their tests green unchanged.
+3. **Prefab is one descriptor**: `SyncFamily.PREFAB = "prefab"`, published prefix
+   `store/prefabs/<profile-token>/<prefab-token>.json` (the token pair IS the family token:
+   `"<profile>/<prefab>"`), `store_for` → `PrefabStore(profile)`, `validate_prefab_document`,
+   `stored_prefab_sha256`, `paths.prefab_conflict_path(realm_id, profile, prefab)` (new),
+   `paths.prefab_baseline_path(realm_id)` (new), `summary_key = "prefab_sync"`. Plugged in at
+   the four seams: `SyncPathFamily(SyncFamily.PREFAB, _prefix("store/prefabs/"),
+   owner="document_family.apply_document_pull")`, `_pull_prefab(run)`, the publish scan fold,
+   the status row `prefabs`. A profile's shelf follows the profile NAME across machines (the
+   row's ask); a profile the peer does not have gets the files and nothing reads them until
+   it does — the same rule profile files already follow (`_profile_home_for_token`).
+4. **No revert arm**, like level and map; the class makes the later revert arm one function
+   over three families instead of three — that row stays open and now names the class.
+
+### Files and symbols
+
+- new `agent_runtime/realm_sync/document_family.py`; `agent_runtime/level_sync.py`,
+  `agent_runtime/map_sync.py` shrunk to descriptors + re-exports (MOVE).
+- `agent_runtime/realm_sync/families.py`, `publish_scans.py`, `pull.py`, `status.py`,
+  `publish.py` — the prefab seam entries (CHANGE); `agent_runtime/paths.py` two path helpers.
+- `agent_runtime/prefab_store.py` — `prefab_document_hash` if the canonical hash differs from
+  `stored_prefab_sha256` (maps distinguish the two; keep the distinction).
+- Launcher: binds `UserPrefabStore` to `runtime.prefab.*` (prerequisite row); then reads
+  `prefab_sync` on the realm sync detail sheet beside `maps`.
+
+### Stages, tests, killing mutation
+
+| stage | test | killing mutation |
+|---|---|---|
+| MOVE | `tests/agent_runtime/test_level_sync.py`, `test_realm_sync_level_artifact.py`, `test_map_rpc.py`, `test_realm_sync_publish_accounting.py` byte-identical before/after | — |
+| CHANGE prefab | `tests/agent_runtime/test_prefab_sync.py` (new): adopt / converge / keep_local / held with sidecar / upstream_absent never deletes / refused unreadable; publish scan lists the shelf; status row counts | adopt on CONFLICT → a locally changed prefab is overwritten → red; delete on `upstream_absent` → red |
+| launcher | detail sheet row | — |
+
+### Owner question
+
+- A shelf is per PROFILE NAME across the realm (proposed) — or merged realm-wide into one
+  shelf per install? The per-profile reading is the row's and the store's.
+
+---
+
+## D2.13 = L1.27 — Eternia Lens as a fork-owned plugin
+
+**Verdict: PROGRAM-EXISTS.** Plan: `docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md`
+§5 (stages L0–L4, each with its red-first gate). All four §6 rulings were given 2026-10-02
+(`eternia-lens` / `runtime.lens.*`; per-manifest persona defaulting to the selected one; no
+`act` level; phones run no poller), so L0 may start; nothing exists under `agent_runtime/lens/`
+or `plugins/eternia-lens/` on `main`, so L0 has not started. Next stage: **L0** — skeleton and
+contracts (`wire_value`, `manifest`, `seal`, `feed`, `rules`, `episode`, `evidence`), the
+conformance corpus ported from Companion as the test oracle, `runtime.lens.list` only, with
+§6a's four additions to `rules.py` (`changed`, `moved_by`, `below`/`above`, `best_of`,
+`ends_within`) in L0's contract. §6c (Luau) is recorded as not adopted; L0 lands the declarative
+rule contract and does not wait on it. No design added here. Owner question: none blocking.
+
+---
+
+## D2.14 = L1.30 — Stage 2 remainder: the phone profile gate to zero
+
+**Verdict: PROGRAM-EXISTS.** Plan: `docs/downstream/phone-gate-to-zero-plan-2026-09-30.md`
+(six lanes G1–G6 in §4, owner decisions D1–D5 in §5); the row closes when
+`scripts/bundle_profile_gate.py --profile bundled-phone` prints PASS. Status read off `main`'s
+history, not the queue (the lane rows under "Filed on arrival — 2026-09-30 (lane s2-plan)" are
+gone, so they landed or were folded): G3 landed (`1309210ad2`, gate 104 → 34), G2 merged with
+it (`6dad554dd1`, gate → 16), G6 landed (`5911418efb`, the sibling tree that retires `pinned`),
+the G4 landing heading is empty, and G1's switch-offs are the 164 → 104 step. G5 is owner-gated.
+Next stage: **re-take the gate on `main`** (background, `timeout` ≥ 900 s, `--markdown
+docs/downstream/bundled-phone-gate-2026-09-28.md`, the gate's own rules in plan §4) to name the
+remaining findings, then **G5** against the owner's D2–D5. Blocking owner questions, one line
+each, unchanged from plan §5:
+
+- D2 — HEIC/AVIF on phones: omit `pillow-heif` and let the Launcher's picker transcode (recommended)?
+- D3 — the secrets vault on phones: drop `agent.vault_store` + `agent.vault_backends.*` (recommended)?
+- D4 — DuckDuckGo on phones: drop the `ddgs` provider (HTTP-API providers only)?
+- D5 — slash commands on phones: build the in-process slash runner, or rule "no slash commands" for Stage 2?
+
+---
+
+## Structural findings from this sweep (filed by the parent; one line each)
+
+- **The provider boundary flag is set before the provider is resolved, so every pre-request
+  failure classifies as an ambiguous outcome** · fork-owned (`chat_turn_commit/run.py::
+  _cross_provider_boundary`, `mission_chat_outcome.classify_turn_failure`) · evidence D2.02 ·
+  queue: `runtime-queue.md` § Fork-owned (the D2.02 PLAN is the fix).
+- **Two whole-document realm-sync appliers are one module twice (`level_sync.py`,
+  `map_sync.py`); the third family would be the third copy** · fork-owned · evidence D2.12 ·
+  queue: `runtime-queue.md` § Fork-owned (the class is `realm_sync/document_family.py`).
+- **The snapshot yield rule stands aside only for hot windows because its docstring predates
+  the `persona_chat_turn` overlay; with every subscriber declaring the token a build may stand
+  aside for the whole admitted turn** · fork-owned (`snapshot_turn_yield.py::_turns_admitted`) ·
+  evidence D2.06 · queue: `runtime-queue.md` § Fork-owned (fix-lane sized; replaces L4.30).
