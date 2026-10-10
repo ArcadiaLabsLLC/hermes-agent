@@ -2,7 +2,8 @@
 
 The production argparse tree and production handlers emit every fixture.  The
 generator runs against an isolated empty runtime root, then normalizes only
-the random error id added after the handler has classified the response.
+the random error id added after the handler has classified the response, and the
+case's temp root (to ``<case-root>``) wherever a root-resolution block names it.
 
 Some envelopes only exist against runtime STATE (a realm whose sync remote is
 gone; a realm whose credential belongs to somebody else).  Those cases name an
@@ -169,14 +170,21 @@ def _git_quiet(*args: str) -> None:
     subprocess.run(["git", *args], capture_output=True, check=True)
 
 
-def _normalize(value: Any) -> Any:
+CASE_ROOT_TOKEN = "<case-root>"
+
+
+def _normalize(value: Any, case_root: str = "") -> Any:
     if isinstance(value, dict):
-        normalized = {str(key): _normalize(item) for key, item in value.items()}
+        normalized = {str(key): _normalize(item, case_root) for key, item in value.items()}
         if "error_id" in normalized:
             normalized["error_id"] = "err_fixture"
         return normalized
     if isinstance(value, list):
-        return [_normalize(item) for item in value]
+        return [_normalize(item, case_root) for item in value]
+    # A root-resolution block (`resolution.store_root`, its trace) names the case's
+    # temp root; the consumer fixture carries a token and `/`, never this machine's path.
+    if isinstance(value, str) and case_root and case_root in value:
+        return value.replace(case_root, CASE_ROOT_TOKEN).replace("\\", "/")
     return value
 
 
@@ -196,7 +204,7 @@ def _run(parser: argparse.ArgumentParser, argv: list[str]) -> dict[str, Any]:
     return {
         "argv": argv,
         "exit_code": exit_code,
-        "stdout": _normalize(json.loads(stdout.getvalue())),
+        "stdout": _normalize(json.loads(stdout.getvalue()), str(Path(os.environ["HERMES_AGENT_RUNTIME_ROOT"]).parent)),
     }
 
 
