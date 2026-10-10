@@ -20,3 +20,4 @@ tests/hermes_cli/test_source_launcher_publication.py · P0: same freeze set; rep
 tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
 tests/tools/test_fal_sdk.py · env: collection ImportError - the fal SDK is not in the test venv (red on pure tag v0.21.6 and on main, 2026-10-10) · 818c13be1d
+tests/hermes_cli/test_update_completion_process.py · upstream: nondeterministic on Windows - 8-9 of its update-completion tests red on the pure tag v0.21.6 and on main, a different set each run (lock and child-process timing), so per-test strict marks XPASS; re-run bare at each release (2026-10-10) · 818c13be1d
