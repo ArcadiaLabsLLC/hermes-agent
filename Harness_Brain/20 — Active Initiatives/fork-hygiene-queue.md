@@ -416,3 +416,9 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-09 (perf programme close-out sweep)
 
 - [ ] **The managed `hermes.exe` printed `source-update completion failed: … pm\worker.py timed out after 5 seconds; running with the previous dependencies` on an ordinary `harness persona tool-diff` call (2026-10-09, while the four final gates loaded the machine); a 5 s worker budget fails under load and leaves the install's dependencies stale — measure the worker's normal duration and make the budget load-tolerant or the completion asynchronous** · fork / install (pm) · evidence: final-gates live check (a) stderr, 2026-10-09 · UNCLAIMED
+
+## Filed on arrival — 2026-10-09 (landing lane land-h-toolvis; red on detached origin/main 440cba12ce, after the upstream v0.21.6 merge)
+
+- [ ] **`test_agent_chat_runtime_roster.py` errors 4/4 at setup: the base-profile config write refuses with `ValueError: omitted config paths: toolsets`** (`RuntimeError: Your settings file ... would lose settings omitted by this write`) — the fixture's config write predates a `toolsets` key the merge now seeds.
+- [ ] **`test_harness_core_ratchet.py` reds 5: `test_every_mission_persona_resolves_the_same_declared_count[*]` (`assert 10176 == 10168` tokens) and `test_a_declaration_that_names_the_hygiene_toolsets_brings_the_17_back` (`assert 46 == 45` tools)** — the merge added one tool / 8 schema tokens to the core; re-baseline or deny it.
+- [ ] **`test_turn_cost_guard_downstream::test_a_new_chat_and_three_turns_stay_inside_the_turn_cost_guard` reds deterministically (not the span flake above): turn 0 imports `hermes_cli.local_runtime.capabilities` and `netrc` between agent_ready and request_sent** — move them into the prewarm's warm-up.
