@@ -9,7 +9,7 @@ runtime root at all.
 import json
 
 import pytest
-from hermes_cli.harness_parts.persona import chat_target, chat_turn_message
+from hermes_cli.harness_parts.persona import chat_turn_message
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -222,7 +222,6 @@ def test_mission_chat_turn_mirrors_the_order_and_the_recorded_reply(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
@@ -271,7 +270,6 @@ def test_mission_chat_resend_does_not_double_the_mirrored_order(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)
@@ -317,7 +315,6 @@ def test_mirror_failure_never_fails_the_mission_chat_turn(
                 raw={},
             )
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: _TranscriptDB())
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _ProviderSpy)

@@ -6,7 +6,6 @@ Separate because it is the one verb that retires a chat's history and bindings.
 from __future__ import annotations
 
 import uuid
-from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import (
@@ -43,7 +42,6 @@ def _cmd_persona_chat_delete(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
-    cfg = load_agent_runtime_config()
     session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
     if not session_id:
         data = {"ok": False, "error": "session_id is required"}

@@ -44,7 +44,6 @@ from agent_runtime.persona_assignments import (
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
-    chat_target,
     chat_tickets_commands,
     chat_turn_message,
     inspect_commands,
@@ -157,9 +156,7 @@ def _chat_lane(monkeypatch, db):
     monkeypatch.setattr(agent_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(init_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
