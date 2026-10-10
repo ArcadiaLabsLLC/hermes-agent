@@ -30,7 +30,11 @@ The control channel the drain/shutdown announcements already use: the stdio fram
 writer (when attached) plus `socket_server.broadcast` to every authenticated loopback
 connection. Neither touches `StreamHub`, so a raising stream producer cannot block or
 drop it. The gateway door is deliberately excluded (a paired device is not the
-launcher), and `settle_ack` is denied there.
+launcher), and `settle_ack` is denied there. One targeted exception (owner ruling
+2026-10-10): a queued turn's frames and its `turn_settled` also go to the paired device
+that sent the send, while that gateway connection is attached — the settle once, on its
+first push, and not counted as a delivery attempt
+(`hermes_cli/harness_parts/serve/queued_turn_origin.py`).
 
 ## Ack
 

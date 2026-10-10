@@ -7,7 +7,10 @@ own, yet must get what a direct run of the same send gets:
 - the same app-function link (``ArgvLanes._bind_launcher_link``), so the same tool set: the
   sender's own Launcher connection when it is still attached and answers ``launcher.``
   requests, else the rule a gateway turn already uses (the stdio starter, else the most
-  recent local socket connection that declared it answers), else none.
+  recent local socket connection that declared it answers), else none;
+- a paired-device sender hears back: the turn's frames and its ``turn_settled`` go to the
+  gateway connection that sent it (the control channel excludes the gateway door), while
+  that connection is still attached.
 
 The origin is persisted on the queued entry (``chat_root_send_queue.ORIGIN_ARG``) as
 ``{"owner": <connection key> | "stdio" | None, "gateway": bool}``; ``owner`` is ``None`` for
@@ -31,9 +34,12 @@ from hermes_cli.harness_parts.serve.manifest import _is_gateway
 
 __layer__ = "lanes"
 
-__all__ = ["queued_turn_link", "send_origin"]
+__all__ = ["deliver_to_queued_peer", "queued_turn_link", "queued_turn_peer", "send_origin"]
 
 logger = logging.getLogger(__name__)
+
+#: Session attribute: queued request id -> the paired-device sink still owed its settle.
+_PEERS_ATTR = "_queued_turn_settle_peers"
 
 def send_origin() -> dict[str, Any]:
     """The origin of the send running on this thread, from the serve request it arrived on."""
@@ -94,3 +100,33 @@ def queued_turn_link(session: Any, entry: Any) -> LauncherLink | None:
     except Exception:  # a tool list must never cost the turn
         logger.warning("launcher app-function refresh failed for a queued turn", exc_info=True)
     return link
+
+
+def queued_turn_peer(session: Any, entry: Any, rid: str) -> Any:
+    """The paired-device sink this queued turn answers, remembered for its settle; else ``None``."""
+
+    origin = _origin(entry)
+    if not origin.get("gateway"):
+        return None
+    sink = _live_sink(session, origin.get("owner"))
+    if sink is not None:
+        peers = getattr(session, _PEERS_ATTR, None)
+        if peers is None:
+            peers = {}
+            setattr(session, _PEERS_ATTR, peers)
+        peers[rid] = sink
+    return sink
+
+
+def deliver_to_queued_peer(session: Any, frame: dict[str, Any]) -> int:
+    """A queued turn's ``turn_settled`` to the paired device that sent it: once, first push."""
+
+    peers = getattr(session, _PEERS_ATTR, None)
+    sink = peers.pop(str(frame.get("request_id") or ""), None) if peers else None
+    if sink is None:
+        return 0
+    try:
+        sink.emit(frame)
+    except Exception:
+        return 0
+    return 1

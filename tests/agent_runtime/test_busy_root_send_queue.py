@@ -392,6 +392,51 @@ def test_a_queued_send_gets_the_same_app_function_tools_as_a_direct_send(
     assert launcher_app_functions.current_launcher_link() is None
 
 
+@pytest.mark.parametrize("gateway", [True, False])
+def test_a_queued_send_from_a_paired_device_receives_its_frames_and_settle(
+    gateway, monkeypatch, capsys, isolate_agent_runtime_root
+):
+    import dataclasses
+    import sys
+
+    from hermes_cli.harness_parts.serve.constants import GATEWAY_TRANSPORT
+    from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
+
+    handler = _install_chat_lane(monkeypatch)
+    _count_provider_calls(monkeypatch)
+    device = _Connection("gw-3", GATEWAY_TRANSPORT if gateway else "socket")
+    session = _origin_session(monkeypatch, answerers=set(), connections=[device])
+    session.serve_request_home = None
+    session.boot_id = "boot-test"
+    session._service_log = lambda record: None
+
+    _queue_from(handler, capsys, device, "cm-device")
+    policy = dataclasses.replace(
+        queued_turn_runner_policy(session), run_turn=_door(handler, []).run_turn
+    )
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(sys, "stdout", session.stdout_proxy)
+        assert run_queued_sends_once(policy)["ran"] == 1
+    assert session._push_due_settles() == 1
+    monkeypatch.setattr(chat_turn_settles, "due_settles",
+                        lambda at=None: chat_turn_settles.list_settles(state="pending"))
+    session._push_due_settles()  # a retry of the unacked settle never re-sends to the device
+
+    if not gateway:
+        # A local socket client hears the turn on the control channel, as before.
+        assert device.frames == []
+        return
+    lines = [f["line"] for f in device.frames if f.get("event") == "line"]
+    assert "chat.final" in _frame_types(lines), "the paired device never heard its queued turn"
+    assert {"id": "queued:cm-device", "event": "exit", "code": 0} in device.frames
+    settles = [f for f in device.frames if f.get("event") == "turn_settled"]
+    assert len(settles) == 1, "the paired device did not get its settle exactly once"
+    assert settles[0]["client_message_id"] == "cm-device"
+    assert settles[0]["request_id"] == "queued:cm-device"
+    # The launcher's control channel still has both.
+    assert any(f.get("event") == "turn_settled" for f in session.socket_server.frames)
+
+
 def test_a_blocked_turn_on_one_root_does_not_hold_a_queued_send_on_another(
     isolate_agent_runtime_root,
 ):

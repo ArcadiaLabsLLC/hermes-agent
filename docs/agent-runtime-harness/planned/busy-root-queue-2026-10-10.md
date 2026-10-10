@@ -60,3 +60,8 @@ it is attached and answers `launcher.` requests (attached and not answering: no 
 direct); a sender that is gone, or a paired device, takes the gateway rule — the stdio
 starter, else the most recent local socket connection that declared it answers, else
 none — and the tools are refreshed against that link, as a direct turn's are.
+
+A paired-device send is queued like any operator send, never refused `chat_busy` (owner
+ruling 2026-10-10). Its turn's frames (`queued_turns._ControlSink`) and its `turn_settled`
+(`SettlePush._deliver_settle_frame`, once) also reach the gateway connection that sent it,
+while it is attached (`queued_turn_origin.queued_turn_peer` / `deliver_to_queued_peer`).
