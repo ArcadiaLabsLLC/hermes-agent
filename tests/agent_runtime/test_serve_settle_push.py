@@ -184,8 +184,12 @@ def test_an_ack_retires_the_settle_and_a_duplicate_ack_is_harmless(monkeypatch):
         assert [ack["retired"] for ack in acks] == [True, False]
         record = read_settle(first["settle_id"])
         assert record.state == STATE_ACKED
-        time.sleep(0.4)  # well past several backoff windows
-        assert len(_settled_frames(sink)) == 1
+        # A re-send can legitimately land before the first ack is read (the
+        # backoff is 50 ms here), so count what was pushed BY the ack, then
+        # prove nothing follows it across several backoff windows.
+        pushed_before_ack = len(_settled_frames(sink))
+        time.sleep(0.4)
+        assert len(_settled_frames(sink)) == pushed_before_ack
 
 
 def test_a_pending_settle_left_by_a_previous_serve_is_pushed_on_boot():
