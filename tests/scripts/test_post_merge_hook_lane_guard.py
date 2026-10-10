@@ -42,10 +42,12 @@ def clone(tmp_path: Path) -> tuple[Path, Path]:
     (primary / ".githooks").mkdir(parents=True)
     (primary / "scripts").mkdir()
     shutil.copy2(HOOK, primary / ".githooks" / "post-merge")
-    # The stand-in verifier records the tree it ran from, in that tree.
+    # The stand-in verifier records an install (a run without --check) in its tree.
     (primary / "scripts" / "verify_harness_skill_install.py").write_text(
+        "import sys\n"
         "from pathlib import Path\n"
-        "Path(__file__).resolve().parents[1].joinpath('INSTALLED').write_text('ran')\n"
+        "if '--check' not in sys.argv:\n"
+        "    Path(__file__).resolve().parents[1].joinpath('INSTALLED').write_text('ran')\n"
         "print('harness-skill-install: ok')\n",
         encoding="utf-8",
     )
