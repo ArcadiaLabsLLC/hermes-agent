@@ -352,6 +352,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
             "tests/hermes_cli/test_update_zip_two_phase.py::"
             "test_commit_failure_plus_discard_leaves_no_staging_litter",
+            # v0.21.6: new mid-body undo() callers in the updater's lock / swap / git-lock tests.
+            "tests/hermes_cli/test_update_zip_two_phase.py::"
+            "test_a_symlink_planted_at_the_staging_path_after_the_sweep_is_never_written_through",
+            "tests/hermes_cli/test_update_zip_two_phase.py::test_root_files_never_go_missing_mid_swap",
+            "tests/hermes_cli/test_update_zip_two_phase.py::"
+            "test_a_failed_swap_keeps_a_file_the_user_made_at_a_never_installed_entry",
+            "tests/hermes_cli/test_update_lock.py::test_failed_exclusive_create_leaves_no_torn_claim",
+            "tests/hermes_cli/test_update_lock.py::test_withdrawing_a_torn_claim_never_deletes_a_replacement",
+            "tests/hermes_cli/test_update_lock.py::test_unreadable_creation_time_gets_the_v1_ceiling",
+            "tests/hermes_cli/test_gitlock.py::"
+            "test_lock_keeping_git_is_recognised_in_every_form_and_by_path_components",
             "tests/agent/test_session_row_under_live_agent_persist.py::"
             "test_flush_fails_closed_when_row_cannot_be_recreated",
         )
