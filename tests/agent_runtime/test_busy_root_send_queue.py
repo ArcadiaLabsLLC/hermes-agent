@@ -181,3 +181,149 @@ def test_a_relay_send_to_a_busy_root_keeps_its_chat_busy_refusal():
     assert _busy_root_queues(SimpleNamespace(requested_by_session=None)) is True
     assert _busy_root_queues(SimpleNamespace()) is True
     assert _busy_root_queues(SimpleNamespace(requested_by_session="persona_chat_sender")) is False
+
+
+# --------------------------------------------------------------------------- #
+# A queued turn streams like a sent one, and roots never wait on each other    #
+# --------------------------------------------------------------------------- #
+
+
+class _Frames:
+    detached = False
+
+    def __init__(self) -> None:
+        self.frames: list[dict] = []
+
+    def emit(self, frame: dict) -> None:
+        self.frames.append(frame)
+
+
+class _Socket:
+    def __init__(self) -> None:
+        self.frames: list[dict] = []
+
+    def broadcast(self, frame: dict) -> int:
+        self.frames.append(frame)
+        return 1
+
+
+def _serve_session():
+    import threading
+
+    from hermes_cli.harness_parts.serve.frames import _LineFrameProxy
+    from hermes_cli.harness_parts.serve.settle_push import SettlePush
+
+    class _Session(SettlePush):
+        pass
+
+    session = _Session()
+    session.service = False
+    session.frames = _Frames()
+    session.lane_lock = threading.Lock()
+    session.socket_server = _Socket()
+    session.stdout_proxy = _LineFrameProxy(session.frames, "line")
+    session.stderr_proxy = _LineFrameProxy(session.frames, "stderr")
+    return session
+
+
+def _frame_types(lines) -> list[str]:
+    import json
+
+    types = []
+    for line in lines:
+        try:
+            value = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(value, dict) and value.get("type"):
+            types.append(value["type"])
+    return types
+
+
+def test_a_queued_turn_streams_the_same_frames_a_sent_turn_does_to_a_subscriber(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    import dataclasses
+    import sys
+
+    from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
+
+    handler = _install_chat_lane(monkeypatch)
+    _count_provider_calls(monkeypatch)
+
+    # The reference: the same turn sent directly, streamed.
+    direct = _args("cm-direct")
+    direct.stream = True
+    assert handler._cmd_mission_chat_message(direct) == 0
+    direct_types = _frame_types(capsys.readouterr().out.splitlines())
+    assert "chat.final" in direct_types and len(direct_types) > 1, direct_types
+
+    with persona_chat_root_lease(ROOT, observer_kind="cli"):
+        _send(handler, "cm-stream", capsys)
+
+    session = _serve_session()
+    ran: list[str] = []
+    policy = dataclasses.replace(
+        queued_turn_runner_policy(session), run_turn=_door(handler, ran).run_turn
+    )
+    with pytest.MonkeyPatch.context() as patched:
+        # The serve's stdout IS the line proxy; the turn's prints reach the sink through it.
+        patched.setattr(sys, "stdout", session.stdout_proxy)
+        assert run_queued_sends_once(policy)["ran"] == 1
+
+    subscriber = session.socket_server.frames
+    assert subscriber, "no frame of the queued turn reached a stream subscriber"
+    assert {frame["id"] for frame in subscriber} == {"queued:cm-stream"}
+    lines = [frame["line"] for frame in subscriber if frame.get("event") == "line"]
+    assert _frame_types(lines) == direct_types, (
+        "a queued turn must stream exactly the frames a directly sent turn does"
+    )
+    assert subscriber[-1] == {"id": "queued:cm-stream", "event": "exit", "code": 0}
+    # The stdio writer (a launcher reading the pipe) got the same stream.
+    assert session.frames.frames == subscriber
+
+
+def test_a_blocked_turn_on_one_root_does_not_hold_a_queued_send_on_another(
+    isolate_agent_runtime_root,
+):
+    import threading
+
+    from agent_runtime.chat_root_send_runner import QueuedSendRunner
+
+    root_a, root_b = "persona_chat_root_a", "persona_chat_root_b"
+    chat_root_send_queue.enqueue(root_a, "cm-a1", {})
+    chat_root_send_queue.enqueue(root_b, "cm-b1", {})
+    chat_root_send_queue.enqueue(root_a, "cm-a2", {})
+    a_started, release_a, b_done = threading.Event(), threading.Event(), threading.Event()
+    ran: list[str] = []
+
+    def run_turn(args):
+        ran.append(args.client_message_id)
+        if args.client_message_id == "cm-a1":
+            a_started.set()
+            assert release_a.wait(10)
+        if args.client_message_id == "cm-b1":
+            b_done.set()
+        return 0, {"ok": True}
+
+    runner = QueuedSendRunner(RunnerPolicy(root_is_idle=lambda root: True, run_turn=run_turn))
+    try:
+        runner.dispatch_once()
+        assert a_started.wait(5)
+        assert b_done.wait(5), "root B's queued send waited behind root A's running turn"
+        # Root A is still running cm-a1: its next send must wait for it, in order.
+        tally = runner.dispatch_once()
+        assert tally["occupied"] == 1 and tally["dispatched"] == 0, tally
+        assert "cm-a2" not in ran
+        release_a.set()
+        for _ in range(100):
+            if root_a not in runner.busy_roots():
+                break
+            threading.Event().wait(0.05)
+        runner.dispatch_once()
+    finally:
+        release_a.set()
+        runner.shutdown(wait=True)
+    assert [cmid for cmid in ran if cmid.startswith("cm-a")] == ["cm-a1", "cm-a2"]
+    assert not chat_root_send_queue.has_entries(root_a)
+    assert not chat_root_send_queue.has_entries(root_b)

@@ -146,7 +146,15 @@ class SettlePush:
             prune_acked(older_than_seconds=SETTLE_ACKED_RETENTION_SECONDS)
 
     def _deliver_settle_frame(self, frame: dict[str, Any]) -> int:
+        """Send a settle *frame* on the control channel. Returns how many sinks took it."""
+
+        return self._deliver_control_frame(frame)
+
+    def _deliver_control_frame(self, frame: dict[str, Any]) -> int:
         """Send *frame* on the control channel. Returns how many sinks took it.
+
+        Also the transport of a queued chat turn's stream
+        (``serve.queued_turns``), which has no request of its own to answer.
 
         Stdio counts only when a launcher can be reading it: not detached, and
         not ``--service`` (whose stdio is the launcher's ``DEVNULL``). The
