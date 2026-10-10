@@ -481,4 +481,184 @@ test supports create under HERMES_TEST_TMP_ROOT when set (else systemTemp); a ga
 sweep in tool/_gate_sdk.dart removes the launcher's own prefixes older than 24 h and names
 them; keep-on-failure stays`
 
+## D3.09 = L7.28 — the starved-reader stream-gap positive control is scheduler-dependent
+
+**Verdict: PLAN — the D3.01 design; this row is a pointer.**
+
+Same mechanism as D3.01: `tests/agent_runtime/test_stream_gap_receipt.py::test_starved_reader_shows_lag_and_late_wakeups`
+asserts `max_lag_ms >= 150`, where `StreamGapReceipt.on_event` measures parse time minus the
+latest chunk's arrival and the hog must hold the GIL between the two. The fake server's ten
+`response.in_progress` frames each echo 300 tools so the SDK's model build is long enough
+for the hog to take the GIL; under load the OS starves the HOG instead and the reader
+parses on time (91 ms / 75 ms recorded; 3/3 green off-load, L7.28). L7.28 also showed hold
+length is not the lever (300 ms made it slower, 70 ms still passed) — because the lever is
+scheduling, not the hold. The file is on the D3.01 idle-box list (stage 1). No change to the
+test's floors; no change to `agent_runtime/stream_gap_receipt.py`. If an idle run still
+reds, the measurement is one failing run with `STALL_INTERVAL_S` samples printed (the
+receipt line already carries `stall_samples`, `stall_max_ms`, `max_lag_ms`) — file it as a
+new row with that line.
+
+## D3.10 = L7.35 — the v0.21.6 supersession pass over the 21 kept hunks
+
+**Verdict: PROGRAM-EXISTS.** Owned by `Harness_Brain/50 — Agent Handoffs/Merging
+upstream.md` Steps 4–6 ("Run the supersession pass … report … supersession rows
+retired/kept, the [up-fp] line before/after") and by the owner-offered lane named in the
+row. The merge commit body (`git show --no-patch 3002eaa067`) is the worklist: it names
+each of the 21 kept hunks by file and rule (`agent/agent_init.py` tool-defs receipt,
+`agent/conversation_compression.py` child_model_config, `agent/conversation_loop.py`
+reuse_current_user_message, `agent/prompt_builder.py` ×3, `agent/skill_utils.py`,
+`agent/turn_context.py` + `turn_facade.py`, `gateway/platforms/base.py`,
+`hermes_cli/web_server_config.py`, `hermes_cli/webhook.py`, `tools/credential_files.py`,
+`tools/environments/local.py`, `tools/file_tools_write_guards.py` +
+`mcp_tool_handlers.py` + `process_registry.py`, `tools/skills_tool.py` ×2,
+`tools/vision_tools.py`, `tui_gateway/event_replay.py`, `tui_gateway/prompt_turn.py` +
+`session_lifecycle.py` + `session_workdir.py`, `tui_gateway/server.py`). Per hunk the lane
+reads `git diff ee5f49b943 v0.21.6 -- <file>` (upstream's own change over the release) and
+answers drop / extract / kept with reason; the ledger row is rewritten in the same commit;
+the `[up-fp]` line (`python scripts/upstream_footprint.py`) is quoted before and after. One
+addition to the runbook, filed as a fork-hygiene docs row by the lane that lands it: the
+merge report's "Verdict counts" line gains `superseded N / partly N / kept N` so a missing
+supersession count is visible in the body, not discovered two days later.
+
+## D3.11 = L8.04 — a fresh SessionDB costs 0.8–1.0 s per test; the template fixture is wired into 2 files
+
+**Verdict: PLAN** (the census is a permanent cheap receipt the landing's gate already pays
+for; the widening is one fixture, opt-out, not per-file plumbing).
+
+**Decision and why.** `tests/agent_runtime/_session_db_template.py::session_db_from_template`
+monkeypatches `hermes_state.SessionDB.__init__` to copy a module-scoped template into a
+writer-opened, not-yet-existing path; 32 of 626 files under `tests/agent_runtime` construct
+`SessionDB(` directly and an unknown number open stores through production paths (serve
+boots, snapshot builds, persona stores). The lane is right that the count needs a run over
+the tree — and wrong that it needs a lane's run: the landing's whole-tree gate runs every
+fork file anyway; the receipt only has to be written. Widening then does not need a per-file
+decision: the fixture's contract ("a READ open of an absent store is untouched; a WRITER
+open of an absent path gets the template; everything after the copy is production code")
+is safe for every test except one whose SUBJECT is the fresh-file schema path — those live
+in `tests/hermes_state` and are excluded by directory; a fork test elsewhere whose subject
+is the schema opts out with a marker.
+
+**Files and symbols.** Fork-owned.
+- `tests/_downstream/conftest_plugin.py`: (a) `HERMES_TEST_COUNT_FRESH_DBS=1` wraps
+  `hermes_state.SessionDB.__init__` at session start to count writer opens of a not-yet-
+  existing path per test file, and `pytest_sessionfinish` appends `{file, fresh_dbs,
+  seconds}` lines to `.pytest_cache/hermes_fresh_dbs.jsonl` (git-ignored, per checkout —
+  the same home as `hermes_bundled_runs.jsonl`); (b) `session_db_from_template` becomes
+  autouse for items under `tests/agent_runtime/` (the module-scoped template fixture moves
+  to `tests/agent_runtime/conftest.py`), skipped for items marked `fresh_schema_path`.
+- `tests/agent_runtime/conftest.py`: the template fixture; the two importing files
+  (`test_persona_assignments.py`, `test_relay_session_lifecycle.py`) drop their explicit
+  import.
+- `scripts/run_tests_bundled.sh`: sets `HERMES_TEST_COUNT_FRESH_DBS=1` (the gate pays the
+  census; the wrap is one attribute read per open).
+- `docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md` Stage 4F: the census
+  numbers from the first gate that carries it (top 20 files by `fresh_dbs`, before/after
+  seconds).
+
+**Stages.**
+1. The counter + jsonl receipt. Test: a subprocess pytest of a two-test file (one fresh
+   writer open, one read-only open) with the env set writes `fresh_dbs: 1`. Killing
+   mutation: count read-only opens too → `fresh_dbs: 2`, red.
+2. The landing's next gate runs with the counter; the lane reads the jsonl and records the
+   census in the plan (no separate run).
+3. Autouse widening + `fresh_schema_path` marker. Tests: the two files that use it today
+   stay green; `tests/hermes_state` untouched by construction (directory scope). Killing
+   mutation: copy the template on READ opens too → `tests/agent_runtime`'s "a read never
+   creates the store" assertions red (the fixture docstring names them). Second gate run
+   gives the after-numbers; the Stage 4F table is the receipt.
+
+**Size.** S–M: ~60 plugin lines, −10 lines in two files, docs.
+
+**Risks.** A fork test outside `tests/hermes_state` whose subject is the schema path and is
+not marked gets a template instead — it would pass for the wrong reason; the census (stage
+2) lists every file whose fresh-DB count drops to zero, and the lane reads that list against
+each file's docstring before stage 3 lands.
+**Owner question.** None.
+
+## D3.12 = L8.10 — validated-suite residuals that pass alone and red in a bundle
+
+**Verdict: INVESTIGATION** (one mechanism — process-global state — with the standing CLASS
+row; the protocol below needs no idle box and no new whole-tree run).
+
+The realm-history ordering half is FIXED (`d1e35aec6a`). The residuals
+(`test_local_download_jobs`, `test_local_models_routes`, `test_delivery_directive`,
+`test_realm_revert_version`, `test_source_channel_integration`, three Git-fixture setup
+errors) are green alone and red after other members — the shape the fork-hygiene CLASS row
+"Process-global state, the CLASS" already names (tool registry, `builds.detect._ENABLED`,
+resident-chat registry, idle keeper, memos). The bundled runner names a leak itself when it
+sees one: red bundled, green alone → `ISOLATION LEAK` line with bundle number and member
+count; the file's failing node ids go to `.pytest_cache/hermes_bundled_runs.jsonl`.
+
+**Protocol.**
+1. From the primary checkout's `.pytest_cache/hermes_bundled_runs.jsonl` (worktrees read the
+   primary's record since `b96dc66372`), list every record where one of the eight files is
+   red with `via: bundle` and green in a later `rerun` — the leak records. Each names the
+   bundle's ordered member list in the gate log of that run (`ISOLATION LEAK … bundle #N
+   after K earlier members`). No new run.
+2. For each leak record, bisect the ordered prefix: `HERMES_TEST_WORKERS=1 scripts/run_tests.sh
+   <prefix members> <victim>` — the L6.30 method (one ordered prefix, halve until the one
+   member whose presence flips the victim is found). Each bisect step is a handful of files,
+   a lane's budget. Shared box is fine: the leak is state, not timing.
+3. Decision: the member found names the leaked state (read what it sets on a module and does
+   not restore). If the state is one the CLASS row already lists, add the victim and the
+   member as evidence on that row and leave the fix to the suite-isolation lane. If it is new
+   state, file a one-line row under the CLASS ("… and `<module>.<name>`") — never a fix in
+   passing. A victim that reds in the bisect ALONE (no prefix) is not a leak: file it as a
+   product/test defect row with the node id.
+4. A file that has no leak record (red bundled, red alone too, or never red since the fix)
+   is closed with the jsonl line as evidence.
+
+**Result that decides.** Each of the eight files ends either attached to the CLASS row with
+its leaking member named, or closed with a jsonl line. Nothing here needs the validated
+suite: the bundle membership is already recorded.
+
+## D3.13 = L8.11 — re-qualify `upstream_reds.py` on the canonical test venv
+
+**Verdict: PLAN** (73 files, not ~200; a named-file run is a lane's run).
+
+**Decision and why.** `tests/_downstream/id_markers/upstream_reds.py` carries 69 `_up_red`
+rows (strict xfail) across 73 distinct upstream test files, classified at v2026.9.24 on
+CPython 3.12.5 / SQLite 3.45.3; the venv is 3.14.5 / 3.50.4 and lane w5-fh found eight
+rows whose condition was the interpreter. A strict xfail that passes is already a FAILED
+node (`XPASS(strict)`), so re-qualification is a RUN, not a reading: name the 73 files on
+the bundled runner's command line (a named file runs even when skip-listed — owner ruling
+O1) and read the failing node ids off the jsonl line. 73 files at 8 workers is minutes, and
+it is the end-of-lane run the lane is allowed: the module it touches is `upstream_reds.py`,
+whose subjects are exactly those files.
+
+**Files and symbols.** Fork-owned.
+- `tests/_downstream/id_markers/upstream_reds.py`: every row that XPASSes becomes
+  `_up_red_when(<condition>, detail)` with the condition that made it red — the interpreter
+  (`sys.version_info < (3, 13)`), its SQLite (`sqlite3.sqlite_version_info < (3, 46)`), the
+  clock (`time.get_clock_info("monotonic").resolution`), a drive (`os.path.isdir("/dev")`)
+  — or is deleted when the red was a bug upstream has since fixed (detail says which
+  upstream SHA). A row that still reds keeps `_up_red` and gains the venv's versions in its
+  detail.
+- `tests/_downstream/id_markers/reasons.py`: `_up_red` grows a `qualified: str` keyword
+  (interpreter/SQLite pair it was last seen red on), so the next re-qualification reads its
+  age off the row.
+- `tests/_downstream/test_upstream_reds_rows_resolve.py` (new): every row's file is in
+  `tests/fixtures/upstream_manifest.txt` and its node exists (the collection-time stale
+  check in `hooks.py::pytest_collection_modifyitems` already refuses a missing id when the
+  file is collected; this gate does it for the whole table without collecting the tree —
+  parse each file's `def test_` / class names with `ast`).
+- `Harness_Brain/50 — Agent Handoffs/Merging upstream.md` step 5b: the weekly lane re-runs
+  the 73 named files beside the skip-list re-check and records XPASSes.
+
+**Stages.**
+1. The run: `scripts/run_tests_bundled.sh $(python -c "<print the 73 paths>")` in the
+   background, log + unpiped exit code, timeout ≥ 600000; the jsonl line and the XPASS node
+   list go into the commit body.
+2. Row edits. Killing mutation: flip one `_up_red_when` condition to `True` on the venv →
+   that node XPASSes, red; recorded.
+3. The resolve gate. Killing mutation: point one row at a renamed test → red.
+4. Runbook step 5b.
+
+**Size.** S–M: a run, ~70 row edits, ~50 gate lines.
+
+**Risks.** A node that XPASSes on the venv and still reds under system Python 3.12 (the
+bare-pytest trap, fork-hygiene row "Running the tests.md misleads on one-file runs") is a
+`_up_red_when(sys.version_info < (3, 13))`, not a delete — the condition is the record.
+**Owner question.** None.
+
 <!-- D3 next batch -->
