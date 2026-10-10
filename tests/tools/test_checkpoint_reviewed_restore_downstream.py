@@ -134,7 +134,11 @@ def test_interrupted_restore_keeps_pending_receipt_and_never_auto_reapplies(tmp_
         manager.restore_preview(str(work), checkpoint, **kwargs)
     monkeypatch.setattr(Path, "unlink", original_unlink)
     replay = manager.restore_preview(str(work), checkpoint, **kwargs)
-    assert replay["reason"] == "restore_outcome_unknown" and replay["replayed"]
+    assert replay["reason"] == "restore_interrupted" and replay["replayed"]
+    receipt = manager.restore_receipt("2" * 64)
+    assert receipt["reason"] == "restore_interrupted"
+    assert receipt["recovery_checkpoint"] == replay["recovery_checkpoint"]
+    assert receipt["failed_files"] == [{"path": "added.txt", "reason": "review_required"}]
     assert added.read_text() == "agent addition"
 
 
