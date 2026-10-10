@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-08",
   "base": "818c13be1d",
-  "files": 187,
+  "files": 188,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -564,6 +564,12 @@
       "files": "186 -> 187: +hermes_cli/_launchers.py (5/0)",
       "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
       "reason": "a worktree booting under the live HERMES_HOME rebound the operator's $HERMES_HOME\\bin\\hermes.exe onto a tree with no dependency environment (hermes exited 1, 2026-10-01); the Windows expose path has no ownership guard and no seam before it publishes. Ledger row; the upstream PR (w5-fh verdict (a)) retires it"
+    },
+    {
+      "change": "lane-1011-M3 (L7.32, 2026-10-10): additive exit-grace constant and tolerant wait in pm/client.py _request before its 5 s exit wait",
+      "files": "187 -> 188: +pm/client.py (10/0)",
+      "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
+      "reason": "the 5 s budget for a worker EXIT after its result arrived failed a completed source-update completion while the machine was loaded (2026-10-09), leaving the install on its previous dependencies; the wait sits inside _request with no seam. Ledger row; upstream PR candidate retires it"
     }
   ]
 }
