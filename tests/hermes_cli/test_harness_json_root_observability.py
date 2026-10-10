@@ -41,6 +41,16 @@ _ATTACH_CALL = "attach_root_observability"
 ATTACHING_DELEGATES = {
     "persona_chat_history_page": True,
     "realm_sync_revert": False,
+    # agent_runtime.realm_verbs: the realm verbs' one implementation, both doors.
+    "realm_sync_status": False,
+    "realm_sync_pull": False,
+    "realm_sync_publish": False,
+    "realm_sync_resolve": False,
+    "realm_skills_show": False,
+    "realm_skills_set": False,
+    "realm_agents_show": False,
+    "realm_agents_set": False,
+    "realm_adopt": False,
 }
 
 # Chat lanes must also stamp ``chat_scope`` — ``source: "ambient_home"``
@@ -89,10 +99,7 @@ LEDGER: dict[str, str] = {
         "_cmd_workspace_rename", "_cmd_workspace_archive",
         "_cmd_realm_list", "_cmd_realm_show", "_cmd_realm_create",
         "_cmd_realm_bind_server", "_cmd_realm_use", "_cmd_realm_default_scope",
-        "_cmd_realm_adopt", "_cmd_realm_sync_status", "_cmd_realm_sync_pull",
-        "_cmd_realm_sync_publish", "_cmd_realm_sync_held", "_cmd_realm_sync_resolve",
-        "_cmd_realm_skills_show", "_cmd_realm_skills_set",
-        "_cmd_realm_agents_show", "_cmd_realm_agents_set",
+        "_cmd_realm_sync_held",
         "_cmd_agent_set_profile",
         "_cmd_pets_gallery", "_cmd_pets_install", "_cmd_pets_sprite", "_cmd_pets_thumb",
         "_cmd_init", "_cmd_install_harness_skills", "_cmd_providers",
@@ -296,17 +303,46 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
     block, so the keys can only come from the delegate's own attach."""
 
     import agent_runtime.realm_revert as realm_revert
+    from agent_runtime import realm_verbs
     from agent_runtime.chat_verbs.history import persona_chat_history_page
-    from agent_runtime.realm_verbs import realm_sync_revert
 
     monkeypatch.setattr(
         "agent_runtime.persona_chat_history.persona_chat_session_messages",
         lambda **kw: {"ok": True, "messages": [], "count": 0},
     )
     monkeypatch.setattr(realm_revert, "revert_realm_sync", lambda realm_id, **kw: {"reverted": []})
+    monkeypatch.setattr("agent_runtime.realm_sync.realm_sync_status", lambda realm_id, **kw: {"id": realm_id})
+    monkeypatch.setattr("agent_runtime.realm_sync.pull_realm_sync", lambda realm_id, **kw: {"id": realm_id})
+    monkeypatch.setattr("agent_runtime.realm_sync.publish_realm_sync", lambda realm_id, **kw: {"id": realm_id})
+    monkeypatch.setattr("agent_runtime.skill_sync.resolve_held_skill", lambda realm_id, key, **kw: {"id": key})
+    monkeypatch.setattr("agent_runtime.realm_sync.realm_agent_selection_state",
+                        lambda realm_id: {"required": [], "catalog": []})
+    monkeypatch.setattr("agent_runtime.realm_membership.adopt_realms", lambda credential, **kw: [])
+
+    class _Store:
+        def get(self, realm_id):
+            return realm_id
+
+        def set_skill_selection(self, realm_id, **kw):
+            return realm_id
+
+        def set_agent_selection(self, realm_id, **kw):
+            return None
+
+    monkeypatch.setattr("agent_runtime.store.RealmStore", _Store)
+    monkeypatch.setattr(realm_verbs, "realm_skill_selection_envelope", lambda realm: {"id": realm})
     produced = {
         "persona_chat_history_page": persona_chat_history_page("s1"),
-        "realm_sync_revert": realm_sync_revert("realm_x"),
+        "realm_sync_revert": realm_verbs.realm_sync_revert("realm_x"),
+        "realm_sync_status": realm_verbs.realm_sync_status("realm_x"),
+        "realm_sync_pull": realm_verbs.realm_sync_pull("realm_x"),
+        "realm_sync_publish": realm_verbs.realm_sync_publish("realm_x"),
+        "realm_sync_resolve": realm_verbs.realm_sync_resolve("realm_x", key="skill::a", take="realm"),
+        "realm_skills_show": realm_verbs.realm_skills_show("realm_x"),
+        "realm_skills_set": realm_verbs.realm_skills_set("realm_x", publish_all=True),
+        "realm_agents_show": realm_verbs.realm_agents_show("realm_x"),
+        "realm_agents_set": realm_verbs.realm_agents_set("realm_x", publish_workspace=True),
+        "realm_adopt": realm_verbs.realm_adopt(object()),
     }
     assert set(produced) == set(ATTACHING_DELEGATES)
     for name, envelope in produced.items():
