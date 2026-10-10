@@ -31,7 +31,7 @@ from .chat_coordinator import (
     _coordinator_scope_from_args,
     _maybe_stamp_spawned_by,
 )
-from .chat_request import _emit_persona_open_chat_payload, _retired_persona_instance_payload
+from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from .chat_target import _persona_by_id
 
 __layer__ = "lanes"
@@ -202,7 +202,7 @@ def _cmd_persona_instance_create(args) -> int:
         )
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.create", coordinator_id, auth)
-            _emit_persona_open_chat_payload(args, data, plain=data["status"])
+            _emit_persona_verb_payload(args, data, plain=data["status"])
             return 2
         coordinator_scope = auth.scope
     # UC-H4. Until now this handler minted a roster row and a chat root for any
@@ -218,18 +218,18 @@ def _cmd_persona_instance_create(args) -> int:
     # still before any store write.
     refusal = require_known_persona(persona_id, persona)
     if refusal is not None:
-        _emit_persona_open_chat_payload(args, refusal)
+        _emit_persona_verb_payload(args, refusal)
         return 2
     if display_name:
         try:
             if add_instance:
                 if not placement_id:
                     data = {"ok": False, "error": "placement_id is required when add_instance is true"}
-                    _emit_persona_open_chat_payload(args, data)
+                    _emit_persona_verb_payload(args, data)
                     return 2
                 refusal = _placement_discriminability_refusal(placement_id)
                 if refusal is not None:
-                    _emit_persona_open_chat_payload(args, refusal)
+                    _emit_persona_verb_payload(args, refusal)
                     return 2
                 instance = PersonaInstanceStore().add_instance(
                     persona_id=persona_id,
@@ -250,7 +250,7 @@ def _cmd_persona_instance_create(args) -> int:
                 instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
         except RetiredPersonaInstanceError as exc:
             data = _retired_persona_instance_payload(exc)
-            _emit_persona_open_chat_payload(args, data)
+            _emit_persona_verb_payload(args, data)
             return 2
         except PersonaChatPersistenceError as exc:
             # The mint itself now refuses rather than binding a root it could not
@@ -264,7 +264,7 @@ def _cmd_persona_instance_create(args) -> int:
                 "persona_id": persona_id,
                 "next_expected": "restore canonical persona chat transcript storage and retry",
             }
-            _emit_persona_open_chat_payload(args, data)
+            _emit_persona_verb_payload(args, data)
             return 2
         try:
             _ensure_persona_chat_session(
@@ -285,7 +285,7 @@ def _cmd_persona_instance_create(args) -> int:
                 "session_id": instance.default_chat_session_id,
                 "next_expected": "restore canonical persona chat transcript storage and retry",
             }
-            _emit_persona_open_chat_payload(args, data)
+            _emit_persona_verb_payload(args, data)
             return 2
         data = {
             "ok": True,
@@ -308,7 +308,7 @@ def _cmd_persona_instance_create(args) -> int:
             "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
             "next_expected": "agent profile created; refresh Harness snapshot for the profile, chat, and scene placement state",
         }
-        _emit_persona_open_chat_payload(args, data, plain=f"created {instance.id} on chat {instance.default_chat_session_id}")
+        _emit_persona_verb_payload(args, data, plain=f"created {instance.id} on chat {instance.default_chat_session_id}")
         return 0
     # S70: the display-name-less branch used to queue a "free-floating persona
     # assignment" (and optionally auto-run one bounded turn beside the canonical
@@ -330,5 +330,5 @@ def _cmd_persona_instance_create(args) -> int:
             "send messages with `harness mission-chat message`"
         ),
     }
-    _emit_persona_open_chat_payload(args, data)
+    _emit_persona_verb_payload(args, data)
     return 2

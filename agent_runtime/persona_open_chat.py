@@ -24,7 +24,7 @@ THE HANDLER'S OWN NAMESPACE and calls it, and the row it answers is the row the
 CLI prints.
 
 **How the row comes back, and the one way it must not.** Through
-``args.payload_sink`` — the seam ``chat_open._emit_persona_open_chat_payload``
+``args.payload_sink`` — the seam ``chat_request._emit_persona_verb_payload``
 now carries, added for this door and modelled on the send lane's own
 (``_emit_mission_chat_payload``, whose docstring records why). The alternative
 is ``contextlib.redirect_stdout``, and it is not available here: this handler
