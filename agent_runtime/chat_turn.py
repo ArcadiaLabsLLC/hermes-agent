@@ -72,6 +72,8 @@ from .chat_turn_reservations import (
 )
 
 from agent_runtime.chat_observation_policy import chat_observation_guidance
+from .operator_message import MAX_MESSAGE_LENGTH as MAX_MESSAGE_LENGTH
+from .operator_message import OperatorMessageInvalid, normalize_operator_message
 
 __layer__ = "lanes"
 
@@ -103,13 +105,6 @@ CHAT_TURN_METHODS: tuple[str, ...] = (
     CHAT_STEER_METHOD,
     PEER_CHAT_EXECUTE_METHOD,
 )
-
-#: Ceiling on one remote message body. The chat handler has its own caps
-#: further in; this one exists at the BOUNDARY so an oversized frame is refused
-#: before it is spawned onto a worker, and it is generous rather than tuned —
-#: the purpose is to make "a device wedged the pool with a 40 MB paste"
-#: unreachable, not to have an opinion about how long an operator writes.
-MAX_MESSAGE_LENGTH = 64_000
 
 #: Mirrors the ``client_message_id`` normaliser's cap in the chat handler.
 MAX_TURN_REQUEST_ID_LENGTH = 200
@@ -299,6 +294,13 @@ def _required_text(params: dict, key: str, *, limit: int) -> str:
     return value
 
 
+def _operator_message(params: dict) -> str:
+    try:
+        return normalize_operator_message(params.get("message"))
+    except OperatorMessageInvalid as exc:
+        raise ChatTurnInvalid(exc.reason, exc.message) from exc
+
+
 def _flag(params: dict, key: str) -> bool:
     raw = params.get(key)
     if raw is None:
@@ -363,7 +365,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
     )
     persona_id = _required_text(params, "persona_id", limit=200)
-    message = _required_text(params, "message", limit=MAX_MESSAGE_LENGTH)
+    message = _operator_message(params)
     session_id = _text(params, "session_id", limit=200)
     persona_instance_id = _text(params, "persona_instance_id", limit=200)
     title = _text(params, "title", limit=200)
@@ -526,7 +528,7 @@ def normalize_peer_chat_execute(
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
     )
     target = _required_text(params, "target", limit=200)
-    message = _required_text(params, "message", limit=MAX_MESSAGE_LENGTH)
+    message = _operator_message(params)
     session_id = _text(params, "session_id", limit=200)
     title = _text(params, "title", limit=200)
     new_session = _flag(params, "new_session")
@@ -605,7 +607,7 @@ def normalize_chat_steer(params: dict) -> ChatTurnRequest:
         params, "turn_request_id", limit=MAX_TURN_REQUEST_ID_LENGTH
     )
     session_id = _required_text(params, "session_id", limit=200)
-    message = _required_text(params, "message", limit=MAX_MESSAGE_LENGTH)
+    message = _operator_message(params)
     persona_id = _text(params, "persona_id", limit=200)
     persona_instance_id = _text(params, "persona_instance_id", limit=200)
     correlation_id = _correlation_id(params)

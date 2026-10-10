@@ -45,7 +45,6 @@ from ..chat_events import (
     _publish_persona_chat_projection_event,
 )
 from ..chat_history_writes import (
-    PERSONA_CHAT_REPLY_LIMIT,
     _chat_turn_tool_names,
     _mirror_persona_chat_message,
     _persona_chat_fault_injection,
@@ -267,7 +266,7 @@ class _SettlePhases:
         session_id = self.session_id
         runtime_registry = self.runtime_registry
         stream_emitter = self.stream_emitter
-        reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "", limit=PERSONA_CHAT_REPLY_LIMIT)
+        reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "")
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_revision = _persona_chat_native_revision(session_db, session_id)
         self.reply_text = reply_text

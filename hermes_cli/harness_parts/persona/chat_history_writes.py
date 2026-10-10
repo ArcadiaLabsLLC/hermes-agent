@@ -7,7 +7,7 @@ Separate because every chat message persists through ``_persist_persona_chat_row
 from __future__ import annotations
 
 import os
-import re
+from agent_runtime.redaction import TEXT_SECRET_ASSIGNMENT_RE
 from agent_runtime.serde import positive_int
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
@@ -22,8 +22,6 @@ from agent_runtime.persona_chat_session import _persona_chat_native_history, _pe
 
 __layer__ = "lanes"
 __all__ = [
-    "PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT",
-    "PERSONA_CHAT_REPLY_LIMIT",
     "_chat_turn_tool_names",
     "_mirror_persona_chat_message",
     "_persona_chat_existing_turn",
@@ -41,41 +39,10 @@ def _persona_chat_fault_injection(boundary: str) -> None:
         raise RuntimeError(f"injected persona chat fault at {boundary}")
 
 
-_PERSONA_CHAT_SECRET_RE = re.compile(
-    r"(?i)(api[_-]?key|token|secret|password|passwd|authorization|bearer)\s*[:=]\s*\S+"
-)
-
-
-# One pair of caps for the whole mission-chat lane. The reply cap matches the
-# operator-channel projection read cap (operator_channels._safe_conversation_text
-# limit=20000) so a persisted reply is never shorter than what the projection
-# is willing to display.
-PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT = 12000
-
-
-PERSONA_CHAT_REPLY_LIMIT = 20000
-
-
-def _redact_persona_chat_text(value, *, limit: int) -> str:
-    safe = _safe_persona_chat_body_text(value, limit=limit)
-    if not safe:
-        return ""
-    return _PERSONA_CHAT_SECRET_RE.sub(r"\1: [redacted]", safe)
-
-
-def _safe_persona_chat_body_text(value, *, limit: int) -> str:
+def _redact_persona_chat_text(value) -> str:
+    """Retain the whole body and the display lane's full secret-value masking."""
     text = str(value or "").replace("\x00", " ")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    # Preserve intra-line whitespace: chat bodies carry code blocks and aligned
-    # output, and collapsing runs of spaces destroys them irreversibly at
-    # persistence time. Only trim line endings and cap blank runs.
-    lines = [line.rstrip() for line in text.split("\n")]
-    normalized = "\n".join(lines).strip()
-    normalized = re.sub(r"\n{4,}", "\n\n\n", normalized)
-    if len(normalized) > limit:
-        # Truncation must be visible, never silent.
-        normalized = normalized[:limit].rstrip() + " … [truncated]"
-    return normalized
+    return TEXT_SECRET_ASSIGNMENT_RE.sub(r"\1: [redacted]", text)
 
 
 def _chat_turn_tool_names(elements) -> list[str]:
@@ -251,7 +218,7 @@ def _append_persona_operator_turn(
         )
     if skip_if_present:
         return True
-    safe_message = _redact_persona_chat_text(message, limit=PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT)
+    safe_message = _redact_persona_chat_text(message)
     if not safe_message:
         return True
     return _persist_persona_chat_row(
@@ -288,7 +255,7 @@ def _append_persona_assistant_text(
         return _persona_chat_persistence_failed(
             "assistant_append", None, required=required
         )
-    safe = _redact_persona_chat_text(text, limit=PERSONA_CHAT_REPLY_LIMIT)
+    safe = _redact_persona_chat_text(text)
     if not safe:
         return True
     safe_client_message_id = safe_assignment_text(client_message_id, limit=200)
@@ -356,7 +323,7 @@ def _persist_persona_chat_row(
       drives ``_append_persona_operator_turn(relay_marker=)``, whose wire
       behaviour broke silently for eleven days once already.
     * **Deleting it deletes five enforcement points, not one function.**
-      Redaction with the per-role limit, the assistant-row idempotency check,
+      Redaction, the assistant-row idempotency check,
       the mirror binding, the typed ``PersonaChatPersistenceError`` reporting,
       and the ``required=`` raise-or-degrade split. The next explicit append
       would hand-roll all five — which is exactly the failure this seam's

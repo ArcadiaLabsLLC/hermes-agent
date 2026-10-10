@@ -74,13 +74,11 @@ _JOURNAL_TEXT_FIELDS = {
     "provider_request_fingerprint": 128,
     "native_revision": 160,
     "native_assistant_message_id": 240,
-    "stored_reply": _MAX_TEXT,
     "projection_revision": 160,
     "resolution": 80,
     "resolution_actor": 160,
     "resolution_reason": 320,
     "resolved_at": 80,
-    "pending_user_message": 12000,
     # Wall-budget provenance. ``budget_trigger`` is the typed reason the
     # graceful checkpoint (or the last-resort hard wall) ended the turn;
     # ``budget_summary`` is the one-line window description an operator reads
@@ -205,24 +203,6 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
     return block or None
 
 
-#: Text fields whose EMPTY value is a recorded fact rather than an absence.
-#:
-#: Everything else above is dropped when empty, which is right for an id or a
-#: fingerprint — there is no such thing as "the fingerprint was, meaningfully,
-#: nothing". ``stored_reply`` is the exception: "the turn replied with nothing"
-#: and "nobody recorded a reply here" are different facts about the turn, and
-#: collapsing them had a live consequence. The replay branch admits a settled
-#: turn on ``stored_reply is not None``, so a SILENT turn — model produced no
-#: content, `ok` true, empty reply — failed that guard, fell through to the
-#: live provider path and died there as ``chat_turn_not_submitted /
-#: rejected_stale_transition``. The delivery drain derives its
-#: ``client_message_id`` from the dispatch id precisely so a retry converges on
-#: one turn; for silent turns that convergence was broken.
-#:
-#: Same principle the run-budget block states directly above: absent stays
-#: absent, and recorded-empty stays recorded.
-_JOURNAL_EMPTY_PRESERVING_FIELDS = frozenset({"stored_reply"})
-
 #: The provider's own verdict on a turn it refused to run
 #: (``mission_chat_outcome.ProviderRefusal.as_dict``), carried onto the record
 #: as ONE structured entry — the same treatment the run-budget accounting gets,
@@ -277,6 +257,11 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
     result: dict[str, Any] = {}
+    from ..persona_chat_continuity.bounds import _redacted
+    # Recorded empty replies stay distinct from replies that were never written.
+    for key in ("stored_reply", "pending_user_message"):
+        if isinstance(value.get(key), str):
+            result[key] = _redacted(value[key])
     from ..auxiliary_chat import safe_auxiliary_result
 
     auxiliary = safe_auxiliary_result(value.get("auxiliary_result"))
@@ -286,10 +271,6 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:
             result[key] = text
-        elif key in _JOURNAL_EMPTY_PRESERVING_FIELDS and value.get(key) is not None:
-            # An empty value that was WRITTEN is a fact, not an absence — the
-            # same distinction the run-budget block above is careful about.
-            result[key] = ""
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget
@@ -387,6 +368,7 @@ def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
     safe_files = [_safe_file_label(item) for item in files[:20]] if isinstance(files, list) else []
     fields: dict[str, Any] = {
         "name": safe_assignment_token(raw.get("name")) or "tool",
+        "tool_call_id": safe_assignment_text(raw.get("tool_call_id"), limit=240) or None,
         "args": safe_assignment_text(raw.get("args"), limit=800),
         "command": safe_assignment_text(raw.get("command"), limit=1000),
         "status": safe_assignment_token(raw.get("status")) or None,

@@ -8,6 +8,8 @@ the turn".
 
 from __future__ import annotations
 
+from agent_runtime.operator_message import OperatorMessageInvalid, normalize_operator_message
+
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
@@ -38,14 +40,13 @@ from agent_runtime.persona_chat_durability import (
 )
 from ..chat_events import _mission_chat_emit, _publish_persona_chat_projection_event
 from ..chat_history_writes import (
-    PERSONA_CHAT_REPLY_LIMIT,
     _persona_chat_existing_turn,
     _redact_persona_chat_text,
 )
 from ..chat_reply_stamps import _stamp_reply_media, _stamp_turn_visibility
 from ..chat_request import (
     _invalid_chat_model_override_payload,
-    _missing_chat_message_payload,
+    _invalid_operator_message_payload,
     _requested_chat_model_override,
     _retired_persona_instance_payload,
 )
@@ -266,9 +267,10 @@ class _AdmitPhases:
         # Resolve the effective instance once. Prompt receipts and execution must
         # observe the same model and skill assignment authority.
         self.persona = apply_instance_model_overrides(self.persona, instance)
-        message = safe_assignment_text(getattr(args, "message", None), limit=12000)
-        if not message:
-            data = _missing_chat_message_payload()
+        try:
+            message = normalize_operator_message(getattr(args, "message", None))
+        except OperatorMessageInvalid as exc:
+            data = _invalid_operator_message_payload(exc)
             _mission_chat_emit(args, data)
             return 2
         self.message = message
@@ -295,7 +297,7 @@ class _AdmitPhases:
         # was invisible to exactly this kind of inline set until 2026-07-26.
         if journal_state in REPLY_RECOVERABLE_TURN_STATES and replay.get("assistant"):
             recovered_reply = _redact_persona_chat_text(
-                replay["assistant"].get("content"), limit=PERSONA_CHAT_REPLY_LIMIT
+                replay["assistant"].get("content")
             )
             _settled = transition_mission_chat_turn(
                 session_id=session_id,
@@ -325,8 +327,7 @@ class _AdmitPhases:
             stored_reply = journal.get("stored_reply")
             if stored_reply is None and replay.get("assistant"):
                 stored_reply = _redact_persona_chat_text(
-                    replay["assistant"].get("content"),
-                    limit=PERSONA_CHAT_REPLY_LIMIT,
+                    replay["assistant"].get("content")
                 )
             _settled = transition_mission_chat_turn(
                 session_id=session_id,
@@ -386,7 +387,7 @@ class _AdmitPhases:
             or _persona_chat_native_revision(session_db, session_id),
         )
         reply_text = _redact_persona_chat_text(
-            journal.get("stored_reply"), limit=PERSONA_CHAT_REPLY_LIMIT
+            journal.get("stored_reply")
         )
         data = {
             "ok": True,
@@ -427,7 +428,7 @@ class _AdmitPhases:
         normalized_persona = self.normalized_persona
         instance = self.instance
         reply_text = _redact_persona_chat_text(
-            self.replay["assistant"].get("content"), limit=PERSONA_CHAT_REPLY_LIMIT
+            self.replay["assistant"].get("content")
         )
         for state, metadata, step in (
             (TURN_STATE_PENDING, {"root_chat_session_id": session_id, "pending_user_message": self.message}, "replay_walk_pending"),

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .operator_message import OperatorMessageInvalid, normalize_operator_message
+
 import json
 import os
 import re
@@ -94,7 +96,11 @@ def submit_mission_chat_steer(
 ) -> dict[str, Any]:
     normalized_session_id = (session_id or "").strip()
     normalized_client_id = (client_message_id or "").strip()
-    normalized_message = (message or "").strip()
+    try:
+        normalized_message = normalize_operator_message(message)
+    except OperatorMessageInvalid as exc:
+        return _rejected("invalid_request", session_id=normalized_session_id,
+                         client_message_id=normalized_client_id, error=exc.message)
     if not normalized_session_id or not normalized_client_id or not normalized_message:
         return _rejected(
             "invalid_request",
@@ -173,8 +179,8 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
             )
         unlink_quietly(path)
         return
-    message = str(request.get("message") or "").strip()
-    if not message:
+    message = str(request.get("message") or "")
+    if not message.strip():
         _write_json_atomic(
             ack_path,
             _rejected(

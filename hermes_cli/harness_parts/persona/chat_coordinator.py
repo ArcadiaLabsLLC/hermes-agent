@@ -6,6 +6,8 @@ every lane that acts on another agent's behalf.
 
 from __future__ import annotations
 
+from agent_runtime.operator_message import normalize_operator_message
+
 from dataclasses import asdict
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
@@ -99,7 +101,7 @@ def _cmd_mission_chat_steer(args) -> int:
     )
     session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
     client_message_id = safe_assignment_text(getattr(args, "client_message_id", None), limit=200)
-    message = safe_assignment_text(getattr(args, "message", None), limit=12000)
+    message = getattr(args, "message", None)
     if not session_id or not client_message_id or not message:
         data = {
             "ok": False,
@@ -113,6 +115,7 @@ def _cmd_mission_chat_steer(args) -> int:
         print(emit_json(data) if args.json else data["error"])
         return 2
     try:
+        message = normalize_operator_message(message)
         data = submit_mission_chat_steer(
             runtime_root=paths.store_root(),
             session_id=session_id,

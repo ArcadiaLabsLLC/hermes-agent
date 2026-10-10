@@ -51,6 +51,9 @@ __all__ = [
 
 #: ``data.reason`` -> JSON-RPC code, for every typed reason the five rows carry.
 REFUSAL_CODES: dict[str, int] = {
+    "content_changed": ERR_CONFLICT,
+    "content_unavailable": ERR_NOT_FOUND,
+    "conversation_owner_changed": ERR_CONFLICT,
     "invalid_request": ERR_INVALID_PARAMS,
     "skills_not_loadable": ERR_INVALID_PARAMS,
     "placement_id_not_discriminable": ERR_INVALID_PARAMS,
@@ -169,3 +172,11 @@ def _runtime_persona_chat_delete(rid: Any, params: dict, context: RpcContext | N
     from agent_runtime.chat_verbs.delete import delete_persona_chat
 
     return row_reply(rid, delete_persona_chat(_params(params), caller=_caller(context)), "delete")
+
+
+@method("runtime.persona.chat.content", tier=TIER_CONSOLE)
+def _runtime_persona_chat_content(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Read a bounded text window through the existing transcript authority."""
+    from agent_runtime.persona_chat_history.content import read_chat_content
+
+    return row_reply(rid, read_chat_content(_params(params)), "content")

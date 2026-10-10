@@ -166,6 +166,9 @@ class HistoryMessage:
             return marker
         shape = history_row_shape(self.row, self.role, self.persona_id, self.persona_instance_id)
         message = self.message(shape)
+        for key in ("content_ref", "text_truncated", "text_total_chars"):
+            if key in self.row:
+                message[key] = self.row[key]
         self.annotate(message, shape)
         return message
 

@@ -2,7 +2,7 @@
 type: program
 program: mission-control
 status: active
-cursor: "2026-10-10 — native projection preserves typed content, upstream metadata and all valid tool pairs; cold reads use upstream replay repair. 2026-10-10 — native result/argument clipping retired; upstream owns result policy, qualified through SQLite flush and replay. 2026-10-07 — inline agent-chat admission and thread roster reads use the runtime head, not the sender profile; real inline-handler regression covers two sender homes and sibling targets. Live relay/thread-opening acceptance remains in the Launcher console audit. Earlier Discussion qualification is unchanged; broad suite and host-safety investigations remain in fork-hygiene."
+cursor: "2026-10-10 — admitted operator text and recorded replies remain whole; scoped content windows expose explicit transcript previews, and native SQLite sidecars redact before write. 2026-10-10 — native projection preserves typed content, upstream metadata and all valid tool pairs; cold reads use upstream replay repair. 2026-10-10 — native result/argument clipping retired; upstream owns result policy, qualified through SQLite flush and replay. 2026-10-07 — inline agent-chat admission and thread roster reads use the runtime head, not the sender profile; real inline-handler regression covers two sender homes and sibling targets. Live relay/thread-opening acceptance remains in the Launcher console audit. Earlier Discussion qualification is unchanged; broad suite and host-safety investigations remain in fork-hygiene."
 tags: [program/mission-control, program]
 ---
 

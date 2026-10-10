@@ -239,6 +239,9 @@ def _db_flush_row(agent, msg: Dict, is_current_turn_user: bool, msg_idx: int = 0
         "platform_message_id": msg.get("platform_message_id") or msg.get("message_id"),
         "observed": bool(msg.get("observed")),
     }
+    if getattr(agent, "_persona_chat_root_session_id", None):
+        from agent_runtime.native_persistence import project_native_sidecar
+        project_native_sidecar(row)
     if isinstance(msg.get("_row_id"), int):
         row["_row_id"] = msg["_row_id"]
     # The merge witness rides on the survivor's row (an owned column: a row-addressed rewrite of the

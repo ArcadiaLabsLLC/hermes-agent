@@ -71,6 +71,7 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         "stage_id": _safe_trace_text(payload.get("stage_id"), limit=120),
         "event": trace_event,
         "tool_name": tool_name,
+        "tool_call_id": safe_assignment_text(payload.get("tool_call_id"), limit=240) or None,
         "summary": summary,
         "files": files,
         "status": status,

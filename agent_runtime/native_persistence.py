@@ -1,7 +1,6 @@
 """Persona-chat live/persisted wire projection at the upstream database flush boundary."""
 from agent_runtime.persona_chat_continuity import (
     native_wire_row,
-    record_wire_boundary_cut,
     record_wire_boundary_drift,
 )
 
@@ -18,7 +17,6 @@ def project_native_message(agent, msg, content, msg_idx):
         "turn_id": agent._persona_chat_turn_id,
     })
     record_wire_boundary_drift(bound)
-    record_wire_boundary_cut(bound)
     msg.clear()
     msg.update(bound.row)
     platform_id = agent._persona_chat_client_message_id
@@ -27,3 +25,11 @@ def project_native_message(agent, msg, content, msg_idx):
         platform_id = f"{platform_id}:{role}:{msg_idx}"
     msg["platform_message_id"] = platform_id
     return role, msg.get("content")
+
+
+def project_native_sidecar(row):
+    """Sanitize the final DB sidecar, including overrides synthesized upstream."""
+    from agent_runtime.persona_chat_continuity.bounds import _redacted
+
+    if isinstance(row.get("api_content"), str):
+        row["api_content"] = _redacted(row["api_content"])

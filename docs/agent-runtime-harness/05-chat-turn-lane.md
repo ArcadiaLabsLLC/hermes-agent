@@ -15,8 +15,10 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 history without applying a second size ceiling to tool results, assistant/system
 content or tool-call arguments. Upstream sizes results through its own three
 layers (tool caps, spillover, aggregate budgets) and owns context compression. The
-fork's operator-message and composed-user limits remain in
-`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`.
+fork's composed-envelope limits remain in
+`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`;
+the admitted operator message is preserved in full, with the remaining space
+shared by the runtime HUD and skill preload.
 
 `agent_runtime/native_persistence.py::project_native_message` feeds the live
 message and the SQLite row, so both must preserve the upstream-selected result
@@ -33,6 +35,37 @@ image does not promise that its bytes survive a restart. The native history
 loader requests upstream's replay repair so compression markers survive cold
 reads. These guarantees are exercised through the actual loader and SQLite flush
 in `tests/agent_runtime/test_native_representation_downstream.py`.
+
+## Operator text and full transcript reads
+
+`agent_runtime/operator_message.py::normalize_operator_message` is the admission
+policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
+preserving whitespace. Oversize input receives a typed refusal before dispatch.
+`hermes_cli/harness_parts/persona/chat_history_writes.py::_redact_persona_chat_text`
+and `mission_chat_turns/records.py::_safe_journal_metadata` retain whole redacted
+operator/reply bodies, including recorded-empty replies. They do not introduce
+another post-admission slice. The real admission/handler proof is
+`tests/hermes_cli/test_chat_content_integrity.py`.
+
+`agent_runtime/persona_chat_history/text.py::message_preview` marks abbreviated
+history rows with `text_truncated`, `text_total_chars` and `content_ref`.
+`serve_rpc/chat_verbs.py` registers `runtime.persona.chat.content` on the existing
+Console tier. Its reader, `persona_chat_history/content.py::read_chat_content`,
+uses the existing scoped, read-only SessionDB door. A reference names a message
+or a real tool-call input/result; an offset selects at most 16,000 Unicode
+characters. Continuations require the returned content revision. Changed content,
+wrong ownership, hidden/missing rows and unavailable storage receive refusals.
+Display reads use upstream's compacted/ancestor history; model replay still uses
+upstream's separate replay policy. No new transcript store exists. Each window
+currently scans the session; the indexed-lookup improvement is in `runtime-queue`.
+Tests: `tests/agent_runtime/test_chat_content_read.py`.
+
+The existing SQLite flush seam calls
+`agent_runtime/native_persistence.py::project_native_sidecar` after upstream has
+assembled `api_content`, including synthesized sidecars. New native writes use
+the same redaction policy as live/cold replay; non-native persistence and opaque
+reasoning fields remain upstream-owned. This does not rewrite historical rows.
+Controls: `tests/agent_runtime/test_native_representation_downstream.py`.
 
 ## Independent native conversations
 

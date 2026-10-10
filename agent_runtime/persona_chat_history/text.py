@@ -6,13 +6,14 @@ Separate because it is the leaf every row shaper calls, and reads nothing.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from typing import Any
 
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
-from .vocabulary import PERSONA_CHAT_MESSAGE_TEXT_LIMIT, _SECRET_RE
+from .vocabulary import _SECRET_RE
 
 __layer__ = "stores"
 __all__ = [
@@ -46,7 +47,7 @@ def _curate_chat_message_text(role: str, content: Any) -> str | None:
         summary = _decision_summary_text(content)
         if summary:
             return summary
-        text = _safe_chat_body_text(content, limit=PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
+        text = _safe_chat_body_text(content, limit=None)
         if not text or text.startswith("{"):
             # Empty assistant turn or an unparseable raw dict — not presentable.
             return None
@@ -54,7 +55,7 @@ def _curate_chat_message_text(role: str, content: Any) -> str | None:
             return None
         return text
     if role == "operator":
-        text = _safe_chat_body_text(content, limit=PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
+        text = _safe_chat_body_text(content, limit=None)
         if not text:
             return None
         if any(marker in text for marker in _INTERNAL_SCAFFOLDING_MARKERS):
@@ -88,7 +89,7 @@ def _safe_display_text(
     value: Any,
     *,
     fallback: str,
-    limit: int,
+    limit: int | None,
     redacted_fallback: str | None = None,
 ) -> tuple[str, str]:
     text = safe_assignment_text(value, limit=limit)
@@ -105,7 +106,7 @@ def _safe_display_body_text(
     value: Any,
     *,
     fallback: str,
-    limit: int,
+    limit: int | None,
     redacted_fallback: str | None = None,
 ) -> tuple[str, str]:
     text = _safe_chat_body_text(value, limit=limit)
@@ -118,15 +119,24 @@ def _safe_display_body_text(
     return text, "safe"
 
 
-def _mask_secret_lines(value: str, *, limit: int) -> str:
+def _mask_secret_lines(value: str, *, limit: int | None) -> str:
     return mask_secret_lines(str(value or "")).strip()[:limit].rstrip()
 
 
-def _safe_chat_body_text(value: Any, *, limit: int) -> str:
+def _safe_chat_body_text(value: Any, *, limit: int | None) -> str:
     text = str(value or "").replace("\x00", " ")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    lines = [" ".join(line.split()) for line in text.split("\n")]
-    normalized = "\n".join(lines).strip()
-    normalized = re.sub(r"\n{4,}", "\n\n\n", normalized)
-    return normalized[:limit].rstrip()
+    return text if limit is None else text[:limit]
 
+
+def text_revision(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def message_preview(row: dict[str, Any], limit: int) -> dict[str, Any]:
+    text = row["text"]
+    if len(text) <= limit:
+        return row
+    return {**row, "text": text[:limit], "text_truncated": True,
+            "text_total_chars": len(text), "content_ref": {
+                "kind": "message", "id": row["id"], "revision": text_revision(text)}}

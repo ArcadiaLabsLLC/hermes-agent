@@ -6,6 +6,8 @@ from the request alone plus the clarify-ticket store.
 
 from __future__ import annotations
 
+from agent_runtime.operator_message import OperatorMessageInvalid, normalize_operator_message
+
 from datetime import datetime, timezone
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
@@ -166,8 +168,10 @@ def _mission_chat_caller_refusal(
     ``args``, so evaluating them here AND at their original sites is free and
     keeps those sites intact for the explicit-session lane."""
 
-    if not safe_assignment_text(getattr(args, "message", None), limit=12000):
-        return _missing_chat_message_payload()
+    try:
+        normalize_operator_message(getattr(args, "message", None))
+    except OperatorMessageInvalid as exc:
+        return _invalid_operator_message_payload(exc)
     try:
         _requested_chat_model_override(args)
     except ValueError as exc:
@@ -411,3 +415,12 @@ def _emit_persona_open_chat_payload(args, data: dict, *, plain: str | None = Non
         sink(data)
         return
     print(emit_json(data) if args.json else (data["error"] if plain is None else plain))
+
+
+def _invalid_operator_message_payload(exc: OperatorMessageInvalid) -> dict[str, object]:
+    from agent_runtime.mission_chat_outcome import ChatErrorKind
+
+    if exc.reason == "message_required":
+        return _missing_chat_message_payload()
+    return {"ok": False, "error_kind": ChatErrorKind.INVALID_REQUEST,
+            "reason": exc.reason, "error": exc.message}

@@ -58,7 +58,7 @@ class _FakeDb:
             }
         )
 
-    def get_messages(self, session_id, include_inactive=False):
+    def get_messages(self, session_id, include_inactive=False, include_compacted=False, include_ancestors=False):
         return list(self.messages.get(session_id, []))
 
 

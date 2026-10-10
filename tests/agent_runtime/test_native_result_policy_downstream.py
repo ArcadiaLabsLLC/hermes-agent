@@ -15,7 +15,7 @@ import pytest
 from agent.session_persistence import SessionPersistenceMixin
 from agent_runtime import native_persistence
 from agent_runtime.persona_chat_continuity import (
-    BOUND_ACTION_TRUNCATED, BOUND_PART_CONTENT, ContentBoundNote,
+    BOUND_ACTION_TRUNCATED, BOUND_PART_SKILL_PRELOAD, ContentBoundNote,
     native_wire_row, safe_native_history,
 )
 from hermes_state import SessionDB
@@ -137,17 +137,15 @@ def test_redaction_and_pairing_survive_large_arguments(native_agent):
         assert rows[2]["tool_call_id"] == rows[1]["tool_calls"][0]["id"]
 
 
-def test_flush_keeps_cut_and_drift_receipts(native_agent, monkeypatch, caplog):
+def test_flush_keeps_unaccounted_drift_receipts(native_agent, monkeypatch, caplog):
     def damaged_projection(message):
         bound = native_wire_row(message)
         return replace(bound, redacted_chars=30_000, wire_chars=10_000, notes=(
-            ContentBoundNote(BOUND_PART_CONTENT, BOUND_ACTION_TRUNCATED, 30_000, 20_000, 20_000),
+            ContentBoundNote(BOUND_PART_SKILL_PRELOAD, BOUND_ACTION_TRUNCATED, 30_000, 20_000, 20_000),
         ))
 
     monkeypatch.setattr(native_persistence, "native_wire_row", damaged_projection)
     with caplog.at_level(logging.WARNING):
         assert native_agent._flush_messages_to_session_db(_turn(["CONTENT-SENTINEL"])) is True
     assert "10000 unaccounted chars" in caplog.text
-    assert "tool=launcher_generated_inspect" in caplog.text
-    assert "30000->20000/20000" in caplog.text
     assert "CONTENT-SENTINEL" not in caplog.text

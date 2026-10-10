@@ -25,7 +25,6 @@ from agent_runtime.mission_chat_turns.states import (
 from agent_runtime.persona_assignments import safe_assignment_token
 from .chat_events import _mission_chat_emit, _publish_persona_chat_send_refused_event
 from .chat_history_writes import (
-    PERSONA_CHAT_REPLY_LIMIT,
     _persona_chat_existing_turn,
     _redact_persona_chat_text,
 )
@@ -190,7 +189,7 @@ def _busy_replay(send: _BusySend) -> int | None:
     if stored_reply is None:
         return None
     reply_text = _redact_persona_chat_text(
-        stored_reply, limit=PERSONA_CHAT_REPLY_LIMIT
+        stored_reply
     )
     data = {
         "ok": True,

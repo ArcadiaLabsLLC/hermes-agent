@@ -12,7 +12,7 @@ from typing import Any
 from ..serde import safe_assignment_text
 
 from .bounds import (
-    BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote,
+    CONTENT_BOUND_PARTS, ContentBoundNote,
     _redacted, _redacted_content, bound_composed_user_content,
 )
 from .content import content_text_chars, redact_native_content
@@ -66,11 +66,7 @@ class WireBoundaryRow:
     def accounted_loss(self) -> int:
         """Characters the notes explain, counting only the CONTENT parts.
 
-        Historical tool-call bound notes live in a different field of the row
-        and are NOT part of the content arithmetic.
-        Summing them here would let an argument truncation cancel out a real
-        content residue and drive :attr:`unaccounted_loss` to zero — a check
-        that hides the thing it exists to find.
+        Only runtime envelope notes explain content loss.
         """
 
         return sum(
@@ -79,15 +75,6 @@ class WireBoundaryRow:
             if note.part in CONTENT_BOUND_PARTS
         )
 
-    @property
-    def argument_loss(self) -> int:
-        """Characters removed from tool-call argument blobs. Reported, not netted."""
-
-        return sum(
-            max(0, note.original_chars - note.bounded_chars)
-            for note in self.notes
-            if note.part == BOUND_PART_TOOL_ARGUMENTS
-        )
 
     @property
     def unaccounted_loss(self) -> int:
@@ -122,7 +109,6 @@ class WireBoundaryRow:
             "redacted_chars": self.redacted_chars,
             "wire_chars": self.wire_chars,
             "accounted_loss": self.accounted_loss,
-            "argument_loss": self.argument_loss,
             "unaccounted_loss": self.unaccounted_loss,
             "notes": [
                 {
@@ -170,30 +156,6 @@ def record_wire_boundary_drift(bound: WireBoundaryRow) -> dict[str, Any] | None:
     return row
 
 
-def record_wire_boundary_cut(bound: WireBoundaryRow) -> tuple[ContentBoundNote, ...]:
-    """Say so when an ACCOUNTED cut shortened a non-user row on its way to the model.
-
-    :func:`record_wire_boundary_drift` reports only the unaccounted residue, and
-    the composed user row warns from its own bounding, so an ordinary tool
-    result cut at the flat bound left no line anywhere: on 2026-10-09 a
-    26,853-character ``launcher_generated_list`` reply was cut to 20,000 — the
-    worked example the model then mis-closed three times was the part past the
-    cut — and the first evidence was a database dig. One warning, naming the
-    tool and the sizes and never the content, is the receipt that was missing.
-    """
-
-    if not bound.notes or bound.row.get("role") == WIRE_ROLE_USER:
-        return ()
-    logger.warning(
-        "persona chat wire boundary cut a %s row%s before the model saw it: %s",
-        bound.row.get("role") or "?",
-        f" (tool={bound.row['tool_name']})" if bound.row.get("tool_name") else "",
-        ", ".join(
-            f"{note.part}={note.action}({note.original_chars}->{note.bounded_chars}/{note.limit})"
-            for note in bound.notes
-        ),
-    )
-    return bound.notes
 
 
 def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:

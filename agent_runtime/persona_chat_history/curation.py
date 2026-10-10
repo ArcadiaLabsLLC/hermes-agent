@@ -68,6 +68,7 @@ def _safe_curated_messages(
     session_db: Any | None,
     *,
     session_id: str,
+    preview: bool = True,
 ) -> tuple[list[dict[str, Any]], str, dict[str, Any] | None]:
     """Return every redaction-safe operator-facing row for one logical chat.
 
@@ -106,6 +107,7 @@ def _safe_curated_messages(
             },
         )
     state = CurationState.for_session(session_id)
+    state.preview = preview
     # Curate the agent's raw working transcript into an operator-facing one.
     # The bound session is the agent's internal session, so its raw rows are
     # verbose tick-context prompts (role=user) and serialized decision dicts
@@ -127,11 +129,17 @@ def _safe_curated_messages(
 def _read_raw_messages(session_db: Any, session_id: str) -> Any:
     """The chat's persisted rows across its native compression lineage (raises on a failed read)."""
 
+    from ..chat_session_scope import is_canonical_session_persistence
+
     lineage_loader = getattr(session_db, "get_messages_as_conversation", None)
     try:
         native_tip = session_db.resolve_resume_session_id(session_id)
     except Exception:
         native_tip = session_id
+    if is_canonical_session_persistence(session_db):
+        # Display history includes archived compression rows and exact stored
+        # bodies. Model replay deliberately omits/normalizes those records.
+        return session_db.get_messages(native_tip, include_compacted=True, include_ancestors=True)
     return (
         lineage_loader(native_tip, include_ancestors=True)
         if callable(lineage_loader)
@@ -306,6 +314,7 @@ class CurationState:
     turn_records_by_message: dict[str, dict[str, Any]]
     rows: list[dict[str, Any]] = field(default_factory=list)
     redacted: bool = False
+    preview: bool = True
     assistant_client_message_ids: set[str] = field(default_factory=set)
     seen_logical_rows: set[tuple[str, str, str]] = field(default_factory=set)
     # Silent-turn bookkeeping, deliberately two collections rather than one.
@@ -336,6 +345,8 @@ class CurationState:
         )
 
     def curate(self, index: int, raw: dict[str, Any], curator: RoleCurator) -> None:
+        if raw.get("display_kind") == "hidden":
+            return
         client_message_id = safe_assignment_text(
             raw.get("platform_message_id")
             or raw.get("message_id")
@@ -362,7 +373,7 @@ class CurationState:
         text, status = _safe_display_body_text(
             curated,
             fallback="Message hidden by redaction boundary",
-            limit=PERSONA_CHAT_MESSAGE_TEXT_LIMIT,
+            limit=None,
         )
         if not text:
             return
@@ -377,6 +388,9 @@ class CurationState:
         if client_message_id and not self._first_logical_row(row, ctx, text, curator.turn_seq(is_pre_trace_ack)):
             return
         curator.after_row(self, row, ctx)
+        if self.preview:
+            from .text import message_preview
+            row = message_preview(row, PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
         self.rows.append(row)
 
     def _silent_candidate(self, ctx: RowContext, raw_content: Any) -> None:
@@ -435,7 +449,7 @@ class CurationState:
 def _message_row(ctx: RowContext, *, session_id: str, text: str, status: str) -> dict[str, Any]:
     raw = ctx.raw
     return {
-        "id": safe_assignment_text(raw.get("id"), limit=120)
+        "id": safe_assignment_text(raw.get("message_uid") or raw.get("id"), limit=120)
         or f"{session_id}:{ctx.index}",
         "role": ctx.role,
         "text": text,

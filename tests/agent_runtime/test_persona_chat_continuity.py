@@ -211,8 +211,9 @@ def test_16_safe_message_redacts_secrets():
     assert "topsecret" not in safe_native_message({"role": "user", "content": "api_key=topsecret"})["content"]
 
 
-def test_17_safe_message_caps_content():
-    assert "[truncated]" in safe_native_message({"role": "user", "content": "x" * 30000})["content"]
+def test_17_safe_message_preserves_admitted_content():
+    text = "  preserve indentation\n" * 1400
+    assert safe_native_message({"role": "user", "content": text})["content"] == text
 
 
 def test_18_safe_history_drops_orphan_tool_results():

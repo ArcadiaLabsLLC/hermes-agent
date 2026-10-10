@@ -57,7 +57,6 @@ from ..chat_admission import (
 )
 from ..chat_events import _ChatProtocolV2Emitter
 from ..chat_history_writes import (
-    PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT,
     _mirror_persona_chat_message,
     _persona_chat_fault_injection,
     _redact_persona_chat_text,
@@ -459,7 +458,7 @@ class _RunPhases:
             session_id=session_id,
             role="user",
             text=_redact_persona_chat_text(
-                self.message, limit=PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT
+                self.message
             ),
             client_message_id=client_message_id,
             turn_id=stream_emitter.turn_id,

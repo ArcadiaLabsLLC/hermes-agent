@@ -181,7 +181,7 @@ def test_api_text_sidecar_keeps_its_shape_and_redacts_on_live_and_cold_projectio
     sidecar = "context " * 4000 + "api_key=sidecar-secret"
     messages = [{"role": role, "content": "display text", "api_content": sidecar}]
     assert agent._flush_messages_to_session_db(messages)
-    for rows in (messages, _replay(agent)):
+    for rows in (messages, db.get_messages(agent.session_id), _replay(agent)):
         assert rows[0]["api_content"].startswith("context " * 4000)
         assert "sidecar-secret" not in rows[0]["api_content"]
         assert rows[0]["content"] == "display text"
@@ -193,3 +193,17 @@ def test_distinct_durable_messages_are_not_deduplicated_by_equal_text():
         {"role": "assistant", "client_message_id": "turn", "content": "same", "message_uid": "second"},
     ]
     assert safe_native_history(rows) == rows
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_synthesized_sidecar_is_redacted_only_on_the_native_seam(db, native):
+    from agent.session_persistence import _db_flush_row
+
+    agent = _Agent(db, native=native)
+    agent._persist_user_message_override = "clean display"
+    source = "operator context api_key=fixture-sidecar-secret"
+    row = _db_flush_row(agent, {"role": "user", "content": source}, True)
+    assert row["content"] == "clean display"
+    assert ("fixture-sidecar-secret" not in row["api_content"]) is native
+    if not native:
+        assert row["api_content"] == source
