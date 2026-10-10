@@ -57,7 +57,8 @@ class TurnCheckpointRecorder:
         if workspace is None or not path.is_relative_to(Path(workdir)):
             return
         rel = path.relative_to(workdir).as_posix()
-        if path.is_symlink() or (path.exists() and self.max_file_size_mb > 0
+        if any(item.is_symlink() or getattr(item, "is_junction", lambda: False)()
+               for item in (path, *path.parents) if item != Path(workdir)) or (path.exists() and self.max_file_size_mb > 0
                                 and path.stat().st_size > self.max_file_size_mb * 1024 * 1024):
             return
         if _hash_file(path) != evidence.get("sha256") or path.exists() == bool(evidence.get("deleted")):
@@ -75,11 +76,17 @@ class TurnCheckpointRecorder:
                                    index_file=index)
             if not ok or _hash_file(path) != evidence.get("sha256"):
                 return
+        if not diff.strip():
+            workspace["files"].pop(rel, None)
+            self._save(record)
+            return
         plus = sum(line.startswith("+") and not line.startswith("+++") for line in diff.splitlines())
         minus = sum(line.startswith("-") and not line.startswith("---") for line in diff.splitlines())
+        remaining = max(0, 500000 - sum(len(row["diff"]) for name, row in workspace["files"].items() if name != rel))
+        limit = min(180000, remaining)
         workspace["files"][rel] = {
             "path": rel, "sha256": evidence.get("sha256"), "deleted": evidence.get("deleted", False),
-            "diff": diff[:180000], "diff_truncated": len(diff) > 180000,
+            "diff": diff[:limit], "diff_truncated": len(diff) > limit,
             "insertions": plus, "deletions": minus,
         }
         self._save(record)

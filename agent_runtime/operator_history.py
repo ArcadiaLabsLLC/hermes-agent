@@ -18,6 +18,7 @@ from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketSto
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
 from .mission_chat_turns.reads import mission_chat_turn_records
 from .mission_chat_turns.states import INFLIGHT_TURN_STATES, SETTLING_TURN_STATES
+from .history_cancellation import require_not_cancelled
 
 __layer__ = "lanes"
 
@@ -231,6 +232,7 @@ def apply_operator_history(params):
     try:
         with history_write_scope(params):
             with operator_session_read(params) as (_, session):
+                require_not_cancelled(session.db, key)
                 replay = _replay(session.db, key, request_digest)
                 if replay is not None:
                     return replay

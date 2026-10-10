@@ -1117,6 +1117,11 @@ class CheckpointManager:
             backup = self.list_checkpoints(working_dir)
             if not backup or not self._restore_backup_matches(working_dir, backup[0]["hash"], selected_paths):
                 return {"success": False, "reason": "recovery_checkpoint_failed"}
+            # Independent refs keep both trees alive if normal retention rewrites
+            # the workspace snapshot chain while this command needs recovery.
+            from tools.checkpoint_recovery import pin_restore_checkpoints
+            if not pin_restore_checkpoints(working_dir, operation_id, commit_hash, backup[0]["hash"]):
+                return {"success": False, "reason": "recovery_checkpoint_failed"}
             result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
                       "failed_files": [], "review_paths": selected_paths,
                       "recovery_checkpoint": backup[0]["hash"], "replayed": False}
@@ -1185,6 +1190,10 @@ class CheckpointManager:
     def resume_restore(self, operation_id: str, *, revision: str, rollback: bool = False) -> Dict:
         from tools.checkpoint_recovery import resume_restore
         return resume_restore(self, operation_id, revision=revision, rollback=rollback)
+
+    def release_restore_checkpoints(self, operation_id: str) -> None:
+        from tools.checkpoint_recovery import release_restore_checkpoints
+        release_restore_checkpoints(operation_id)
 
     def restore_receipt(self, operation_id: str) -> Optional[Dict]:
         """Read an immutable apply receipt; this never retries filesystem work."""

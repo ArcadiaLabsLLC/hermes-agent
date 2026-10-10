@@ -16,14 +16,23 @@ def operator_turn_changes(params):
         raise OperatorConversationRefused("invalid_history_target")
     with operator_session_read(params) as (_, session):
         _target(session.db, params["session_id"], client_message_id=turn, after_reply=True)
-    with _checkpoint_session(params) as (identity, manager, workdir, _):
-        record = read_turn_checkpoint(params["session_id"], turn)
-        workspace = (record or {}).get("workspaces", {}).get(workdir)
-        checkpoint = checkpoint_for_tree(manager, workdir, workspace["before_tree"]) if workspace else None
-        return {**identity, "client_message_id": turn, "workspace_path": workdir,
-                "files": list(workspace["files"].values()) if workspace else [],
-                "checkpoint": checkpoint, "tracked": workspace is not None,
-                "other_workspaces": bool(record and set(record["workspaces"]) - {workdir})}
+    try:
+        with _checkpoint_session(params) as (identity, manager, workdir, _):
+            record = read_turn_checkpoint(params["session_id"], turn)
+            workspace = (record or {}).get("workspaces", {}).get(workdir)
+            checkpoint = checkpoint_for_tree(manager, workdir, workspace["before_tree"]) if workspace else None
+            return {**identity, "client_message_id": turn, "workspace_path": workdir,
+                    "files": list(workspace["files"].values()) if workspace else [],
+                    "checkpoint": checkpoint, "tracked": workspace is not None,
+                    "other_workspaces": bool(record and set(record["workspaces"]) - {workdir})}
+    except OperatorConversationRefused as exc:
+        if exc.reason not in {"workspace_unavailable", "checkpoint_backend_unsupported"}:
+            raise
+        from .operator_session_inspection import inspection_identity
+        return {**inspection_identity(params, params.get("client_scope")), "client_message_id": turn,
+                "workspace_path": "", "files": [], "checkpoint": None, "tracked": False,
+                "other_workspaces": False, "unavailable_reason": exc.reason}
+
 
 
 def preview_operator_undo(params):
@@ -41,7 +50,7 @@ def preview_operator_undo(params):
         with _checkpoint_session(params) as (_, manager, workdir, _):
             workspace_path = workdir
             baseline = None
-            attributed = set()
+            attributed = {}
             for turn in turns:
                 record = read_turn_checkpoint(params["session_id"], turn) if turn else None
                 if record and set(record["workspaces"]) - {workdir}:
@@ -63,7 +72,13 @@ def preview_operator_undo(params):
                         # Unattributed changes remain untouched, even if another
                         # chat happened to write them inside this workspace.
                         files = [row for row in restore["files"] if row["path"] in attributed]
-                        restore = {**restore, "workspace_path": workdir, "files": files}
+                        for row in files:
+                            evidence = attributed[row["path"]]
+                            if row["current_sha256"] != evidence["sha256"]:
+                                row.update(eligible=False, reason="changed_after_turn")
+                        # Review uses the exact attributed paths. The workspace
+                        # diff can contain another chat's work and is not shown.
+                        restore = {**restore, "workspace_path": workdir, "files": files, "diff": "", "diff_truncated": False}
             elif not attributed and reason is None:
                 reason = "no_tracked_changes"
     except OperatorConversationRefused as exc:

@@ -88,6 +88,10 @@ def restore_operator_checkpoint(params):
         if agent_runs_in_flight():
             raise OperatorConversationRefused("workspace_busy")
         with _checkpoint_session(params) as (identity, manager, workdir, _), history_write_scope(params):
+            from .history_cancellation import require_not_cancelled
+            from .operator_history import _receipt_key
+            with operator_session_read(params) as (_, session):
+                require_not_cancelled(session.db, _receipt_key(params))
             if workdir != params.get("workspace_path"):
                 raise OperatorConversationRefused("workspace_changed")
             operation_key = _operation_key(identity, workdir, operation)
@@ -103,6 +107,8 @@ def restore_operator_checkpoint(params):
                 raise
             if result.get("success") or result.get("recovery_checkpoint") is None:
                 clear_history_operation(params["session_id"], operation)
+            if result.get("success"):
+                manager.release_restore_checkpoints(operation_key)
             return {**identity, "operation_id": operation, "workspace_path": workdir, **result,
                     "recovery_revision": restore_revision(result)}
     finally:
@@ -123,6 +129,7 @@ def operator_checkpoint_status(params):
         result = manager.restore_receipt(_operation_key(identity, workdir, params.get("operation_id")))
         if result is not None and result.get("success"):
             clear_history_operation(params["session_id"], params["operation_id"])
+            manager.release_restore_checkpoints(_operation_key(identity, workdir, params["operation_id"]))
         return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"],
                 "result": {**result, "recovery_revision": restore_revision(result)} if result else None}
 
@@ -139,5 +146,6 @@ def recover_operator_checkpoint(params):
             raise OperatorConversationRefused("recovery_changed")
         if result.get("success"):
             clear_history_operation(params["session_id"], params["operation_id"])
+            manager.release_restore_checkpoints(key)
         return {**identity, "workspace_path": workdir, "operation_id": params["operation_id"], **result,
                 "recovery_revision": restore_revision(result)}
