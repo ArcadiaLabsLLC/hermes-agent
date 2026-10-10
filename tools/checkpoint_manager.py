@@ -761,6 +761,55 @@ def _dir_size_bytes(path: Path) -> int:
 # CheckpointManager
 # ---------------------------------------------------------------------------
 
+def _history_safe_path(workdir, rel):
+    path = Path(workdir) / rel
+    return not _validate_file_path(rel, workdir) and not any(
+        item.is_symlink() or getattr(item, "is_junction", lambda: False)()
+        for item in (path, *path.parents) if item != Path(workdir))
+
+
+def _history_current_blob(workdir, rel):
+    if not (Path(workdir) / rel).exists():
+        return None
+    ok, blob, _ = _run_git(["hash-object", "--", rel], _store_path(), workdir)
+    return blob.strip() if ok else "unreadable"
+
+
+def restore_revision(result: dict) -> str:
+    # Transport-only replay flags do not change the durable recovery decision.
+    evidence = {key: value for key, value in result.items()
+                if key not in {"replayed", "recovery_revision"}}
+    return hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+
+
+def pin_restore_checkpoints(workdir: str, operation_id: str, target: str, backup: str) -> bool:
+    # Called inside the native store lock, before the command's first file write.
+    for name, commit in (("target", target), ("backup", backup)):
+        ok, _, _ = _run_git(["update-ref", f"refs/operator-restore/{operation_id}/{name}", commit], _store_path(), workdir)
+        if not ok:
+            return False
+    return True
+
+
+def release_restore_checkpoints(operation_id: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", operation_id or "") is None:
+        raise ValueError("invalid restore operation")
+    from tools.checkpoint_pruning import store_lock
+    with store_lock(_resolve_checkpoint_base()):
+        for name in ("target", "backup"):
+            ok, _, _ = _run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
+                               _store_path(), str(_resolve_checkpoint_base()))
+            if not ok:
+                raise OSError("checkpoint recovery reference could not be released")
+
+
+def checkpoint_metadata_directory(namespace: str) -> Path:
+    """Namespaced observer metadata beside the native snapshot store."""
+    if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", namespace) is None:
+        raise ValueError("invalid checkpoint metadata namespace")
+    return _resolve_checkpoint_base() / namespace
+
+
 class CheckpointManager:
     """Manages automatic filesystem checkpoints.
 
@@ -795,6 +844,9 @@ class CheckpointManager:
         self.max_total_size_mb = max(0, int(max_total_size_mb))
         self.max_file_size_mb = max(0, int(max_file_size_mb))
         self._checkpointed_dirs: Set[str] = set()
+        # Optional runtime observer. Called under the store lock, at the same
+        # boundary as the native snapshot/write evidence; never inferred later.
+        self.history_observer = None
 
     # ------------------------------------------------------------------
     # Turn lifecycle
@@ -822,6 +874,36 @@ class CheckpointManager:
     # Public API
     # ------------------------------------------------------------------
 
+    def checkpoint_tree(self, working_dir: str, commit: str) -> Optional[str]:
+        """Stable tree identity for an already admitted checkpoint observer."""
+        ok, tree, _ = _run_git(["rev-parse", f"{commit}^{{tree}}"], _store_path(), working_dir)
+        return tree.strip() if ok else None
+
+    def recorded_file_diff(self, working_dir: str, before_tree: str, path: Path, evidence: Dict) -> Optional[str]:
+        """Diff one proven write without changing the snapshot owner's index.
+
+        Called by the observer inside the native store lock. None means unsafe
+        or unreadable; an empty diff means the file returned to its baseline.
+        """
+        if not path.is_relative_to(Path(working_dir)):
+            return None
+        rel = path.relative_to(working_dir).as_posix()
+        if not _history_safe_path(working_dir, rel) or self._exceeds_size_cap(path):
+            return None
+        if _hash_file(path) != evidence.get("sha256") or path.exists() == bool(evidence.get("deleted")):
+            return None
+        with tempfile.TemporaryDirectory(prefix="observed-diff-", dir=_resolve_checkpoint_base()) as temporary:
+            index = Path(temporary) / "index"
+            for args in (["read-tree", before_tree], ["--literal-pathspecs", "add", "-A", "--", rel]):
+                ok, _, _ = _run_git(args, _store_path(), working_dir, index_file=index)
+                if not ok:
+                    return None
+            ok, diff, _ = _run_git(["--literal-pathspecs", "diff", "--cached", "--no-ext-diff", "--no-textconv",
+                                   "--no-renames", before_tree, "--", rel], _store_path(), working_dir, index_file=index)
+            if not ok or _hash_file(path) != evidence.get("sha256"):
+                return None
+        return diff
+
     def record_agent_write(self, file_path: str) -> None:
         """Record the content hash of a file Hermes just successfully wrote.
 
@@ -839,14 +921,16 @@ class CheckpointManager:
 
             path = _normalize_path(file_path)
             digest = _hash_file(path)
-            if digest is None:
+            if digest is None and path.exists():
                 return
-            with store_lock(_resolve_checkpoint_base()):
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
                 store = _store_path()
                 dir_hash = self._ledger_key(str(path))
                 ledger = _load_ledger(store, dir_hash)
-                ledger[str(path)] = {"sha256": digest, "ts": time.time()}
+                ledger[str(path)] = {"sha256": digest, "deleted": not path.exists(), "ts": time.time()}
                 _save_ledger(store, dir_hash, ledger)
+                if self.history_observer is not None:
+                    self.history_observer.write(self.get_working_dir_for_path(str(path)), path, ledger[str(path)])
         except Exception as exc:
             logger.debug("record_agent_write failed for %s: %s", file_path, exc)
 
@@ -934,13 +1018,14 @@ class CheckpointManager:
         if abs_dir in self._checkpointed_dirs:
             return False
 
-        self._checkpointed_dirs.add(abs_dir)
-
         try:
             from tools.checkpoint_pruning import store_lock
 
-            with store_lock(_resolve_checkpoint_base()):
-                return self._take(abs_dir, reason)
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
+                taken = self._take(abs_dir, reason)
+                if taken:
+                    self._checkpointed_dirs.add(abs_dir)
+                return taken
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
             return False
@@ -1008,6 +1093,269 @@ class CheckpointManager:
                 results.append(entry)
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return results
+
+    def preview_restore(self, working_dir: str, commit_hash: str) -> Dict:
+        """Strict operator preview: project membership, content pins and conflicts.
+
+        Unlike the legacy safe flag, absent write evidence never permits a
+        restore. This preview describes the workspace, not a particular chat.
+        """
+        from tools.checkpoint_pruning import store_lock
+        with store_lock(_resolve_checkpoint_base()):
+            return self._restore_preview_locked(str(_normalize_path(working_dir)), commit_hash)
+
+    def _restore_preview_locked(self, working_dir: str, commit_hash: str) -> Dict:
+        if not isinstance(commit_hash, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_hash):
+            return {"success": False, "reason": "invalid_checkpoint"}
+        if not any(row["hash"] == commit_hash for row in self.list_checkpoints(working_dir)):
+            return {"success": False, "reason": "checkpoint_unavailable"}
+        if _dir_file_count(working_dir) > _MAX_FILES:
+            return {"success": False, "reason": "workspace_too_large"}
+        store = _store_path()
+        index = _index_path(store, _project_hash(working_dir))
+        try:
+            ok, _, _ = _run_git(["add", "-A"], store, working_dir, index_file=index)
+            if not ok:
+                return {"success": False, "reason": "checkpoint_read_failed"}
+            ok, names, _ = _run_git(["diff", "--name-only", "--no-renames", "-z", commit_hash, "--cached"],
+                                    store, working_dir, index_file=index)
+            if not ok:
+                return {"success": False, "reason": "checkpoint_read_failed"}
+            ledger = _load_ledger(store, self._ledger_key(working_dir))
+            files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger)
+                     for rel in filter(None, names.split("\x00"))]
+            ok, diff, _ = _run_git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames",
+                                    "-R", commit_hash], store, working_dir, index_file=index)
+            if not ok:
+                return {"success": False, "reason": "checkpoint_read_failed"}
+            fingerprint = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+            return {"success": True, "checkpoint": commit_hash, "revision": fingerprint,
+                    "files": files, "diff": diff[:180000], "diff_truncated": len(diff) > 180000,
+                    "scope": "workspace", "max_file_size_mb": self.max_file_size_mb,
+                    "ignored_files_included": False}
+        finally:
+            _run_git(["read-tree", _ref_name(_project_hash(working_dir))], store, working_dir, index_file=index)
+
+    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: Dict) -> Dict:
+        path = Path(working_dir) / rel
+        reason = None
+        if _validate_file_path(rel, working_dir) or path.is_symlink() or any(
+                parent.is_symlink() or getattr(parent, "is_junction", lambda: False)()
+                for parent in [path, *path.parents] if parent != Path(working_dir)):
+            reason = "unsafe_path"
+        elif self._exceeds_size_cap(path):
+            reason = "oversize"
+        current = _hash_file(path) if reason is None else None
+        record = ledger.get(str(path))
+        recorded = record.get("sha256") if isinstance(record, dict) else None
+        recorded_absence = isinstance(record, dict) and record.get("deleted") is True and not path.exists()
+        if reason is None and not recorded_absence and (not recorded or current is None or current != recorded):
+            reason = "no_write_evidence" if not recorded else "changed_externally"
+        ok, tree, _ = _run_git(["--literal-pathspecs", "ls-tree", "-z", commit_hash, "--", rel], _store_path(), working_dir)
+        if not ok:
+            reason = "checkpoint_read_failed"
+        # Only ordinary files are eligible. Never install a symlink or gitlink
+        # from an old snapshot into a directory another tool may write through.
+        target = tree.split("\t", 1)[0].split() if tree else []
+        if target and (len(target) != 3 or target[0] not in ("100644", "100755")):
+            reason = "unsupported_file_type"
+        return {"path": rel, "current_sha256": current, "target_blob": target[2] if len(target) == 3 else None,
+                "change": "modify" if target and path.exists() else "restore" if target else "delete",
+                "eligible": reason is None, "reason": reason}
+
+    def restore_preview(self, working_dir: str, commit_hash: str, *, revision: str,
+                        selected_paths: List[str], operation_id: str) -> Dict:
+        """Apply the exact reviewed subset; durable receipt prevents blind replay.
+
+        A pending receipt means the previous process may have changed files.
+        It is returned for inspection, never automatically rerun. Every file is
+        pinned again just before its write; partial failures name each path.
+        """
+        from tools.checkpoint_pruning import store_lock
+        if (not re.fullmatch(r"[0-9a-f]{64}", operation_id or "") or not selected_paths
+                or len(selected_paths) != len(set(selected_paths))):
+            return {"success": False, "reason": "invalid_restore_request"}
+        working_dir = str(_normalize_path(working_dir))
+        digest = hashlib.sha256(json.dumps([working_dir, commit_hash, revision, sorted(selected_paths)]).encode()).hexdigest()
+        with store_lock(_resolve_checkpoint_base()):
+            receipt_path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
+            if receipt_path.exists():
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                if receipt["request_digest"] != digest:
+                    return {"success": False, "reason": "operation_payload_changed"}
+                return {**self._settled_restore_receipt(receipt["result"]), "replayed": True}
+            plan = self._restore_preview_locked(working_dir, commit_hash)
+            if not plan.get("success"):
+                return plan
+            if plan["revision"] != revision:
+                return {"success": False, "reason": "workspace_changed"}
+            by_path = {row["path"]: row for row in plan["files"]}
+            if any(path not in by_path or not by_path[path]["eligible"] for path in selected_paths):
+                return {"success": False, "reason": "restore_conflict"}
+            self._take(working_dir, f"before reviewed restore {operation_id[:12]}", prune=False)
+            backup = self.list_checkpoints(working_dir)
+            if not backup or not self._restore_backup_matches(working_dir, backup[0]["hash"], selected_paths):
+                return {"success": False, "reason": "recovery_checkpoint_failed"}
+            # Independent refs keep both trees alive if normal retention rewrites
+            # the workspace snapshot chain while this command needs recovery.
+            if not pin_restore_checkpoints(working_dir, operation_id, commit_hash, backup[0]["hash"]):
+                return {"success": False, "reason": "recovery_checkpoint_failed"}
+            result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
+                      "failed_files": [], "review_paths": selected_paths,
+                      "recovery_checkpoint": backup[0]["hash"], "replayed": False}
+            self._write_restore_receipt(receipt_path, digest, result, request={
+                "working_dir": working_dir, "checkpoint": commit_hash, "revision": revision,
+                "selected_paths": selected_paths, "plan": {rel: by_path[rel] for rel in selected_paths}})
+            for rel in selected_paths:
+                row = by_path[rel]
+                path = Path(working_dir) / rel
+                checked = self._restore_file_preview(working_dir, commit_hash, rel,
+                    _load_ledger(_store_path(), self._ledger_key(working_dir)))
+                if not checked["eligible"] or checked["current_sha256"] != row["current_sha256"]:
+                    result["failed_files"].append({"path": rel, "reason": "workspace_changed"})
+                    self._write_restore_receipt(receipt_path, digest, result)
+                    continue
+                try:
+                    if row["target_blob"] is None:
+                        path.unlink()
+                    else:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        ok, _, _ = _run_git(["--literal-pathspecs", "checkout", commit_hash, "--", rel], _store_path(), working_dir,
+                            index_file=_index_path(_store_path(), _project_hash(working_dir)))
+                        if not ok:
+                            raise OSError("checkpoint checkout failed")
+                    result["restored_files"].append(rel)
+                    ledger_key = self._ledger_key(working_dir)
+                    ledger = _load_ledger(_store_path(), ledger_key)
+                    ledger[str(path)] = {"sha256": _hash_file(path), "deleted": row["target_blob"] is None,
+                                         "ts": time.time()}
+                    _save_ledger(_store_path(), ledger_key, ledger)
+                except OSError:
+                    result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
+                self._write_restore_receipt(receipt_path, digest, result)
+            result.update(success=not result["failed_files"],
+                          reason="restored" if not result["failed_files"] else "restore_partial")
+            self._write_restore_receipt(receipt_path, digest, result)
+            return result
+
+    def _restore_backup_matches(self, working_dir: str, commit_hash: str, selected_paths: List[str]) -> bool:
+        store = _store_path()
+        for rel in selected_paths:
+            if not (Path(working_dir) / rel).exists():
+                found, _, _ = _run_git(["cat-file", "-e", f"{commit_hash}:{rel}"], store, working_dir,
+                                       allowed_returncodes={1, 128})
+                if found:
+                    return False
+                continue
+            ok, current, _ = _run_git(["hash-object", "--", rel], store, working_dir)
+            found, saved, _ = _run_git(["rev-parse", f"{commit_hash}:{rel}"], store, working_dir)
+            if not ok or not found or current != saved:
+                return False
+        return True
+
+    @staticmethod
+    def _write_restore_receipt(path: Path, digest: str, result: Dict, *, request=None) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if request is None and path.exists():
+            request = json.loads(path.read_text(encoding="utf-8")).get("request")
+        temporary = path.with_suffix(".tmp")
+        with temporary.open("w", encoding="utf-8") as handle:
+            json.dump({"request_digest": digest, "request": request, "result": result}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+
+    def resume_restore(self, operation_id: str, *, revision: str, rollback: bool = False) -> dict:
+        from tools.checkpoint_pruning import store_lock
+        if re.fullmatch(r"[0-9a-f]{64}", operation_id or "") is None:
+            raise ValueError("invalid restore operation")
+        with store_lock(_resolve_checkpoint_base()):
+            path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
+            if not path.exists():
+                return {"success": False, "reason": "restore_receipt_unavailable"}
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            request, result = receipt.get("request"), receipt["result"]
+            if revision != restore_revision(self._settled_restore_receipt(result)):
+                return {**self._settled_restore_receipt(result), "recovery_stale": True}
+            if request is None:
+                return {**result, "success": False, "reason": "restore_review_required"}
+            if result.get("success") and (result["reason"] == "rolled_back" or not rollback):
+                return result
+            direction = "rollback" if rollback else "finish"
+            result.update(success=False, reason="restore_outcome_unknown", recovery_direction=direction,
+                          failed_files=[], restored_files=[])
+            workdir = request["working_dir"]
+            commit = result["recovery_checkpoint"] if rollback else request["checkpoint"]
+            self._write_restore_receipt(path, receipt["request_digest"], result)
+            done = []
+            for rel in request["selected_paths"]:
+                row = request["plan"][rel]
+                file = Path(workdir) / rel
+                if not _history_safe_path(workdir, rel) or self._exceeds_size_cap(file):
+                    result["failed_files"].append({"path": rel, "reason": "unsafe_path"})
+                    continue
+                current_sha = _hash_file(file)
+                current_blob = _history_current_blob(workdir, rel)
+                matches_before = current_sha == row["current_sha256"] and (current_sha is not None or not file.exists())
+                if not matches_before and current_blob != row["target_blob"]:
+                    result["failed_files"].append({"path": rel, "reason": "changed_externally"})
+                    continue
+                ok, tree, _ = _run_git(["--literal-pathspecs", "ls-tree", "-z", commit, "--", rel], _store_path(), workdir)
+                entry = tree.split("\t", 1)[0].split() if tree else []
+                if not ok or (entry and (len(entry) != 3 or entry[0] not in ("100644", "100755"))):
+                    result["failed_files"].append({"path": rel, "reason": "checkpoint_read_failed"})
+                    continue
+                target_blob = entry[2] if entry else None
+                try:
+                    if current_blob != target_blob:
+                        if target_blob is None:
+                            file.unlink(missing_ok=True)
+                        else:
+                            file.parent.mkdir(parents=True, exist_ok=True)
+                            ok, _, _ = _run_git(["--literal-pathspecs", "checkout", commit, "--", rel],
+                                _store_path(), workdir, index_file=_index_path(_store_path(), _project_hash(workdir)))
+                            if not ok:
+                                raise OSError("restore failed")
+                    if _history_current_blob(workdir, rel) != target_blob:
+                        raise OSError("restored content changed")
+                    ledger_key = self._ledger_key(workdir)
+                    ledger = _load_ledger(_store_path(), ledger_key)
+                    ledger[str(file)] = {"sha256": _hash_file(file), "deleted": target_blob is None, "ts": time.time()}
+                    _save_ledger(_store_path(), ledger_key, ledger)
+                    done.append(rel)
+                except OSError:
+                    result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
+                result["restored_files"] = list(done)
+                self._write_restore_receipt(path, receipt["request_digest"], result)
+            result.update(restored_files=done, success=not result["failed_files"],
+                          reason=("rolled_back" if rollback else "restored") if not result["failed_files"] else "restore_partial")
+            self._write_restore_receipt(path, receipt["request_digest"], result)
+            return result
+
+    def release_restore_checkpoints(self, operation_id: str) -> None:
+        release_restore_checkpoints(operation_id)
+
+    def restore_receipt(self, operation_id: str) -> Optional[Dict]:
+        """Read an immutable apply receipt; this never retries filesystem work."""
+        from tools.checkpoint_pruning import store_lock
+        if not re.fullmatch(r"[0-9a-f]{64}", operation_id or ""):
+            raise ValueError("invalid restore operation")
+        with store_lock(_resolve_checkpoint_base()):
+            path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
+            return self._settled_restore_receipt(json.loads(path.read_text(encoding="utf-8"))["result"]) if path.exists() else None
+
+    @staticmethod
+    def _settled_restore_receipt(result: Dict) -> Dict:
+        # Called ONLY while holding the same store lock as restore_preview:
+        # an in-progress writer cannot still own a pending receipt at this point.
+        # A crash left unknown individual writes; report review-required paths
+        # and expose its verified backup, never retry those writes automatically.
+        if result["reason"] != "restore_outcome_unknown":
+            return result
+        known = set(result.get("restored_files", [])) | {row["path"] for row in result.get("failed_files", [])}
+        return {**result, "reason": "restore_interrupted", "failed_files": [
+            *result.get("failed_files", []),
+            *({"path": path, "reason": "review_required"} for path in result.get("review_paths", []) if path not in known)]}
 
     @staticmethod
     def _parse_shortstat(stat_line: str, entry: Dict) -> None:
@@ -1493,6 +1841,8 @@ class CheckpointManager:
             )
             if ok_diff:
                 logger.debug("Checkpoint skipped: no changes in %s", working_dir)
+                if self.history_observer is not None:
+                    self.history_observer.checkpoint(working_dir, ref_commit)
                 return False
         else:
             # No ref yet — skip only if the index is empty.
@@ -1501,7 +1851,7 @@ class CheckpointManager:
                 store, working_dir,
                 index_file=index_file,
             )
-            if ok_ls and not ls_out.strip():
+            if ok_ls and not ls_out.strip() and self.history_observer is None:
                 logger.debug("Checkpoint skipped: empty tree in %s", working_dir)
                 return False
 
@@ -1552,6 +1902,8 @@ class CheckpointManager:
             return False
 
         logger.debug("Checkpoint taken in %s: %s (%s)", working_dir, reason, new_sha[:8])
+        if self.history_observer is not None:
+            self.history_observer.checkpoint(working_dir, new_sha)
 
         # Count and size budgets share one failure boundary.
         if prune:

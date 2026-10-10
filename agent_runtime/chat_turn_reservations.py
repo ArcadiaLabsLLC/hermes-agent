@@ -68,7 +68,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from contextlib import contextmanager
+import os
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterator
 
@@ -123,6 +124,8 @@ class ChatTurnRecord:
     exit_code: int | None = None
     stop_requested: bool = False
     payload_fingerprint: str | None = None
+    owner_pid: int | None = None
+    owner_started: float | None = None
 
     @property
     def is_new(self) -> bool:
@@ -157,12 +160,17 @@ class ChatTurnReservation:
         this lane takes the over-claim.
         """
 
+        owner_started = _process_started(os.getpid())
+        if owner_started is None:
+            raise ChatTurnReservationError("accept_owner_unavailable", "The runtime could not record its process identity. No turn was accepted.")
         self.record = replace(
             self.record,
             state=STATE_ACCEPTED,
             request_id=str(request_id),
             ack=dict(ack),
             updated_at=_timestamp(),
+            owner_pid=os.getpid(),
+            owner_started=owner_started,
         )
         _write(self.record)
         return self.record
@@ -245,17 +253,63 @@ def read_chat_turn_receipt(turn_request_id: str) -> ChatTurnRecord | None:
     return _read_turn_record(path, digest=digest) if path.is_file() else None
 
 
-def unsettled_chat_receipts(session_scope: str) -> list[ChatTurnRecord]:
+def unsettled_chat_receipts(session_scope: str | set[str], *, peer_prefix: str | None = None) -> list[ChatTurnRecord]:
     """Recover the pre-journal admission window from its existing authority."""
     records = (_read_turn_record(path, digest=path.stem)
                for path in paths.chat_turn_reservations_dir().glob("*.json"))
+    scopes = {session_scope} if isinstance(session_scope, str) else session_scope
     return [record for record in records
-            if record.session_scope == session_scope and record.state == STATE_ACCEPTED]
+            if record.state == STATE_ACCEPTED and (record.session_scope in scopes or
+                (peer_prefix and record.session_scope.startswith(peer_prefix)
+                 and record.session_scope.partition('/')[2] in scopes))]
+
+
+def _process_started(pid: int) -> float | None:
+    import psutil
+    try:
+        return psutil.Process(pid).create_time()
+    except psutil.Error:
+        return None
+
+
+def _owner_proven_dead(record: ChatTurnRecord) -> bool:
+    """A reused PID is a different owner; inaccessible evidence stays unknown."""
+    import psutil
+    if record.owner_pid is None or record.owner_started is None:
+        return False
+    try:
+        return psutil.Process(record.owner_pid).create_time() != record.owner_started
+    except psutil.NoSuchProcess:
+        return True
+    except psutil.Error:
+        return False
+
+
+def repair_orphaned_chat_receipts() -> list[str]:
+    """Boot sweep of the accept window, preserving every exactly-once key.
+
+    Never infer death from age, an idle root lease or a missing journal: a live
+    worker can still be queued. Legacy receipts without process evidence stay
+    conservative and remain available to the existing turn-resolution flow.
+    """
+    repaired = []
+    for path in paths.chat_turn_reservations_dir().glob("*.json"):
+        try:
+            with chat_turn_reservation_lock(path.stem):
+                record = _read_turn_record(path, digest=path.stem)
+                if record.state == STATE_ACCEPTED and _owner_proven_dead(record):
+                    _write(replace(record, state=STATE_SETTLED, exit_code=130,
+                                   updated_at=_timestamp()))
+                    repaired.append(record.session_scope)
+        except (ChatTurnReservationError, HarnessLockUnavailable, OSError):
+            continue
+    return repaired
 
 
 @contextmanager
 def reserve_chat_turn(
-    *, turn_request_id: str, verb: str, session_scope: str
+    *, turn_request_id: str, verb: str, session_scope: str, admission_scope: str | None = None,
+    accepting: bool = True,
 ) -> Iterator[ChatTurnReservation]:
     """Open (or replay) the accept receipt for one remote chat turn.
 
@@ -278,34 +332,47 @@ def reserve_chat_turn(
             f"{MAX_TURN_REQUEST_ID_LENGTH} characters or fewer",
         )
     digest = turn_request_digest(key)
-    try:
-        with chat_turn_reservation_lock(digest):
-            path = paths.chat_turn_reservation_path(digest)
-            if path.exists():
-                record = _read_turn_record(path, digest=digest)
-                _validate_scope(record, verb=verb, session_scope=session_scope)
-                yield ChatTurnReservation(record, replayed=True)
-            else:
-                timestamp = _timestamp()
-                # NOT written yet, exactly as the create's is not: a brand-new
-                # key whose params turn out to be invalid must leave no receipt,
-                # or a client fixing a typo would be answered with its own stale
-                # ack forever. The first durable write is mark_accepted.
-                yield ChatTurnReservation(
-                    ChatTurnRecord(
-                        key_digest=digest,
-                        verb=str(verb),
-                        session_scope=str(session_scope),
-                        created_at=timestamp,
-                        updated_at=timestamp,
-                    ),
-                    replayed=False,
-                )
-    except HarnessLockUnavailable as exc:
-        raise ChatTurnReservationError(
-            "chat_turn_lock_unavailable",
-            "another accept for this turn_request_id is still in progress; retry with the same id",
-        ) from exc
+    with ExitStack() as locks:
+        from .locks import chat_history_admission_lock, chat_history_mutation_lock
+        if accepting:
+            try:
+                locks.enter_context(chat_history_admission_lock(admission_scope or session_scope))
+            except HarnessLockUnavailable as exc:
+                raise ChatTurnReservationError("chat_admission_busy", "Message acceptance is busy. Retry with the same id.") from exc
+            try:
+                with chat_history_mutation_lock(admission_scope or session_scope):
+                    pass
+            except HarnessLockUnavailable as exc:
+                raise ChatTurnReservationError("history_in_progress", "A history edit is being applied to this chat.") from exc
+            from .history_recovery import pending_history_operation
+            if pending_history_operation(admission_scope or session_scope) is not None:
+                raise ChatTurnReservationError("history_recovery_required", "Resolve the history operation before continuing this chat.")
+        try:
+            locks.enter_context(chat_turn_reservation_lock(digest))
+        except HarnessLockUnavailable as exc:
+            raise ChatTurnReservationError("chat_turn_lock_unavailable",
+                "another accept for this turn_request_id is still in progress; retry with the same id") from exc
+        path = paths.chat_turn_reservation_path(digest)
+        if path.exists():
+            record = _read_turn_record(path, digest=digest)
+            _validate_scope(record, verb=verb, session_scope=session_scope)
+            yield ChatTurnReservation(record, replayed=True)
+        else:
+            timestamp = _timestamp()
+            # NOT written yet, exactly as the create's is not: a brand-new
+            # key whose params turn out to be invalid must leave no receipt,
+            # or a client fixing a typo would be answered with its own stale
+            # ack forever. The first durable write is mark_accepted.
+            yield ChatTurnReservation(
+                ChatTurnRecord(
+                    key_digest=digest,
+                    verb=str(verb),
+                    session_scope=str(session_scope),
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                ),
+                replayed=False,
+            )
 
 
 def settle_chat_turn(*, turn_request_id: str, exit_code: int) -> bool:
@@ -391,6 +458,8 @@ def _read_turn_record(path, *, digest: str) -> ChatTurnRecord:
             exit_code=int(exit_raw) if isinstance(exit_raw, int) else None,
             stop_requested=raw.get("stop_requested") is True,
             payload_fingerprint=raw.get("payload_fingerprint"),
+            owner_pid=raw.get("owner_pid"),
+            owner_started=raw.get("owner_started"),
             created_at=str(raw["created_at"]),
             updated_at=str(raw["updated_at"]),
         )
@@ -430,6 +499,8 @@ def _write(record: ChatTurnRecord) -> None:
             "exit_code": record.exit_code,
             "stop_requested": record.stop_requested,
             "payload_fingerprint": record.payload_fingerprint,
+            "owner_pid": record.owner_pid,
+            "owner_started": record.owner_started,
             "created_at": record.created_at,
             "updated_at": record.updated_at,
         },

@@ -45,6 +45,7 @@ class SessionRewindMixin:
     def rewind_user_turn(
         self, session_id: str, user_ordinal: int, *, warm_history: Optional[List[Dict[str, Any]]] = None,
         require_retryable: bool = False, require_composite: bool = False, adopt_row_ids: bool = False,
+        expected_history_digest: Optional[str] = None, operation_receipt: Optional[tuple[str, str]] = None,
     ) -> RewindOutcome:
         """Rewind the active transcript to just before user turn ``user_ordinal`` (0 = oldest; negative counts
         back from the newest and clamps to the oldest, so ``-n`` is ``/undo n``). ``warm_history`` (CLI/TUI):
@@ -105,7 +106,9 @@ class SessionRewindMixin:
         try:
             result = self.rewind_to_message(
                 session_id, target_row_id, preserve_compaction_handoff=scaffold is not None,
-                expected_active_ids=expected_active_ids, expected_target_content=stored_view.get("content"))
+                expected_active_ids=expected_active_ids, expected_target_content=stored_view.get("content"),
+                **({"expected_history_digest": expected_history_digest, "operation_receipt": operation_receipt}
+                   if expected_history_digest is not None or operation_receipt is not None else {}))
         except ValueError as exc:  # target vanished / changed role under us: same class of failure as out-of-range
             raise RewindTargetUnavailableError(str(exc)) from exc
         if scaffold is not None:

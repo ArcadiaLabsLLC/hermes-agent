@@ -47,7 +47,7 @@ def operator_execution_reservation(session_id: str, turn_id: str):
                                            "This turn was admitted for a different chat target.")
         scope = receipt.session_scope
     with reserve_chat_turn(turn_request_id=turn_id, verb=CHAT_MESSAGE_METHOD,
-                           session_scope=scope) as reservation:
+                           session_scope=scope, accepting=False) as reservation:
         yield reservation
 
 

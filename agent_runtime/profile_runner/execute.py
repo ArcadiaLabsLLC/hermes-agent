@@ -800,6 +800,12 @@ class AgentRunExecution:
 
     def bind_chat_root(self) -> None:
         request, agent = self.request, self.agent
+        from ..turn_checkpoints import TurnCheckpointRecorder
+        manager = getattr(agent, "_checkpoint_mgr", None)
+        if manager is not None:
+            manager.history_observer = (
+                TurnCheckpointRecorder(request.root_chat_session_id, request.client_message_id, manager)
+                if request.root_chat_session_id and request.client_message_id else None)
         if not request.root_chat_session_id:
             return
         agent._persona_chat_root_session_id = request.root_chat_session_id

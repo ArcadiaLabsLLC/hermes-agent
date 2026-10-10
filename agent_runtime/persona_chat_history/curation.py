@@ -94,6 +94,7 @@ def _safe_curated_messages(
         )
     try:
         raw_messages = _read_raw_messages(session_db, session_id)
+        state = CurationState.for_session(session_id, session_db=session_db, raw_messages=raw_messages)
     except Exception as exc:
         return (
             [],
@@ -106,7 +107,6 @@ def _safe_curated_messages(
                 or type(exc).__name__,
             },
         )
-    state = CurationState.for_session(session_id)
     state.preview = preview
     # Curate the agent's raw working transcript into an operator-facing one.
     # The bound session is the agent's internal session, so its raw rows are
@@ -276,8 +276,9 @@ class _AgentCurator:
     def after_row(self, state: "CurationState", row: dict[str, Any], ctx: RowContext) -> None:
         if not ctx.client_message_id:
             return
+        record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""), {})
         elements = mission_chat_turn_elements(
-            session_id=state.session_id,
+            session_id=record.get("_history_source_session") or state.session_id,
             client_message_id=ctx.logical_client_message_id,
         )
         if elements:
@@ -334,8 +335,10 @@ class CurationState:
     silent_turn_candidates: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
-    def for_session(cls, session_id: str) -> "CurationState":
-        turn_records = mission_chat_turn_records(session_id=session_id)
+    def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> "CurationState":
+        from .history_evidence import history_turn_records
+        turn_records = (history_turn_records(session_db, session_id, raw_messages)
+                        if session_db is not None else mission_chat_turn_records(session_id=session_id))
         return cls(
             session_id=session_id,
             turn_records=turn_records,
