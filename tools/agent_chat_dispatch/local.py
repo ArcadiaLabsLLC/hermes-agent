@@ -283,6 +283,9 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
     release_pumps(proc, (out_thread, err_thread))
+    from agent_runtime import process_index
+
+    process_index.forget_child(proc.pid)
     _settle_local(
         dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text(),
         cancel_reason=_take_cancel_mark(dispatch_id),
@@ -301,9 +304,14 @@ def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
 
     if not subprocess_worker_enabled():
         raise RuntimeError("this profile starts no subprocess (conversations.subprocess_worker is off)")
+    from agent_runtime import process_index
     from .local_child import spawn_child
 
-    return spawn_child(argv, env)
+    proc = spawn_child(argv, env)
+    # Detached by design: it may outlive this serve, so the Launcher's sweep must
+    # be able to name it (D1.09). Forgotten when the supervisor has settled it.
+    process_index.record_child(proc.pid)
+    return proc
 
 
 def _settle_local(
