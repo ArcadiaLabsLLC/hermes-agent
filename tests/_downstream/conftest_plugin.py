@@ -34,6 +34,15 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
+from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
+    pytest_configure_git_audit,
+    pytest_runtest_protocol_git_audit,
+)
+from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owner ruling 2026-10-10)
+    pytest_collection_modifyitems_idle_box,
+    pytest_configure_idle_box,
+    pytest_runtest_setup_idle_box,
+)
 from tests._downstream import registry_write_fence
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,

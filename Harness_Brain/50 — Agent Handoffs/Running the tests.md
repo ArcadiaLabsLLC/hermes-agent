@@ -16,7 +16,9 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
+scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
+scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
 python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
@@ -99,6 +101,13 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A
   `known-red` line was NOT run alone this time; it is not evidence of a leak either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+- A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
+  log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test
+  process, and the bundled runner passes it to its own git, so git's opportunistic index refresh no
+  longer takes the lock (design sweep D3.16). To name a test that still runs git against the checkout,
+  run the gate with `--git-audit` (`scripts/run_tests_bundled.sh --git-audit tests`) and read
+  `.pytest_cache/hermes_git_in_checkout.jsonl` (`{file, nodeid, argv, cwd}` per call; it
+  over-approximates — every verb, and a positional repo path is not parsed).
 
 ## How to run a heavy command (measured — do not improvise)
 
@@ -151,6 +160,26 @@ includes them; run them alone after a re-merge); (c) `changed_line_mutation_chec
 gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.dart` files that
 import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
 commit touches a file the batch touches.
+
+## The idle-box files: after the gate, on an idle box
+
+The timing positive controls and the turn-cost guard keep their absolute budgets and run only on an
+idle box, serial, never inside a parallel gate (owner ruling 2026-10-10; design sweep D3.01 / D3.09:
+under gate load the OS starves the GIL hog instead of the reader, and a 500 ms stall floor read
+76–232 ms). `scripts/test_idle_box_files.txt` lists them; their tests skip unless
+`HERMES_TEST_IDLE_BOX=1`, and the bundled gate does not select them unless named (it prints
+`idle-box: N file(s) not run`). A lane running `scripts/run_tests.sh` on one of them sees it skipped,
+by design.
+
+When a batch touches `agent_runtime/send_window_receipt.py`, `agent_runtime/stream_gap_receipt.py`,
+`agent_runtime/transport_phase_trace.py` or the turn-cost path (anything
+`tests/agent_runtime/test_turn_cost_guard_downstream.py` imports), the landing runs
+`scripts/run_tests_idle.sh` AFTER the gate, with nothing else running. It refuses (exit 3) and names
+every live pytest / `run_tests` process while the box is busy; `--check` asks only that. It runs the
+list at one worker with `HERMES_TEST_IDLE_BOX=1` and appends `{"kind": "idle", …}` to
+`.pytest_cache/hermes_bundled_runs.jsonl` (the known-red read skips that line): quote it in the
+landing report. An idle run that still reds is a new row carrying its receipt line
+(`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
 
 ## After a landing that touches the chat path: the live latency check
 

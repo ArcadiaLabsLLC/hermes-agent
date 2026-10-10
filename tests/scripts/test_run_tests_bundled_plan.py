@@ -156,6 +156,16 @@ def test_the_record_keeps_reds_drops_greens_and_carries_unrun_files_forward(tmp_
     assert plan.load_known_reds(tmp_path / "nowhere") == {}
 
 
+def test_an_idle_box_line_after_a_gate_line_does_not_erase_the_known_reds(tmp_path):
+    """scripts/run_tests_idle.sh appends a ``"kind": "idle"`` line with no red map;
+    the next gate still reads the last GATE line's reds (design sweep D3.01)."""
+    plan.record_run(tmp_path, {"elapsed": 1.0}, final_rc={"tests/b.py": 1}, failed={"tests/b.py": ["tests/b.py::t"]}, previous={})
+    with (tmp_path / plan.RUNS_FILE).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": plan.IDLE_RUN_KIND, "rc": 0, "files": ["tests/agent_runtime/x.py"]}) + "\n")
+
+    assert plan.load_known_reds(tmp_path) == {"tests/b.py": frozenset({"tests/b.py::t"})}
+
+
 def test_an_empty_failing_set_is_never_known_red():
     assert not plan.is_known_red("a.py", [], {"a.py": frozenset()})
     assert not plan.is_known_red("a.py", ["a.py::t"], {})

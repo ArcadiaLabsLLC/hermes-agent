@@ -1,6 +1,6 @@
 # Design sweep D3 — suite isolation, timing flakes, footprint, release-gate scope (2026-10-10)
 
-**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); build lanes pending.
+**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); D3.01, D3.07, D3.09, D3.16 BUILT (lane build-1011-B4), the rest pending.
 
 Lane fable-design-D3 over the 17 rows a lane-1010 fix lane returned as too big
 (`Harness_Brain/20 — Active Initiatives/queue-sweep-2026-10-10/D3-rows.md` is the sheet;
@@ -25,6 +25,8 @@ runs only the test files that import a module it touched (`Running the tests.md`
 landing runs the gate once per batch.
 
 ## D3.01 = L2.06 — the send-window GIL-hog stall floor is scheduler-dependent
+
+**BUILT** (lane build-1011-B4): stage 1 `43d6127890`, stage 2 `7d945d3d62`, stage 3 `81eb8ed09b` (on the move `8091bb0acf`). Differs from the plan: `scripts/run_tests.sh` is an upstream file, so `scripts/run_tests_idle.sh` sources it and injects `HERMES_TEST_IDLE_BOX=1` into its `env -i`; the bundled runner prints the idle-box line at selection, beside the skip-list lines; `load_known_reds` skips the `kind: idle` line. Owed: the first idle run on an idle box, and the landing closes the four fork-hygiene rows that carry the ruling by pointing here.
 
 **Verdict: PLAN** (one design for the GIL-hog positive controls; D3.09 points here).
 
@@ -364,6 +366,8 @@ already required by the footprint gate, so the failure is loud elsewhere first.
 
 ## D3.07 = L6.35 — a release merge's `--scope fork` gate selects the whole tree
 
+**BUILT** (lane build-1011-B4): stage 1 `bab8589a44`, stage 2 `3459ce8b2d`, stage 3 `fddab198fa` (on the move `8091bb0acf`). Measured on `3002eaa067` by dry selection: 127 combined-diff paths (first parent 4,138), `tests/conftest.py` left out as standing; 3,771 files selected against 6,390 under `--since v0.21.6` / `--since ff7bf3138a` — 2,489 upstream files still reach by import through fork-edited upstream modules (`hermes_state.py` 453, `hermes_cli/config.py` 278); extending the hunk-unchanged rule to modules is an owner call, not built.
+
 **Verdict: PLAN** (measured: the rule below shrinks the v0.21.6 gate's change set from
 4,138 paths to 127).
 
@@ -484,6 +488,8 @@ sweep in tool/_gate_sdk.dart removes the launcher's own prefixes older than 24 h
 them; keep-on-failure stays`
 
 ## D3.09 = L7.28 — the starved-reader stream-gap positive control is scheduler-dependent
+
+**BUILT** with D3.01 (`43d6127890`): `tests/agent_runtime/test_stream_gap_receipt.py` is on the idle-box list.
 
 **Verdict: PLAN — the D3.01 design; this row is a pointer.**
 
@@ -779,6 +785,8 @@ run.
 with one accepted PATH write? (2) Accept the carried install.ps1 hunk until the PR lands?
 
 ## D3.16 = L8.20 — a gate run leaves a stale `index.lock` in the worktree it runs from
+
+**BUILT** (lane build-1011-B4): stage 1 `078fa50bff`, stage 2 `b80e56bac8`, stage 3 in the commit that carries this line. Differs from the plan: `scripts/run_tests.sh` is an upstream file, so the variable is set by the fork-only ROOT `conftest.py` (every pytest process under the checkout) and by the bundled runner's `_git`; the audit is a `subprocess.Popen` audit hook enabled by the runner's `--git-audit`. Owed: the landing's next gate runs with `--git-audit` and files one row per test running a lock-taking verb against the checkout.
 
 **Verdict: PLAN** (the hypothesis is sound and the fix is one environment line in three
 fork-owned places; the positive gate is cheap).

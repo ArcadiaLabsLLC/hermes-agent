@@ -1,0 +1,16 @@
+# Test files that run ONLY on an idle box, serial, never inside a parallel gate.
+#
+# Owner ruling 2026-10-10: the turn-cost / timing files keep their absolute
+# budgets and run only on an idle box — no load margin. Their positive controls
+# measure the scheduler as much as the code (a GIL hog starves the reader on an
+# idle box; under gate load the OS starves the hog instead and the floor reds).
+# Design: docs/agent-runtime-harness/planned/design-sweep-d3-2026-10-10.md § D3.01
+# (D3.09 points there).
+#
+# One repo-relative path per line; `#` starts a comment. A listed file's tests
+# skip unless HERMES_TEST_IDLE_BOX=1 (tests/_downstream/idle_box.py), the bundled
+# gate does not select it unless it is named, and scripts/run_tests_idle.sh runs
+# the list on an idle box. A fork file only (tests/scripts/test_idle_box_files.py).
+tests/agent_runtime/test_send_window_receipt.py  # GIL-hog stall floor (D3.01 = L2.06)
+tests/agent_runtime/test_stream_gap_receipt.py  # starved-reader lag floor (D3.09 = L7.28)
+tests/agent_runtime/test_turn_cost_guard_downstream.py  # absolute span budgets (owner ruling 2026-10-10)
