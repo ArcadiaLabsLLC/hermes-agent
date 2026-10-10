@@ -552,3 +552,193 @@ transport if that reach is public, else not at all.
 **Owner question (blocks S3 only):** is a reach into the MCP SDK's stdio transport process
 handle acceptable as a seam row (`upstream-footprint-ledger.md` § Door map), or does the MCP
 host stay under the Launcher's `orphan_mcp_reap_policy` by ancestry?
+
+## Cluster D — per-turn caches on upstream-shaped work (D1.10, D1.11, D1.12)
+
+### D1.10 = L2.04 — send-prep H2: skill preload 73 ms median on the skill-heavy persona
+
+**Verdict: PLAN**, measurement stage first; the memo's inputs are named below, which is what
+the M1.03 lane asked for.
+
+**What the code does.** `agent_runtime/mission_chat_turn_context.py::_resolve_skill_preload`
+→ `resolvers.build_preloaded_skills_prompt` (default: upstream
+`agent/skill_commands.py::build_preloaded_skills_prompt`) → `_load_skill_blocks` →
+per skill `_load_skill_payload` → upstream `tools/skills_tool.py::skill_view(name, preprocess=False)`.
+Per skill, `skill_view`: locates the skill (`_skill_search_dirs`, `_locate_skill` — inside the
+fork's `skill_root_registry_scope`, so the walk is the turn's), reads the file, parses
+frontmatter (parse 1), platform gate, disabled check (`_is_skill_disabled`, and on a
+by-name hit the catalog `_skill_catalog(...)`), `_skill_linked_files(skill_dir)` (a directory
+listing), `_skill_readiness(frontmatter, name)` (env vars / credentials), `pm.ensure(dep)` per
+`deps:` entry (activation side effect), `_mark_background_review_read(skill_md)` (side
+effect), `_log_security_warnings` (log). Then `_load_skill_blocks`: `_inject_skill_config`
+re-parses the frontmatter from the content (parse 2) and resolves `metadata.hermes.config`
+values from config.yaml; `bump_use(name, task_id)` writes usage (durable side effect). H6
+(package stamps / preload checks) measured 2–5 ms and is below the bar — DROP that half.
+
+**The inputs of the rendered block, and the signature that covers each:**
+
+| input | covered by |
+|---|---|
+| ordered skill ids, `required_skill_names`, `excluded_loaded_names` | the key tuple itself |
+| SKILL.md bytes and the linked-files listing | `skill_resolution.skill_package_content_hash(skill_dir, skill_md)` (exists; hashes the package) |
+| disabled set, `metadata.hermes.config` values | config.yaml `(mtime_ns, size)` — `chat_lane_bundle._path_revision` shape |
+| readiness: env vars the frontmatter names, credentials | presence signature of the named env vars + the auth-store file stamps `_skill_readiness` reads (S0 names the files) |
+| platform / apps / environment gates | process constants plus `HERMES_KANBAN_TASK` |
+| `task_id` | NOT an input of the text (`preprocess=False`); it is `bump_use`'s target |
+
+Side effects a hit must still perform: `tools.skill_usage.bump_use(name, task_id)` (public),
+`pm.ensure(dep)` for each `deps:` entry (public, idempotent), `_mark_background_review_read`
+(private upstream name — a door or a seam row; decision rule: if no door, the hit skips it and
+the review-read mark lands on the next miss, which is a bounded staleness of one memo
+lifetime, recorded in the module docstring).
+
+**Files and symbols (fork-owned).** `agent_runtime/skill_preload_memo.py` (new):
+`memoised_preload(names, *, task_id, required_skill_names, root_registries, build)` wrapping
+the default resolver; an 8-entry FIFO keyed on the tuple above; on a hit runs the side effects
+and returns the cached `(prompt, loaded, missing)`; `mission_chat_turn_context._default_build_preloaded_skills_prompt`
+routes through it; `timings["context_skill_preload_memo"] = 1|0` beside
+`context_skill_preload_ms`.
+
+**Stages.**
+0. **S0 split (fixture, Dev persona's grant list copied into a scratch home; n=25 A/B/A/B).**
+   Wrap `skill_view`, `_inject_skill_config`, `bump_use`, `_skill_readiness`,
+   `_skill_linked_files` with timing shims (test-only monkeypatch) and record the per-skill
+   split. Decision rule: memo-coverable share (everything but the side effects) ≥ 70 % of the
+   span → S1; else the upstream PR alone (S2) and this row closes on it.
+1. **S1 the memo.** Tests (`tests/agent_runtime/test_skill_preload_memo.py`): two turns, same
+   inputs → one `skill_view` call per skill in total, `bump_use` called on both turns, the
+   prompt byte-identical; edit a SKILL.md → miss; change config.yaml → miss; unset a named env
+   var → miss; a different `task_id` → hit (text unchanged) with `bump_use` on the new id.
+   Killing mutations: drop the package hash from the key → the edited-SKILL.md test serves the
+   stale text (red named); drop the side-effect replay → `bump_use` count 1 across two turns.
+2. **S2 upstream door (held PR row).** `skill_view`'s result gains `"frontmatter"` so
+   `_inject_skill_config` stops re-parsing; additive on upstream's side. Filed in
+   `upstream-footprint-ledger.md` as a held PR row; carried only if accepted.
+
+**Size.** S0 one day of measurement; S1 ~130 lines code, ~150 lines tests; one lane (Opus).
+
+**Owner question (blocks S1):** the value is ~70 ms per turn on the skill-heavy persona only
+(Neko 3 ms). A six-input memo is a correctness surface; is it worth taking ahead of the
+upstream door, or does this row wait on S2?
+
+### D1.11 = L1.05 — send-prep H7: request build 47–50 ms per warm turn, ~17–19 ms unattributed
+
+**Verdict: INVESTIGATION** — the upstream function is unsplit by receipts and the two shares
+have different owners; the fork-side candidate depends on which part is heavy. Blocked behind
+M1.02's owner call for the web-search half (22–25 ms of the ~41).
+
+**What the code does.** `agent/transports/codex.py::ResponsesApiTransport.build_kwargs`
+(upstream): `convert_tools(tools)` (`codex_responses_adapter._responses_tools`),
+`_alias_wire_tools` (→ `_openai_prefers_native_web_search` → `web_search_registry.get_active_search_provider`:
+the M1.02 share), `convert_messages` (history → Responses input items; scales with history),
+`_content_cache_key(instructions, response_tools, scope)` (`json.dumps` of the name-sorted
+tools + SHA-256), `_resolve_reasoning`, `_default_prompt_cache_retention_for_request`. The
+fork's `persona_turn_binding.capture_final_request_tools` reads the result; it adds nothing to
+the span (other parts 0 in the attribution pass).
+
+**Protocol** (the codex-warm-prep fixture from
+[`warm-send-prep-measurements-2026-10-08.md`](warm-send-prep-measurements-2026-10-08.md),
+44 tools, histories of 0 / 20 / 80 rows; n=25 A/B/A/B per history size): test-only timing
+shims on the six callees above; report medians per part per history size. Decision rules:
+(a) `convert_tools` + `_content_cache_key` ≥ 8 ms together → the fork candidate is one memo of
+`(response_tools, cache_key_tools_part)` keyed on the tool list's identity and the final-tools
+revision the fork already computes — reachable only through an additive hunk in
+`build_kwargs` (a seam row with its ledger entry) or an upstream PR adding a
+`tools_prepared=` parameter; file whichever the owner prefers, never a transport subclass
+(the fork owns none: `ResponsesApiTransport` is referenced by `agent_runtime/cache_routing.py`
+only); (b) `convert_messages` dominates and scales with rows → upstream-owned, caller-side
+nothing; file a marker row naming the per-row cost; (c) the web-search share → M1.02's row
+exactly as it stands. The final wire-tool receipt is kept in every branch.
+
+### D1.12 = L3.17 — repo-slot context sections are not deduplicated against the prompt builder's cwd chain
+
+**Verdict: PLAN** — no upstream door needed; the M1.06 objections are met by deduplicating on
+CONTENT against the chain upstream will actually inject for the RESOLVED workdir, computed
+with upstream's public finder.
+
+**What the code does.** `agent_runtime/persona_slots.py::load_slot_context` reads each
+assigned slot's `context.files` (default `CLAUDE.md` and `AGENTS.md`) into
+`SlotContextSection(slot, file, content)`; `mission_chat_turn_context` joins them into
+`workspace_agents_content`, which reaches `persona_runtime.mission_chat_reply` as one string.
+When the persona sets `include_core_context_files`, upstream
+`agent/prompt_builder.py::build_context_files_prompt(cwd=workdir)` also loads
+`_load_agents_md` (the `AGENTS.override.md` / `AGENTS.md` / `agents.md` chain from the git
+root to cwd, first non-empty per directory, `seen_content` local to that walk) and
+`_load_claude_md` (cwd only). The workdir is `mission_chat_workdir_for_persona(persona,
+workspace_agents_path, primary_slot_path)` — rung 1 (persona-config workdir) can outrank the
+primary slot, so "the slot's file" and "the chain's file" are not the same thing, and plan
+`build-running-work-2026-10-04.md` §3.3's claim that the chain's `seen_content` deduplicates the
+slot section is false (confirmed: `seen_content` is a local in `_load_agents_md`).
+
+**Decision.** Dedup where both facts are in hand, by content, against what the chain WILL
+inject: upstream's public `prompt_builder.discover_context_files(cwd_path)` returns every
+`(kind, label, path, content)` the prompt build will load for that cwd, in its priority order.
+A slot section whose content equals one of those contents is dropped (it will reach the prompt
+through the chain); every other section is kept — an `AGENTS.override.md` that replaced the
+slot's `AGENTS.md` in the chain leaves the slot's content unmatched (kept, correct: it is not
+otherwise in the prompt); a rung-1 workdir elsewhere leaves nothing matched (kept). Dedup runs
+ONLY when `include_core_context_files` is on AND the workdir is grounded (an ungrounded run's
+cwd is the process cwd and may hit upstream's install-tree suppression, which the fork must
+not second-guess).
+
+**Files and symbols (fork-owned).**
+- `agent_runtime/mission_chat_turn_context.py`: the workdir is resolved ONCE here
+  (`mission_chat_workdir_for_persona` with the same three inputs) and handed to
+  `mission_chat_reply` as `workdir=`; `mission_chat_reply` resolves only when not handed one
+  (its other callers). One write path for one fact — today the turn context and the reply
+  would otherwise each resolve it.
+- `agent_runtime/persona_slots.py`: `dedup_against_chain(sections, *, cwd) -> tuple[kept, dropped]`
+  — `discover_context_files(Path(cwd))` contents, compared after the same whitespace strip
+  `_read_context_file` applies; pure; never raises (a finder fault keeps every section).
+  `SlotContext` keeps `sections` (already present) so the per-(slot, file) decision is made
+  on sections, not on the joined string.
+- Receipt: `turn_context_receipt.slot_context.dedup = {"against": cwd, "dropped": [[slot, file], …]}`
+  beside the existing slot receipts.
+- Docs: `build-running-work-2026-10-04.md` §3.3 corrected (the `seen_content` sentence);
+  `05-chat-turn-lane.md` slot-context paragraph names the rule.
+
+**Stages.**
+1. **S1 the resolver hand-off** (MOVE-sized, behaviour-neutral): the workdir resolved in the
+   turn context and passed down. Test: `mission_chat_reply` receives the same `workdir`
+   receipt as before for the three ladder cases (config rung, agents-file pointer, primary
+   slot). Killing mutation: pass `None` → the reply re-resolves and the receipt still matches
+   (so the mutation is caught by a call-count assertion on `mission_chat_workdir_for_persona`
+   = 1).
+2. **S2 the dedup.** Tests (`tests/agent_runtime/test_slot_context_chain_dedup.py`, tmp git
+   repo as the slot): primary slot = cwd, `include_core_context_files` on → the slot's
+   `CLAUDE.md` and `AGENTS.md` sections are dropped and the chain carries them (assert the
+   built prompt contains each content exactly once); an `AGENTS.override.md` in the slot →
+   the slot's `AGENTS.md` section is KEPT (the chain injects the override); rung-1 workdir
+   elsewhere → everything kept; `include_core_context_files` off → everything kept, no
+   `discover_context_files` call. Killing mutations: compare by path instead of content →
+   the override case drops a section the prompt no longer carries (red named); drop the
+   grounded guard → the ungrounded case calls the finder.
+
+**Size.** ~120 lines code, ~160 lines tests, one lane (Opus), one MOVE + one CHANGE.
+
+**Owner question:** none blocking. Decision rule for a slot that is not the cwd but is ON the
+chain (a parent directory of the workdir inside the same git root): content match drops it,
+which is correct — the chain carries that directory's `AGENTS.md`.
+
+## Summary
+
+| row | verdict | value / size |
+|---|---|---|
+| D1.01 | PLAN (owner question: reverses R2) | 10–11 ms every admitting warm turn; ~220 code / ~180 tests |
+| D1.02 | PLAN — designed under D1.01 | 202–215 ms per tool-definitions miss on a reused actor; D1.01 S3 is the gate |
+| D1.03 | PLAN | registry stable across two Launchers; ~110 / ~150 |
+| D1.04 | INVESTIGATION | re-measure uncontended; the lock split is not a fork move |
+| D1.05 | PLAN (CF-1..3 in `cold-first-core-build-cost.md`; owner question: cache dir) | ~12 s of each process's first build; ~300 / ~250 |
+| D1.06 | INVESTIGATION | segment protocol; precompile vs lazy decided by the data |
+| D1.07 | PLAN (two owner questions) | Stop works across an install boundary; ~160 / ~160 |
+| D1.08 | PLAN | three helper families → three owners; ~90 new / ~110 deleted |
+| D1.09 | PLAN (gateway half of the row corrected; owner question on the MCP host) | launcher sweep spares hermes children by identity; ~140 / ~160 |
+| D1.10 | PLAN, S0 first (owner question: memo vs door) | ~70 ms on the skill-heavy persona; ~130 / ~150 |
+| D1.11 | INVESTIGATION (behind M1.02) | the unattributed 17–19 ms named before any fix |
+| D1.12 | PLAN | duplicate CLAUDE.md/AGENTS.md out of the prompt; ~120 / ~160 |
+
+Structural findings for the queues (one line each; the parent files them):
+
+- **`mission_chat_workdir_for_persona` is resolved in `persona_runtime.mission_chat_reply` while its three inputs are first in hand in `mission_chat_turn_context`; D1.12 S1 moves the resolve up and hands it down (one write path per state)** · fork-owned / chat turn · evidence: this doc § D1.12 · lane: D1.12 → `runtime-queue.md` § Fork-owned.
+- **The L2.20 row's "upstream-spawned gateway" names no process: `serve/gateway_listener.start_gateway_listener` is a thread in the serve; the row's spawn-site list is the table in § D1.09** · fork-owned / serve · evidence: this doc § D1.09 · lane: the parent amends the row → `runtime-queue.md` § Fork-owned.
+- **Plan `build-running-work-2026-10-04.md` §3.3 states that `prompt_builder._load_agents_md`'s `seen_content` deduplicates the slot section; it is a local of that walk and does not** · fork hygiene / docs · evidence: this doc § D1.12, `agent/prompt_builder.py::_load_agents_md` · lane: D1.12 S2 corrects it → `fork-hygiene-queue.md`.
