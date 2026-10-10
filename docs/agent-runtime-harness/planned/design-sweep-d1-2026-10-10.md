@@ -742,3 +742,13 @@ Structural findings for the queues (one line each; the parent files them):
 - **`mission_chat_workdir_for_persona` is resolved in `persona_runtime.mission_chat_reply` while its three inputs are first in hand in `mission_chat_turn_context`; D1.12 S1 moves the resolve up and hands it down (one write path per state)** · fork-owned / chat turn · evidence: this doc § D1.12 · lane: D1.12 → `runtime-queue.md` § Fork-owned.
 - **The L2.20 row's "upstream-spawned gateway" names no process: `serve/gateway_listener.start_gateway_listener` is a thread in the serve; the row's spawn-site list is the table in § D1.09** · fork-owned / serve · evidence: this doc § D1.09 · lane: the parent amends the row → `runtime-queue.md` § Fork-owned.
 - **Plan `build-running-work-2026-10-04.md` §3.3 states that `prompt_builder._load_agents_md`'s `seen_content` deduplicates the slot section; it is a local of that walk and does not** · fork hygiene / docs · evidence: this doc § D1.12, `agent/prompt_builder.py::_load_agents_md` · lane: D1.12 S2 corrects it → `fork-hygiene-queue.md`.
+
+## Owner rulings — 2026-10-10
+
+The owner took every recommendation ("go with recommendation").
+
+- D1.01: confirmed — the MCP admission scope lives for the transport session plus the admission content; isolation stays `scope_toolsets_to_admission`. This supersedes R2's per-run teardown ruling.
+- D1.05 CF-2: the derived frontmatter cache lives in the store root beside `core_cache`, excluded from realm sync.
+- D1.07: (a) a durable `cancel_requested` column the supervisor polls, not `supervisor_pid` re-aim; (b) yes, a peer cancel may stop a turn with partial output on B, and the partial output is kept.
+- D1.09 S3: no seam into the MCP SDK stdio transport; MCP hosts stay with the Launcher's `orphan_mcp_reap_policy`.
+- D1.10: wait on the upstream frontmatter-in-result door (S2); no six-input preload memo.
