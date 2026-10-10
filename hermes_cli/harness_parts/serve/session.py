@@ -737,8 +737,13 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         # Same owner as the drain: one serve runs the busy-root send queue.
         try:
             from agent_runtime.chat_root_send_runner import start_queued_send_runner
+            from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
 
-            start_queued_send_runner(stop_event=self.liveness_stop, home=self.serve_request_home)
+            start_queued_send_runner(
+                stop_event=self.liveness_stop,
+                home=self.serve_request_home,
+                policy=queued_turn_runner_policy(self),
+            )
         except Exception:
             import logging as _queue_logging
 
