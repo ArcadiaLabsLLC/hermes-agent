@@ -363,10 +363,10 @@ def apply_chat_lane_defer(
     """Construction: bind the persona's defer set and settle the form; True when it changed.
 
     With no list the constructor's (profile-wide) form IS the settled form for this key --
-    upstream's own assembly of the same catalog -- recorded without a read, so a warm first
-    turn costs one compare (the prewarm owns the constructor's read; a read on the turn
-    imports what the prewarm already warmed). The run's block is pruned in the same settle.
-    The pin is the turn's, never the constructor's.
+    upstream's own assembly of the same catalog -- recorded without a re-publish, so a warm
+    first turn costs one compare. Its surface account is paid here too, so whoever builds the
+    actor (a prewarm, off the turn) leaves a receipt the first turn's HUD can read. The run's
+    block is pruned in the same settle. The pin is the turn's, never the constructor's.
     """
 
     names = frozenset(str(n).strip() for n in (defer_tools or ()) if str(n).strip())
@@ -381,7 +381,10 @@ def apply_chat_lane_defer(
         from tools.tool_search import load_config
 
         prune_agent_tools(agent, blocked)
-        setattr(agent, _SETTLED_ATTR, (_form_key(agent, names, load_config()), _dump(agent.tools)))
+        base = load_config()
+        key = _form_key(agent, names, base)
+        setattr(agent, _SETTLED_ATTR, (key, _dump(agent.tools)))
+        _account_constructor_form(agent, key, names, base, blocked)
     except Exception:  # noqa: BLE001 - the first turn settles it instead
         logger.debug("tool form: constructor form not recorded", exc_info=True)
     return False
