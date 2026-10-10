@@ -676,6 +676,35 @@ def _state_db_guard_denies_recorded_root(_state_db_write_guard, monkeypatch):
         monkeypatch.setattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", extra + (root,))
 
 
+@pytest.fixture(autouse=True)
+def _kanban_guard_denies_recorded_root(_kanban_write_guard, monkeypatch):
+    """Refuse kanban writes under the recorded real root too, after upstream's guard is in place.
+
+    ``tests/conftest.py::_REAL_KANBAN_ROOT`` is captured from the pre-sandbox
+    ``HERMES_HOME`` at import; under the runner that env is already blank, so
+    upstream's guard denies ``~/.hermes`` and never the root the runner recorded
+    in ``HERMES_TEST_REAL_ROOT``. The root is read per call.
+    """
+    _kdb = sys.modules.get("hermes_cli.kanban_db")
+    _kdbc = sys.modules.get("hermes_cli.kanban_db_connect")
+    guarded = getattr(_kdbc, "connect", None)
+    if guarded is None or getattr(_kdb, "kanban_db_path", None) is None:
+        return
+
+    def _connect(db_path=None, *args, **kwargs):
+        if _RECORDED_REAL_ROOT:
+            root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
+            target = Path(db_path) if db_path is not None else _kdb.kanban_db_path(board=kwargs.get("board"))
+            if target.expanduser().resolve().is_relative_to(root):
+                raise RuntimeError(
+                    f"kanban_write_guard: kanban DB path resolved to {target}, which is under the "
+                    f"recorded real root ({root}, HERMES_TEST_REAL_ROOT); refusing to write."
+                )
+        return guarded(db_path, *args, **kwargs)
+
+    monkeypatch.setattr(_kdbc, "connect", _connect)
+
+
 def _path_without_real_hermes_roots(path: str, roots: list[str]) -> str:
     """*path* with every entry inside a real hermes root dropped."""
     def inside(entry: str) -> bool:
