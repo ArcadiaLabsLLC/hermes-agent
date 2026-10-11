@@ -32,6 +32,8 @@ card_mechanics  stores  ``CardOrdering`` (the ONE ordering read; append /
                         (replay with typed refusals; record per board, per verb)
 adopt           stores  the realm-pull arms: ``adopt_remote_board``,
                         ``adopt_remote_card``, ``resolve_conflict``
+rows            stores  the CLI / method-twin row projections (``_card_row``,
+                        ``_board_row``) — re-keys of ``snapshot.boards``' builders
 store           stores  ``BoardStore`` — the verbs; nothing imports it but the map
 ==============  ======  =========================================================
 
