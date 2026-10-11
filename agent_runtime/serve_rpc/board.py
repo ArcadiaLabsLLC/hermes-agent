@@ -132,7 +132,7 @@ RESOLVE_CONFLICT_ERRORS: Mapping[type[BaseException], Translation] = {
 # ── the parameter readers (each raises ParamRefused) ─────────────────────────
 
 
-def _text(params: dict, key: str) -> str | None:
+def _str_param(params: dict, key: str) -> str | None:
     raw = params.get(key)
     if raw is None:
         return None
@@ -141,24 +141,24 @@ def _text(params: dict, key: str) -> str | None:
     return raw
 
 
-def _required(params: dict, key: str, reason: RpcRefusal) -> str:
-    value = (_text(params, key) or "").strip()
+def _required_param(params: dict, key: str, reason: RpcRefusal) -> str:
+    value = (_str_param(params, key) or "").strip()
     if not value:
         raise ParamRefused(f"invalid params: {key} must be a non-empty string", reason)
     return value
 
 
-def _priority(params: dict) -> str | None:
+def _priority_param(params: dict) -> str | None:
     from agent_runtime.board_models import CARD_PRIORITIES
 
-    value = _text(params, "priority")
+    value = _str_param(params, "priority")
     if value is not None and value.strip().lower() not in CARD_PRIORITIES:
         raise ParamRefused(f"invalid params: priority must be one of {', '.join(CARD_PRIORITIES)}",
                            RpcRefusal.PRIORITY_INVALID)
     return value
 
 
-def _labels(params: dict) -> list[str] | None:
+def _labels_param(params: dict) -> list[str] | None:
     raw = params.get("labels")
     if raw is None:
         return None
@@ -167,7 +167,7 @@ def _labels(params: dict) -> list[str] | None:
     return [item.strip() for item in raw if item.strip()]
 
 
-def _flag(params: dict, key: str) -> bool:
+def _bool_param(params: dict, key: str) -> bool:
     raw = params.get(key)
     if raw is None:
         return False
@@ -176,7 +176,7 @@ def _flag(params: dict, key: str) -> bool:
     return raw
 
 
-def _expect_revision(params: dict) -> int | None:
+def _expect_revision_param(params: dict) -> int | None:
     raw = params.get("expect_revision")
     # ``bool`` is an ``int``; ``True`` would silently mean revision 1.
     if raw is not None and (isinstance(raw, bool) or not isinstance(raw, int)):
@@ -185,8 +185,8 @@ def _expect_revision(params: dict) -> int | None:
     return raw
 
 
-def _take(params: dict) -> str:
-    take = (_text(params, "take") or "").strip().lower()
+def _take_param(params: dict) -> str:
+    take = (_str_param(params, "take") or "").strip().lower()
     if take not in {"local", "remote"}:
         raise ParamRefused('invalid params: take must be "local" or "remote"', RpcRefusal.TAKE_INVALID)
     return take
@@ -195,7 +195,7 @@ def _take(params: dict) -> str:
 # ── the one write path every verb runs ───────────────────────────────────────
 
 
-def _write(
+def _card_write(
     rid: Any,
     op: str,
     params: dict,
@@ -224,7 +224,7 @@ def _write(
         call = read(params)
     except ParamRefused as refused:
         return refused.frame(rid, **{k: v for k, v in named.items() if k != "expect_revision"})
-    workspace_id = _text(params, "workspace_id") if "workspace_id" in honoured else None
+    workspace_id = _str_param(params, "workspace_id") if "workspace_id" in honoured else None
     try:
         card = call(BoardStore())
     except (AgentRuntimeError, ValueError) as exc:
@@ -252,12 +252,12 @@ def _runtime_board_card_add(rid: Any, params: dict, context: RpcContext | None =
     the active workspace's default board (the argv verb's rule)."""
 
     def read(p: dict):
-        title = _required(p, "title", RpcRefusal.TITLE_REQUIRED)
-        board_id, workspace_id = _text(p, "board_id"), _text(p, "workspace_id")
-        fields = {"description": _text(p, "description") or "", "column": _text(p, "column_id"),
-                  "priority": _priority(p), "labels": _labels(p), "assignee": _text(p, "assignee"),
-                  "created_by": _text(p, "created_by") or "operator",
-                  "idempotency_key": _text(p, "idempotency_key")}
+        title = _required_param(p, "title", RpcRefusal.TITLE_REQUIRED)
+        board_id, workspace_id = _str_param(p, "board_id"), _str_param(p, "workspace_id")
+        fields = {"description": _str_param(p, "description") or "", "column": _str_param(p, "column_id"),
+                  "priority": _priority_param(p), "labels": _labels_param(p), "assignee": _str_param(p, "assignee"),
+                  "created_by": _str_param(p, "created_by") or "operator",
+                  "idempotency_key": _str_param(p, "idempotency_key")}
 
         def call(store):
             from agent_runtime.store import WorkspaceStore
@@ -267,7 +267,7 @@ def _runtime_board_card_add(rid: Any, params: dict, context: RpcContext | None =
 
         return call
 
-    return _write(rid, CARD_ADD, params, read)
+    return _card_write(rid, CARD_ADD, params, read)
 
 
 @method(CARD_EDIT, tier=TIER_CONSOLE)
@@ -275,14 +275,14 @@ def _runtime_board_card_edit(rid: Any, params: dict, context: RpcContext | None 
     """Edit a card's title / description / priority / labels / assignee."""
 
     def read(p: dict):
-        card_id = _required(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        fields = {"title": _text(p, "title"), "description": _text(p, "description"),
-                  "priority": _priority(p), "labels": _labels(p), "assignee": _text(p, "assignee"),
-                  "clear_assignee": _flag(p, "clear_assignee"), "expect_revision": _expect_revision(p),
-                  "idempotency_key": _text(p, "idempotency_key")}
+        card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
+        fields = {"title": _str_param(p, "title"), "description": _str_param(p, "description"),
+                  "priority": _priority_param(p), "labels": _labels_param(p), "assignee": _str_param(p, "assignee"),
+                  "clear_assignee": _bool_param(p, "clear_assignee"), "expect_revision": _expect_revision_param(p),
+                  "idempotency_key": _str_param(p, "idempotency_key")}
         return lambda store: store.edit_card(card_id, **fields)
 
-    return _write(rid, CARD_EDIT, params, read)
+    return _card_write(rid, CARD_EDIT, params, read)
 
 
 @method(CARD_MOVE, tier=TIER_CONSOLE)
@@ -290,13 +290,13 @@ def _runtime_board_card_move(rid: Any, params: dict, context: RpcContext | None 
     """Move a card to ``column_id`` (an id or a kind), ``before`` / ``after`` a card."""
 
     def read(p: dict):
-        card_id = _required(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        fields = {"column_id": _required(p, "column_id", RpcRefusal.COLUMN_ID_REQUIRED),
-                  "before": _text(p, "before"), "after": _text(p, "after"),
-                  "expect_revision": _expect_revision(p), "idempotency_key": _text(p, "idempotency_key")}
+        card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
+        fields = {"column_id": _required_param(p, "column_id", RpcRefusal.COLUMN_ID_REQUIRED),
+                  "before": _str_param(p, "before"), "after": _str_param(p, "after"),
+                  "expect_revision": _expect_revision_param(p), "idempotency_key": _str_param(p, "idempotency_key")}
         return lambda store: store.move_card(card_id, **fields)
 
-    return _write(rid, CARD_MOVE, params, read)
+    return _card_write(rid, CARD_MOVE, params, read)
 
 
 @method(CARD_ARCHIVE, tier=TIER_CONSOLE)
@@ -304,10 +304,10 @@ def _runtime_board_card_archive(rid: Any, params: dict, context: RpcContext | No
     """Archive a card (archive-never-delete); the ack is the archived copy."""
 
     def read(p: dict):
-        card_id = _required(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
+        card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
         return lambda store: store.archive_card(card_id, reason="operator")
 
-    return _write(rid, CARD_ARCHIVE, params, read)
+    return _card_write(rid, CARD_ARCHIVE, params, read)
 
 
 @method(CARD_RESTORE, tier=TIER_CONSOLE)
@@ -315,16 +315,16 @@ def _runtime_board_card_restore(rid: Any, params: dict, context: RpcContext | No
     """Restore an archived card to a live column."""
 
     def read(p: dict):
-        card_id = _required(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
+        card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
         return lambda store: store.restore_card(card_id)
 
-    return _write(rid, CARD_RESTORE, params, read)
+    return _card_write(rid, CARD_RESTORE, params, read)
 
 
-def _resolved(card: Any, params: dict) -> dict:
+def _resolve_answer(card: Any, params: dict) -> dict:
     from agent_runtime.board_store.rows import _card_row
 
-    take = _take(params)
+    take = _take_param(params)
     if card is None:
         return {"card": None, "card_id": params["card_id"].strip(), "state": "archived", "take": take}
     return {"card": _card_row(card, full=True), "take": take}
@@ -335,8 +335,8 @@ def _runtime_board_resolve_conflict(rid: Any, params: dict, context: RpcContext 
     """Resolve a card's realm-sync conflict: ``take`` is ``local`` or ``remote``."""
 
     def read(p: dict):
-        card_id = _required(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        take = _take(p)
+        card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
+        take = _take_param(p)
         return lambda store: store.resolve_conflict(card_id, take=take)
 
-    return _write(rid, RESOLVE_CONFLICT, params, read, table=RESOLVE_CONFLICT_ERRORS, answer=_resolved)
+    return _card_write(rid, RESOLVE_CONFLICT, params, read, table=RESOLVE_CONFLICT_ERRORS, answer=_resolve_answer)
