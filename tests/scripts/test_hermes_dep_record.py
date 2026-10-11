@@ -84,7 +84,7 @@ def test_each_file_records_its_module_fixture_directory_and_spawns(tmp_path):
 
 
 def test_paths_outside_the_root_or_under_caches_are_dropped(tmp_path):
-    spec = importlib.util.spec_from_file_location("hermes_dep_record_under_test", _PLUGIN_DIR / "hermes_dep_record.py")
+    spec = importlib.util.spec_from_file_location("hermes_dep_trail_under_test", _PLUGIN_DIR / "hermes_dep_trail.py")
     rec = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(rec)
     keep = rec.PathFilter(str(tmp_path))
