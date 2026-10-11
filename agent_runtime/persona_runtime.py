@@ -17,7 +17,7 @@ from .mission_chat_prompts import (
     _mission_chat_operative_rules,
     _mission_chat_soul_overlay,
 )
-from .mission_chat_workdir import mission_chat_workdir_for_persona
+from .mission_chat_workdir import MissionChatWorkdir, mission_chat_workdir_for_persona
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
 from .terminal_envelope import scope_for_persona as terminal_envelope_scope_for_persona
@@ -89,6 +89,7 @@ class GPTPersonaRuntime:
         # aimed this turn at. Never read for content here.
         workspace_agents_path: str | None = None,
         primary_slot_path: str | None = None,  # build plan §3.3: workdir rung 2 under an assignment
+        workdir: MissionChatWorkdir | None = None,  # the turn context's ONE resolve (D1.12 S1)
         slot_bindings: tuple = (),  # the bound assigned slots: their env for every command (call 8e)
         situational_hud_content: str | None = None,
         conversation_history: list[dict] | None = None,
@@ -169,17 +170,16 @@ class GPTPersonaRuntime:
         # :mod:`agent_runtime.chat_lane_bundle`.
         lane_bundle = chat_lane_bundle(persona, session_id=perm_session_id)
         admission = lane_bundle.admission
-        # Repo grounding for this turn (G6). Resolved ONCE, here, and handed to
-        # the EXISTING ``AgentRunRequest.workdir`` seam the worker lane already
-        # uses — ``profile_runner`` chdirs and exports ``TERMINAL_CWD`` under its
-        # workdir lock, which is what puts a real repo in front of the terminal /
-        # file tools. ``None`` (nothing configured, nothing derivable) keeps the
-        # pre-G6 behavior exactly: the turn runs in the process cwd. A configured
-        # path that does not exist degrades to that same safe cwd and is reported
-        # as a typed row on the preview lane — it never fails the turn.
-        workdir = mission_chat_workdir_for_persona(
-            persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
-        )
+        # Repo grounding for this turn (G6), handed to the EXISTING
+        # ``AgentRunRequest.workdir`` seam: ``profile_runner`` chdirs and exports
+        # ``TERMINAL_CWD`` under its workdir lock. Ungrounded keeps the process cwd;
+        # a configured path that does not exist degrades to it and is a typed row,
+        # never a failed turn. The turn context resolves it once and hands it down
+        # (D1.12 S1); only a caller that hands none resolves it here.
+        if workdir is None:
+            workdir = mission_chat_workdir_for_persona(
+                persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
+            )
         # Lane/role identity for the terminal safety envelope. Bound for the
         # WHOLE run so envelope enforcement on this lane is deterministic and
         # operator-governed instead of keyed on whether the persona happens to
