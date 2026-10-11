@@ -37,12 +37,14 @@ import run_tests_bundled_plan as plan  # noqa: E402
 import run_tests_bundled_scope as scope  # noqa: E402
 import run_tests_parallel as rtp  # noqa: E402
 
-FLAGS = frozenset({"--no-cache", "--cache-dir", "--cache-dry-run", "--cache-reset", "--cache-seed"})
+FLAGS = frozenset({"--no-cache", "--cache-dir", "--cache-dry-run", "--cache-reset", "--cache-seed", "--cache-max-age"})
 CACHE_ENV = "HERMES_GATE_CACHE"
 PLUGIN_NAME = "hermes_dep_record"
 _PLUGIN_DIR = Path(__file__).resolve().parent / "_bundle_plugin"
 #: a via whose green is a first-attempt whole-file pass (not a re-run, a retry or a known red)
 GREEN_VIAS = frozenset({"bundle", "solo"})
+#: a via whose outcome is never cached, and the reason its next run prints
+NEVER_CACHED_VIAS = {"retry": "straggler", "rerun": "rerun"}
 _LISTED = 50
 
 
@@ -61,6 +63,10 @@ def add_arguments(parser) -> None:
     )
     parser.add_argument("--cache-reset", action="store_true", help="bump the store's generation: every green misses")
     parser.add_argument("--cache-seed", type=int, default=None, help="the audit sample's seed (default: from the clock)")
+    parser.add_argument(
+        "--cache-max-age", type=float, default=cache.DEFAULT_MAX_AGE_DAYS, metavar="DAYS",
+        help=f"a green older than this misses (default {cache.DEFAULT_MAX_AGE_DAYS:g}, owner ruling Q2)",
+    )
 
 
 class GateRun:
@@ -90,6 +96,8 @@ class GateRun:
         self.file_timeout = float(rtp._DEFAULT_FILE_TIMEOUT_SECONDS)
         #: rel → rc of one more run alone (the audit's second run); tests inject a fake
         self.rerun_alone: Optional[Callable[[str], int]] = None
+        self.max_age_days = cache.DEFAULT_MAX_AGE_DAYS
+        self.greens: Dict[str, dict] = {}  # each file's newest green.jsonl line, as the run read it
         self._deps_written: set = set()
         self._lock = threading.Lock()
 
@@ -104,6 +112,7 @@ class GateRun:
         gate = cls(repo_root, store, Path(tempfile.mkdtemp(prefix="gate-deps-")) if enabled else None)
         gate.pytest_args = list(pytest_args)
         gate.file_timeout = float(getattr(args, "file_timeout", None) or gate.file_timeout)
+        gate.max_age_days = float(getattr(args, "cache_max_age", None) or cache.DEFAULT_MAX_AGE_DAYS)
         runs = store.runs if store.runs.is_file() else None  # else the legacy per-checkout record
         gate.known_reds = plan.load_known_reds(repo_root, record_path=runs)
         gate.timed_out = plan.load_timed_out(repo_root, record_path=runs)
@@ -131,12 +140,13 @@ class GateRun:
             modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.mods})
             self.keyer = cache.Keyer(snapshot, fixed, modsets)
             self.generation = self.store.generation()
+            self.greens = self.store.load_green()
         else:
             deps = {}
         self.decision = cache.decide(
             files, self.repo_root, keyer=self.keyer, disabled=self.disabled, deps=deps,
-            greens=self.store.load_green() if self.keyer is not None else {}, generation=self.generation,
-            named=named, known_reds=set(self.known_reds) | set(self.timed_out),
+            greens=self.greens, generation=self.generation, named=named,
+            known_reds=set(self.known_reds) | set(self.timed_out), max_age_days=self.max_age_days,
         )
 
     def _skip(self, files: Sequence[Path], seed: Optional[int]) -> None:
@@ -172,6 +182,9 @@ class GateRun:
                 print(f"  would skip: {cache.rel_of(path, self.repo_root)}  (green {entry.t}, {entry.seconds:.1f}s)")
             if len(d.cached) > _LISTED:
                 print(f"  … and {len(d.cached) - _LISTED} more")
+            runs = [(rel, why) for rel, why in sorted(d.reasons.items()) if why not in ("hit", "no-green")]
+            for rel, why in runs[:_LISTED]:
+                print(f"  would run: {rel}  ({why})")
 
     @property
     def plugin_args(self) -> list:
@@ -205,15 +218,31 @@ class GateRun:
 
         return _both
 
+    def _never_cached(self, outcome) -> str:
+        """Why this outcome may not be cached ("" when it may)."""
+
+        if outcome.rc != 0:
+            return "red"
+        if any(Path(p) == Path(outcome.file) for p, _out in rtp._FLAKY_RESULTS):
+            return "flaky"
+        if outcome.via in GREEN_VIAS:
+            return ""
+        return NEVER_CACHED_VIAS.get(outcome.via, f"via {outcome.via}")
+
     def on_outcome(self, outcome) -> None:
         """A first-attempt whole-file green writes the file's record and key now,
-        so a killed run keeps the greens it reached."""
+        so a killed run keeps the greens it reached; any other outcome supersedes
+        the file's green with the reason it may not be cached."""
 
-        if not self.writes or outcome.rc != 0 or outcome.via not in GREEN_VIAS:
-            return
-        if any(Path(p) == Path(outcome.file) for p, _out in rtp._FLAKY_RESULTS):
+        if not self.writes:
             return
         rel = cache.rel_of(outcome.file, self.repo_root)
+        why = self._never_cached(outcome)
+        if why:
+            with self._lock:
+                self.store.drop_green([rel], why, self.run_id)
+                self.greens[rel] = {"f": rel, "drop": why}
+            return
         with self._lock:
             deps = self.collector.poll().get(rel)
             if deps is None:
@@ -222,9 +251,11 @@ class GateRun:
             self.store.write_deps({rel: deps}, self.run_id)
             self._deps_written.add(rel)
             now = time.time()
+            streak, needs = cache.streak_after(self.greens.get(rel))
             entry = cache.GreenEntry(rel, key, self.run_id, time.strftime("%Y-%m-%d", time.localtime(now)), now,
-                                     float(outcome.seconds), self.generation, self.keyer.snapshot.head)
+                                     float(outcome.seconds), self.generation, self.keyer.snapshot.head, streak, needs)
             self.store.append_green([entry.line()])
+            self.greens[rel] = entry.line()
             self.greens_written += 1
 
     # ── after the run ──
@@ -266,6 +297,10 @@ class GateRun:
         """The audit, then the run record and the clean-pass durations, into the store."""
 
         self.audit(result)
+        if self.writes:  # a leak or an unreached member is never cached on this run's green
+            dead = [(self.repo_root / rel, "unreached") for death in getattr(result, "deaths", []) for rel in death.unreached]
+            for path, kind in [(leak.file, leak.kind) for leak in result.leaks] + dead:
+                self.store.drop_green([cache.rel_of(path, self.repo_root)], kind, self.run_id)
         if self.decision is not None:
             cost["cache"] = {
                 "skipped": len(self.cached), "sampled": len(self.sampled), "seed": self.seed,

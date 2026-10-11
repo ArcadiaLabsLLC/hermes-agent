@@ -76,15 +76,40 @@ lift the workstation ban on `--scope full` above; that waits on the P0 row.
 by kind (bundles, solos, known reds run once, shards and whole checks, re-runs, straggler retries), worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
 start-up seconds, the seconds spent re-running red members, the critical-path process, the idle tail
 and the 20 slowest files. The same numbers, with every red file's failing node ids, are appended as
-one JSON line to `.pytest_cache/hermes_bundled_runs.jsonl` (git-ignored, per checkout), with the
+one JSON line to the gate store's `runs.jsonl` (below; it was `.pytest_cache/hermes_bundled_runs.jsonl`
+in the checkout, which a landing worktree took with it), with the
 files whose last attempt timed out (`timed_out`) and the test count of every file that took ≥ 90 s
-(`tests`, the shard planner's input). Quote that line in a landing report instead of reconstructing
+(`tests`, the shard planner's input) and the cache's block (`cache`: skipped, sampled, seed, misses
+by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
 timings from the log.
 
 **Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
 cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
-alone, and solos are submitted before bundles. Both read `test_durations.json`, so a fresh
-worktree's first run plans by count; pass `0` to either flag to switch it off.
+alone, and solos are submitted before bundles. Both read the store's `durations.json` (clean-pass
+seconds, repo-relative POSIX keys only), over the legacy `test_durations.json` files for one release;
+pass `0` to either flag to switch it off.
+
+**The green-result cache skips a file nothing it depends on changed since its last green on this box**
+(fast-gate §1; owner rulings Q1, Q2, Q6). Every pytest process of a bundled run loads
+`-p hermes_dep_record`, which records what each test file imported, opened, listed and spawned; a
+green writes that record and a key (the blobs of every recorded path against the tree the run started
+from, the runner's own files, `uv.lock`/`pyproject.toml`, the interpreter and its packages, the
+`HERMES_*`/`TZ`/`LANG` environment) to the GATE STORE: `<primary checkout>/.pytest_cache/hermes_gate/`,
+per clone, shared by every worktree, git-ignored, never committed. A file that spawned a process
+depends on every tracked file outside `docs/` and `Harness_Brain/`. The start-up line says
+`Green-result cache: N of M file(s) skipped as cached green; audit re-runs S hit(s) (seed X, 5%,
+min 25); misses: <reason> <count>, …`; a skipped file's progress line reads `(cached; green <date>
+<s>s, 0.0s)`. Never cached: a NAMED file (O1), a known red, a red, a FLAKY file (two greens in a row
+before it is cached again), an isolation leak, an unreached member, a straggler retry, a sharded file,
+any run with a pytest argument other than `-q`/`-v`, and a green older than 14 days. **The audit**
+re-runs `max(25, 2 %)` of the hits (5 % for the first three skipping runs) as ordinary members; a
+sampled hit red in the run and red again alone prints `=== ✗ CACHE AUDIT: N cached-green file(s) red
+on re-execution ===`, exits 1 and bumps the store's generation (the next run is cold). **A CACHE AUDIT
+red is a defect row (a key missed a dependency) in `fork-hygiene-queue.md` with that block, never a
+reason to clear the store and move on.** Opt out for one run: `--no-cache` or `HERMES_GATE_CACHE=0`;
+report without skipping: `--cache-dry-run` (lists the would-skips and why the rest run); make every
+green miss: `--cache-reset`; reproduce a sample: `--cache-seed <seed>`; another store: `--cache-dir`
+or `HERMES_GATE_CACHE_DIR`. A lane's `scripts/run_tests.sh <files>` never touches the cache.
 
 **A slow file is sharded only when the run is tail-bound** (fast-gate §3). When Σ estimates / jobs
 is under twice the longest estimate — a small run whose makespan is its longest file — a file cached
@@ -204,7 +229,8 @@ When a batch touches `agent_runtime/send_window_receipt.py`, `agent_runtime/stre
 `scripts/run_tests_idle.sh` AFTER the gate, with nothing else running. It refuses (exit 3) and names
 every live pytest / `run_tests` process while the box is busy; `--check` asks only that. It runs the
 list at one worker with `HERMES_TEST_IDLE_BOX=1` and appends `{"kind": "idle", …}` to
-`.pytest_cache/hermes_bundled_runs.jsonl` (the known-red read skips that line): quote it in the
+the checkout's `.pytest_cache/hermes_bundled_runs.jsonl` (a receipt; the gate's own record is the
+store's `runs.jsonl`, and the known-red read skips an idle line either way): quote it in the
 landing report. An idle run that still reds is a new row carrying its receipt line
 (`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
 

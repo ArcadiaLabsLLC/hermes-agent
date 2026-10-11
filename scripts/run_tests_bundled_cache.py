@@ -52,6 +52,11 @@ OUTPUT_ONLY_ARGS = frozenset({"-q", "-qq", "-v", "-vv"})
 ENV_IGNORED = frozenset({"HERMES_TEST_WORKERS"})
 ENV_NAMES = ("CI", "GITHUB_ACTIONS", "TZ", "LANG", "LC_ALL", "PYTHONHASHSEED", "PYTHONUTF8", "PYTEST_PLUGINS")
 MISSING = "MISSING"
+#: owner ruling Q2: a green older than this misses
+DEFAULT_MAX_AGE_DAYS = 14.0
+#: a file that was flaky, leaked or went unreached is cached again only after this many greens in a row
+PROBATION_GREENS = 2
+PROBATION_DROPS = frozenset({"flaky", "leak", "unreached"})
 
 
 def gate_store_dir(repo_root: Path, primary: Optional[Path], override: Optional[str] = None) -> Path:
@@ -575,17 +580,22 @@ class GreenEntry:
     seconds: float
     gen: int
     head: str = ""
+    #: greens in a row since a probation drop, and how many the file needs
+    streak: int = 1
+    needs: int = 1
 
     def line(self) -> dict:
         return {"f": self.rel, "key": self.key, "run": self.run, "t": self.t, "epoch": round(self.epoch, 1),
-                "s": round(self.seconds, 2), "gen": self.gen, "head": self.head}
+                "s": round(self.seconds, 2), "gen": self.gen, "head": self.head, "streak": self.streak,
+                "needs": self.needs}
 
     @classmethod
     def from_line(cls, r: Mapping) -> Optional["GreenEntry"]:
         if not r.get("f") or not r.get("key"):
             return None
         return cls(r["f"], r["key"], str(r.get("run") or ""), str(r.get("t") or ""), float(r.get("epoch") or 0.0),
-                   float(r.get("s") or 0.0), int(r.get("gen") or 0), str(r.get("head") or ""))
+                   float(r.get("s") or 0.0), int(r.get("gen") or 0), str(r.get("head") or ""),
+                   int(r.get("streak") or 1), int(r.get("needs") or 1))
 
 
 @dataclass
@@ -609,21 +619,40 @@ def rel_of(path: Path, repo_root: Path) -> str:
         return Path(path).as_posix()
 
 
+def streak_after(previous: Optional[Mapping]) -> Tuple[int, int]:
+    """``(streak, needs)`` for a new green line given the file's previous line:
+    after a flaky / leak / unreached drop the file needs two greens in a row."""
+
+    if not previous:
+        return 1, 1
+    if previous.get("drop") in PROBATION_DROPS:
+        return 1, PROBATION_GREENS
+    if previous.get("key"):
+        needs = int(previous.get("needs") or 1)
+        return min(needs, int(previous.get("streak") or 1) + 1), needs
+    return 1, 1
+
+
 def decide(
     files: Sequence[Path], repo_root: Path, *, keyer: Optional[Keyer], disabled: str,
     deps: Mapping[str, StoredDeps], greens: Mapping[str, Mapping], generation: int,
     named: Iterable[Path] = (), known_reds: Iterable[str] = (),
+    now: Optional[float] = None, max_age_days: float = DEFAULT_MAX_AGE_DAYS,
 ) -> CacheDecision:
     """Every selected file is a hit (cached green, key unchanged) or a miss with
-    its reason. A disabled cache, a NAMED file and a known red always run."""
+    its reason. A disabled cache, a NAMED file, a known red, a file whose last
+    run was red / flaky / a leak / unreached / a straggler retry, a file on
+    probation and a green older than ``max_age_days`` always run."""
 
     started = time.monotonic()
+    now = time.time() if now is None else now
     named_real = {Path(p).resolve() for p in named}
     known = set(known_reds)
     out = CacheDecision()
     for path in files:
         rel = rel_of(path, repo_root)
-        entry = GreenEntry.from_line(greens.get(rel) or {})
+        line = greens.get(rel) or {}
+        entry = GreenEntry.from_line(line)
         stored = deps.get(rel)
         if disabled or keyer is None:
             reason = f"off ({disabled or 'no keys'})"
@@ -632,9 +661,13 @@ def decide(
         elif rel in known:
             reason = "known-red"
         elif entry is None:
-            reason = "no-green"
+            reason = str(line.get("drop") or "no-green")
         elif entry.gen < generation:
             reason = "generation"
+        elif now - entry.epoch > max_age_days * 86400:
+            reason = "max-age"
+        elif entry.streak < entry.needs:
+            reason = "probation"
         elif stored is None:
             reason = "no-deps"
         elif keyer.key_stored(stored) != entry.key:

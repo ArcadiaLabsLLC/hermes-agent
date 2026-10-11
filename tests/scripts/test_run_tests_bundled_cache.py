@@ -189,7 +189,7 @@ def test_a_green_outcome_writes_a_key_the_next_run_reads_back_as_a_hit(repo, sto
     for via in ("rerun", "retry", "known-red"):
         gate.on_outcome(SimpleNamespace(file=repo / T, rc=0, via=via, seconds=1.0))
     gate.on_outcome(SimpleNamespace(file=repo / T, rc=1, via="bundle", seconds=1.0))
-    assert store.load_green() == {}, "only a first-attempt whole-file green is cached"
+    assert "key" not in store.load_green()[T] and _reason(repo, store) == "red", "only a first-attempt whole-file green is cached"
     gate.on_outcome(SimpleNamespace(file=repo / T, rc=0, via="bundle", seconds=1.0))
     assert _reason(repo, store) == "hit"
 
@@ -293,4 +293,90 @@ def test_a_sampled_hit_red_then_green_alone_is_flaky_not_a_defect_and_loses_its_
     assert store.generation() == 0
     assert gate.report(result, 0) == 0
     assert "CACHE AUDIT" not in capsys.readouterr().out
-    assert _reason(repo, store) == "no-green", "a flaky file is never cached on that green"
+    assert _reason(repo, store) == "flaky", "a flaky file is never cached on that green"
+
+
+# ── stage 4: the never-cache classes and the max age ────────────────────────
+
+
+def _writing_gate(repo: Path, store, tmp_path: Path) -> "gate_mod.GateRun":
+    gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
+    gate.keyer = _keyer(repo, store)
+    gate.collector.files[T] = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()})
+    return gate
+
+
+def _green_outcome(repo: Path, via: str = "bundle", rc: int = 0):
+    return SimpleNamespace(file=repo / T, rc=rc, via=via, seconds=1.0)
+
+
+@pytest.mark.parametrize(
+    "outcome_via, rc, reason",
+    [("bundle", 1, "red"), ("retry", 0, "straggler"), ("rerun", 0, "rerun"), ("known-red", 1, "red")],
+)
+def test_a_red_a_straggler_retry_and_a_rerun_supersede_the_green_with_their_reason(
+    repo, store, tmp_path, outcome_via, rc, reason
+):
+    gate = _writing_gate(repo, store, tmp_path)
+    gate.on_outcome(_green_outcome(repo))
+    assert _reason(repo, store) == "hit"
+    gate.on_outcome(_green_outcome(repo, outcome_via, rc))
+    assert _reason(repo, store) == reason
+
+
+def test_a_flaky_green_is_never_cached_and_needs_two_greens_in_a_row_after(repo, store, tmp_path, monkeypatch):
+    gate = _writing_gate(repo, store, tmp_path)
+    monkeypatch.setattr(gate_mod.rtp, "_FLAKY_RESULTS", [(repo / T, "FLAKY")])
+    gate.on_outcome(_green_outcome(repo, "solo"))
+    assert _reason(repo, store) == "flaky"
+    monkeypatch.setattr(gate_mod.rtp, "_FLAKY_RESULTS", [])
+    gate.on_outcome(_green_outcome(repo))
+    assert _reason(repo, store) == "probation", "one green after a flake is not enough"
+    gate.on_outcome(_green_outcome(repo))
+    assert _reason(repo, store) == "hit"
+
+
+@pytest.mark.parametrize("kind", ["leak", "unreached"])
+def test_an_isolation_leak_or_an_unreached_member_is_never_cached_on_this_runs_green(repo, store, tmp_path, kind):
+    gate = _writing_gate(repo, store, tmp_path)
+    gate.on_outcome(_green_outcome(repo))
+    leak = bundled.Leak(repo / T, 0, [], {"failed": 1}, [f"{T}::test_ok"], kind)
+    result = SimpleNamespace(outcomes=[bundled.FileOutcome(repo / T, 0, "", {}, 1.0, "bundle", 0)], leaks=[leak],
+                             deaths=[], ledger=None)
+    gate.record(result, {"elapsed": 1.0})
+    assert _reason(repo, store) == kind
+
+
+def test_a_member_behind_a_dead_bundle_is_unreached_and_misses(repo, store, tmp_path):
+    gate = _writing_gate(repo, store, tmp_path)
+    gate.on_outcome(_green_outcome(repo))
+    death = bundled.Death(0, "tests/test_other.py", [T])
+    gate.record(SimpleNamespace(outcomes=[], leaks=[], deaths=[death], ledger=None), {"elapsed": 1.0})
+    assert _reason(repo, store) == "unreached"
+
+
+def test_a_named_file_always_runs_with_its_reason_printed(repo, store, capsys):
+    _green(repo, store)
+    keyer = _keyer(repo, store)
+    gate = gate_mod.GateRun(repo, store, None)
+    gate.decision = cache.decide(
+        [repo / T], repo, keyer=keyer, disabled="", deps=store.load_deps(), greens=store.load_green(),
+        generation=0, named=[repo / T],
+    )
+    gate._print_decision(dry=True)
+    assert gate.decision.run == [repo / T] and not gate.decision.cached
+    assert f"would run: {T}  (named)" in capsys.readouterr().out
+
+
+def test_a_green_older_than_the_max_age_misses(repo, store):
+    _green(repo, store)
+    keyer = _keyer(repo, store)
+
+    def reason(days: float) -> str:
+        return cache.decide(
+            [repo / T], repo, keyer=keyer, disabled="", deps=store.load_deps(), greens=store.load_green(),
+            generation=0, now=time.time() + days * 86400,
+        ).reasons[T]
+
+    assert reason(13) == "hit"
+    assert reason(15) == "max-age", "owner ruling Q2: a 15-day-old green runs"
