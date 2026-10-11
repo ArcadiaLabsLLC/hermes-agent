@@ -48,7 +48,7 @@ def validate(prompt: dict) -> list[dict]:
             raise ConversationError(Refusal.INVALID_REQUEST)
         if not isinstance(image["name"], str) or not isinstance(image["data"], str):
             raise ConversationError(Refusal.INVALID_REQUEST)
-        _decode(image["data"], Refusal.INVALID_REQUEST)
+        _decoded_or_refuse(image["data"], Refusal.INVALID_REQUEST)
     return _validate_files(prompt.get("files", []))
 
 
@@ -67,7 +67,7 @@ def _validate_files(files) -> list[dict]:
             raise ConversationError(Refusal.FILE_INVALID)
         if not media_type_allowed(item["media_type"]):
             raise ConversationError(Refusal.FILE_UNSUPPORTED)
-        payload = _decode(item["data"], Refusal.FILE_INVALID)
+        payload = _decoded_or_refuse(item["data"], Refusal.FILE_INVALID)
         if not payload:
             raise ConversationError(Refusal.FILE_INVALID)
         total += len(payload)
@@ -86,7 +86,7 @@ def media_type_allowed(media_type: str) -> bool:
     return media_type in FILE_MEDIA_TYPES or f"{kind}/*" in FILE_MEDIA_TYPES
 
 
-def _decode(data: str, refusal: Refusal) -> bytes:
+def _decoded_or_refuse(data: str, refusal: Refusal) -> bytes:
     try:
         return base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError) as exc:
