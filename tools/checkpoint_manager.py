@@ -775,6 +775,12 @@ def _history_current_blob(workdir, rel):
     return blob.strip() if ok else "unreadable"
 
 
+def _agent_write_evidence(previous: dict, *, sha256: str | None, deleted: bool) -> dict:
+    """Keep prior authorship when a successful write removes a file."""
+    return {"sha256": previous.get("sha256") if deleted else sha256,
+            "deleted": deleted, "ts": time.time()}
+
+
 def restore_revision(result: dict) -> str:
     # Transport-only replay flags do not change the durable recovery decision.
     evidence = {key: value for key, value in result.items()
@@ -927,10 +933,14 @@ class CheckpointManager:
                 store = _store_path()
                 dir_hash = self._ledger_key(str(path))
                 ledger = _load_ledger(store, dir_hash)
-                ledger[str(path)] = {"sha256": digest, "deleted": not path.exists(), "ts": time.time()}
+                previous = ledger.get(str(path), {})
+                # Native safe restore needs the last authored content hash;
+                # attribution needs the current (possibly absent) file state.
+                ledger[str(path)] = _agent_write_evidence(previous, sha256=digest, deleted=not path.exists())
                 _save_ledger(store, dir_hash, ledger)
                 if self.history_observer is not None:
-                    self.history_observer.write(self.get_working_dir_for_path(str(path)), path, ledger[str(path)])
+                    self.history_observer.write(self.get_working_dir_for_path(str(path)), path,
+                                                {**ledger[str(path)], "sha256": digest})
         except Exception as exc:
             logger.debug("record_agent_write failed for %s: %s", file_path, exc)
 
@@ -993,7 +1003,7 @@ class CheckpointManager:
                 # File deleted since Hermes wrote it: restoring it back is
                 # safe — its last content was Hermes-authored.
                 restore.append(rel)
-            elif current == recorded:
+            elif current == recorded and not entry.get("deleted"):
                 restore.append(rel)
             else:
                 skipped.append(rel)
@@ -1018,14 +1028,12 @@ class CheckpointManager:
         if abs_dir in self._checkpointed_dirs:
             return False
 
+        self._checkpointed_dirs.add(abs_dir)
         try:
             from tools.checkpoint_pruning import store_lock
 
             with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
-                taken = self._take(abs_dir, reason)
-                if taken:
-                    self._checkpointed_dirs.add(abs_dir)
-                return taken
+                return self._take(abs_dir, reason)
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
             return False
@@ -1148,9 +1156,11 @@ class CheckpointManager:
         current = _hash_file(path) if reason is None else None
         record = ledger.get(str(path))
         recorded = record.get("sha256") if isinstance(record, dict) else None
-        recorded_absence = isinstance(record, dict) and record.get("deleted") is True and not path.exists()
+        recorded_absence = bool(recorded) and record.get("deleted") is True and not path.exists()
         if reason is None and not recorded_absence and (not recorded or current is None or current != recorded):
             reason = "no_write_evidence" if not recorded else "changed_externally"
+        if reason is None and record.get("deleted") and path.exists():
+            reason = "changed_externally"
         ok, tree, _ = _run_git(["--literal-pathspecs", "ls-tree", "-z", commit_hash, "--", rel], _store_path(), working_dir)
         if not ok:
             reason = "checkpoint_read_failed"
@@ -1227,8 +1237,8 @@ class CheckpointManager:
                     result["restored_files"].append(rel)
                     ledger_key = self._ledger_key(working_dir)
                     ledger = _load_ledger(_store_path(), ledger_key)
-                    ledger[str(path)] = {"sha256": _hash_file(path), "deleted": row["target_blob"] is None,
-                                         "ts": time.time()}
+                    ledger[str(path)] = _agent_write_evidence(ledger.get(str(path), {}),
+                        sha256=_hash_file(path), deleted=row["target_blob"] is None)
                     _save_ledger(_store_path(), ledger_key, ledger)
                 except OSError:
                     result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
@@ -1320,7 +1330,8 @@ class CheckpointManager:
                         raise OSError("restored content changed")
                     ledger_key = self._ledger_key(workdir)
                     ledger = _load_ledger(_store_path(), ledger_key)
-                    ledger[str(file)] = {"sha256": _hash_file(file), "deleted": target_blob is None, "ts": time.time()}
+                    ledger[str(file)] = _agent_write_evidence(ledger.get(str(file), {}),
+                        sha256=_hash_file(file), deleted=target_blob is None)
                     _save_ledger(_store_path(), ledger_key, ledger)
                     done.append(rel)
                 except OSError:
