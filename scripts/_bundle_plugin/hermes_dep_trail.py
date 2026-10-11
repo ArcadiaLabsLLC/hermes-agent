@@ -55,26 +55,35 @@ class PathFilter:
         return out
 
 
-def spawned_program(event: str, args: tuple) -> str:
-    """The program a spawn event starts, as best the event says ("" unknown)."""
+def _popen_program(args: tuple) -> str:
+    executable, argv = args[0], args[1]
+    if executable:
+        return os.fsdecode(executable) if isinstance(executable, bytes) else str(executable)
+    if isinstance(argv, (str, bytes)):
+        text = os.fsdecode(argv) if isinstance(argv, bytes) else argv
+        return text.split()[0].strip('"') if text.split() else ""
+    try:
+        first = list(argv)[0]
+    except (TypeError, IndexError):
+        return ""
+    return os.fsdecode(first) if isinstance(first, bytes) else str(first)
 
-    if event == "subprocess.Popen":
-        executable, argv = args[0], args[1]
-        if executable:
-            return os.fsdecode(executable) if isinstance(executable, bytes) else str(executable)
-        if isinstance(argv, (str, bytes)):
-            text = os.fsdecode(argv) if isinstance(argv, bytes) else argv
-            return text.split()[0].strip('"') if text.split() else ""
-        try:
-            first = list(argv)[0]
-        except (TypeError, IndexError):
-            return ""
-        return os.fsdecode(first) if isinstance(first, bytes) else str(first)
-    if event in ("os.exec", "os.posix_spawn"):
-        return str(args[0])
-    if event == "os.spawn":
-        return str(args[1])
-    return ""
+
+#: spawn audit event → the program it starts, read off the event's arguments
+_PROGRAM_OF = {
+    "subprocess.Popen": _popen_program,
+    "os.exec": lambda args: str(args[0]),
+    "os.posix_spawn": lambda args: str(args[0]),
+    "os.spawn": lambda args: str(args[1]),
+}
+
+
+def spawned_program(event: str, args: tuple) -> str:
+    """The program a spawn event starts, as best the event says ("" unknown:
+    ``os.system`` and ``os.startfile`` go through a shell or the OS)."""
+
+    read = _PROGRAM_OF.get(event)
+    return read(args) if read is not None else ""
 
 
 def is_python(program: str) -> bool:

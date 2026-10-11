@@ -137,3 +137,15 @@ def test_a_python_child_records_itself_and_covers_its_parent_but_an_isolated_chi
     assert b.child_covered and not cache.uncovered_spawn(b.spawn_py, b.spawn_other, b.child_records)
     assert c.spawn_py == 1 and c.child_records == 0
     assert not c.child_covered, "a child run with -I leaves no record: its parent keeps the ALL sentinel"
+
+
+def test_a_spawn_event_names_its_program_for_every_event_shape():
+    spec = importlib.util.spec_from_file_location("hermes_dep_trail_programs", _PLUGIN_DIR / "hermes_dep_trail.py")
+    trail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trail)
+    assert trail.spawned_program("subprocess.Popen", (None, ["git", "status"], None, None)) == "git"
+    assert trail.spawned_program("subprocess.Popen", (sys.executable, ["x"], None, None)) == sys.executable
+    assert trail.spawned_program("subprocess.Popen", (None, '"python" -c pass', None, None)) == "python"
+    assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
+    assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
+    assert trail.spawned_program("os.system", ("echo hi",)) == ""
