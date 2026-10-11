@@ -1795,7 +1795,7 @@ def test_persona_chat_trace_projects_profile_persona_with_colon_id():
 
     assert len(rows) == 1
     row = rows[0]
-    assert row["persona_id"] == "profile:alice"
+    assert row["persona_id"] == "profile_alice"
     # Matches the history projection's id derivation so the Launcher links them.
     assert row["persona_instance_id"] == "personainst_profile_alice"
     assert [entry["event"] for entry in row["entries"]] == ["tool_started"]
@@ -2159,9 +2159,9 @@ def test_the_history_rows_persona_spelling_is_the_vocabularys_one_public_functio
     need not pin themselves at ``stores`` to spell a persona id.
 
     POSITIVE CONTROL through a reader: ``_infer_persona_id`` folds the
-    token-safe ``profile_x`` spelling only because it calls the vocabulary's
-    function. KILLING MUTATION: drop the ``profile_`` fold in
-    ``canonical_chat_persona_id`` (the reader answers ``profile_neko``), or
+    legacy ``profile:x`` spelling only because it calls the vocabulary's
+    function. KILLING MUTATION: drop the colon fold in
+    ``canonical_chat_persona_id`` (the reader answers ``profile:neko``), or
     re-grow a private definition in ``history_rows`` (the identity arm reds).
     """
     from agent_runtime.persona_chat_history import (
@@ -2172,16 +2172,16 @@ def test_the_history_rows_persona_spelling_is_the_vocabularys_one_public_functio
         vocabulary,
     )
 
-    assert canonical_chat_persona_id("profile_neko") == "profile:neko"
-    assert canonical_chat_persona_id("profile:neko") == "profile:neko"
+    assert canonical_chat_persona_id("profile_neko") == "profile_neko"
+    assert canonical_chat_persona_id("profile:neko") == "profile_neko"
     assert canonical_chat_persona_id("qa") == "qa"
     assert canonical_chat_persona_id("") is None
     assert (
         history_rows._infer_persona_id(
-            {"system_prompt": "Mission Control persona chat for profile_neko"},
+            {"system_prompt": "Mission Control persona chat for profile:neko"},
             session_id="s-1",
         )
-        == "profile:neko"
+        == "profile_neko"
     )
     one = vocabulary.canonical_chat_persona_id
     assert summary.canonical_chat_persona_id is one

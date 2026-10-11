@@ -57,7 +57,8 @@ def canonical_chat_persona_id(value: Any) -> str | None:
     """The persona id a chat-history row carries, in its one spelling.
 
     A bounded token, with both profile spellings (``profile:x`` and the
-    token-safe ``profile_x``) folded to ``profile:x``. Not
+    token-safe ``profile_x``) folded to ``profile_x``. Legacy colon rows remain
+    readable without rewriting stored history. Not
     ``personas.canonical_persona_id``: that one resolves ALIASES; this one only
     spells. Pure, so every projection that keys on a history row's persona reads
     it from here rather than from the SessionDB reader that first needed it.
@@ -67,10 +68,8 @@ def canonical_chat_persona_id(value: Any) -> str | None:
         return None
     if raw.lower().startswith("profile:"):
         profile = safe_assignment_token(raw.split(":", 1)[1])
-        return f"profile:{profile}" if profile else None
+        return f"profile_{profile}" if profile else None
     token = safe_assignment_token(raw)
-    if token.startswith("profile_") and len(token) > len("profile_"):
-        return f"profile:{token[len('profile_'):]}"
     return token or None
 
 

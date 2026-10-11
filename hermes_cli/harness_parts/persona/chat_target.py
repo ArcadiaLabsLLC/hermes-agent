@@ -71,7 +71,7 @@ def _persona_by_id(cfg, persona_id: str):
             else {}
         )
         return AgentPersona(
-            id=f"profile:{profile_id}",
+            id=f"profile_{profile_id}",
             display_name=f"{_display_name_for_profile(profile_id)} Agent",
             role="profile",
             model=default_model or getattr(cfg, "default_model", None),

@@ -59,7 +59,7 @@ def _profile_persona_from_instance(instance: Any) -> Any | None:
     from ..models import AgentPersona
 
     return AgentPersona(
-        id=f"profile:{profile}",
+        id=f"profile_{profile}",
         display_name=display_name,
         role="profile",
         model=None,
