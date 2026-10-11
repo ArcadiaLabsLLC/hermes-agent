@@ -605,12 +605,9 @@ class _RunPhases:
                 agent_ready_callback=self._agent_ready_for_steer,
                 preloaded_skill_prompt=turn_context.skill_preload_prompt,
                 workspace_agents_content=turn_context.workspace_agents_content,
-                # The workspace POINTER (G6): the loaded AGENTS.md's own path, from
-                # the receipt the loader already produced. Only a file that actually
-                # LOADED points at a real workspace root — an invalid/missing/too
-                # large selection must not ground the turn somewhere it never read.
-                workspace_agents_path=turn_context.workspace_agents_path,
-                primary_slot_path=turn_context.primary_slot_path,
+                # Where the turn runs (G6), resolved ONCE by the turn context from the
+                # loaded AGENTS.md pointer and the primary slot (D1.12 S1).
+                workdir=turn_context.workdir,
                 slot_bindings=turn_context.slot_bindings,
                 situational_hud_content=self.situational_hud_content,
                 turn_id=safe_assignment_token(self.client_message_id),

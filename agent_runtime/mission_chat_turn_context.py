@@ -255,6 +255,16 @@ def _default_load_slot_context(instance: Any) -> Any:
     return load_slot_context(instance)
 
 
+def _default_mission_chat_workdir(
+    persona: Any, *, workspace_agents_path: str | None, primary_slot_path: str | None
+) -> Any:
+    from .mission_chat_workdir import mission_chat_workdir_for_persona
+
+    return mission_chat_workdir_for_persona(
+        persona, workspace_agents_path=workspace_agents_path, primary_slot_path=primary_slot_path
+    )
+
+
 def _default_capability_block(persona: Any, *, session_id: str | None) -> dict[str, Any]:
     # Through the bundle, which resolves ``capability_block_for_persona``.
     from .chat_lane_bundle import chat_lane_bundle
@@ -341,6 +351,9 @@ class MissionChatTurnResolvers:
     load_workspace_agents: Callable[[Any], Any] = _default_load_workspace_agents
     #: The instance's repo-slot context (build plan §3.3); None = no assignment.
     load_slot_context: Callable[[Any], Any] = _default_load_slot_context
+    #: Where the turn runs (G6 workdir ladder), resolved ONCE here from the three inputs this
+    #: builder is the first to hold, and handed down to ``mission_chat_reply`` (D1.12 S1).
+    mission_chat_workdir: Callable[..., Any] = _default_mission_chat_workdir
     capability_block: Callable[..., dict[str, Any]] = _default_capability_block
     #: The cost layer's settled receipt for this turn's actor, or None (no settle yet).
     settled_tool_surface: Callable[..., dict[str, Any] | None] = _default_settled_tool_surface
@@ -422,6 +435,9 @@ class MissionChatTurnContext:
     #: THIS, never from what a client sent: a client can only say which
     #: workspace it was showing, which is not where the turn ran.
     lane_workspace: LaneWorkspace = LaneWorkspace()
+    #: The turn's resolved workdir (``mission_chat_workdir.MissionChatWorkdir``): the ONE
+    #: resolve, handed to ``mission_chat_reply(workdir=)``. None only on a hand-built context.
+    workdir: Any = None
 
     # — convenience projections the CLI body used to hold as locals —
 
@@ -458,12 +474,7 @@ class MissionChatTurnContext:
         somewhere it never read.
         """
 
-        if self.slot_context is not None:
-            return None  # the alias is superseded; the primary slot grounds the turn
-        receipt = getattr(self.workspace_agents, "receipt", None)
-        if not isinstance(receipt, dict) or not receipt.get("included"):
-            return None
-        return str(receipt.get("path") or "") or None
+        return _workspace_agents_path(self.slot_context, self.workspace_agents)
 
     def situational_hud_body(self) -> str:
         """The hashed HUD body for this turn (stable fields only)."""
@@ -534,8 +545,8 @@ def build_mission_chat_turn_context(
     )
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
-    slot_context = resolvers.load_slot_context(instance)
-    workspace_agents, workspace_agents_receipt = _workspace_context(resolvers, agents_file, slot_context)
+    slot_context, workspace_agents, workspace_agents_receipt, workdir = _turn_workspace(
+        resolvers, persona, instance, agents_file)
 
     # Composed ONCE, then folded two ways: the composite is the reuse key the
     # registry compares, the per-component digests are what let a mismatch name
@@ -631,7 +642,38 @@ def build_mission_chat_turn_context(
         timings=timings,
         slot_context=slot_context,
         lane_workspace=resolvers.lane_workspace(instance) or LaneWorkspace(),
+        workdir=workdir,
     )
+
+
+def _turn_workspace(
+    resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any
+) -> tuple[Any, Any, dict[str, Any] | None, Any]:
+    """``(slot context, workspace agents, its receipt, workdir)``: the turn's workspace facts, each once.
+
+    The workdir is resolved HERE (D1.12 S1) because this is where its three inputs are first
+    in hand — the persona, the loaded ``AGENTS.md`` pointer, the primary slot's path.
+    """
+
+    slot_context = resolvers.load_slot_context(instance)
+    workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)
+    workdir = resolvers.mission_chat_workdir(
+        persona,
+        workspace_agents_path=_workspace_agents_path(slot_context, workspace_agents),
+        primary_slot_path=None if slot_context is None else slot_context.primary_path,
+    )
+    return slot_context, workspace_agents, receipt, workdir
+
+
+def _workspace_agents_path(slot_context: Any, workspace_agents: Any) -> str | None:
+    """The loaded ``AGENTS.md``'s own path (the G6 pointer); None under an assignment or when it never loaded."""
+
+    if slot_context is not None:
+        return None  # the alias is superseded; the primary slot grounds the turn
+    receipt = getattr(workspace_agents, "receipt", None)
+    if not isinstance(receipt, dict) or not receipt.get("included"):
+        return None
+    return str(receipt.get("path") or "") or None
 
 
 def _workspace_context(
