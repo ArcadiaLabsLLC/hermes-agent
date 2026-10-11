@@ -124,6 +124,86 @@ def _remote_reply_payload(connection: Any, request_id: str) -> dict[str, Any] | 
             }
 
 
+def _call(connection: Any, rid: str, method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+    """Send one peer request and read to its answer frame; ``None`` if the edge ends first."""
+
+    connection.send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+    while True:
+        frame = connection.read_frame()
+        if frame is None:
+            return None
+        if frame.get("id") == rid and ("result" in frame or "error" in frame):
+            return frame
+
+
+def _cancel_params(dispatch_id: str, reason: str) -> dict[str, Any]:
+    return {"dispatch_id": dispatch_id, "reason": str(reason or "operator_cancel")[:80]}
+
+
+def _durable_cancel_reason(dispatch_id: str) -> str:
+    from agent_runtime import dispatch_store
+
+    return str((dispatch_store.get_dispatch(dispatch_id) or {}).get("cancel_requested") or "")
+
+
+def request_remote_cancel(row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """D1.07 S2: cancel a dispatch whose turn runs on a PAIRED INSTALL -- ask the owner.
+
+    Any process on this install may ask; the row is the only state it needs. The
+    durable mark is written FIRST (as the local leg's mark is): this row's own
+    supervisor (:class:`RemoteDispatch`, wherever it runs) reads it before each
+    attempt and right after an accept, so it never re-sends the execute after a
+    Stop, and a cancel racing an attempt is caught by one side. Then ONE dial at
+    :data:`PEER_DIAL_TIMEOUT_SECONDS`, no retry loop: an install that cannot be
+    reached is answered ``peer_unreachable`` (the row stays ``running`` and its
+    supervisor settles it at its next boundary). The far install's answer --
+    ``stopping`` / ``already_finished`` / ``not_running`` -- is returned as is;
+    the row's terminal state is still the one the turn's own frames report, so a
+    turn stopped with partial output keeps it (owner ruling D1.07 b).
+    """
+
+    from agent_runtime import dispatch_store
+    from agent_runtime.chat_turn import PEER_CHAT_CANCEL_METHOD
+    from agent_runtime.gateway_peers import dial_peer
+    from agent_runtime.gateway_targets import peer_store_root
+    from agent_runtime.peer_chat_cancel import PEER_CANCEL_OUTCOMES
+
+    dispatch_id = str(row.get("dispatch_id") or "")
+    install_id = str(row.get("remote_install_id") or "")
+    answer: dict[str, Any] = {"dispatch_id": dispatch_id, "remote_install_id": install_id, "reason": reason}
+    if not dispatch_store.request_dispatch_cancel(dispatch_id, reason):
+        settled = dispatch_store.get_dispatch(dispatch_id) or row
+        return {**answer, "outcome": "already_finished", "state": settled.get("state")}
+    try:
+        connection, _hello = dial_peer(
+            peer_store_root(), install_id, timeout_seconds=PEER_DIAL_TIMEOUT_SECONDS
+        )
+    except Exception as exc:  # every dial failure is transport (see RemoteDispatch.run)
+        return {**answer, "outcome": dispatch_store.REMOTE_UNREACHABLE_REASON,
+                "detail": f"{type(exc).__name__}: {exc}"[:200]}
+    try:
+        frame = _call(connection, f"peer-cancel-{dispatch_id}", PEER_CHAT_CANCEL_METHOD,
+                      _cancel_params(dispatch_id, reason))
+    except Exception as exc:
+        frame = None
+        answer["detail"] = f"{type(exc).__name__}: {exc}"[:200]
+    finally:
+        try:
+            connection.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+    if frame is None:
+        return {**answer, "outcome": dispatch_store.REMOTE_UNREACHABLE_REASON}
+    if "error" in frame:
+        error = frame.get("error") or {}
+        return {**answer, "outcome": "peer_refused",
+                "detail": str((error.get("data") or {}).get("reason") or error.get("message") or "")[:200]}
+    peer_outcome = str((frame.get("result") or {}).get("outcome") or "")
+    if peer_outcome not in PEER_CANCEL_OUTCOMES:
+        return {**answer, "outcome": "peer_refused", "detail": f"unknown outcome {peer_outcome!r}"[:200]}
+    return {**answer, "outcome": peer_outcome}
+
+
 def _run_remote_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
     """Perform a dispatch whose target lives on a PAIRED INSTALL (Stage 7).
 
@@ -197,6 +277,8 @@ class RemoteDispatch:
         from agent_runtime.gateway_peers import dial_peer
 
         while self.attempts < dispatch_store.MAX_DELIVERY_ATTEMPTS:
+            if self._settle_if_cancelled():
+                return
             self.attempts += 1
             try:
                 connection, _hello = dial_peer(
@@ -256,6 +338,7 @@ class RemoteDispatch:
             if not request_id:  # pragma: no cover - the ack always carries one
                 self._retry("the ack named no request id", backoff=False)
                 return False
+            self._forward_cancel_if_marked(connection)
             answered = _remote_reply_payload(connection, request_id)
         except Exception as exc:
             self._retry(f"{type(exc).__name__}: {exc}")
@@ -276,21 +359,44 @@ class RemoteDispatch:
         return True
 
     def _send_and_ack(self, connection: Any) -> dict[str, Any] | None:
-        rid = f"peer-exec-{self.dispatch_id}"
-        connection.send(
-            {
-                "jsonrpc": "2.0",
-                "id": rid,
-                "method": "peer.agent_chat.execute",
-                "params": self.params,
-            }
+        from agent_runtime.chat_turn import PEER_CHAT_EXECUTE_METHOD
+
+        return _call(connection, f"peer-exec-{self.dispatch_id}", PEER_CHAT_EXECUTE_METHOD, self.params)
+
+    def _settle_if_cancelled(self) -> bool:
+        """A Stop reached this row (D1.07): send nothing more. True = settled."""
+
+        from agent_runtime import dispatch_store
+
+        reason = _durable_cancel_reason(self.dispatch_id)
+        if not reason:
+            return False
+        asked = ", which was asked to stop any turn it had started" if self.attempts else ""
+        dispatch_store.record_completion(
+            self.dispatch_id,
+            state=dispatch_store.STATE_CANCELLED,
+            error=f"the dispatch was cancelled ({reason}); nothing further was sent to {self.display}{asked}",
+            remote={"install_id": self.install_id, "attempts": self.attempts, "reason": "cancelled"},
+            only_if_running=True,
         )
-        while True:
-            frame = connection.read_frame()
-            if frame is None:
-                return None
-            if frame.get("id") == rid and ("result" in frame or "error" in frame):
-                return frame
+        return True
+
+    def _forward_cancel_if_marked(self, connection: Any) -> None:
+        """A Stop that landed while this attempt was being accepted goes to B on this edge.
+
+        The canceller's own dial may have reached B before B accepted the turn
+        (``not_running``); this side reads the mark after the accept, so B is told
+        here. Its answer frame carries another id and the frame reader skips it;
+        the turn's own exit frame settles the row.
+        """
+
+        from agent_runtime.chat_turn import PEER_CHAT_CANCEL_METHOD
+
+        reason = _durable_cancel_reason(self.dispatch_id)
+        if reason:
+            connection.send({"jsonrpc": "2.0", "id": f"peer-cancel-{self.dispatch_id}",
+                             "method": PEER_CHAT_CANCEL_METHOD,
+                             "params": _cancel_params(self.dispatch_id, reason)})
 
     def _settle_refused(self, error: dict[str, Any]) -> None:
         from agent_runtime import dispatch_store
@@ -346,6 +452,10 @@ class RemoteDispatch:
 
         payload = answered["payload"]
         remote = {"install_id": self.install_id, "attempts": self.attempts}
+        if payload is None and self._settle_if_cancelled():
+            # Stopped before it wrote a reply: the cancel decides the row. A turn
+            # that DID reply keeps its reply below, partial or not (ruling b).
+            return
         if payload is None:
             dispatch_store.record_completion(
                 self.dispatch_id,

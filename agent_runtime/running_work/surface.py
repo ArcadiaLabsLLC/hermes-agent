@@ -524,8 +524,20 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     if outcome == "already_finished":
         return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind,
                 "state": answer.get("state"), "detail": "already finished; its result is kept"}
+    if outcome == "not_running":
+        # A paired install had not started it; the row's mark stops this install
+        # sending it (D1.07 S2).
+        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason,
+                "detail": "the paired install had not started it; it will not be sent"}
     return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
-            "detail": "this process does not supervise that dispatch" if outcome == "not_owned_here" else ""}
+            "detail": _DISPATCH_CANCEL_REFUSAL_DETAIL.get(outcome, str(answer.get("detail") or ""))}
+
+
+#: The sentence each typed dispatch-cancel refusal carries; ``peer_refused`` carries the far side's reason.
+_DISPATCH_CANCEL_REFUSAL_DETAIL = {
+    "not_owned_here": "this process does not supervise that dispatch",
+    "peer_unreachable": "the paired install running it could not be reached; this install will not re-send it",
+}
 
 
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.

@@ -31,7 +31,7 @@ from .child import (
     parse_child_payload,
 )
 from .cancel_watch import CANCEL_POLL_SECONDS, ensure_cancel_watch
-from .remote import _run_remote_dispatch
+from .remote import _run_remote_dispatch, request_remote_cancel
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,9 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
     * ``already_finished`` -- the row is terminal; its result is kept as is.
 
     A dispatch another process on this machine supervises is cancelled through
-    the row (D1.07, owner ruling a): see :func:`_request_cancel_elsewhere`. The
+    the row (D1.07, owner ruling a): see :func:`_request_cancel_elsewhere`. A
+    cross-install dispatch is asked of the install running its turn
+    (:func:`~.remote.request_remote_cancel`), whoever supervises the row here. The
     mark is set BEFORE the row is re-read and the spawn checks the mark AFTER
     stamping the owner, so a cancel racing a spawn is caught by one side or the
     other, never dropped by both — for the in-process mark and the durable one.
@@ -145,6 +147,10 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
             "outcome": CANCEL_ALREADY_FINISHED,
             "state": row.get("state"),
         }
+    if row.get("remote_install_id"):
+        # The turn runs on a paired install: ITS serve supervises the work, so
+        # it is asked, from whichever process here holds the Stop (D1.07 S2).
+        return request_remote_cancel(row, reason=reason)
     if dispatch_id not in supervised_dispatch_ids():
         return _request_cancel_elsewhere(dispatch_id, row, reason)
     _request_cancel_mark(dispatch_id, reason)
