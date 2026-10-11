@@ -8,6 +8,7 @@ import pytest
 from agent_runtime import repo_context as _repo_context
 from agent_runtime.config import harness_root_config_path
 from agent_runtime.profile_home import get_hermes_head_home
+from tests.agent_runtime._session_db_template import session_db_from_template  # noqa: F401 — autouse (D3.11)
 
 
 @pytest.fixture(autouse=True, scope="session")

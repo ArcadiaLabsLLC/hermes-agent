@@ -935,6 +935,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
+        "fresh_schema_path: the test's subject is a fresh state.db's schema build; "
+        "tests/agent_runtime's autouse SessionDB template is off for it (D3.11).",
+    )
+    config.addinivalue_line(
+        "markers",
         "e2e_child: the file boots real serve/gateway CHILD processes (suite-speed "
         "Stage 4A's class); a label for the tail report and the scheduler, never a filter.",
     )

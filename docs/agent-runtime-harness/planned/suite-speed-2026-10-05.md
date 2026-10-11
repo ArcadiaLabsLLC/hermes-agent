@@ -224,6 +224,17 @@ Each sub-stage is its own lane and lands alone; each starts from M3's per-test p
 - **4D — `test_run_agent.py` (233 s gate / 174 s idle, 281 tests) and `test_run_agent_codex_responses.py` (93 s / 67).** M3: setup is 0.0 s listed and CALL carries it — 40 tests of 1.3–4.8 s (65 s) and **241 tests at ≈ 0.45 s each (109 s), a per-test floor six times the suite's 0.07 s, inside the test bodies**: `AIAgent(...)` built in each test (`agent/agent_init.py` walks toolsets, skills and MCP catalogs per instance; `discover_plugins()` is process-once at 0.78 s). The fix is a prebuilt, module-scoped agent TEMPLATE the fork's `tests/_downstream/agent_conftest.py` offers and the upstream file does not request — so it helps only the fork's `_downstream.py` siblings — OR an autouse fork fixture that pre-warms the pure caches `AIAgent.__init__` reads (skills index, MCP catalog, toolset manifest) so each construction is cheap (OPEN RULING O3: it changes nothing a test asserts, but it is an effect on an upstream file's tests without an edit). **Expected saving:** ~0.3 s × 348 ≈ 100 s CPU ≈ 12 s wall. **Risk:** `test_run_agent.py` is UPSTREAM's; an edit there is a footprint.
 - **4E — charsheet (379 s ≈ 6 %, 3 files hold 368 s).** 0.6 s/test with 39–62 `tmp_path` sites per file: generated art per test. Session-scoped generated fixtures (`tmp_path_factory`-backed, read-only, copied into the test's `tmp_path` only where a test writes). **Expected saving:** ~40 % ≈ 150 s CPU ≈ 20 s wall. **Risk:** low (fork-owned files, pure fixtures).
 - **4F — store-heavy (273 s ≈ 5 %).** `test_persona_assignments.py` 0.78 s/test over 132 tests: a `PersonaInstanceStore` per test on disk. Same shape as 4E (a seeded store template copied per test). ~100 s CPU ≈ 12 s wall. **Risk:** low.
+  **Receipt (design sweep D3.11, build-1011-C6, 2026-10-10):** the template is autouse for
+  `tests/agent_runtime` (built per module on first need; opt-out mark `fresh_schema_path`); the
+  bundled runner writes the census to `.pytest_cache/hermes_fresh_dbs.jsonl`. Over 124 named
+  `tests/agent_runtime` files that touch a store (-j 2): fresh builds 304 → 35 (one per module
+  template), seconds inside them 79.9 → 8.4 (≈0.26 s per build on this run, not 0.8–1.0); 38 files
+  built at least one. Top before: `test_serve_rpc_agent_create` 33 builds / 8.0 s,
+  `test_resident_chat_writer` 28 / 7.1 s, `test_persona_spelling_authority` 15 / 7.0 s. Run wall
+  1,280 s → 873 s, but the second run planned from the first's durations (23 bundles → 11 + 7 solo),
+  so only the ~71 s of build seconds is attributable. Five files dropped to zero (their template
+  was built in the process's first test, before the census wrap): none has the schema build as
+  its subject.
 
 Together, Stage 4 is projected at **~1,300 s of CPU ≈ 160 s of wall at 8 workers**, and — more important for Stages 5–6 — it flattens the tail that caps the worker count.
 
