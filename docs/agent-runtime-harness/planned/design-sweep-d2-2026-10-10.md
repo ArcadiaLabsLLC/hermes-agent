@@ -19,7 +19,7 @@ Verdict table (filled as batches land):
 | D2.04 = L5.04 | PLAN | `retry_of` written once on the new record; `retried_as` projected onto the old marker from it; no write-back |
 | D2.05 = L5.09 | PLAN | `runtime.settles.list` / `.rearm` (console tier) + `harness serve settles`; re-arm = `undelivered → pending`, attempts 0, same `settle_id`, `rearm_count` stamped |
 | D2.06 = L4.30 | DROP | the mechanism landed: `persona_chat_turn` overlay carries `running_work` at start (h-turn1 C2) and `running_work_frame` ships at end; the yield docstring is what is stale |
-| D2.07 = L1.25 | PLAN — RETURNED for redesign by build-1011-C2 (§ D2.07) | `worker_app_functions.create_agent` is the one native factory chokepoint: resolve `permission_options_for_chat` there, keyed `profile:<name>` until an instance owns the route |
+| D2.07 = L1.25 | PLAN (redesigned 2026-10-10, fable-design-D2.07b) | the serve resolves per turn in `ConversationService.send` (subject `profile:<name>`, session = route id) and sends the typed MODE to the worker over a fork method `eternia.permission.bind`; the worker binds the block inside the existing per-turn `bind`/`reset` seam; no upstream edit |
 | D2.08 = L2.26 | PROGRAM-EXISTS | `instance-conversations-2026-10-01.md` § Remaining before cutover; next stage is the parity qualification, with D2.07 as its permission arm |
 | D2.09 = L3.07 | PLAN | the fork modules already exist (`tui_gateway/session_execution.py` and five siblings); two MOVE clusters shrink 7 files to one-line call sites, three files are door PRs, not moves |
 | D2.10 = L4.25 | PLAN | four read-tier twins over the existing payload builders; pixels as the `runtime.media.get` block shape, bounded by `withinConsoleBudget`; one MOVE first |
@@ -502,85 +502,192 @@ report; the L4.30 row is deleted on landing.
 
 ## D2.07 = L1.25 — The native conversation engine has no permission mode
 
-**Verdict: PLAN**, as the permission stage of the cutover remainder (D2.08). Size: ~100
-production lines, ~160 test lines, 2 stages.
+**Verdict: PLAN (redesigned 2026-10-10, lane fable-design-D2.07b)**, as the permission arm of
+the cutover remainder (D2.08). Size: ~200 production lines, ~310 test lines, 3 stages. No upstream
+file is edited; the two unknowns the build lane left are answered below.
 
-### What the code says
+### Build lane build-1011-C2 (2026-10-11): RETURNED — the record
 
-- The operator lane resolves "what may this turn do" ONCE in
-  `agent_runtime/tool_permissions.py::permission_options_for_chat(persona, session_id=…)`:
-  the `ChatToolPermissionStore` record keyed `_key(persona_id, session_id)` wins when it has
-  an opinion, else `default_permission_mode()`; the answer's `blocked_tool_names` is
-  `extra_blocked_tools_for_permission_mode(mode)`, which already includes every Launcher app
-  function whose entry is mutating (`launcher_app_functions` entry `read_only is False`, or
-  `requires_confirmation` when the mark is absent). The runner applies it through
-  `AgentRunRequest.blocked_tool_names` → `profile_runner/execute.py::_blocked_tool_names_for_run`.
-- The native engine builds its agent at ONE fork site: `tui_gateway/server.py` calls
-  `agent_runtime/conversations/worker_app_functions.py::create_agent(AIAgent, sid, session,
-  **kwargs)`, which already rewrites `kwargs["enabled_toolsets"]` to add the app-functions
-  toolset when the Launcher link answers `refresh_app_function_tools`. Nothing in that path
-  consults a permission; a native conversation gets every listed app function.
-- The native route carries `ConversationScope(actor, client, profile)` and a route id (the
-  conversation `session_id`); a profile conversation has no persona, an instance conversation
-  (the cutover) has one.
+Neither stage of the first design was built. The code refuted it three ways: the worker never
+holds the route id (`session.create` / `prompt.submit` params are upstream contracts with
+`extra="forbid"`); a factory-time resolve freezes the mode for the agent's life while the operator
+lane resolves per turn; `AIAgent` takes no `blocked_tool_names`. The lane pointed at the per-turn
+`worker_app_functions.bind` / `reset` seam. This section is the redesign it asked for.
+
+### What the code says (the two unknowns, answered)
+
+**1. The eternia-harness plugin loads in the native worker — yes, by the same door as everywhere.**
+`plugins/eternia-harness/plugin.yaml` is bundled, `kind: backend`;
+`hermes_cli/plugins_discovery.py::gate_manifest` returns `load_now` for a bundled backend with no
+`plugins.enabled` entry needed. `agent/agent_init.py::_load_tools` calls `discover_plugins()` on
+EVERY `AIAgent` construction, and the worker constructs its agent through
+`tui_gateway/server.py::_make_agent` → `worker_app_functions.create_agent(AIAgent, …)`. The bundled
+directory is `hermes_cli/plugins.py::get_bundled_plugins_dir` = `<repo>/plugins`, the same tree the
+worker runs from (`conversations/worker.py::start_worker` spawns `sys.executable -m
+agent_runtime.conversations.worker_entry` with `cwd` = the repo root). Both tool-block doors the
+plugin owns receive the agent's session id: `brief_tool_descriptions` (`llm_request` middleware) gets
+`session_id=agent.session_id` from `agent/turn_api_request.py`, and `refuse_tool_call`
+(`pre_tool_call`) gets it from `agent/inline_tool_executors.py::tool_hook_ids`. The construction door
+(`tool_blocks.prune_agent_tools`) and `reprune_turn_agent` are NO-OPs in the worker:
+`current_persona_turn_agent()` is None there, so the persistent native agent keeps its full tool list
+and only the wire and the call are filtered — which is exactly what a mode that changes per turn needs.
+One exposure, shared with the operator lane: a profile `config.yaml` with `plugins.disabled:
+[eternia-harness]` removes both doors. Decision 5 turns that into a refusal.
+
+**2. The worker does NOT reliably see the serve's store root — so the worker never reads the
+permission store.** `agent_runtime/paths.py::store_root` → `resolution.py::resolve_runtime`:
+`HERMES_AGENT_RUNTIME_ROOT` env wins, else `<HERMES_HOME>/config.yaml agent_runtime.store_root`,
+else `<platform default home>/agent-runtime`. The worker's env is `tools/environments/local.py::
+served_profile_child_env(target_home=<profile home>)`: `os.environ.copy()` (so an env pin IS
+inherited) but `HERMES_HOME` is rewritten to the PROFILE home. A serve whose root came from the
+CONFIG layer (the machine root anchor `hermes_cli/harness_parts/serve/session.py::
+_boot_anchor_and_skills` writes it into the platform-default home's config) therefore spawns a worker
+that resolves the profile home's config — unset — and lands on the default root: a different
+`tool_permissions.json`. Only the Launcher's env pin (`root_anchor.py`: "the Launcher pins
+HERMES_AGENT_RUNTIME_ROOT on every serve child") makes the two agree; a hand-started `hermes harness
+serve` does not. Resolution therefore happens in the SERVE, which owns the store, the route and
+`runtime.persona.permission.set`; the worker receives a typed MODE per turn.
+
+**The seams that already exist.** `ConversationService.send` (fork-owned) runs once per turn, holds
+`live.operations`, and already calls `live.app_functions.bind(execution_id, …)` before
+`prompt.submit`. The worker already registers fork methods through the public
+`tui_gateway.server.register_method` (`conversations/worker_skills.py::install`, contracts declared
+into the fork-owned `tui_gateway/contract_catalog_data.py` by `scripts/gen_contract_catalog.py`).
+`prompt_turn.py::_prepare_turn_input` (upstream; the fork hunk is ledger row `tui_gateway/
+prompt_turn.py`, "binds and resets the existing Launcher link in the native turn context") calls
+`worker_app_functions.bind(sid, session)` at the start of EVERY turn and `reset(token)` in the
+finally; it stores whatever `bind` returns. `session_execution.admit` (fork-owned) writes
+`session["native_execution"] = {"id": execution_id, …}` inside the turn claim, before the turn
+thread starts. `tool_blocks.bound_tool_block` binds a block by session id, read by both doors
+through `blocked_tools_for(session_id)`. `permission_options_for_chat(persona, session_id=…)` reads
+only `persona.id`; `ChatToolPermissionStore` keys `persona_id::session_id`.
 
 ### The design decisions
 
-1. **Resolve in `create_agent`, nowhere else.** It is the chokepoint for every native agent
-   build (eager and deferred), it runs inside the worker where the toolset is decided, and it
-   already edits the kwargs. It reads `permission_options_for_chat` and passes
-   `blocked_tool_names` (and the HUD's `permission_mode`) into the factory kwargs the same way
-   the runner does; `read_only` therefore blocks the same app functions on both lanes by the
-   same table.
-2. **The key (the lane's question).** The store key is `(persona_id, session_id)`. For an
-   instance conversation the persona is the instance's persona and `session_id` is the native
-   route id — the SAME record an operator sets with `runtime.persona.permission.set` on that
-   chat. For a profile conversation (no persona) the persona slot is the typed sentinel
-   `profile:<profile name>` and `session_id` the route id; `permission.preview/set` accept
-   that sentinel so a profile conversation can be held at `read_only` too. One store, one
-   resolver, two key spellings, both typed (`conversations/model.py::permission_key(scope,
-   route)`).
-3. **Where the worker learns it.** `ChatToolPermissionStore()` reads one JSON file under the
-   runtime store root; the worker child inherits the root through
-   `tools/environments/local.py::served_profile_child_env`. Stage 1 asserts the child resolves
-   the same path as the serve (a receipt on `session.create`), or the test is red before any
-   permission test can pass.
-4. **Turns-bounded grants** (`consume_turn`) are consumed by the conversation `send`
-   (`ConversationService.send`, after `store.admit`), not by the worker — one consumer per
-   lane, as the operator lane does in its admit phase.
+1. **The serve resolves, per turn, in `ConversationService.send`.** After `store.admit` says
+   `admitted`, before `submit`: `subject = permission_subject(route)` and `options =
+   permission_options_for_subject(subject, session_id=route.id)`. One resolver for both lanes:
+   `permission_options_for_chat(persona, …)` becomes a one-line delegate to the new
+   `permission_options_for_subject(persona.id, …)` in `agent_runtime/tool_permissions.py`. The store
+   key's `session_id` is the ROUTE id (`conversation-…`), the id the Launcher holds and the operator
+   names — stable across worker restarts, unlike the native sid.
+2. **The subject (the key's first half).** `conversations/model.py::permission_subject(route) -> str`
+   is the one spelling: today `f"profile:{route.profile}"` (`PROFILE_SUBJECT_PREFIX = "profile:"`
+   lives in `tool_permissions`); when D2.08 lets an instance own a route, that function returns the
+   instance's persona id and nothing else changes. Owner ruling 2026-10-10: a PROFILE conversation
+   honours `default_permission_mode()` — which is what the resolver already does for a subject with
+   no record or a no-opinion record.
+3. **What crosses to the worker is the MODE, not the list.** The serve calls a new fork worker method
+   `eternia.permission.bind {session_id: native_id, execution_id, permission_mode}` before
+   `prompt.submit`. The worker derives the block itself with
+   `extra_blocked_tools_for_permission_mode(mode)` at bind time, because that table reads the
+   REGISTERED Launcher catalog of the process it runs in (`launcher_app_functions.
+   mutating_app_function_tools` reads `_state.registered`) — the worker's catalog is the live one
+   (refreshed from the Launcher at `create_agent`); the serve's may be empty when no operator chat
+   has run. Same table, both lanes, evaluated where the catalog is.
+4. **The worker binds per turn inside the existing `bind` / `reset` seam.** New fork module
+   `agent_runtime/conversations/worker_permissions.py`: `install()` (contract + `register_method`),
+   a locked `_pending: dict[sid, TurnPermission(execution_id, mode)]` the RPC handler writes, and
+   `bind(sid, session) -> token | None` / `reset(token)`. `worker_app_functions.bind(sid, session)`
+   returns a `TurnScopes(launcher, permission)` composite and `reset` undoes both — the upstream
+   `_prepare_turn_input` hunk is untouched (it only stores and hands back the token). `bind` is a
+   no-op unless `enabled(session)` (a direct TUI session is never touched). For an enabled session it
+   pops the pending record whose `execution_id` equals `session["native_execution"]["id"]` and binds
+   the block through a token pair added to `tool_blocks` (`bind_tool_block(names, session_ids) ->
+   BlockToken`, `reset_tool_block(token)`; `bound_tool_block` is rewritten over them — one write path)
+   with `session_ids=(sid, session["session_key"])`: `session_key` is what `_make_agent` passes as
+   `session_id`, so `agent.session_id` — the id both hooks look up — hits `_by_session` from any
+   thread (the `ContextVar` fallback does not reach tool-pool threads; `agent/tool_executor.py` copies
+   no context, the operator lane has the same shape).
+5. **Fail closed, with a positive runtime check.** No pending record for this execution (or a stale
+   one) binds the `read_only` block and logs `permission_bind_missing` — nothing the runtime failed to
+   read hands out more capability than the operator wrote (the rule `default_permission_mode`
+   already follows). If `hermes_cli.plugins.has_middleware("llm_request")` or `has_hook("pre_tool_call")`
+   is False at bind time for an enabled session, `bind` raises `RuntimeError("tool-block doors are
+   not installed")`: the turn fails visibly rather than running unfiltered. That raise is the gate
+   that proves the plugin is present at runtime, not a source walk.
+6. **`permission.set` mid-conversation takes effect on the next turn** by construction: every `send`
+   re-reads the store; the agent is never rebuilt; the previous turn's token was reset in
+   `_prepare_turn_input`'s finally. **Turns-bounded grants** are consumed ONCE, by the serve, after
+   `submit` returned `streaming` (a turn that was never admitted spends nothing), mirroring
+   `persona_runtime.py`'s single `consume_turn` after the run. The worker never consumes.
+7. **The operator surface accepts the profile subject.** `runtime.persona.permission.set/preview`
+   (`serve_rpc/console_operations.py::_permission` → `hermes_cli/harness_parts/persona/
+   inspect_commands.py`) resolve `persona_id` through `chat_target._persona_by_id`, which refuses an
+   unknown id. A subject starting with `profile:` skips the persona lookup, requires the profile to
+   exist (`hermes_cli.profiles.get_profile_dir`), writes the record under the subject, and previews
+   `{mode, source, blocked_tool_names, turns_remaining, expires_at}` only — a profile conversation has
+   no persona toolset table to diff.
+8. **The conversation `facts` carry the resolved permission** (`ConversationService._facts`, a
+   fork-owned RPC result, not the parity envelope): `permission: {mode, source, turns_remaining,
+   expires_at}` from the same resolver without consuming — what the Console's permission control
+   binds to in the cutover.
 
-### Files and symbols
+### Files and symbols (fork-owned only)
 
-- `agent_runtime/conversations/worker_app_functions.py::create_agent` — resolve + kwargs.
-- `agent_runtime/conversations/model.py::permission_key` — the two spellings.
-- `agent_runtime/conversations/service.py::send` — `consume_turn`.
-- `agent_runtime/serve_rpc/console_operations.py` `runtime.persona.permission.preview/set` —
-  accept the `profile:` sentinel (validation in `tool_permissions`).
-- Launcher: none for stage 1 (the HUD already renders `permission_mode`); the Console's
-  permission control binds to the native route in the cutover.
+- `agent_runtime/tool_permissions.py` — `PROFILE_SUBJECT_PREFIX`, `profile_permission_subject(name)`,
+  `is_profile_subject(subject)`, `permission_options_for_subject(subject, *, session_id, …)`;
+  `permission_options_for_chat` delegates.
+- `agent_runtime/tool_blocks.py` — `BlockToken`, `bind_tool_block`, `reset_tool_block`;
+  `bound_tool_block` over them.
+- `agent_runtime/conversations/model.py` — `permission_subject(route)`.
+- `agent_runtime/conversations/worker_permissions.py` (new) — `METHOD = "eternia.permission.bind"`,
+  `TurnPermission`, `declare_contracts`, `install`, `bind`, `reset`, `_pending`.
+- `agent_runtime/conversations/worker_app_functions.py` — `TurnScopes`; `bind`/`reset` compose.
+- `agent_runtime/conversations/worker_entry.py`, `in_process_peer.py::_install_gateway_methods` —
+  call `worker_permissions.install()` beside the app-functions install.
+- `agent_runtime/conversations/live.py` — `LiveConversation.bind_permission(execution_id, mode)` →
+  `peer.call(METHOD, …)`.
+- `agent_runtime/conversations/service.py::send` — resolve, bind, submit, consume; `_facts` —
+  `permission`.
+- `tui_gateway/contract_catalog_data.py` — regenerated by `scripts/gen_contract_catalog.py`
+  (`tests/tui_gateway/contracts/test_generated.py::test_every_method_has_a_contract` is the gate).
+- `hermes_cli/harness_parts/persona/inspect_commands.py::_cmd_persona_permission_set`,
+  `_cmd_persona_tool_diff` — the profile-subject branch.
+- Launcher: nothing in S1–S3; the Console binds its permission control to
+  `runtime.conversation.facts.permission` and `runtime.persona.permission.set(persona_id=
+  "profile:<name>", session_id=<route>)` — one row for `mission-control-queue.md`, filed by the parent.
+- Upstream: none. `prompt_turn.py`, `methods_prompt.py`, `contracts/prompt_voice.py` are not edited;
+  the existing `bind`/`reset` hunk's ledger row stands as is.
 
-### Stages, tests, killing mutation
+### Stages, tests, killing mutations
 
-| stage | test | killing mutation |
+| stage | test (`scripts/run_tests.sh <file>`) | killing mutation |
 |---|---|---|
-| S1 resolve | `tests/agent_runtime/test_native_conversation_worker.py`: a route held `read_only` builds an agent whose `blocked_tool_names` equals `extra_blocked_tools_for_permission_mode("read_only")`, mutating app functions included; the child's store path equals the serve's | ignore the record in `create_agent` → the blocked list is empty → red |
-| S2 consume | a 2-turn `read_only` grant lapses after two native sends | consume in the worker too → lapses after one → red |
+| S1a worker bind (~90 prod / ~120 test) | new `tests/agent_runtime/test_native_worker_permissions.py`, no process (the `test_native_worker_app_function_lifetime.py` shape): `install()` registers the method; a bind RPC for `(sid, X, "read_only")` then `worker_app_functions.bind(sid, {"source": "eternia_intelligence", "session_key": K, "native_execution": {"id": X}})` makes `blocked_tools_for(K)` equal `extra_blocked_tools_for_permission_mode("read_only")` with a registered mutating app function in it, and the plugin's own `refuse_tool_call(tool_name="terminal", session_id=K)` returns a block; `reset` empties it; a bind for execution Y with `native_execution` X binds the `read_only` block and logs `permission_bind_missing`; `has_middleware` patched False → `RuntimeError`; a session without `source` is untouched | ignore the pending record in `bind` → empty block → red; drop the `session_key` from `session_ids` → `blocked_tools_for(K)` empty → red |
+| S1b serve resolve + carry (~60 prod / ~110 test) | extend `tests/agent_runtime/test_native_conversation.py` over `conversation_support.NativeWorker` (teach the fake `eternia.permission.bind`): a record under `profile:<p>::<route id>` at `read_only` makes `send` call the bind with `read_only` BEFORE `prompt.submit` with the same `execution_id`; no record → `default_permission_mode()`; `permission.set` between two sends changes the second bind's mode; a 2-turn grant lapses after two sends and a refused (`busy`) send consumes nothing; `facts()["permission"]["mode"]` reads the store without consuming | resolve from `default_permission_mode()` only → the first case red; consume before `submit` → the refused-send case red; call `submit` before `bind` → order assertion red |
+| S2 operator subject (~40 prod / ~60 test) | `tests/agent_runtime/test_native_console_operations.py`: `runtime.persona.permission.set(persona_id="profile:base", session_id=<route>, mode="read_only", reason=…)` writes the record a following `send` binds; `profile:nope` → refused; preview returns the mode and blocked names and no toolset diff | drop the `is_profile_subject` branch → "persona not found" → red |
+| S3 contract catalog + docs (~10 prod / ~20 test) | `scripts/gen_contract_catalog.py` run; `test_every_method_has_a_contract` green; `docs/agent-runtime-harness/05-chat-turn-lane.md` (permission modes: both lanes, one resolver) and `03-transport-and-wire.md` § Native conversation methods (the `eternia.permission.bind` worker method) gain the paragraph | register the method without the contract → `test_every_method_has_a_contract` red |
 
-### Build lane build-1011-C2 (2026-10-11): RETURNED — design
+Landing: one MOVE is not needed (no file moves); one CHANGE commit per stage or S1a+S1b together;
+landing gate `scripts/run_tests_bundled.sh tests` once for the batch (`Running the tests.md`).
 
-Neither stage was built; the code refutes three premises above, and a redesign is owed before S1:
+### Risks
 
-1. **The worker never holds the route id.** `session.create` / `prompt.submit` params are upstream contracts with `extra="forbid"` (`tui_gateway/contracts/sessions.py::SessionCreateParams`), and `create_agent` runs from `_schedule_agent_build` queued inside `session.create`, which can run before `ConversationService._attach` writes the route's `native_id` (`store.replace_unused`). The key `(profile:<name>, route id)` has no carrier at the factory.
-2. **A factory-time resolve freezes the mode for the agent's life.** The native agent persists across turns, so a `permission.set` mid-conversation would not apply until a rebuild; the operator lane resolves per turn. The fork already owns a per-turn seam in the worker: `worker_app_functions.bind` / `reset`, called by `tui_gateway/prompt_turn.py::_prepare_turn_input` around every turn.
-3. **`AIAgent` takes no `blocked_tool_names`.** The operator lane prunes at construction (`profile_runner.runner._default_agent_factory` → `prune_agent_tools`) AND binds `bound_tool_block` per run for the wire and call doors (`agent_runtime/tool_blocks.py`); whether the eternia-harness plugin that holds those doors loads in the native worker, and whether the worker resolves the serve's store root (decision 3), are unverified.
-
-Redesign question for the design lane: resolve per turn in `worker_app_functions.bind` (route found by the session's stored key, settled by then) and prune at construction from the runtime default only — or add a fork worker method / an additive contract field to carry the route id. The owner ruling (a PROFILE conversation honours `default_permission_mode()`) stands for either.
+- **Compression mid-turn** rotates the agent onto a child session id; `_by_session` misses and the
+  `ContextVar` fallback does not reach tool-pool threads — the same gap the operator lane carries
+  (`tool_blocks` docstring). Not widened here; one row for `runtime-queue.md` § Fork-owned if it is
+  not already filed.
+- **Prompt guidance names a blocked tool.** The native agent's `tools` stay unpruned (decision 4);
+  upstream's tool-conditional guidance may mention `terminal` while the wire has dropped it. The
+  model gets the typed refusal on a call. Accepted for S1; the cutover's parity qualification
+  re-reads it.
+- **Catalog freshness.** `mutating_app_function_tools()` in the worker reflects the catalog refreshed
+  at `create_agent`; a Launcher that registers a new mutating function later is blocked once the
+  catalog refreshes — identical to the operator lane today.
+- **Version skew is impossible by construction** (the serve spawns the worker from its own tree), so
+  the fail-closed path in decision 5 fires only on a bug; its log receipt is what makes that bug
+  visible.
+- **In-process worker (phone).** `_install_gateway_methods` installs the same method; the serve and
+  the worker are one process there, and the bind travels the same `dispatch` door — covered by the
+  S1b test when run with `start_in_process_worker` (an extra parametrisation, ~15 test lines).
 
 ### Owner question
 
-- Should a PROFILE conversation (no persona) honour `default_permission_mode()` at all, or
-  stay unbounded as today until an instance owns the route? Recommend: honour it (one
-  default, both engines).
+- When the per-turn bind is missing or stale (a bug, never a configuration), the plan fails closed to
+  the `read_only` block. The alternative is the operator-lane spelling (`bounded`, which blocks
+  nothing at this door). Recommend `read_only`: the narrowest tier is the only one that cannot be
+  wider than what the operator wrote.
 
 ---
 
