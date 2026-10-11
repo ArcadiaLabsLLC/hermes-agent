@@ -541,11 +541,3 @@ def test_prologue_forwards_the_submit_title_preview_to_the_titler():
               "display_metadata": {"title_preview": "Pasted 5000 chars"}}],
         )
     assert titler.call_args.kwargs["title_preview"] == "Pasted 5000 chars"
-
-
-def test_reused_durable_user_history_sets_persist_boundary_after_history():
-    agent = _FakeAgent()
-    history = [{"role": "user", "content": "hello"}]
-    ctx = _build(agent, conversation_history=history, reuse_current_user_message=True)
-    assert ctx.messages == history
-    assert agent._persist_user_message_idx == len(history)

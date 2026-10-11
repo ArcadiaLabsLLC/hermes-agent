@@ -1,7 +1,7 @@
 {
-  "measured_at": "2026-10-08",
+  "measured_at": "2026-10-10",
   "base": "818c13be1d",
-  "files": 191,
+  "files": 190,
   "deleted_lines": 937,
   "heavy": 4,
   "reasons": [
@@ -588,6 +588,12 @@
       "files": "190 -> 191: +hermes_cli/backup.py (3/0)",
       "deleted_lines": "937 -> 937: additive only; heavy unchanged at 4",
       "reason": "a sole unreadable agent-runtime/serve_socket.lock (the live serve byte-locks it) marked a full backup holding every profile database incomplete (2026-09-29); backup.py has no exclusion hook. Ledger row; upstream PR #128853 retires it"
+    },
+    {
+      "change": "lane build-1011-C5 (D3.03 stage 1, MOVE): the fork's reused-durable-history persist-boundary test moved out of tests/agent/test_turn_context.py into fork-owned tests/agent/test_turn_context_downstream.py; the upstream file restored to v0.21.6 bytes",
+      "files": "191 -> 190: -tests/agent/test_turn_context.py (8/0)",
+      "deleted_lines": "937 -> 937: the moved hunk was additive; heavy unchanged at 4",
+      "reason": "a fork test never goes inside an upstream test file (Running the tests.md); the hunk landed unledgered with the 2026-10-07 carried-PR sync (7625cb7dad) and is not PR #124210's test (that PR adds different tests)"
     }
   ]
 }
