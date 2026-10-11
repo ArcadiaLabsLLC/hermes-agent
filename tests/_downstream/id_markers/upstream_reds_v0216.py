@@ -240,6 +240,46 @@ _NODES = (
         'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_prompt_after_a_foreign_compaction_sends_the_compacted_transcript',
 )
 
+#: Red on the fork in the D3.13 re-qualification run (lane build-1011-C6, 2026-10-10)
+#: and then on the pure tag (a detached v0.21.6 worktree, the canonical venv, the 24 ids by
+#: name: 24 failed). The 24 share one cause on CPython 3.14.5:
+#: ``Popen._readerthread() missing 2 required positional arguments``.
+_REASON_C6 = (
+    "red on pure upstream tag v0.21.6 818c13be1d on Windows and on the fork "
+    "(D3.13 re-qualification, CPython 3.14.5, 2026-10-10)"
+)
+
+_NODES_C6 = (
+        'tests/tui_gateway/test_tui_gateway_server.py::test_agent_build_failure_surfaces_error_and_drops_turn',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_can_truncate_before_user_ordinal',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_empty_truncation_allowed_with_confirm',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_expands_context_refs',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_history_version_match_persists_normally',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_history_version_mismatch_surfaces_warning',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_merges_on_model_switch_marker',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_passes_persist_user_message_to_agent',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_preserves_empty_response_without_error',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_releases_old_history_before_heap_trim',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_sanitizes_bracketed_paste_before_agent',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_sets_approval_session_key',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_snapshots_history_after_pending_model_switch',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_surfaces_backend_error_as_visible_text',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_truncate_ordinal_skips_display_kind_rows',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_truncate_translates_display_prefix_ordinal',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_prompt_submit_wires_live_title_rename_callback',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_run_prompt_submit_never_ticks_after_message_complete',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_run_prompt_submit_prefers_origin_ui_session_id',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_session_create_drops_pending_title_on_valueerror',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_session_create_uses_bound_profile_backend_not_launch',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[local]',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[ssh]',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_workspace_move_accepts_remote_dir_for_bound_ssh_profile',
+)
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
-    {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
+    {
+        **{node: (_up_red(_REASON),) for node in _NODES},
+        **{node: (_up_red(_REASON_C6),) for node in _NODES_C6},
+    }
+    if _WIN else {}
 )
