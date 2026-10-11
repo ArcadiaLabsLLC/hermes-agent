@@ -19,15 +19,21 @@ import ast
 from pathlib import Path
 
 import hermes_cli.harness as harness_module
+from tests._downstream.call_graph import CallGraph, module_name
 
 _HARNESS_PY = Path(harness_module.__file__)
 _PARTS_DIR = _HARNESS_PY.parent / "harness_parts"
+_REPO_ROOT = _HARNESS_PY.parent.parent
 
-# Calls whose presence marks a handler as a JSON-envelope emitter.
-# ``emit_operation_result`` (agent_runtime/operation_result.py) prints
-# ``emit_json`` under ``--json`` or hands the same payload to a direct-operation
-# sink; the permission verbs moved onto it so their RPC twins share one envelope.
-_EMIT_CALLS = {"emit_json", "_print_stage42", "emit_operation_result"}
+# The JSON root (D3.17): a handler EMITS when its body reaches one of these
+# through the resolved call graph (tests/_downstream/call_graph.py), bounded to
+# the two packages below. ``_print_stage42`` and ``emit_operation_result`` emit
+# because their bodies reach ``emit_json``, not because a name list says so.
+_EMIT_ROOTS = {
+    ("agent_runtime.cli_format", "emit_json"),
+    ("agent_runtime.cli_format", "emit_json_line"),
+}
+_GRAPH_PACKAGES = ("hermes_cli", "agent_runtime")
 # The one attach chokepoint (agent_runtime/root_observability.py).
 _ATTACH_CALL = "attach_root_observability"
 
@@ -138,6 +144,55 @@ LEDGER: dict[str, str] = {
         "_cmd_work_list", "_cmd_work_peek", "_cmd_work_cancel",
     )
 }
+
+# The handlers the import-graph scan (D3.17, 2026-10-10) found emitting that the
+# hand-kept name set never saw, each family read and classified. None attaches
+# today; each reason says why the exemption is sound or which row owns the fix.
+_CHARSHEET_REASON = (
+    "charsheet verb (emits through _characters_emit / _characters_auto_write): the "
+    "payload key set is the charsheet contract pinned by "
+    "tests/fixtures/charsheet_payload_contract.json and mirrored by the launcher, so "
+    "a resolution key is a contract change owed with the launcher; until it lands an "
+    "empty library is indistinguishable from a wrong root - runtime-queue row "
+    "'charsheet and workspace-slot JSON verbs state no root' (D3.17)"
+)
+_WORKSPACE_SLOTS_REASON = (
+    "repo-slot verb (emits through _run_workspace_slot_verb -> _print_stage42): the "
+    "envelope names the workspace_id it read, but a slot document read from a wrong "
+    "root is an empty document, not a refusal - runtime-queue row 'charsheet and "
+    "workspace-slot JSON verbs state no root' (D3.17)"
+)
+_PERSONA_SLOTS_REASON = (
+    "persona slot verb (emits through _run_slot_verb -> _print_stage42): the instance "
+    "is read first (persona_slots._slot_instance), so a wrong root refuses the id "
+    "rather than answering an empty slot list"
+)
+LEDGER.update({name: _CHARSHEET_REASON for name in (
+    "_cmd_characters_add_state", "_cmd_characters_approve_direction", "_cmd_characters_auto",
+    "_cmd_characters_backfill_home", "_cmd_characters_base", "_cmd_characters_compose",
+    "_cmd_characters_list", "_cmd_characters_migrate_home", "_cmd_characters_payload_contract",
+    "_cmd_characters_reopen", "_cmd_characters_reroll_direction", "_cmd_characters_reroll_row",
+    "_cmd_characters_rows", "_cmd_characters_sprite", "_cmd_characters_start",
+    "_cmd_characters_status", "_cmd_characters_thumb", "_cmd_characters_turnaround",
+)})
+LEDGER.update({name: _WORKSPACE_SLOTS_REASON for name in (
+    "_cmd_workspace_slots_bind", "_cmd_workspace_slots_clone", "_cmd_workspace_slots_declare",
+    "_cmd_workspace_slots_env_set", "_cmd_workspace_slots_report", "_cmd_workspace_slots_show",
+)})
+LEDGER.update({name: _PERSONA_SLOTS_REASON for name in ("_cmd_persona_slots_set", "_cmd_persona_slots_show")})
+LEDGER.update(
+    {
+        # Emits through _mission_chat_emit. A chat SEND, not a read: the ack
+        # names the session_id and persona_instance_id the turn ran under, so a
+        # wrong root is a turn in a session the operator can name, never an
+        # empty success. Its steer / queue-skill / turn-resolve siblings are above.
+        "_cmd_mission_chat_message": "chat send: the ack names the session the turn ran in",
+        # Emits through chat_target._close_free_floating_assignments, the body it
+        # shares with _cmd_persona_instance_close (above): nothing to close is a
+        # refusal (ok: false, exit 2), never an empty success.
+        "_cmd_persona_instance_archive": "an empty answer is a refusal (ok: false), not ok: true",
+    }
+)
 LEDGER.update(
     {
         # The snapshot frame carries the builder's OWN block —
@@ -171,33 +226,37 @@ def _call_name(node: ast.Call) -> str | None:
 def _handlers() -> dict[str, dict]:
     """Map handler name → {emits, attaches, chat_scope} for every ``_cmd_*``.
 
-    A handler that hands its payload to a local ``_emit_*`` helper emits what
-    that helper emits. That indirection is not incidental: the R-C5 lowering
-    (``13c1d67178``) gave the open-chat and mission-chat verbs a
-    ``_emit_<verb>_payload`` seam so an in-process serve caller can take the row
-    without ``redirect_stdout`` rebinding the whole process's stdout, and the
-    usage verb has had ``_emit_usage_json`` since it was written. A scan that
-    only saw DIRECT ``emit_json`` calls read that refactor as "this verb stopped
-    emitting JSON" and asked for the ledger entry to be deleted — which would
-    have retired the exemption on a verb that emits as much as it ever did.
+    ``emits`` is a REACHABILITY answer (D3.17): the handler's body reaches
+    ``agent_runtime.cli_format.emit_json`` / ``emit_json_line`` through the
+    calls the AST and each file's imports resolve, to a fixpoint over
+    ``hermes_cli`` and ``agent_runtime`` (``tests/_downstream/call_graph.py``).
+    A seam of any name — ``_print_stage42``, ``emit_operation_result``,
+    ``_characters_emit``, ``_mission_chat_emit`` — emits because its body
+    reaches the root. The hand-kept name set plus an ``_emit_*`` follow saw 123
+    emitters; the graph sees 151, and the 28 it added are classified in the
+    ledger above (each family read, none bulk-added).
 
-    The follow is one named seam, not a general call-graph walk, and the
-    difference is measured: following ``_emit_*`` adds three handlers, while
-    following EVERY local callee adds thirty — twenty of which are neither
-    classified nor attaching. Those twenty are a real hole in this gate and a
-    workstream of their own; they are not silently absorbed here.
+    ``attaches`` / ``chat_scope`` keep the direct-call rules (``_ATTACH_CALL``,
+    :data:`ATTACHING_DELEGATES`, held to a runtime proof below) and follow only
+    the ``_emit_<verb>`` seams the R-C5 lowering (``13c1d67178``) introduced.
+    Dynamic dispatch — a callable held in a table — is invisible to the graph,
+    as it was to the name set; ``ATTACHING_DELEGATES`` is the door for it.
     """
 
     direct: dict[str, dict] = {}
     calls: dict[str, set[str]] = {}
+    starts: dict[tuple[str, str], str] = {}
     for path in _scan_files():
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        module = module_name(_REPO_ROOT, path)
+        starts.update({(module, node.name): node.name for node in tree.body
+                       if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("_cmd_")})
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             if not (node.name.startswith("_cmd_") or node.name.startswith("_emit_")):
                 continue
-            emits = attaches = chat_scope = False
+            attaches = chat_scope = False
             called: set[str] = set()
             for sub in ast.walk(node):
                 if not isinstance(sub, ast.Call):
@@ -207,8 +266,6 @@ def _handlers() -> dict[str, dict]:
                     continue
                 if name.startswith("_emit_"):
                     called.add(name)
-                if name in _EMIT_CALLS:
-                    emits = True
                 if name in ATTACHING_DELEGATES:
                     attaches = True
                     chat_scope = chat_scope or ATTACHING_DELEGATES[name]
@@ -221,15 +278,11 @@ def _handlers() -> dict[str, dict]:
                             and keyword.value.value is True
                         ):
                             chat_scope = True
-            assert node.name not in direct or direct[node.name]["emits"] == emits, (
+            assert node.name not in direct or direct[node.name]["attaches"] == attaches, (
                 f"duplicate handler name {node.name!r} with diverging shape — "
                 "the name-keyed ledger below can no longer address it"
             )
-            direct[node.name] = {
-                "emits": emits,
-                "attaches": attaches,
-                "chat_scope": chat_scope,
-            }
+            direct[node.name] = {"attaches": attaches, "chat_scope": chat_scope}
             calls[node.name] = called
 
     # Fixpoint rather than one hop: an ``_emit_*`` seam is free to delegate to
@@ -241,13 +294,16 @@ def _handlers() -> dict[str, dict]:
             for target in called:
                 if target == name or target not in direct:
                     continue
-                for key in ("emits", "attaches", "chat_scope"):
+                for key in ("attaches", "chat_scope"):
                     if direct[target][key] and not direct[name][key]:
                         direct[name][key] = True
                         changed = True
 
+    emitting = {starts[s] for s in CallGraph(_REPO_ROOT, _GRAPH_PACKAGES).reaching(_EMIT_ROOTS, starts)}
     return {
-        name: info for name, info in direct.items() if name.startswith("_cmd_")
+        name: {**info, "emits": name in emitting}
+        for name, info in direct.items()
+        if name.startswith("_cmd_")
     }
 
 
@@ -294,6 +350,24 @@ def test_the_scan_sees_the_known_adopters():
             f"{name!r} should be detected as attaching the resolution block — "
             "either it regressed or the scan's attach predicate broke"
         )
+
+
+def test_the_scan_sees_the_known_emitters():
+    """Positive control for the graph half: one handler per route to the JSON
+    root — ``_print_stage42``, ``emit_operation_result`` (its only emitter), a
+    named seam (``_characters_emit``), a shared helper body
+    (``_close_free_floating_assignments``) and the stream line
+    (``emit_json_line``). If resolution breaks, these go quiet first."""
+
+    handlers = _handlers()
+    for name in (
+        "_cmd_board_card_add",
+        "_cmd_persona_permission_set",
+        "_cmd_characters_list",
+        "_cmd_persona_instance_archive",
+        "_cmd_characters_auto",
+    ):
+        assert handlers.get(name, {}).get("emits"), f"{name!r} should be detected as emitting JSON"
 
 
 def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
