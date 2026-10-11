@@ -7,7 +7,7 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
-- [ ] **Record the history revision/recovery killing-mutation red excerpts in a new commit body as the gate rule requires.** PR #7's `b920ba2b1b` has an empty body; the qualification note names local logs but carries no failure excerpt. Existing tests/claims are not the prescribed evidence, and this is not a claim the reds were fabricated. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H3 · UNCLAIMED
+- [ ] **Record the history revision/recovery killing-mutation red excerpts in a new commit body as the gate rule requires.** PR #7's `b920ba2b1b` has an empty body; the qualification note names local logs but carries no failure excerpt. Existing tests/claims are not the prescribed evidence, and this is not a claim the reds were fabricated. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H3 · **TAKEN 2026-10-11 Codex (console-history-repair)**
 
 ## Filed on arrival — 2026-10-09 console history qualification
 
