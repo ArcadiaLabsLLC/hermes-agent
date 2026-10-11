@@ -215,6 +215,13 @@ product neutrality.** Every proposed contribution must satisfy all of these:
   maintainers, with evidence. "Our fork needs a hook" or "other clients could use
   it" alone does not qualify. Explain why the benefit warrants the added API and
   long-term maintenance cost.
+- Before implementation or a submission pitch, search upstream issues,
+  discussions, and open/recently merged PRs for the need and overlapping work.
+  Record the date, links, status and any explicit maintainer request or response.
+  Distinguish a user report from maintainer demand; neither an open issue nor an
+  unreviewed PR establishes endorsement. A maintainer request is strong evidence,
+  not a waiver of the remaining criteria. No matching issue is not a veto on a
+  demonstrated native defect or valuable use case; record that evidence instead.
 - Check current upstream code and active contributions; show why an existing
   primitive cannot already deliver that benefit. Reuse first, and avoid a
   competing owner or implementation.
@@ -244,7 +251,7 @@ necessary, but it is not the upstream value argument.
 | Checkpoint inventory and diffs | `CheckpointManager.list_checkpoints`, `list_all_checkpoints`, `diff`, `session_diff`, and its native Git store | Operator RPC adapters and public facts for reviewed restore/attribution | **Reuse.** Adapter authorization and DTOs only; no second snapshot repository, Git index owner, or diff engine. | Existing native capability, now available through another client boundary. |
 | Reviewed selected-file restore and recovery | `CheckpointManager.restore`, ownership ledger, store lock and pruning owners | Review revision, selected paths, verified backup, per-file receipt and finish/rollback | **Extend + consolidate H5 through the native writer.** Existing restore and new apply/recovery must share native write mechanics. Checkout/deletion currently live inline in `_restore`; expose a narrow native helper where needed, preserving batching/pathspec, safeguards and return behavior. Merging only the two new paths beside the existing writer is insufficient. Keep their review/receipt coordination separate. | Reviewed restore and interrupted-operation recovery are useful native API candidates when they reuse the native writer. |
 | Typed checkpoint contention and bounded lock wait | `checkpoint_pruning.store_lock` and `PruneError` | `CheckpointStoreBusy(PruneError)` and optional `wait_seconds`, defaulting to zero | **Name and retain as a small native extension.** Preserve the existing lock owner, default fail-fast behavior and exception compatibility. Prove finite waiting, release after error, and a typed no-write refusal; repair the Undo caller's H1 misclassification. | One of the clearest small generic upstream candidates: callers can distinguish contention from a write failure without parsing text. |
-| Restore target/backup retention pins | Native checkpoint Git store, refs and pruning/GC owner | `pin_restore_checkpoints` / `release_restore_checkpoints` retain both trees under operation refs | **Name and qualify as part of H5.** Create verified pins before writes, keep them throughout partial/restart recovery, and release them after a terminal outcome. Prove pruning/GC survival and cleanup after pin/receipt creation failures; no separate backup repository. | Generic interrupted-restore safety. A backup is useful only while retention cannot remove the objects needed for rollback. |
+| Restore target/backup retention pins | Native checkpoint Git store, refs and pruning/GC owner | `pin_restore_checkpoints` / `release_restore_checkpoints` retain both trees under operation refs | **Keep and qualify as part of H5's reviewed/resumable restore.** Create verified pins before writes, keep them throughout partial/restart recovery, and release them after a terminal outcome. Prove pruning/GC survival and cleanup after pin/receipt creation failures; no separate backup repository. | **Dependent, otherwise HELD.** Current native synchronous restore holds the store lock through checkout and defers its own pruning. Pins have demonstrated purpose across released locks/restarts in reviewed/resumable restore; submit with that qualified native capability, not as a standalone cleanup feature. |
 | Deleted files and first checkpoint timing | Native write ledger, `_safe_restore_plan`, `ensure_checkpoint` | Deletion evidence and observer notifications; PR also alters deduplication timing | **Repair compatibility H2.** Preserve legacy safe restore and per-turn baseline semantics. Current file state and ownership evidence must agree across native restore, attribution, preview and Undo. Neither remove deletion display nor retain the unsafe one-line hash-only repair. | Compatibility correction; protect existing users before proposing an extension. |
 | Changes card / files belonging to a turn | Native checkpoints and proven write facts already exist; no equivalent operator-turn file attribution index was found on inspected main | `TurnCheckpointRecorder` stores turn/workspace attribution and bounded diff evidence under native metadata; `operator_turn_changes` projects it | **Narrow extension.** Observe the existing checkpoint owner. Keep first operator-turn baseline, reusable-agent rebinding, and inherited branch evidence. Never infer ownership from timestamps or snapshot every file again. | A small optional native checkpoint observer can serve other clients. Operator-turn policy and persona mapping remain fork-owned. |
 | Combined chat/files Undo | Existing native chat and file writers; their stores do not share an atomic transaction | `operator_undo` durable coordinator, plan, file outcome and reviewed recovery | **Justified fork coordination; simplify H1/H4.** One typed state transition owner; distinguish no-write contention from partial writes. Keep server prepared plans authoritative. Do not introduce a generic workflow engine or a client mirror of that plan. | Recoverable combined Undo is useful to other clients of this harness; the persona-bound coordinator is not a drop-in upstream contribution. |
@@ -354,10 +361,43 @@ extension points, broad boolean mode matrices or repeated nested dispatch.
 Necessary safety checks remain explicit. Tests should be comprehensive for the
 changed contract, not an assertion count or a large rewrite of unrelated tests.
 
-Typed busy/wait and retention pins are separate, independently reviewable native
-candidates. Each needs its own rationale, compatibility/lifecycle proof, and
-existing-work check before submission. Do not bundle them into the extraction
-just because they share a file family. An upstream PR description must identify
-the native problem, smallest change, before/after behavior, validation and limits.
+Typed busy/wait remains an independently evaluated candidate for contention among
+native checkpoint clients. Retention pins do not have a demonstrated standalone
+use in the current synchronous restore: that operation holds the store lock and
+defers its own pruning until checkout completes. Their demonstrated use belongs
+to reviewed/resumable restore across lock releases and process restarts. Keep
+them in that coherent submission if it qualifies for native use, or keep them
+HELD; a separate reviewable commit inside that submission is still appropriate.
+Do not remove pins needed by the staged recoverable workflow. Neither pins nor
+busy/wait belongs in the behavior-preserving writer extraction. An upstream PR
+description must identify the native problem, demand/overlap evidence, smallest
+change, before/after behavior, validation and limits.
 This section is the agreed preparation plan; no native code was extracted,
 upstream branch pushed or upstream PR opened by this documentation change.
+
+### Retention and upstream-demand check — 2026-10-11
+
+Fresh upstream source inspected at
+`97a9ae8ee55d31bebce49f1fb6b5ef775323976a`:
+[`CheckpointManager.restore` / `_restore`](https://github.com/NousResearch/hermes-agent/blob/97a9ae8ee55d31bebce49f1fb6b5ef775323976a/tools/checkpoint_manager.py)
+holds `store_lock` around the full restore, takes the safety snapshot with
+`prune=False`, and prunes after checkout.
+[`checkpoint_maintenance`](https://github.com/NousResearch/hermes-agent/blob/97a9ae8ee55d31bebce49f1fb6b5ef775323976a/tools/checkpoint_maintenance.py)
+uses the same store lock for pruning and clearing. This supports the synchronous
+lifetime conclusion above; it does not protect durable recovery after that lock
+has been released or its process has died.
+
+Initial demand/overlap search: open upstream issues for `checkpoint restore` and
+`checkpoint lock`, open PRs for `checkpoint restore`, and discussions for
+`checkpoint`. This is a scoped check, not an exhaustive survey or submission
+qualification; repeat it, including recently merged work, before implementation.
+
+| Evidence inspected | Status at check | Implication for this plan |
+| --- | --- | --- |
+| [#99869: partial file mutations on termination](https://github.com/NousResearch/hermes-agent/issues/99869) | Open user report; no comments | Related native recovery demand, not a request for this exact pin API or established maintainer endorsement. |
+| [#123284: refresh write ledger after restore](https://github.com/NousResearch/hermes-agent/pull/123284) | Open PR; no reviews | Overlaps the native restore/ledger owner. Inspect its resolution and reuse or coordinate the accepted behavior before preparing the extraction. |
+| [#95610: defer safe-restore deletions until checkout succeeds](https://github.com/NousResearch/hermes-agent/pull/95610) | Open PR; no reviews | Native safety work in the write path. Recheck its status; do not silently mix this behavior change into the behavior-preserving extraction. |
+| Discussion search for `checkpoint` | No matching results | Limited search evidence only; not proof that upstream has no related discussion or demand. |
+
+No maintainer request for the extraction, busy/wait or retention-pin API was
+established by this check. No upstream contact or submission was made.
