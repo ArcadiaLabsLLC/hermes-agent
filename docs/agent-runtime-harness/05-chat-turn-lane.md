@@ -198,8 +198,21 @@ that turn's `running` dispatches through `running_work.cancel_work` and answers
 operator started has no parent and is never reached. A dispatch cancels to the typed
 `cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
 identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
-replied when the kill lands → the reply is kept; supervised by another process →
-`not_owned_here`, a refusal rather than a pretend kill.
+replied when the kill lands → the reply is kept.
+
+**A cancel is a request to the supervisor** (D1.07, owner rulings 2026-10-10). A process that
+does not supervise a dispatch never kills by pid. On the same machine it writes the row's
+durable `cancel_requested` (`dispatch_store.request_dispatch_cancel`): a row whose child never
+started is settled `cancelled` at once; a running one answers `cancel_requested`, and the
+supervising serve's cancel watch (`tools/agent_chat_dispatch/cancel_watch.py`, one thread per
+process while anything is supervised, a 2 s poll) turns the mark into its own identity-guarded
+cancel. The supervisor also reads the mark before the spawn and after stamping the owner, so a
+cancel racing a spawn is caught by one side. A dispatch whose turn runs on a PAIRED install is
+asked of that install with `peer.agent_chat.cancel` ([03](03-transport-and-wire.md)) from
+whichever process holds the Stop, and answers its typed outcome (`stopping`,
+`already_finished`, `not_running`, `peer_unreachable`, `peer_refused`); a turn stopped there
+keeps the partial output it wrote. `not_owned_here` names only the case a process cannot route
+at all: the dispatch lane is not resident in it.
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's

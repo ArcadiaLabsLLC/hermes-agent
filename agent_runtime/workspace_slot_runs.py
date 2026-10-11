@@ -23,6 +23,7 @@ from typing import Any
 from hermes_constants import get_default_hermes_root
 from utils import atomic_json_write
 
+from .json_document import read_versioned_document
 from .workspace_slots import stamp_epoch
 
 __layer__ = "stores"
@@ -49,13 +50,7 @@ def runs_path() -> Path:
 
 
 def _read_runs() -> dict[str, Any]:
-    try:
-        payload = json.loads(runs_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"schema_version": RUNS_SCHEMA_VERSION, "runs": {}}
-    if not isinstance(payload, dict) or not isinstance(payload.get("runs"), dict):
-        return {"schema_version": RUNS_SCHEMA_VERSION, "runs": {}}
-    return payload
+    return read_versioned_document(runs_path(), schema_version=RUNS_SCHEMA_VERSION, collection="runs")
 
 
 def _write(payload: dict[str, Any]) -> None:

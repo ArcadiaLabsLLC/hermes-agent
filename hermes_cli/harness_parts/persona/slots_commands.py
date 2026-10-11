@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from hermes_cli.flag_binding import list_flag_or_empty
-from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_harness_error
+from hermes_cli.harness_parts.verb_runner import run_refusing_verb
 
 __layer__ = "lanes"
 __all__ = ["_cmd_persona_slots_set", "_cmd_persona_slots_show"]
@@ -18,12 +18,7 @@ __all__ = ["_cmd_persona_slots_set", "_cmd_persona_slots_show"]
 def _run_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.persona_slots import SlotAssignmentRefused
 
-    try:
-        payload = action()
-    except SlotAssignmentRefused as exc:
-        return emit_harness_error(exc, args=args, code="invalid_payload", message=f"{exc.reason}: {exc.detail}")
-    _print_stage42(_object_envelope(kind, payload), args=args, default_output="json")
-    return 0
+    return run_refusing_verb(args, kind, action, refusals=(SlotAssignmentRefused,))
 
 
 def _cmd_persona_slots_show(args) -> int:

@@ -427,9 +427,10 @@ the peer field, a peer credential on the device field, and each code in the
 other ceremony's verb.
 
 **A peer holds an ALLOWLIST, not a tier** (`call_authorization.PEER_METHOD_ALLOWLIST`
-— `{peer.ping, peer.agent_chat.execute}` since gateway Stage 7, six at HEAD
+— `{peer.ping, peer.agent_chat.execute}` since gateway Stage 7, seven at HEAD
 with `peer.media.get` (P4), `peer.roster.list` / `peer.thread.read` (S2b,
-read-only by R-IP9) and `peer.announce` (S2c); the set and each member's
+read-only by R-IP9), `peer.announce` (S2c) and `peer.agent_chat.cancel` (D1.07,
+the execute's Stop); the set and each member's
 reason are in [09](09-multi-device-runtime.md)), and the arm
 runs BEFORE the read-tier arm — which is open to
 every caller, so a peer evaluated after it would inherit the whole read surface.
@@ -762,6 +763,7 @@ the only registration site, so this list is
 | `runtime.media.get` | `_runtime_media_get` | one artifact's bytes, by content handle |
 | `peer.ping` | `_peer_ping` | is the install⇄install edge alive |
 | `peer.agent_chat.execute` | `_peer_agent_chat_execute` | run one chat turn for a paired install |
+| `peer.agent_chat.cancel` | `_peer_agent_chat_cancel` | stop the turn a paired install's execute started |
 
 **Row count corrected 2026-08-27 (gateway Stage 6).** This table said TEN and
 listed ten while the runtime had twelve: Stage 3's `runtime.chat.*` pair landed
@@ -770,6 +772,23 @@ that correction, made while adding the thirteenth rather than filed for later.
 **Fourteen since gateway Stage 7** added `peer.agent_chat.execute` (§1.3), and
 **SIXTEEN since gateway Stage 8** added the two `runtime.media.*` verbs
 (§2.1).
+
+**`peer.agent_chat.cancel` (D1.07).** Cancel is owned by the process that
+supervises the work; for a cross-install dispatch that is the install running
+the turn. The sender (`tools/agent_chat_dispatch/remote.request_remote_cancel`,
+reached from `running_work.cancel_work("dispatch:…")` in any process) writes the
+row's durable `cancel_requested`, dials ONCE at the dial timeout and sends
+`{dispatch_id, reason}`. The owner (`agent_runtime/peer_chat_cancel.cancel_peer_turn`)
+re-derives the execute's `turn_request_id` (`chat_turn.dispatch_turn_request_id`,
+`agent-dispatch-<id>` — a wire literal between builds), refuses to see a receipt
+whose replay scope names another install, and answers `stopping` (the receipt's
+`stop_requested` made durable for a queued turn, then the serve's
+`interrupt_operator` seam), `already_finished` (with `exit_code`) or
+`not_running`. A stopped turn keeps the partial output it wrote (owner ruling
+2026-10-10). The sender's own supervisor reads the mark before every attempt and
+after an accept, so it never re-sends the execute after a Stop, and forwards the
+cancel on its own edge when the Stop raced the accept. An install that cannot be
+reached answers `peer_unreachable`; one without the verb, `peer_refused`.
 
 `peer.ping` is the first name outside the `runtime.*` family, and the prefix is
 a declaration: `runtime.*` verbs act on this install's level — read it, mutate
@@ -833,7 +852,8 @@ omission: nothing on the read side mutates a level.
 **A PEER is refused by an allowlist rather than by a tier** (Stage 6, §1.2).
 `PEER_METHOD_ALLOWLIST` was `{peer.ping, peer.agent_chat.execute}` (Stage 7
 widened it by one, §1.3, with the reason in a comment beside the set; the
-same-account pairing lane and P4 took it to six — §1.2 names them) and the
+same-account pairing lane and P4 took it to six — §1.2 names them — and D1.07's
+`peer.agent_chat.cancel` to seven) and the
 arm runs before the read-tier
 arm — which is open to every caller, so a peer evaluated after it would hold
 this runtime's entire read surface including verbs nobody has written yet. The

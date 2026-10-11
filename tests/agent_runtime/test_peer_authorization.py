@@ -185,6 +185,7 @@ def test_the_allowlist_is_exactly_its_verbs_and_all_methods_exist():
             "peer.announce",
             "peer.roster.list",
             "peer.thread.read",
+            "peer.agent_chat.cancel",
         }
     )
     for name in PEER_METHOD_ALLOWLIST:
