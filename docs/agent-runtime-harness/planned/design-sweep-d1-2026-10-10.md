@@ -199,7 +199,8 @@ nothing; `forget_launcher_connection` removes only names no surviving catalog ho
   token, so two links never share an assembled list.
 
 **Stages.**
-1. **S1 union registration.** `tests/agent_runtime/test_launcher_app_function_catalog.py::test_a_cached_catalog_is_resynced_after_another_connection_overwrote_the_registry`
+1. **S1 union registration.** `tests/agent_runtime/test_launcher_app_function_catalog.py::test_a_second_connection_never_flips_the_registry`
+   (landed as the rename of `test_a_cached_catalog_is_resynced_after_another_connection_overwrote_the_registry`)
    flips its expectation (the first connection's tool stays registered while any catalog
    holds it; the registry generation is equal across the two refreshes). New: a tool only
    connection B declares is NOT in `get_tool_definitions(enabled_toolsets=[APP_FUNCTIONS_TOOLSET])`
