@@ -101,13 +101,13 @@ def test_branch_here_includes_selected_reply_and_links_origin(tmp_path, monkeypa
 def test_partial_restore_survives_status_and_can_rollback(tmp_path, monkeypatch):
     import tools.checkpoint_manager as checkpoints
     target, work, manager, _, request = setup_turn(tmp_path, monkeypatch)
-    original = checkpoints._run_git
-    def fail_one(args, *a, **kw):
-        if "checkout" in args and args[-1] == "two.txt":
+    original = checkpoints.CheckpointManager._checkout_restore_paths
+    def fail_one(self, working_dir, commit, paths, **kwargs):
+        if paths == ["two.txt"]:
             return False, "", "simulated sharing violation"
-        return original(args, *a, **kw)
+        return original(self, working_dir, commit, paths, **kwargs)
     with monkeypatch.context() as patch:
-        patch.setattr(checkpoints, "_run_git", fail_one)
+        patch.setattr(checkpoints.CheckpointManager, "_checkout_restore_paths", fail_one)
         partial = call("undo.apply", request)["result"]
     assert partial["state"] == "partial", partial
     assert partial["files"]["restored_files"] == ["one.txt"]

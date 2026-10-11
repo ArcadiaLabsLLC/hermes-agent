@@ -793,6 +793,7 @@ def pin_restore_checkpoints(workdir: str, operation_id: str, target: str, backup
     for name, commit in (("target", target), ("backup", backup)):
         ok, _, _ = _run_git(["update-ref", f"refs/operator-restore/{operation_id}/{name}", commit], _store_path(), workdir)
         if not ok:
+            _release_restore_checkpoints_locked(operation_id)
             return False
     return True
 
@@ -802,11 +803,17 @@ def release_restore_checkpoints(operation_id: str) -> None:
         raise ValueError("invalid restore operation")
     from tools.checkpoint_pruning import store_lock
     with store_lock(_resolve_checkpoint_base()):
-        for name in ("target", "backup"):
-            ok, _, _ = _run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
-                               _store_path(), str(_resolve_checkpoint_base()))
-            if not ok:
-                raise OSError("checkpoint recovery reference could not be released")
+        _release_restore_checkpoints_locked(operation_id)
+
+
+def _release_restore_checkpoints_locked(operation_id: str) -> None:
+    if not _store_path().exists():
+        return
+    for name in ("target", "backup"):
+        ok, _, _ = _run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
+                           _store_path(), str(_resolve_checkpoint_base()))
+        if not ok:
+            raise OSError("checkpoint recovery reference could not be released")
 
 
 def checkpoint_metadata_directory(namespace: str) -> Path:
@@ -1213,12 +1220,15 @@ class CheckpointManager:
             result = {"success": False, "reason": "restore_outcome_unknown", "restored_files": [],
                       "failed_files": [], "review_paths": selected_paths,
                       "recovery_checkpoint": backup[0]["hash"], "replayed": False}
-            self._write_restore_receipt(receipt_path, digest, result, request={
-                "working_dir": working_dir, "checkpoint": commit_hash, "revision": revision,
-                "selected_paths": selected_paths, "plan": {rel: by_path[rel] for rel in selected_paths}})
+            try:
+                self._write_restore_receipt(receipt_path, digest, result, request={
+                    "working_dir": working_dir, "checkpoint": commit_hash, "revision": revision,
+                    "selected_paths": selected_paths, "plan": {rel: by_path[rel] for rel in selected_paths}})
+            except OSError:
+                _release_restore_checkpoints_locked(operation_id)
+                raise
             for rel in selected_paths:
                 row = by_path[rel]
-                path = Path(working_dir) / rel
                 checked = self._restore_file_preview(working_dir, commit_hash, rel,
                     _load_ledger(_store_path(), self._ledger_key(working_dir)))
                 if not checked["eligible"] or checked["current_sha256"] != row["current_sha256"]:
@@ -1226,20 +1236,8 @@ class CheckpointManager:
                     self._write_restore_receipt(receipt_path, digest, result)
                     continue
                 try:
-                    if row["target_blob"] is None:
-                        path.unlink()
-                    else:
-                        path.parent.mkdir(parents=True, exist_ok=True)
-                        ok, _, _ = _run_git(["--literal-pathspecs", "checkout", commit_hash, "--", rel], _store_path(), working_dir,
-                            index_file=_index_path(_store_path(), _project_hash(working_dir)))
-                        if not ok:
-                            raise OSError("checkpoint checkout failed")
+                    self._write_reviewed_restore_file(working_dir, commit_hash, rel, row["target_blob"])
                     result["restored_files"].append(rel)
-                    ledger_key = self._ledger_key(working_dir)
-                    ledger = _load_ledger(_store_path(), ledger_key)
-                    ledger[str(path)] = _agent_write_evidence(ledger.get(str(path), {}),
-                        sha256=_hash_file(path), deleted=row["target_blob"] is None)
-                    _save_ledger(_store_path(), ledger_key, ledger)
                 except OSError:
                     result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
                 self._write_restore_receipt(receipt_path, digest, result)
@@ -1317,22 +1315,7 @@ class CheckpointManager:
                     continue
                 target_blob = entry[2] if entry else None
                 try:
-                    if current_blob != target_blob:
-                        if target_blob is None:
-                            file.unlink(missing_ok=True)
-                        else:
-                            file.parent.mkdir(parents=True, exist_ok=True)
-                            ok, _, _ = _run_git(["--literal-pathspecs", "checkout", commit, "--", rel],
-                                _store_path(), workdir, index_file=_index_path(_store_path(), _project_hash(workdir)))
-                            if not ok:
-                                raise OSError("restore failed")
-                    if _history_current_blob(workdir, rel) != target_blob:
-                        raise OSError("restored content changed")
-                    ledger_key = self._ledger_key(workdir)
-                    ledger = _load_ledger(_store_path(), ledger_key)
-                    ledger[str(file)] = _agent_write_evidence(ledger.get(str(file), {}),
-                        sha256=_hash_file(file), deleted=target_blob is None)
-                    _save_ledger(_store_path(), ledger_key, ledger)
+                    self._write_reviewed_restore_file(workdir, commit, rel, target_blob)
                     done.append(rel)
                 except OSError:
                     result["failed_files"].append({"path": rel, "reason": "file_write_failed"})
@@ -1342,6 +1325,25 @@ class CheckpointManager:
                           reason=("rolled_back" if rollback else "restored") if not result["failed_files"] else "restore_partial")
             self._write_restore_receipt(path, receipt["request_digest"], result)
             return result
+
+    def _write_reviewed_restore_file(self, workdir: str, commit: str, rel: str,
+                                    target_blob: str | None) -> None:
+        """Use the native writer, verify its result, then update authorship."""
+        if _history_current_blob(workdir, rel) != target_blob:
+            if target_blob is None:
+                self._delete_restore_file(workdir, rel)
+            else:
+                ok, _, _ = self._checkout_restore_paths(workdir, commit, [rel], literal=True)
+                if not ok:
+                    raise OSError("checkpoint checkout failed")
+        if _history_current_blob(workdir, rel) != target_blob:
+            raise OSError("restored content changed")
+        path = Path(workdir) / rel
+        ledger_key = self._ledger_key(workdir)
+        ledger = _load_ledger(_store_path(), ledger_key)
+        ledger[str(path)] = _agent_write_evidence(ledger.get(str(path), {}),
+            sha256=_hash_file(path), deleted=target_blob is None)
+        _save_ledger(_store_path(), ledger_key, ledger)
 
     def release_restore_checkpoints(self, operation_id: str) -> None:
         release_restore_checkpoints(operation_id)
@@ -1353,7 +1355,12 @@ class CheckpointManager:
             raise ValueError("invalid restore operation")
         with store_lock(_resolve_checkpoint_base()):
             path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
-            return self._settled_restore_receipt(json.loads(path.read_text(encoding="utf-8"))["result"]) if path.exists() else None
+            if not path.exists():
+                # The receipt precedes every write. A crash before it was saved
+                # can leave refs, but cannot leave applied workspace changes.
+                _release_restore_checkpoints_locked(operation_id)
+                return None
+            return self._settled_restore_receipt(json.loads(path.read_text(encoding="utf-8"))["result"])
 
     @staticmethod
     def _settled_restore_receipt(result: Dict) -> Dict:

@@ -55,13 +55,13 @@ def test_oversize_or_unproven_write_does_not_enter_turn(tmp_path, monkeypatch):
 def test_partial_recovery_refuses_stale_choice_and_preserves_later_edit(tmp_path, monkeypatch):
     import tools.checkpoint_manager as checkpoints
     target, work, _, _, request = setup_turn(tmp_path, monkeypatch)
-    original = checkpoints._run_git
-    def fail_one(args, *a, **kw):
-        if "checkout" in args and args[-1] == "two.txt":
+    original = checkpoints.CheckpointManager._checkout_restore_paths
+    def fail_one(self, working_dir, commit, paths, **kwargs):
+        if paths == ["two.txt"]:
             return False, "", "simulated sharing violation"
-        return original(args, *a, **kw)
+        return original(self, working_dir, commit, paths, **kwargs)
     with monkeypatch.context() as patch:
-        patch.setattr(checkpoints, "_run_git", fail_one)
+        patch.setattr(checkpoints.CheckpointManager, "_checkout_restore_paths", fail_one)
         partial = call("undo.apply", request)["result"]
     assert partial["state"] == "partial"
     recovery = {**target, "operation_id": request["operation_id"], "direction": "finish"}
