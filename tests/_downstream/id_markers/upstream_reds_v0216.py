@@ -12,9 +12,11 @@ The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from tests._downstream.id_markers.reasons import _up_red, _WIN
+from tests._downstream.id_markers.reasons import _up_red, _up_red_when, _WIN
 
 __layer__ = "models"
 
@@ -240,6 +242,25 @@ _NODES = (
         'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_prompt_after_a_foreign_compaction_sends_the_compacted_transcript',
 )
 
+# An ssh profile's REMOTE cwd is shape-checked with the host's os.path.isabs
+# (tui_gateway/session_workdir.py::_is_remote_cwd_shape); on Windows under Python >= 3.13
+# ntpath.isabs("/home/kali") is False, so the remote dir is dropped to "~" or refused.
+_SSH_REMOTE_CWD = (
+    "red on pure upstream tag v0.21.6 818c13be1d on Windows, Python >= 3.13: an ssh profile's "
+    "REMOTE cwd is validated with the host's os.path.isabs (_is_remote_cwd_shape)"
+)
+_SSH_REMOTE_CWD_NODES = (
+        'tests/tui_gateway/test_tui_gateway_server.py::test_session_create_uses_bound_profile_backend_not_launch',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_workspace_move_accepts_remote_dir_for_bound_ssh_profile',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[ssh]',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[local]',
+)
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
     {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
 )
+if _WIN:
+    ROWS.update({
+        node: (_up_red_when(sys.version_info >= (3, 13), _SSH_REMOTE_CWD),)
+        for node in _SSH_REMOTE_CWD_NODES
+    })
