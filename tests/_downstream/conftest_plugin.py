@@ -39,7 +39,6 @@ from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
-    CONFIG_READS_THROUGH_LOAD_CONFIG_MARK as _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
     STATE_DB_RESOLVES_THROUGH_SCOPE_MARK as _STATE_DB_RESOLVES_THROUGH_SCOPE_MARK,
@@ -668,11 +667,6 @@ def _config_reads_through_load_config(request, monkeypatch):
     not its own definition. Unpatched calls stay readonly. Plan: D3.06.
     """
     test_file = str(request.node.path)
-    if request.node.get_closest_marker(_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK) is not None:
-        import hermes_cli.config as _config
-
-        monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
-        return
     _config = sys.modules.get("hermes_cli.config")
     if _config is None:
         # Not imported yet: install only where the rule selects the file (it imports then).
@@ -917,13 +911,6 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "exercise the real ~/.claude/.credentials.json reader/writer. The "
         "test MUST also point Path.home() at its own tmpdir — the marker "
         "alone hands back the operator's live Claude Code login.",
-    )
-    config.addinivalue_line(
-        "markers",
-        f"{_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK}: the test patches "
-        "hermes_cli.config.load_config for a reader the fork moved to "
-        "load_config_readonly; the readonly loader defers to it (applied by id "
-        "from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

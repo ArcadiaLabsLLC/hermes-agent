@@ -16,7 +16,6 @@ import pytest
 
 from tests._downstream.id_markers.reasons import (
     _CLAUDE_HOME_TMP,
-    _CONFIG_READ_THROUGH,
     _CREDENTIALS_FILE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
@@ -141,24 +140,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_spawn_detached_warns_and_marks_no_breakaway_fallback",
         )
     },
-    # Readers the fork moved to load_config_readonly; upstream patches load_config.
-    **{
-        node: (_CONFIG_READ_THROUGH,)
-        for node in (
-            "tests/tools/test_browser_console.py::TestBrowserVisionConfig",
-            "tests/tools/test_image_generation.py::TestModelResolution",
-            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
-            "test_supports_vision_override_bypasses_provider_allowlist",
-            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
-            "test_text_mode_wins_over_supports_vision_override",
-            "tests/tools/test_vision_tools.py::TestHandleVisionAnalyze",
-            "tests/tools/test_vision_tools.py::TestVisionConfig",
-            "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
-            # v0.21.6: MCP native image attach shares vision's fast-path gate.
-            "tests/tools/test_mcp_image_content.py::TestNativeImageAttach::"
-            "test_text_mode_an_undecodable_or_an_unshrinkable_image_keeps_the_string_result",
-        )
-    },
     # MCF-66: these files drive the real ~/.claude/.credentials.json
     # reader/writer; the fork opts them in AND points Path.home() at tmp_path.
     **{
@@ -200,17 +181,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         for test in (
             "test_entry_point_callable_and_module_targets",
             "test_entry_point_failure_is_isolated",
-        )
-    },
-    **{
-        node: (_CONFIG_READ_THROUGH,)
-        for node in (
-            "tests/plugins/dashboard_auth/test_nous_provider.py::TestConfigYamlSource",
-            "tests/plugins/dashboard_auth/test_nous_provider_downstream.py::TestConfigYamlSource",
-            "tests/plugins/dashboard_auth/test_self_hosted_provider.py::TestPluginRegister",
-            # v0.21.6: the new clock-skew file patches load_config, the fork reads the readonly twin.
-            "tests/plugins/dashboard_auth/test_jwt_clock_skew_leeway.py::TestSelfHostedConfig",
-            "tests/plugins/dashboard_auth/test_jwt_clock_skew_leeway.py::TestNousConfig",
         )
     },
     **{

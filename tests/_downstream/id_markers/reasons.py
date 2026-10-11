@@ -29,7 +29,6 @@ _WIN = sys.platform == "win32"
 # ``real_windows_gateway_pause`` is ``tests/hermes_cli/_gateway_fence.REAL_PAUSE_MARK``.
 ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
-CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
@@ -104,7 +103,6 @@ def _posix_only(detail: str) -> pytest.MarkDecorator:
     return pytest.mark.skip(reason=f"{_POSIX_ONLY} ({detail})")
 
 
-_CONFIG_READ_THROUGH = getattr(pytest.mark, CONFIG_READS_THROUGH_LOAD_CONFIG_MARK)
 _LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
 
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
