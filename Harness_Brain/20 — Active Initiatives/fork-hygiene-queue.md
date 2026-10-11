@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **Record the history revision/recovery killing-mutation red excerpts in a new commit body as the gate rule requires.** PR #7's `b920ba2b1b` has an empty body; the qualification note names local logs but carries no failure excerpt. Existing tests/claims are not the prescribed evidence, and this is not a claim the reds were fabricated. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H3 · UNCLAIMED
+
 ## Filed on arrival — 2026-10-09 console history qualification
 
 
@@ -424,6 +426,11 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - [ ] **§4's worker receipts live outside `RunLedger.summary`: `scripts/worker_protocol.py` wraps the run because FG1/FG2 held the runner; fold the sampler into the ledger, or ratify the wrapper** · fork / suite · build-fastgate-FG3 `363ec1f20e` · lane: fast-gate §4 stage 2
 - [ ] **`scripts/worker_protocol_sample.txt` includes `tests/acp_adapter/*`, which cannot collect from a worktree; the six worker runs must run from the primary checkout** · fork / suite · build-fastgate-FG3 · lane: fast-gate §4 stage 2
 - [ ] **The batch-2 landing gate printed 4 isolation leaks and 5 bundle deaths that nobody chased** · fork / suite · `gate-c.log` (land/1011-batch2) · lane: read the gate's leak/death lines and row each
+
+## Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
+
+- [ ] **The dependency recorder cannot see existence checks (`os.stat`/`Path.exists` raise no audit event): a test whose result depends on a repo file appearing that it never opened or listed can stay a cached green; bounded only by the audit sample and the 14-day max age** · fork / suite · `scripts/_bundle_plugin/hermes_dep_trail.py` (build/fastgate-FG1) · lane: fast-gate §1 follow-up
+- [ ] **`run_tests_bundled.sh`'s run-in-hermes-env re-exec compares `$__BUNDLED_DIR` (from a relative BASH_SOURCE, `X:/…` under a drive-spelled PWD) with `run_tests.sh`'s `$SCRIPT_DIR` (`/x/…`) and exits 2 "wrapper is out of date"** · fork / suite · build-fastgate-FG1 lane log (worked around with HERMES_PYTHON) · lane: runner
 
 ## Filed on arrival — 2026-10-11 (fast-gate landing, whole-tree gate, filed by the orchestrator)
 
