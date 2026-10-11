@@ -114,12 +114,23 @@ def test_a_file_cached_over_the_solo_budget_runs_alone_and_before_every_bundle(t
 # ── Stage 2: a red is not paid for twice ────────────────────────────────────
 
 
+def _planned_without_the_record(root: Path):
+    """A solo policy that knew no reds when the run was planned: the bundle-side
+    O5 rule is what is left for a red the record names only at tally time
+    (fast-gate §2: a known red at planning time runs alone, once)."""
+
+    return bundled._solo_policy(root, 300.0, 0, {}, {})
+
+
 def test_a_red_member_unchanged_since_the_last_run_is_reported_from_its_bundle(tmp_path):
     files = _tree(tmp_path, ["tests/alpha/test_0.py", "tests/alpha/test_1.py"])
     red = {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok"]}
     calls: list = []
 
-    result = _run(tmp_path, files, red, {k: frozenset(v) for k, v in red.items()}, calls)
+    result = _run(
+        tmp_path, files, red, {k: frozenset(v) for k, v in red.items()}, calls,
+        solo_policy=_planned_without_the_record(tmp_path),
+    )
 
     assert [c for c in calls if c[0] == "solo"] == []
     outcome = next(o for o in result.outcomes if o.file.name == "test_1.py")
@@ -134,7 +145,10 @@ def test_a_red_member_whose_failing_set_changed_is_re_run_alone(tmp_path):
     red = {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok", "tests/alpha/test_1.py::test_new"]}
     calls: list = []
 
-    result = _run(tmp_path, files, red, {"tests/alpha/test_1.py": frozenset({"tests/alpha/test_1.py::test_ok"})}, calls)
+    result = _run(
+        tmp_path, files, red, {"tests/alpha/test_1.py": frozenset({"tests/alpha/test_1.py::test_ok"})}, calls,
+        solo_policy=_planned_without_the_record(tmp_path),
+    )
 
     assert ("solo", "tests/alpha/test_1.py") in calls
     assert next(o for o in result.outcomes if o.file.name == "test_1.py").via == "rerun"
@@ -181,7 +195,9 @@ def test_the_ledger_counts_processes_work_and_the_double_run_of_a_red(tmp_path):
     result = _run(tmp_path, files, {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok"]}, {}, calls)
     cost = result.ledger.summary(2)
 
-    assert cost["processes"] == {"bundle": 1, "solo": 0, "rerun": 1, "retry": 0}
+    assert cost["processes"] == {
+        "bundle": 1, "solo": 0, "known-red": 0, "shard": 0, "whole-check": 0, "rerun": 1, "retry": 0
+    }
     # test_0's 0.25 s collect + 0.5 s test; the fake rerun wrote no events
     assert result.ledger.file_seconds == {"tests/alpha/test_0.py": pytest.approx(0.75)}
     assert cost["rerun_seconds"] >= 1.25  # the red's bundle attempt (0.25 + 1.0) plus its run alone
