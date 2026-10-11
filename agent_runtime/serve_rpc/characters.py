@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_runtime.call_authorization import TIER_READ
+from agent_runtime.param_readers import read_flag, read_text
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
@@ -52,7 +53,7 @@ class _Invalid(ValueError):
     """A parameter of the wrong type; refused before any draft is loaded."""
 
 
-def _refusal(rid: Any, exc: BaseException, **extra: Any) -> dict:
+def _charsheet_refusal(rid: Any, exc: BaseException, **extra: Any) -> dict:
     from agent.charsheet.errors import CharsheetRefusal
 
     if isinstance(exc, CharsheetRefusal):
@@ -76,26 +77,16 @@ def _payload(data: dict) -> dict:
     return {**data, **draftsman()}
 
 
-def _text(params: dict, key: str, *, required: bool = False) -> str:
-    value = params.get(key)
-    if value is None and not required:
-        return ""
-    if not isinstance(value, str) or (required and not value.strip()):
-        raise _Invalid(f"{key} must be a {'non-empty ' if required else ''}string")
-    return value.strip()
+def _invalid_param(key: str, sentence: str) -> _Invalid:
+    """The :data:`agent_runtime.param_readers.Refuse` this lane hands the shared readers."""
+
+    return _Invalid(sentence)
 
 
-def _int(params: dict, key: str, default: int | None) -> int | None:
+def _int_or_default(params: dict, key: str, default: int | None) -> int | None:
     value = params.get(key, default)
     if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
         raise _Invalid(f"{key} must be an integer")
-    return value
-
-
-def _bool(params: dict, key: str, default: bool) -> bool:
-    value = params.get(key, default)
-    if not isinstance(value, bool):
-        raise _Invalid(f"{key} must be a boolean")
     return value
 
 
@@ -110,11 +101,11 @@ def _draft_verb(rid: Any, draft_id: str, call) -> dict:
     try:
         draft = CharacterDraft.load(draft_id)
     except _expected() as exc:
-        return _refusal(rid, exc, draft=draft_id)
+        return _charsheet_refusal(rid, exc, draft=draft_id)
     try:
         result = call(draft)
     except _expected() as exc:
-        return _refusal(rid, exc, draft=draft.id, stage=draft.stage)
+        return _charsheet_refusal(rid, exc, draft=draft.id, stage=draft.stage)
     return ok(rid, _payload({"ok": True, "draft": draft.id, "stage": draft.stage, **result}))
 
 
@@ -128,7 +119,7 @@ def _runtime_characters_list(rid: Any, params: dict, context=None) -> dict:
         drafts = [draft_summary(draft) for draft in CharacterDraft.list_drafts()]
         installed = installed_rows()
     except _expected() as exc:
-        return _refusal(rid, exc)
+        return _charsheet_refusal(rid, exc)
     return ok(rid, _payload({"ok": True, "drafts": drafts, "characters": installed}))
 
 
@@ -136,9 +127,9 @@ def _runtime_characters_list(rid: Any, params: dict, context=None) -> dict:
 def _runtime_characters_status(rid: Any, params: dict, context=None) -> dict:
     """``harness characters status --draft <id> --json``. Params: ``draft`` (required)."""
     try:
-        draft_id = _text(_params(params), "draft", required=True)
+        draft_id = read_text(_params(params), "draft", refuse=_invalid_param, required=True)
     except _Invalid as exc:
-        return _refusal(rid, exc)
+        return _charsheet_refusal(rid, exc)
     return _draft_verb(rid, draft_id, lambda draft: {"status": draft.status_payload()})
 
 
@@ -153,12 +144,15 @@ def _runtime_characters_thumb(rid: Any, params: dict, context=None) -> dict:
 
     params = _params(params)
     try:
-        draft_id = _text(params, "draft", required=True)
-        options = {"row_key": _text(params, "row"), "direction": _text(params, "direction"),
-                   "attempt": _int(params, "attempt", -1), "requested_frame": _int(params, "frame", None),
-                   "scale": _int(params, "scale", None), "square": _bool(params, "square", False)}
+        draft_id = read_text(params, "draft", refuse=_invalid_param, required=True)
+        options = {"row_key": read_text(params, "row", refuse=_invalid_param) or "",
+                   "direction": read_text(params, "direction", refuse=_invalid_param) or "",
+                   "attempt": _int_or_default(params, "attempt", -1),
+                   "requested_frame": _int_or_default(params, "frame", None),
+                   "scale": _int_or_default(params, "scale", None),
+                   "square": read_flag(params, "square", refuse=_invalid_param)}
     except _Invalid as exc:
-        return _refusal(rid, exc)
+        return _charsheet_refusal(rid, exc)
 
     def call(draft) -> dict:
         result = thumb_result(draft, **options)
@@ -194,10 +188,10 @@ def _runtime_characters_sprite(rid: Any, params: dict, context=None) -> dict:
 
     params = _params(params)
     try:
-        slug = _text(params, "slug", required=True)
-        include_sheet = _bool(params, "include_sheet", True)
+        slug = read_text(params, "slug", refuse=_invalid_param, required=True)
+        include_sheet = read_flag(params, "include_sheet", refuse=_invalid_param, default=True)
     except _Invalid as exc:
-        return _refusal(rid, exc)
+        return _charsheet_refusal(rid, exc)
     try:
         character = charsheet_draft.sprite_payload(slug, include_sheet=False)
         result: dict[str, Any] = {"ok": True, "character": character}
@@ -208,5 +202,5 @@ def _runtime_characters_sprite(rid: Any, params: dict, context=None) -> dict:
             result["sheet_media"] = (
                 media_block(handle_for_bytes(data), character["mime"], data) if fits else None)
     except _expected() as exc:
-        return _refusal(rid, exc, slug=slug)
+        return _charsheet_refusal(rid, exc, slug=slug)
     return ok(rid, _payload(result))
