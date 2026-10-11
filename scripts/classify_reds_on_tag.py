@@ -127,16 +127,19 @@ def classify(nodes: Iterable[str], runs: Sequence[TagRun], presence: Presence) -
         elif node not in presence.nodes:
             verdicts[node] = Verdict.ABSENT_ON_TAG
         else:
-            seen = {outcome(node, run) for run in runs}
-            if seen == {Outcome.RED}:
-                verdicts[node] = Verdict.UPSTREAM_RED
-            elif seen == {Outcome.FILE_RED}:
-                verdicts[node] = Verdict.UPSTREAM_COLLECT_ERROR
-            elif seen == {Outcome.PASS} or not seen:
-                verdicts[node] = Verdict.FORK_CAUSED_OR_FLAKY
-            else:
-                verdicts[node] = Verdict.NONDETERMINISTIC_ON_TAG
+            seen = frozenset(outcome(node, run) for run in runs)
+            verdicts[node] = _VERDICT_BY_OUTCOMES.get(seen, Verdict.NONDETERMINISTIC_ON_TAG)
     return verdicts
+
+
+#: The set of outcomes a node showed across the tag runs -> its verdict; any mix is
+#: nondeterministic on the tag.
+_VERDICT_BY_OUTCOMES: Dict[frozenset, Verdict] = {
+    frozenset({Outcome.RED}): Verdict.UPSTREAM_RED,
+    frozenset({Outcome.FILE_RED}): Verdict.UPSTREAM_COLLECT_ERROR,
+    frozenset({Outcome.PASS}): Verdict.FORK_CAUSED_OR_FLAKY,
+    frozenset(): Verdict.FORK_CAUSED_OR_FLAKY,
+}
 
 
 def slug(tag: str) -> str:
