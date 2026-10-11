@@ -18,6 +18,8 @@ Setup (from a neutral cwd, never inside X:/Eternia/hermes-agent): fetch; worktre
 Scratch: every temp or commit-message file under <scratchpad>/<lane>/ (concurrent sessions share one scratchpad).
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the sheet, follow the tree and say so in the commit")
 Run: per `Running the tests.md` § "What a lane runs" (name the section; do not restate it).
+Host: shell scripts run with Git Bash's absolute path (`C:/Program Files/Git/bin/bash.exe`) — a bare `bash` from Python is WSL; never start a real serve or gateway (drive functions directly); a test whose red writes real machine state (user PATH, registry) runs once by hand, never through the runner's retry.
+Upstream files: an additive hunk with its ledger row and the `[up-fp]` fixture bump in the same commit (refactor lanes: none).
 Commit/push rules: one MOVE, one CHANGE; push per commit; never main; never amend/force/rebase; leave the worktree.
 Report (≤30 lines): tip SHA; per-file/per-step outcome; test counts + reds marked merge-caused/pre-existing; ≤3 open rows; tool-call count.
 End commit bodies with: Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
@@ -37,4 +39,4 @@ A holding file per landing outside the repo (branch tips, commits to review, row
 
 ## Never
 
-Dispatch a follow-up into another lane's worktree (message the lane); remove a worktree a lane could resume in; run two design sittings at once; let a lane run the full suite; paste this page into a brief.
+Dispatch a follow-up into another lane's worktree (message the lane); remove a worktree a lane could resume in; run two design sittings at once unless the owner asks for more (2026-10-10: three); let a lane run the full suite; paste this page into a brief.
