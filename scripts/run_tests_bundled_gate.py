@@ -338,7 +338,9 @@ class GateRun:
             f"{len(self.cached)} skipped as cached green, {len(self.sampled)} audited (seed {self.seed}); "
             f"{self.greens_written} green(s) written"
         )
-        print(f"  green-result cache: {state}; store {self.store.root}")
+        compacted = self.store.compact()
+        print(f"  green-result cache: {state}; store {self.store.root}"
+              + (f"; compacted {', '.join(compacted)}" if compacted else ""))
         shutil.rmtree(self.deps_dir, ignore_errors=True)
         if self.verdict.flakes:
             print(f"  cache audit: {len(self.verdict.flakes)} sampled hit(s) red in the run, green alone — FLAKY, "

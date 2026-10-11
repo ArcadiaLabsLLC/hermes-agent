@@ -52,6 +52,9 @@ OUTPUT_ONLY_ARGS = frozenset({"-q", "-qq", "-v", "-vv"})
 ENV_IGNORED = frozenset({"HERMES_TEST_WORKERS"})
 ENV_NAMES = ("CI", "GITHUB_ACTIONS", "TZ", "LANG", "LC_ALL", "PYTHONHASHSEED", "PYTHONUTF8", "PYTEST_PLUGINS")
 MISSING = "MISSING"
+#: compact green.jsonl / deps.jsonl to their newest line per file past this; modsets.jsonl past the second
+COMPACT_BYTES = 4 << 20
+MODSETS_COMPACT_BYTES = 32 << 20
 #: owner ruling Q2: a green older than this misses
 DEFAULT_MAX_AGE_DAYS = 14.0
 #: a file that was flaky, leaked or went unreached is cached again only after this many greens in a row
@@ -332,6 +335,41 @@ class GateStore:
                 except (ValueError, zlib.error):
                     continue
         return out
+
+    # ── compaction ──
+
+    def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES) -> List[str]:
+        """Rewrite ``green.jsonl`` and ``deps.jsonl`` to the NEWEST line per file
+        once one passes ``limit`` bytes, and ``modsets.jsonl`` to the sets the
+        kept deps lines name once it passes ``modsets_limit``. A line another
+        run appends mid-rewrite can be lost: that is a miss, never a false hit."""
+
+        done = []
+        for path in (self.green, self.deps):
+            if _size(path) > limit:
+                newest = {r["f"]: r for r in _read_jsonl(path) if r.get("f")}
+                _rewrite(path, newest.values())
+                done.append(path.name)
+        if _size(self.modsets) > modsets_limit:
+            wanted = {d for entry in self.load_deps().values() for d in entry.mods}
+            kept = {r["id"]: r for r in _read_jsonl(self.modsets) if r.get("id") in wanted}
+            _rewrite(self.modsets, kept.values())
+            self._known_modsets = None
+            done.append(self.modsets.name)
+        return done
+
+
+def _size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _rewrite(path: Path, records: Iterable[dict]) -> None:
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in records), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def census(entries: Dict[str, FileDeps], seconds: Dict[str, float]) -> str:

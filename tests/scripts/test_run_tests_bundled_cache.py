@@ -392,3 +392,24 @@ def test_a_spawner_whose_python_children_all_recorded_depends_only_on_its_record
     _commit(repo)
     assert _reason(repo, store) == "hit", "every child left a record: no whole-tree dependency"
     assert cache.uncovered_spawn(2, 0, 1) and cache.uncovered_spawn(1, 1, 5) and not cache.uncovered_spawn(0, 0, 0)
+
+
+# ── the store stays bounded ─────────────────────────────────────────────────
+
+
+def test_compaction_keeps_the_newest_line_per_file_and_only_the_module_sets_still_named(repo, store):
+    _green(repo, store)
+    old = cache.FileDeps(paths={T}, mods={"pkg/other.py"})
+    store.write_deps({"tests/test_u.py": old}, "r0")
+    _green(repo, store)  # a second line for T, same key
+    store.write_deps({"tests/test_u.py": cache.FileDeps(paths={"tests/test_u.py"}, mods={"pkg/mod.py"})}, "r2")
+    before_green, before_deps = store.load_green(), store.load_deps()
+    assert len(store.load_modsets()) == 3
+
+    assert store.compact(limit=1, modsets_limit=1) == ["green.jsonl", "deps.jsonl", "modsets.jsonl"]
+    assert store.load_green() == before_green and store.load_deps() == before_deps
+    assert len(store.green.read_text(encoding="utf-8").splitlines()) == 1
+    assert len(store.deps.read_text(encoding="utf-8").splitlines()) == 2
+    assert len(store.load_modsets()) == 2, "the set only the superseded line named is gone"
+    assert _reason(repo, store) == "hit"
+    assert store.compact() == [], "under the limits nothing is rewritten"
