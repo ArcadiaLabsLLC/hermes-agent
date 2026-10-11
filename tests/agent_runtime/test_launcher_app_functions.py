@@ -27,7 +27,7 @@ _TOOLS = [
         "method": "launcher.library.list",
         "description": "List the library.",
         "parameters": {"type": "object", "properties": {"limit": {"type": "integer"}}},
-        "reach": "paired_device",
+        "reach": "pairedDevice",
     },
     {
         "name": "launcher_navigation_open",
