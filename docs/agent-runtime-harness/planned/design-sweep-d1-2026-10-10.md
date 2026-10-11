@@ -406,18 +406,24 @@ answer.
   pretend success.
 
 **Stages.**
-1. **S1 the verb.** Tests (`tests/agent_runtime/test_peer_agent_chat_cancel.py`, fake peer
+1. **S1 the verb.** BUILT 5a2c887621. Tests (`tests/agent_runtime/test_peer_agent_chat_cancel.py`, fake peer
    session as the execute tests use): cancel of a live derived turn → `stopping` and the turn's
    interrupt seam called once with the derived request id; cancel of a settled one →
    `already_finished`; unknown → `not_running`; a caller below `TIER_CONSOLE` is refused by the
    tier gate. Killing mutation: derive the request id from `dispatch_id` with a different salt
    → `not_running` for a live turn (red named).
-2. **S2 the sender's leg.** Tests: `request_cancel` on a row with `remote_install_id` dials
+   **S1b the same-machine half (owner ruling a).** BUILT 8c207d7a98: durable
+   `cancel_requested` column, the supervisor's cancel watch
+   (`tools/agent_chat_dispatch/cancel_watch.py`); a non-owner answers
+   `cancel_requested`, or settles a never-started row `cancelled`.
+2. **S2 the sender's leg.** BUILT 5df41f3812 (+ 5b6412785c: the outcome ladder it
+   introduced, folded into a table). The row's mark is written before the dial, not
+   only on `stopping` — the row's own supervisor may be mid-retry on the execute. Tests: `request_cancel` on a row with `remote_install_id` dials
    exactly once and returns the peer's outcome; peer down → `peer_unreachable`, row untouched;
    `cancel_work("dispatch:…")` surfaces the outcome. Killing mutation: keep the
    `not_owned_here` short-circuit ahead of the remote check → the remote test gets
    `not_owned_here`.
-3. **S3 docs:** `03-transport-and-wire.md` peer verb table; `05-chat-turn-lane.md` cancel
+3. **S3 docs:** BUILT c8d37d2a13. `03-transport-and-wire.md` peer verb table; `05-chat-turn-lane.md` cancel
    semantics ("a cancel is a request to the supervisor; `not_owned_here` names the case a
    local non-supervisor cannot route").
 
@@ -475,16 +481,19 @@ untouched, which is what the lane result asked for.
 
 **Stages** (one lane, three CHANGE-sized steps; one MOVE commit if the helpers are relocated
 rather than deleted).
-1. **S1 params readers.** The three lanes delete their local readers and call the shared ones
+1. **S1 params readers.** BUILT ed5c5d165f (owner: the leaf
+   `agent_runtime/param_readers.py`, not `serve_rpc/params.py` — importing that package from
+   `chat_turn` cycles through `serve_rpc/operator_conversation.py`). The three lanes delete their local readers and call the shared ones
    with their constructor. Tests: each lane's existing refusal tests stay green (the envelope
    is unchanged by construction); `tests/agent_runtime/test_duplicate_helper_bodies.py` loses
    its three STALE/NEW rows. Killing mutation: re-add `_param_text` to `realm.py` → the
    duplicate-bodies gate goes red (its red is the recorded one).
-2. **S2 JSON document reader.** Tests: the two stores return the default shape on a missing
+2. **S2 JSON document reader.** BUILT 2109acbea4. Tests: the two stores return the default shape on a missing
    file, a corrupt file, a dict without the collection; a valid file round-trips. Killing
    mutation: drop the collection-shape check → the "collection is a list" case returns the
    malformed payload.
-3. **S3 verb runner.** Tests: a refusal of each listed type emits `invalid_payload` with the
+3. **S3 verb runner.** BUILT 277e5d73d9 (a `plain=` arm keeps the workspace lane's
+   `ValueError` text). Tests: a refusal of each listed type emits `invalid_payload` with the
    reason/detail sentence; an unlisted exception propagates. Killing mutation: catch
    `Exception` → the propagation test fails.
 
