@@ -27,6 +27,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-11 (lane h-s17, one-action-layer S17)
+
+- [ ] **The R10 entry-id gate (landing from lane h-s17, `tests/tooling/`) sees only the dotted spelling `launcher.<area>.<verb>`; the Launcher's tool-name spelling of the same id (`launcher_<area>_<verb>`, from `appFunctionToolName`) walks through.** Live instance: an incident comment in `tools/tool_search_downstream.py` names `launcher_generated_list`. A naive `launcher_\w+` pattern would flag fork module names (`launcher_app_functions`, `launcher_client_requests`), so the answer is a typed name rule (tool names derived from the listed entry only, or a shared name-shape the gate can enumerate), not a wider regex. Plan: `EterniaLauncher/docs/embedded_hermes/planned/ONE_ACTION_LAYER_2026-10-10.md` R10. · fork · UNCLAIMED
+
 ### Verified Console history PR #7 follow-up — 2026-10-11
 
 - [ ] **Undo must distinguish a pre-write checkpoint-lock refusal from partial file writes.** Its prepared record/send fence survives a zero-wait store-lock failure after preview; real RPC probe changed no file/chat rows but returned partial. Explicit rollback recovers, so do not call it permanent. Reuse PR #7 and the native lock/receipt owners. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H1 · UNCLAIMED
