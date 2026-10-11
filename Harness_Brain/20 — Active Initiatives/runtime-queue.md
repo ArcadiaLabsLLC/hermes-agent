@@ -595,6 +595,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
+
+- [ ] **`tests/verify/test_environment_and_runner.py::test_readiness_timeout_when_nothing_listens` hits the 30 s pytest-timeout on Windows under plain `scripts/run_tests.sh`** · upstream / suite · build-fastgate-FG1 verify-plain run · lane: `scripts/classify_reds_on_tag.py`, then skip-list row or upstream issue
+
 ### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
 - [ ] **An ssh profile's REMOTE cwd is shape-checked with the host's `os.path.isabs`: `tui_gateway/session_workdir.py::_is_remote_cwd_shape`; on Windows under Python ≥ 3.13 `ntpath.isabs("/home/kali")` is False, so `_completion_cwd` drops a named ssh profile's remote cwd to "~" and `_workspace_cwd` refuses it (`session.workspace.move` → 4017)** · upstream / tui_gateway · 4 tests red on pure tag v0.21.6 `818c13be1d`, marked `_up_red_when` (fix/1011-guard-and-tui-reds `462337b735`) · upstream issue (the remote shape wants `posixpath.isabs`)
