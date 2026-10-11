@@ -56,6 +56,7 @@ Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.util
 import json
 import os
@@ -95,6 +96,8 @@ def _load_sibling(name: str):
 
 rtp = _load_sibling("run_tests_parallel")
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
+solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
+shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
 
 
 # ── Membership ──────────────────────────────────────────────────────────────
@@ -267,25 +270,26 @@ def run(
     bundle_seconds: float = 0.0,
     solo_seconds: float = 0.0,
     known_reds: Optional[Dict[str, frozenset]] = None,
+    solo_policy: Optional["solo.SoloPolicy"] = None,
     bundle_runner: Optional[BundleRunner] = None,
     solo_runner: Optional[SoloRunner] = None,
     on_outcome: Optional[Callable[[FileOutcome], None]] = None,
 ) -> RunResult:
     """Run ``files`` as bundles plus solos; return one outcome per file.
 
-    Solos are submitted first, then bundles longest-first. A red member of a
-    finished bundle whose failing set is in ``known_reds`` unchanged is
-    reported from the bundle (``via="known-red"``), not re-run alone.
+    Solos are submitted first, then bundles longest-first. A known red runs once,
+    alone, capped (``solo_policy``); a bundle member red with its ``known_reds``
+    failing set unchanged is reported from the bundle, not re-run alone.
     ``bundle_runner`` / ``solo_runner`` default to the per-file runner's
     ``_run_one_file_once`` / ``_run_one_file``; tests inject fakes."""
 
     bundle_runner = bundle_runner or rtp._run_one_file_once
     solo_runner = solo_runner or rtp._run_one_file
+    policy = solo_policy or _solo_policy(repo_root, flat_timeout, retries, durations, known_reds or {})
     bundles, solos = assign_bundles(
-        files, repo_root, bundle_size, unbundled,
+        files, repo_root, bundle_size, set(unbundled) | policy.alone(),
         durations=durations, bundle_seconds=bundle_seconds, solo_seconds=solo_seconds,
     )
-    known_reds = known_reds or {}
     ledger = plan.RunLedger()
     solo_seq = iter(range(1 << 30))
 
@@ -300,25 +304,23 @@ def run(
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
 
     def _record(outcome: FileOutcome) -> None:
-        with lock:
-            outcomes.append(outcome)
-        if on_outcome is not None:
-            on_outcome(outcome)
+        for done in policy.join(outcome, _solo):  # a shard waits for its siblings
+            with lock:
+                outcomes.append(done)
+            if on_outcome is not None:
+                on_outcome(done)
 
     def _solo(path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
-        timeout = rtp._effective_file_timeout(path, repo_root, flat_timeout, durations)
+        timeout, tries, extra = policy.budget(path, via)
         events_path = scratch / f"solo-{next(solo_seq):05d}.jsonl"
-        args = list(pytest_args) + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        args = list(pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
         t0 = time.time()
-        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, retries)
+        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, tries)
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with lock:
-            startup = None if first.session_start is None else max(0.0, first.session_start - t0)
-            ledger.processes.append(plan.Process(via, [rel], t0, time.time(), startup))
-            if tally is not None:
-                ledger.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
-            ledger.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
+            ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
+        output = policy.note(rel, via, rc, output, tally)
         if via == "rerun" and rc == 0 and leak_info is not None:
             with lock:
                 leaks.append(leak_info)
@@ -350,7 +352,7 @@ def run(
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             work = tally.collect_seconds + tally.test_seconds
-            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds)
+            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds or {})
             if rel not in rerun or known:
                 with lock:
                     ledger.file_seconds[rel], ledger.failed[rel] = work, list(tally.failed_nodeids)
@@ -393,7 +395,7 @@ def run(
     solo_order, bundle_order = _first_pass_order(bundles, solos, repo_root, durations)
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         with lock:
-            futures.extend(executor.submit(_solo, path, "solo", None) for path in solo_order)
+            futures.extend(executor.submit(_solo, path, via, None) for path, via in policy.jobs(solo_order))
             futures.extend(executor.submit(_bundle, i, bundles[i], executor) for i in bundle_order)
         _drain_futures(futures, lock)
 
@@ -403,6 +405,44 @@ def run(
     return RunResult(
         outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
     )
+
+
+def _solo_policy(
+    repo_root: Path,
+    flat_timeout: float,
+    retries: int,
+    durations: Dict[str, float],
+    known_reds: Dict[str, frozenset],
+    timed_out: Iterable[str] = (),
+) -> "solo.SoloPolicy":
+    """The run's :class:`SoloPolicy`, bound to this runner's rel spelling and the
+    per-file runner's timeout scaler."""
+
+    return solo.SoloPolicy(
+        lambda path: _rel(path, repo_root),
+        lambda path: rtp._effective_file_timeout(path, repo_root, flat_timeout, durations),
+        flat_timeout, retries, durations, known_reds, frozenset(timed_out),
+    )
+
+
+def _with_shards(
+    policy: "solo.SoloPolicy", files: Sequence[Path], repo_root: Path, durations: Dict[str, float], jobs: int
+) -> "solo.SoloPolicy":
+    """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
+    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
+    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+
+    estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
+    green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
+    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
+    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
+
+
+def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> Dict[str, Tuple[float, int]]:
+    """rel → (seconds, tests) of each file's final outcome, for the record's test counts."""
+
+    return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
 
 
 def _where_it_died(
@@ -464,12 +504,21 @@ def _retry_timeout_stragglers(
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
+        if outcome.via == solo.KNOWN_RED_VIA:  # ran once, capped, final on its own exit (fast-gate §2)
+            continue
         t0 = time.time()
         fpath, rc, output, summary, wall = solo_runner(outcome.file, pytest_args, repo_root, flat_timeout, 0)
         ledger.processes.append(plan.Process("retry", [_rel(outcome.file, repo_root)], t0, time.time()))
         outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
+
+
+def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> List[str]:
+    """Files whose final attempt was killed by a timeout (exit 124, or the
+    timeout banner): no failing ids, so the record keeps them as ``timed_out``."""
+
+    return [_rel(o.file, repo_root) for o in outcomes if o.rc and rtp._is_retryable_timeout_result(o.rc, o.output, {})]
 
 
 def _read_lines(path: Path) -> List[str]:
@@ -691,10 +740,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args)  # the store: runs, durations, greens
     durations = gate.durations(rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
-    known_reds = gate.known_reds
+    known_reds, timed_out = gate.known_reds, gate.timed_out
+    policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
+    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
-        f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
+        f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "
+        f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
 
@@ -729,11 +781,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         bundle_seconds=args.bundle_seconds,
         solo_seconds=args.solo_seconds,
         known_reds=known_reds,
+        solo_policy=policy,
         on_outcome=gate.chain(_progress),
     )
     elapsed = time.monotonic() - started
     cost = result.ledger.summary(args.jobs)
-    gate.record(result, cost)
+    gate.record(  # the audit, then the run record + durations into the gate store
+        result, cost, timed_out=_timed_out(result.outcomes, repo_root),
+        extra=policy.shards.record(_ran(result.outcomes, repo_root)),
+    )
+    for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
+        print(line)
     return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
 

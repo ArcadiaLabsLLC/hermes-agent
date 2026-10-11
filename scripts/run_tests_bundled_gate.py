@@ -77,6 +77,7 @@ class GateRun:
         self.disabled = "" if self.enabled else "--no-cache"
         self.decision: Optional["cache.CacheDecision"] = None
         self.known_reds: Dict[str, frozenset] = {}
+        self.timed_out: frozenset = frozenset()
         self.to_run: list = []
         self.cached: list = []  # (path, GreenEntry) skipped this run
         self.sampled: List[str] = []
@@ -103,8 +104,9 @@ class GateRun:
         gate = cls(repo_root, store, Path(tempfile.mkdtemp(prefix="gate-deps-")) if enabled else None)
         gate.pytest_args = list(pytest_args)
         gate.file_timeout = float(getattr(args, "file_timeout", None) or gate.file_timeout)
-        runs = store.runs if store.runs.is_file() else None
-        gate.known_reds = plan.load_known_reds(repo_root, record_path=runs) if runs else plan.load_known_reds(repo_root)
+        runs = store.runs if store.runs.is_file() else None  # else the legacy per-checkout record
+        gate.known_reds = plan.load_known_reds(repo_root, record_path=runs)
+        gate.timed_out = plan.load_timed_out(repo_root, record_path=runs)
         gate.to_run = list(files)
         if getattr(args, "cache_reset", False):
             print(f"Green-result cache: --cache-reset, generation now {store.bump_generation()}", flush=True)
@@ -134,7 +136,7 @@ class GateRun:
         self.decision = cache.decide(
             files, self.repo_root, keyer=self.keyer, disabled=self.disabled, deps=deps,
             greens=self.store.load_green() if self.keyer is not None else {}, generation=self.generation,
-            named=named, known_reds=self.known_reds,
+            named=named, known_reds=set(self.known_reds) | set(self.timed_out),
         )
 
     def _skip(self, files: Sequence[Path], seed: Optional[int]) -> None:
@@ -258,7 +260,9 @@ class GateRun:
             self.store.drop_green(self.verdict.defects, "audit-defect", self.run_id)
             self.generation = self.store.bump_generation()
 
-    def record(self, result, cost: Dict[str, object]) -> None:
+    def record(
+        self, result, cost: Dict[str, object], *, timed_out=(), extra: Optional[Mapping[str, object]] = None
+    ) -> None:
         """The audit, then the run record and the clean-pass durations, into the store."""
 
         self.audit(result)
@@ -271,7 +275,10 @@ class GateRun:
             }
         final_rc = {cache.rel_of(o.file, self.repo_root): o.rc for o in result.outcomes}
         failed = result.ledger.failed if result.ledger is not None else {}
-        plan.record_run(self.repo_root, cost, final_rc, failed, self.known_reds, record_path=self.store.runs)
+        plan.record_run(
+            self.repo_root, cost, final_rc, failed, self.known_reds, timed_out=timed_out,
+            previous_timed_out=self.timed_out, extra=extra, record_path=self.store.runs,
+        )
         skip = {cache.rel_of(p, self.repo_root) for p, _out in rtp._FLAKY_RESULTS}
         skip |= {cache.rel_of(leak.file, self.repo_root) for leak in result.leaks}
         seconds = result.ledger.file_seconds if result.ledger is not None else {}

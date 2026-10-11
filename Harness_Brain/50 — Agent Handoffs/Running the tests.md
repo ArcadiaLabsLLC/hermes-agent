@@ -43,6 +43,15 @@ whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test
 whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
 ran 908 files / 13,621 tests in minutes.
 
+**A session-chain edit runs the whole tree** (fast-gate §5, owner ruling Q3). The fork's root
+`conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
+`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded
+by every test process, so `--scope fork` reaches every inherited file when one of them changes: the
+scope line counts them as `chain N` and prints `chain: <paths>`. Dry selection on 2026-10-10: a
+root-`conftest.py` change went from 983 files (fork only) to 6,440. Batch such edits into the
+release-merge landing, which pays the tree anyway; a release merge whose only touch on a chain path is
+re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does not count it.
+
 **`--scope full` (every file, upstream's included) belongs to the weekly upstream merge lane, and is
 not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
 hard-froze the operator's PC twice with the same four upstream files in flight
@@ -64,21 +73,38 @@ re-checks the `env`/`upstream` rows (`Merging upstream.md` step 5b). The P0 four
 lift the workstation ban on `--scope full` above; that waits on the P0 row.
 
 **What a run prints about itself.** After the Summary line, `=== Run cost (Stage 0) ===`: processes
-by kind, worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
+by kind (bundles, solos, known reds run once, shards and whole checks, re-runs, straggler retries), worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
 start-up seconds, the seconds spent re-running red members, the critical-path process, the idle tail
 and the 20 slowest files. The same numbers, with every red file's failing node ids, are appended as
-one JSON line to `.pytest_cache/hermes_bundled_runs.jsonl` (git-ignored, per checkout). Quote that
-line in a landing report instead of reconstructing timings from the log.
+one JSON line to `.pytest_cache/hermes_bundled_runs.jsonl` (git-ignored, per checkout), with the
+files whose last attempt timed out (`timed_out`) and the test count of every file that took ≥ 90 s
+(`tests`, the shard planner's input). Quote that line in a landing report instead of reconstructing
+timings from the log.
 
 **Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
 cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
 alone, and solos are submitted before bundles. Both read `test_durations.json`, so a fresh
 worktree's first run plans by count; pass `0` to either flag to switch it off.
 
-**A red is not paid for twice** (owner ruling O5). A bundle member red with the SAME failing node
-set as the last recorded run is reported from its bundle (`known-red` in the progress line; its
-failure output says why), not re-run alone. A new red, or one whose failing set changed, is still
-re-run alone and an isolation leak is still named. To see a known red alone:
+**A slow file is sharded only when the run is tail-bound** (fast-gate §3). When Σ estimates / jobs
+is under twice the longest estimate — a small run whose makespan is its longest file — a file cached
+green ≥ 90 s with ≥ 2k recorded tests runs as k = min(4, ceil(s/45)) processes, each
+`-p hermes_shard --hermes-shard=i/k` (a crc32 of the node id picks the shard). The start-up line says
+`tail-bound: sharding N files into M shards` or `work-bound: no sharding`; a cold whole tree and a
+normal landing are work-bound. A file is green only when every shard is; a red shard runs the file
+once whole (`whole-check`): green whole is printed before the Summary as a candidate for
+`scripts/test_files_unsharded.txt` with the observed shard diff (its tests depend on each other's
+order — add the line and file a row), red whole is an ordinary red. A known red and a listed file
+are never sharded. Test counts come from the run record, so the first run after a reset only records.
+
+**A red is not paid for twice** (owner ruling O5; fast-gate §2). A file red or timed out in the last
+recorded run is a KNOWN red: it runs once, alone (`known-red` in the progress line), with no flake
+retry, no straggler retry and a capped timeout — `min(300, max(60, 2 × its last green seconds))`, or
+120 s when it has never been green on this box (owner ruling Q5; the first load-induced false timeout
+lifts 120 to 180 in the plan). Its failure output ends with the cap and, when its failing set moved
+since the record, `failing set changed: +N −M` with the ids; a capped timeout prints
+`known-red timeout cap <N>s; run alone: scripts/run_tests.sh <file>`. A NEW red still runs bundle →
+re-run alone, and an isolation leak is still named. To see a known red at full time:
 `scripts/run_tests.sh <file>`.
 
 **Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
@@ -99,7 +125,8 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
 - A failure seen only in a parallel or bundled run is compared as a SET against a serial
   `scripts/run_tests.sh` run of that file before it is believed (the bundled runner names an
   isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A
-  `known-red` line was NOT run alone this time; it is not evidence of a leak either way.
+  `known-red` line ran alone once, capped, never in a bundle this time; it is not evidence of a leak
+  either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
 - A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
   log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test

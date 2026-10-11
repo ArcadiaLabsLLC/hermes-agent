@@ -5,7 +5,9 @@ default and the fork's landing gate, runs every file absent from
 ``tests/fixtures/upstream_manifest.txt`` plus each inherited file the change
 reaches (``select_scope``): the file itself changed, its convention-mapped
 source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
-a changed module, or a ``conftest.py`` above it changed. The change is
+a changed module, a ``conftest.py`` above it changed, or a path of the session
+chain every process loads changed (``scripts/run_tests_bundled_chain.py``,
+fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config). The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits; after a release merge it is ``--since-merge <merge>``
 (``merge_change``: what the merge itself produced, plus what came after it,
@@ -26,6 +28,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
+
+try:  # imported as ``scripts.run_tests_bundled_scope`` (the tests)
+    from scripts import run_tests_bundled_chain as chain
+except ImportError:  # loaded by the runner: ``scripts/`` is sys.path[0]
+    import run_tests_bundled_chain as chain
 
 
 def _rel_posix(path: Path, repo_root: Path) -> str:
@@ -168,7 +175,7 @@ class MergeChange:
     merged: set[str]  # its combined diff: paths whose blob differs from BOTH parents
     after: set[str]  # ``<merge>..HEAD`` and working-tree edits
     first_parent: int  # paths of ``git diff <parent1> <merge>``, the spelling this replaces
-    standing: List[str]  # conftests in ``merged`` whose fork hunk the merge left unchanged
+    standing: List[str]  # conftest or chain paths in ``merged`` whose fork hunk the merge left unchanged
 
     @property
     def paths(self) -> set[str]:
@@ -177,21 +184,23 @@ class MergeChange:
     def account(self) -> str:
         return (
             f"Since merge {self.merge}: {len(self.merged)} path(s) in its combined diff (against its first "
-            f"parent: {self.first_parent}) + {len(self.after)} after it; conftest(s) whose fork hunk the merge "
+            f"parent: {self.first_parent}) + {len(self.after)} after it; conftest or chain path(s) whose fork hunk the merge "
             f"left unchanged, not reaching: {', '.join(self.standing) or 'none'}"
         )
 
 
 def merge_change(repo_root: Path, merge_sha: str) -> MergeChange:
-    """``changed_paths_for_merge`` less each ``conftest.py`` the merge only
-    re-applied a standing fork hunk to (``conftest_hunk_unchanged``) and nothing
-    after the merge touched: such a conftest is "changed" against the tag
-    forever, and would otherwise reach every upstream test below it."""
+    """``changed_paths_for_merge`` less each ``conftest.py`` or session-chain path
+    (``pyproject.toml``) the merge only re-applied a standing fork hunk to
+    (``conftest_hunk_unchanged``) and nothing after the merge touched: such a
+    path is "changed" against the tag forever, and would otherwise reach every
+    upstream test below it."""
 
     parents, merged, after = _merge_parts(repo_root, merge_sha)
     standing = sorted(
         rel for rel in merged - after
-        if rel.rsplit("/", 1)[-1] == "conftest.py" and conftest_hunk_unchanged(repo_root, rel, merge_sha)
+        if (rel.rsplit("/", 1)[-1] == "conftest.py" or chain.in_chain(rel))
+        and conftest_hunk_unchanged(repo_root, rel, merge_sha)
     )
     first_parent = len(_git_paths(repo_root, "diff", "--name-only", parents[0], merge_sha))
     return MergeChange(merge_sha, merged, after, first_parent, standing)
@@ -261,6 +270,7 @@ class ScopeSelection:
     source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
     importer: List[Path] = field(default_factory=list)  # it imports a changed module
     conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
+    chain: List[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5)
     named: List[Path] = field(default_factory=list)  # named explicitly on the command line
     full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
     excluded: List[Path] = field(default_factory=list)
@@ -270,7 +280,8 @@ class ScopeSelection:
     @property
     def selected(self) -> List[Path]:
         return sorted(
-            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.named + self.full,
+            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.chain + self.named
+            + self.full,
             key=lambda p: str(p),
         )
 
@@ -288,8 +299,10 @@ def select_scope(
     """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
     manifest), plus each inherited file the change could reach — the file
     itself changed, the source its name maps to changed, it imports a changed
-    module, or a ``conftest.py`` in one of its directories changed. Files named
-    explicitly (not found by walking a directory) always run.
+    module, a ``conftest.py`` in one of its directories changed, or a path of
+    the session chain changed (``chain.in_chain``: every process loads it, so
+    it reaches every file). Files named explicitly (not found by walking a
+    directory) always run.
 
     A file on the upstream skip list (``skipped``) goes to ``skipped_red`` and
     nowhere else, in both scopes, unless it is named (owner ruling O1: skip
@@ -301,6 +314,7 @@ def select_scope(
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
     changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
+    chain_hit = bool(chain.chain_changed(changed))
     skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection()
     for path in files:
@@ -321,6 +335,8 @@ def select_scope(
             sel.source.append(path)
         elif any(rel.startswith(d + "/") for d in changed_conftest_dirs):
             sel.conftest.append(path)
+        elif chain_hit:
+            sel.chain.append(path)
         elif changed_modules and any(
             imp == mod or imp.startswith(mod + ".")
             for imp in imported_modules(path, rel)
@@ -363,10 +379,12 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
             f"Scope fork (since {since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
             f"(touched {len(sel.touched)}, source {len(sel.source)}, importer {len(sel.importer)}, "
-            f"conftest {len(sel.conftest)}, named {len(sel.named)}); "
+            f"conftest {len(sel.conftest)}, chain {len(sel.chain)}, named {len(sel.named)}); "
             f"{len(sel.excluded)} inherited left to --scope full",
             flush=True,
         )
+        if chain.chain_changed(changed):  # why a landing pays the whole tree (owner ruling Q3)
+            print(f"  chain: {', '.join(chain.chain_changed(changed))} — loaded by every test process", flush=True)
     for path in sel.skipped_red:  # a run says what it did not run, and why
         rel = _rel_posix(path, repo_root)
         print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")
