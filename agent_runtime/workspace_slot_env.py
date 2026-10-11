@@ -28,6 +28,8 @@ from typing import Any
 from hermes_constants import get_default_hermes_root
 from utils import atomic_json_write
 
+from .json_document import read_versioned_document
+
 __layer__ = "stores"
 
 MACHINE_SLOT_ENV_FILENAME = "machine_slot_env.json"
@@ -62,13 +64,7 @@ def slot_env_path() -> Path:
 
 
 def _read() -> dict[str, Any]:
-    try:
-        payload = json.loads(slot_env_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"schema_version": SLOT_ENV_SCHEMA_VERSION, "workspaces": {}}
-    if not isinstance(payload, dict) or not isinstance(payload.get("workspaces"), dict):
-        return {"schema_version": SLOT_ENV_SCHEMA_VERSION, "workspaces": {}}
-    return payload
+    return read_versioned_document(slot_env_path(), schema_version=SLOT_ENV_SCHEMA_VERSION, collection="workspaces")
 
 
 def slot_fill(workspace_id: str, slot: str) -> SlotFill | None:
