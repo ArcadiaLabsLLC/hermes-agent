@@ -1497,6 +1497,37 @@ class CheckpointManager:
         except (PruneError, OSError) as exc:
             return {"success": False, "error": str(exc)}
 
+    def _checkout_restore_paths(self, working_dir: str, commit_hash: str,
+                                paths: List[str], *, literal: bool = False):
+        """Checkout one validated selection while the caller holds the store lock.
+
+        Native pathspec callers retain Git's matching rules. Literal selections
+        use a NUL file to preserve filenames and keep batches off the argv limit.
+        Snapshot, selection and user-edit policy stay with the restore caller.
+        """
+        if not paths:
+            return True, "", ""
+        store = _store_path()
+        index = _index_path(store, _project_hash(working_dir))
+        if literal:
+            with tempfile.TemporaryDirectory(prefix="restore-select-", dir=store) as scratch:
+                spec_file = Path(scratch) / "pathspec"
+                spec_file.write_bytes(b"".join(os.fsencode(p) + b"\0" for p in paths))
+                return _run_git(
+                    ["checkout", commit_hash, f"--pathspec-from-file={spec_file}", "--pathspec-file-nul"],
+                    store, working_dir, timeout=_GIT_TIMEOUT * 2, index_file=index,
+                    extra_env={"GIT_LITERAL_PATHSPECS": "1"},
+                )
+        return _run_git(["checkout", commit_hash, "--", *paths], store, working_dir,
+                        timeout=_GIT_TIMEOUT * 2, index_file=index)
+
+    @staticmethod
+    def _delete_restore_file(working_dir: str, rel: str) -> None:
+        """Remove a selected file; confinement/ownership were checked by caller."""
+        target = Path(working_dir) / rel
+        if target.is_file() or target.is_symlink():
+            target.unlink()
+
     def _restore(self, working_dir: str, commit_hash: str, file_path: str | None, safe: bool) -> Dict:
         hash_err = _validate_commit_hash(commit_hash)
         if hash_err:
@@ -1663,44 +1694,22 @@ class CheckpointManager:
                     delete_targets.append(rel)
             for rel in delete_targets:
                 try:
-                    target = Path(abs_dir) / rel
-                    if target.is_file() or target.is_symlink():
-                        target.unlink()
+                    self._delete_restore_file(abs_dir, rel)
                 except OSError as exc:
                     logger.warning(
                         "Safe restore: could not remove %s: %s", rel, exc,
                     )
                     failed_deletes.append(rel)
-            if not checkout_targets:
-                ok, stdout, err = True, "", ""
-            else:
-                ok, stdout, err = _run_git(
-                    ["checkout", commit_hash, "--", *checkout_targets],
-                    store, abs_dir, timeout=_GIT_TIMEOUT * 2,
-                    index_file=index_file,
-                )
+            ok, stdout, err = self._checkout_restore_paths(abs_dir, commit_hash, checkout_targets)
         elif selected_paths is not None:
             # Check out exactly the entries inspected above. Re-evaluating
             # file_path here could select something else: _take() has just
             # restaged the project index, and attribute pathspecs read
             # .gitattributes from it. A NUL-separated literal pathspec file
             # keeps long selections off the command line.
-            with tempfile.TemporaryDirectory(prefix="restore-select-", dir=store) as scratch:
-                spec_file = Path(scratch) / "pathspec"
-                spec_file.write_bytes(b"".join(os.fsencode(p) + b"\0" for p in selected_paths))
-                ok, stdout, err = _run_git(
-                    ["checkout", commit_hash, f"--pathspec-from-file={spec_file}",
-                     "--pathspec-file-nul"],
-                    store, abs_dir, timeout=_GIT_TIMEOUT * 2,
-                    index_file=index_file,
-                    extra_env={"GIT_LITERAL_PATHSPECS": "1"},
-                )
+            ok, stdout, err = self._checkout_restore_paths(abs_dir, commit_hash, selected_paths, literal=True)
         else:
-            ok, stdout, err = _run_git(
-                ["checkout", commit_hash, "--", file_path if file_path else "."],
-                store, abs_dir, timeout=_GIT_TIMEOUT * 2,
-                index_file=index_file,
-            )
+            ok, stdout, err = self._checkout_restore_paths(abs_dir, commit_hash, [file_path or "."])
 
         if not ok:
             return {"success": False, "error": f"Restore failed: {err}",
