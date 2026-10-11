@@ -195,6 +195,8 @@ with PR bodies drafted, or rewrite additively now (plugin_loader's one deleted l
 condition that can become a second branch; read_tracking's four are a stat/fstat compare
 that cannot be made additive without a wrapper, which is still a deletion at the call site)?
 
+**BUILT `372984bae6` (stage 1), `d779f60a48` (stage 2), `87307587af` (stage 3)** (lane build-1011-C5, 2026-10-10). Code differs from this section: of the eight hunks, five are carried PRs' own bytes (`test_auth_commands` #121642, `test_uninstall_dry_run` and `test_worktree_sync_base` #121640, `test_windows_agent_loop_papercuts` #123892, `plugin_loader` #128651), read against each PR diff. Only `test_turn_context` moved (its test is not #124210's); `test_worktree_sync_base` went to tag bytes; the other three tests are named in `carried_prs.json`. `_posix_match_forms` stays in `tools/file_tools_paths.py` (PR #121645's location; `tools/path_identity.py` refuses tilde expansion) and `tools/file_tools.py` imports it. Both non-additive fixes were made additive (owner ruling): `plugin_loader` 5/1 -> 3/0 (the PR path deferred with that reason), `file_tools_read_tracking` 12/4 -> 11/0. [up-fp] files 191 -> 189, deleted_lines 937 -> 931.
+
 ## D3.04 = L6.14 — the serve-socket disconnect test's second subscriber-release path
 
 **Verdict: PLAN** (the second path is named; the test gets a deterministic shape and a
@@ -361,6 +363,8 @@ when the next upstream test arrives, and no blanket.
 **Risks.** A reader moved WITHOUT a ledger row is invisible to the rule — but such a row is
 already required by the footprint gate, so the failure is loud elsewhere first.
 **Owner question.** None.
+
+**BUILT `b38a31ced2` (stage 1), `602641ffc4` (stage 2), `29c02724f5` (stage 3)** (lane build-1011-C5, 2026-10-10). Code differs from this section: the derived set is the five rows whose reason says "reader moved to `load_config_readonly`" (`hermes_cli/config.py` defines the loader and would make the route a blanket; `tools/tool_search.py` binds upstream's own name); selection is one hop of the import graph (the full closure selects 6,135 of 6,601 test files, one hop 832); both halves are decided at call time (the eager scan cost ~60 ms per test file); the readonly projection does not refuse mutation, so the unpatched control is a `functools.wraps` spy. The positive controls live in `tests/hermes_cli/test_readonly_read_through_downstream.py`.
 
 ## D3.07 = L6.35 — a release merge's `--scope fork` gate selects the whole tree
 
