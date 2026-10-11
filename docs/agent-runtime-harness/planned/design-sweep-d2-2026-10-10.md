@@ -106,10 +106,16 @@ Verdict table (filled as batches land):
 
 | stage | lands | test file | killing mutation |
 |---|---|---|---|
-| S1 contract | `validate` files arm, `Refusal` members, capability v3 | `tests/agent_runtime/test_conversation_worker_protocol_input.py` (+ `test_native_conversation_rpc.py` capability golden) | drop the per-file bound → the 4 MiB+1 file passes `validate` → red; remove `files` from the key set → old-shape prompt accepted → red |
-| S2 submit | `submit` attaches each file (`file.attach`/`pdf.attach` by media type) then submits | `tests/agent_runtime/test_native_conversation.py` (scripted peer) | skip the `attached` check → a refused attach still submits → red; attach after submit → order assertion red |
-| S3 recovery | digest covers files; `observe_execution` round trip | `tests/agent_runtime/test_native_conversation_roundtrip.py` | exclude `files` from `digest(payload)` → resend with changed file bytes is not `CONFLICT` → red |
+| S1 contract — BUILT d3ce04dfc1 (+ f59b371f11) | `validate` files arm, `Refusal` members, capability v3 | `tests/agent_runtime/test_conversation_worker_protocol_input.py` (+ `test_native_conversation_rpc.py` capability golden) | drop the per-file bound → the 4 MiB+1 file passes `validate` → red; remove `files` from the key set → old-shape prompt accepted → red |
+| S2 submit — BUILT 5a374d46ec | `submit` attaches each file (`file.attach`/`pdf.attach` by media type) then submits | `tests/agent_runtime/test_native_conversation.py` (scripted peer) | skip the `attached` check → a refused attach still submits → red; attach after submit → order assertion red |
+| S3 recovery — BUILT 45965f78f9 | digest covers files; `observe_execution` round trip | `tests/agent_runtime/test_native_conversation_roundtrip.py` | exclude `files` from `digest(payload)` → resend with changed file bytes is not `CONFLICT` → red |
 | S4 launcher | C019: composer Files action gated on capability `files` | launcher | — |
+
+Built by lane build-1011-C3, where the code differed from this plan: limits are the launcher
+composer's (`AgentAttachmentLimits`: 8 files, 256 KiB each, 512 KiB total — owner ruling);
+`files` is OPTIONAL (absent = none) so the shipped launcher's `{text, images}` packet keeps
+working; S1's tests live in `test_conversation_prompt_files.py` (the named file is a pipe test);
+S3 runs against a real native worker.
 
 ### Risks
 
@@ -665,9 +671,15 @@ test lines), 2 stages + launcher.
 
 | stage | test | killing mutation |
 |---|---|---|
-| MOVE | `tests/agent_runtime/test_serve_charsheet_fake_draftsman_child_e2e.py` + the characters CLI tests byte-identical | — |
-| CHANGE | `tests/agent_runtime/test_serve_rpc_characters.py` (new): each twin equals its argv payload; thumb over budget → `media: null` + path; tier test (all `read`) | skip the budget check → an over-ceiling crop ships inline → red; register `thumb` at `console` → tier test red |
+| MOVE — BUILT f6ddc22c0d | `tests/agent_runtime/test_serve_charsheet_fake_draftsman_child_e2e.py` + the characters CLI tests byte-identical | — |
+| CHANGE — BUILT 67adcaf393 | `tests/agent_runtime/test_serve_rpc_characters.py` (new): each twin equals its argv payload; thumb over budget → `media: null` + path; tier test (all `read`) | skip the budget check → an over-ceiling crop ships inline → red; register `thumb` at `console` → tier test red |
 | launcher | `hermes_character_client.dart` list/readStatus/thumb/sprite RPC-first, argv on Unavailable | — |
+
+Built by lane build-1011-C3, where the code differed: the MOVE also carried the thumb dispatch
+(`thumb_result`, it lived in the argv closure); `media_block` lives in `serve_rpc/media.py`
+(`media_handles.py` is already 992 lines); honoured keys in `serve_rpc/twin_params.py` (a models
+table the registry can read); `not_found` answers `ERR_NOT_FOUND`; `sheet_media` is null past
+`MAX_FETCH_BYTES`.
 
 Owner question: none.
 
