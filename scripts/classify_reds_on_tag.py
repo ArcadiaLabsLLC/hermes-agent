@@ -341,7 +341,7 @@ def _load_known_reds(repo: Path) -> Dict[str, frozenset]:
     return module.load_known_reds(repo)
 
 
-def _parser() -> argparse.ArgumentParser:
+def _classify_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--nodeid", action="append", default=[], help="a red node id (repeatable)")
@@ -368,7 +368,7 @@ def _red_nodes(args: argparse.Namespace, repo: Path) -> List[str]:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = _parser().parse_args(argv)
+    args = _classify_parser().parse_args(argv)
     repo = (args.repo or primary_of(Path(__file__).parent) or Path.cwd()).resolve()
     if _within(Path.cwd(), repo):
         print(f"error: refusing to run inside the primary checkout {repo}; run from a neutral cwd",
