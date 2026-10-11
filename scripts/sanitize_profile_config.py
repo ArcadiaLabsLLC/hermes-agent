@@ -31,6 +31,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 import sys
 from pathlib import Path
@@ -83,29 +84,43 @@ def value_kind(text: str) -> str | None:
 
 
 def sanitize(node, key: str = "", counter: list[int] | None = None):
-    counter = counter if counter is not None else [0]
-    if isinstance(node, dict):
-        out = {}
-        for raw_key, value in node.items():
-            new_key = raw_key
-            if isinstance(raw_key, str):
-                kind = value_kind(raw_key)
-                if kind is not None:
-                    counter[0] += 1
-                    new_key = f"<redacted-key:{kind}-{counter[0]}>"
-            out[new_key] = sanitize(value, str(raw_key), counter)
-        return out
-    if isinstance(node, list):
-        return [sanitize(item, key, counter) for item in node]
-    if isinstance(node, str):
-        if node == "":
-            return node
-        token = sensitive_key_token(key)
-        if token is not None:
-            return f"<redacted:{token}>"
-        kind = value_kind(node)
-        return node if kind is None else f"<redacted:{kind}>"
+    """A sanitized copy of ``node``; one strategy per YAML node type (``_sanitized``)."""
+
+    return _sanitized(node, key, counter if counter is not None else [0])
+
+
+@functools.singledispatch
+def _sanitized(node, key: str, counter: list[int]):
     return node  # bool, int, float, None keep value and type
+
+
+@_sanitized.register(dict)
+def _sanitized_mapping(node: dict, key: str, counter: list[int]) -> dict:
+    out = {}
+    for raw_key, value in node.items():
+        new_key = raw_key
+        kind = value_kind(raw_key) if isinstance(raw_key, str) else None
+        if kind is not None:
+            counter[0] += 1
+            new_key = f"<redacted-key:{kind}-{counter[0]}>"
+        out[new_key] = _sanitized(value, str(raw_key), counter)
+    return out
+
+
+@_sanitized.register(list)
+def _sanitized_list(node: list, key: str, counter: list[int]) -> list:
+    return [_sanitized(item, key, counter) for item in node]
+
+
+@_sanitized.register(str)
+def _sanitized_string(node: str, key: str, counter: list[int]) -> str:
+    if node == "":
+        return node
+    token = sensitive_key_token(key)
+    if token is not None:
+        return f"<redacted:{token}>"
+    kind = value_kind(node)
+    return node if kind is None else f"<redacted:{kind}>"
 
 
 def cut_profile(root: Path, profile: str, out: Path) -> Path:
