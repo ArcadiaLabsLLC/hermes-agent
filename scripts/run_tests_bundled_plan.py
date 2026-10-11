@@ -139,6 +139,16 @@ class RunLedger:
     first_attempt_seconds: float = 0.0
     known_red: List[str] = field(default_factory=list)
 
+    def record_solo(self, kind: str, rel: str, started: float, session_start: Optional[float], tally) -> None:
+        """One single-file process: its wall and start-up, and the file's seconds and
+        failing ids from its recorder ``tally`` (None when the recorder wrote nothing)."""
+
+        startup = None if session_start is None else max(0.0, session_start - started)
+        self.processes.append(Process(kind, [rel], started, time.time(), startup))
+        if tally is not None:
+            self.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
+        self.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
+
     def summary(self, jobs: int, *, slowest: int = 20) -> Dict[str, object]:
         ended = self.ended or time.time()
         elapsed = max(1e-9, ended - self.started)

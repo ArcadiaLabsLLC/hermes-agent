@@ -314,11 +314,7 @@ def run(
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with lock:
-            startup = None if first.session_start is None else max(0.0, first.session_start - t0)
-            ledger.processes.append(plan.Process(via, [rel], t0, time.time(), startup))
-            if tally is not None:
-                ledger.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
-            ledger.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
+            ledger.record_solo(via, rel, t0, first.session_start, tally)
         if via == "rerun" and rc == 0 and leak_info is not None:
             with lock:
                 leaks.append(leak_info)
