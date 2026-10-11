@@ -18,6 +18,7 @@ protocol                 models  frames, ``ERR_*`` codes, ``RpcContext`` (and th
 registry                 models  ``_METHODS`` / ``_METHOD_TIERS`` and ``@method``
                                  (the rule-12 reference registry), the manifest
 reasons                  models  ``RpcRefusal``: every ``data.reason`` a guard here spends
+twin_params              models  the honoured ``params`` of every argv-twin method (L4.22)
 params                   policy  the typed parameter readers, ``ParamRefused``, and
                                  the guard frames every office/level verb shares
 office_errors            policy  store exception -> frame rows and the MRO walker
@@ -50,6 +51,8 @@ chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
+characters               lanes   ``runtime.characters.list/status/thumb/sprite``
+                                 (the character-sheet read twins)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -95,6 +98,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     chat_verbs,
     realm,
     client,
+    characters,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

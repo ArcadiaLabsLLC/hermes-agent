@@ -14,6 +14,10 @@
     "runtime.agent.directory",
     "runtime.agent.retire",
     "runtime.agent.templates",
+    "runtime.characters.list",
+    "runtime.characters.sprite",
+    "runtime.characters.status",
+    "runtime.characters.thumb",
     "runtime.chat.message",
     "runtime.chat.queue_skill",
     "runtime.chat.steer",
@@ -182,6 +186,23 @@
     "runtime.workspace.use"
   ],
   "params": {
+    "runtime.characters.list": [],
+    "runtime.characters.sprite": [
+      "include_sheet",
+      "slug"
+    ],
+    "runtime.characters.status": [
+      "draft"
+    ],
+    "runtime.characters.thumb": [
+      "attempt",
+      "direction",
+      "draft",
+      "frame",
+      "row",
+      "scale",
+      "square"
+    ],
     "runtime.chat.message": [
       "clarify_token",
       "client_scope",
@@ -238,6 +259,10 @@
     "runtime.agent.directory": "console",
     "runtime.agent.retire": "console",
     "runtime.agent.templates": "console",
+    "runtime.characters.list": "read",
+    "runtime.characters.sprite": "read",
+    "runtime.characters.status": "read",
+    "runtime.characters.thumb": "read",
     "runtime.chat.message": "console",
     "runtime.chat.queue_skill": "console",
     "runtime.chat.steer": "console",
