@@ -700,13 +700,14 @@ not second-guess).
   `05-chat-turn-lane.md` slot-context paragraph names the rule.
 
 **Stages.**
-1. **S1 the resolver hand-off** (MOVE-sized, behaviour-neutral): the workdir resolved in the
+1. **S1 the resolver hand-off** — **BUILT 32635b1eef** (build-1011-C2). (MOVE-sized, behaviour-neutral): the workdir resolved in the
    turn context and passed down. Test: `mission_chat_reply` receives the same `workdir`
    receipt as before for the three ladder cases (config rung, agents-file pointer, primary
    slot). Killing mutation: pass `None` → the reply re-resolves and the receipt still matches
    (so the mutation is caught by a call-count assertion on `mission_chat_workdir_for_persona`
    = 1).
-2. **S2 the dedup.** Tests (`tests/agent_runtime/test_slot_context_chain_dedup.py`, tmp git
+2. **S2 the dedup** — **BUILT defef38b24** (build-1011-C2; the code differed from this plan and the commit says how: content compared after BOM/newline normalisation, a section dropped only when the chain carries it WHOLE — under the cap floor and clean of the injection scan — and the prewarm builds through the turn's `_turn_workspace`; the path-compare mutation cannot kill, discovery never lists `AGENTS.md` beside a non-empty override). Measured: prompt 59,503 → 34,669 chars, turn-context build median 4.6 → 9.5 ms.
+   Tests (`tests/agent_runtime/test_slot_context_chain_dedup.py`, tmp git
    repo as the slot): primary slot = cwd, `include_core_context_files` on → the slot's
    `CLAUDE.md` and `AGENTS.md` sections are dropped and the chain carries them (assert the
    built prompt contains each content exactly once); an `AGENTS.override.md` in the slot →
@@ -737,7 +738,7 @@ which is correct — the chain carries that directory's `AGENTS.md`.
 | D1.09 | PLAN (gateway half of the row corrected; owner question on the MCP host) | launcher sweep spares hermes children by identity; ~140 / ~160 |
 | D1.10 | PLAN, S0 first (owner question: memo vs door) | ~70 ms on the skill-heavy persona; ~130 / ~150 |
 | D1.11 | INVESTIGATION (behind M1.02) | the unattributed 17–19 ms named before any fix |
-| D1.12 | PLAN | duplicate CLAUDE.md/AGENTS.md out of the prompt; ~120 / ~160 |
+| D1.12 | BUILT (S1 32635b1eef, S2 defef38b24) | duplicate CLAUDE.md/AGENTS.md out of the prompt; ~120 / ~160 |
 
 Structural findings for the queues (one line each; the parent files them):
 

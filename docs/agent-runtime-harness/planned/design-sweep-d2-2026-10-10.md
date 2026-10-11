@@ -19,7 +19,7 @@ Verdict table (filled as batches land):
 | D2.04 = L5.04 | PLAN | `retry_of` written once on the new record; `retried_as` projected onto the old marker from it; no write-back |
 | D2.05 = L5.09 | PLAN | `runtime.settles.list` / `.rearm` (console tier) + `harness serve settles`; re-arm = `undelivered → pending`, attempts 0, same `settle_id`, `rearm_count` stamped |
 | D2.06 = L4.30 | DROP | the mechanism landed: `persona_chat_turn` overlay carries `running_work` at start (h-turn1 C2) and `running_work_frame` ships at end; the yield docstring is what is stale |
-| D2.07 = L1.25 | PLAN | `worker_app_functions.create_agent` is the one native factory chokepoint: resolve `permission_options_for_chat` there, keyed `profile:<name>` until an instance owns the route |
+| D2.07 = L1.25 | PLAN — RETURNED for redesign by build-1011-C2 (§ D2.07) | `worker_app_functions.create_agent` is the one native factory chokepoint: resolve `permission_options_for_chat` there, keyed `profile:<name>` until an instance owns the route |
 | D2.08 = L2.26 | PROGRAM-EXISTS | `instance-conversations-2026-10-01.md` § Remaining before cutover; next stage is the parity qualification, with D2.07 as its permission arm |
 | D2.09 = L3.07 | PLAN | the fork modules already exist (`tui_gateway/session_execution.py` and five siblings); two MOVE clusters shrink 7 files to one-line call sites, three files are door PRs, not moves |
 | D2.10 = L4.25 | PLAN | four read-tier twins over the existing payload builders; pixels as the `runtime.media.get` block shape, bounded by `withinConsoleBudget`; one MOVE first |
@@ -551,6 +551,16 @@ production lines, ~160 test lines, 2 stages.
 |---|---|---|
 | S1 resolve | `tests/agent_runtime/test_native_conversation_worker.py`: a route held `read_only` builds an agent whose `blocked_tool_names` equals `extra_blocked_tools_for_permission_mode("read_only")`, mutating app functions included; the child's store path equals the serve's | ignore the record in `create_agent` → the blocked list is empty → red |
 | S2 consume | a 2-turn `read_only` grant lapses after two native sends | consume in the worker too → lapses after one → red |
+
+### Build lane build-1011-C2 (2026-10-11): RETURNED — design
+
+Neither stage was built; the code refutes three premises above, and a redesign is owed before S1:
+
+1. **The worker never holds the route id.** `session.create` / `prompt.submit` params are upstream contracts with `extra="forbid"` (`tui_gateway/contracts/sessions.py::SessionCreateParams`), and `create_agent` runs from `_schedule_agent_build` queued inside `session.create`, which can run before `ConversationService._attach` writes the route's `native_id` (`store.replace_unused`). The key `(profile:<name>, route id)` has no carrier at the factory.
+2. **A factory-time resolve freezes the mode for the agent's life.** The native agent persists across turns, so a `permission.set` mid-conversation would not apply until a rebuild; the operator lane resolves per turn. The fork already owns a per-turn seam in the worker: `worker_app_functions.bind` / `reset`, called by `tui_gateway/prompt_turn.py::_prepare_turn_input` around every turn.
+3. **`AIAgent` takes no `blocked_tool_names`.** The operator lane prunes at construction (`profile_runner.runner._default_agent_factory` → `prune_agent_tools`) AND binds `bound_tool_block` per run for the wire and call doors (`agent_runtime/tool_blocks.py`); whether the eternia-harness plugin that holds those doors loads in the native worker, and whether the worker resolves the serve's store root (decision 3), are unverified.
+
+Redesign question for the design lane: resolve per turn in `worker_app_functions.bind` (route found by the session's stored key, settled by then) and prune at construction from the runtime default only — or add a fork worker method / an additive contract field to carry the route id. The owner ruling (a PROFILE conversation honours `default_permission_mode()`) stands for either.
 
 ### Owner question
 
