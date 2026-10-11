@@ -66,6 +66,7 @@ _DIRECTORY_PLUGINS = {
     "agent": "tests._downstream.agent_conftest",
     "tools": "tests._downstream.tools_conftest",
     "hermes_cli": "tests._downstream.hermes_cli_conftest",
+    "tui_gateway": "tests._downstream.tui_gateway_conftest",
 }
 
 
