@@ -355,5 +355,10 @@ only, never the suite; re-take `docs/downstream/bundled-phone-gate-2026-09-28.md
 - **D5 — slash commands on phones.** Build the in-process slash runner (the phone's session build
   spawns `python -m tui_gateway.slash_worker` today, which a phone cannot), or rule "no slash
   commands on the phone" for Stage 2.
+- **RULED 2026-10-10 (owner took the recommendations):** D2 — omit `pillow-heif`; the Launcher's picker
+  transcodes HEIC/AVIF before send. D3 — drop `agent.vault_store` + `agent.vault_backends.*` on the phone;
+  the host store binding is the phone's vault and `vault.*` answers unavailable. D4 — drop the `ddgs`
+  provider on the phone (HTTP-API search providers only). D5 — no slash commands on the phone for Stage 2;
+  the in-process slash runner is later work. Lane G5 is unblocked.
 - RULED, not open: the packager forced set / lazy-site register ships as the sibling tree (owner
   2026-09-30, `ff9cbca51f`) — lane G6. Every G1 switch-off lengthens the forced set G6 stages.
