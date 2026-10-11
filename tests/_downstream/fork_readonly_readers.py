@@ -96,3 +96,23 @@ def file_reads_through(path: str) -> bool:
     """Whether the test file at ``path`` imports a fork-moved reader within one hop."""
     readers = fork_readonly_readers()
     return bool(readers) and reaches_a_reader(_imports_of(Path(path).resolve()), readers)
+
+
+_ADDED_READONLY_IMPORT = re.compile(
+    r"^\+(?!\+\+).*(?:from\s+hermes_cli\.config\s+import\s+[^#\n]*\bload_config_readonly\b"
+    r"|hermes_cli\.config\.load_config_readonly\b)")
+
+
+def readonly_reader_moves(diff_text: str) -> set[str]:
+    """Paths whose diff ADDS an import of ``hermes_cli.config.load_config_readonly``.
+
+    Over-approximates a reader move (a new import is how the fork moves a reader off
+    ``load_config``); the ledger rows of these paths must carry :data:`READER_MOVED`.
+    """
+    moves, path = set(), None
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            path = line[len("+++ b/"):] if line.startswith("+++ b/") else None
+        elif path and _ADDED_READONLY_IMPORT.match(line):
+            moves.add(path)
+    return moves

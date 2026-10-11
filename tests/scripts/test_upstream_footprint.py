@@ -170,3 +170,36 @@ def test_no_ledger_row_is_unreviewed_or_unledgered():
     assert old in text
     marked = text.replace(old, old + "additive (landed unledgered by `abc`): ", 1)
     assert unreviewed_rows(marked) == [path]
+
+
+def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
+    """D3.06: the read-through derives its reader set from rows carrying ``READER_MOVED``, so a
+    fork edit that ADDS a ``hermes_cli.config.load_config_readonly`` import to an upstream file
+    must carry that spelling. Over-approximates a move (any added import), the safe direction."""
+    import subprocess
+
+    from scripts.upstream_footprint import DEFAULT_LEDGER, ROOT
+    from tests._downstream.fork_readonly_readers import READER_MOVED, readonly_reader_moves
+
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    rows = ledger_rows(DEFAULT_LEDGER.read_text(encoding="utf-8"))
+    paths = sorted(path for path in rows if path.endswith(".py"))
+    # The whole tree, narrowed by -G (no path argv: one naming hermes_cli/main.py trips the
+    # live-system guard), then to the ledger's upstream files.
+    diff = subprocess.run(
+        ["git", "diff", "-U0", "--no-renames", "-Gload_config_readonly", fixture["base"]],
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True, timeout=120,
+    ).stdout
+    moves = readonly_reader_moves(diff) & set(paths)
+    assert len(moves) >= 5, f"the diff walk found {sorted(moves)} — too few; the walk is wrong"
+    unflagged = sorted(path for path in moves if READER_MOVED not in rows[path]["reason"])
+    assert unflagged == [], (
+        f"these upstream files gained a load_config_readonly import but their ledger row does not "
+        f"say {READER_MOVED!r}, so the read-through will not route upstream's load_config patches "
+        f"to them: {unflagged}"
+    )
+
+    # Positive control: an added import in a fake diff IS found; context and removals are not.
+    fake = ("+++ b/tools/x.py\n+    from hermes_cli.config import cfg_get, load_config_readonly\n"
+            "+++ b/tools/y.py\n-    from hermes_cli.config import load_config_readonly\n")
+    assert readonly_reader_moves(fake) == {"tools/x.py"}
