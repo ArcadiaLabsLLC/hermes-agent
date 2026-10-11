@@ -20,3 +20,31 @@ Base runs: `run_tests.sh` on all 20 at `-j 2`, then `run_tests_bundled.sh` on th
 differed. After the fix the census, pool and five tui files and `test_upstream_reds_rows_resolve`
 run green on the batch. Killing mutation for the census fix: restore the `__init__` wrapper →
 `tests/test_fresh_db_census.py` red on its creation-site pin.
+
+## After the landing (2026-10-11)
+
+- Q5 amended by the owner: a file whose last red was a TIMEOUT runs at the flat timeout (`SoloPolicy.cap`);
+  the 120 s trap row is closed by that change.
+- Two detached `hermes_cli.main update --yes --gateway --branch main --keep-stash` processes from the
+  test-environment venv were found alive at 13:00, started 00:16 and 01:51 during this gate, parents gone.
+  Killed; the primary's stash list and tree were unchanged. Rowed in fork-hygiene (2026-10-11 heading).
+- The six worker-count runs (§4) cannot start the bundled runner directly from a Python-launched Git
+  Bash: that shell has no activation, so `run_tests.sh` re-execs under `run-in-hermes-env` and hits the
+  FG1-filed `$__BUNDLED_DIR` re-exec bug (rc 2, no tests). Wrapping the command in
+  `scripts/run-in-hermes-env` works.
+
+## Worker count (§4), 2026-10-11 — closed: 8 stays
+
+The 291-file `scripts/worker_protocol_sample.txt` from the primary, `--no-cache --file-retries 0`, through
+`scripts/run-in-hermes-env` (receipts `.pytest_cache/hermes_worker_protocol.jsonl`):
+
+| workers | wall | failed | CPU mean / p90 | memory peak |
+|---|---|---|---|---|
+| 8 | 1,529 s | 0 | 86.6% / 99% | 67.3% |
+| 12 | 1,302 s | 2 | 91.4% / 100% | 75.5% |
+| 16 | 3,302 s | 2 | 79.8% / 100% | 84.2% |
+
+The owner stopped the repeats (runs 4–6) and kept 8: 16 is a loss, and 12's 15% came with two new reds at
+the CPU threshold. The two sampler rows (receipts outside `RunLedger.summary`; the sample needs the
+primary) are closed with the measurement. Run 4 reproduced the leaked `hermes update`
+(`test_desktop_update_windows_marker.py::test_script_killed_right_after_spawning_the_update_leaves_a_live_marker`).
