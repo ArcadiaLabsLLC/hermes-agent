@@ -140,26 +140,37 @@ _NODE_NAMES = {
     ast.ImportFrom: lambda node: node.module.split(".") if node.module else (),
 }
 
+# The subset that is an IMPORT: the only way CODE can load a backend in-process without
+# a spawn-capable name (``__import__`` / ``importlib`` / ``runpy`` already are one). A
+# backend word on a plain name or attribute is not a load: a detector the code merely
+# calls (``guard.contains_gateway_lifecycle_command``) boots nothing.
+_IMPORT_NAMES = {
+    ast.alias: _alias_names,
+    ast.ImportFrom: lambda node: node.module.split(".") if node.module else (),
+}
+
 
 def _python_c_code_is_inert(code: str) -> bool:
-    """True when CODE parses and names nothing that could spawn or boot a backend.
+    """True when CODE parses, names nothing that could spawn, and imports no backend.
 
     Only then are its string literals data rather than a command line: the words
-    ``hermes gateway`` inside a literal the code merely compares cannot start one.
-    Anything else (unparseable, or any spawn-capable or backend-named identifier,
-    import or attribute) keeps the conservative word scan.
+    ``hermes gateway`` inside a literal the code merely builds or compares cannot start
+    one. Anything else (unparseable, any spawn-capable identifier, import or attribute,
+    or an import whose dotted path carries a backend word) keeps the conservative word
+    scan.
     """
     try:
         tree = ast.parse(code)
     except (SyntaxError, ValueError):
         return False
     names = set()
+    imports = set()
     for node in ast.walk(tree):
         names.update(_NODE_NAMES.get(type(node), _no_names)(node))
-    lowered = {name.lower() for name in names}
-    if lowered & _SPAWN_CAPABLE_NAMES:
+        imports.update(_IMPORT_NAMES.get(type(node), _no_names)(node))
+    if {name.lower() for name in names} & _SPAWN_CAPABLE_NAMES:
         return False
-    return not any(part in name for name in lowered for part in _BACKEND_NAME_PARTS)
+    return not any(part in name.lower() for name in imports for part in _BACKEND_NAME_PARTS)
 
 
 def _without_inert_python_c_code(raw: list) -> list:
