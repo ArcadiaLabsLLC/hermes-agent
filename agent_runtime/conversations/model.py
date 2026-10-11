@@ -21,6 +21,9 @@ class Refusal(StrEnum):
     RUNTIME_STOPPING = "runtime_stopping"
     NATIVE_REFUSAL = "native_refusal"
     RESPONSE_TOO_LARGE = "response_too_large"
+    FILE_UNSUPPORTED = "file_unsupported"
+    FILE_OVERSIZE = "file_oversize"
+    FILE_INVALID = "file_invalid"
 
 
 class ConversationError(ValueError):
