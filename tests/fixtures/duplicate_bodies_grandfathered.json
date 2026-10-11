@@ -12,7 +12,6 @@
   "_initialize: agent_runtime/discussions/attempt_store.py, agent_runtime/discussions/definition_store.py",
   "_looks_sensitive_or_pathish: agent_runtime/events.py, agent_runtime/observability.py, agent_runtime/progress.py",
   "_mint: agent_runtime/gateway_identity.py, agent_runtime/gateway_tls.py, agent_runtime/serve_auth.py",
-  "_normalize: scripts/generate_agent_runtime_response_fixtures.py, scripts/generate_agent_runtime_stream_fixtures.py",
   "_prepare: agent_runtime/locks.py, agent_runtime/persona_chat_actor_prewarm.py",
   "_read_json: agent_runtime/mission_chat_steer.py, agent_runtime/serve_registry.py",
   "_refuse: agent/charsheet/fake_draftsman.py, tools/agent_chat_remote.py",
