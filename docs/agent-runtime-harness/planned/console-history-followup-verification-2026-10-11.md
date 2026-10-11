@@ -106,3 +106,56 @@ Do not call the contract clean while its persona identity representation differs
 
 Repair H1 and H2 before landing. Then consolidate H4 and record H3's missing
 proof with actual race tests. Preserve the existing native stores and lock owners.
+
+## Architecture and upstream-value follow-up
+
+The subsequent main fetch was `a29548b814`; PR #7 still at `8cbb135f15` lacks
+269 main-side commits. Eight paths changed on both sides, including chat_turn,
+history curation, profile execution/runner and RPC registration. Main adds native
+retry lineage and queue-origin handling; integration must retain them. Fetching
+main is not the same as integrating it into the feature. Launcher has its own
+larger main delta and must be qualified with this combined runtime.
+
+### Reused versus new behavior
+
+- Rewind calls the existing `SessionDB.rewind_user_turn` authority, with optional
+  revision and receipt parameters; no second transcript database was introduced.
+- Snapshots, diffs and file restoration remain in the native CheckpointManager
+  store. The added turn recorder holds attribution, not a second file snapshot.
+- Existing API/CLI fork copies the full history and ends/switches away from the
+  source. `SessionHistoryControlsMixin.branch_before_message` selects a precise
+  prefix, leaves the source open, checks revision/leases and commits the child plus
+  receipt atomically through SessionDB, reusing native `_clone_message_rows`.
+  Therefore directly calling the existing API fork is not equivalent behavior.
+- Combined chat/files Undo needs coordination: filesystem and SQLite do not form
+  one atomic transaction. Durable progress, backup retention and explicit recovery
+  have a real purpose. A separate generic workflow engine does not.
+
+### H5 — duplicated restore-write mechanics
+
+Although there is one checkpoint store, `CheckpointManager.restore_preview` and
+`resume_restore` separately perform checkout/deletion, ledger update and per-file
+receipt writes. Their verification behavior differs: recovery checks the target
+blob after a write; initial apply does not use the same step. This is a concrete
+maintenance/drift risk, not proof of an additional reproduced corruption.
+
+Consolidate the new paths' common checked file-write and receipt primitive inside
+the existing native owner. Keep the reviewed-operation coordinator separate from
+the actual file writer. Preserve existing safe-restore semantics and the legacy
+CLI behavior; do not turn this into a broad fork refactor or build another manager.
+H4 still owns the separate coordinator state-transition cleanup.
+
+### Potential upstream contribution, not submitted work
+
+Generic candidates useful beyond Eternia: revision-pinned transactional prefix
+branching, optional atomic operation receipts for rewind, reviewed selected-file
+restore with crash recovery and backup retention, and a narrow checkpoint observer
+for turn attribution. They should be independently tested and product-neutral
+before proposing them upstream. Retain upstream's existing behavior by default.
+
+Persona/install authorization, Mission Control RPC bindings, operator-specific
+turn mapping and Launcher presentation stay fork/app responsibilities. These are
+consumers of native APIs, not good reasons to put Eternia policy in upstream.
+The held ledger entries are candidates; this review does not claim an upstream
+PR was opened or accepted. Repair correctness and split a minimal coherent native
+API contribution before considering submission. No upstream publication was done.
