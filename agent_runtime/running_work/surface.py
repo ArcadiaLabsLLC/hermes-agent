@@ -515,23 +515,29 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
                 "detail": "this process does not supervise that dispatch"}
     answer = lane.request_cancel(stable, reason=reason)
     outcome = str(answer.get("outcome") or "")
-    if outcome in {"stopping", "cancelled"}:
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
-    if outcome == "cancel_requested":
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason,
-                "detail": "another process supervises it; that process stops it within "
-                          f"{answer.get('poll_seconds')}s"}
-    if outcome == "already_finished":
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind,
-                "state": answer.get("state"), "detail": "already finished; its result is kept"}
-    if outcome == "not_running":
-        # A paired install had not started it; the row's mark stops this install
-        # sending it (D1.07 S2).
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason,
-                "detail": "the paired install had not started it; it will not be sent"}
-    return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
-            "detail": _DISPATCH_CANCEL_REFUSAL_DETAIL.get(outcome, str(answer.get("detail") or ""))}
+    detail = _DISPATCH_CANCEL_ANSWERED.get(outcome)
+    if detail is None:
+        return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
+                "detail": _DISPATCH_CANCEL_REFUSAL_DETAIL.get(outcome, str(answer.get("detail") or ""))}
+    result = {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
+    if "state" in answer:
+        result["state"] = answer.get("state")
+    if detail:
+        result["detail"] = detail.format(poll_seconds=answer.get("poll_seconds"))
+    return result
 
+
+#: The outcomes of ``request_cancel`` that ANSWER the cancel (``status: ok``), and the
+#: sentence each carries ("" for none). Any other outcome is a typed refusal. A table,
+#: not an ``if outcome ==`` ladder (W0-G5): the remote leg (D1.07) added three.
+_DISPATCH_CANCEL_ANSWERED = {
+    "stopping": "",
+    "cancelled": "",
+    "cancel_requested": "another process supervises it; that process stops it within {poll_seconds}s",
+    "already_finished": "already finished; its result is kept",
+    # A paired install had not started it; the row's mark stops this install sending it.
+    "not_running": "the paired install had not started it; it will not be sent",
+}
 
 #: The sentence each typed dispatch-cancel refusal carries; ``peer_refused`` carries the far side's reason.
 _DISPATCH_CANCEL_REFUSAL_DETAIL = {
