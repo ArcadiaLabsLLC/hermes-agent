@@ -2,7 +2,8 @@
 
 The production argparse tree and production handlers emit every fixture.  The
 generator runs against an isolated empty runtime root, then normalizes only
-the random error id added after the handler has classified the response.
+the random error id added after the handler has classified the response, and the
+case's temp root (to ``<case-root>``) wherever a root-resolution block names it.
 
 Some envelopes only exist against runtime STATE (a realm whose sync remote is
 gone; a realm whose credential belongs to somebody else).  Those cases name an
@@ -169,15 +170,35 @@ def _git_quiet(*args: str) -> None:
     subprocess.run(["git", *args], capture_output=True, check=True)
 
 
-def _normalize(value: Any) -> Any:
-    if isinstance(value, dict):
-        normalized = {str(key): _normalize(item) for key, item in value.items()}
-        if "error_id" in normalized:
-            normalized["error_id"] = "err_fixture"
-        return normalized
-    if isinstance(value, list):
-        return [_normalize(item) for item in value]
+CASE_ROOT_TOKEN = "<case-root>"
+
+
+def _normalize_dict(value: dict, case_root: str) -> dict:
+    normalized = {str(key): _normalize(item, case_root) for key, item in value.items()}
+    if "error_id" in normalized:
+        normalized["error_id"] = "err_fixture"
+    return normalized
+
+
+def _normalize_list(value: list, case_root: str) -> list:
+    return [_normalize(item, case_root) for item in value]
+
+
+def _normalize_str(value: str, case_root: str) -> str:
+    # A root-resolution block (`resolution.store_root`, its trace) names the case's
+    # temp root; the consumer fixture carries a token and `/`, never this machine's path.
+    if case_root and case_root in value:
+        return value.replace(case_root, CASE_ROOT_TOKEN).replace("\\", "/")
     return value
+
+
+#: JSON value kind -> its normaliser; any other kind (numbers, bools, null) passes through.
+_NORMALIZERS: dict[type, Any] = {dict: _normalize_dict, list: _normalize_list, str: _normalize_str}
+
+
+def _normalize(value: Any, case_root: str = "") -> Any:
+    normalizer = _NORMALIZERS.get(type(value))
+    return value if normalizer is None else normalizer(value, case_root)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -196,7 +217,7 @@ def _run(parser: argparse.ArgumentParser, argv: list[str]) -> dict[str, Any]:
     return {
         "argv": argv,
         "exit_code": exit_code,
-        "stdout": _normalize(json.loads(stdout.getvalue())),
+        "stdout": _normalize(json.loads(stdout.getvalue()), str(Path(os.environ["HERMES_AGENT_RUNTIME_ROOT"]).parent)),
     }
 
 

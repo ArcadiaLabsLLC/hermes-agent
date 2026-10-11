@@ -5,10 +5,11 @@ Separate because it is the one verb that retires a chat's history and bindings.
 
 from __future__ import annotations
 
+import json
 import uuid
-from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.events import EventLog
-from agent_runtime.models import Event
+from agent_runtime.models import Event, PersonaInstance
+from agent_runtime.serde import from_jsonable
 from agent_runtime.persona_assignments import (
     CHAT_BINDING_CLEARED_REASON_DELETED,
     PersonaAssignmentStore,
@@ -29,7 +30,7 @@ from agent_runtime.persona_chat_durability import (
 )
 from hermes_constants import get_hermes_home
 from hermes_time import now
-from .chat_request import _emit_persona_open_chat_payload
+from .chat_request import _emit_persona_verb_payload
 from agent_runtime.persona_chat_session import _persona_chat_bound_owner, _persona_chat_session_owner
 
 __layer__ = "lanes"
@@ -38,16 +39,59 @@ __all__ = [
 ]
 
 
+def _resolve_delete_owner(owner_instance_id: str | None) -> tuple[PersonaInstance | None, bool]:
+    """The chat root's owner row and whether it is RETIRED.
+
+    The live store first; when it has no row, the owner's ``*_retire``
+    tombstone. Retirement keeps the chat on purpose ("chat history preserved"),
+    so a fence that reads only the live store refuses every delete of a retired
+    instance's chat as ``foreign_chat_session`` — from every door, for ever.
+    """
+    if not owner_instance_id:
+        return None, False
+    store = PersonaInstanceStore()
+    try:
+        return store.get(owner_instance_id), False
+    except Exception:
+        pass
+    try:
+        archived = store.retired_instance_archive_path(owner_instance_id)
+        if archived is None:
+            return None, False
+        raw = json.loads(archived.read_text(encoding="utf-8"))
+        return from_jsonable(PersonaInstance, raw), True
+    except Exception:
+        return None, False
+
+
+def _pin_names_owner(owner_instance: PersonaInstance, requested_instance: str | None, *, retired: bool) -> bool:
+    """Does the request's instance pin (if any) name the root's owner?
+
+    A retired owner can never be pinned — it has no live row to select — so
+    the snapshot projects its chat under the persona's live instance and the
+    delete arrives pinned to THAT one. For a retired owner a pin to a live
+    instance of the same persona names the owner; any other pin does not.
+    """
+    if not requested_instance or owner_instance.id == requested_instance:
+        return True
+    if not retired:
+        return False
+    try:
+        pinned = PersonaInstanceStore().get(requested_instance)
+    except Exception:
+        return False
+    return personas_equal(owner_instance.persona_id, pinned.persona_id)
+
+
 def _cmd_persona_chat_delete(args) -> int:
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
-    cfg = load_agent_runtime_config()
     session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
     if not session_id:
         data = {"ok": False, "error": "session_id is required"}
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
 
     requested_persona = None
@@ -70,19 +114,12 @@ def _cmd_persona_chat_delete(args) -> int:
             "persistence_operation": exc.operation,
             "error": str(exc),
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     owner_instance_id = _persona_chat_session_owner(session_db, session_id)
     if not owner_instance_id:
         owner_instance_id = _persona_chat_bound_owner(session_id)
-    try:
-        owner_instance = (
-            PersonaInstanceStore().get(owner_instance_id)
-            if owner_instance_id
-            else None
-        )
-    except Exception:
-        owner_instance = None
+    owner_instance, owner_retired = _resolve_delete_owner(owner_instance_id)
     session_exists = False
     try:
         session_exists = session_db.get_session(session_id) is not None
@@ -97,7 +134,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "cleared_bindings": [],
             "error": f"persona chat session not found: {session_id}",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     # Third site of the same shape: the STORED ``owner_instance.persona_id``
     # compared raw against ``requested_persona``, which is
@@ -119,7 +156,7 @@ def _cmd_persona_chat_delete(args) -> int:
     ) or (pin_proves_ownership and not safe_assignment_token(owner_persona))
     if (
         owner_instance is None
-        or (requested_instance and owner_instance.id != requested_instance)
+        or not _pin_names_owner(owner_instance, requested_instance, retired=owner_retired)
         or not persona_ok
     ):
         data = {
@@ -130,7 +167,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "session_id": session_id,
             "persona_instance_id": requested_instance or None,
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     if not bool(getattr(args, "_persona_chat_delete_lease_acquired", False)):
         try:
@@ -155,7 +192,7 @@ def _cmd_persona_chat_delete(args) -> int:
                 "lease_owner": exc.owner,
                 "error": str(exc),
             }
-            _emit_persona_open_chat_payload(args, data)
+            _emit_persona_verb_payload(args, data)
             return 2
     try:
         from agent_runtime.session_extensions import delete_compression_lineage
@@ -174,7 +211,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "session_id": session_id,
             "error": f"failed to delete persona chat session: {exc}",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
 
     instance_store = PersonaInstanceStore()
@@ -244,7 +281,7 @@ def _cmd_persona_chat_delete(args) -> int:
             "error": f"persona chat session not found: {session_id}",
             "next_expected": "refresh Harness snapshot; if the row is still visible, inspect SessionDB source and persona_instance.default_chat_session_id",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
 
     try:
@@ -277,5 +314,5 @@ def _cmd_persona_chat_delete(args) -> int:
         "closed_assignment_ids": closed_assignment_ids,
         "next_expected": "refresh Harness snapshot; deleted persona chat should be absent and active bindings should be cleared",
     }
-    _emit_persona_open_chat_payload(args, data, plain=f"deleted persona chat {session_id}")
+    _emit_persona_verb_payload(args, data, plain=f"deleted persona chat {session_id}")
     return 0

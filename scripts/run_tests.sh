@@ -108,6 +108,26 @@ if [ -f "$HOME/.hermes/pytest_live_guard.py" ]; then
 fi
 
 
+# Fork (design sweep D3.08): the test-temp root is set ONCE, here, for the runner
+# and every child it spawns — the runner's own scratch (run_tests_parallel.py's
+# `hermes-pytest`) and the root conftest's `hermes-test-home-*` landed in %TEMP%
+# otherwise. Unset, it defaults to a `test-tmp` directory beside the checkout or
+# beside the primary checkout of a worktree (the operator's X:\Eternia\test-tmp);
+# neither existing leaves today's behaviour.
+if [ -z "${HERMES_TEST_TMP_ROOT:-}" ]; then
+  _common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  for _tmp_candidate in "$REPO_ROOT/../test-tmp" ${_common_dir:+"$_common_dir/../../test-tmp"}; do
+    if [ -d "$_tmp_candidate" ]; then
+      HERMES_TEST_TMP_ROOT="$(cd "$_tmp_candidate" && { pwd -W 2>/dev/null || pwd; })"
+      break
+    fi
+  done
+fi
+if [ -n "${HERMES_TEST_TMP_ROOT:-}" ] && [ -d "$HERMES_TEST_TMP_ROOT" ]; then
+  export HERMES_TEST_TMP_ROOT TMP="$HERMES_TEST_TMP_ROOT" TEMP="$HERMES_TEST_TMP_ROOT" TMPDIR="$HERMES_TEST_TMP_ROOT"
+  echo "▶ test temp root (runner and children): $HERMES_TEST_TMP_ROOT"
+fi
+
 # ── Windows location variables (computed before we drop env) ───────────────
 # `env -i` forwards HOME, which is enough on POSIX. Native Windows CPython
 # resolves Path.home() from USERPROFILE (or HOMEDRIVE+HOMEPATH), stdlib

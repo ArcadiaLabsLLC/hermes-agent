@@ -635,7 +635,7 @@ def test_the_runner_records_the_run_s_call_accounting(monkeypatch):
     patch_where_bound(
         monkeypatch,
         mcp_admission,
-        "teardown_mcp_admission",
+        "release_mcp_admission",
         lambda servers, **kwargs: McpTeardownOutcome(servers=tuple(servers)),
     )
     monkeypatch.setattr(

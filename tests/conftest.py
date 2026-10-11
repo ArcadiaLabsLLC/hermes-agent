@@ -1396,6 +1396,12 @@ def _capture_real_hermes_root() -> list[Path]:
 
 
 _REAL_HERMES_ROOT_CANDIDATES = _capture_real_hermes_root()
+
+
+def real_hermes_root_candidates() -> list[Path]:
+    """The home-I/O guard's live root list, read per call: a root appended here is guarded."""
+    return _REAL_HERMES_ROOT_CANDIDATES
+
 # Captured before any test can patch sys.platform, HOME or XDG_*: a test that runs the real
 # GUI uninstall or update swap would otherwise delete the developer's own Hermes app. Only the
 # ones present (none on CI runners, so the guard costs nothing there), each literal and resolved.

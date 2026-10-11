@@ -65,6 +65,13 @@ exec() {
   builtin exec "${argv[@]}"
 }
 
+# The green-result cache's two environment knobs (fast-gate §1) would die in
+# run_tests.sh's `env -i`; they reach the runner as its flags instead. The
+# re-exec under run-in-hermes-env inherits the environment, and a flag already
+# given wins (argparse keeps the last occurrence; these go first).
+if [ "${HERMES_GATE_CACHE:-}" = "0" ]; then set -- --no-cache "$@"; fi
+if [ -n "${HERMES_GATE_CACHE_DIR:-}" ]; then set -- --cache-dir "$HERMES_GATE_CACHE_DIR" "$@"; fi
+
 # shellcheck source=run_tests.sh
 source "$__BUNDLED_DIR/run_tests.sh" "$@"
 

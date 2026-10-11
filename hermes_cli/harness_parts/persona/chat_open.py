@@ -36,7 +36,7 @@ from .chat_coordinator import (
     _coordinator_scope_from_args,
     _maybe_stamp_spawned_by,
 )
-from .chat_request import _emit_persona_open_chat_payload, _retired_persona_instance_payload
+from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
 from .lifecycle_commands import _placement_discriminability_refusal
@@ -45,7 +45,7 @@ __layer__ = "lanes"
 __all__ = [
     "_cmd_persona_instance_open_chat",
     "_cmd_persona_instance_open_new_chat",
-    "_emit_persona_open_chat_payload",
+    "_emit_persona_verb_payload",
 ]
 
 
@@ -69,7 +69,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         )
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.open_chat", coordinator_id, auth)
-            _emit_persona_open_chat_payload(args, data, plain=data["status"])
+            _emit_persona_verb_payload(args, data, plain=data["status"])
             return 2
         coordinator_scope = auth.scope
     elif coordinator_id and bool(getattr(args, "kill_active", False)):
@@ -87,7 +87,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         )
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.close", coordinator_id, auth)
-            _emit_persona_open_chat_payload(args, data, plain=data["status"])
+            _emit_persona_verb_payload(args, data, plain=data["status"])
             return 2
     if bool(getattr(args, "new_session", False)):
         return _cmd_persona_instance_open_new_chat(
@@ -101,7 +101,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
             placement_id = safe_assignment_token(getattr(args, "placement_id", None))
             if not placement_id:
                 data = {"ok": False, "error": "placement_id is required when add_instance is true"}
-                _emit_persona_open_chat_payload(args, data)
+                _emit_persona_verb_payload(args, data)
                 return 2
             # UC-H4, scoped to --add-instance ONLY. The other branches of this
             # verb REBIND an instance that already exists (and the recorded
@@ -113,7 +113,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
 
             refusal = require_known_persona(persona_id, persona)
             if refusal is not None:
-                _emit_persona_open_chat_payload(args, refusal)
+                _emit_persona_verb_payload(args, refusal)
                 return 2
             # AFTER the roster check, matching the order `persona instance
             # create` already had: "that agent does not exist" is the more
@@ -122,7 +122,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
             # about the agent. Both still refuse before any store write.
             placement_refusal = _placement_discriminability_refusal(placement_id)
             if placement_refusal is not None:
-                _emit_persona_open_chat_payload(args, placement_refusal)
+                _emit_persona_verb_payload(args, placement_refusal)
                 return 2
             try:
                 # Local import. Before lane H1 this file was exec'd into
@@ -174,7 +174,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         else:
             if not safe_assignment_text(getattr(args, "session_id", None), limit=200):
                 data = {"ok": False, "error": "session_id is required unless add_instance is true"}
-                _emit_persona_open_chat_payload(args, data)
+                _emit_persona_verb_payload(args, data)
                 return 2
             # RETIREMENT, asked before the session-existence cutoff below.
             # Retiring a placement archives the row but deliberately leaves its
@@ -212,7 +212,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     "error_kind": ChatErrorKind.UNKNOWN_CHAT_SESSION,
                     "error": f"unknown explicit persona chat root: {args.session_id}",
                 }
-                _emit_persona_open_chat_payload(args, data)
+                _emit_persona_verb_payload(args, data)
                 return 2
             target_instance_id = safe_assignment_token(
                 getattr(args, "persona_instance_id", None)
@@ -260,7 +260,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                         "session_id": args.session_id,
                         "next_expected": "use the server-minted root returned for this exact persona instance",
                     }
-                    _emit_persona_open_chat_payload(args, data)
+                    _emit_persona_verb_payload(args, data)
                     return 2
                 target_instance_id = session_owner
             try:
@@ -285,11 +285,11 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     "session_id": args.session_id,
                     "next_expected": "open the instance that owns this chat session, or start a fresh thread",
                 }
-                _emit_persona_open_chat_payload(args, data)
+                _emit_persona_verb_payload(args, data)
                 return 2
     except RetiredPersonaInstanceError as exc:
         data = _retired_persona_instance_payload(exc)
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     except PersonaChatPersistenceError as exc:
         # ``add_instance``'s mint refuses rather than binding an unpersistable
@@ -303,7 +303,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
             "persona_id": persona_id,
             "next_expected": "restore canonical persona chat transcript storage and retry",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     try:
         _ensure_persona_chat_session(
@@ -324,7 +324,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
             "session_id": instance.default_chat_session_id,
             "next_expected": "restore canonical persona chat transcript storage and retry",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     # Placed AFTER the transcript row is durable (the ensure above) so the warm
     # can read the root's native tip and revision — the two values that decide
@@ -357,7 +357,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
         "next_expected": "resume or send on this chat session to boot the persona instance history",
     }
-    _emit_persona_open_chat_payload(
+    _emit_persona_verb_payload(
         args,
         data,
         plain=f"opened {instance.id} on chat {instance.default_chat_session_id}",
@@ -495,7 +495,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         else None,
         "next_expected": "resume or send on this server-minted chat root",
     }
-    _emit_persona_open_chat_payload(
+    _emit_persona_verb_payload(
         args,
         data,
         plain=f"opened {instance.id} on new chat {receipt.session_id}",
@@ -547,7 +547,7 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
             "mint_receipt_state": receipt.state,
             "next_expected": "restore canonical persona chat transcript storage and retry with the same idempotency key",
         }
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     try:
         instance = store.open_chat(
@@ -566,7 +566,7 @@ def _publish_minted_root(args, *, store, mint, current, persona_id: str, target_
                 "mint_receipt_state": receipt.state,
             }
         )
-        _emit_persona_open_chat_payload(args, data)
+        _emit_persona_verb_payload(args, data)
         return 2
     return instance, mint.mark_bound()
 
@@ -643,5 +643,5 @@ def _emit_persona_open_chat_error(
         "persona_instance_id": persona_instance_id,
         "next_expected": next_expected,
     }
-    _emit_persona_open_chat_payload(args, data)
+    _emit_persona_verb_payload(args, data)
     return 2

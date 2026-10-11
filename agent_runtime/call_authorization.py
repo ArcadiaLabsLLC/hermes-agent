@@ -233,10 +233,16 @@ CALLER_UNKNOWN = "unknown"
 #: well as the ``session_id`` and applies the SAME lane guard the local
 #: ``agent_chat_open`` applies, so a session id that is not part of that
 #: teammate's chat lane is ``foreign_session`` here exactly as it is there.
+#:
+#: **The seventh is D1.07's** (``peer.agent_chat.cancel``): the execute's Stop.
+#: It reaches only a turn the CALLER's own execute started — the receipt scope
+#: carries the install the transport proved — so it widens nothing an execute
+#: did not already grant.
 PEER_METHOD_ALLOWLIST: frozenset[str] = frozenset(
     {
         "peer.ping",
         "peer.agent_chat.execute",
+        "peer.agent_chat.cancel",
         "peer.media.get",
         "peer.announce",
         "peer.roster.list",

@@ -552,6 +552,21 @@ def deleted_archive_dir() -> Path:
     return store_root() / DELETED_ARCHIVE_DIRNAME
 
 
+#: Derived, machine-local caches that let a NEW process skip work an earlier
+#: process already did (D1.05 CF-2: ``skill_frontmatter.json``, the parsed
+#: SKILL.md frontmatter keyed by file signature). Beside the core cache
+#: (owner ruling 2026-10-10), and imported by name -- never re-typed -- by the
+#: two denylists that must agree with it: the core cache's store-root
+#: fingerprint (``core_cache._EXCLUDED_STORE_ENTRIES``; the idle flush would
+#: otherwise flip the key every boot) and realm sync's
+#: ``HARD_EXCLUDED_PATH_PARTS`` (a derived cache never travels).
+DERIVED_CACHE_DIRNAME = "derived_cache"
+
+
+def derived_cache_dir() -> Path:
+    return store_root() / DERIVED_CACHE_DIRNAME
+
+
 def prompt_observability_dir() -> Path:
     return store_root() / "prompt_observability"
 

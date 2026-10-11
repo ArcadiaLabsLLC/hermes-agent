@@ -6,6 +6,7 @@ entry point, not a phase of the build.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any, Iterable
 
 from ..persona_assignments import safe_assignment_text, safe_assignment_token
@@ -31,6 +32,7 @@ def attach_prompt_observability_turn_results(
     model_selection: dict[str, Any] | None = None,
     turn_usage: dict[str, Any] | None = None,
     trace_events: Iterable[dict[str, Any]] | None = None,
+    persona: Any = None,
 ) -> dict[str, Any]:
     """C1 build-once seam: PATCH the pre-turn row with the turn's results.
 
@@ -47,6 +49,14 @@ def attach_prompt_observability_turn_results(
     Lives here, not in the CLI lane (``harness_parts/persona/``), because it is
     the row's own lifecycle, unit-tested beside the row it mutates.
     Mutates ``context`` in place and returns it.
+
+    ``persona`` is the EXECUTING persona. The used-skill receipts resolve each
+    name through the skill roots, and the turn ran under that persona's profile
+    while this attach runs after the scope was released: without it a skill
+    the turn read through its own profile (``launcher-generated-ui`` from the
+    author profile, 2026-10-07) was recorded ``resolution_status: missing``
+    against the ambient roots. The same profile context the pre-turn row's
+    skill block binds (``mission_chat._skill_profile_context``).
     """
 
     # T8: the rendered skills-index chars are only knowable once the agent is
@@ -58,12 +68,15 @@ def attach_prompt_observability_turn_results(
     if model_selection is not None:
         context["model_selection"] = _safe_model_selection(model_selection)
     context["turn_usage"] = _safe_turn_usage(turn_usage)
-    context["used_skills"] = used_skills_context(
-        final_model_input=final_model_input,
-        trace_events=trace_events,
-        queued_skills=context.get("preloaded_skills_loaded") or [],
-        required_preload_skills=context.get("required_preload_skills") or [],
-    )
+    from .mission_chat import _skill_profile_context
+
+    with _skill_profile_context(persona) if persona is not None else nullcontext():
+        context["used_skills"] = used_skills_context(
+            final_model_input=final_model_input,
+            trace_events=trace_events,
+            queued_skills=context.get("preloaded_skills_loaded") or [],
+            required_preload_skills=context.get("required_preload_skills") or [],
+        )
     context["context_budget"] = _context_budget(
         model_selection if model_selection is not None else context.get("model_selection"),
         final_model_input,

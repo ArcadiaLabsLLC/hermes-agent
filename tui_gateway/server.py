@@ -1589,6 +1589,10 @@ def _resolve_session_source(explicit: str | None) -> str:
     return explicit or _resolve_session_platform()
 
 
+# fork: compute_host's minimal-session fallback calls this name; upstream never defined it (M2.02).
+_sanitize_client_source = _resolve_session_source
+
+
 def _resolve_agent_platform(source: str | None) -> str:
     return _resolve_session_source(source)
 

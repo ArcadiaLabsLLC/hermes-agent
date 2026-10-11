@@ -145,6 +145,11 @@ LEAK_PRONE_VARS: dict[str, tuple[str, str]] = {
         "hermes_constants.py",
         ":871 selects the home an ACP child process inherits",
     ),
+    "NOUS_INFERENCE_BASE_URL": (
+        "hermes_cli/auth_nous.py",
+        "the Nous inference-URL override; upstream's multiplexed MCP reconcile chore writes a "
+        "served profile's .env value into os.environ past monkeypatch (L7.19)",
+    ),
 }
 
 
@@ -281,4 +286,4 @@ def test_the_guarded_set_is_not_silently_shrinking():
     production reader went away, in the commit that removes the reader.
     """
 
-    assert len(LEAK_PRONE_VARS) == 14
+    assert len(LEAK_PRONE_VARS) == 15

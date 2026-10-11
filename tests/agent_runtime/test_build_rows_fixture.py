@@ -31,6 +31,12 @@ def test_the_golden_is_the_producers_bytes(tmp_path):
     assert fx.render(fx.produce(tmp_path)) == fx.FIXTURE_PATH.read_text(encoding="utf-8")
 
 
+def test_the_record_golden_is_the_registrys_bytes(tmp_path):
+    record = fx.produce_record(tmp_path)
+    assert fx.render(record) == fx.RECORD_FIXTURE_PATH.read_text(encoding="utf-8")
+    assert record["job_id"] == fx.RECORD_JOB_ID and record["schema_version"] == 1
+
+
 def _words(rows: list[dict], read) -> set:
     return {word for row in rows for word in read(row) if word is not None}
 

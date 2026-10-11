@@ -146,8 +146,15 @@ class SettlePush:
             prune_acked(older_than_seconds=SETTLE_ACKED_RETENTION_SECONDS)
 
     def _deliver_settle_frame(self, frame: dict[str, Any]) -> int:
-        """Send a settle *frame* on the control channel. Returns how many sinks took it."""
+        """Send a settle *frame* on the control channel. Returns how many sinks took it.
 
+        A queued turn's settle also goes, once, to the paired device that sent it
+        (``queued_turn_origin``); that copy is not a launcher delivery and does not count.
+        """
+
+        from hermes_cli.harness_parts.serve.queued_turn_origin import deliver_to_queued_peer
+
+        deliver_to_queued_peer(self, frame)
         return self._deliver_control_frame(frame)
 
     def _deliver_control_frame(self, frame: dict[str, Any]) -> int:
@@ -159,7 +166,9 @@ class SettlePush:
         Stdio counts only when a launcher can be reading it: not detached, and
         not ``--service`` (whose stdio is the launcher's ``DEVNULL``). The
         socket's count is ``broadcast``'s own. The gateway door is excluded on
-        purpose — a paired device is not the launcher the ruling names.
+        purpose — a paired device is not the launcher the ruling names; the one
+        exception is targeted, not broadcast: a queued turn's frames and settle
+        reach the paired device that sent it (``serve.queued_turn_origin``).
         """
 
         delivered = 0
@@ -192,33 +201,30 @@ class SettlePush:
                 }
             )
             return None
-        from agent_runtime.chat_turn_settles import ack_settle, settle_id_for
+        from agent_runtime.chat_turn_settles import ack_settle, resolve_settle_id
 
-        settle_id = message.get("settle_id")
-        cmid = message.get("client_message_id")
-        if not isinstance(settle_id, str) or not settle_id.strip():
-            if isinstance(cmid, str) and cmid.strip():
-                session = message.get("session_id")
-                settle_id = settle_id_for(
-                    session if isinstance(session, str) else None, cmid.strip()
-                )
-            else:
-                sink.emit(
-                    {
-                        "id": message.get("id"),
-                        "event": "error",
-                        "error": "invalid_settle_ack",
-                        "detail": "settle_ack names a settle_id, or a client_message_id (+ session_id)",
-                    }
-                )
-                return None
+        settle_id = resolve_settle_id(
+            settle_id=message.get("settle_id"),
+            client_message_id=message.get("client_message_id"),
+            session_id=message.get("session_id"),
+        )
+        if settle_id is None:
+            sink.emit(
+                {
+                    "id": message.get("id"),
+                    "event": "error",
+                    "error": "invalid_settle_ack",
+                    "detail": "settle_ack names a settle_id, or a client_message_id (+ session_id)",
+                }
+            )
+            return None
         with self._settle_store_scope():
-            retired = ack_settle(settle_id.strip())
+            retired = ack_settle(settle_id)
         sink.emit(
             {
                 "id": message.get("id"),
                 "event": "settle_acked",
-                "settle_id": settle_id.strip(),
+                "settle_id": settle_id,
                 "retired": retired,
             }
         )

@@ -149,7 +149,28 @@ def _harness_lock() -> Iterator[None]:
         yield
 
 
+@contextlib.contextmanager
+def _derived_cache() -> Iterator[None]:
+    """D1.05 CF-2's skill frontmatter cache, flushed by its real writer on the idle path."""
+
+    from agent_runtime import parse_cache
+    from agent_runtime import skill_resolution
+
+    manifest = paths.store_root().parent / "derived-cache-skills" / "alpha" / "SKILL.md"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text("---\nname: alpha\n---\nbody\n", encoding="utf-8")
+    parse_cache.clear_parse_cache()
+    skill_resolution._cached_skill_frontmatter(manifest)
+    assert skill_resolution.flush_skill_frontmatter_disk_cache() is True
+    assert (paths.derived_cache_dir() / "skill_frontmatter.json").exists()
+    try:
+        yield
+    finally:
+        parse_cache.clear_parse_cache()
+
+
 _DRIVERS = {
+    "derived_cache": _derived_cache,
     "drain_mirror": _drain_mirror,
     "socket_owner": _socket_owner,
     "serve_instances": _serve_instances,
@@ -213,6 +234,7 @@ def test_the_exclusion_set_agrees_with_the_constants_its_writers_own(
         "paths.SERVE_AUTH_TOKEN_FILENAME": paths.SERVE_AUTH_TOKEN_FILENAME,
         "serve_registry.SERVE_INSTANCES_DIRNAME": serve_registry.SERVE_INSTANCES_DIRNAME,
         "paths.DELETED_ARCHIVE_DIRNAME": paths.DELETED_ARCHIVE_DIRNAME,
+        "paths.DERIVED_CACHE_DIRNAME": paths.DERIVED_CACHE_DIRNAME,
     }
     missing = sorted(
         f"{symbol} ({value!r})"

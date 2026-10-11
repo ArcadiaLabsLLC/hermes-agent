@@ -235,6 +235,7 @@ class HistoryMessage:
             message["turn_id"] = turn_id
         _carry_turn_seq(message, self.row)
         _carry_history_run_budget(message, self.row)
+        _carry_retry_lineage(message, self.row)
         return message
 
     def message(self, shape: RowShape) -> dict[str, Any]:
@@ -274,6 +275,7 @@ class HistoryMessage:
         # contract unchanged so every representation sorts on the same key.
         _carry_turn_seq(message, row)
         _carry_history_run_budget(message, row)
+        _carry_retry_lineage(message, row)
 
     def _turn_identity(self, message: dict[str, Any]) -> None:
         if not self.client_message_id:
@@ -315,6 +317,15 @@ def _carry_turn_seq(message: dict[str, Any], row: dict[str, Any]) -> None:
     turn_seq = row.get("turn_seq")
     if isinstance(turn_seq, int) and not isinstance(turn_seq, bool):
         message["turn_seq"] = turn_seq
+
+
+def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
+    # D2.04: ``retry_of`` on a retry's operator row, ``retried_as`` on the marker
+    # of the turn it re-ran. Absent stays absent.
+    for key in ("retry_of", "retried_as"):
+        value = safe_assignment_text(row.get(key), limit=240)
+        if value:
+            message[key] = value
 
 
 def _carry_history_run_budget(message: dict[str, Any], row: dict[str, Any]) -> None:

@@ -124,8 +124,10 @@ def realm_sync_history(realm_id: str, *, limit: int = DEFAULT_HISTORY_LIMIT) -> 
     refs = ["HEAD", *([upstream] if upstream else [])]
     local_head = _newest(repo, "HEAD", subtree)
     upstream_head = _newest(repo, upstream, subtree) if upstream else local_head
-    log = _git(repo, "log", f"-n{limit}", f"--format={_RECORD}%H{_FIELD}%aI{_FIELD}%an", "--name-only",
-               *refs, "--", subtree, check=False)
+    # --date-order: a child never sorts after its parent; two refs' commits made in one second tie on
+    # the clock, and git's default walk then lists them in queue order.
+    log = _git(repo, "log", "--date-order", f"-n{limit}", f"--format={_RECORD}%H{_FIELD}%aI{_FIELD}%an",
+               "--name-only", *refs, "--", subtree, check=False)
     prefix = subtree + "/"
     for record in log.split(_RECORD):
         lines = [line for line in record.splitlines() if line.strip()]

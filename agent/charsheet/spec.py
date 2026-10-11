@@ -84,7 +84,7 @@ MAX_FRAMES_PER_ROW = 8
 # for a bad spec: ``CharacterDraft.load`` reads JSON only, and
 # ``CharacterDraft.spec`` is a property computed on ACCESS, so ``list_drafts``
 # returns the bad draft happily. The raise lands one level up, in
-# ``hermes_cli.harness._characters_draft_summary`` (``spec = draft.spec``),
+# ``agent.charsheet.draft.payloads.draft_summary`` (``spec = draft.spec``),
 # inside ``_cmd_characters_list``'s own ``except _CHARACTERS_EXPECTED`` — which
 # answers ``{"ok": false, "error": …}`` and exit 2 for the WHOLE verb. Over a
 # home holding one good draft and one ``idle:1`` draft, raising here returned

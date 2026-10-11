@@ -25,17 +25,8 @@ contract, by calling its helpers rather than re-spelling them:
   members that ran before it — that is the observed diff an entry in
   ``scripts/test_bundles_unbundled.txt`` must carry.
 
-Scope (``--scope``) decides which discovered files run at all. ``fork``, the
-default and the fork's landing gate, runs every file absent from
-``tests/fixtures/upstream_manifest.txt`` plus each inherited file the change
-reaches (``select_scope``): the file itself changed, its convention-mapped
-source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
-a changed module, or a ``conftest.py`` above it changed. The change is
-``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
-working-tree edits. ``full`` runs everything discovered — the weekly upstream
-merge lane, where the inherited set is the thing under test. In BOTH scopes a
-file on ``tests/fixtures/upstream_skip_list.txt`` (upstream-owned reds and the
-P0 freeze files) does not run unless it is named on the command line.
+Scope (``--scope``) decides which discovered files run at all:
+``scripts/run_tests_bundled_scope.py`` owns it.
 
 Membership is mechanical: files are grouped by their top-level test directory
 (``tests/<dir>``), sorted by path, and cut into consecutive bundles of at most
@@ -55,7 +46,7 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
     scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
     scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
 
@@ -65,6 +56,7 @@ Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.util
 import json
 import os
@@ -104,6 +96,8 @@ def _load_sibling(name: str):
 
 rtp = _load_sibling("run_tests_parallel")
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
+solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
+shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
 
 
 # ── Membership ──────────────────────────────────────────────────────────────
@@ -114,22 +108,10 @@ def _rel(path: Path, repo_root: Path) -> str:
 
 
 def load_unbundled(path: Path) -> set[str]:
-    """Repo-relative POSIX paths listed in the unbundled file.
+    """Repo-relative POSIX paths listed in the unbundled file (``#`` starts the
+    observed diff that put the file there); a missing file is an empty list."""
 
-    One path per line; ``#`` starts a comment (the observed diff that put the
-    file there belongs on its line); blank lines ignored; a missing file is an
-    empty list."""
-
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return set()
-    out: set[str] = set()
-    for line in text.splitlines():
-        entry = line.split("#", 1)[0].strip()
-        if entry:
-            out.add(Path(entry).as_posix())
-    return out
+    return set(scope.load_path_list(path))
 
 
 def _group_key(rel: str) -> Tuple[str, ...]:
@@ -191,172 +173,14 @@ def bundle_timeout(
 
 
 # ── Scope: which discovered files a run executes ────────────────────────────
+# scripts/run_tests_bundled_scope.py; the names stay importable from here.
 
-SCOPE_FORK = "fork"
-SCOPE_FULL = "full"
-_DEFAULT_MANIFEST = Path("tests") / "fixtures" / "upstream_manifest.txt"
-_DEFAULT_SINCE = "origin/main"
-
-
-def load_manifest(path: Path) -> set[str]:
-    """Repo-relative POSIX paths the inherited-files manifest lists (``#``
-    lines are comments). A missing manifest raises: without it every file
-    would read as fork-only and the scope would silently be the full set."""
-
-    out: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        entry = line.strip()
-        if entry and not entry.startswith("#"):
-            out.add(Path(entry).as_posix())
-    return out
-
-
-def changed_paths(repo_root: Path, since: str) -> set[str]:
-    """Paths the work under test changed: ``git diff --name-only <since>...HEAD``
-    plus the tracked working-tree edits (``git diff --name-only HEAD``). Raises
-    ``RuntimeError`` when git cannot answer, so an unknown diff is never read
-    as an empty one."""
-
-    import subprocess
-
-    out: set[str] = set()
-    for spec in ([f"{since}...HEAD"], ["HEAD"]):
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only", *spec],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"git diff --name-only {' '.join(spec)} failed: {proc.stderr.strip()}")
-        out.update(Path(line.strip()).as_posix() for line in proc.stdout.splitlines() if line.strip())
-    return out
-
-
-def module_of(rel: str) -> Optional[str]:
-    """``a/b/c.py`` → ``a.b.c``; ``a/b/__init__.py`` → ``a.b``; else None."""
-
-    if not rel.endswith(".py"):
-        return None
-    parts = rel[: -len(".py")].split("/")
-    if parts[-1] == "__init__":
-        parts = parts[:-1]
-    return ".".join(parts) if parts and all(p.isidentifier() for p in parts) else None
-
-
-def convention_sources(test_rel: str) -> List[str]:
-    """Upstream's layout: ``tests/<pkg…>/test_<mod>.py`` tests ``<pkg…>/<mod>.py``
-    (or the package ``<pkg…>/<mod>/__init__.py``)."""
-
-    parts = test_rel.split("/")
-    if len(parts) < 2 or parts[0] != "tests" or not parts[-1].startswith("test_"):
-        return []
-    stem = parts[-1][len("test_") :]
-    base = "/".join(parts[1:-1] + [stem[: -len(".py")]]) if stem.endswith(".py") else ""
-    return [f"{base}.py", f"{base}/__init__.py"] if base else []
-
-
-def imported_modules(path: Path, rel: str) -> set[str]:
-    """Every module name ``path`` imports, relative imports resolved against
-    its package. ``from a import b`` yields both ``a`` and ``a.b``. A file that
-    does not parse yields nothing (its own run will say why)."""
-
-    import ast
-    import warnings
-
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # a test's own SyntaxWarning is its run's to report
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
-    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
-        return set()
-    package = rel.split("/")[:-1]
-    out: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            out.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                base = package[: len(package) - (node.level - 1)] if node.level > 1 else list(package)
-                head = ".".join(base + ([node.module] if node.module else []))
-            else:
-                head = node.module or ""
-            if head:
-                out.add(head)
-            out.update(f"{head}.{alias.name}" if head else alias.name for alias in node.names)
-    return out
-
-
-@dataclass
-class ScopeSelection:
-    """Why each selected file is in scope, and what was left out."""
-
-    fork_only: List[Path] = field(default_factory=list)
-    #: inherited files, by the reason that selected them
-    touched: List[Path] = field(default_factory=list)  # the test file itself changed
-    source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
-    importer: List[Path] = field(default_factory=list)  # it imports a changed module
-    conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
-    named: List[Path] = field(default_factory=list)  # named explicitly on the command line
-    full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
-    excluded: List[Path] = field(default_factory=list)
-    skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
-
-    @property
-    def selected(self) -> List[Path]:
-        return sorted(
-            self.fork_only + self.touched + self.source + self.importer + self.conftest + self.named + self.full,
-            key=lambda p: str(p),
-        )
-
-
-def select_scope(
-    files: Sequence[Path],
-    repo_root: Path,
-    inherited: set[str],
-    changed: set[str],
-    named: Iterable[Path] = (),
-    skipped: Iterable[str] = (),
-    full: bool = False,
-) -> ScopeSelection:
-    """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
-    manifest), plus each inherited file the change could reach — the file
-    itself changed, the source its name maps to changed, it imports a changed
-    module, or a ``conftest.py`` in one of its directories changed. Files named
-    explicitly (not found by walking a directory) always run.
-
-    A file on the upstream skip list (``skipped``) goes to ``skipped_red`` and
-    nowhere else, in both scopes, unless it is named (owner ruling O1: skip
-    wins over reach). ``full=True`` puts every other file in ``full``."""
-
-    named_real = {Path(p).resolve() for p in named}
-    changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
-    changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
-    skipped = set(skipped)
-    sel = ScopeSelection()
-    for path in files:
-        rel = _rel(path, repo_root)
-        if rel in skipped and path.resolve() not in named_real:
-            sel.skipped_red.append(path)
-        elif full:
-            (sel.named if path.resolve() in named_real else sel.full).append(path)
-        elif rel not in inherited:
-            sel.fork_only.append(path)
-        elif path.resolve() in named_real:
-            sel.named.append(path)
-        elif rel in changed:
-            sel.touched.append(path)
-        elif any(src in changed for src in convention_sources(rel)):
-            sel.source.append(path)
-        elif any(rel.startswith(d + "/") for d in changed_conftest_dirs):
-            sel.conftest.append(path)
-        elif changed_modules and any(
-            imp == mod or imp.startswith(mod + ".")
-            for imp in imported_modules(path, rel)
-            for mod in changed_modules
-        ):
-            sel.importer.append(path)
-        else:
-            sel.excluded.append(path)
-    return sel
+scope = _load_sibling("run_tests_bundled_scope")
+SCOPE_FORK, SCOPE_FULL, _DEFAULT_SINCE = scope.SCOPE_FORK, scope.SCOPE_FULL, scope._DEFAULT_SINCE
+ScopeSelection, select_scope, load_manifest, changed_paths = (
+    scope.ScopeSelection, scope.select_scope, scope.load_manifest, scope.changed_paths
+)
+module_of, convention_sources, imported_modules = scope.module_of, scope.convention_sources, scope.imported_modules
 
 
 # ── Per-file results out of one bundle process ──────────────────────────────
@@ -446,25 +270,26 @@ def run(
     bundle_seconds: float = 0.0,
     solo_seconds: float = 0.0,
     known_reds: Optional[Dict[str, frozenset]] = None,
+    solo_policy: Optional["solo.SoloPolicy"] = None,
     bundle_runner: Optional[BundleRunner] = None,
     solo_runner: Optional[SoloRunner] = None,
     on_outcome: Optional[Callable[[FileOutcome], None]] = None,
 ) -> RunResult:
     """Run ``files`` as bundles plus solos; return one outcome per file.
 
-    Solos are submitted first, then bundles longest-first. A red member of a
-    finished bundle whose failing set is in ``known_reds`` unchanged is
-    reported from the bundle (``via="known-red"``), not re-run alone.
+    Solos are submitted first, then bundles longest-first. A known red runs once,
+    alone, capped (``solo_policy``); a bundle member red with its ``known_reds``
+    failing set unchanged is reported from the bundle, not re-run alone.
     ``bundle_runner`` / ``solo_runner`` default to the per-file runner's
     ``_run_one_file_once`` / ``_run_one_file``; tests inject fakes."""
 
     bundle_runner = bundle_runner or rtp._run_one_file_once
     solo_runner = solo_runner or rtp._run_one_file
+    policy = solo_policy or _solo_policy(repo_root, flat_timeout, retries, durations, known_reds or {})
     bundles, solos = assign_bundles(
-        files, repo_root, bundle_size, unbundled,
+        files, repo_root, bundle_size, set(unbundled) | policy.alone(),
         durations=durations, bundle_seconds=bundle_seconds, solo_seconds=solo_seconds,
     )
-    known_reds = known_reds or {}
     ledger = plan.RunLedger()
     solo_seq = iter(range(1 << 30))
 
@@ -479,25 +304,23 @@ def run(
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
 
     def _record(outcome: FileOutcome) -> None:
-        with lock:
-            outcomes.append(outcome)
-        if on_outcome is not None:
-            on_outcome(outcome)
+        for done in policy.join(outcome, _solo):  # a shard waits for its siblings
+            with lock:
+                outcomes.append(done)
+            if on_outcome is not None:
+                on_outcome(done)
 
     def _solo(path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
-        timeout = rtp._effective_file_timeout(path, repo_root, flat_timeout, durations)
+        timeout, tries, extra = policy.budget(path, via)
         events_path = scratch / f"solo-{next(solo_seq):05d}.jsonl"
-        args = list(pytest_args) + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        args = list(pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
         t0 = time.time()
-        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, retries)
+        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, tries)
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with lock:
-            startup = None if first.session_start is None else max(0.0, first.session_start - t0)
-            ledger.processes.append(plan.Process(via, [rel], t0, time.time(), startup))
-            if tally is not None:
-                ledger.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
-            ledger.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
+            ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
+        output = policy.note(rel, via, rc, output, tally)
         if via == "rerun" and rc == 0 and leak_info is not None:
             with lock:
                 leaks.append(leak_info)
@@ -529,7 +352,7 @@ def run(
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             work = tally.collect_seconds + tally.test_seconds
-            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds)
+            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds or {})
             if rel not in rerun or known:
                 with lock:
                     ledger.file_seconds[rel], ledger.failed[rel] = work, list(tally.failed_nodeids)
@@ -572,7 +395,7 @@ def run(
     solo_order, bundle_order = _first_pass_order(bundles, solos, repo_root, durations)
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         with lock:
-            futures.extend(executor.submit(_solo, path, "solo", None) for path in solo_order)
+            futures.extend(executor.submit(_solo, path, via, None) for path, via in policy.jobs(solo_order))
             futures.extend(executor.submit(_bundle, i, bundles[i], executor) for i in bundle_order)
         _drain_futures(futures, lock)
 
@@ -582,6 +405,44 @@ def run(
     return RunResult(
         outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
     )
+
+
+def _solo_policy(
+    repo_root: Path,
+    flat_timeout: float,
+    retries: int,
+    durations: Dict[str, float],
+    known_reds: Dict[str, frozenset],
+    timed_out: Iterable[str] = (),
+) -> "solo.SoloPolicy":
+    """The run's :class:`SoloPolicy`, bound to this runner's rel spelling and the
+    per-file runner's timeout scaler."""
+
+    return solo.SoloPolicy(
+        lambda path: _rel(path, repo_root),
+        lambda path: rtp._effective_file_timeout(path, repo_root, flat_timeout, durations),
+        flat_timeout, retries, durations, known_reds, frozenset(timed_out),
+    )
+
+
+def _with_shards(
+    policy: "solo.SoloPolicy", files: Sequence[Path], repo_root: Path, durations: Dict[str, float], jobs: int
+) -> "solo.SoloPolicy":
+    """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
+    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
+    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+
+    estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
+    green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
+    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
+    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
+
+
+def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> Dict[str, Tuple[float, int]]:
+    """rel → (seconds, tests) of each file's final outcome, for the record's test counts."""
+
+    return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
 
 
 def _where_it_died(
@@ -643,12 +504,21 @@ def _retry_timeout_stragglers(
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
+        if outcome.via == solo.KNOWN_RED_VIA:  # ran once, capped, final on its own exit (fast-gate §2)
+            continue
         t0 = time.time()
         fpath, rc, output, summary, wall = solo_runner(outcome.file, pytest_args, repo_root, flat_timeout, 0)
         ledger.processes.append(plan.Process("retry", [_rel(outcome.file, repo_root)], t0, time.time()))
         outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
+
+
+def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> List[str]:
+    """Files whose final attempt was killed by a timeout (exit 124, or the
+    timeout banner): no failing ids, so the record keeps them as ``timed_out``."""
+
+    return [_rel(o.file, repo_root) for o in outcomes if o.rc and rtp._is_retryable_timeout_result(o.rc, o.output, {})]
 
 
 def _read_lines(path: Path) -> List[str]:
@@ -671,10 +541,13 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
+cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
+_gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
+
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
-    "--file-retries", "--unbundled-list", "--scope", "--since", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list",
+    "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -814,13 +687,25 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="fork (default, the landing gate): files absent from the upstream manifest plus the "
         "inherited files the change reaches; full: every discovered file (the weekly merge lane)",
     )
-    parser.add_argument(
+    change = parser.add_mutually_exclusive_group()
+    change.add_argument(
         "--since", default=_DEFAULT_SINCE, metavar="REF",
         help=f"--scope fork: the change is `git diff <REF>...HEAD` plus working-tree edits (default {_DEFAULT_SINCE})",
     )
+    change.add_argument(
+        "--since-merge", metavar="SHA", help="--scope fork after a release merge: the change is what the merge "
+        "produced (its combined diff) plus <SHA>..HEAD and working-tree edits (Merging upstream.md step 7)",
+    )
     parser.add_argument("--manifest", type=Path, default=None, help="upstream manifest (default tests/fixtures/upstream_manifest.txt)")
+    parser.add_argument(
+        "--git-audit", action="store_true",
+        help="record every git a test runs against this checkout to .pytest_cache/hermes_git_in_checkout.jsonl",
+    )
+    _gate.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
+    if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
+        os.environ["HERMES_TEST_GIT_AUDIT"] = "1"
 
     if any("::" in p for p in args.paths):
         parser.error("node ids are not supported here; run the file with scripts/run_tests.sh")
@@ -839,35 +724,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: cannot read the upstream skip list: {exc}", file=sys.stderr)
         return 2
-    named = [r for r in roots if r.is_file()]
-    if args.scope == SCOPE_FULL:
-        sel = select_scope(files, repo_root, set(), set(), named=named, skipped=skip_rows, full=True)
-        files = sel.selected
-    else:
-        manifest = args.manifest or repo_root / _DEFAULT_MANIFEST
-        try:
-            inherited = load_manifest(manifest)
-            changed = changed_paths(repo_root, args.since)
-        except (OSError, RuntimeError) as exc:
-            print(
-                f"error: --scope fork cannot tell fork from inherited files: {exc}\n"
-                "       fix the cause, or run --scope full",
-                file=sys.stderr,
-            )
-            return 2
-        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows)
-        print(
-            f"Scope fork (since {args.since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
-            f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
-            f"(touched {len(sel.touched)}, source {len(sel.source)}, importer {len(sel.importer)}, "
-            f"conftest {len(sel.conftest)}, named {len(sel.named)}); "
-            f"{len(sel.excluded)} inherited left to --scope full",
-            flush=True,
-        )
-        files = sel.selected
-    for path in sel.skipped_red:  # a run says what it did not run, and why
-        rel = _rel(path, repo_root)
-        print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")
+    sel = scope.select_for_run(args, files, repo_root, roots, skip_rows)
+    if sel is None:
+        return 2
+    files = sel.selected
     if not files:
         print("No test files in scope", file=sys.stderr)
         return 1
@@ -877,12 +737,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.environ["PYTHONPATH"] = os.pathsep.join(
         [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     )
-    durations = rtp._load_durations(repo_root)
+    # The gate pays the fresh-SessionDB census (D3.11): every child appends its
+    # per-file counts to .pytest_cache/hermes_fresh_dbs.jsonl. Set before the gate
+    # starts, so the cache key's runner env is the same every run.
+    os.environ.setdefault("HERMES_TEST_COUNT_FRESH_DBS", "1")
+    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args)  # the store: runs, durations, greens
+    durations = gate.durations(rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
-    known_reds = plan.load_known_reds(repo_root)
+    known_reds, timed_out = gate.known_reds, gate.timed_out
+    policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
+    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
-        f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
+        f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "
+        f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
 
@@ -902,10 +770,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             if outcome.rc != 0:
                 rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
 
+    gate.emit_cached(FileOutcome, _progress)  # skipped as cached green: no process
     started = time.monotonic()
     result = run(
-        files,
-        pytest_args,
+        gate.to_run,
+        pytest_args + gate.plugin_args,
         repo_root,
         jobs=args.jobs,
         bundle_size=args.bundle_size,
@@ -916,21 +785,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         bundle_seconds=args.bundle_seconds,
         solo_seconds=args.solo_seconds,
         known_reds=known_reds,
-        on_outcome=_progress,
+        solo_policy=policy,
+        on_outcome=gate.chain(_progress),
     )
     elapsed = time.monotonic() - started
     cost = result.ledger.summary(args.jobs)
-    final_rc = {_rel(o.file, repo_root): o.rc for o in result.outcomes}
-    plan.record_run(repo_root, cost, final_rc, result.ledger.failed, known_reds)
-
-    failures = [(o.file, o.output, o.summary) for o in result.outcomes if o.rc != 0]
-    leaked = {leak.file for leak in result.leaks}
-    times = [(o.file, o.seconds) for o in result.outcomes if o.file not in leaked]
-    clean = rtp._clean_pass_durations(times, failures, rtp._FLAKY_RESULTS)
-    if clean:
-        rtp._save_durations(clean, repo_root)
-        print(f"  Durations cached to {rtp._DURATIONS_FILE} ({len(clean)} files)")
-    return _print_summary(result, files, repo_root, elapsed, args.jobs, cost)
+    gate.record(  # the audit, then the run record + durations into the gate store
+        result, cost, timed_out=_timed_out(result.outcomes, repo_root),
+        extra=policy.shards.record(_ran(result.outcomes, repo_root)),
+    )
+    for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
+        print(line)
+    return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
 
 if __name__ == "__main__":

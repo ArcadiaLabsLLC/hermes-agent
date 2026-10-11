@@ -33,13 +33,24 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # The mark NAMES the id table applies, spelled once (id_markers/reasons.py):
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
+from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
+from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
+    pytest_configure_git_audit,
+    pytest_runtest_protocol_git_audit,
+)
+from tests._downstream.idle_box import (  # noqa: F401 — hook re-exports (owner ruling 2026-10-10)
+    pytest_collection_modifyitems_idle_box,
+    pytest_configure_idle_box,
+    pytest_runtest_setup_idle_box,
+)
 from tests._downstream import registry_write_fence
+from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
-    CONFIG_READS_THROUGH_LOAD_CONFIG_MARK as _CONFIG_READS_THROUGH_LOAD_CONFIG_MARK,
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
+    STATE_DB_RESOLVES_THROUGH_SCOPE_MARK as _STATE_DB_RESOLVES_THROUGH_SCOPE_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
     UPSTREAM_WIRE_UNBRIEFED_MARK as _UPSTREAM_WIRE_UNBRIEFED_MARK,
 )
@@ -96,6 +107,23 @@ def _rmtree_readonly_too(path: str) -> None:
         shutil.rmtree(path, onerror=lambda f, p, e: _retry_writable(f, p, e[1]))
 
 
+def _sweep_system_temp_named(environ, root: str, now: float) -> list[str]:
+    """This repo's aged leftovers in the system temp dir, removed and NAMED (D3.08):
+    one line each on stderr and in ``<root>/.temp-sweep.log``."""
+    from tests._downstream.temp_prefixes import sweep_system_temp, system_temp_dirs
+
+    removed = sweep_system_temp(system_temp_dirs(environ, root), now=now, rmtree=_rmtree_readonly_too)
+    if removed:
+        try:
+            with open(os.path.join(root, ".temp-sweep.log"), "a", encoding="utf-8") as log:
+                log.writelines(f"{int(now)} removed {path}\n" for path in removed)
+        except OSError:
+            pass
+        for path in removed:
+            print(f"hermes temp sweep: removed {path}", file=sys.stderr)
+    return removed
+
+
 def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
     root = (environ.get("HERMES_TEST_TMP_ROOT") or "").strip()
     if not root or not os.path.isdir(root):
@@ -124,6 +152,8 @@ def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
                     _rmtree_readonly_too(entry.path)
             except OSError:
                 pass
+        if environ is os.environ:  # never a passed-in environ: the system temp is real
+            _sweep_system_temp_named(environ, root, now)
     run_dir = tempfile.mkdtemp(prefix="run-", dir=root)
     for key in ("TMP", "TEMP", "TMPDIR"):
         environ[key] = run_dir
@@ -262,6 +292,12 @@ _DOWNSTREAM_BEHAVIORAL_VARS = frozenset({
     "HERMES_TUI_DIR",
     "HERMES_WEB_DIST",
     "HERMES_REAL_HOME",
+    # Upstream's MCP reconcile chore (``gateway/run_profile_reconcile.py::_mcp_config_reconciler``
+    # -> ``load_hermes_dotenv(override=True)``) writes a served profile's .env into os.environ
+    # under a multiplexed gateway, past monkeypatch: tests/gateway/test_housekeeping_profile_scope.py
+    # left ``https://a.example/v1`` here for every later test in the process (L7.19, 7 reds in
+    # test_anon_auth_core.py / test_anon_failure_modes.py). Unset is what CI has.
+    "NOUS_INFERENCE_BASE_URL",
 })
 
 
@@ -421,9 +457,19 @@ def _reset_snapshot_catalog_memos():
     bundle_module = sys.modules.get("agent_runtime.chat_lane_bundle")
     if bundle_module is not None:
         bundle_module.invalidate_chat_lane_bundles()
+    # The resident-chat registry is process-global (serve boot's
+    # ``initialize_persona_chat_runtime_registry``); one a test left enabled made every later
+    # history row in the process answer as ``serve:<pid>`` with a fresh observed_at, so the
+    # stream goldens and the overlay compare went red after its importers (lane h-turn1-title).
+    # Start every test with none; close what the last test left.
+    registry_module = sys.modules.get("agent_runtime.persona_chat_continuity.runtime_registry")
+    leftover = getattr(registry_module, "_REGISTRY", None)
+    if leftover is not None:
+        registry_module._REGISTRY = None
+        leftover.close()
     # h-idle-turn: the idle keeper's open turn windows and registered refreshes are process
     # state; a window another test left open would defer this test's catalog refresh.
-    keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
+    keeper_module =sys.modules.get("agent_runtime.idle_turn_keeper")
     if keeper_module is not None:
         keeper_module.reset_for_tests()
     yield
@@ -431,6 +477,24 @@ def _reset_snapshot_catalog_memos():
         keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
     if keeper_module is not None:
         keeper_module.stop()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_launcher_process_index(tmp_path, monkeypatch):
+    """Keep hermes' process-index entries out of the operator's real Launcher index (D1.09).
+
+    ``agent_runtime.process_index`` writes ``<pid>.json`` under
+    ``%LOCALAPPDATA%\\EterniaLauncher\\process_index``, which ``_hermetic_environment``
+    does not redirect; a test that reaches a spawn site would otherwise name its
+    pid in the directory the operator's Launcher sweeps. In-process only, like
+    the shim fixture below.
+    """
+    from agent_runtime import process_index
+
+    monkeypatch.setattr(process_index, "index_directory", lambda: tmp_path / "launcher-process-index")
+    process_index.reset_for_tests()
+    yield
+    process_index.reset_for_tests()
 
 
 @pytest.fixture(autouse=True)
@@ -610,35 +674,71 @@ def _claude_home_is_tmp_path(request, monkeypatch):
 
 
 
+def _is_own_load_config(config_module) -> bool:
+    """Whether ``config_module.load_config`` is still the module's own definition (no patch).
+
+    A spy built with ``functools.wraps`` keeps the definition's ``__module__`` and
+    ``__qualname__`` and counts as unpatched — the readonly path stays readonly.
+    """
+    current = config_module.load_config
+    return (getattr(current, "__module__", None) == config_module.__name__
+            and getattr(current, "__qualname__", None) == "load_config")
+
+
+def _deferring_readonly(config_module, original_readonly, test_file: str):
+    """``load_config_readonly`` that reads a patched ``load_config`` for a computed test file.
+
+    Both halves are decided at CALL time: WHEN (``load_config`` is patched) first, then
+    WHICH (``file_reads_through(test_file)``) — so the import-graph walk (~60 ms per test
+    file, measured 2026-10-10) is paid only by a test that patches and then reads.
+    """
+
+    def load_config_readonly():
+        if _is_own_load_config(config_module) or not file_reads_through(test_file):
+            return original_readonly()
+        return config_module.load_config()
+
+    return load_config_readonly
+
+
 @pytest.fixture(autouse=True)
 def _config_reads_through_load_config(request, monkeypatch):
-    """Route ``load_config_readonly`` through whatever ``load_config`` is NOW.
+    """Route ``load_config_readonly`` through ``load_config`` while an upstream patch is on it.
 
-    The fork moved several readers (``tools.vision_tools``,
-    ``tools.image_generation_tool``, ``plugins/dashboard_auth/_shared.py``) from
-    ``hermes_cli.config.load_config`` to ``load_config_readonly`` so an import
-    cannot scaffold the home. Upstream's tests patch ``load_config``; for the
-    ids ``tests/_downstream/id_markers/`` marks, the readonly loader defers to
-    it at call time, so upstream's patch reaches the reader and the upstream
-    file carries no edit.
+    The fork moved some upstream readers from ``hermes_cli.config.load_config`` to
+    ``load_config_readonly`` so an import cannot scaffold the home; upstream's tests of
+    them patch ``load_config``. Which tests get the route is computed
+    (``tests/_downstream/fork_readonly_readers.py``: the ledger's moved readers, one hop
+    of the import graph); when is decided at call time — only while ``load_config`` is
+    not its own definition. Unpatched calls stay readonly. Plan: D3.06.
     """
-    if request.node.get_closest_marker(_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK) is None:
+    test_file = str(request.node.path)
+    _config = sys.modules.get("hermes_cli.config")
+    if _config is None:
+        # Not imported yet: install only where the rule selects the file (it imports then).
+        if not file_reads_through(test_file):
+            return
+        import hermes_cli.config as _config
+    original = getattr(_config, "load_config_readonly", None)
+    if original is None:
         return
-    import hermes_cli.config as _config
-
-    monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
+    monkeypatch.setattr(_config, "load_config_readonly", _deferring_readonly(_config, original, test_file))
 
 
+
+
+def _guard_roots() -> list[Path] | None:
+    """``tests/conftest.py``'s live home-I/O guard root list, through its public door."""
+    import tests._downstream as _downstream
+
+    door = getattr(_downstream.root_conftest, "real_hermes_root_candidates", None)
+    return door() if door is not None else None
 
 
 def _real_hermes_roots() -> list[str]:
     """The home-I/O guard's own roots (``tests/conftest.py``), normcased; [] if unloaded."""
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
-    return []
+    roots = _guard_roots() or []
+    return [os.path.normcase(os.path.abspath(os.fspath(root))) for root in roots]
 
 
 #: The operator's root as the root ``conftest.py`` recorded it (or the runner forwarded it).
@@ -652,13 +752,9 @@ def _home_io_guard_covers_recorded_root() -> None:
     if not _RECORDED_REAL_ROOT:
         return
     root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
-    for module in list(sys.modules.values()):
-        roots = getattr(module, "_REAL_HERMES_ROOT_CANDIDATES", None)
-        origin = str(getattr(module, "__file__", "") or "").replace("\\", "/")
-        if isinstance(roots, list) and origin.endswith("tests/conftest.py"):
-            if root not in roots:
-                roots.append(root)
-            return
+    roots = _guard_roots()
+    if roots is not None and root not in roots:
+        roots.append(root)
 
 
 _home_io_guard_covers_recorded_root()
@@ -674,6 +770,35 @@ def _state_db_guard_denies_recorded_root(_state_db_write_guard, monkeypatch):
     root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
     if root not in extra:
         monkeypatch.setattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", extra + (root,))
+
+
+@pytest.fixture(autouse=True)
+def _kanban_guard_denies_recorded_root(_kanban_write_guard, monkeypatch):
+    """Refuse kanban writes under the recorded real root too, after upstream's guard is in place.
+
+    ``tests/conftest.py::_REAL_KANBAN_ROOT`` is captured from the pre-sandbox
+    ``HERMES_HOME`` at import; under the runner that env is already blank, so
+    upstream's guard denies ``~/.hermes`` and never the root the runner recorded
+    in ``HERMES_TEST_REAL_ROOT``. The root is read per call.
+    """
+    _kdb = sys.modules.get("hermes_cli.kanban_db")
+    _kdbc = sys.modules.get("hermes_cli.kanban_db_connect")
+    guarded = getattr(_kdbc, "connect", None)
+    if guarded is None or getattr(_kdb, "kanban_db_path", None) is None:
+        return
+
+    def _connect(db_path=None, *args, **kwargs):
+        if _RECORDED_REAL_ROOT:
+            root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
+            target = Path(db_path) if db_path is not None else _kdb.kanban_db_path(board=kwargs.get("board"))
+            if target.expanduser().resolve().is_relative_to(root):
+                raise RuntimeError(
+                    f"kanban_write_guard: kanban DB path resolved to {target}, which is under the "
+                    f"recorded real root ({root}, HERMES_TEST_REAL_ROOT); refusing to write."
+                )
+        return guarded(db_path, *args, **kwargs)
+
+    monkeypatch.setattr(_kdbc, "connect", _connect)
 
 
 def _path_without_real_hermes_roots(path: str, roots: list[str]) -> str:
@@ -759,8 +884,9 @@ def pytest_pyfunc_call(pyfuncitem):
 
     Upstream tests that drop a stub with ``monkeypatch.undo()`` unwind the shared
     per-test instance, fixtures' hermetic pins included, and redden
-    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied by
-    id from ``tests/_downstream/id_markers/``) ``undo`` is narrowed, for the call
+    ``_shared_monkeypatch_pin_tripwire``. For a test carrying the mark (applied at
+    collection to every test whose body calls ``.undo()``,
+    ``id_markers.hooks.body_calls_monkeypatch_undo``) ``undo`` is narrowed, for the call
     only, to the entries the BODY pushed: the stack length is taken once every
     fixture has set up, and an undo replays only the tail above it. Upstream's
     bytes run unchanged; what they drop is exactly what they patched.
@@ -790,6 +916,21 @@ def pytest_pyfunc_call(pyfuncitem):
         return (yield)
     finally:
         del monkeypatch.undo
+
+
+def pytest_sessionstart(session):  # noqa: D401 — pytest hook
+    """Register the fresh-SessionDB census when ``HERMES_TEST_COUNT_FRESH_DBS`` asks (D3.11).
+
+    At session start, not in ``pytest_configure``: the census is a session's
+    plugin (its hooks are per-test and session-finish), and ``pytest_configure``
+    is also driven by the marker-registry gates with a bare stand-in config
+    (``tests/test_id_markers_downstream.py``) that has no plugin registry.
+    """
+    from tests._downstream import fresh_db_census
+
+    manager = session.config.pluginmanager
+    if fresh_db_census.enabled() and not manager.is_registered(fresh_db_census):
+        manager.register(fresh_db_census, "hermes_fresh_db_census")
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -834,13 +975,6 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
-        f"{_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK}: the test patches "
-        "hermes_cli.config.load_config for a reader the fork moved to "
-        "load_config_readonly; the readonly loader defers to it (applied by id "
-        "from tests/_downstream/id_markers/).",
-    )
-    config.addinivalue_line(
-        "markers",
         f"{_CLAUDE_HOME_IS_TMP_PATH_MARK}: Path.home() is the test's tmp_path "
         "(applied by id from tests/_downstream/id_markers/, together with "
         "allow_claude_code_credentials_file).",
@@ -860,6 +994,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     )
     config.addinivalue_line(
         "markers",
+        f"{_STATE_DB_RESOLVES_THROUGH_SCOPE_MARK}: hermes_state.DEFAULT_DB_PATH is unpinned, "
+        "so an argless SessionDB() resolves through the active profile scope (applied by id "
+        "from tests/_downstream/id_markers/; tests/_downstream/state_db_scope.py).",
+    )
+    config.addinivalue_line(
+        "markers",
         f"{_UPSTREAM_WIRE_UNBRIEFED_MARK}: the fork's one-line tool-description brief is "
         "off, so an upstream wire snapshot sees the registry text (applied by id from "
         "tests/_downstream/id_markers/).",
@@ -873,7 +1013,12 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         "markers",
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
-        "pins hold (applied by id from tests/_downstream/id_markers/).",
+        "pins hold (applied at collection by an AST walk of the test body).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "fresh_schema_path: the test's subject is a fresh state.db's schema build; "
+        "tests/agent_runtime's autouse SessionDB template is off for it (D3.11).",
     )
     config.addinivalue_line(
         "markers",

@@ -11,10 +11,8 @@ from pathlib import Path
 from .payloads import (
     _CHARACTERS_EXPECTED,
     _attempt_label,
-    _characters_draft_summary,
     _characters_emit,
     _characters_error,
-    _characters_installed_rows,
     _characters_next,
     _characters_verb,
 )
@@ -38,6 +36,7 @@ __all__ = [
 def _cmd_characters_start(args) -> int:
     from agent.charsheet import spec as charsheet_spec
     from agent.charsheet.draft import CharacterDraft
+    from agent.charsheet.draft.payloads import draft_summary
 
     states_text = str(getattr(args, "states", "") or "").strip()
     base_text = str(getattr(args, "base_image", "") or "").strip()
@@ -60,7 +59,7 @@ def _cmd_characters_start(args) -> int:
         )
     except _CHARACTERS_EXPECTED as exc:
         return _characters_error(args, exc)
-    data = {"ok": True, "draft": draft.id, "stage": draft.stage, "summary": _characters_draft_summary(draft)}
+    data = {"ok": True, "draft": draft.id, "stage": draft.stage, "summary": draft_summary(draft)}
     # The pipeline's first hint, and it reads the draft rather than the plan: a
     # draft started WITHOUT `--base-image` is the CS-5 repair shape, and
     # `turnaround` refuses without the anchor. Naming it there would hand the
@@ -82,10 +81,11 @@ def _cmd_characters_start(args) -> int:
 
 def _cmd_characters_list(args) -> int:
     from agent.charsheet.draft import CharacterDraft
+    from agent.charsheet.draft.payloads import draft_summary, installed_rows
 
     try:
-        drafts = [_characters_draft_summary(draft) for draft in CharacterDraft.list_drafts()]
-        installed = _characters_installed_rows()
+        drafts = [draft_summary(draft) for draft in CharacterDraft.list_drafts()]
+        installed = installed_rows()
     except _CHARACTERS_EXPECTED as exc:
         return _characters_error(args, exc)
     data = {"ok": True, "drafts": drafts, "characters": installed}
@@ -224,34 +224,20 @@ def _cmd_characters_thumb(args) -> int:
     # names it (plan A-4). `pets thumb` answers with a data URI because a Petdex
     # gallery row may come from a remote sheet; a draft's attempts are always on
     # this disk, and the launcher reads them there.
-    from agent.charsheet.draft import DEFAULT_THUMB_FRAME, DEFAULT_THUMB_SCALE
+    from agent.charsheet.draft.payloads import thumb_result
 
     row_key = str(getattr(args, "row", "") or "").strip()
     direction = str(getattr(args, "direction", "") or "").strip()
     attempt = int(getattr(args, "attempt", -1))
     requested_frame = getattr(args, "frame", None)
-    frame = DEFAULT_THUMB_FRAME if requested_frame is None else int(requested_frame)
+    requested_frame = None if requested_frame is None else int(requested_frame)
     requested_scale = getattr(args, "scale", None)
-    scale = DEFAULT_THUMB_SCALE if requested_scale is None else int(requested_scale)
+    scale = None if requested_scale is None else int(requested_scale)
     square = bool(getattr(args, "square", False))
 
     def call(draft):
-        if direction:
-            # A reference holds ONE pose. Ignoring `--frame` here would answer a
-            # caller who asked for cell 3 with cell 0 and call it a crop.
-            if requested_frame is not None:
-                raise ValueError(
-                    "--frame addresses a cell of a row STRIP; a direction "
-                    f"reference is one pose, so `--direction {direction}` and "
-                    "--frame cannot be asked for together"
-                )
-            result = draft.direction_thumb(
-                direction, attempt=attempt, scale=scale, square=square
-            )
-        else:
-            result = draft.row_thumb(
-                row_key, attempt=attempt, frame=frame, scale=scale, square=square
-            )
+        result = thumb_result(draft, row_key=row_key, direction=direction, attempt=attempt,
+                              requested_frame=requested_frame, scale=scale, square=square)
         # An agent reads the human line as often as the payload, and the one
         # thing it must not do with a deep zoom is declare it with `MEDIA:`. So
         # the line says which artifact this is, not just how big it came out.

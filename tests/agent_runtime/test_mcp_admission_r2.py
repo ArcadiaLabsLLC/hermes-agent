@@ -1015,7 +1015,10 @@ def _admitted_request(**kwargs):
 
 @pytest.fixture
 def torn_down(monkeypatch):
-    """Record what the runner handed to teardown, without touching the registry."""
+    """Record what the runner handed to its end-of-run release, without touching the registry.
+
+    D1.01 (owner ruling 2026-10-10): the runner RELEASES the run's budget and keeps the
+    resident scope; the release still runs on both the completed and the raised path."""
 
     import agent_runtime.mcp_admission as mcp_admission
     from agent_runtime.mcp_admission import McpTeardownOutcome
@@ -1026,7 +1029,7 @@ def torn_down(monkeypatch):
         seen.append(tuple(servers))
         return McpTeardownOutcome(servers=tuple(servers))
 
-    patch_where_bound(monkeypatch, mcp_admission, "teardown_mcp_admission", _record)
+    patch_where_bound(monkeypatch, mcp_admission, "release_mcp_admission", _record)
     return seen
 
 

@@ -41,6 +41,15 @@
     "profile_artifacts_held": [],
     "remote_check_error": "sync_remote_unreachable",
     "remote_checked": false,
+    "resolution": {
+      "layer": "env",
+      "store_root": "<case-root>/runtime",
+      "trace": [
+        "env HERMES_AGENT_RUNTIME_ROOT won: <case-root>/runtime",
+        "config <case-root>/hermes/config.yaml skipped: env won",
+        "default skipped: env won"
+      ]
+    },
     "schema_version": 1,
     "skill_publish_mode": "all",
     "skill_selection": [],

@@ -55,6 +55,10 @@ CONVERSATION_MARKER_STEPS: dict[str, str] = {
 
 logger = logging.getLogger(__name__)
 
+#: One line per provider dispatch beside upstream's ``API call #N`` line, which names model and
+#: provider but not the effort the request carried; ``chat_turn_effort`` is per run, this per call.
+API_CALL_EFFORT_RECEIPT = "api_call_effort call=%s model=%s provider=%s effort=%s"
+
 def _emit_conversation_timing(
     agent: Any,
     step: str,
@@ -174,7 +178,9 @@ def time_provider_dispatch(
     """
 
     from agent_runtime.persona_turn_binding import current_persona_turn_agent
+    from agent_runtime.request_effort import request_effort
 
+    logger.info(API_CALL_EFFORT_RECEIPT, api_call_count, model or "-", provider or "-", request_effort(request))
     agent = current_persona_turn_agent()
     if agent is None:
         return next_call()

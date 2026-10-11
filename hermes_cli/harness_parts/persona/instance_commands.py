@@ -150,7 +150,6 @@ def _cmd_persona_instance_repair_steering(args) -> int:
     principal that leaked into ``steered_by`` / ``spawned_by`` via a legacy mint
     renders as a phantom "steered by <principal>" edge. Honors --dry-run
     (validate + preview, write nothing, emit nothing)."""
-    cfg = load_agent_runtime_config()
     target = safe_optional_token(getattr(args, "persona_instance_id", None))
     scan_all = bool(getattr(args, "all", False))
     if not target and not scan_all:

@@ -20,9 +20,7 @@ import pytest
 from agent_runtime import persona_chat_session as chat_session
 from tests._downstream.split_package_source import patch_where_bound
 from hermes_cli.harness_parts.persona import (
-    chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -375,9 +373,7 @@ def test_chat_effective_model_payload_cascade_tiers():
 def _patched_harness(monkeypatch):
     from hermes_cli import harness
 
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: _cfg())
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: _cfg())
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: _cfg())
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: _cfg())
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: _cfg())
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: _cfg())

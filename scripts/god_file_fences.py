@@ -37,15 +37,18 @@ def fence_crossings(root: Path, upstream: frozenset[str], base: str) -> list[tup
     ``base`` changed.
 
     First-parent, because an upstream merge's second parent carries upstream's
-    own ``refactor(...)`` commits, which are not the fork's.
+    own ``refactor(...)`` commits, which are not the fork's. One ``git log`` walk names
+    every commit's files: a ``diff-tree`` per commit ran 200 processes, each lazily
+    fetching trees in a ``tree:0`` partial clone, and timed the gate out.
     """
+    walk = _git(root, "log", "--first-parent", "--diff-merges=first-parent", "--name-only",
+                "--format=%x00%H %s", f"{base}..HEAD")
     out = []
-    for line in _git(root, "log", "--first-parent", "--format=%H %s", f"{base}..HEAD").splitlines():
-        sha, _, subject = line.partition(" ")
-        if not subject.startswith(REFACTOR_PREFIX):
-            continue
-        touched = _git(root, "diff-tree", "--no-commit-id", "--name-only", "-r", "-m", "--first-parent", sha).split()
-        out += [(sha, subject, path) for path in sorted(set(touched) & upstream)]
+    for record in walk.split("\0")[1:]:
+        header, _, names = record.partition("\n")
+        sha, _, subject = header.partition(" ")
+        if subject.startswith(REFACTOR_PREFIX):
+            out += [(sha, subject, path) for path in sorted(set(names.split()) & upstream)]
     return out
 
 

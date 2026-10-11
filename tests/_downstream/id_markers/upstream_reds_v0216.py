@@ -12,9 +12,11 @@ The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from tests._downstream.id_markers.reasons import _up_red, _WIN
+from tests._downstream.id_markers.reasons import _up_red, _up_red_when, _WIN
 
 __layer__ = "models"
 
@@ -95,6 +97,7 @@ _NODES = (
         'tests/hermes_cli/test_linux_desktop_entry.py::test_install_opt_out_preserves_the_legacy_entry',
         'tests/hermes_cli/test_linux_desktop_entry.py::test_installed_entry_carries_the_window_app_id',
         'tests/hermes_cli/test_linux_desktop_entry.py::test_unchanged_entry_still_aliases_a_legacy_entry',
+        'tests/hermes_cli/test_old_updater_takeover.py::test_a_takeover_debt_another_profile_cannot_see_is_never_silent',
         'tests/hermes_cli/test_plugin_provider_picker_admission.py::test_external_process_plugin_authenticated_flag_tracks_binary_and_catalog_uses_fallback',
         'tests/hermes_cli/test_plugin_provider_picker_residue.py::test_any_external_process_plugin_counts_as_signed_in_when_its_binary_resolves',
         'tests/hermes_cli/test_plugin_provider_picker_residue.py::test_hermes_model_routes_registered_plugin_profiles_to_the_generic_flow',
@@ -146,6 +149,7 @@ _NODES = (
         'tests/plugins/memory/test_holographic_profile_db_path.py::test_save_config_stores_only_this_profiles_default_path_as_the_placeholder[display]',
         'tests/pm/test_build_operations.py::test_frozen_export_preserves_git_commit_pin',
         'tests/pm/test_custom_root_union.py::test_home_layout_joins_sibling_union[default]',
+        'tests/pm/test_plugin_survival_contract.py::test_update_sync_survives_unreadable_secondary_profile',
         'tests/pm/test_pm_authority.py::test_failed_replacement_preserves_entry_and_facts[replacement-install-verify]',
         'tests/pm/test_pm_authority.py::test_failed_restore_preserves_both_interrupted_versions',
         'tests/pm/test_runtime_gc.py::test_lease_taken_while_a_peer_pruned_it_is_retaken',
@@ -181,7 +185,7 @@ _NODES = (
         'tests/scripts/test_install_stage_frames.py::test_stage_result_matches_the_actual_exit[unknown]',
         'tests/scripts/test_install_stage_frames.py::test_stage_result_matches_the_actual_exit[write-failure]',
         'tests/scripts/test_release_artifacts.py::test_windows_metadata_is_read_from_package_and_stale_stamp_is_rejected',
-        'tests/scripts/test_termux_build_wheels.py::test_requirement_readers_preserve_pins_and_reject_malformed_rows[/xef/xbb/xbf]',
+        'tests/scripts/test_termux_build_wheels.py::test_requirement_readers_preserve_pins_and_reject_malformed_rows[\\xef\\xbb\\xbf]',
         'tests/scripts/test_termux_build_wheels.py::test_requirement_readers_preserve_pins_and_reject_malformed_rows[]',
         'tests/test_hermes_home_profile_warning.py::TestBootReadersBeforeProfileOverride::test_scratch_export_uses_the_process_home_silently',
         'tests/test_hermes_logging.py::TestSafeStderr::test_wraps_non_utf8_stderr',
@@ -219,9 +223,6 @@ _NODES = (
         'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_tier_paid_forces_keyed_without_key',
         'tests/tui_gateway/test_bot_relay_methods.py::test_deliver_validates_profile_and_runs_transport',
         'tests/tui_gateway/test_bot_relay_methods.py::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed',
-        'tests/tui_gateway/test_composite_carrier_rewind.py::test_prompt_row_id_rewind_preserves_scaffold_before_regeneration',
-        'tests/tui_gateway/test_desktop_session_row_git_meta.py::test_first_submit_row_records_git_branch_and_root',
-        'tests/tui_gateway/test_desktop_session_row_git_meta.py::test_row_git_probe_runs_once_per_session',
         'tests/tui_gateway/test_desktop_session_workspace_persistence.py::test_desktop_inherited_cwd_persists_only_when_the_resolution_adopted_it',
         'tests/tui_gateway/test_display_methods.py::test_install_sudo_card_ignores_a_client_supplied_session_id',
         'tests/tui_gateway/test_display_methods.py::test_install_worker_keeps_the_requested_profile_scope',
@@ -229,15 +230,30 @@ _NODES = (
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestBackgroundProfileOverride::test_background_binds_and_restores_profile_home',
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestBackgroundProfileOverride::test_background_restores_override_on_error',
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestPreviewRestartProfileOverride::test_preview_binds_and_restores_profile_home',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[steered-over-rpc]',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[typed-while-busy]',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[untouched]',
-        'tests/tui_gateway/test_lazy_session_regressions.py::TestPendingTitleValueError::test_valueerror_clears_pending_title',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_desktop_prompt_carries_gateway_rows_appended_after_hydration',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_desktop_prompt_does_not_adopt_its_own_user_row',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_prompt_after_a_foreign_compaction_sends_the_compacted_transcript',
+)
+
+# An ssh profile's REMOTE cwd is shape-checked with the host's os.path.isabs
+# (tui_gateway/session_workdir.py::_is_remote_cwd_shape); on Windows under Python >= 3.13
+# ntpath.isabs("/home/kali") is False, so the remote dir is dropped to "~" or refused.
+_SSH_REMOTE_CWD = (
+    "red on pure upstream tag v0.21.6 818c13be1d on Windows, Python >= 3.13: an ssh profile's "
+    "REMOTE cwd is validated with the host's os.path.isabs (_is_remote_cwd_shape)"
+)
+_SSH_REMOTE_CWD_NODES = (
+        'tests/tui_gateway/test_tui_gateway_server.py::test_session_create_uses_bound_profile_backend_not_launch',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_workspace_move_accepts_remote_dir_for_bound_ssh_profile',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[ssh]',
+        'tests/tui_gateway/test_tui_gateway_server.py::test_ssh_named_profile_cwd_beats_launch_terminal_cwd[local]',
 )
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
-    {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
+    {
+        **{node: (_up_red(_REASON),) for node in _NODES},
+    }
+    if _WIN else {}
 )
+if _WIN:
+    ROWS.update({
+        node: (_up_red_when(sys.version_info >= (3, 13), _SSH_REMOTE_CWD),)
+        for node in _SSH_REMOTE_CWD_NODES
+    })

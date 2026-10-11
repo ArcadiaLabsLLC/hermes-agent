@@ -30,7 +30,7 @@ class StatusReport:
         beside ``authoredBy: null`` and ``history[].path: null`` in the same
         response, which is exactly the two-spellings defect the helper exists to
         retire, one field later. ``list`` carries the same field
-        (``_characters_draft_summary``) and answers the same way.
+        (``payloads.draft_summary``) and answers the same way.
         """
         draft = self.draft
         spec = draft.spec

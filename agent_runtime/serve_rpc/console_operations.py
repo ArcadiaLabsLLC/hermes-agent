@@ -1,16 +1,18 @@
 """Native twins of the Agent Console's local operations, behind existing owners."""
+from functools import partial
+
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from .protocol import err, ok, deferred_reply, DEFERRED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
+from agent_runtime.param_readers import read_text
 __layer__ = "lanes"
 
 
-def _console_text(params, key, *, required=False):
-    value = params.get(key)
-    if value is None and not required:
-        return
-    if not isinstance(value, str) or (required and not value.strip()):
-        raise ValueError(key)
+def _value_error(key: str, sentence: str) -> ValueError:
+    return ValueError(key)
+
+
+_console_text = partial(read_text, refuse=_value_error)
 
 
 def _operation(rid, params, context, name, run):

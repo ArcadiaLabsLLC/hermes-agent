@@ -24,6 +24,7 @@ Generic on purpose (no fork path but the two file names), like the runner.
 from __future__ import annotations
 
 import json
+import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -106,12 +107,16 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
 
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
+#: the process kinds the ledger counts, by a kind's first word (fast-gate §2 adds
+#: the known red's one run; §3 a slow file's ``shard i/k`` and its ``whole-check``)
+PROCESS_KINDS = ("bundle", "solo", "known-red", "shard", "whole-check", "rerun", "retry")
+
 
 @dataclass
 class Process:
     """One pytest process the run spawned."""
 
-    kind: str  # "bundle" | "solo" | "rerun" | "retry"
+    kind: str  # "bundle" | "solo" | "known-red" | "rerun" | "retry"
     members: List[str]
     started: float
     ended: float
@@ -138,6 +143,21 @@ class RunLedger:
     first_attempt_seconds: float = 0.0
     known_red: List[str] = field(default_factory=list)
 
+    def record_solo(
+        self, kind: str, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
+    ) -> None:
+        """One single-file process: its wall and start-up, and the file's seconds and
+        failing ids from its recorder ``tally`` (None when the recorder wrote nothing).
+        ``add``: one shard of the file (fast-gate §3), added to its siblings'."""
+
+        startup = None if session_start is None else max(0.0, session_start - started)
+        self.processes.append(Process(kind, [rel], started, time.time(), startup))
+        if tally is not None:
+            before = self.file_seconds.get(rel, 0.0) if add else 0.0
+            self.file_seconds[rel] = before + tally.collect_seconds + tally.test_seconds
+        failed = list(tally.failed_nodeids) if tally is not None else []
+        self.failed[rel] = (self.failed.get(rel, []) if add else []) + failed
+
     def summary(self, jobs: int, *, slowest: int = 20) -> Dict[str, object]:
         ended = self.ended or time.time()
         elapsed = max(1e-9, ended - self.started)
@@ -149,7 +169,7 @@ class RunLedger:
         return {
             "elapsed": round(elapsed, 1),
             "jobs": jobs,
-            "processes": {k: sum(1 for p in self.processes if p.kind == k) for k in ("bundle", "solo", "rerun", "retry")},
+            "processes": {k: sum(1 for p in self.processes if p.kind.split(" ", 1)[0] == k) for k in PROCESS_KINDS},
             "worker_seconds": round(worker_seconds, 1),
             "busy_seconds": round(busy, 1),
             "utilization": round(busy / worker_seconds, 3),
@@ -196,7 +216,8 @@ def render(summary: Mapping[str, object]) -> List[str]:
     procs = summary["processes"]
     lines = [
         "=== Run cost (Stage 0) ===",
-        f"  processes: {procs['bundle']} bundles, {procs['solo']} solos, {procs['rerun']} re-runs alone, "
+        f"  processes: {procs['bundle']} bundles, {procs['solo']} solos, {procs['known-red']} known reds run once, "
+        f"{procs['shard']} shards (+{procs['whole-check']} whole checks), {procs['rerun']} re-runs alone, "
         f"{procs['retry']} straggler retries",
         f"  worker-seconds {summary['worker_seconds']}s ({summary['jobs']} × {summary['elapsed']}s); "
         f"busy {summary['busy_seconds']}s = {summary['utilization']:.0%} utilization",
@@ -223,23 +244,73 @@ def render(summary: Mapping[str, object]) -> List[str]:
 
 #: beside pytest's own last-failed cache, in a directory git already ignores
 RUNS_FILE = ".pytest_cache/hermes_bundled_runs.jsonl"
+#: ``kind`` of the line scripts/run_tests_idle.sh appends (owner ruling 2026-10-10)
+IDLE_RUN_KIND = "idle"
 
 
-def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
-    """rel → the failing node ids the LAST recorded run carried for it. A
-    missing or torn record is empty: every red is then re-run alone."""
+def primary_checkout(repo_root: Path) -> Optional[Path]:
+    """The clone's main worktree when ``repo_root`` is a linked worktree, else None.
+
+    A landing worktree is cut fresh, so its own duration cache and run record are
+    empty and Stages 2-3 would plan by count and re-run every red alone; both
+    fall back to the primary checkout's copies (plan O4)."""
 
     try:
-        lines = (repo_root / RUNS_FILE).read_text(encoding="utf-8").splitlines()
+        common = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, encoding="utf-8", timeout=10, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    primary = Path(common).parent
+    return None if not common or primary.resolve() == Path(repo_root).resolve() else primary
+
+
+def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
+    """``load(repo_root)`` over the primary checkout's cache: a local entry wins."""
+
+    primary = primary_checkout(repo_root)
+    return {**(load(primary) if primary is not None else {}), **load(repo_root)}
+
+
+def last_record(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, object]:
+    """The LAST gate line of the run record; ``{}`` when it is missing or torn.
+    A worktree with no record of its own reads the primary checkout's.
+    ``record_path`` names the file outright (the gate store's ``runs.jsonl``)."""
+
+    record = record_path if record_path is not None else repo_root / RUNS_FILE
+    if record_path is None and not record.is_file():
+        primary = primary_checkout(repo_root)
+        record = primary / RUNS_FILE if primary is not None else record
+    try:
+        lines = record.read_text(encoding="utf-8").splitlines()
     except OSError:
         return {}
     for line in reversed(lines):
         try:
-            red = json.loads(line).get("red") or {}
-        except (json.JSONDecodeError, AttributeError):
+            entry = json.loads(line)
+        except json.JSONDecodeError:
             continue
-        return {rel: frozenset(ids) for rel, ids in red.items() if ids}
+        # the idle-box lane's line (scripts/run_tests_idle.sh) carries no red map
+        if not isinstance(entry, dict) or entry.get("kind") == IDLE_RUN_KIND:
+            continue
+        return entry
     return {}
+
+
+def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, frozenset]:
+    """rel → the failing node ids the LAST recorded run carried for it. A
+    missing or torn record is empty: every red is then re-run alone."""
+
+    red = last_record(repo_root, record_path).get("red") or {}
+    return {rel: frozenset(ids) for rel, ids in red.items() if ids}
+
+
+def load_timed_out(repo_root: Path, record_path: Optional[Path] = None) -> frozenset:
+    """Files whose last attempt in the recorded runs was a TIMEOUT (killed, no
+    failing ids, so absent from the red map) — known reds too (fast-gate §2)."""
+
+    return frozenset(last_record(repo_root, record_path).get("timed_out") or ())
 
 
 def is_known_red(rel: str, failed_nodeids: Sequence[str], known: Mapping[str, frozenset]) -> bool:
@@ -256,11 +327,19 @@ def record_run(
     final_rc: Mapping[str, int],
     failed: Mapping[str, Sequence[str]],
     previous: Mapping[str, frozenset],
+    *,
+    timed_out: Iterable[str] = (),
+    previous_timed_out: Iterable[str] = (),
+    extra: Optional[Mapping[str, object]] = None,
+    record_path: Optional[Path] = None,
 ) -> Dict[str, List[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
-    partial run never forgets a red it did not look at."""
+    partial run never forgets a red it did not look at. ``timed_out`` (files
+    whose final attempt was a timeout) is carried forward the same way.
+    ``extra`` adds keys a caller carries itself (the shard planner's ``tests``).
+    ``record_path`` names the file outright (the gate store's ``runs.jsonl``, fast-gate §1)."""
 
     red = {rel: sorted(ids) for rel, ids in previous.items()}
     for rel, rc in final_rc.items():
@@ -269,8 +348,10 @@ def record_run(
             red[rel] = ids
         else:
             red.pop(rel, None)
-    record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items()))}
-    path = repo_root / RUNS_FILE
+    late = sorted((set(previous_timed_out) - set(final_rc)) | set(timed_out))
+    record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items())), "timed_out": late}
+    record.update(extra or {})
+    path = record_path if record_path is not None else repo_root / RUNS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")

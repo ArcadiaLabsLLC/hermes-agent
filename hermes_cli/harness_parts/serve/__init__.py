@@ -38,6 +38,8 @@ request_pool        lanes   ``RequestPool`` (the shared and the chat-turn lane),
 lanes               lanes   ``ArgvLanes``: ``_run`` and the two pool seams
 settle_push         lanes   ``SettlePush``: record, push and retire chat-turn
                             settles (``settle_ack``) on the control channel
+settle_commands     lanes   ``harness serve settles`` / ``settles rearm``: the
+                            argv fallback over the settle outbox (D2.05)
 queued_turns        lanes   a queued chat turn's stream on the control channel
                             (the busy-root send queue's runner policy)
 subscriptions       lanes   ``SubscriptionLanes``: stream hub, fold room, sockets

@@ -49,6 +49,14 @@ from tests._downstream import session_home as _session_home  # noqa: E402
 _SPAWNED_BY_TEST = bool(os.environ.get(_session_home.ISOLATION_ENV))
 _session_home.detach_operator_home(os.environ)
 
+# No test leaves a zero-byte ``index.lock`` in the checkout it runs from: git's
+# opportunistic index refresh (``status``/``diff``/``describe``) takes the lock,
+# and a process killed between the lock and the write (``--file-timeout`` is a
+# kill) leaves it behind. ``GIT_OPTIONAL_LOCKS=0`` skips the refresh for every
+# git this session spawns, under the runners' ``env -i`` and under bare pytest
+# alike (design sweep D3.16).
+os.environ.setdefault("GIT_OPTIONAL_LOCKS", "0")
+
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart(session):  # noqa: D401 — pytest hook
@@ -66,6 +74,7 @@ _DIRECTORY_PLUGINS = {
     "agent": "tests._downstream.agent_conftest",
     "tools": "tests._downstream.tools_conftest",
     "hermes_cli": "tests._downstream.hermes_cli_conftest",
+    "tui_gateway": "tests._downstream.tui_gateway_conftest",
 }
 
 
@@ -129,6 +138,9 @@ def pytest_plugin_registered(plugin, plugin_name, manager):  # noqa: D401 — py
         return
     key = _key(plugin_name)
     if key == _ROOT_CONFTEST:
+        import tests._downstream as _downstream
+
+        _downstream.root_conftest = plugin
         manager.import_plugin(_ROOT_PLUGIN)
         return
     entry = _DIRECTORY_CONFTESTS.get(key)

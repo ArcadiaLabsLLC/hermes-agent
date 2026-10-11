@@ -109,7 +109,11 @@ def _peer_of(script: str) -> SnapshotPeer:
                          ids=["no_handshake", "idle_request"])
 def test_a_silent_cold_worker_falls_back_within_the_new_bound(monkeypatch, caplog, tmp_path, script, reason):
     caplog.set_level(logging.INFO)
-    monkeypatch.setattr(peer_mod, "HANDSHAKE_SECONDS", 1.0)
+    # The idle case must reach its handshake before it can be judged idle. A cold
+    # interpreter importing psutil took over 1 s under four concurrent copies and read
+    # "silent" (lane h-perf-guard, 2026-10-06), so only the silent case runs the 1 s
+    # handshake bound; the idle case's verdict still comes from IDLE_SECONDS.
+    monkeypatch.setattr(peer_mod, "HANDSHAKE_SECONDS", 1.0 if reason == "silent" else 8.0)
     monkeypatch.setattr(peer_mod, "IDLE_SECONDS", 1.0)
     peers: list[SnapshotPeer] = []
     binding = executor_mod.WorkerBinding(tmp_path, start=lambda home: peers.append(_peer_of(script)) or peers[-1],

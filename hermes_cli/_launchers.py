@@ -859,6 +859,11 @@ def _expose_windows_user_bin(root: Path, *, create: bool) -> dict:
             # Bootstrap: repair only commands we already own, enable nothing new.
             published = _publish_conveniences(root, directory, WINDOWS_BIN_LAUNCHERS, create=False)
             return {"ok": True, "written": [path.name for path, changed in published.items() if changed]}
+        # fork (L6.12): the POSIX ownership guard's Windows twin -- never rebind another live
+        # checkout's launchers (hermes_cli/launcher_root_owner.py).
+        from hermes_cli.launcher_root_owner import foreign_launcher_root
+        if (other := foreign_launcher_root(root, directory, WINDOWS_BIN_LAUNCHERS)) is not None:
+            return {"ok": True, "skipped": "owned-by-another-root", "owner": str(other)}
         directory.mkdir(parents=True, exist_ok=True)
         written = ensure_install_launchers(root, directory)
         if len(written) != len(WINDOWS_BIN_LAUNCHERS):

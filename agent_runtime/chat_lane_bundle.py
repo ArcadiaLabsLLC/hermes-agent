@@ -390,13 +390,14 @@ def registry_content_revision() -> str:
     to which toolset — plus the availability epoch the ``check_fn`` answers
     behind them hang on. Those, and nothing else, are the key.
 
-    Not ``registry.generation``: MCP admission registers its admitted servers'
-    tools for one run and tears the scope down after it
-    (``mcp_admission.registration``), so every turn that admits a server
-    leaves the registry exactly as it found it while moving the generation by
-    twice the tool count. Keyed on the generation, every such turn rebuilt the
-    bundle for a move nobody could see (live, every turn record since
-    2026-09-08: ``visibility_bundle_rebuild_component_registry_epoch=1``).
+    Not ``registry.generation``: until D1.01 (2026-10-10) MCP admission
+    registered its admitted servers' tools for one run and tore the scope down
+    after it, so every admitting turn moved the generation by twice the tool
+    count while leaving the registry as it found it. Keyed on the generation,
+    every such turn rebuilt the bundle for a move nobody could see (live, every
+    turn record since 2026-09-08:
+    ``visibility_bundle_rebuild_component_registry_epoch=1``). The scope is
+    resident now, but a changed filter or a reconnect still re-registers it.
     Handlers and schemas are deliberately absent — the composition never reads
     them, and admission swaps every admitted handler for a metered one.
     """

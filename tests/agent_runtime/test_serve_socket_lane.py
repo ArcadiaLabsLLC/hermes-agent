@@ -1750,31 +1750,138 @@ def test_subscribe_pushes_the_stream_to_every_subscriber_and_unsubscribe_ends_it
         gate.set()
 
 
+def _quiet_stream(gate: threading.Event):
+    """One hydrate, then silence until *gate*: no delta can hit a closed sink."""
+
+    def _factory():
+        def _generate():
+            yield {"type": "hydrate", "index": 0}
+            gate.wait()
+
+        return _generate()
+
+    return _factory
+
+
+def _subscribed_leaver(handle: _RunningServe) -> ServeSocketClient:
+    leaver = ServeSocketClient("127.0.0.1", handle.port, timeout_seconds=WAIT)
+    leaver.connect()
+    leaver.hello(token=read_token(_store_root()) or "", client="leaver", client_build=None)
+    leaver.send({"op": "subscribe"})
+    _read_until(leaver, "subscribed")
+    return leaver
+
+
 def test_a_disconnect_unsubscribes_and_does_nothing_else():
+    """The SERVER's disconnect path releases the subscriber, on its own.
+
+    Two paths release a departed subscriber. (a) The read loop sees EOF:
+    ``SocketServer._drop_connection`` -> ``on_disconnect`` ->
+    ``SubscriptionLanes._on_connection_closed`` -> ``_release_subscription`` ->
+    ``hub.unsubscribe``. (b) The hub's consumer writes the next frame to the raw
+    sink, the write raises, and ``_on_stream_drop`` releases it with
+    ``sink_error:<Type>``. Under a 5 ms delta stream either can win (measured
+    2026-10-10: (b) first in one of three runs), so this test streams one
+    hydrate and then nothing — (b) has no frame to fail on, and (a) is the only
+    path. ``test_a_dead_subscriber_socket_is_dropped_by_the_fan_out_with_a_typed_reason``
+    keeps (b) honest.
+
+    Mutation: delete ``hub.unsubscribe(key)`` in ``_release_subscription`` -> the
+    poll times out with ``subscribers == 1``.
+    """
+
     gate = threading.Event()
     try:
-        with running_serve(stream_source_factory=_fake_stream(gate)) as handle:
+        with running_serve(stream_source_factory=_quiet_stream(gate)) as handle:
             with client(handle, name="stayer") as (stayer, _r1):
-                leaver = ServeSocketClient("127.0.0.1", handle.port, timeout_seconds=WAIT)
-                leaver.connect()
-                leaver.hello(
-                    token=read_token(_store_root()) or "", client="leaver", client_build=None
-                )
-                leaver.send({"op": "subscribe"})
-                _read_until(leaver, "subscribed")
+                leaver = _subscribed_leaver(handle)
+                # The hydrate is the stream's last frame: once it is read, no
+                # write to the leaver is pending when it goes.
+                for _ in range(50):
+                    if (leaver.read_frame() or {}).get("type") == "hydrate":
+                        break
+                else:
+                    raise AssertionError("the subscriber was never hydrated")
                 leaver.close()
 
                 # The runtime outlives its client: the subscription is gone, the
                 # connection is gone, and everything else is exactly as it was.
+                # Both halves are polled: the pop that drops ``count`` happens
+                # before ``on_disconnect`` releases the subscriber.
                 deadline = time.monotonic() + WAIT
                 summary = None
                 while time.monotonic() < deadline:
                     stayer.send({"op": "connections"})
                     summary = _read_until(stayer, "socket_connections")
-                    if summary["count"] == 1:
+                    if summary["count"] == 1 and summary["subscriptions"]["subscribers"] == 0:
                         break
                     time.sleep(0.05)
                 assert summary["count"] == 1
+                assert summary["subscriptions"]["subscribers"] == 0
+                assert [row["client"] for row in summary["connections"]] == ["stayer"]
+    finally:
+        gate.set()
+
+
+def test_a_dead_subscriber_socket_is_dropped_by_the_fan_out_with_a_typed_reason(monkeypatch):
+    """Path (b) alone: the hub's own write to a closed socket drops the subscriber.
+
+    The server's disconnect hook is HELD until the hub has let the subscriber go
+    (bounded by ``WAIT``), so the release below can only be the fan-out's: the
+    connection is closed before ``on_disconnect`` runs, the next 5 ms delta's
+    write raises, and the drop is typed ``sink_error:<Type>`` in the service log.
+
+    Mutation: make ``_Subscription._pump`` swallow a sink exception (``except
+    Exception: continue``) -> no ``serve_stream_subscription_dropped`` receipt, red.
+    """
+
+    lanes = serve_module.SubscriptionLanes
+    released_by_disconnect = lanes._on_connection_closed
+
+    def _held_until_the_hub_lets_go(self, connection):
+        hub, key = self.stream_hub, self._owner_of(connection)
+        deadline = time.monotonic() + WAIT
+        while hub is not None and hub.has(key) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        released_by_disconnect(self, connection)
+
+    monkeypatch.setattr(lanes, "_on_connection_closed", _held_until_the_hub_lets_go)
+    gate = threading.Event()
+    try:
+        with running_serve(stream_source_factory=_fake_stream(gate)) as handle:
+            with client(handle, name="stayer") as (stayer, _r1):
+                leaver = _subscribed_leaver(handle)
+                stayer.send({"op": "connections"})
+                rows = _read_until(stayer, "socket_connections")["connections"]
+                [leaver_key] = [row["connection"] for row in rows if row["client"] == "leaver"]
+                leaver.close()
+
+                deadline = time.monotonic() + WAIT
+                drops: list[dict] = []
+                while time.monotonic() < deadline and not drops:
+                    drops = [
+                        row
+                        for row in (
+                            json.loads(frame["line"])
+                            for frame in handle.sink.frames()
+                            if frame.get("event") == "stderr"
+                            and frame.get("line", "").startswith("{")
+                        )
+                        if row.get("event") == "serve_stream_subscription_dropped"
+                    ]
+                    time.sleep(0.02)
+                assert drops, "the fan-out never dropped the dead subscriber"
+                assert drops[0]["reason"].startswith("sink_error:"), drops[0]
+                assert drops[0]["client"] == "leaver", drops[0]
+                assert drops[0]["connection"] == leaver_key, drops[0]
+
+                stayer.send({"op": "connections"})
+                summary = _read_until(stayer, "socket_connections")
+                deadline = time.monotonic() + WAIT
+                while summary["count"] != 1 and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                    stayer.send({"op": "connections"})
+                    summary = _read_until(stayer, "socket_connections")
                 assert summary["subscriptions"]["subscribers"] == 0
                 assert [row["client"] for row in summary["connections"]] == ["stayer"]
     finally:

@@ -26,7 +26,6 @@ from hermes_cli.harness_parts.persona import (
     chat_coordinator,
     chat_delete,
     chat_open,
-    chat_target,
     chat_tickets_commands,
     lifecycle_commands,
 )
@@ -50,7 +49,7 @@ def _rpc(method: str, params, rid: str = "cv"):
 def chat_db(monkeypatch, isolate_agent_runtime_root, persisted_persona_samples):
     cfg = _assignment_config()
     db = _TranscriptDB()
-    for module in (chat_delete, chat_open, chat_target, lifecycle_commands):
+    for module in (chat_open, lifecycle_commands):
         monkeypatch.setattr(module, "load_agent_runtime_config", lambda: cfg)
     for module in (chat_delete, chat_open, lifecycle_commands, turn_resolve_verb):
         monkeypatch.setattr(module, "_default_persona_session_db", lambda: db)

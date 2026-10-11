@@ -1118,6 +1118,8 @@ function Stage-Products {
 }
 
 function Set-LauncherUserPath([string]$binDir) {
+    # Fork (D3.15): a test or sandbox exporting the registry-write fence marker never writes the user PATH.
+    if ($env:HERMES_REGISTRY_WRITE_FENCE -eq "1") { Write-Ok "fenced: not adding $binDir to the user PATH (HERMES_REGISTRY_WRITE_FENCE=1)"; return }
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($userPath -notlike "*$binDir*") {
         [Environment]::SetEnvironmentVariable("Path", "$binDir;$userPath", "User")

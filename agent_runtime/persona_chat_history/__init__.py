@@ -20,7 +20,8 @@ Modules, by layer (lowest first; a module imports only its own layer or lower):
   revision and cursor; reads the turn journal), ``history_rows`` (SessionDB session rows), ``trace_journal`` (settled turns
   the trace tail missed, paged from the turn journal), ``trace`` (the event-log
   trace tail).
-* lanes — ``summary``, ``messages``.
+* lanes — ``summary``, ``messages``, ``search`` (one conversation's curated history,
+  searched; hits open through ``messages``).
 
 Stores written: none (reads SessionDB, the turn journal and the event log).
 Never imported from here: ``hermes_cli.harness``, and no module here imports a

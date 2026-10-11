@@ -142,7 +142,13 @@ class _SettlePhases:
         # relay at `outcome_unknown` and cost a full re-brief.
         # ONE decision, made by the owned vocabulary rather than a nested
         # conditional spelled inline three times (state, kind, exit code).
-        turn_outcome = classify_turn_failure(exc, provider_submitted=self.provider_submitted)
+        turn_outcome = classify_turn_failure(
+            exc,
+            provider_submitted=self.provider_submitted,
+            # D2.02: a boundary crossed with no request started settles as the
+            # typed `provider_unavailable` refusal, never `outcome_unknown`.
+            request_started=self.provider_request_started,
+        )
         wall_budget_exceeded = (
             turn_outcome.execution_state is ExecutionState.BUDGET_EXHAUSTED
         )

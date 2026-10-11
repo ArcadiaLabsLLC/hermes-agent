@@ -369,15 +369,18 @@ def _drop_flow_echo(message: dict[str, Any], state: DedupeState) -> bool:
 def _drop_thinking_repeat(message: dict[str, Any], state: DedupeState) -> bool:
     # Per-step trace thinking and the per-run summary can carry the same text
     # (the final reasoning step often IS the decision rationale). Keep the first
-    # occurrence in timeline order; drop later repeats — and any that echo a
-    # reply.
+    # occurrence in timeline order WITHIN ITS TURN; drop later repeats — and any
+    # that echo a reply. The repeat is keyed on the turn: a later turn that
+    # thinks an earlier turn's words is a new row, not a duplicate (rows pair
+    # by ``reasoning_id``, so dropping it lost a live row's stored twin).
     text = message.get("display_text")
     if text and str(text).strip() in state.reply_texts:
         return True
-    if text and text in state.seen_thinking_texts:
+    key = (message.get("turn_id"), text)
+    if text and key in state.seen_thinking_texts:
         return True
     if text:
-        state.seen_thinking_texts.add(text)
+        state.seen_thinking_texts.add(key)
     return False
 
 

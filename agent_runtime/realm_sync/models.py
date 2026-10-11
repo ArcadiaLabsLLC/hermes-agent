@@ -69,6 +69,9 @@ HARD_EXCLUDED_PATH_PARTS = {
     # This machine's setup runs (Clone / command steps, row H11): local paths and typed
     # endings of work that happened on one box.
     "machine_slot_runs.json",
+    # Derived per-machine caches (D1.05 CF-2): parsed frontmatter keyed by THIS
+    # box's file signatures; meaningless anywhere else (owner ruling 2026-10-10).
+    paths.DERIVED_CACHE_DIRNAME,
     "proofs",
     "runs",
     "state.db",

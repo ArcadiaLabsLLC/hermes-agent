@@ -9,7 +9,7 @@ from scripts.check_carried_prs import check, ledger_pairs
 
 def git(repo, *args):
     return subprocess.run(['git', '-C', str(repo), *args], check=True,
-                          capture_output=True, text=True, timeout=10).stdout.strip()
+                          capture_output=True, text=True, encoding='utf-8', timeout=10).stdout.strip()
 
 
 @pytest.fixture
@@ -205,15 +205,15 @@ def test_production_duplicate_mutation_is_drift(history, field):
     path = "tests/hermes_cli/test_doctor.py" if field == "doctor" else "agent/conversation_loop.py"
     number = "125260" if field == "doctor" else "124210"
     production = root / path
-    source = production.read_text()
-    rules = json.loads((root / "tests/fixtures/carried_prs.json").read_text())
+    source = production.read_text(encoding="utf-8")
+    rules = json.loads((root / "tests/fixtures/carried_prs.json").read_text(encoding="utf-8"))
     rule = rules["prs"][number]["files"][path]
     # An isolated empty base makes every real production fragment a PR addition.
     history[1].write_text("")
     git(history[0], "add", "code.py")
     git(history[0], "commit", "-m", "empty production baseline")
     git(history[0], "branch", "production-base")
-    history[1].write_text(source)
+    history[1].write_text(source, encoding="utf-8")
     git(history[0], "add", "code.py")
     git(history[0], "commit", "-m", "real production carried surface")
     entry = history[2]["prs"]["12"]
@@ -230,7 +230,7 @@ def test_production_duplicate_mutation_is_drift(history, field):
         text = 'monkeypatch.setenv("HERMES_HOME", str(hermes_home))'
         replacement = 'monkeypatch.setenv("WRONG_HOME", str(hermes_home))'
     assert source.count(text) >= 2
-    history[1].write_text(source.replace(text, replacement, 1))
+    history[1].write_text(source.replace(text, replacement, 1), encoding="utf-8")
     assert run(history)[0] == 1
 
 

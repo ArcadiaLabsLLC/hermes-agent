@@ -8,8 +8,6 @@ upstream's own content-aware helpers, read at call time through
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from agent.charsheet._upstream_doors import (
     atlas_erase_long_axis_lines,
     atlas_frame_x_ranges,
@@ -25,7 +23,6 @@ def frame_x_bounds(
     frame_count: int,
     *,
     chroma_key: tuple[int, int, int] | None = None,
-    pad: bool = True,
 ) -> list[tuple[int, int]]:
     """WHERE each frame of a row strip begins and ends, in strip coordinates.
 
@@ -60,25 +57,19 @@ def frame_x_bounds(
     boundary to place, and trimming to the subject would be this function
     guessing which pixels the caller came to look at.
 
-    *pad* (default) adds a little breathing room around each range, as the
-    extraction does — but clamped to the neighbouring pose's own edge, so the
-    padding can never reach another pose's pixels. The extraction can afford a
+    Each range gets a little breathing room, as the extraction's pad does — but
+    clamped to the neighbouring pose's own edge, so the padding can never reach
+    another pose's pixels. The extraction can afford a
     raw pad because it cleans slivers out of each crop afterwards; a caller
     cropping the source verbatim cannot, so the restraint lives here.
 
     Bounds are x only. Height is the caller's business — every route above
     crops full height so tall ears and halos are never clipped.
     """
-    from PIL import Image
-
     if isinstance(frame_count, bool) or not isinstance(frame_count, int) or frame_count < 1:
         raise ValueError(f"frame_count must be an integer >= 1, got {frame_count!r}")
 
-    if isinstance(strip, (str, Path)):
-        with Image.open(strip) as opened:
-            strip = opened.convert("RGBA")
-    else:
-        strip = strip.convert("RGBA")
+    strip = strip.convert("RGBA")  # an open image: the one caller decodes the strip once
 
     width = strip.width
     if frame_count == 1:
@@ -91,8 +82,6 @@ def frame_x_bounds(
     if ranges is None:
         return _slot_bounds(width, frame_count)
 
-    if not pad:
-        return [(max(0, left), min(width, right)) for left, right in ranges]
     margin = max(2, min(16, round((width / frame_count) * 0.04)))
     return [
         (

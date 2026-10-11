@@ -71,6 +71,7 @@ SEND_FLAGS: tuple[tuple[str, str, str], ...] = (
     ("requested_by", "--requested-by", "value"),
     ("client_message_id", "--client-message-id", "value"),
     ("idempotency_key", "--idempotency-key", "value"),
+    ("retry_of", "--retry-of", "value"),
     ("stream", "--stream", "flag"),
     ("max_seconds", "--max-seconds", "float"),
     ("compression_threshold_tokens", "--compression-threshold-tokens", "int"),

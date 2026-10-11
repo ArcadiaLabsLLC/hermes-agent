@@ -16,12 +16,23 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
+scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
+scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
 python scripts/dump_cli_contract.py --check                     # after any argparse change
 python scripts/dump_payload_contract.py --check                 # after any character payload change
 python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
+
+**Upstream-PR and sync lanes pin the base by SHA and own their uv cache.** Run
+`UV_CACHE_DIR=<lane scratch>/uv-cache python scripts/check --base <sha>`, with the SHA read once
+(`git rev-parse upstream/main`) at the start of the lane. The default base (the merge-base with
+`origin/main`) is thousands of commits behind upstream: ~313 blocking findings over 2,756 files and
+its 900 s timeout (lanes up-door-*, 2026-10-07). A bare `--base upstream/main` moves when another
+lane fetches mid-run and the code-health ratchet reports false `FILE_LINES`/`BLE001` reds
+(up-sync-2, 2026-10-08). The shared uv cache locks under concurrent lanes (`os error 32`), hence the
+per-lane `UV_CACHE_DIR`; if `uvx ruff@0.15.10` still fails on it, use the test venv's `ruff`.
 
 **The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
@@ -31,6 +42,15 @@ h-turn1, one edit to `agent/conversation_loop.py`) the three-directory form sele
 whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test that function. The
 whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
 ran 908 files / 13,621 tests in minutes.
+
+**A session-chain edit runs the whole tree** (fast-gate §5, owner ruling Q3). The fork's root
+`conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
+`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded
+by every test process, so `--scope fork` reaches every inherited file when one of them changes: the
+scope line counts them as `chain N` and prints `chain: <paths>`. Dry selection on 2026-10-10: a
+root-`conftest.py` change went from 983 files (fork only) to 6,440. Batch such edits into the
+release-merge landing, which pays the tree anyway; a release merge whose only touch on a chain path is
+re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does not count it.
 
 **`--scope full` (every file, upstream's included) belongs to the weekly upstream merge lane, and is
 not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
@@ -53,21 +73,63 @@ re-checks the `env`/`upstream` rows (`Merging upstream.md` step 5b). The P0 four
 lift the workstation ban on `--scope full` above; that waits on the P0 row.
 
 **What a run prints about itself.** After the Summary line, `=== Run cost (Stage 0) ===`: processes
-by kind, worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
+by kind (bundles, solos, known reds run once, shards and whole checks, re-runs, straggler retries), worker-seconds and utilization, Σ per-file seconds and the floor at that worker count,
 start-up seconds, the seconds spent re-running red members, the critical-path process, the idle tail
 and the 20 slowest files. The same numbers, with every red file's failing node ids, are appended as
-one JSON line to `.pytest_cache/hermes_bundled_runs.jsonl` (git-ignored, per checkout). Quote that
-line in a landing report instead of reconstructing timings from the log.
+one JSON line to the gate store's `runs.jsonl` (below; it was `.pytest_cache/hermes_bundled_runs.jsonl`
+in the checkout, which a landing worktree took with it), with the
+files whose last attempt timed out (`timed_out`) and the test count of every file that took ≥ 90 s
+(`tests`, the shard planner's input) and the cache's block (`cache`: skipped, sampled, seed, misses
+by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
+timings from the log.
 
 **Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
 cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
-alone, and solos are submitted before bundles. Both read `test_durations.json`, so a fresh
-worktree's first run plans by count; pass `0` to either flag to switch it off.
+alone, and solos are submitted before bundles. Both read the store's `durations.json` (clean-pass
+seconds, repo-relative POSIX keys only), over the legacy `test_durations.json` files for one release;
+pass `0` to either flag to switch it off.
 
-**A red is not paid for twice** (owner ruling O5). A bundle member red with the SAME failing node
-set as the last recorded run is reported from its bundle (`known-red` in the progress line; its
-failure output says why), not re-run alone. A new red, or one whose failing set changed, is still
-re-run alone and an isolation leak is still named. To see a known red alone:
+**The green-result cache skips a file nothing it depends on changed since its last green on this box**
+(fast-gate §1; owner rulings Q1, Q2, Q6). Every pytest process of a bundled run loads
+`-p hermes_dep_record`, which records what each test file imported, opened, listed and spawned; a
+green writes that record and a key (the blobs of every recorded path against the tree the run started
+from, the runner's own files, `uv.lock`/`pyproject.toml`, the interpreter and its packages, the
+`HERMES_*`/`TZ`/`LANG` environment) to the GATE STORE: `<primary checkout>/.pytest_cache/hermes_gate/`,
+per clone, shared by every worktree, git-ignored, never committed. A file that spawned a process
+depends on every tracked file outside `docs/` and `Harness_Brain/`. The start-up line says
+`Green-result cache: N of M file(s) skipped as cached green; audit re-runs S hit(s) (seed X, 5%,
+min 25); misses: <reason> <count>, …`; a skipped file's progress line reads `(cached; green <date>
+<s>s, 0.0s)`. Never cached: a NAMED file (O1), a known red, a red, a FLAKY file (two greens in a row
+before it is cached again), an isolation leak, an unreached member, a straggler retry, a sharded file,
+any run with a pytest argument other than `-q`/`-v`, and a green older than 14 days. **The audit**
+re-runs `max(25, 2 %)` of the hits (5 % for the first three skipping runs) as ordinary members; a
+sampled hit red in the run and red again alone prints `=== ✗ CACHE AUDIT: N cached-green file(s) red
+on re-execution ===`, exits 1 and bumps the store's generation (the next run is cold). **A CACHE AUDIT
+red is a defect row (a key missed a dependency) in `fork-hygiene-queue.md` with that block, never a
+reason to clear the store and move on.** Opt out for one run: `--no-cache` or `HERMES_GATE_CACHE=0`;
+report without skipping: `--cache-dry-run` (lists the would-skips and why the rest run); make every
+green miss: `--cache-reset`; reproduce a sample: `--cache-seed <seed>`; another store: `--cache-dir`
+or `HERMES_GATE_CACHE_DIR`. A lane's `scripts/run_tests.sh <files>` never touches the cache.
+
+**A slow file is sharded only when the run is tail-bound** (fast-gate §3). When Σ estimates / jobs
+is under twice the longest estimate — a small run whose makespan is its longest file — a file cached
+green ≥ 90 s with ≥ 2k recorded tests runs as k = min(4, ceil(s/45)) processes, each
+`-p hermes_shard --hermes-shard=i/k` (a crc32 of the node id picks the shard). The start-up line says
+`tail-bound: sharding N files into M shards` or `work-bound: no sharding`; a cold whole tree and a
+normal landing are work-bound. A file is green only when every shard is; a red shard runs the file
+once whole (`whole-check`): green whole is printed before the Summary as a candidate for
+`scripts/test_files_unsharded.txt` with the observed shard diff (its tests depend on each other's
+order — add the line and file a row), red whole is an ordinary red. A known red and a listed file
+are never sharded. Test counts come from the run record, so the first run after a reset only records.
+
+**A red is not paid for twice** (owner ruling O5; fast-gate §2). A file red or timed out in the last
+recorded run is a KNOWN red: it runs once, alone (`known-red` in the progress line), with no flake
+retry, no straggler retry and a capped timeout — `min(300, max(60, 2 × its last green seconds))`, or
+120 s when it has never been green on this box (owner ruling Q5; the first load-induced false timeout
+lifts 120 to 180 in the plan). Its failure output ends with the cap and, when its failing set moved
+since the record, `failing set changed: +N −M` with the ids; a capped timeout prints
+`known-red timeout cap <N>s; run alone: scripts/run_tests.sh <file>`. A NEW red still runs bundle →
+re-run alone, and an isolation leak is still named. To see a known red at full time:
 `scripts/run_tests.sh <file>`.
 
 **Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
@@ -84,12 +146,26 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
 - `tests/acp` cannot collect from a worktree (the editable install resolves to the primary) — run
   it from the primary or name the lanes explicitly.
 - `HERMES_TEST_TMP_ROOT` → a Defender-excluded throwaway dir speeds a run; `X:/Eternia` is already
-  excluded on this box.
+  excluded on this box. It is set once and defaulted by the runners: `scripts/run_tests.sh` (and the
+  bundled runner, which sources it) uses a `test-tmp` directory beside the checkout or beside a
+  worktree's primary checkout when the variable is unset, and exports it as TEMP/TMP for the RUNNER
+  too, so its `hermes-pytest` scratch and upstream's `hermes-test-home-*` stay out of `%TEMP%`
+  (D3.08). The plugin's hourly prune also removes this repo's own aged leftovers from the system
+  temp dir (`tests/_downstream/temp_prefixes.py`) and names each in `<root>/.temp-sweep.log`. Bare
+  pytest gets none of this — one more reason not to run it.
 - A failure seen only in a parallel or bundled run is compared as a SET against a serial
   `scripts/run_tests.sh` run of that file before it is believed (the bundled runner names an
   isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A
-  `known-red` line was NOT run alone this time; it is not evidence of a leak either way.
+  `known-red` line ran alone once, capped, never in a bundle this time; it is not evidence of a leak
+  either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+- A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
+  log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test
+  process, and the bundled runner passes it to its own git, so git's opportunistic index refresh no
+  longer takes the lock (design sweep D3.16). To name a test that still runs git against the checkout,
+  run the gate with `--git-audit` (`scripts/run_tests_bundled.sh --git-audit tests`) and read
+  `.pytest_cache/hermes_git_in_checkout.jsonl` (`{file, nodeid, argv, cwd}` per call; it
+  over-approximates — every verb, and a positional repo path is not parsed).
 
 ## How to run a heavy command (measured — do not improvise)
 
@@ -142,6 +218,27 @@ includes them; run them alone after a re-merge); (c) `changed_line_mutation_chec
 gate; (d) the docs gates. For the launcher half, `flutter test` on the `*_test.dart` files that
 import a touched file. After a re-merge, only (b) re-runs; the gate runs again only if an incoming
 commit touches a file the batch touches.
+
+## The idle-box files: after the gate, on an idle box
+
+The timing positive controls and the turn-cost guard keep their absolute budgets and run only on an
+idle box, serial, never inside a parallel gate (owner ruling 2026-10-10; design sweep D3.01 / D3.09:
+under gate load the OS starves the GIL hog instead of the reader, and a 500 ms stall floor read
+76–232 ms). `scripts/test_idle_box_files.txt` lists them; their tests skip unless
+`HERMES_TEST_IDLE_BOX=1`, and the bundled gate does not select them unless named (it prints
+`idle-box: N file(s) not run`). A lane running `scripts/run_tests.sh` on one of them sees it skipped,
+by design.
+
+When a batch touches `agent_runtime/send_window_receipt.py`, `agent_runtime/stream_gap_receipt.py`,
+`agent_runtime/transport_phase_trace.py` or the turn-cost path (anything
+`tests/agent_runtime/test_turn_cost_guard_downstream.py` imports), the landing runs
+`scripts/run_tests_idle.sh` AFTER the gate, with nothing else running. It refuses (exit 3) and names
+every live pytest / `run_tests` process while the box is busy; `--check` asks only that. It runs the
+list at one worker with `HERMES_TEST_IDLE_BOX=1` and appends `{"kind": "idle", …}` to
+the checkout's `.pytest_cache/hermes_bundled_runs.jsonl` (a receipt; the gate's own record is the
+store's `runs.jsonl`, and the known-red read skips an idle line either way): quote it in the
+landing report. An idle run that still reds is a new row carrying its receipt line
+(`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
 
 ## After a landing that touches the chat path: the live latency check
 

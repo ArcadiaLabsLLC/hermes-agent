@@ -25,6 +25,7 @@ verify_commands = lazy_module("hermes_cli.harness_parts.verify_commands")
 builds_commands = lazy_module("hermes_cli.harness_parts.builds_commands")
 observe_commands = lazy_module("hermes_cli.harness_parts.observe_commands")
 work_commands = lazy_module("hermes_cli.harness_parts.work_commands")
+settle_commands = lazy_module("hermes_cli.harness_parts.serve.settle_commands")
 
 __layer__ = "wiring"
 __all__ = [
@@ -561,6 +562,24 @@ def add_serve(subs) -> None:
     serve_connect.add_argument("--client", default=None, help="Client name recorded on the connection and in the service's logs (default: harness-serve-connect)")
     serve_connect.add_argument("--timeout", type=float, default=10.0, help="Socket connect/read timeout in seconds")
     serve_connect.set_defaults(func=_cmd_serve_connect)
+    # D2.05: the settle-push outbox's argv fallback; runtime.settles.list /
+    # .rearm are the method lane.
+    serve_settles = serve_subs.add_parser(
+        "settles",
+        help="List the chat-turn settle outbox (pending / undelivered / acked); `rearm` re-sends an undelivered one",
+    )
+    serve_settles.add_argument("--state", default=None, choices=("pending", "undelivered", "acked"), help="Only rows in this state (counts always cover every state)")
+    serve_settles.add_argument("--json", action="store_true")
+    serve_settles.set_defaults(func=settle_commands._cmd_serve_settles)
+    serve_settles_subs = serve_settles.add_subparsers(dest="serve_settles_command")
+    serve_settles_rearm = serve_settles_subs.add_parser(
+        "rearm",
+        help="Re-arm an undelivered settle: back to pending with a fresh retry budget, pushed on the serve's next tick",
+    )
+    serve_settles_rearm.add_argument("ref", help="A settle_id, or the turn's client_message_id (with --session-id)")
+    serve_settles_rearm.add_argument("--session-id", dest="session_id", default=None, help="The chat session of a client_message_id ref")
+    serve_settles_rearm.add_argument("--json", action="store_true")
+    serve_settles_rearm.set_defaults(func=settle_commands._cmd_serve_settles_rearm)
 
 
 def add_work(subs) -> None:

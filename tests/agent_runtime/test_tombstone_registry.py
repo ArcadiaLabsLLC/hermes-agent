@@ -3808,6 +3808,29 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "docs/downstream/session-skills.md",
         "docs/downstream/session-skills-verification.md",
     ),
+    *rows(
+        # Lane 1010-L5 (2026-10-10): dead-code queue row (landing
+        # prep/hermes-waves-reviewed) — the caller was retired by 33069ca1fc.
+        "s-1010-l5",
+        "HEAD",
+        Form.CODE,
+        "the client workspace-claim check; mission-chat message takes no "
+        "workspace claim since 33069ca1fc, so nothing reads one",
+        "workspace_claim_disagreement",
+        scope=_AR,
+    ),
+    *rows(
+        # Lane 1011-M2 (2026-10-10): dead-code queue row (lane h-bundle-epoch) —
+        # chat_lane_bundle keys on registry content + check_fn_epoch since bc43588550.
+        "s-1011-m2",
+        "HEAD",
+        Form.ATTR,
+        "the summed registration+availability epoch; no production caller keys "
+        "on it, and a memo keyed on registry.generation rebuilds on every "
+        "MCP-admitting turn (h-bundle-epoch)",
+        "registry_epoch",
+        scope=("tools.registry",),
+    ),
 )
 
 
@@ -3938,19 +3961,63 @@ def _scan_paths(packages: tuple[str, ...]) -> tuple[Path, ...]:
 
 _CODE_CACHE: dict[Path, str] = {}
 
+# The render survives the process, keyed by CONTENT (sha1 of the text read) under a
+# header naming the interpreter and ``_code_only``'s own bytecode: a changed file,
+# a different Python (``ast.unparse`` output differs by version) or a changed
+# renderer misses and re-renders. ~40 s of the file's 65 s wall was this render
+# (lane h-suite-tail-a, 2026-10-05); a warm checkout pays a JSON load instead.
+# Git-ignored, per checkout; written atomically; any I/O failure means "no cache".
+_RENDER_CACHE_FILE = HERMES_ROOT / ".pytest_cache" / "tombstone_render_cache.json"
+_RENDER_CACHE_HEADER = f"{sys.version}|{hashlib.sha1(_code_only.__code__.co_code).hexdigest()}"
+
+
+def _load_render_cache() -> dict[str, str]:
+    try:
+        saved = json.loads(_RENDER_CACHE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(saved, dict) or saved.get("header") != _RENDER_CACHE_HEADER:
+        return {}
+    entries = saved.get("entries")
+    return entries if isinstance(entries, dict) else {}
+
+
+_DISK_RENDERS: dict[str, str] = _load_render_cache()
+_RENDERS_BY_DIGEST: dict[str, str] = {}
+
 
 def _rendered(path: Path) -> str:
     cached = _CODE_CACHE.get(path)
     if cached is not None:
         return cached
-    try:
-        rendered = _code_only(path.read_text(encoding="utf-8", errors="replace"))
-    except (SyntaxError, ValueError, RecursionError):
-        # A file the fork's Python cannot parse is reported, never silently
-        # skipped — a silent skip is how a scan scope quietly shrinks.
-        rendered = f"<<UNPARSEABLE {path}>>"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    digest = hashlib.sha1(text.encode("utf-8")).hexdigest()
+    rendered = _DISK_RENDERS.get(digest)
+    if rendered is None:
+        try:
+            rendered = _code_only(text)
+        except (SyntaxError, ValueError, RecursionError):
+            # A file the fork's Python cannot parse is reported, never silently
+            # skipped — a silent skip is how a scan scope quietly shrinks.
+            rendered = f"<<UNPARSEABLE {path}>>"
+            digest = ""  # path-bearing: never shared by content
+    if digest:
+        _RENDERS_BY_DIGEST[digest] = rendered
     _CODE_CACHE[path] = rendered
     return rendered
+
+
+def _save_render_cache() -> None:
+    if _RENDERS_BY_DIGEST.keys() == _DISK_RENDERS.keys():
+        return
+    tmp = _RENDER_CACHE_FILE.with_name(f"{_RENDER_CACHE_FILE.name}.{os.getpid()}.tmp")
+    try:
+        _RENDER_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps({"header": _RENDER_CACHE_HEADER, "entries": _RENDERS_BY_DIGEST}),
+                       encoding="utf-8")
+        os.replace(tmp, _RENDER_CACHE_FILE)
+    except OSError:
+        tmp.unlink(missing_ok=True)
 
 
 def code_offenders(row: Tombstone) -> list[str]:
@@ -4007,6 +4074,7 @@ def _resolve(dotted: str):
 # the cheaper thing was already tried and already failed.
 for _warm_path in _scan_paths(PRODUCTION_PACKAGES):
     _rendered(_warm_path)
+_save_render_cache()
 
 #: Render-cache occupancy AS OF IMPORT. Snapshotted so the guard below fails
 #: deterministically when the warm is deleted, instead of depending on which
@@ -4108,6 +4176,20 @@ def test_the_render_cache_absorbs_every_repeat_read(monkeypatch):
     for path in _scan_paths(PRODUCTION_PACKAGES):
         _rendered(path)
 
+
+
+def test_the_disk_render_cache_serves_only_what_a_fresh_render_would():
+    """The persisted render is keyed by content, so a hit must equal a fresh render.
+
+    A sample across the scan set is re-rendered from its file now and compared with
+    what the scans read; a cache keyed by path or mtime instead of content, or one
+    surviving a renderer change, fails here instead of hiding a tombstoned name."""
+
+    sample = sorted(_scan_paths(PRODUCTION_PACKAGES))[::40]
+    assert len(sample) > 20
+    for path in sample:
+        fresh = _code_only(path.read_text(encoding="utf-8", errors="replace"))
+        assert _CODE_CACHE[path] == fresh, f"stale render served for {path}"
 
 # =========================================================================
 

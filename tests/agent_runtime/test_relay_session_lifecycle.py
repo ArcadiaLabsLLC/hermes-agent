@@ -46,7 +46,6 @@ from hermes_cli.harness_parts.persona import (
     chat_history_writes,
     chat_open,
     chat_request,
-    chat_target,
     chat_tickets_commands,
     chat_turn_message,
     inspect_commands,
@@ -56,12 +55,6 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 from tests._downstream.persona_source import package_source
-from tests.agent_runtime._session_db_template import (  # noqa: F401 — fixtures
-    _session_db_template,
-    session_db_from_template,
-)
-
-pytestmark = pytest.mark.usefixtures("session_db_from_template")
 
 
 @pytest.fixture(autouse=True)
@@ -1238,9 +1231,7 @@ def _install_dispatch_handler_doubles(monkeypatch, *, clarify_request=None):
     from agent_runtime.config import AgentRuntimeConfig
 
     db = _DispatchTranscriptDB()
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())

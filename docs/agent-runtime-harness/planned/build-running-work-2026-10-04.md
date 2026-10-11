@@ -286,8 +286,10 @@ Activity can say which agent's build it is.
   (label: `<slot>/CLAUDE.md`, `<slot>/AGENTS.md` — never merged into one); receipts list every assigned
   slot and every file, including unbound slots (`slot_unbound_here`, evidence: the machines that bind it)
   and missing files (`missing`, not an error). `prompt_builder`'s own cwd chain still runs for the
-  workdir slot, so its `CLAUDE.md` is deduplicated by content against the slot section (the chain's
-  existing `seen_content` rule) rather than injected twice.
+  workdir slot. Correction (D1.12, 2026-10-11): the chain's `seen_content` is a local of
+  `_load_agents_md`'s walk and never saw the slot section, so both copies were injected; the fork now
+  drops a slot section whose content the chain carries whole (`persona_slots.slot_context_for_prompt`,
+  `design-sweep-d1-2026-10-10.md` § D1.12).
 - **workdir — the PRIMARY slot** (OWNER 2026-10-04 (full-stack)): the instance record carries
   `primary_slot` (a slot name or null) beside `assigned_slots`; the workdir ladder's rung 2 is the primary
   slot's bound path — the instance's default working directory and terminal start. Null means "the first

@@ -879,7 +879,7 @@ def test_an_admission_shaped_register_and_teardown_between_turns_rebuilds_nothin
     ``visibility_bundle_rebuild_component_registry_epoch=1`` because the key
     read the registration generation. The second turn must name no component.
 
-    *Killing mutation:* key the bundle on ``registry_epoch()`` again — the
+    *Killing mutation:* key the bundle on ``registry.generation`` again — the
     second turn names a moved component.
     """
 

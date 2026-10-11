@@ -125,6 +125,9 @@ _EXCLUDED_SUFFIXES = (".pyc", ".pyo", *_SQLITE_SIDECAR_SUFFIXES)
 
 # File names to skip (runtime state that's meaningless on another machine)
 _EXCLUDED_NAMES = {".backup.lock", "gateway.pid", "cron.pid"}
+# fork (L8.12): the live serve holds a byte lock on this file, so it is unreadable while the
+# runtime runs and marked every full backup incomplete; retires with upstream PR #128853 (*.lock).
+_EXCLUDED_NAMES.add("serve_socket.lock")
 
 # The desktop updater's pre-flight drops ``state.db.pre-update-emergency-<ts>.bak`` at the root
 # — a backup artifact like ``backups/``. Prefix-matched because the name carries a timestamp;

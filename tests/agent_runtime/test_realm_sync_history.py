@@ -8,6 +8,7 @@ changed_paths[{family, container, item_key}], is_local_head, is_upstream_head}``
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -17,8 +18,15 @@ from agent_runtime.store import RealmStore
 from tests.agent_runtime._harness_cli import run_harness_in_process
 
 
+#: Every commit lands in the same second, so the order under test is the graph's, never the clock's
+#: (the bundled run reordered [third, second, first] when the commits shared a timestamp).
+_ONE_INSTANT = "2026-10-06T00:00:00+00:00"
+
+
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout
+    env = {**os.environ, "GIT_AUTHOR_DATE": _ONE_INSTANT, "GIT_COMMITTER_DATE": _ONE_INSTANT}
+    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True,
+                          env=env).stdout
 
 
 def _identity(repo: Path, name: str) -> None:

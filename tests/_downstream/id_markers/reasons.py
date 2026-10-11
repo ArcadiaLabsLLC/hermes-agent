@@ -29,10 +29,10 @@ _WIN = sys.platform == "win32"
 # ``real_windows_gateway_pause`` is ``tests/hermes_cli/_gateway_fence.REAL_PAUSE_MARK``.
 ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK = "allow_claude_code_credentials_file"
 CLAUDE_HOME_IS_TMP_PATH_MARK = "claude_home_is_tmp_path"
-CONFIG_READS_THROUGH_LOAD_CONFIG_MARK = "config_reads_through_load_config"
 NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
+STATE_DB_RESOLVES_THROUGH_SCOPE_MARK = "state_db_resolves_through_scope"
 UPSTREAM_WIRE_UNBRIEFED_MARK = "upstream_wire_unbriefed"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
@@ -103,14 +103,15 @@ def _posix_only(detail: str) -> pytest.MarkDecorator:
     return pytest.mark.skip(reason=f"{_POSIX_ONLY} ({detail})")
 
 
-_CONFIG_READ_THROUGH = getattr(pytest.mark, CONFIG_READS_THROUGH_LOAD_CONFIG_MARK)
 _LOOKALIKE = getattr(pytest.mark, SPAWNS_GATEWAY_LOOKALIKE_MARK)
 
 # Upstream tests that call monkeypatch.undo() mid-body run upstream's bytes with
 # undo narrowed to their own patches (conftest_plugin.pytest_pyfunc_call, lane
-# CARRY3); no sibling copy.
+# CARRY3); no sibling copy. Applied by hooks.body_calls_monkeypatch_undo at
+# collection, never by an id row.
 _SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
 _STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
+_STATE_DB_THROUGH_SCOPE = getattr(pytest.mark, STATE_DB_RESOLVES_THROUGH_SCOPE_MARK)
 _UPSTREAM_WIRE_UNBRIEFED = getattr(pytest.mark, UPSTREAM_WIRE_UNBRIEFED_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
@@ -125,8 +126,11 @@ def _fork_replaces(symbol: str, sibling: str) -> pytest.MarkDecorator:
 _UP_RED = "upstream-red on Windows at v2026.9.24; no fix yet"
 
 
-def _up_red(detail: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail})")
+def _up_red(detail: str, *, qualified: str = "") -> pytest.MarkDecorator:
+    """``qualified`` names the interpreter / SQLite pair (and date) the row was last seen
+    red on, so the next re-qualification reads the row's age off its reason (D3.13)."""
+    seen = f"; last seen red on {qualified}" if qualified else ""
+    return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail}{seen})")
 
 
 def _up_red_when(condition: bool, detail: str) -> pytest.MarkDecorator:

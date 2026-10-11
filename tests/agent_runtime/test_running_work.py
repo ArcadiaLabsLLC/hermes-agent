@@ -2100,16 +2100,24 @@ def test_the_dispatch_lane_reports_unavailable_when_the_store_cannot_be_read(
     assert entry["reason"] == "store_unreadable"
 
 
-def test_cancelling_a_dispatch_nobody_here_supervises_is_a_typed_refusal(dispatch_home):
-    """Recorded is not supervised: the row exists, no process here holds its child."""
+def test_cancelling_a_dispatch_nobody_here_supervises_goes_through_the_row(dispatch_home):
+    """Recorded is not supervised: no process here holds its child, so the cancel
+    is a durable request (D1.07, owner ruling a) — never a kill from here. A row
+    that never started is settled by it; a started one answers ``cancel_requested``."""
     import tools.agent_chat_dispatch  # noqa: F401 - the lane must be resident for the seam to answer
+    from agent_runtime.dispatch_store import get_dispatch, set_dispatch_owner
 
-    dispatch_id = _record_dispatch()
+    queued = _record_dispatch()
+    result = cancel_work(f"dispatch:{queued}")
+    assert (result["status"], result["outcome"]) == ("ok", "cancelled")
+    assert get_dispatch(queued)["state"] == "cancelled"
 
-    result = cancel_work(f"dispatch:{dispatch_id}")
-
-    assert result["status"] == "error"
-    assert result["code"] == "not_owned_here"
+    started = _record_dispatch()
+    assert set_dispatch_owner(started, owner_pid=os.getpid(), owner_started_at=None)
+    result = cancel_work(f"dispatch:{started}", reason="operator_stop")
+    assert (result["status"], result["outcome"]) == ("ok", "cancel_requested")
+    row = get_dispatch(started)
+    assert (row["state"], row["cancel_requested"]) == ("running", "operator_stop")
 
 
 def test_cancelling_a_queued_dispatch_this_process_supervises_settles_it(dispatch_home):

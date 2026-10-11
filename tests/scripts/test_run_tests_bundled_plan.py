@@ -114,12 +114,23 @@ def test_a_file_cached_over_the_solo_budget_runs_alone_and_before_every_bundle(t
 # ── Stage 2: a red is not paid for twice ────────────────────────────────────
 
 
+def _planned_without_the_record(root: Path):
+    """A solo policy that knew no reds when the run was planned: the bundle-side
+    O5 rule is what is left for a red the record names only at tally time
+    (fast-gate §2: a known red at planning time runs alone, once)."""
+
+    return bundled._solo_policy(root, 300.0, 0, {}, {})
+
+
 def test_a_red_member_unchanged_since_the_last_run_is_reported_from_its_bundle(tmp_path):
     files = _tree(tmp_path, ["tests/alpha/test_0.py", "tests/alpha/test_1.py"])
     red = {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok"]}
     calls: list = []
 
-    result = _run(tmp_path, files, red, {k: frozenset(v) for k, v in red.items()}, calls)
+    result = _run(
+        tmp_path, files, red, {k: frozenset(v) for k, v in red.items()}, calls,
+        solo_policy=_planned_without_the_record(tmp_path),
+    )
 
     assert [c for c in calls if c[0] == "solo"] == []
     outcome = next(o for o in result.outcomes if o.file.name == "test_1.py")
@@ -134,7 +145,10 @@ def test_a_red_member_whose_failing_set_changed_is_re_run_alone(tmp_path):
     red = {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok", "tests/alpha/test_1.py::test_new"]}
     calls: list = []
 
-    result = _run(tmp_path, files, red, {"tests/alpha/test_1.py": frozenset({"tests/alpha/test_1.py::test_ok"})}, calls)
+    result = _run(
+        tmp_path, files, red, {"tests/alpha/test_1.py": frozenset({"tests/alpha/test_1.py::test_ok"})}, calls,
+        solo_policy=_planned_without_the_record(tmp_path),
+    )
 
     assert ("solo", "tests/alpha/test_1.py") in calls
     assert next(o for o in result.outcomes if o.file.name == "test_1.py").via == "rerun"
@@ -156,6 +170,16 @@ def test_the_record_keeps_reds_drops_greens_and_carries_unrun_files_forward(tmp_
     assert plan.load_known_reds(tmp_path / "nowhere") == {}
 
 
+def test_an_idle_box_line_after_a_gate_line_does_not_erase_the_known_reds(tmp_path):
+    """scripts/run_tests_idle.sh appends a ``"kind": "idle"`` line with no red map;
+    the next gate still reads the last GATE line's reds (design sweep D3.01)."""
+    plan.record_run(tmp_path, {"elapsed": 1.0}, final_rc={"tests/b.py": 1}, failed={"tests/b.py": ["tests/b.py::t"]}, previous={})
+    with (tmp_path / plan.RUNS_FILE).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": plan.IDLE_RUN_KIND, "rc": 0, "files": ["tests/agent_runtime/x.py"]}) + "\n")
+
+    assert plan.load_known_reds(tmp_path) == {"tests/b.py": frozenset({"tests/b.py::t"})}
+
+
 def test_an_empty_failing_set_is_never_known_red():
     assert not plan.is_known_red("a.py", [], {"a.py": frozenset()})
     assert not plan.is_known_red("a.py", ["a.py::t"], {})
@@ -171,7 +195,9 @@ def test_the_ledger_counts_processes_work_and_the_double_run_of_a_red(tmp_path):
     result = _run(tmp_path, files, {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok"]}, {}, calls)
     cost = result.ledger.summary(2)
 
-    assert cost["processes"] == {"bundle": 1, "solo": 0, "rerun": 1, "retry": 0}
+    assert cost["processes"] == {
+        "bundle": 1, "solo": 0, "known-red": 0, "shard": 0, "whole-check": 0, "rerun": 1, "retry": 0
+    }
     # test_0's 0.25 s collect + 0.5 s test; the fake rerun wrote no events
     assert result.ledger.file_seconds == {"tests/alpha/test_0.py": pytest.approx(0.75)}
     assert cost["rerun_seconds"] >= 1.25  # the red's bundle attempt (0.25 + 1.0) plus its run alone
@@ -213,3 +239,42 @@ def test_a_skip_row_has_three_fields_and_a_class_word(tmp_path):
         plan.parse_skip_line("tests/x/test_a.py · env: no sha")
     with pytest.raises(FileNotFoundError):
         plan.load_skip_list(tmp_path / "missing.txt")
+
+
+# ── O4: a fresh landing worktree plans from the primary checkout's record ────
+
+def _clone_with_worktree(tmp_path: Path) -> tuple[Path, Path]:
+    import subprocess
+
+    def git(cwd: Path, *args: str) -> None:
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    git(primary, "init", "-q")
+    (primary / "README").write_text("x", encoding="utf-8")
+    git(primary, "add", "README")
+    git(primary, "-c", "user.name=o4", "-c", "user.email=o4@example.invalid", "commit", "-q", "-m", "seed")
+    worktree = tmp_path / "landing"
+    git(primary, "worktree", "add", "-q", "--detach", str(worktree))
+    return primary, worktree
+
+
+def test_a_fresh_worktree_reads_the_primarys_durations_and_run_record(tmp_path):
+    primary, worktree = _clone_with_worktree(tmp_path)
+    assert plan.primary_checkout(worktree).resolve() == primary.resolve()
+    assert plan.primary_checkout(primary) is None
+
+    (primary / "test_durations.json").write_text(json.dumps({"tests/a.py": 90.0, "tests/b.py": 3.0}), encoding="utf-8")
+    (worktree / "test_durations.json").write_text(json.dumps({"tests/b.py": 4.0}), encoding="utf-8")
+    durations = plan.load_durations_with_primary(worktree, bundled.rtp._load_durations)
+    assert durations == {"tests/a.py": 90.0, "tests/b.py": 4.0}
+
+    record = primary / plan.RUNS_FILE
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps({"red": {"tests/a.py": ["tests/a.py::t"]}}) + "\n", encoding="utf-8")
+    assert plan.load_known_reds(worktree) == {"tests/a.py": frozenset({"tests/a.py::t"})}
+    own = worktree / plan.RUNS_FILE
+    own.parent.mkdir(parents=True)
+    own.write_text(json.dumps({"red": {}}) + "\n", encoding="utf-8")
+    assert plan.load_known_reds(worktree) == {}

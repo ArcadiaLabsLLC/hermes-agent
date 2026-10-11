@@ -764,9 +764,10 @@ def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> 
 
 
 def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
-                  python: Path | str = sys.executable) -> list[str]:
+                  python: Path | str | None = sys.executable) -> list[str]:
     """Recompute the plan from the source tree and the bundle's OWN site-packages; compare.
-    Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone."""
+    Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone;
+    ``python=None`` skips that probe (a cross-target build on a host with no target interpreter)."""
     record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
     site, app = out / "site-packages", out / "app"
     plan = make_plan(manifest, site, record["target"], record["python_version"], index=index)
@@ -785,7 +786,8 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     index = index if index is not None else module_index(plugins=manifest.packaging_plugins)
-    problems += serve_import_problems(out, plan.first_party, index, record["python_version"], python)
+    if python is not None:
+        problems += serve_import_problems(out, plan.first_party, index, record["python_version"], python)
     return problems
 
 
@@ -826,13 +828,20 @@ def main(argv=None) -> int:
     parser.add_argument("--python", type=Path, default=None,
                         help="the bundle's interpreter, for the serve import probe (default: --bake-with, "
                              "else this interpreter; it must be the bundle's CPython X.Y)")
+    parser.add_argument("--no-serve-probe", action="store_true",
+                        help="skip the serve import probe (a cross-target build: this host has no "
+                             "interpreter for --target); the run says so")
     args = parser.parse_args(argv)
+    if args.no_serve_probe and args.python:
+        parser.error("--no-serve-probe and --python contradict each other")
 
     from agent_runtime.bundle_profiles.manifest import load_profile
 
     manifest = load_profile(args.profile)
     index = module_index(plugins=manifest.packaging_plugins)
-    probe_python = args.python or args.bake_with or Path(sys.executable)
+    probe_python = None if args.no_serve_probe else (args.python or args.bake_with or Path(sys.executable))
+    if probe_python is None:
+        print("serve import probe: SKIPPED (--no-serve-probe)")
     if args.verify_pack:
         if not args.verify:
             parser.error("--verify-pack needs --verify <core bundle>")

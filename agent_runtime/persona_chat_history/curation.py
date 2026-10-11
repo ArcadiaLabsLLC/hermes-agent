@@ -233,7 +233,11 @@ class _OperatorCurator:
         return TURN_SEQ_OPERATOR
 
     def after_row(self, state: "CurationState", row: dict[str, Any], ctx: RowContext) -> None:
-        return None
+        # D2.04: the turn this message re-ran, read off its own journal record.
+        record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
+        retry_of = safe_assignment_text((record or {}).get("retry_of"), limit=240)
+        if retry_of:
+            row["retry_of"] = retry_of
 
 
 class _AgentCurator:

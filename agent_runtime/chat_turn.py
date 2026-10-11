@@ -62,6 +62,7 @@ length of it. Accept-and-hand-off is the only shape the lane admits.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable
 
 from .chat_turn_reservations import (
@@ -72,6 +73,7 @@ from .chat_turn_reservations import (
 )
 
 from agent_runtime.chat_observation_policy import chat_observation_guidance
+from agent_runtime.param_readers import read_flag, read_text
 from .operator_message import MAX_MESSAGE_LENGTH as MAX_MESSAGE_LENGTH
 from .operator_message import OperatorMessageInvalid, normalize_operator_message
 
@@ -85,6 +87,24 @@ CHAT_STEER_METHOD = "runtime.chat.steer"
 #: server derives from the connection rather than reading off params — see
 #: :func:`normalize_peer_chat_execute`.
 PEER_CHAT_EXECUTE_METHOD = "peer.agent_chat.execute"
+#: D1.07. The peer verb that asks the install RUNNING a dispatch's turn to stop
+#: it. Not a chat-turn verb (it ends in no :func:`perform_chat_turn`), so it is
+#: not in :data:`CHAT_TURN_METHODS`.
+PEER_CHAT_CANCEL_METHOD = "peer.agent_chat.cancel"
+#: The ``turn_request_id`` a dispatch's turn carries: the sender stamps it on
+#: the local child (``--client-message-id``) and on ``peer.agent_chat.execute``,
+#: and the far install re-derives it from the dispatch id alone to answer
+#: ``peer.agent_chat.cancel``. A wire contract between installs of different
+#: builds, so the spelling never changes.
+DISPATCH_TURN_REQUEST_PREFIX = "agent-dispatch-"
+
+
+def dispatch_turn_request_id(dispatch_id: str) -> str:
+    """The turn request id a dispatch's turn runs under — one derivation, three readers."""
+
+    return f"{DISPATCH_TURN_REQUEST_PREFIX}{dispatch_id}"
+
+
 #: THE chat-turn vocabulary: every method whose handler ends in
 #: :func:`perform_chat_turn`. Minted with the peer verb at gateway Stage 7 and
 #: readerless until 2026-09-01, when it was given the reader the three constants
@@ -159,6 +179,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "persona_id",
     "persona_instance_id",
     "provider",
+    "retry_of",
     "session_id",
     "stream",
     "surface_prompt",
@@ -268,21 +289,12 @@ class ChatTurnRequest:
 # ── param normalisation ──────────────────────────────────────────────────────
 
 
+def _invalid(key: str, sentence: str) -> ChatTurnInvalid:
+    return ChatTurnInvalid(f"{key}_invalid", f"invalid params: {sentence}")
+
+
 def _text(params: dict, key: str, *, limit: int) -> str:
-    raw = params.get(key)
-    if raw is None:
-        return ""
-    if not isinstance(raw, str):
-        raise ChatTurnInvalid(
-            f"{key}_invalid", f"invalid params: {key} must be a string when sent"
-        )
-    value = raw.strip()
-    if len(value) > limit:
-        raise ChatTurnInvalid(
-            f"{key}_invalid",
-            f"invalid params: {key} must be {limit} characters or fewer",
-        )
-    return value
+    return read_text(params, key, refuse=_invalid, limit=limit) or ""
 
 
 def _required_text(params: dict, key: str, *, limit: int) -> str:
@@ -301,15 +313,7 @@ def _operator_message(params: dict) -> str:
         raise ChatTurnInvalid(exc.reason, exc.message) from exc
 
 
-def _flag(params: dict, key: str) -> bool:
-    raw = params.get(key)
-    if raw is None:
-        return False
-    if not isinstance(raw, bool):
-        raise ChatTurnInvalid(
-            f"{key}_invalid", f"invalid params: {key} must be a boolean when sent"
-        )
-    return raw
+_flag = partial(read_flag, refuse=_invalid)
 
 
 def _correlation_id(params: dict) -> str | None:
@@ -382,6 +386,15 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     new_session = _flag(params, "new_session")
     stream = _flag(params, "stream")
     correlation_id = _correlation_id(params)
+    # D2.04: the interrupted turn this send re-runs (its client_message_id). A
+    # retry always lives in an existing root, so it is refused without one;
+    # WHICH turns it may name is the turn's own admission rule.
+    retry_of = _text(params, "retry_of", limit=MAX_TURN_REQUEST_ID_LENGTH)
+    if retry_of and not session_id:
+        raise ChatTurnInvalid(
+            "retry_of_requires_session",
+            "invalid params: retry_of names a turn of an existing chat and requires session_id",
+        )
 
     if use_agent_default and (provider or model):
         # The argv handler's own rule (``_requested_chat_model_override`` raises
@@ -466,6 +479,8 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--surface-prompt", surface_prompt]
     if intent_hint and intent_hint != INTENT_HINT_DEFAULT:
         argv += ["--intent-hint", intent_hint]
+    if retry_of:
+        argv += ["--retry-of", retry_of]
 
     return ChatTurnRequest(
         verb=CHAT_MESSAGE_METHOD,

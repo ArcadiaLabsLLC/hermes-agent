@@ -19,6 +19,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 from typing import Any, Iterable
 
 from hermes_time import now
@@ -61,6 +62,27 @@ SETTLE_EVENT = "turn_settled"
 SETTLE_LANE = "settle"
 
 
+class RearmResult(StrEnum):
+    """What :func:`rearm_settle` did (D2.05)."""
+
+    #: ``undelivered -> pending``: due on the pusher's next tick.
+    REARMED = "rearmed"
+    #: Already ``pending``: nothing to do, the record is returned as it is.
+    ALREADY_PENDING = "already_pending"
+    #: ``acked``: refused — the launcher already took this settle.
+    ACKED = "acked"
+    NOT_FOUND = "not_found"
+
+
+class SettleRefusal(StrEnum):
+    """``reason`` for a refused settle read or re-arm, on both doors (RPC and argv)."""
+
+    STATE_INVALID = "state_invalid"
+    SETTLE_REF_REQUIRED = "settle_ref_required"
+    SETTLE_NOT_FOUND = "settle_not_found"
+    SETTLE_ACKED = "settle_acked"
+
+
 @dataclass(frozen=True)
 class TurnOutcome:
     """What the turn's own result line says, normalized."""
@@ -94,6 +116,16 @@ class SettleRecord:
     acked_at: str | None = None
     undelivered_reason: str | None = None
     updated_at: str = ""
+    #: D2.05: how many times an operator re-armed this record, and when last.
+    #: A record written before these existed reads 0 / None (additive fields;
+    #: the schema version does not move, so an older serve still reads it).
+    rearm_count: int = 0
+    rearmed_at: str | None = None
+
+    def as_row(self) -> dict[str, Any]:
+        """The stored record as one listing row (the operator verbs' shape)."""
+
+        return asdict(self)
 
     def frame(self) -> dict[str, Any]:
         """The ``turn_settled`` frame for the NEXT attempt."""
@@ -281,7 +313,7 @@ def note_push(settle_id: str, *, delivered_to: int, at: datetime | None = None) 
                     record, attempts=attempts, last_attempt_at=stamp,
                     next_attempt_at=_iso(moment + timedelta(seconds=delay)), updated_at=stamp,
                 )
-        elif (moment - _parse(record.last_attempt_at or record.settled_at)).total_seconds() >= NO_LISTENER_SECONDS:
+        elif (moment - _listener_clock(record)).total_seconds() >= NO_LISTENER_SECONDS:
             updated = replace(
                 record, next_attempt_at=None, state=STATE_UNDELIVERED,
                 undelivered_reason=UNDELIVERED_NO_LISTENER, updated_at=stamp,
@@ -290,6 +322,84 @@ def note_push(settle_id: str, *, delivered_to: int, at: datetime | None = None) 
             return record
         _write(updated)
         return updated
+
+
+def _listener_clock(record: SettleRecord) -> datetime:
+    """Where the no-listener hour is counted from: the latest attempt or re-arm, else the settle."""
+
+    stamps = [_parse(stamp) for stamp in (record.last_attempt_at, record.rearmed_at) if stamp]
+    return max(stamps) if stamps else _parse(record.settled_at)
+
+
+def rearm_settle(settle_id: str, *, at: datetime | None = None) -> tuple[RearmResult, SettleRecord | None]:
+    """``undelivered -> pending`` with a fresh budget; the ONE writer of that move (D2.05).
+
+    ``attempts`` resets to 0 and ``next_attempt_at`` to now, so the record is due
+    under the pusher's own rule (a re-arm that kept the spent budget would be
+    undelivered again on the first push). Same ``settle_id``: one settle per turn,
+    and the launcher acks by ``client_message_id``. History is ``rearm_count``.
+    """
+
+    clean = str(settle_id or "").strip()
+    if not clean or not paths.chat_turn_settle_path(clean).is_file():
+        return RearmResult.NOT_FOUND, None
+    with chat_turn_settle_lock(clean):
+        record = _read_or_none(clean)
+        if record is None:
+            return RearmResult.NOT_FOUND, None
+        if record.state == STATE_ACKED:
+            return RearmResult.ACKED, record
+        if record.state == STATE_PENDING:
+            return RearmResult.ALREADY_PENDING, record
+        stamp = _iso(at or now())
+        updated = replace(
+            record, state=STATE_PENDING, attempts=0, next_attempt_at=stamp,
+            undelivered_reason=None, rearm_count=record.rearm_count + 1,
+            rearmed_at=stamp, updated_at=stamp,
+        )
+        _write(updated)
+        return RearmResult.REARMED, updated
+
+
+def resolve_settle_id(
+    *, settle_id: Any = None, client_message_id: Any = None, session_id: Any = None
+) -> str | None:
+    """The record key from either addressing ``settle_ack`` accepts, or ``None``."""
+
+    if isinstance(settle_id, str) and settle_id.strip():
+        return settle_id.strip()
+    if isinstance(client_message_id, str) and client_message_id.strip():
+        session = session_id if isinstance(session_id, str) and session_id.strip() else None
+        return settle_id_for(session, client_message_id.strip())
+    return None
+
+
+def resolve_settle_ref(ref: Any, *, session_id: Any = None) -> str | None:
+    """One positional reference (the argv verb): a stored settle id, else a client message id."""
+
+    clean = str(ref or "").strip()
+    if not clean:
+        return None
+    if session_id is None and paths.chat_turn_settle_path(clean).is_file():
+        return clean
+    return resolve_settle_id(client_message_id=clean, session_id=session_id)
+
+
+def settles_listing(*, state: str | None = None) -> dict[str, Any]:
+    """``{counts: {pending, undelivered, acked}, settles: [row…]}`` in one directory walk.
+
+    ``counts`` always covers every state; ``state`` filters only the rows. An
+    unknown ``state`` raises ``ValueError``.
+    """
+
+    if state is not None and state not in _VALID_STATES:
+        raise ValueError(f"unknown settle state {state!r}")
+    records = list_settles()
+    counts = {name: 0 for name in sorted(_VALID_STATES)}
+    for record in records:
+        counts[record.state] += 1
+    rows = [record.as_row() for record in records if state is None or record.state == state]
+    return {"counts": counts, "settles": rows}
 
 
 def ack_settle(settle_id: str) -> bool:
@@ -361,6 +471,7 @@ def _read_settle_file(settle_id: str) -> SettleRecord:
     values = {name: raw.get(name) for name in known}
     values["state"] = state
     values["attempts"] = int(raw.get("attempts") or 0)
+    values["rearm_count"] = int(raw.get("rearm_count") or 0)
     values["exit_code"] = int(raw.get("exit_code"))
     record = SettleRecord(**values)
     if record.settle_id != settle_id:

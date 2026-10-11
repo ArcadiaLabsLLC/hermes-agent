@@ -1,0 +1,56 @@
+{
+  "artifact": null,
+  "build_host_start_time": 1,
+  "build_pid": 5101,
+  "controls": {
+    "restart": "command",
+    "stop": "request"
+  },
+  "exit_code": null,
+  "expected_ms": 330000,
+  "expires_at": 1759612200.0,
+  "finished_at": null,
+  "heartbeat_at": 1759590715.0,
+  "job_id": "qb-live",
+  "label": "",
+  "log_path": "",
+  "mcp_job": {
+    "job_id": "qb-live",
+    "server": "launcher_qa"
+  },
+  "mode": "release",
+  "outcome": null,
+  "project_root": "<root>/launcher",
+  "restart": {
+    "argv": [
+      "dart",
+      "run",
+      "tool/stagec_qa_mcp_server/bin/prebuild.dart"
+    ],
+    "cwd": "<root>/launcher"
+  },
+  "schema_version": 1,
+  "session_key": "sess_owned",
+  "stage": "compiling",
+  "stage_detail": "Building Windows application...",
+  "started_at": 1759590600.0,
+  "started_by": {
+    "kind": "tool",
+    "label": "launcher_qa"
+  },
+  "status": "running",
+  "tail": "",
+  "target": "qa_isolated",
+  "toolchain": "flutter",
+  "unknowns": [
+    {
+      "evidence": "UnicodeDecodeError",
+      "kind": "output_unreadable",
+      "seen_at": 1759590660.0
+    }
+  ],
+  "writer": {
+    "host_start_time": 1,
+    "pid": 6001
+  }
+}

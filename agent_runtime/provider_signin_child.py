@@ -13,6 +13,8 @@ import subprocess
 import sys
 from typing import Iterable
 
+from agent_runtime import process_index
+
 __layer__ = "stores"
 __all__ = ["spawn_login_child"]
 
@@ -26,11 +28,14 @@ class _PopenChild:
             argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             env=env, text=True, encoding="utf-8", errors="replace", creationflags=flags,
         )
+        # A hard serve exit can leave it running: the Launcher's sweep must name it (D1.09).
+        process_index.record_child(getattr(self._proc, "pid", None))
 
     def lines(self) -> Iterable[str]:
         assert self._proc.stdout is not None
         yield from self._proc.stdout
         self._proc.wait()
+        process_index.forget_child(getattr(self._proc, "pid", None))
 
     def write_line(self, text: str) -> None:
         assert self._proc.stdin is not None
@@ -40,6 +45,7 @@ class _PopenChild:
     def terminate(self) -> None:
         if self._proc.poll() is None:
             self._proc.kill()
+        process_index.forget_child(getattr(self._proc, "pid", None))
 
 
 def spawn_login_child(provider: str, flow: str, profile: str | None) -> _PopenChild:

@@ -163,6 +163,28 @@ def set_dispatch_owner(
         return cur.rowcount == 1
 
 
+def request_dispatch_cancel(dispatch_id: str, reason: str) -> bool:
+    """Leave a durable cancel on a ``running`` row for the process supervising it.
+
+    D1.07 (owner ruling a). The canceller holds no handle and never kills by pid;
+    the supervisor's cancel watch reads the mark and stops its own child. True
+    when the row is running and now carries a mark (a first reason is kept: a
+    second request does not rewrite why the first one was made).
+    """
+
+    with _DB_LOCK, _transaction() as conn:
+        conn.execute(
+            f"""UPDATE {_TABLE} SET cancel_requested=?, updated_at=?
+                WHERE dispatch_id=? AND state=? AND cancel_requested=''""",
+            (str(reason or "operator_cancel")[:80], time.time(), str(dispatch_id), STATE_RUNNING),
+        )
+        row = conn.execute(
+            f"SELECT cancel_requested FROM {_TABLE} WHERE dispatch_id=? AND state=?",
+            (str(dispatch_id), STATE_RUNNING),
+        ).fetchone()
+    return bool(row and row[0])
+
+
 def mark_delivered(dispatch_id: str) -> bool:
     """Atomically acknowledge that the sender was actually told."""
 

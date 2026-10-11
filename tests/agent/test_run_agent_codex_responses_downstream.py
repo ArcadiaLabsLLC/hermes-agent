@@ -19,7 +19,7 @@ from tests.agent.test_run_agent_codex_responses import (  # noqa: F401 — upstr
 )
 
 
-@pytest.mark.parametrize("client_kind", ["sdk", "sdk_free"])
+@pytest.mark.parametrize("client_kind", ["sdk", "sdk_free", "sdk_free_desktop"])
 @pytest.mark.parametrize("failure", ["ConnectTimeout", "PoolTimeout", "WriteError", "ConnectError"])
 def test_a_prestream_failure_is_retried_once_on_either_client(monkeypatch, client_kind, failure):
     """The #103673 retry, measured on the wire: the first request gets no answer (``failure`` raised by
@@ -32,7 +32,9 @@ def test_a_prestream_failure_is_retried_once_on_either_client(monkeypatch, clien
     The SDK-free arm runs in the phone's world: since 0099b1a33f ``codex_runtime`` catches
     ``openai.APIConnectionError`` by upstream's bytes, and on a profile without the SDK the provider
     shim binds that name to the SDK-free class. The arm registers the shim's modules, as
-    ``EmbeddedServe.start`` does, so the retry is proven through the seam the phone actually uses."""
+    ``EmbeddedServe.start`` does, so the retry is proven through the seam the phone actually uses.
+    The desktop arm (``agent.provider_sdks: false`` with the real SDK installed, so no shim) keeps
+    the real ``openai`` module: the SDK-free class must also BE the SDK's class there."""
     import json
 
     import httpx

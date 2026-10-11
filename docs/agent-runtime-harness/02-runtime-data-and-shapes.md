@@ -40,7 +40,8 @@ Directories present in the live root, with the module that owns each:
 | `levels/` | `paths.py:302`, `agent_runtime/level_sync.py` | one `<workspace token>.json` per workspace LEVEL — the launcher's `SceneSerializer` bytes VERBATIM. hermes validates only that it is UTF-8 JSON carrying a `version` and reformats nothing; realm-synced whole-document (adopt / converge / keep-local / HOLD) |
 | `flow_graphs/` | `checkpoint.py:62` | checkpoint flow graphs |
 | `realm_sync/`, `realm_sync_state/` | `realm_sync/git.py` (`_sync_repo_path`), `realm_sync/sidecar.py` (`realm_sync_sidecar_path`) | per-realm git worktrees + sync state |
-| `serve_read_model/` | `core_cache/vocabulary.py:86` | the persisted snapshot core (below) |
+| `serve_read_model/` | `core_cache/vocabulary.py::CORE_CACHE_DIRNAME` | the persisted snapshot core (below) |
+| `derived_cache/` | `paths.py::DERIVED_CACHE_DIRNAME` | derived per-machine caches a new process reads instead of redoing work: `skill_frontmatter.json` (parsed SKILL.md frontmatter keyed by file stamp, `parse_cache.DiskTier`, flushed on the idle keeper's tick; D1.05 CF-2). Out of the core fingerprint and of realm sync by that constant |
 | `serve_instances/` | `serve_registry.py` (`SERVE_INSTANCES_DIRNAME`) | one `<pid>.json` per live serve, one `<pid>.ended.json` per serve that ended, one `<pid>.stderr.log` per `--service` runtime (below) |
 | `deleted_archive/`, `migration_backups/`, `wt_reaped_patches/`, `locks/` | `paths.py:302`, `default_scope.py:552`, `delivery_directive.py:65` | archive-never-delete and lock trees |
 
@@ -845,7 +846,7 @@ six committed wire goldens):
 
 | Survivor | Why |
 | --- | --- |
-| `serve_read_model/` (`core_cache/vocabulary.py:86`) | the LIVE core cache. Never was the read model; the rename that would have de-collided the name is cancelled, because with the other one gone there is nothing left to collide with |
+| `serve_read_model/` (`core_cache/vocabulary.py::CORE_CACHE_DIRNAME`) | the LIVE core cache. Never was the read model; the rename that would have de-collided the name is cancelled, because with the other one gone there is nothing left to collide with |
 | `read_model.delta_patches` (`runtime_config.py`) | gates the live S7-A patch producer. Its YAML key path is cross-repo wire — the launcher's base seed writes it |
 | `ReadModelConfig.enabled` / `.serve_snapshot_from_db` / `.db_filename` | reader-less, but on the snapshot WIRE via `asdict(cfg)` → `core.runtime_config`, in six goldens the launcher mirrors byte-for-byte. Deleting them is a contract bump plus a two-repo manifest change, not a grep-clean cut — see the Open row |
 | `paths.snapshot_path()` | the one authority for where a legacy `snapshot.json` lives, so an orphan left by an older build is still nameable |
