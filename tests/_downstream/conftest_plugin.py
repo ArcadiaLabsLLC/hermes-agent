@@ -35,6 +35,7 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
 from tests._downstream import registry_write_fence
+from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
     CLAUDE_HOME_IS_TMP_PATH_MARK as _CLAUDE_HOME_IS_TMP_PATH_MARK,
@@ -628,23 +629,60 @@ def _claude_home_is_tmp_path(request, monkeypatch):
 
 
 
+def _is_own_load_config(config_module) -> bool:
+    """Whether ``config_module.load_config`` is still the module's own definition (no patch).
+
+    A spy built with ``functools.wraps`` keeps the definition's ``__module__`` and
+    ``__qualname__`` and counts as unpatched — the readonly path stays readonly.
+    """
+    current = config_module.load_config
+    return (getattr(current, "__module__", None) == config_module.__name__
+            and getattr(current, "__qualname__", None) == "load_config")
+
+
+def _deferring_readonly(config_module, original_readonly, test_file: str):
+    """``load_config_readonly`` that reads a patched ``load_config`` for a computed test file.
+
+    Both halves are decided at CALL time: WHEN (``load_config`` is patched) first, then
+    WHICH (``file_reads_through(test_file)``) — so the import-graph walk (~60 ms per test
+    file, measured 2026-10-10) is paid only by a test that patches and then reads.
+    """
+
+    def load_config_readonly():
+        if _is_own_load_config(config_module) or not file_reads_through(test_file):
+            return original_readonly()
+        return config_module.load_config()
+
+    return load_config_readonly
+
+
 @pytest.fixture(autouse=True)
 def _config_reads_through_load_config(request, monkeypatch):
-    """Route ``load_config_readonly`` through whatever ``load_config`` is NOW.
+    """Route ``load_config_readonly`` through ``load_config`` while an upstream patch is on it.
 
-    The fork moved several readers (``tools.vision_tools``,
-    ``tools.image_generation_tool``, ``plugins/dashboard_auth/_shared.py``) from
-    ``hermes_cli.config.load_config`` to ``load_config_readonly`` so an import
-    cannot scaffold the home. Upstream's tests patch ``load_config``; for the
-    ids ``tests/_downstream/id_markers/`` marks, the readonly loader defers to
-    it at call time, so upstream's patch reaches the reader and the upstream
-    file carries no edit.
+    The fork moved some upstream readers from ``hermes_cli.config.load_config`` to
+    ``load_config_readonly`` so an import cannot scaffold the home; upstream's tests of
+    them patch ``load_config``. Which tests get the route is computed
+    (``tests/_downstream/fork_readonly_readers.py``: the ledger's moved readers, one hop
+    of the import graph); when is decided at call time — only while ``load_config`` is
+    not its own definition. Unpatched calls stay readonly. Plan: D3.06.
     """
-    if request.node.get_closest_marker(_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK) is None:
-        return
-    import hermes_cli.config as _config
+    test_file = str(request.node.path)
+    if request.node.get_closest_marker(_CONFIG_READS_THROUGH_LOAD_CONFIG_MARK) is not None:
+        import hermes_cli.config as _config
 
-    monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
+        monkeypatch.setattr(_config, "load_config_readonly", lambda: _config.load_config())
+        return
+    _config = sys.modules.get("hermes_cli.config")
+    if _config is None:
+        # Not imported yet: install only where the rule selects the file (it imports then).
+        if not file_reads_through(test_file):
+            return
+        import hermes_cli.config as _config
+    original = getattr(_config, "load_config_readonly", None)
+    if original is None:
+        return
+    monkeypatch.setattr(_config, "load_config_readonly", _deferring_readonly(_config, original, test_file))
 
 
 
