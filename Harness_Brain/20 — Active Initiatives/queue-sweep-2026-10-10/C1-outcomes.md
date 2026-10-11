@@ -1,0 +1,2 @@
+C1.01 = D1.07 = L1.06 · PARTIAL 5a2c887621 8c207d7a98 5df41f3812 c8d37d2a13 5b6412785c c04d5425d8: hermes half built (peer.agent_chat.cancel; durable cancel_requested + supervisor cancel watch per owner ruling a; sender's remote leg; partial output kept per ruling b; canon 03/05/09) — remains: the launcher renders the new runtime.work.cancel dispatch outcomes (launcher row in the C1 report) and an operator two-install live Stop proof (never run: no real serve/gateway started by this lane)
+C1.02 = D1.08 = L1.08 · FIXED ed5c5d165f 2109acbea4 277e5d73d9 c04d5425d8
