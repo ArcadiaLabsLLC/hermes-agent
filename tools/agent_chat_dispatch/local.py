@@ -30,6 +30,7 @@ from .child import (
     child_environment,
     parse_child_payload,
 )
+from .cancel_watch import CANCEL_POLL_SECONDS, ensure_cancel_watch
 from .remote import _run_remote_dispatch
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,9 @@ CANCEL_STOPPING = "stopping"
 CANCEL_CANCELLED = "cancelled"
 CANCEL_ALREADY_FINISHED = "already_finished"
 CANCEL_NOT_OWNED_HERE = "not_owned_here"
+#: D1.07 (owner ruling a): another process supervises a running child; the
+#: durable mark is written and that process's cancel watch stops it.
+CANCEL_REQUESTED = "cancel_requested"
 
 
 def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
@@ -101,6 +105,14 @@ def _peek_cancel_mark(dispatch_id: str) -> str | None:
         return _CANCEL_REQUESTED.get(str(dispatch_id))
 
 
+def _durable_cancel_reason(dispatch_id: str) -> str:
+    """The durable cancel another process left on the row (any state), or ""."""
+
+    from agent_runtime import dispatch_store
+
+    return str((dispatch_store.get_dispatch(dispatch_id) or {}).get("cancel_requested") or "")
+
+
 def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict[str, Any]:
     """Cancel one dispatch this process supervises. Never a bare PID kill.
 
@@ -114,11 +126,11 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
       is gone. "Stopping" is reported until that happens, never "stopped".
     * ``already_finished`` -- the row is terminal; its result is kept as is.
 
-    A dispatch another process supervises (another serve, or a remote install)
-    is ``not_owned_here``: this process holds no handle to it and must not
-    pretend. The mark is set BEFORE the row is re-read and the spawn checks the
-    mark AFTER stamping the owner, so a cancel racing a spawn is caught by one
-    side or the other, never dropped by both.
+    A dispatch another process on this machine supervises is cancelled through
+    the row (D1.07, owner ruling a): see :func:`_request_cancel_elsewhere`. The
+    mark is set BEFORE the row is re-read and the spawn checks the mark AFTER
+    stamping the owner, so a cancel racing a spawn is caught by one side or the
+    other, never dropped by both — for the in-process mark and the durable one.
     """
 
     from agent_runtime import dispatch_store
@@ -134,7 +146,7 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
             "state": row.get("state"),
         }
     if dispatch_id not in supervised_dispatch_ids():
-        return {"dispatch_id": dispatch_id, "outcome": CANCEL_NOT_OWNED_HERE}
+        return _request_cancel_elsewhere(dispatch_id, row, reason)
     _request_cancel_mark(dispatch_id, reason)
     row = dispatch_store.get_dispatch(dispatch_id) or row
     owner_pid = row.get("owner_pid")
@@ -149,6 +161,40 @@ def request_cancel(dispatch_id: str, *, reason: str = "operator_cancel") -> dict
         only_if_running=True,
     )
     return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+
+
+def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str) -> dict[str, Any]:
+    """Cancel a dispatch another process supervises: through the row, never a pid.
+
+    The durable mark is written first; then a row that never started is settled
+    ``cancelled`` here, exactly as its owner would (its worker reads the mark
+    and runs nothing), and a running child is left to its supervisor's cancel
+    watch, which stops it within :data:`CANCEL_POLL_SECONDS` —
+    ``cancel_requested`` says so rather than claiming a stop. A row no live
+    process supervises keeps the mark and settles when the orphan sweep sees its
+    child gone.
+    """
+
+    from agent_runtime import dispatch_store
+
+    if not dispatch_store.request_dispatch_cancel(dispatch_id, reason):
+        settled = dispatch_store.get_dispatch(dispatch_id) or row
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_ALREADY_FINISHED, "state": settled.get("state")}
+    row = dispatch_store.get_dispatch(dispatch_id) or row
+    if not row.get("started_at"):
+        dispatch_store.record_completion(
+            dispatch_id,
+            state=dispatch_store.STATE_CANCELLED,
+            error=_cancelled_text(reason, spawned=False),
+            only_if_running=True,
+        )
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+    return {
+        "dispatch_id": dispatch_id,
+        "outcome": CANCEL_REQUESTED,
+        "reason": reason,
+        "poll_seconds": CANCEL_POLL_SECONDS,
+    }
 
 
 def _cancelled_text(reason: str, *, spawned: bool) -> str:
@@ -218,6 +264,18 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
         # Cancelled while queued: ``request_cancel`` settled the row; running
         # the turn now would deliver an answer to a sender who stopped asking.
         return
+    durable = _durable_cancel_reason(dispatch_id)
+    if durable:
+        # The same, asked from another process (D1.07). It settled the row
+        # already unless it lost a race with this worker; the guard makes the
+        # second write a no-op either way.
+        dispatch_store.record_completion(
+            dispatch_id,
+            state=dispatch_store.STATE_CANCELLED,
+            error=_cancelled_text(durable, spawned=False),
+            only_if_running=True,
+        )
+        return
 
     # ``spec["max_seconds"]`` everywhere: the tool always sets it, and reading
     # the same key two ways (subscript here, ``.get(...) or 1800`` there) is how
@@ -255,6 +313,9 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     except Exception:  # pragma: no cover - bookkeeping must not abort the run
         logger.debug("dispatch %s owner stamp failed", dispatch_id, exc_info=True)
 
+    durable = "" if _peek_cancel_mark(dispatch_id) is not None else _durable_cancel_reason(dispatch_id)
+    if durable:
+        _request_cancel_mark(dispatch_id, durable)
     if _peek_cancel_mark(dispatch_id) is not None:
         # The cancel landed between the queue check and the owner stamp, so
         # nobody killed anything yet. This side does.
@@ -283,10 +344,15 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
     release_pumps(proc, (out_thread, err_thread))
-    _settle_local(
-        dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text(),
-        cancel_reason=_take_cancel_mark(dispatch_id),
-    )
+    try:
+        _settle_local(
+            dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text(),
+            cancel_reason=_peek_cancel_mark(dispatch_id),
+        )
+    finally:
+        # Taken only once the row is settled: a cancel watch pass between a take
+        # and the settle would read "running, no mark here" and ask again.
+        _take_cancel_mark(dispatch_id)
 
 
 def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
@@ -407,6 +473,8 @@ def dispatch_detached_turn(
     except Exception:
         _forget_supervised(dispatch_id)
         raise
+    # AFTER the mark: the watch exits only when nothing is supervised (D1.07).
+    ensure_cancel_watch()
 
 
 def summarize_for_caller(row: dict[str, Any]) -> dict[str, Any]:

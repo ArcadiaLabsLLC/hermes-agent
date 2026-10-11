@@ -501,10 +501,10 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     """A dispatch: ``agent_chat_dispatch.request_cancel`` in the process that supervises it.
 
     The lane owns the child's handle and the identity-guarded kill; this only
-    routes. ``not_owned_here`` is a typed refusal, not a pretend success: a
-    dispatch another serve (or another install) supervises has no seam in this
-    process, and the row says so rather than reporting a kill that never
-    happened.
+    routes. A dispatch another serve on this machine supervises answers
+    ``cancel_requested`` — the durable mark that serve's cancel watch acts on
+    (D1.07), reported as a request and never as a kill. ``not_owned_here``
+    remains for a process where the lane is not resident at all.
     """
 
     lane = _module("tools.agent_chat_dispatch")
@@ -517,6 +517,10 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     outcome = str(answer.get("outcome") or "")
     if outcome in {"stopping", "cancelled"}:
         return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
+    if outcome == "cancel_requested":
+        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason,
+                "detail": "another process supervises it; that process stops it within "
+                          f"{answer.get('poll_seconds')}s"}
     if outcome == "already_finished":
         return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind,
                 "state": answer.get("state"), "detail": "already finished; its result is kept"}

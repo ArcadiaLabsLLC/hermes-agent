@@ -93,7 +93,8 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             delivery_error TEXT,
             remote_install_id TEXT NOT NULL DEFAULT '',
             parent_turn_id TEXT NOT NULL DEFAULT '',
-            started_at REAL
+            started_at REAL,
+            cancel_requested TEXT NOT NULL DEFAULT ''
         )"""
     )
     # CREATE TABLE IF NOT EXISTS does nothing to a store that already exists, so
@@ -115,6 +116,12 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
     # is the far end of the queue wait ``dispatched_at`` opens.
     _add_missing_column(conn, "parent_turn_id", "TEXT NOT NULL DEFAULT ''")
     _add_missing_column(conn, "started_at", "REAL")
+    # D1.07 (owner ruling a, 2026-10-10). A cancel asked of a dispatch this
+    # process does not supervise is WRITTEN here, and the supervising process
+    # polls for it (``tools/agent_chat_dispatch/cancel_watch.py``): the reason,
+    # or "" for no request. Durable because the asker and the supervisor are two
+    # processes, and a column because the request exists while the row runs.
+    _add_missing_column(conn, "cancel_requested", "TEXT NOT NULL DEFAULT ''")
 
 
 def _add_missing_column(conn: sqlite3.Connection, name: str, decl: str) -> None:
@@ -280,6 +287,15 @@ def running_dispatches_owned_by_turn(
     return _query(
         "WHERE sender_session_id=? AND parent_turn_id=? AND state=? ORDER BY dispatched_at ASC",
         (session, turn, STATE_RUNNING),
+    )
+
+
+def cancel_requested_dispatches(limit: int = 200) -> list[dict[str, Any]]:
+    """``running`` rows somebody asked to cancel: what a supervisor's cancel watch polls."""
+
+    return _query(
+        "WHERE state=? AND cancel_requested != '' ORDER BY dispatched_at LIMIT ?",
+        (STATE_RUNNING, int(limit)),
     )
 
 

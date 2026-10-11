@@ -1350,11 +1350,17 @@ def test_cancel_of_a_finished_dispatch_reports_already_finished_and_keeps_its_re
     assert get_dispatch(dispatch_id)["result"]["reply"] == "kept"
 
 
-def test_cancel_of_a_dispatch_this_process_does_not_supervise_is_not_owned_here(store_home):
+def test_cancel_of_a_queued_dispatch_another_process_supervises_is_settled_through_the_row(store_home):
+    """D1.07 (owner ruling a) replaced ``not_owned_here`` here: the canceller
+    leaves the durable mark and, the child not having started, settles the row
+    as its owner would. The running-child half is ``test_dispatch_cancel_elsewhere``."""
+
     dispatch_id = _armed_dispatch()  # recorded, never marked supervised here
 
-    assert agent_chat_dispatch.request_cancel(dispatch_id)["outcome"] == "not_owned_here"
-    assert get_dispatch(dispatch_id)["state"] == STATE_RUNNING
+    assert agent_chat_dispatch.request_cancel(dispatch_id)["outcome"] == "cancelled"
+    row = get_dispatch(dispatch_id)
+    assert row["state"] == "cancelled"
+    assert row["cancel_requested"] == "operator_cancel"
 
 
 def test_stop_cancels_only_the_stopped_turns_own_dispatches(store_home, monkeypatch):

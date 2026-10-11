@@ -75,6 +75,9 @@ local       lanes   the supervisor pool (the supervised-id set, the executor,
                     ``summarize_for_caller``
 local_      lanes   the local leg's spawn (``spawn_child``), imported by
 child               ``local._spawn_child`` behind ``conversations.subprocess_worker``
+cancel_    lanes   the supervising process's cancel watch: a durable
+watch               ``cancel_requested`` another process left becomes this
+                    process's ``request_cancel`` (D1.07, owner ruling a)
 ==========  ======  ===========================================================
 
 Entry points: ``agent_chat_send(wait=false)`` (``tools/agent_chat_tool``) ->

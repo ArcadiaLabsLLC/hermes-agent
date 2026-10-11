@@ -211,6 +211,7 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         remote_install_id,
         parent_turn_id,
         started_at,
+        cancel_requested,
     ) = row
     try:
         result = json.loads(result_json) if result_json else None
@@ -251,6 +252,9 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         # carries, and a consumer that had to tell absent from empty would be
         # deciding what a row written before Stage 7 meant.
         "remote_install_id": remote_install_id or "",
+        # D1.07 (owner ruling a). The durable cancel a process that does NOT
+        # supervise this row leaves for the one that does: the reason, or "".
+        "cancel_requested": cancel_requested or "",
     }
 
 
@@ -259,5 +263,5 @@ _SELECT = f"""SELECT dispatch_id, sender_session_id, sender_persona_id, target_p
                      notify_operator, dispatched_at, completed_at, updated_at,
                      result_json, delivery_state, delivery_attempts, delivered_at,
                      owner_pid, owner_started_at, relay_chain_json, delivery_error,
-                     remote_install_id, parent_turn_id, started_at
+                     remote_install_id, parent_turn_id, started_at, cancel_requested
               FROM {_TABLE}"""
