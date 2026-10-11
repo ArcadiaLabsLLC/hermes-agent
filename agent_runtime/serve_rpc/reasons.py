@@ -37,6 +37,10 @@ class RpcRefusal(StrEnum):
     SHA256_MISMATCH = "sha256_mismatch"
     #: A ``peer.agent_chat.execute`` whose caller is not a peer.
     PEER_IDENTITY_REQUIRED = "peer_identity_required"
+    #: A ``peer.agent_chat.cancel`` with no usable ``dispatch_id``.
+    DISPATCH_ID_REQUIRED = "dispatch_id_required"
+    #: A stop verb on a transport with no turn-interrupt seam.
+    CONTROL_UNAVAILABLE = "control_unavailable"
     #: A ``peer.announce`` naming an install other than the caller's own.
     ANNOUNCE_NAMES_OTHER_INSTALL = "announce_names_other_install"
     #: A peer thread whose chat lane could not be read.

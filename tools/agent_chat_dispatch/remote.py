@@ -65,8 +65,10 @@ def build_peer_execute_params(dispatch_id: str, spec: dict[str, Any]) -> dict[st
       second is the field install B decides for itself, from the connection.
     """
 
+    from agent_runtime.chat_turn import dispatch_turn_request_id
+
     params: dict[str, Any] = {
-        "turn_request_id": str(spec.get("client_message_id") or f"agent-dispatch-{dispatch_id}"),
+        "turn_request_id": str(spec.get("client_message_id") or dispatch_turn_request_id(dispatch_id)),
         "target": str(spec["remote_target"]),
         "message": str(spec["message"]),
         "max_seconds": float(spec["max_seconds"]),

@@ -139,6 +139,7 @@ def _dispatch_detached(
     business and not this row's.
     """
 
+    from agent_runtime.chat_turn import dispatch_turn_request_id
     from agent_runtime.config import mission_chat_dispatch_max_concurrent
     from agent_runtime.dispatch_store import mint_dispatch_id, record_dispatch
     from tools.agent_chat_dispatch import dispatch_detached_turn
@@ -146,7 +147,7 @@ def _dispatch_detached(
     dispatch_id = mint_dispatch_id()
     # The delivery turn is deduped on this id (see dispatch_delivery), so it is
     # minted HERE, once, and travels with the row.
-    spec["client_message_id"] = f"agent-dispatch-{dispatch_id}"
+    spec["client_message_id"] = dispatch_turn_request_id(dispatch_id)
     ambient_home, background_home = _dispatch_homes()
     spec["hermes_home"] = ambient_home
     spec["head_home"] = background_home

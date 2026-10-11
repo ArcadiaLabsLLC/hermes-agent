@@ -1,6 +1,7 @@
 {
   "contract": 1,
   "methods": [
+    "peer.agent_chat.cancel",
     "peer.agent_chat.execute",
     "peer.announce",
     "peer.media.get",
@@ -225,6 +226,7 @@
     ]
   },
   "tiers": {
+    "peer.agent_chat.cancel": "console",
     "peer.agent_chat.execute": "console",
     "peer.announce": "console",
     "peer.media.get": "console",

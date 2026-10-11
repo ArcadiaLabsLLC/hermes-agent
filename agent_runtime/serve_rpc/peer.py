@@ -1,5 +1,5 @@
-"""The ``peer.*`` verbs one runtime serves to another: ping, agent chat execute,
-media get, announce, roster list and thread read.
+"""The ``peer.*`` verbs one runtime serves to another: ping, agent chat execute
+and cancel, media get, announce, roster list and thread read.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ __all__ = [
     "PEER_PING_CONTRACT",
     "PEER_THREAD_UNREADABLE_REASON",
     "PEER_UNSUPPORTED_PERSONA_REASON",
+    "_peer_agent_chat_cancel",
     "_peer_agent_chat_execute",
     "_peer_announce",
     "_peer_media_get",
@@ -214,6 +215,73 @@ def _peer_agent_chat_execute(
     result = dict(outcome.result or {})
     result["peer"] = peer_install_id
     return ok(rid, result)
+
+
+# ── peer.agent_chat.cancel ───────────────────────────────────────────────────
+#
+# D1.07. The execute's Stop. The sender's row lives on the dialling install and
+# the turn runs here, so the supervisor of the work — the only party that may
+# cancel it — is this install; the sender asks by dispatch id over the same
+# authenticated peer edge, at the same tier. The logic is
+# :func:`agent_runtime.peer_chat_cancel.cancel_peer_turn`.
+
+
+@method("peer.agent_chat.cancel", tier=TIER_CONSOLE)
+def _peer_agent_chat_cancel(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """Stop the turn a paired install asked this one to run for one dispatch.
+
+    Params: ``dispatch_id`` (required), ``reason`` (optional, echoed).
+
+    Result: ``outcome`` — ``stopping`` (a live or queued turn was told to stop;
+    partial output it wrote is kept), ``already_finished`` (with ``exit_code``)
+    or ``not_running`` (no turn for that dispatch was accepted FROM THE CALLER) —
+    plus ``dispatch_id``, ``turn_request_id`` and ``peer``.
+
+    The caller's install comes off the connection, as for the execute; the
+    receipt scope is checked against it, so one paired install cannot stop a
+    turn another asked for.
+    """
+
+    from agent_runtime.serve_rpc.params import _text_param
+
+    caller = None if context is None else context.caller
+    peer_install_id = None if caller is None else caller.peer_install_id
+    if not peer_install_id:
+        return err(
+            rid,
+            ERR_HANDLER_FAILED,
+            "peer.agent_chat.cancel stops a turn a PAIRED INSTALL asked for, and "
+            "this connection proved none; a local client stops its turns with "
+            "runtime.operator.conversation.stop or runtime.work.cancel",
+            {"reason": PEER_CHAT_NOT_A_PEER_REASON},
+        )
+    dispatch_id = _text_param(params, "dispatch_id")
+    if dispatch_id is None or len(dispatch_id) > 160:
+        return err(
+            rid,
+            ERR_INVALID_PARAMS,
+            "invalid params: dispatch_id must be a non-empty string of at most 160 characters",
+            {"reason": RpcRefusal.DISPATCH_ID_REQUIRED},
+        )
+    interrupt = None if context is None else context.interrupt_operator
+    if interrupt is None:
+        return err(
+            rid,
+            ERR_HANDLER_FAILED,
+            "this transport has no turn-interrupt seam; a peer cancel is answered on a serve loop",
+            {"reason": RpcRefusal.CONTROL_UNAVAILABLE},
+        )
+
+    from agent_runtime.peer_chat_cancel import cancel_peer_turn
+
+    answer = cancel_peer_turn(dispatch_id, peer_install_id=peer_install_id, interrupt=interrupt)
+    reason = _text_param(params, "reason")
+    if reason is not None:
+        answer["reason"] = reason[:80]
+    answer["peer"] = peer_install_id
+    return ok(rid, answer)
 
 
 # ── peer.media.get ───────────────────────────────────────────────────────────
