@@ -23,6 +23,7 @@ For any change under `hermes_cli/harness.py` or `hermes_cli/harness_parts/`. Rea
 - A part never imports `hermes_cli.harness` (cycle); shared helpers live in `hermes_cli/harness_support.py` (a leaf).
 - Any argparse change: `python scripts/dump_cli_contract.py --check`, and READ the diff before `--write`. A removed command or flag is a launcher button that exits 2; re-vendor the launcher's `tool/hermes_cli_contract/` in the same wave.
 - New write verbs are RPC methods, not argv ([[0003 — RPC route first]]).
+- A change to how a profile or root config is READ runs `tests/agent_runtime/test_live_shape_profile_roots.py`: sanitized copies of the operator's four config shapes through the snapshot producer (D3.05; re-cut at each release merge, `Merging upstream.md` 5c).
 - `hermes harness` handlers resolve `HERMES_HOME` at call time ([[Architecture Invariants]] rule 1); `_apply_profile_override()` has run before any handler in a CLI process, and has NOT under pytest.
 
 ## Surface map
