@@ -18,8 +18,10 @@ import base64
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import platform
+import random
 import subprocess
 import sys
 import time
@@ -261,6 +263,16 @@ class GateStore:
         self.generation_file.write_text(f"{new}\n", encoding="utf-8")
         return new
 
+    def skip_runs(self) -> int:
+        """How many recorded runs skipped cached greens (the audit's 5 % → 2 % switch)."""
+
+        return sum(1 for r in _read_jsonl(self.runs) if isinstance(r.get("cache"), dict) and r["cache"].get("skipped"))
+
+    def drop_green(self, rels: Iterable[str], reason: str, run_id: str) -> None:
+        """Supersede a file's green with a line that carries no key: it misses next time."""
+
+        _append_lines(self.green, [{"f": rel, "drop": reason, "run": run_id} for rel in rels])
+
     def append_green(self, lines: Iterable[dict]) -> None:
         _append_lines(self.green, lines)
 
@@ -338,8 +350,9 @@ class TreeSnapshot:
     path neither tracked nor listed (git-ignored) is hashed from disk when
     asked; a path that does not exist is ``MISSING``."""
 
-    def __init__(self, root: Path, index: Dict[str, str], changed: Iterable[str]) -> None:
+    def __init__(self, root: Path, index: Dict[str, str], changed: Iterable[str], head: str = "") -> None:
         self.root = Path(root)
+        self.head = head
         self.blobs: Dict[str, str] = dict(index)
         for rel in changed:
             self.blobs[rel] = self._disk(rel)
@@ -367,7 +380,11 @@ class TreeSnapshot:
             if entry[0] in "RC" and i < len(parts):  # a rename's source follows as its own field
                 changed.append(parts[i])
                 i += 1
-        return cls(root, index, changed)
+        try:
+            head = git(root, "rev-parse", "HEAD").strip()
+        except RuntimeError:
+            head = ""
+        return cls(root, index, changed, head)
 
     def _disk(self, rel: str) -> str:
         try:
@@ -557,17 +574,18 @@ class GreenEntry:
     epoch: float
     seconds: float
     gen: int
+    head: str = ""
 
     def line(self) -> dict:
         return {"f": self.rel, "key": self.key, "run": self.run, "t": self.t, "epoch": round(self.epoch, 1),
-                "s": round(self.seconds, 2), "gen": self.gen}
+                "s": round(self.seconds, 2), "gen": self.gen, "head": self.head}
 
     @classmethod
     def from_line(cls, r: Mapping) -> Optional["GreenEntry"]:
         if not r.get("f") or not r.get("key"):
             return None
         return cls(r["f"], r["key"], str(r.get("run") or ""), str(r.get("t") or ""), float(r.get("epoch") or 0.0),
-                   float(r.get("s") or 0.0), int(r.get("gen") or 0))
+                   float(r.get("s") or 0.0), int(r.get("gen") or 0), str(r.get("head") or ""))
 
 
 @dataclass
@@ -630,3 +648,47 @@ def decide(
             out.run.append(path)
     out.seconds = time.monotonic() - started
     return out
+
+
+# ── The audit (stage 3) ─────────────────────────────────────────────────────
+
+#: owner ruling Q2: 2 % of the hits, at least 25; 5 % for the first three skipping runs
+SAMPLE_FRACTION = 0.02
+SAMPLE_FRACTION_EARLY = 0.05
+SAMPLE_EARLY_RUNS = 3
+SAMPLE_MINIMUM = 25
+
+
+def sample_fraction(prior_skip_runs: int) -> float:
+    return SAMPLE_FRACTION_EARLY if prior_skip_runs < SAMPLE_EARLY_RUNS else SAMPLE_FRACTION
+
+
+def audit_sample(hits: Sequence[str], seed: int, fraction: float = SAMPLE_FRACTION, minimum: int = SAMPLE_MINIMUM) -> List[str]:
+    """The hits this run re-executes anyway: ``max(minimum, ceil(fraction × hits))``
+    of them (all of them when there are fewer), drawn by ``random.Random(seed)``
+    over the sorted hits, so a printed seed reproduces the sample."""
+
+    pool = sorted(hits)
+    size = min(len(pool), max(minimum, math.ceil(fraction * len(pool))))
+    return sorted(random.Random(seed).sample(pool, size))
+
+
+@dataclass
+class AuditVerdict:
+    #: cached-green files red in the run AND red again alone: the key missed a dependency
+    defects: List[str] = field(default_factory=list)
+    #: red in the run, green alone: a flake, never a cache defect
+    flakes: List[str] = field(default_factory=list)
+
+
+def audit_verdict(sampled: Iterable[str], final_rc: Mapping[str, int], rerun: Callable[[str], int]) -> AuditVerdict:
+    """A sampled hit that came back red is run once more, alone (``rerun``):
+    red again is a cache defect, green is a flake."""
+
+    verdict = AuditVerdict()
+    for rel in sorted(sampled):
+        if final_rc.get(rel, 0) == 0:
+            continue
+        rc_alone = rerun(rel)
+        (verdict.defects if rc_alone != 0 else verdict.flakes).append(rel)
+    return verdict

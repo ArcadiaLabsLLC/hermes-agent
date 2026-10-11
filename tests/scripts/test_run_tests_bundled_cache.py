@@ -219,3 +219,78 @@ def test_the_store_durations_never_take_an_absolute_or_backslash_key(tmp_path):
     store = cache.GateStore(tmp_path / "s")
     store.save_durations({"tests/a.py": 1.0, "/tmp/pytest-of-x/probe.py": 2.0, "X:\\tmp\\p.py": 3.0, "tests\\b.py": 4.0})
     assert store.load_durations() == {"tests/a.py": 1.0}
+
+
+# ── stage 3: skipping and the audit ─────────────────────────────────────────
+
+
+def test_the_audit_samples_at_least_25_hits_and_its_seed_reproduces_the_sample():
+    hits = [f"tests/test_{i:03d}.py" for i in range(100)]
+    first = cache.audit_sample(hits, seed=7)
+    assert len(first) >= 25 and set(first) <= set(hits)
+    assert cache.audit_sample(list(reversed(hits)), seed=7) == first, "the printed seed must reproduce the sample"
+    assert cache.audit_sample(hits, seed=8) != first
+    many = [f"tests/test_{i:04d}.py" for i in range(2000)]
+    assert len(cache.audit_sample(many, 1)) == 40  # 2 %
+    assert len(cache.audit_sample(many, 1, cache.sample_fraction(0))) == 100  # 5 % for the first three runs
+    assert cache.sample_fraction(3) == cache.SAMPLE_FRACTION
+    assert cache.audit_sample(hits[:10], 1) == hits[:10], "fewer hits than the minimum: every hit runs"
+
+
+def _gate_with_hits(repo: Path, store, tmp_path: Path, n: int) -> "gate_mod.GateRun":
+    gate = gate_mod.GateRun(repo, store, tmp_path / "deps")
+    gate.keyer = _keyer(repo, store)
+    paths = [repo / f"tests/test_{i:03d}.py" for i in range(n)]
+    entries = [cache.GreenEntry(cache.rel_of(p, repo), "k", "r0", "2026-10-09", 0.0, 2.0, 0) for p in paths]
+    gate.decision = cache.CacheDecision(cached=list(zip(paths, entries)), reasons={cache.rel_of(p, repo): "hit" for p in paths})
+    return gate
+
+
+def test_a_run_skips_its_hits_but_the_sample_and_reports_the_skipped_as_cached(repo, store, tmp_path, capsys):
+    gate = _gate_with_hits(repo, store, tmp_path, 100)
+    files = [p for p, _e in gate.decision.cached] + [repo / T]
+    gate._skip(files, seed=11)
+    gate._print_decision(dry=False)
+    assert len(gate.sampled) == 25 and len(gate.cached) == 75
+    assert set(gate.to_run) == {repo / T} | {repo / rel for rel in gate.sampled}
+    assert "seed 11" in capsys.readouterr().out
+
+    seen = []
+    gate.emit_cached(bundled.FileOutcome, seen.append)
+    assert len(seen) == 75 and all(o.rc == 0 and o.via.startswith("cached") for o in seen)
+
+
+def _audited(repo, store, tmp_path, monkeypatch, rc_alone: int):
+    monkeypatch.setattr(gate_mod.rtp, "_FLAKY_RESULTS", [])
+    gate = _gate_with_hits(repo, store, tmp_path, 1)
+    _green(repo, store)
+    gate.decision.cached = [(repo / T, cache.GreenEntry(T, "k", "r0", "2026-10-09", 0.0, 1.0, 0))]
+    gate.sampled = [T]
+    gate.rerun_alone = lambda rel: rc_alone
+    red = bundled.FileOutcome(repo / T, 1, "FAILED tests/test_t.py::test_ok", {"failed": 1}, 1.0, "bundle", 0)
+    result = SimpleNamespace(outcomes=[red], leaks=[], ledger=None)
+    gate.audit(result)
+    return gate, result
+
+
+def test_a_sampled_hit_red_twice_is_a_cache_defect_that_fails_the_run_and_bumps_the_generation(
+    repo, store, tmp_path, monkeypatch, capsys
+):
+    gate, result = _audited(repo, store, tmp_path, monkeypatch, rc_alone=1)
+    assert gate.verdict.defects == [T] and not gate.verdict.flakes
+    assert store.generation() == 1, "the next run must be cold"
+    assert gate.report(result, 0) == 1
+    out = capsys.readouterr().out
+    assert "CACHE AUDIT: 1 cached-green file(s) red on re-execution" in out and T in out
+
+
+def test_a_sampled_hit_red_then_green_alone_is_flaky_not_a_defect_and_loses_its_green(
+    repo, store, tmp_path, monkeypatch, capsys
+):
+    gate, result = _audited(repo, store, tmp_path, monkeypatch, rc_alone=0)
+    assert gate.verdict.flakes == [T] and not gate.verdict.defects
+    assert result.outcomes[0].rc == 0 and result.outcomes[0].via == "audit-flaky"
+    assert store.generation() == 0
+    assert gate.report(result, 0) == 0
+    assert "CACHE AUDIT" not in capsys.readouterr().out
+    assert _reason(repo, store) == "no-green", "a flaky file is never cached on that green"

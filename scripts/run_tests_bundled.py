@@ -714,9 +714,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             if outcome.rc != 0:
                 rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
 
+    gate.emit_cached(FileOutcome, _progress)  # skipped as cached green: no process
     started = time.monotonic()
     result = run(
-        files,
+        gate.to_run,
         pytest_args + gate.plugin_args,
         repo_root,
         jobs=args.jobs,
