@@ -31,6 +31,15 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **Windowed transcript reads scan the conversation for every requested window.** `agent_runtime/persona_chat_history/content.py` reuses the existing curation and native lineage readers so ownership, redaction and hidden-row policy stay authoritative; each 16K response still pays for reading the session. Add a lineage-aware public indexed content lookup at the existing SessionDB boundary, with curation/redaction parity and revision checks, before optimizing this into another cache or store. Launcher reads only on demand. Evidence: chat-content-integrity implementation; response size is bounded, read cost is not. · UNCLAIMED · released 2026-10-10 (lane-1010 returned L1.01, seam; reason in `queue-sweep-2026-10-10/L1-outcomes.md`)
 
+### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
+
+- [ ] **Charsheet and workspace-slot JSON verbs state no root: 24 verbs found by the D3.17 graph scan (18 `_cmd_characters_*`, 6 `_cmd_workspace_slots_*`) answer an empty library / slot document from a wrong root with `ok: true`; attaching resolution is a `charsheet_payload_contract.json` + launcher-mirror change** · fork / json-root · `tests/hermes_cli/test_harness_json_root_observability.py` LEDGER (`_CHARSHEET_REASON`, `_WORKSPACE_SLOTS_REASON`), build-1011-C4 · lane: with the contract re-vendor below
+- [ ] **`charsheet_payload_contract.py` names a source that no longer exists (`hermes_cli/harness.py::_characters_draft_summary`) inside the published contract; changing it moves the vendored launcher fixture** · fork / charsheet contract · build-1011-C3 · lane: payload-contract re-vendor
+- [ ] **board_card fold: the `runtime.board.*` twins ack but publish no fold; a fold needs its producer inside `board_lock` (board-surface-rpc-lane.md rule 3)** · fork / board · `agent_runtime/serve_rpc/board.py` (build-1011-C4) · DESIGN
+- [ ] **`agent_runtime/media_handles.py` is 992 code lines, so a new media helper cannot land there (D2.10's `media_block` went to `serve_rpc/media.py`)** · fork / god file · build-1011-C3 · lane: god-file refactor
+- [ ] **Two lenient "stripped non-blank string or None" helpers, `mission_chat_outcome._text` and `persona_open_chat._text`, duplicate `serve_rpc.params._text_param`** · fork / one helper owner · build-1011-C1
+- [ ] **Prewarm `_prepare` loads the slot context three times (`_slot_receipt`, `_workspace_agents_content`, `_slot_primary`) and resolves the workdir separately; one `_turn_workspace` per prepare removes the repeats, but `_prepare` is grandfathered at 161 lines** · fork / prewarm · `agent_runtime/persona_chat_actor_prewarm.py` (build-1011-C2) · lane: extract first
+
 ### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 
 - [ ] **`idle_turn_keeper` arms only after a serve's first `request_sent`, so idle write-backs (the D1.05 CF-2 frontmatter flush) never run in a serve that takes no turn, or in any CLI child** · fork / boot and idle · design-sweep-d1 § D1.05 build record (build-1011-B2) · lane: one idle-flush owner armed at boot or drain
@@ -467,6 +476,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
+
+- [ ] **The /context manifest says "shadowed" for files the fork's prompt actually loads: `agent/context_file_sources.list_context_file_sources` marks lower-priority kinds `shadowed`, but the fork's `build_context_files_prompt` loads every kind** · seam / prompt context · design-sweep-d1 § D1.12 S2 (build-1011-C2)
+
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
 - [ ] **The gateway's `_drain_gateway_watch_events` and `_async_delegation_watcher` discard or requeue by a hard-coded event-type list, so every new fork completion-queue type needs another upstream hunk** · seam / gateway · `a7ac57819b` (M2.01) · lane: held PR "route unknown completion_queue types"
@@ -581,6 +594,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
+
+- [ ] **An ssh profile's REMOTE cwd is shape-checked with the host's `os.path.isabs`: `tui_gateway/session_workdir.py::_is_remote_cwd_shape`; on Windows under Python ≥ 3.13 `ntpath.isabs("/home/kali")` is False, so `_completion_cwd` drops a named ssh profile's remote cwd to "~" and `_workspace_cwd` refuses it (`session.workspace.move` → 4017)** · upstream / tui_gateway · 4 tests red on pure tag v0.21.6 `818c13be1d`, marked `_up_red_when` (fix/1011-guard-and-tui-reds `462337b735`) · upstream issue (the remote shape wants `posixpath.isabs`)
+
 ### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 
 - [ ] **Upstream `tools/skills_tool._skill_catalog` parses every SKILL.md frontmatter itself, and the kanban environment gate costs 3 ms per tagged skill uncached plus a 1.3 s first-call import** · upstream / skill catalog · build-1011-B2 `9dc0b2ad19` (60/60 parses in a primed cold child) · lane: door, ties to design-sweep D1.10
@@ -591,7 +608,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
-- [ ] **A sandboxed HERMES_HOME republishes the checkout's `.hermes/bin` launcher, so `pm/environments._launcher_bound_root` names a sandbox as the owner** · upstream / pm environments · `_launcher_python(.hermes/bin/hermes.exe)` → a stagec-smoke home's `tools/`; launcher half in mission-control-queue (launcher `a98885456a`); hermes-side publish guard `73178abc0a` (M3.03) · lane: owner-root record (with L3.05, `queue-sweep-2026-10-10/M2-outcomes.md` M2.03)
+- [ ] **A sandboxed HERMES_HOME republishes the checkout's `.hermes/bin` launcher, so `pm/environments._launcher_bound_root` names a sandbox as the owner** · upstream / pm environments · `_launcher_python(.hermes/bin/hermes.exe)` → a stagec-smoke home's `tools/`; launcher half in mission-control-queue (launcher `a98885456a`); hermes-side publish guard `73178abc0a` (M3.03) · lane: owner-root record (with L3.05, `queue-sweep-2026-10-10/M2-outcomes.md` M2.03) · launcher fix `3774b0b42f` (launcher main `6795c16bcb`): Stage C sessions set `HERMES_DISABLE_LAZY_INSTALLS=1`; `owning_home_root` still never checks `<checkout parent>/.hermes`
 - [ ] **`tests/conftest.py` step 3b pins `hermes_state.DEFAULT_DB_PATH` only when `hermes_state` is already imported, so an argless `SessionDB()` is import-order dependent; the fork unpins by node id (`tests/_downstream/state_db_scope.py`)** · upstream / suite · `ddf83ac62a` (M4.06) · lane: upstream issue (order-independent pin)
 
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
