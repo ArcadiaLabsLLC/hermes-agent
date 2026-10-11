@@ -30,6 +30,7 @@ from agent.redact import _is_secret_file_arg, redact_sensitive_text
 from tools.file_tools_paths import (
     _expand_tilde, _path_resolution_warning, _resolve_base_dir, _resolve_entry_for_task,
     _resolve_path_for_task)
+from tools.file_tools_paths import _posix_match_forms  # fork seam (PR #121645)
 from tools.file_tools_write_guards import (
     _READ_DEDUP_STATUS_MESSAGE, _check_approval_required_write, _check_binary_document_write,
     _check_cross_profile_path, _check_protected_instruction_write, _check_sensitive_path,
@@ -1423,24 +1424,3 @@ def _patch_schema_overrides():
 
 registry.register(name="patch", toolset="file", schema=PATCH_SCHEMA, handler=_handle_patch, check_fn=_check_file_reqs, emoji="🔧", max_result_size_chars=100_000, dynamic_schema_overrides=_patch_schema_overrides)
 registry.register(name="search_files", toolset="file", schema=SEARCH_FILES_SCHEMA, handler=_handle_search_files, check_fn=_check_file_reqs, emoji="🔎", max_result_size_chars=100_000)
-
-
-from tools import path_identity
-
-def _posix_match_forms(path: str) -> tuple[str, ...]:
-    """Tilde-expand *path*, then hand it to the path-identity authority.
-
-    The spelling reconciliation itself lives in ``tools.path_identity`` — see
-    :func:`tools.path_identity.posix_match_forms` for what ``os.path.normpath``
-    does to a POSIX root on Windows and why every guard here has to know.
-
-    This shim exists for the one thing the authority deliberately refuses to
-    own: ``~`` resolves against the *effective profile home* (:func:`_expand_tilde`,
-    which consults ``hermes_constants.get_subprocess_home``), and that is Hermes
-    policy with a config dependency, not a pure spelling fact. Keeping the
-    expansion here is what lets ``path_identity`` stay import-light enough for
-    ``tools/approval.py`` to depend on it.
-
-    Guards in this module call THIS, so no caller can forget the expansion.
-    """
-    return path_identity.posix_match_forms(_expand_tilde(path))

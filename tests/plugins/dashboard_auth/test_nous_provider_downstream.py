@@ -1,8 +1,8 @@
 """Fork-owned half of ``tests/plugins/dashboard_auth/test_nous_provider.py``.
 
 ``plugins/dashboard_auth/_shared.py`` reads ``load_config_readonly`` in the fork;
-upstream's ``patch_config`` stubs ``load_config``, and the
-``config_reads_through_load_config`` row in ``tests/_downstream/id_markers/``
+upstream's ``patch_config`` stubs ``load_config``, and the computed read-through
+(``tests/_downstream/conftest_plugin.py::_config_reads_through_load_config``)
 routes one to the other. This is the anti-vacuity check for that route: the stub
 must reach the plugin's own read path. ``patch_config`` is upstream's.
 """
