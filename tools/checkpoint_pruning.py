@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import math
 import os
 import time
 from pathlib import Path
@@ -30,6 +31,8 @@ def store_lock(base: Path, *, wait_seconds: float = 0):
     """Serialize whole operations, including GC and clear, across processes."""
     from hermes_cli.runtime_state import _lock
 
+    if not math.isfinite(wait_seconds) or wait_seconds < 0:
+        raise ValueError("checkpoint lock wait must be finite and nonnegative")
     base.parent.mkdir(parents=True, exist_ok=True)
     # Outside base so clear_all and legacy migration cannot replace its inode.
     fd = os.open(store_lock_path(base), os.O_CREAT | os.O_RDWR, 0o600)
