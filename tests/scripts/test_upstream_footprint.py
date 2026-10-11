@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.upstream_footprint import MANIFEST, count_footprint, manifest_paths, measure, merge_ledger, read_manifest
+from scripts.upstream_footprint import MANIFEST, count_footprint, ledger_rows, manifest_paths, measure, merge_ledger, read_manifest
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "upstream_footprint.json"
 NUMBERS = ("files", "deleted_lines", "heavy")
@@ -147,3 +147,26 @@ def test_no_row_under_a_code_tree_is_ruled_permanent():
     bad = text.replace(old, f"| `{path}` | {row['added']} | {row['deleted']} | carry-permanent |", 1)
     assert bad != text
     assert forbidden_permanent(bad) == [path]
+
+
+def test_no_ledger_row_is_unreviewed_or_unledgered():
+    """D3.03: an upstream edit lands with its ledger reason. ``merge_ledger`` admits a new
+    row as ``carry`` / ``unreviewed`` / ``-``; this is what reds on it, so a sync or merge
+    job cannot land an upstream edit with no reason and no manifest entry."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER, unreviewed_rows
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    assert unreviewed_rows(text) == [], (
+        "these upstream edits carry no reviewed reason: write the ledger row (and the "
+        "carried_prs.json entry when a PR carries the hunk) in the commit that lands them"
+    )
+
+    # Positive controls: a freshly merged row and the sync sweep's marker ARE caught.
+    fresh = merge_ledger(None, count_footprint(NUMSTAT_Z, MANIFEST_PATHS))
+    assert unreviewed_rows(fresh) == sorted(MANIFEST_PATHS[:5])
+    path = next(iter(ledger_rows(text)))
+    row = ledger_rows(text)[path]
+    old = f"| `{path}` | {row['added']} | {row['deleted']} | {row['disposition']} | "
+    assert old in text
+    marked = text.replace(old, old + "additive (landed unledgered by `abc`): ", 1)
+    assert unreviewed_rows(marked) == [path]

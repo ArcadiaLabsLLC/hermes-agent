@@ -11,6 +11,14 @@ review. The footprint ledger identifies independently retained fork behavior.
 Existing upstream files were refreshed by reviewed PR changes, not replaced with
 whole newer upstream files. Behavior changes and pure moves have separate commits.
 
+**Every sync commit carries its ledger rows (D3.03, 2026-10-10).** A refresh that edits an
+upstream file lands, in the same commit, that file's row in
+`docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` with a reviewed reason and,
+when a PR carries the hunk, the file's entry under that PR in `tests/fixtures/carried_prs.json`.
+`tests/scripts/test_upstream_footprint.py::test_no_ledger_row_is_unreviewed_or_unledgered`
+reds on a row still reading `unreviewed` (what `scripts/upstream_footprint.py --ledger`
+writes for a new file); the 2026-10-07 refresh landed eight such edits.
+
 ## Refreshed and already matching PRs
 
 The checker finds drift on pinned main for **21 PRs** whose reviewed selections

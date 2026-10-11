@@ -192,6 +192,27 @@ def forbidden_permanent(text: str) -> list[str]:
     )
 
 
+#: A ledger reason that says the row was never reviewed: what ``merge_ledger`` writes for a
+#: new row, and the marker the 2026-10-08 sweep used for the sync's unledgered edits.
+UNREVIEWED_PREFIX = "unreviewed"
+UNLEDGERED_MARKER = "landed unledgered"
+
+
+def unreviewed_rows(text: str) -> list[str]:
+    """Paths whose ledger reason is still ``unreviewed`` or says the edit ``landed unledgered``.
+
+    A sync or merge that lands an upstream edit must land its ledger reason with it
+    (D3.03): ``merge_ledger`` admits a new row as ``carry`` / ``unreviewed`` / ``-`` and
+    nothing else reds on that.
+    """
+    return sorted(
+        path
+        for path, row in ledger_rows(text).items()
+        if row.get("reason", "").strip().startswith(UNREVIEWED_PREFIX)
+        or UNLEDGERED_MARKER in row.get("reason", "")
+    )
+
+
 def merge_ledger(existing: str | None, footprint: Footprint) -> str:
     """Rewrite the ledger table for ``footprint``, keeping hand-edited columns by path.
 
