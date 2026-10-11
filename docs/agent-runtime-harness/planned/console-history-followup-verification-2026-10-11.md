@@ -426,3 +426,41 @@ its expected `recovery_changed` error (recovery proceeded). Both mutations were
 restored immediately; the two complete suites passed afterward (14 tests).
 This is committed evidence of those named controls, not a claim that every
 concurrency schedule or native UI path has been proved.
+
+### Integrated runtime qualification — 2026-10-11
+
+Runtime candidate `c92efed446` contains main `3aa2cc0236`. This evidence
+supersedes earlier candidate totals; it does not certify a green whole-fork gate.
+
+- Profile-derived persona emitters, selectors, fixtures and generated command
+  reference now use only `profile_<name>`. No colon compatibility helper or
+  profile alias mapping remains. Explicit stored profile bindings keep priority.
+  Permission subjects, skill labels and other independent colon namespaces are
+  outside this persona contract and remain unchanged.
+- The first integrated fork gate (`scripts/run_tests_bundled.sh tests`) ran 1,534
+  files: **18,398 passed, 87 failed, one error, 233 skipped**. Owned profile
+  fixtures/reference/citation failures were repaired in `1e7a2031dc`; the routing
+  gate found two untyped rollback comparisons and they were repaired in
+  `c92efed446`. Follow-up: 154 tests passed before the citation-only repair;
+  the complete citation suite then passed 41 tests. Routing plus Undo passed
+  17 tests after restoring the killing mutation. The full gate was not rerun.
+- On unchanged main `3aa2cc0236`, a seven-file baseline check reproduced the TLS
+  pin, source-grep, path-identity and mid-test monkeypatch-undo gate failures:
+  107 passed, four failed, one skipped, plus the PM fixture setup error. That
+  fixture requires Python 3.14; this environment supplies 3.13.15. Existing
+  queue evidence records local certificate interception; TLS checks were not
+  weakened. This seven-file comparison is not a reproduction of all 87 reds.
+- Session API's commentary failure from the bundled gate did not reproduce in
+  isolation: 39 passed on the candidate and on main. Its bundled/order-dependent
+  failure remains unqualified. The tree-layout failure is an empty untracked
+  retired directory in this long-lived checkout, with no production diff;
+  cleanup was not performed after automatic approval review rejected it.
+- The original bundled gate also contains gateway/peer/media/lane TLS families,
+  TUI/exit timeouts and a strict XPASS. Their existing queue evidence is relevant,
+  but this repair does not claim each was rerun on the latest main.
+
+The native extraction remains a separate behavior-preserving commit, followed
+by its reviewed-restore consumer. Busy/wait is an independent held candidate;
+retention pins belong to resumable restore. No upstream submission was made.
+Launcher native in-app proof remains a landing requirement for the paired PRs.
+Both PRs stay draft; runtime changes are committed and pushed to PR #7, not main.
