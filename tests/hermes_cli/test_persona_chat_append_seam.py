@@ -22,7 +22,7 @@ already broken silently for eleven days once.
 What deleting it would actually delete is five enforcement points that the next
 explicit append site would hand-roll:
 
-1. redaction at the per-role limit,
+1. redaction without shortening admitted text,
 2. the assistant-row idempotency check (never two replies for one
    `client_message_id`),
 3. the live-log mirror, bound by a CONTEXT MANAGER rather than a trailing call
@@ -85,22 +85,26 @@ def test_the_seam_still_exists(name: str):
     assert _func(name) is not None
 
 
-@pytest.mark.parametrize(
-    "writer,limit",
-    [
-        ("_append_persona_operator_turn", "PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT"),
-        ("_append_persona_assistant_text", "PERSONA_CHAT_REPLY_LIMIT"),
-    ],
-)
-def test_every_writer_redacts_at_its_own_limit(writer: str, limit: str):
-    """Guarantee 1. Two roles, two limits — one shared limit is a regression."""
-
-    source = ast.unparse(_func(writer))
-    assert "_redact_persona_chat_text" in source, (
-        f"{writer} no longer redacts. Persona-chat text reaches SessionDB and "
-        "the live log, which an operator pastes into chat."
+@pytest.mark.parametrize("role", ["user", "assistant"])
+def test_every_writer_redacts_without_shortening_admitted_text(tmp_path, role):
+    from contextlib import closing
+    from hermes_state import SessionDB
+    from hermes_cli.harness_parts.persona.chat_history_writes import (
+        _append_persona_operator_turn, _append_persona_assistant_text,
     )
-    assert limit in source, f"{writer} no longer applies {limit}"
+
+    body = "  row\n" * 6000 + "token=fixture-private\nTAIL\n"
+    with closing(SessionDB(tmp_path / "state.db")) as db:
+        db.create_session("chat", "test")
+        if role == "user":
+            _append_persona_operator_turn(session_db=db, session_id="chat", message=body, required=True)
+        else:
+            _append_persona_assistant_text(session_db=db, session_id="chat", text=body, required=True)
+        stored = db.get_messages("chat")[0]["content"]
+    assert stored.startswith("  row\n" * 6000)
+    assert stored.endswith("TAIL\n")
+    assert "fixture-private" not in stored
+    assert "[redacted]" in stored
 
 
 def test_the_assistant_writer_refuses_a_second_reply_for_one_client_message_id():

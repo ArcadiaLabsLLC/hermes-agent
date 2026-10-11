@@ -1995,8 +1995,8 @@
       "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "use-the-indenting-encoder",
-      "find": "emit_json_line({**data, **_characters_draftsman()})",
-      "replace": "emit_json({**data, **_characters_draftsman()})",
+      "find": "emit_json_line({**data, **draftsman()})",
+      "replace": "emit_json({**data, **draftsman()})",
       "test": [
         "{python}",
         "-m",
@@ -4373,7 +4373,7 @@
       "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_emit",
       "operator": "drop-the-draftsman-stamp",
-      "find": "    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human)",
+      "find": "    print(emit_json({**data, **draftsman()}) if getattr(args, \"json\", False) else human)",
       "replace": "    print(emit_json(data) if getattr(args, \"json\", False) else human)",
       "test": [
         "{python}",
@@ -4386,8 +4386,8 @@
     },
     {
       "id": "ph-payload-stamps-the-provider-door-too",
-      "path": "hermes_cli/harness_parts/characters/payloads.py",
-      "symbol": "_characters_draftsman",
+      "path": "agent/charsheet/draft/payloads.py",
+      "symbol": "draftsman",
       "operator": "name-the-real-door-as-well",
       "find": "    name = active_draftsman_name()\n    return {\"draftsman\": name} if name else {}",
       "replace": "    name = active_draftsman_name()\n    return {\"draftsman\": name or \"real\"}",
@@ -4404,7 +4404,7 @@
       "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-draftsman-stamp",
-      "find": "        (emit_json_line({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
+      "find": "        (emit_json_line({**data, **draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
       "replace": "        (emit_json_line(data) if getattr(args, \"json\", False) else human) + \"\\n\"",
       "test": [
         "{python}",
@@ -4508,7 +4508,7 @@
     {
       "id": "cxr3-codex-readiness-asks-the-store-before-the-pool",
       "path": "agent_runtime/provider_probes.py",
-      "symbol": "codex_credentials_resolvable_read_only",
+      "symbol": "_codex_credentials_resolvable_now",
       "operator": "invert-source-order",
       "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_ext.codex_auth_store_credentials_present()",
       "replace": "    if auth_ext.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
@@ -4810,8 +4810,8 @@
       "path": "agent_runtime/local_llama_adapter/engine.py",
       "symbol": "validate_model",
       "operator": "weaken-shards",
-      "find": "if any(part.get(k) != info.get(k) for k in (\"general.name\", \"general.architecture\", \"split.count\")) or part.get(\"split.no\") != index:",
-      "replace": "if part.get(\"split.no\") != index:",
+      "find": "or any(k in part and part[k] != info.get(k) for k in (\"general.name\", \"general.architecture\"))):",
+      "replace": "):",
       "test": [
         "{python}",
         "-m",
@@ -4992,8 +4992,8 @@
       "path": "scripts/god_file_fences.py",
       "symbol": "fence_crossings",
       "operator": "empty-intersection",
-      "find": "for path in sorted(set(touched) & upstream)]",
-      "replace": "for path in sorted(set(touched) & set())]",
+      "find": "for path in sorted(set(names.split()) & upstream)]",
+      "replace": "for path in sorted(set(names.split()) & set())]",
       "test": [
         "{python}",
         "-m",

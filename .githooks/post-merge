@@ -49,6 +49,7 @@
 # canonical package. `install_harness_skill` writes nothing when they match.
 
 repo_root=$(git rev-parse --show-toplevel)
+
 script="$repo_root/scripts/verify_harness_skill_install.py"
 
 if [ ! -f "$script" ]; then
@@ -66,6 +67,18 @@ elif command -v python3 >/dev/null 2>&1; then
 else
     echo "post-merge: no python on PATH — the installed skill packages were NOT verified." >&2
     exit 1
+fi
+
+# A LINKED worktree verifies and writes nothing. Its packages are a branch's bytes, and
+# `core.hooksPath` is per-clone, so the hook also fires in a lane's worktree with the
+# operator's inherited HERMES_HOME: a repair there copies a branch into the operator's
+# install (docs/agent-runtime-harness/planned/isolated-worktree-hook-home-2026-10-07.md).
+# The primary checkout repairs; serve boot repairs from the tree it runs.
+# Lane h-turn1-conn (2026-10-06) put a lane's unlanded skills in front of the live serve this way.
+if [ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]; then
+    echo "post-merge: $repo_root is a linked worktree; harness skills NOT installed (verify only)."
+    "$py" "$script" --check
+    exit $?
 fi
 
 "$py" "$script"

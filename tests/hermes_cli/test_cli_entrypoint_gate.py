@@ -341,3 +341,64 @@ def test_the_real_hermes_entrypoint_still_applies_the_override(tmp_path):
     assert result["home_after"] == str(root / "profiles" / "alice")
     assert result["resolution"] == "flag"
     assert result["argv"] == [str(tmp_path / "bin" / "hermes"), "status"]
+
+
+# ---------------------------------------------------------------------------
+# The published launcher (``hermes.cmd`` / ``bin/hermes``): ``python -I -c``
+# ---------------------------------------------------------------------------
+
+
+def test_the_launcher_mark_is_the_one_the_published_launcher_sets():
+    from hermes_cli._launchers import PIN_DEFAULT_HOME_FLAG
+    from hermes_cli._profile_bootstrap import LAUNCHER_MARK
+
+    assert LAUNCHER_MARK == PIN_DEFAULT_HOME_FLAG
+
+
+def test_a_bare_dash_c_without_the_launcher_mark_is_not_the_cli(monkeypatch):
+    from hermes_cli._profile_bootstrap import LAUNCHER_MARK
+
+    monkeypatch.delattr(sys, LAUNCHER_MARK, raising=False)
+    assert is_hermes_cli_entrypoint("hermes_cli.main", argv0="-c") is False
+
+
+# The live-system guard reads "hermes update" in the launcher's own recovery prose; this runs
+# the script only up to importing hermes_cli.main, never an update.
+@pytest.mark.live_system_guard_bypass
+def test_the_published_launcher_applies_the_profile_flag(tmp_path):
+    """L2.25 (2026-10-02): ``hermes.cmd -p alice mcp list`` -> "'alice' is not a
+    `hermes` command". The launcher's script runs under ``python -I -c``, so
+    ``argv[0]`` was ``-c`` when ``hermes_cli.main`` imported and the pre-parse never
+    ran. This runs the launcher's OWN script, cut where it would call ``main()``."""
+
+    from hermes_cli._launchers import _launcher_script
+
+    script = _launcher_script("hermes", PROJECT_ROOT, None)
+    cut = script.index("from hermes_cli.main import main\n")
+    probe = script[:cut] + textwrap.dedent(
+        """
+        import json
+        import hermes_cli.main  # noqa: F401
+        sys.stdout.write("PROBE" + json.dumps({
+            "home_after": os.environ.get("HERMES_HOME"),
+            "resolution": os.environ.get("HERMES_PROFILE_RESOLUTION"),
+            "argv": sys.argv[1:],
+        }) + chr(10))
+        """
+    )
+    root = _make_root(tmp_path, profiles=("alice",))
+    env = dict(os.environ)
+    env["HERMES_HOME"] = str(root)
+    env.pop("HERMES_PROFILE_RESOLUTION", None)
+    env.pop("HERMES_S6_SUPERVISED_CHILD", None)
+    proc = subprocess.run(
+        [sys.executable, "-I", "-c", probe, "-p", "alice", "mcp", "list"],
+        env=env, capture_output=True, text=True, timeout=600,
+    )
+    payloads = [line[len("PROBE"):] for line in proc.stdout.splitlines() if line.startswith("PROBE")]
+    assert proc.returncode == 0 and payloads, f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    result = json.loads(payloads[-1])
+
+    assert result["home_after"] == str(root / "profiles" / "alice")
+    assert result["resolution"] == "flag"
+    assert result["argv"] == ["mcp", "list"]

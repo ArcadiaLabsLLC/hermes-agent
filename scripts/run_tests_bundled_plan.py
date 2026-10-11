@@ -24,6 +24,7 @@ Generic on purpose (no fork path but the two file names), like the runner.
 from __future__ import annotations
 
 import json
+import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -223,21 +224,57 @@ def render(summary: Mapping[str, object]) -> List[str]:
 
 #: beside pytest's own last-failed cache, in a directory git already ignores
 RUNS_FILE = ".pytest_cache/hermes_bundled_runs.jsonl"
+#: ``kind`` of the line scripts/run_tests_idle.sh appends (owner ruling 2026-10-10)
+IDLE_RUN_KIND = "idle"
+
+
+def primary_checkout(repo_root: Path) -> Optional[Path]:
+    """The clone's main worktree when ``repo_root`` is a linked worktree, else None.
+
+    A landing worktree is cut fresh, so its own duration cache and run record are
+    empty and Stages 2-3 would plan by count and re-run every red alone; both
+    fall back to the primary checkout's copies (plan O4)."""
+
+    try:
+        common = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, encoding="utf-8", timeout=10, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    primary = Path(common).parent
+    return None if not common or primary.resolve() == Path(repo_root).resolve() else primary
+
+
+def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
+    """``load(repo_root)`` over the primary checkout's cache: a local entry wins."""
+
+    primary = primary_checkout(repo_root)
+    return {**(load(primary) if primary is not None else {}), **load(repo_root)}
 
 
 def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
     """rel → the failing node ids the LAST recorded run carried for it. A
-    missing or torn record is empty: every red is then re-run alone."""
+    missing or torn record is empty: every red is then re-run alone. A
+    worktree with no record of its own reads the primary checkout's."""
 
+    record = repo_root / RUNS_FILE
+    if not record.is_file():
+        primary = primary_checkout(repo_root)
+        record = primary / RUNS_FILE if primary is not None else record
     try:
-        lines = (repo_root / RUNS_FILE).read_text(encoding="utf-8").splitlines()
+        lines = record.read_text(encoding="utf-8").splitlines()
     except OSError:
         return {}
     for line in reversed(lines):
         try:
-            red = json.loads(line).get("red") or {}
-        except (json.JSONDecodeError, AttributeError):
+            entry = json.loads(line)
+        except json.JSONDecodeError:
             continue
+        # the idle-box lane's line (scripts/run_tests_idle.sh) carries no red map
+        if not isinstance(entry, dict) or entry.get("kind") == IDLE_RUN_KIND:
+            continue
+        red = entry.get("red") or {}
         return {rel: frozenset(ids) for rel, ids in red.items() if ids}
     return {}
 

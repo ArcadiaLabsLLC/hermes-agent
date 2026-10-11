@@ -28,6 +28,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "MEDIA_CONTRACT",
+    "media_block",
     "_media_get_frame",
     "_runtime_media_get",
     "_runtime_media_index",
@@ -301,14 +302,21 @@ def _media_get_frame(
             data.refusal_data(),
         )
 
-    result: dict[str, Any] = {
+    result = media_block(resolved.handle, resolved.media_type, data)
+    if correlation_id is not None:
+        result["correlation_id"] = correlation_id
+    return ok(rid, result)
+
+
+def media_block(handle: str, media_type: str, data: bytes) -> dict[str, Any]:
+    """The one inline-pixels shape: ``runtime.media.get``'s result, and the
+    ``media`` / ``sheet_media`` blocks the ``runtime.characters.*`` twins carry."""
+
+    return {
         "contract": MEDIA_CONTRACT,
-        "handle": resolved.handle,
-        "media_type": resolved.media_type,
+        "handle": handle,
+        "media_type": media_type,
         "size_bytes": len(data),
         "encoding": "base64",
         "data": base64.b64encode(data).decode("ascii"),
     }
-    if correlation_id is not None:
-        result["correlation_id"] = correlation_id
-    return ok(rid, result)

@@ -199,3 +199,37 @@ def test_reopening_restores_native_evidence_without_dispatch(runtime):
     assert result["turn"]["state"] == "running"
     assert result["recovery"]["execution"]["id"] == result["turn"]["execution_id"]
     assert len([m for m, _ in factory.workers[0].calls if m == "prompt.submit"]) == 1
+
+
+def _reviewed(name, media_type, payload: bytes) -> dict:
+    import base64
+    return {"name": name, "media_type": media_type, "data": base64.b64encode(payload).decode()}
+
+
+def test_reviewed_files_attach_natively_before_submit_and_ride_as_refs(runtime):
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    worker = factory.workers[0]
+    files = [_reviewed("notes.md", "text/markdown", b"# n"), _reviewed("spec.pdf", "application/pdf", b"%PDF-1")]
+    reply = service.send(scope, sid, "turn", {**PROMPT, "files": files})
+    assert [f["name"] for f in reply["files"]] == ["notes.md", "spec.pdf"]
+    methods = [method for method, _ in worker.calls if method.endswith(".attach") or method == "prompt.submit"]
+    assert methods == ["file.attach", "pdf.attach", "prompt.submit"]
+    attach = dict(worker.calls)["file.attach"]
+    assert attach == {"session_id": "native-0", "name": "notes.md",
+                      "data_url": "data:text/markdown;base64," + files[0]["data"]}
+    assert "path" not in attach  # never a client path the native side could dereference
+    assert dict(worker.calls)["pdf.attach"]["content_base64"] == files[1]["data"]
+    assert dict(worker.calls)["prompt.submit"]["text"] == (
+        "Review this design\n\n@file:attachments/notes.md\n\n[User attached PDF: spec.pdf (1 page(s))]")
+
+
+def test_a_refused_attach_never_submits_and_settles_unknown(runtime):
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    worker = factory.workers[0]
+    worker.refuse_attach = True
+    with pytest.raises(ConversationError, match="native_refusal"):
+        service.send(scope, sid, "turn", {**PROMPT, "files": [_reviewed("a.txt", "text/plain", b"a")]})
+    assert not any(method == "prompt.submit" for method, _ in worker.calls)
+    assert service.store.turn(service.store.get(sid, scope), "turn").state == TurnState.UNKNOWN

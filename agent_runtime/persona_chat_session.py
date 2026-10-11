@@ -388,7 +388,7 @@ def _persona_chat_native_tip(session_db, root_session_id: str) -> str:
 def _persona_chat_native_history(session_db, active_session_id: str) -> list[dict]:
     loader = getattr(session_db, "get_messages_as_conversation", None)
     if callable(loader):
-        return list(loader(active_session_id, include_ancestors=True) or [])
+        return list(loader(active_session_id, include_ancestors=True, repair_alternation=True) or [])
     legacy = getattr(session_db, "get_messages", None)
     return list(legacy(active_session_id) or []) if callable(legacy) else []
 

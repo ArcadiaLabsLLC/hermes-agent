@@ -37,6 +37,10 @@ class RpcRefusal(StrEnum):
     SHA256_MISMATCH = "sha256_mismatch"
     #: A ``peer.agent_chat.execute`` whose caller is not a peer.
     PEER_IDENTITY_REQUIRED = "peer_identity_required"
+    #: A ``peer.agent_chat.cancel`` with no usable ``dispatch_id``.
+    DISPATCH_ID_REQUIRED = "dispatch_id_required"
+    #: A stop verb on a transport with no turn-interrupt seam.
+    CONTROL_UNAVAILABLE = "control_unavailable"
     #: A ``peer.announce`` naming an install other than the caller's own.
     ANNOUNCE_NAMES_OTHER_INSTALL = "announce_names_other_install"
     #: A peer thread whose chat lane could not be read.
@@ -45,3 +49,18 @@ class RpcRefusal(StrEnum):
     UNSUPPORTED_PERSONA = "unsupported_persona"
     #: A peer thread read naming a session the peer does not own.
     FOREIGN_SESSION = "foreign_session"
+    #: A ``runtime.board.*`` card verb with no non-empty ``card_id``.
+    CARD_ID_REQUIRED = "card_id_required"
+    #: ``runtime.board.card.add`` with no non-empty ``title``.
+    TITLE_REQUIRED = "title_required"
+    #: ``runtime.board.card.move`` with no non-empty ``column_id``.
+    COLUMN_ID_REQUIRED = "column_id_required"
+    #: A board ``priority`` outside ``board_models.CARD_PRIORITIES`` (the store
+    #: would silently answer it with the default).
+    PRIORITY_INVALID = "priority_invalid"
+    #: A board ``labels`` that is not a list of strings.
+    LABELS_INVALID = "labels_invalid"
+    #: A ``resolve_conflict`` ``take`` that is not ``local`` / ``remote``.
+    TAKE_INVALID = "take_invalid"
+    #: A board param of the wrong JSON type; ``data.param`` names it.
+    PARAM_TYPE_INVALID = "param_type_invalid"

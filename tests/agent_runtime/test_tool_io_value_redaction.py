@@ -134,3 +134,48 @@ def test_a_boolean_under_a_secret_name_is_a_fact_not_a_secret():
     assert scrub_secret_value_tree({"token_present": True, "has_token": False, "token": None}) == {
         "token_present": True, "has_token": False, "token": None,
     }
+
+
+# --------------------------------------------------------------------------- #
+# the terminal output, command, target and path lanes (L2.21)                 #
+# --------------------------------------------------------------------------- #
+
+
+def test_terminal_command_and_output_keep_a_secret_word_and_drop_a_secret_value():
+    """A word is not a secret on the command/output lanes either."""
+
+    invocation = {"command": f"curl -H 'Authorization: Bearer {_FAKE_BEARER}' https://x/token/refresh"}
+    result = {"exit_code": 1, "output": f"refresh failed: token expired\nkey={_FAKE_SK}\ndone"}
+
+    started = _safe_progress_payload(
+        "run.tool.started", _tool_started_payload("run.tool.started", "terminal", invocation=invocation)
+    )
+    finished = _safe_progress_payload(
+        "run.tool.finished",
+        _tool_finished_payload(
+            "run.tool.finished", "terminal", duration=1.0, is_error=True, result=result, invocation=invocation
+        ),
+    )
+
+    for payload in (started, finished):
+        assert "https://x/token/refresh" in payload["command_full"]
+        assert _FAKE_BEARER not in payload["command_full"]
+    assert "refresh failed: token expired" in finished["output"]
+    assert "done" in finished["output"]
+    assert _FAKE_SK not in finished["output"]
+    assert "[redacted line" not in finished["output"]
+
+
+def test_target_and_changed_paths_keep_a_file_named_for_a_secret_word():
+    started = _safe_progress_payload(
+        "run.tool.started",
+        _tool_started_payload("run.tool.started", "read_file", invocation={"path": "agent_runtime/token_budget.py"}),
+    )
+    assert started["target_label"] == "agent_runtime/token_budget.py"
+
+    from agent_runtime.profile_runner.operator_redaction import _safe_operator_paths
+    from agent_runtime.progress import _safe_operator_path_list
+
+    paths = ["agent_runtime/token_budget.py", "docs/password-policy.md"]
+    assert _safe_operator_paths(paths) == paths
+    assert _safe_operator_path_list(paths) == paths

@@ -209,11 +209,10 @@ def _load_plugin_module_locked(module_name: str, plugin_dir: Path, init_file: Pa
     loaded_submodules = []
     for sub_file in plugin_dir.glob("*.py"):
         full_sub_name = f"{module_name}.{sub_file.stem}"
-        if sub_file.name == "__init__.py":
-            continue
-        if full_sub_name in sys.modules:
-            # Rebind siblings loaded before this fresh parent package.
+        if sub_file.name != "__init__.py" and full_sub_name in sys.modules:
+            # fork seam (PR #128651): rebind siblings loaded before this fresh parent package.
             loaded_submodules.append((sub_file.stem, sys.modules[full_sub_name]))
+        if sub_file.name == "__init__.py" or full_sub_name in sys.modules:
             continue
         sub_mod = _new_module(full_sub_name, sub_file)
         if _exec(sub_mod, logger):

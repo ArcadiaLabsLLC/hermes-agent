@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts.bundle_ceilings import lzma_size, stt_latency, time_to_ready
 
 
@@ -28,6 +30,9 @@ def _fake_core(tmp_path: Path, main_body: str) -> Path:
     return core
 
 
+# The serve driver names `hermes harness serve`, so the guard refuses it (L8.34); here it runs
+# under -I -S against _fake_core's stand-in hermes_cli, which boots nothing.
+@pytest.mark.live_system_guard_bypass
 def test_ready_is_timed_to_the_ready_frame_of_the_bundles_own_serve(tmp_path: Path):
     body = ("import json, sys\nassert sys.argv[1:] == ['harness', 'serve', '--ndjson'], sys.argv\n"
             "print('noise', flush=True)\nprint(json.dumps({'event': 'ready'}), flush=True)\nsys.stdin.read()\n")
@@ -36,6 +41,9 @@ def test_ready_is_timed_to_the_ready_frame_of_the_bundles_own_serve(tmp_path: Pa
     assert time_to_ready(Path(sys.executable), _fake_core(tmp_path, body), home, [], timeout=60) is not None
 
 
+# The serve driver names `hermes harness serve`, so the guard refuses it (L8.34); here it runs
+# under -I -S against _fake_core's stand-in hermes_cli, which boots nothing.
+@pytest.mark.live_system_guard_bypass
 def test_a_serve_that_never_reports_ready_reads_none(tmp_path: Path):
     body = "import json, sys\nprint(json.dumps({'event': 'starting'}), flush=True)\nsys.stdin.read()\n"
     home = tmp_path / "home"

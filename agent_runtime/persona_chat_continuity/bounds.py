@@ -21,15 +21,9 @@ logger = logging.getLogger(__name__)
 # from ``[^\s,;]+`` to ``\S+``, which only removes MORE of the offending run.
 _SECRET_RE = TEXT_SECRET_ASSIGNMENT_RE
 
-#: Operator-authored message slice, including plain user rows. This does not
-#: limit assistant/system content, tool results or tool-call arguments.
-_MAX_OPERATOR_MESSAGE_CONTENT = 20_000
-
 #: Total ceiling for ONE composed operator user row (message · skill_preload ·
-#: runtime_context). Deliberately much larger than :data:`_MAX_OPERATOR_MESSAGE_CONTENT`, and
-#: deliberately the ONLY ceiling on that row — the per-part limits below are
-#: priority slices of this one number, not independent budgets that could
-#: silently disagree with it.
+#: runtime_context). Runtime envelopes share the space left after the admitted operator text.
+#: The operator text is never truncated here; admission owns its limit.
 #:
 #: 262,144 characters is ~4.6x the largest real preload measured on this lane (qa's
 #: ``launcher-mcp-operations``, formerly ``launcher-stagec-mcp-screenshot``,
@@ -45,23 +39,16 @@ _MAX_USER_ROW_CONTENT = 262_144
 #: whose turns run long enough for a budget warning to matter.
 _MAX_RUNTIME_CONTEXT_CONTENT = 32_000
 
-#: Names of the three parts, for the typed bound notes below.
-BOUND_PART_MESSAGE = "message"
+#: Runtime-envelope parts that may produce typed bound notes.
 BOUND_PART_SKILL_PRELOAD = "skill_preload"
 BOUND_PART_RUNTIME_CONTEXT = "runtime_context"
-#: Historical free-text and tool-argument notes remain part of the receipt
-#: vocabulary. Current native projection redacts these fields without clipping.
-BOUND_PART_CONTENT = "content"
-BOUND_PART_TOOL_ARGUMENTS = "tool_arguments"
 
 #: The parts that make up a row's ``content``, and therefore the only ones whose
 #: losses belong in the content arithmetic.
 CONTENT_BOUND_PARTS = frozenset(
     {
-        BOUND_PART_MESSAGE,
         BOUND_PART_SKILL_PRELOAD,
         BOUND_PART_RUNTIME_CONTEXT,
-        BOUND_PART_CONTENT,
     }
 )
 
@@ -218,12 +205,11 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
 
     1. the runtime-context (HUD) envelope — smallest, load-bearing, must always
        arrive;
-    2. the operator's own text — never cut without the explicit in-band marker;
+    2. the operator's own text — reserved intact before envelope allocation;
     3. the skill preload — largest and the only part with its own re-delivery
        machinery, so it absorbs whatever room is left.
 
-    A row carrying neither envelope is bounded exactly as before (:data:`_MAX_OPERATOR_MESSAGE_CONTENT`
-    on the whole thing), so nothing outside the mission-chat composition changes.
+    Plain native user rows retain their full text, including historical rows.
     """
 
     # Function-local by the same precedent ``prompt_observability`` documents:
@@ -240,25 +226,11 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     text = _redacted(value)
     parts = split_composed_user_row(text)
     if not parts.has_envelope:
-        bounded = _truncate(text, _MAX_OPERATOR_MESSAGE_CONTENT)
-        if bounded == text:
-            return BoundedUserContent(text=text, source_chars=len(text))
-        return BoundedUserContent(
-            text=bounded,
-            notes=(
-                ContentBoundNote(
-                    part=BOUND_PART_MESSAGE,
-                    action=BOUND_ACTION_TRUNCATED,
-                    original_chars=len(text),
-                    bounded_chars=len(bounded),
-                    limit=_MAX_OPERATOR_MESSAGE_CONTENT,
-                ),
-            ),
-            source_chars=len(text),
-        )
+        return BoundedUserContent(text=text, source_chars=len(text))
 
     notes: list[ContentBoundNote] = []
-    remaining = _MAX_USER_ROW_CONTENT
+    message = parts.message
+    remaining = max(0, _MAX_USER_ROW_CONTENT - len(message))
 
     hud, note = _bound_envelope(
         parts.runtime_context,
@@ -269,19 +241,6 @@ def bound_composed_user_content(value: Any) -> BoundedUserContent:
     if note is not None:
         notes.append(note)
     remaining -= len(hud)
-
-    message = _truncate(parts.message, min(_MAX_OPERATOR_MESSAGE_CONTENT, remaining))
-    if len(message) != len(parts.message):
-        notes.append(
-            ContentBoundNote(
-                part=BOUND_PART_MESSAGE,
-                action=BOUND_ACTION_TRUNCATED,
-                original_chars=len(parts.message),
-                bounded_chars=len(message),
-                limit=min(_MAX_OPERATOR_MESSAGE_CONTENT, remaining),
-            )
-        )
-    remaining -= len(message)
 
     preload, note = _bound_envelope(
         parts.skill_preload,

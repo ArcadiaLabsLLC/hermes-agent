@@ -1,7 +1,9 @@
-"""Provider-only resource access, supplied by the active profile's plugins.
+"""Provider-only resource access, supplied by whatever is registered.
 
-This boundary selects resources, not models or credentials. Native readers,
-refresh locks and writers remain authoritative. No extension means no override.
+Plugins register when they load; this port never loads them. A bound provider
+home registers the harness's access on first read. This boundary selects
+resources, not models or credentials. Native readers, refresh locks and writers
+remain authoritative. No extension means no override.
 """
 from __future__ import annotations
 
@@ -41,11 +43,24 @@ _registry = ProviderRegistry[ProviderAccess](
 _registry.export(globals())
 
 
-def current_access() -> ProviderAccess | None:
-    from hermes_cli.plugins import discover_plugins
+def _bound_access() -> list[ProviderAccess]:
+    return [access for access in _registry.list_providers() if access.is_bound()]
 
-    discover_plugins()
-    bound = [access for access in _registry.list_providers() if access.is_bound()]
+
+def current_access() -> ProviderAccess | None:
+    # Never runs plugin discovery: that cost (650-900 ms at v0.21.6's 53 plugins) and its
+    # side effects (loader threads, plugin-time writes) sat on the first credential read
+    # of every process. A process whose provider home is bound registers the harness's
+    # access itself; an unbound process has no authority to find.
+    bound = _bound_access()
+    if not bound:
+        from agent_runtime.profile_home import get_hermes_auth_home
+
+        if get_hermes_auth_home():
+            from agent_runtime.provider_access import ensure_shared_provider_access_registered
+
+            if ensure_shared_provider_access_registered():
+                bound = _bound_access()
     if len(bound) > 1:
         raise RuntimeError("More than one provider authority is bound to this profile")
     return bound[0] if bound else None

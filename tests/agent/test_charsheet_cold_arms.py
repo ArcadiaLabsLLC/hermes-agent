@@ -211,3 +211,60 @@ def test_an_atomic_write_that_fails_leaves_no_temp_file(tmp_path, monkeypatch, w
     with pytest.raises(OSError, match="replace failed"):
         write(tmp_path / "out" / "f.json")
     assert list((tmp_path / "out").iterdir()) == []
+
+
+# ── the charsheet's last unreached arms (unreachable_branch_report, 2026-10-02) ──
+
+from PIL import Image  # noqa: E402
+
+from agent.charsheet import fake_draftsman, pipeline, prompts  # noqa: E402
+from agent.charsheet.fake_draftsman import DraftsmanCannotRead, slots_for  # noqa: E402
+from agent.charsheet.frame_bounds import frame_x_bounds  # noqa: E402
+
+
+@pytest.mark.parametrize("frame_count", [0, -1, True, 2.0, "3"])
+def test_frame_bounds_refuses_a_frame_count_that_is_not_a_positive_int(frame_count):
+    with pytest.raises(ValueError, match="frame_count must be an integer >= 1"):
+        frame_x_bounds(Image.new("RGBA", (40, 10)), frame_count)
+
+
+def test_a_single_frame_row_is_the_whole_strip_untrimmed():
+    strip = Image.new("RGBA", (40, 10), (255, 0, 255, 255))
+    strip.paste((0, 0, 0, 255), (15, 2, 25, 8))
+    assert frame_x_bounds(strip, 1) == [(0, 40)]
+
+
+def _turnaround(directions=("s", "e", "n", "w")) -> str:
+    return prompts.build_turnaround_prompt("an arrow knight", tuple(directions))
+
+
+def test_a_turnaround_whose_slot_list_disagrees_with_its_layout_is_refused():
+    prompt = _turnaround()
+    first = next(line for line in prompt.splitlines() if " Pose 1 (leftmost is pose 1), direction " in line)
+    with pytest.raises(DraftsmanCannotRead, match="names 3 slots in its list and 4 in its LAYOUT line"):
+        slots_for(prompt.replace(first + "\n", "", 1), pipeline.PREFIX_TURNAROUND)
+
+
+def test_a_view_prefix_naming_an_unknown_direction_is_refused():
+    with pytest.raises(DraftsmanCannotRead, match="unknown direction 'zz'"):
+        slots_for(prompts.build_direction_view_prompt("an arrow knight", "n"), pipeline.view_prefix("zz"))
+
+
+def test_a_row_prompt_facing_an_unknown_direction_is_refused():
+    prompt = prompts.build_directional_row_prompt("walk", "e", 3, "an arrow knight")
+    assert "This is the E facing" in prompt
+    with pytest.raises(DraftsmanCannotRead, match="unknown direction 'q'"):
+        slots_for(prompt.replace("This is the E facing", "This is the Q facing"), pipeline.row_prefix("walk-e"))
+
+
+def test_the_scratch_directory_falls_back_to_a_process_temp_when_the_home_cannot_hold_it(monkeypatch, tmp_path):
+    import hermes_constants
+
+    def unreadable_home():
+        raise OSError("no home")
+
+    monkeypatch.setattr(fake_draftsman, "_OUT_DIR", None)
+    monkeypatch.setattr(hermes_constants, "get_hermes_home", unreadable_home)
+    monkeypatch.setattr(fake_draftsman.tempfile, "tempdir", str(tmp_path))
+    out = fake_draftsman._out_dir()
+    assert out.parent == tmp_path and out.name.startswith("hermes-fake-draftsman-")

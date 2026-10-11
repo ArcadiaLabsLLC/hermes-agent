@@ -33,6 +33,7 @@ from hermes_cli.harness_parts.serve.constants import (
 )
 from hermes_cli.harness_parts.serve.drain import _drain_deadline_seconds, _DrainState
 from hermes_cli.harness_parts.serve.manifest import _is_gateway, _pairing_block, ops_manifest
+from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
 __layer__ = "lanes"
 
@@ -366,6 +367,10 @@ class MessageHandling:
                 "bytes_discarded": stats.get("bytes_discarded"),
                 "buffer_limit": stats.get("frame_limit"),
                 "byte_limit": stats.get("byte_limit"),
+                # Present ONLY when the producer's exception declared them, so
+                # every other drop keeps its exact byte shape (settle-push
+                # contract, 2026-10-10).
+                **(stats.get("drop_refusal") or {}),
             },
         )
         self._release_subscription(connection)
@@ -1165,6 +1170,7 @@ OP_HANDLERS: Final[Mapping[str, Callable[..., str | None]]] = MappingProxyType(
         "drain_if_idle": MessageHandling._op_drain_if_idle,
         "hello": MessageHandling._op_hello,
         "ping": MessageHandling._op_ping,
+        "settle_ack": SettlePush._op_settle_ack,
         "shutdown": MessageHandling._op_shutdown,
         "stacks": MessageHandling._op_stacks,
         "subscribe": MessageHandling._op_subscribe,

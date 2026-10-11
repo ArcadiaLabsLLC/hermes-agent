@@ -13,6 +13,8 @@ import uuid
 from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
 
+from agent_runtime import process_index
+
 from .model import ConversationError, Refusal
 
 __layer__ = "lanes"
@@ -130,6 +132,9 @@ class NativePeer(PeerCore):
         self.process = process
         self.containment = containment
         self.launcher_identity = (process.pid, psutil.Process(process.pid).create_time())
+        # A hard serve exit can leave the worker tree running: the Launcher's
+        # sweep must name it (D1.09). Forgotten in ``_dispose``.
+        process_index.record_child(process.pid)
         self._worker_identity: tuple[int, float] | None = None
         self._worker_purpose = worker_purpose
         self._close_lock = threading.Lock()
@@ -158,6 +163,7 @@ class NativePeer(PeerCore):
             from hermes_cli.process_identity import register_child
 
             register_child(pid, purpose)
+        process_index.record_child(pid)
         self._worker_identity = identity
         _log.info("native_worker execution_pid=%s launcher_pid=%s owned_processes=%s rss_bytes=%s tree_status=%s",
                   pid, self.launcher_identity[0], len(tree.identities), tree.rss_bytes, tree.status.value)
@@ -222,6 +228,8 @@ class NativePeer(PeerCore):
         finally:
             if self.containment is not None:
                 self.containment.close()
+            for pid in {self.process.pid, *(() if self._worker_identity is None else (self._worker_identity[0],))}:
+                process_index.forget_child(pid)
         closer.join(timeout=1)
         if threading.current_thread() is not self._reader:
             self._reader.join(timeout=2)

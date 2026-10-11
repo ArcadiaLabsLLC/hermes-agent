@@ -24,7 +24,7 @@ from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..serde import safe_assignment_text, safe_assignment_token
 
-from .vocabulary import _TERMINAL_TURN_MARKER_PRESENTATION, _safe_conversation_text
+from .vocabulary import _TERMINAL_TURN_MARKER_PRESENTATION
 
 __layer__ = "policy"
 
@@ -166,19 +166,25 @@ class HistoryMessage:
             return marker
         shape = history_row_shape(self.row, self.role, self.persona_id, self.persona_instance_id)
         message = self.message(shape)
+        for key in ("content_ref", "text_truncated", "text_total_chars"):
+            if key in self.row:
+                message[key] = self.row[key]
         self.annotate(message, shape)
         return message
 
     def gates(self) -> bool:
-        text = _safe_conversation_text(self.row.get("text"), limit=20000)
-        if not text:
+        # Curation owns display redaction and explicit preview windows. Another
+        # sanitizer here would change whitespace and detach the preview from its
+        # content revision. This adapter only shapes already-curated history.
+        text = self.row.get("text")
+        if not isinstance(text, str) or not text.strip():
             return False
         # The wire roles map through the ONE table (``persona_chat_history``'s
         # ``WIRE_ROLES``); a role it does not know renders as a system message.
         wire_role = safe_assignment_token(self.row.get("role")) or SYSTEM
         self.role = str(MessageRole.from_wire(wire_role) or MessageRole.SYSTEM)
         self.redaction_status = safe_assignment_token(self.row.get("redaction_status")) or "safe"
-        self.text = HIDDEN_TEXT if self.redaction_status in HIDDEN_REDACTION_STATUSES else text
+        self.text = HIDDEN_TEXT if self.redaction_status == "unsafe" else text
         return True
 
     def _base(self) -> dict[str, Any]:
@@ -229,6 +235,7 @@ class HistoryMessage:
             message["turn_id"] = turn_id
         _carry_turn_seq(message, self.row)
         _carry_history_run_budget(message, self.row)
+        _carry_retry_lineage(message, self.row)
         return message
 
     def message(self, shape: RowShape) -> dict[str, Any]:
@@ -268,6 +275,7 @@ class HistoryMessage:
         # contract unchanged so every representation sorts on the same key.
         _carry_turn_seq(message, row)
         _carry_history_run_budget(message, row)
+        _carry_retry_lineage(message, row)
 
     def _turn_identity(self, message: dict[str, Any]) -> None:
         if not self.client_message_id:
@@ -309,6 +317,15 @@ def _carry_turn_seq(message: dict[str, Any], row: dict[str, Any]) -> None:
     turn_seq = row.get("turn_seq")
     if isinstance(turn_seq, int) and not isinstance(turn_seq, bool):
         message["turn_seq"] = turn_seq
+
+
+def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
+    # D2.04: ``retry_of`` on a retry's operator row, ``retried_as`` on the marker
+    # of the turn it re-ran. Absent stays absent.
+    for key in ("retry_of", "retried_as"):
+        value = safe_assignment_text(row.get(key), limit=240)
+        if value:
+            message[key] = value
 
 
 def _carry_history_run_budget(message: dict[str, Any], row: dict[str, Any]) -> None:

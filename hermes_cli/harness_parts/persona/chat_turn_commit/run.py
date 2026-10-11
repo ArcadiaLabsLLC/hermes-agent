@@ -57,7 +57,6 @@ from ..chat_admission import (
 )
 from ..chat_events import _ChatProtocolV2Emitter
 from ..chat_history_writes import (
-    PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT,
     _mirror_persona_chat_message,
     _persona_chat_fault_injection,
     _redact_persona_chat_text,
@@ -381,6 +380,7 @@ class _RunPhases:
             )
             return handle.close
         finally:
+            self.provider_request_started = True
             turn_phases.mark("provider_request_started")
 
     def _write_ahead(self) -> None:
@@ -415,6 +415,8 @@ class _RunPhases:
                 # turn that dies before the provider this is the ONLY phase
                 # block that ever lands, and its provider_* keys are absent.
                 MISSION_CHAT_TURN_PHASES_KEY: self.turn_phases.snapshot(),
+                # D2.04: stored once, here; every later persist merges it forward.
+                **({"retry_of": self.retry_of} if self.retry_of else {}),
             },
         )
         # C1h-bis: the turn's START, published the moment its row is real and
@@ -459,7 +461,7 @@ class _RunPhases:
             session_id=session_id,
             role="user",
             text=_redact_persona_chat_text(
-                self.message, limit=PERSONA_CHAT_OPERATOR_MESSAGE_LIMIT
+                self.message
             ),
             client_message_id=client_message_id,
             turn_id=stream_emitter.turn_id,
@@ -606,12 +608,9 @@ class _RunPhases:
                 agent_ready_callback=self._agent_ready_for_steer,
                 preloaded_skill_prompt=turn_context.skill_preload_prompt,
                 workspace_agents_content=turn_context.workspace_agents_content,
-                # The workspace POINTER (G6): the loaded AGENTS.md's own path, from
-                # the receipt the loader already produced. Only a file that actually
-                # LOADED points at a real workspace root — an invalid/missing/too
-                # large selection must not ground the turn somewhere it never read.
-                workspace_agents_path=turn_context.workspace_agents_path,
-                primary_slot_path=turn_context.primary_slot_path,
+                # Where the turn runs (G6), resolved ONCE by the turn context from the
+                # loaded AGENTS.md pointer and the primary slot (D1.12 S1).
+                workdir=turn_context.workdir,
                 slot_bindings=turn_context.slot_bindings,
                 situational_hud_content=self.situational_hud_content,
                 turn_id=safe_assignment_token(self.client_message_id),
@@ -714,6 +713,7 @@ class _RunPhases:
             model_selection=self.model_selection,
             turn_usage=turn_usage_from_result(chat_result),
             trace_events=self.trace_payloads,
+            persona=self.persona,
         )
         if turn_context.skills.missing:
             prompt_context["queued_skill_load_errors"] = [

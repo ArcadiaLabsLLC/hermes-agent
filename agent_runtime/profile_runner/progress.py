@@ -19,6 +19,7 @@ from agent_runtime.profile_runner.tool_payloads import (
     _tool_started_payload,
 )
 from agent_runtime.profile_runner.operator_redaction import _is_error_result
+from agent_runtime.thinking_echo import is_reply_echo
 
 __layer__ = "stores"
 
@@ -111,6 +112,8 @@ def _progress_adapter(
                 if join is not None:
                     join.hold(_safe_label(args[1]) if len(args) > 1 else None, kwargs)
                 return None
+            if event_type not in RUN_EVENTS and args and str(args[0]) == "reasoning.available" and is_reply_echo():
+                return None  # the reply relayed as thinking: no Thinking row that repeats the reply
             if join is not None and event_type == "run.tool.finished":
                 kwargs = {**join.claim(_safe_label(args[1]) if len(args) > 1 else None), **kwargs}
             payload = _progress_payload_from_callback(event_type, args, kwargs)

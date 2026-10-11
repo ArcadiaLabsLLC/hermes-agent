@@ -79,7 +79,7 @@ def test_the_verb_is_registered_allowlisted_and_declares_console():
     assert PEER_CHAT_EXECUTE_METHOD in PEER_METHOD_ALLOWLIST
 
 
-def test_the_peer_surface_is_exactly_six_verbs_wide():
+def test_the_peer_surface_is_exactly_seven_verbs_wide():
     """Widening is meant to be a visible line in a diff. This is the line that
     makes it visible in the SUITE — and it did: Stage P4's ``peer.media.get``
     reddened this file as well as ``test_peer_authorization``'s literal, which
@@ -101,6 +101,9 @@ def test_the_peer_surface_is_exactly_six_verbs_wide():
             # given the session id for. Neither enumerates.
             "peer.roster.list",
             "peer.thread.read",
+            # D1.07. The execute's Stop: it reaches only a turn the caller's
+            # own execute started (``test_peer_agent_chat_cancel.py``).
+            "peer.agent_chat.cancel",
         }
     )
     registry = serve_rpc.method_names()

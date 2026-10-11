@@ -17,7 +17,6 @@ __all__ = [
     "_OPERATOR_COMMAND_MAX",
     "_OPERATOR_OUTPUT_MAX_CHARS",
     "_OPERATOR_OUTPUT_MAX_LINES",
-    "_OPERATOR_PATH_SENSITIVE_MARKERS",
     "_OPERATOR_SECRET_MARKERS",
     "_OPERATOR_TARGET_MAX",
     "_OPERATOR_TARGET_PATH_KEYS",
@@ -31,7 +30,6 @@ __all__ = [
     "_attach_tool_io",
     "_is_error_result",
     "_line_has_secret",
-    "_operator_path_sensitive",
     "_patch_paths_from_invocation",
     "_render_kv_line_token",
     "_render_operator_kv_block",
@@ -110,9 +108,9 @@ def _safe_operator_command(invocation: Any) -> str | None:
     text = command.strip()
     if not text:
         return None
-    # Scrub a command that itself embeds a secret (e.g. `curl -H "authorization: …"`).
-    if _line_has_secret(text):
-        return "[command withheld — contained a secret]"
+    # Scrub the secret VALUE a command embeds (e.g. `curl -H "authorization: …"`),
+    # never the whole command for a word in it.
+    text = scrub_secret_values(text)
     if len(text) > _OPERATOR_COMMAND_MAX:
         text = f"{text[: _OPERATOR_COMMAND_MAX - 1]}…"
     return text
@@ -131,10 +129,7 @@ def _safe_operator_output(tool_name: str | None, result: Any) -> str | None:
     text = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return None
-    lines = [
-        "[redacted line — contained a secret]" if _line_has_secret(line) else line
-        for line in text.split("\n")
-    ]
+    lines = [scrub_secret_values(line) for line in text.split("\n")]
     truncated = False
     if len(lines) > _OPERATOR_OUTPUT_MAX_LINES:
         lines = lines[-_OPERATOR_OUTPUT_MAX_LINES :]
@@ -336,26 +331,15 @@ _PATCH_HEADER_RE = re.compile(
 # Bare-word markers for operator path/target scrubbing: stricter than
 # _OPERATOR_SECRET_MARKERS (bare "token", not just " token=") because a path
 # named private_token.dart must never surface, even relative.
-_OPERATOR_PATH_SENSITIVE_MARKERS = (
-    "secret", "token", "password", "passwd", "api_key", "apikey",
-    "authorization", "bearer", "credential", "cookie", "private_key", "sk-",
-)
-
-
 _ABSOLUTE_PATHISH_RE = re.compile(r"^([A-Za-z]:/|//|/|~)")
-
-
-def _operator_path_sensitive(text: str) -> bool:
-    lowered = text.lower()
-    return any(marker in lowered for marker in _OPERATOR_PATH_SENSITIVE_MARKERS)
 
 
 def _safe_operator_target(invocation: Any) -> str | None:
     """Operator-console label for what a read/search/list tool acted on.
 
     Operator-grade but path-disciplined: repo-relative paths surface verbatim;
-    absolute paths are trimmed to their trailing segments; anything carrying a
-    secret-looking token is dropped. Do NOT route into untrusted surfaces; the
+    absolute paths are trimmed to their trailing segments; a secret VALUE in
+    one is scrubbed (a secret WORD in a file name is not a secret). Do NOT route into untrusted surfaces; the
     Telegram-safe lane stays ``command_label``.
     """
 
@@ -363,8 +347,8 @@ def _safe_operator_target(invocation: Any) -> str | None:
         return None
 
     def _clean(value: Any) -> str | None:
-        text = " ".join(str(value).strip().split()).replace("\\", "/")
-        if not text or _line_has_secret(text) or _operator_path_sensitive(text):
+        text = scrub_secret_values(" ".join(str(value).strip().split()).replace("\\", "/"))
+        if not text:
             return None
         if _ABSOLUTE_PATHISH_RE.match(text):
             segments = [segment for segment in text.split("/") if segment]
@@ -425,8 +409,8 @@ def _patch_paths_from_invocation(invocation: Any) -> list[str]:
         raw = next((group for group in match.groups() if group), None)
         if not raw:
             continue
-        cleaned = raw.strip().replace("\\", "/")
-        if not cleaned or cleaned == "/dev/null" or _line_has_secret(cleaned):
+        cleaned = scrub_secret_values(raw.strip().replace("\\", "/"))
+        if not cleaned or cleaned == "/dev/null":
             continue
         if cleaned not in paths:
             paths.append(cleaned)
@@ -439,13 +423,13 @@ def _safe_operator_paths(values: list[Any]) -> list[str]:
     """Operator-grade changed-path list: RELATIVE paths only, bounded.
 
     Absolute paths never surface (machine-identifying); their basenames still
-    reach the operator through ``changed_files``. Secret-looking names drop.
+    reach the operator through ``changed_files``. Secret VALUES are scrubbed.
     """
 
     paths: list[str] = []
     for item in values:
-        text = " ".join(str(item or "").strip().split()).replace("\\", "/")
-        if not text or _line_has_secret(text) or _operator_path_sensitive(text):
+        text = scrub_secret_values(" ".join(str(item or "").strip().split()).replace("\\", "/"))
+        if not text:
             continue
         if _ABSOLUTE_PATHISH_RE.match(text):
             continue

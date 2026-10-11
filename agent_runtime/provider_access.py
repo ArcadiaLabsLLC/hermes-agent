@@ -23,3 +23,19 @@ class SharedProviderAccess(ProviderAccess):
 
     def configuration(self, profile: dict) -> dict:
         return provider_configuration(profile)
+
+
+def ensure_shared_provider_access_registered() -> bool:
+    """Register the harness's access in the global table unless an entry already answers.
+
+    The provider-access port never runs plugin discovery, so a bound read in a process
+    that has not loaded plugins yet registers the one authority this way. Idempotent;
+    the plugin's own scoped registration (``register()``) overlays it by the same name.
+    Returns whether it registered.
+    """
+    from agent.provider_access import get_provider, register_provider
+
+    if get_provider(SharedProviderAccess.name) is not None:
+        return False
+    register_provider(SharedProviderAccess())
+    return True

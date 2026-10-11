@@ -27,6 +27,7 @@
   "agent_runtime/_upstream_doors.py|gateway.session_context|_UNSET",
   "agent_runtime/_upstream_doors.py|gateway.status|_pid_exists",
   "agent_runtime/_upstream_doors.py|hermes_cli.doctor_report|_section",
+  "agent_runtime/_upstream_doors.py|hermes_cli.local_runtime.gguf|_read_part",
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_get_default_hermes_home",
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_get_profiles_root",
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_iter_named_profile_dirs",

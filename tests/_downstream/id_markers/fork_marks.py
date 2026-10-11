@@ -16,7 +16,6 @@ import pytest
 
 from tests._downstream.id_markers.reasons import (
     _CLAUDE_HOME_TMP,
-    _CONFIG_READ_THROUGH,
     _CREDENTIALS_FILE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
@@ -28,7 +27,7 @@ from tests._downstream.id_markers.reasons import (
     _NO_LIVE_GATEWAY,
     _NO_REAL_ORPHAN_REAP,
     _REAL_PAUSE,
-    _SCOPED_UNDO,
+    _STATE_DB_THROUGH_SCOPE,
     _STRIP_REAL_HOME_PATH,
     _UPSTREAM_WIRE_UNBRIEFED,
     _WIN,
@@ -96,6 +95,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/hermes_cli/test_local_runtime.py::test_idle_sweep_unloads_idle_models": (
         pytest.mark.timeout(90),
     ),
+    # Two fetches of https://127.0.0.1:9, each of which uv retries three times
+    # (~15 s apiece): 36.97 s green on pure tag v0.21.6 818c13be1d, 2026-10-10.
+    "tests/pm/test_plugin_survival_contract.py::"
+    "test_update_sync_retries_a_fetch_failure_once_before_disabling": (pytest.mark.timeout(90),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"
@@ -137,28 +140,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_spawn_detached_warns_and_marks_no_breakaway_fallback",
         )
     },
-    # Readers the fork moved to load_config_readonly; upstream patches load_config.
-    **{
-        node: (_CONFIG_READ_THROUGH,)
-        for node in (
-            "tests/tools/test_browser_console.py::TestBrowserVisionConfig",
-            "tests/tools/test_image_generation.py::TestModelResolution",
-            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
-            "test_supports_vision_override_bypasses_provider_allowlist",
-            "tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath::"
-            "test_text_mode_wins_over_supports_vision_override",
-            "tests/tools/test_vision_tools.py::TestHandleVisionAnalyze",
-            "tests/tools/test_vision_tools.py::TestVisionConfig",
-            "tests/tools/test_vision_tools.py::TestVisionCpuBurstCap",
-            # v0.21.6: MCP native image attach shares vision's fast-path gate.
-            "tests/tools/test_mcp_image_content.py::TestNativeImageAttach::"
-            "test_text_mode_an_undecodable_or_an_unshrinkable_image_keeps_the_string_result",
-        )
-    },
-    "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
-    "test_api_work_still_live_at_settle_exit_is_reinterrupted": (_SCOPED_UNDO,),
-    "tests/gateway/test_mirror.py::TestSessionsIndexProfileScoping::"
-    "test_fallback_follows_active_profile_home": (_SCOPED_UNDO,),
     # MCF-66: these files drive the real ~/.claude/.credentials.json
     # reader/writer; the fork opts them in AND points Path.home() at tmp_path.
     **{
@@ -175,30 +156,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     **{
         f"tests/agent/test_anthropic_keychain.py::{cls}": (_CREDENTIALS_FILE,)
         for cls in ("TestReadClaudeCodeCredentialsPriority", "TestReadClaudeCodeCredentialsDesync")
-    },
-    **{
-        node: (_SCOPED_UNDO,)
-        for node in (
-            "tests/hermes_cli/test_serve_runtime_inventory.py::"
-            "test_inventory_classifies_remote_desktop_ssh_serve_as_its_clients",
-            "tests/agent/test_anthropic_credential_persist_failure.py::"
-            "test_reauthentication_clears_the_persist_failure_quarantine",
-            "tests/agent/test_canon_args_memo_parity.py::TestComplexityProof::"
-            "test_json_loads_linear_not_quadratic",
-            "tests/cron/test_cron_profile_isolation.py::test_cron_storage_anchors_at_profile_home",
-            "tests/hermes_state/test_append_messages_batch.py::TestAppendMessagesBatch::"
-            "test_atomicity_all_or_nothing",
-            "tests/hermes_state/test_retired_wal_generation_capture.py::"
-            "test_close_refuses_to_settle_without_a_capture",
-            "tests/hermes_state/test_retired_wal_generation_capture.py::"
-            "test_failed_capture_still_pins_the_handle_and_surfaces_through_the_registry",
-            "tests/hermes_state/test_session_db_read_conn_pool.py::"
-            "test_permits_are_not_stranded_by_a_failed_open",
-            "tests/plugins/memory/test_holographic_store.py::TestConcurrency::"
-            "test_failed_write_does_not_pin_write_lock",
-            "tests/plugins/platforms/photon/test_sidecar_paths.py::"
-            "test_adapter_import_does_not_resolve_sidecar_dir",
-        )
     },
     "tests/agent/test_external_skills.py::TestGetAllSkillsDirs::test_local_always_first": (
         _fork_replaces(
@@ -227,14 +184,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         )
     },
     **{
-        node: (_CONFIG_READ_THROUGH,)
-        for node in (
-            "tests/plugins/dashboard_auth/test_nous_provider.py::TestConfigYamlSource",
-            "tests/plugins/dashboard_auth/test_nous_provider_downstream.py::TestConfigYamlSource",
-            "tests/plugins/dashboard_auth/test_self_hosted_provider.py::TestPluginRegister",
-        )
-    },
-    **{
         f"tests/test_live_system_guard.py::{test}": (
             _fork_replaces(
                 "_live_system_guard backend-spawn arm (tests/conftest.py)",
@@ -248,6 +197,13 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # An argless SessionDB() must resolve through the profile scope; the hermetic
+    # DEFAULT_DB_PATH pin (set only once hermes_state is imported) beat it whenever an
+    # earlier test in the process imported it (tests/_downstream/state_db_scope.py).
+    "tests/gateway/test_multiplex_residue_parity.py::"
+    "test_stale_served_turn_never_recreates_archived_profile": (_STATE_DB_THROUGH_SCOPE,),
+    "tests/gateway/test_multiplex_routing_authz.py::"
+    "test_completion_preflight_runs_in_target_profile_scope": (_STATE_DB_THROUGH_SCOPE,),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
@@ -319,41 +275,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
             "test_telegram_onboarding_apply_reports_restart_failure_after_save",
             "tests/hermes_cli/test_web_server.py::TestDesktopCronTicker::test_ticker_runs_when_desktop",
-        )
-    },
-    # h10b-fix (owner 2026-09-29, reviewed): the harness plugin's register() setdefault()s
-    # HERMES_KANBAN_CLAIM_TTL_SECONDS on the process's first (lazy) plugin discovery, which in a
-    # cron-only process is inside run_job. Kept: the process-wide TTL default is the harness's
-    # intent and the operator's value wins.
-    **{
-        f"tests/cron/test_cron_kanban_env_isolation.py::TestRunJobKanbanIsolation::{test}": (
-            _fork_replaces(
-                "eternia-harness default_kanban_claim_ttl (process env default at plugin register)",
-                "tests/cron/test_cron_kanban_env_isolation_downstream.py",
-            ),
-        )
-        for test in (
-            "test_environment_is_left_untouched",
-            "test_concurrent_jobs_do_not_corrupt_worker_identity",
-        )
-    },
-    # Upstream tests that call monkeypatch.undo() mid-body (see _SCOPED_UNDO).
-    **{
-        node: (_SCOPED_UNDO,)
-        for node in (
-            "tests/hermes_cli/test_kanban_worker_pid_fingerprint.py::"
-            "test_unverified_fingerprint_capture_never_authorizes_a_signal",
-            "tests/hermes_cli/test_macos_tcc_anchor.py::TestEnsureTccAnchor::"
-            "test_alias_failure_leaves_anchor_unmarked",
-            "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::test_failed_discovery_is_not_cached",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_swap_rolls_back_every_earlier_swap",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_file_swap_failure_restores_the_original_file",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_failed_staging_leaves_no_orphaned_copies",
-            "tests/hermes_cli/test_update_zip_two_phase.py::test_staging_restores_backup_when_dst_is_missing",
-            "tests/hermes_cli/test_update_zip_two_phase.py::"
-            "test_commit_failure_plus_discard_leaves_no_staging_litter",
-            "tests/agent/test_session_row_under_live_agent_persist.py::"
-            "test_flush_fails_closed_when_row_cannot_be_recreated",
         )
     },
 }

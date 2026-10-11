@@ -108,12 +108,28 @@ def test_the_manifest_agrees_with_the_live_registry():
     module whose import fails contributes nothing to the registry while remaining
     perfectly readable in the tree; the failure is reported, not accepted
     silently.
+
+    Run in a fresh interpreter: the process registry is global, and in a bundled
+    run the upstream tool-search files before this one leave ~585 test
+    registrations in it (``lean_catalog_tool_*``, ``mcp_x_*``), which this arm
+    would report as builtins the static reader never saw.
     """
 
-    from tools.registry import discover_builtin_tools, registry
-
-    discover_builtin_tools()
-    live = registry.get_tool_to_toolset_map()
+    program = (
+        "import json\n"
+        "from tools.registry import discover_builtin_tools, registry\n"
+        "discover_builtin_tools()\n"
+        "print('LIVE ' + json.dumps(registry.get_tool_to_toolset_map()))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    live = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("LIVE "))[5:])
     assert len(live) >= 40, "the registry did not populate; this arm proved nothing"
 
     manifest_tools = _committed()["tools"]

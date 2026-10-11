@@ -15,9 +15,7 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.serde import from_jsonable, to_jsonable
 from agent_runtime.states import WorkerSessionState
 from hermes_cli.harness_parts.persona import (
-    chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -287,9 +285,7 @@ def _run_steer(harness, capsys, args):
 def test_cli_steer_verbs_and_json_shape(monkeypatch, capsys):
     from hermes_cli import harness
 
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", _assignment_config)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)

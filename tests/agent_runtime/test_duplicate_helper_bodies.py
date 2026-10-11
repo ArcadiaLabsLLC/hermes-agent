@@ -68,6 +68,14 @@ from collections import defaultdict
 
 import pytest
 
+#: The two module-scoped walks are paid in the first test that reads each: the
+#: fork-wide one measured 10.1 s setup, the agent_runtime one 7.3 s, on a
+#: lightly loaded workstation (2026-10-10), and 24-44 s under bundled load
+#: (h-red-gates, 2026-10-07) - past ``addopts``' ``--timeout=30``, which then
+#: kills the gate with a hang trace instead of its verdict. The bound is a hang
+#: guard, not the gate: what it checks is unchanged.
+pytestmark = pytest.mark.timeout(180)
+
 HERMES_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PACKAGE = HERMES_ROOT / "agent_runtime"
 

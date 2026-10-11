@@ -42,17 +42,17 @@ class _NullCtx:
         return lambda *a, **k: None
 
 
-def test_register_defaults_the_kanban_claim_ttl_and_the_operator_env_wins(monkeypatch):
-    """Upstream's `HERMES_KANBAN_CLAIM_TTL_SECONDS` is the door (claims AND heartbeats)."""
-    from hermes_cli import kanban_db
+def test_register_writes_no_process_env(monkeypatch):
+    """Plugin code writes no process env (v0216 plan §2): discovery runs at unpredictable
+    points in any process, so a write here leaks into whatever process it lands in. The
+    defaults live in ``agent_runtime.process_env_defaults``, applied by process composers."""
+    import os
 
-    monkeypatch.delenv("HERMES_KANBAN_CLAIM_TTL_SECONDS", raising=False)
+    for key in ("HERMES_KANBAN_CLAIM_TTL_SECONDS", "HERMES_DISABLE_LAZY_INSTALLS"):
+        monkeypatch.delenv(key, raising=False)
+    before = dict(os.environ)
     _plugin().register(_NullCtx())
-    assert kanban_db._resolve_claim_ttl_seconds() == 45 * 60
-
-    monkeypatch.setenv("HERMES_KANBAN_CLAIM_TTL_SECONDS", "120")
-    _plugin().register(_NullCtx())
-    assert kanban_db._resolve_claim_ttl_seconds() == 120
+    assert dict(os.environ) == before
 
 
 def test_the_plugin_applies_it_through_tool_request_middleware(monkeypatch):

@@ -6,9 +6,10 @@ from types import SimpleNamespace
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
 from hermes_cli.harness_parts.serve.request_pool import TurnClaims
+from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
 
-class OperatorLane(MessageHandling, ArgvLanes):
+class OperatorLane(MessageHandling, ArgvLanes, SettlePush):
     def __init__(self, home, dispatch):
         self.serve_request_home = home
         self.dispatch = dispatch
@@ -17,9 +18,18 @@ class OperatorLane(MessageHandling, ArgvLanes):
         self.drain_state = None
         self.jobs, self.output = [], []
         self.frames = SimpleNamespace(emit=self.output.append)
-        self.stdout_proxy = self.stderr_proxy = SimpleNamespace(flush_request=lambda _: None)
+        # The serve's stdout proxy surface the lanes call (frames.py): the settle push
+        # (56fbb418de) captures a claimed turn's tail with begin_capture / end_capture.
+        self.stdout_proxy = self.stderr_proxy = SimpleNamespace(
+            flush_request=lambda _rid: None,
+            begin_capture=lambda _rid, **_kw: None,
+            end_capture=lambda _rid: [],
+        )
         self.pool = SimpleNamespace(submit=self.submit, submit_turn=self.submit)
         self.turn_claims = TurnClaims()
+        # SettlePush (56fbb418de) records each claimed turn's settle; no pusher thread here.
+        self.boot_id, self.service_log = "operator-lane-fixture", []
+        self._service_log = self.service_log.append
 
     def submit(self, function, *args):
         future = Future()

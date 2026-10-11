@@ -74,19 +74,20 @@ _JOURNAL_TEXT_FIELDS = {
     "provider_request_fingerprint": 128,
     "native_revision": 160,
     "native_assistant_message_id": 240,
-    "stored_reply": _MAX_TEXT,
     "projection_revision": 160,
     "resolution": 80,
     "resolution_actor": 160,
     "resolution_reason": 320,
     "resolved_at": 80,
-    "pending_user_message": 12000,
     # Wall-budget provenance. ``budget_trigger`` is the typed reason the
     # graceful checkpoint (or the last-resort hard wall) ended the turn;
     # ``budget_summary`` is the one-line window description an operator reads
     # without re-deriving the arithmetic.
     "budget_trigger": 80,
     "budget_summary": 400,
+    # D2.04: the client_message_id of the reply-less terminal turn this turn
+    # re-runs. Stored once, on the retry; the original record is never written.
+    "retry_of": 240,
 }
 
 
@@ -123,9 +124,11 @@ _JOURNAL_RUN_BUDGET_FIELD = RUN_BUDGET_ACCOUNTING_KEY
 #:
 #: STRICTLY BOUNDED, and enforced here rather than trusted from the caller: the
 #: runner's dict is an open namespace that also carries the run-budget block,
-#: MCP transport labels and compaction receipts. Only three shapes are admitted
-#: — ``*_ms`` durations, ``resident_actor_reused``, and ``resident_rebuild_*``
-#: — every value coerced to a non-negative int. No free text can reach the
+#: MCP transport labels and compaction receipts. Only these shapes are admitted
+#: — ``*_ms`` durations, the 0/1 flags in ``_PROFILE_TIMING_FLAG_KEYS``
+#: (``resident_actor_reused``; ``mcp_admission_reused``, D1.01: every admitted
+#: MCP server's resident registry scope was reused), ``resident_rebuild_*`` and
+#: the two Stage 6 families below — every value coerced to a non-negative int. No free text can reach the
 #: record through this key, by construction rather than by scrubbing.
 #:
 #: THE HANDLER CONTRIBUTES TOO, so this block is a SUPERSET of the runner's dict
@@ -142,7 +145,7 @@ TURN_PROFILE_TIMING_KEY = "profile_timing"
 #: corrupt row, not a slow one. Same reasoning as ``mission_chat_phases``.
 _PROFILE_TIMING_MAX_MS = 24 * 60 * 60 * 1000
 _PROFILE_TIMING_MAX_KEYS = 64
-_PROFILE_TIMING_FLAG_KEY = "resident_actor_reused"
+_PROFILE_TIMING_FLAG_KEYS = frozenset({"resident_actor_reused", "mcp_admission_reused"})
 _PROFILE_TIMING_REBUILD_PREFIX = "resident_rebuild_"
 
 #: chat-turn-prep Stage 6's two additional 0/1 shapes.
@@ -182,7 +185,7 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
         if key.endswith("_ms"):
             ceiling = _PROFILE_TIMING_MAX_MS
         elif (
-            key == _PROFILE_TIMING_FLAG_KEY
+            key in _PROFILE_TIMING_FLAG_KEYS
             or key.startswith(_PROFILE_TIMING_REBUILD_PREFIX)
             or key.startswith(_PROFILE_TIMING_BUNDLE_REBUILD_PREFIX)
             or key.endswith(_PROFILE_TIMING_CACHED_SUFFIX)
@@ -204,24 +207,6 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
         block[key] = coerced
     return block or None
 
-
-#: Text fields whose EMPTY value is a recorded fact rather than an absence.
-#:
-#: Everything else above is dropped when empty, which is right for an id or a
-#: fingerprint — there is no such thing as "the fingerprint was, meaningfully,
-#: nothing". ``stored_reply`` is the exception: "the turn replied with nothing"
-#: and "nobody recorded a reply here" are different facts about the turn, and
-#: collapsing them had a live consequence. The replay branch admits a settled
-#: turn on ``stored_reply is not None``, so a SILENT turn — model produced no
-#: content, `ok` true, empty reply — failed that guard, fell through to the
-#: live provider path and died there as ``chat_turn_not_submitted /
-#: rejected_stale_transition``. The delivery drain derives its
-#: ``client_message_id`` from the dispatch id precisely so a retry converges on
-#: one turn; for silent turns that convergence was broken.
-#:
-#: Same principle the run-budget block states directly above: absent stays
-#: absent, and recorded-empty stays recorded.
-_JOURNAL_EMPTY_PRESERVING_FIELDS = frozenset({"stored_reply"})
 
 #: The provider's own verdict on a turn it refused to run
 #: (``mission_chat_outcome.ProviderRefusal.as_dict``), carried onto the record
@@ -277,6 +262,11 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
     result: dict[str, Any] = {}
+    from ..persona_chat_continuity.bounds import _redacted
+    # Recorded empty replies stay distinct from replies that were never written.
+    for key in ("stored_reply", "pending_user_message"):
+        if isinstance(value.get(key), str):
+            result[key] = _redacted(value[key])
     from ..auxiliary_chat import safe_auxiliary_result
 
     auxiliary = safe_auxiliary_result(value.get("auxiliary_result"))
@@ -286,10 +276,6 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:
             result[key] = text
-        elif key in _JOURNAL_EMPTY_PRESERVING_FIELDS and value.get(key) is not None:
-            # An empty value that was WRITTEN is a fact, not an absence — the
-            # same distinction the run-budget block above is careful about.
-            result[key] = ""
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget
@@ -387,6 +373,7 @@ def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
     safe_files = [_safe_file_label(item) for item in files[:20]] if isinstance(files, list) else []
     fields: dict[str, Any] = {
         "name": safe_assignment_token(raw.get("name")) or "tool",
+        "tool_call_id": safe_assignment_text(raw.get("tool_call_id"), limit=240) or None,
         "args": safe_assignment_text(raw.get("args"), limit=800),
         "command": safe_assignment_text(raw.get("command"), limit=1000),
         "status": safe_assignment_token(raw.get("status")) or None,

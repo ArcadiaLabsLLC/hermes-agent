@@ -16,6 +16,10 @@ from pm.runtime import is_runtime, runtime_command, runtime_environment
 from pm.worker_operations import OPERATIONS
 
 
+# fork (L7.32): how long a worker that already returned its result may take to exit.
+_RESULT_EXIT_GRACE_SECONDS = 60
+
+
 def _missing_or_refuse(name):
     from pm.install import _refuse_lazy, is_installed, lazy_installs_allowed
     from pm.registry import walk
@@ -161,6 +165,12 @@ def _request(operation, arguments, *, callbacks=None, pause_event=None, project_
             if monitor is not None:
                 monitor.join()
             writer.close()
+            # fork (L7.32): the result is in; a worker whose EXIT is slow under load (5 s ran out
+            # 2026-10-09) must not fail a completed request. The 5 s wait below then returns at once.
+            try:
+                process.wait(timeout=_RESULT_EXIT_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                pass
             if process.wait(timeout=5):
                 raise InstallError("pm", "worker exited unsuccessfully")
             receipt.accept_worker_receipt(response.get("receipt"), update_id)

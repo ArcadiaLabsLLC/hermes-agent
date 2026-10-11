@@ -53,7 +53,7 @@ class _CountingSessionDB:
         self.tip_resolves += 1
         return TIP if root == ROOT else root
 
-    def get_messages_as_conversation(self, session_id, include_ancestors=False):
+    def get_messages_as_conversation(self, session_id, include_ancestors=False, repair_alternation=False):
         assert session_id == TIP and include_ancestors
         self.lineage_reads += 1
         return [dict(row) for row in self._history]

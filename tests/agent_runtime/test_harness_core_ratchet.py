@@ -58,7 +58,9 @@ DECLARED_TOOL_COUNT = 45
 # parameters whole: 13372 -> 10183.
 # Lane relay-detach (2026-10-08): ``agent_chat_send.wait`` rewritten to carry the
 # in-turn auto-detach rule in fewer words than it had: 10183 -> 10168 (-15).
-DECLARED_TOKEN_ESTIMATE = 10168
+# Upstream v0.21.6 (2026-10-09): ``terminal``'s ``heartbeat`` parameter gained
+# "Ignored on foreground commands.": 10168 -> 10176 (+8), all in ``terminal``.
+DECLARED_TOKEN_ESTIMATE = 10176
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

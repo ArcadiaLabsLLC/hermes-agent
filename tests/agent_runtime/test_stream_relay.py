@@ -206,3 +206,63 @@ def test_the_boot_sections_stay_inside_their_warm_budget(seeded_store):
     warm = _sections()
     for section in ("agents_readiness", "prompt_observability"):
         assert warm[section] <= _WARM_SECTION_BUDGET_MS, (section, warm[section], first[section])
+
+
+# ── the COLD-process budget (D1.05 CF-1..CF-3) ──────────────────────────────
+
+#: A NEW process over the same seed, with the derived frontmatter cache primed by
+#: an earlier one (CF-2), pays the two sections cold. Measured on this box when
+#: the gate landed (median of 3 idle child runs: agents_readiness 1,752 ms,
+#: prompt_observability 101 ms; see the CF-3 commit body); the budget is 2x.
+#: The timing is the regression budget; the COUNT is the killer: the fork's
+#: own manifest reads (``skill_resolution.py``) must all hit the primed
+#: cross-process tier (CF-2) through the one parser (CF-1). The upstream
+#: catalog walk's own parses (``skills_tool.py``) are the named residue.
+_COLD_SECTION_BUDGET_MS = {"agents_readiness": 3500, "prompt_observability": 200}
+
+_COLD_CHILD = """
+import json
+import os
+import sys
+from agent import skill_utils
+parses = {}
+real = skill_utils.parse_frontmatter
+def counting(content):
+    caller = os.path.basename(sys._getframe(1).f_code.co_filename)
+    parses[caller] = parses.get(caller, 0) + 1
+    return real(content)
+skill_utils.parse_frontmatter = counting
+from agent_runtime.snapshot import build_snapshot
+snapshot = build_snapshot()
+sections = dict((snapshot.get("parity") or {}).get("sections_ms") or {})
+print(json.dumps({"sections_ms": sections, "parses_by_caller": parses}))
+"""
+
+
+@pytest.mark.timeout(240)
+def test_a_new_process_pays_the_boot_sections_inside_their_cold_budget(seeded_store):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from agent_runtime import skill_resolution
+    from agent_runtime.snapshot import build_snapshot
+
+    build_snapshot()
+    assert skill_resolution.flush_skill_frontmatter_disk_cache() is True, "nothing primed the derived cache"
+    repo = Path(__file__).resolve().parents[2]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(repo), env.get("PYTHONPATH")]))
+    done = subprocess.run(
+        [sys.executable, "-c", _COLD_CHILD], cwd=str(repo), env=env,
+        capture_output=True, text=True, timeout=200,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    report = json.loads(done.stdout.strip().splitlines()[-1])
+    cold = report["sections_ms"]
+    print("cold child:", report["parses_by_caller"], {key: cold.get(key) for key in _COLD_SECTION_BUDGET_MS})
+    assert report["parses_by_caller"].get("skill_resolution.py", 0) == 0, report
+    for section, budget in _COLD_SECTION_BUDGET_MS.items():
+        assert section in cold, (section, cold)
+        assert cold[section] <= budget, (section, cold[section], budget, report)

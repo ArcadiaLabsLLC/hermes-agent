@@ -4,6 +4,7 @@ the frame writer, the per-line stdout/stderr proxy, the safe sink and the deferr
 
 from __future__ import annotations
 
+import collections
 import contextvars
 import io
 import json
@@ -251,15 +252,21 @@ class _LineFrameProxy(io.TextIOBase):
     def flush(self) -> None:  # pragma: no cover - io protocol
         return None
 
-    def begin_capture(self, rid: str | None) -> None:
-        """Start mirroring [rid]'s emitted lines for the poll response cache."""
+    def begin_capture(self, rid: str | None, *, keep_last: int | None = None) -> None:
+        """Start mirroring [rid]'s emitted lines for the poll response cache.
+
+        ``keep_last`` bounds the mirror to the trailing lines (the settle push
+        reads only a chat turn's last result line).
+        """
         with self._lock:
-            self._captures[self._slot(rid)] = []
+            self._captures[self._slot(rid)] = (
+                [] if keep_last is None else collections.deque(maxlen=keep_last)
+            )
 
     def end_capture(self, rid: str | None) -> list[str]:
         """Stop mirroring and return everything captured for [rid]."""
         with self._lock:
-            return self._captures.pop(self._slot(rid), [])
+            return list(self._captures.pop(self._slot(rid), []))
 
     def flush_request(self, rid: str | None) -> None:
         """Emit a request's unterminated tail (handler printed without a

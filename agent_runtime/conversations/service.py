@@ -44,9 +44,12 @@ class ConversationService:
         self._app_functions = AppFunctionPool()
 
     def capabilities(self) -> dict:
-        return {"version": 2, "install_id": self.install_id, "accepting": not self._draining,
+        from .prompt import files_capability
+
+        return {"version": 3, "install_id": self.install_id, "accepting": not self._draining,
                 "execution_identity_guard": True,
-                "images": True, "models": True, "skills": True, "launcher_app_functions": True,
+                "images": True, "files": files_capability(),
+                "models": True, "skills": True, "launcher_app_functions": True,
                 "independent_sessions": True, "disconnect_keeps_work": True}
 
     def open(self, scope: ConversationScope, *, key: str, cwd: str,
@@ -113,7 +116,7 @@ class ConversationService:
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from .prompt import submit, validate
 
-        validate(prompt)
+        files = validate(prompt)
         with self._session(scope, session_id) as live, live.operations:
             with self._lock:
                 self._admit()
@@ -132,7 +135,7 @@ class ConversationService:
                     self.store.settle(session_id, turn_id, TurnState.UNKNOWN)
                     raise exc
                 receipt = self.store.turn(live.route, turn_id)
-            return {"turn_id": turn_id, "state": receipt.state}
+            return {"turn_id": turn_id, "state": receipt.state, "files": files}
 
     def read(self, scope: ConversationScope, session_id: str, cursor: int,
              turn_id: str | None = None, *, epoch: str | None = None, offset: int = 0) -> dict:

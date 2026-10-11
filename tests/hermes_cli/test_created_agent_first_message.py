@@ -32,9 +32,7 @@ import pytest
 from agent_runtime.mission_chat_outcome import ChatErrorKind
 from tests.agent_runtime.office_seed import seed_workspace_record
 from hermes_cli.harness_parts.persona import (
-    chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -102,13 +100,7 @@ def harness_with_stub_provider(monkeypatch):
             raise _ProviderReached("admission reached the provider")
 
     monkeypatch.setattr(
-        chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
-    )
-    monkeypatch.setattr(
         chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
-    )
-    monkeypatch.setattr(
-        chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
     )
     monkeypatch.setattr(
         chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig()
@@ -289,27 +281,3 @@ def test_the_turns_context_record_names_the_agents_workspace_not_the_clients(
     # Control: the two workspaces really are different, so "the agent's own" is
     # not satisfied by the client's value happening to match.
     assert (shown.id, shown.name) != (WORKSPACE, placed_name)
-    # The hints are retired, not read: nothing reports a claim the verb no longer takes.
-    assert "client_workspace_claim_differs" not in caplog.text
-
-
-def test_a_client_that_names_the_turns_own_workspace_is_not_reported(
-    qa_persona, harness_with_stub_provider, capsys, caplog
-):
-    """The control for the report above: same turn, a claim that is true."""
-
-    from agent_runtime.store import WorkspaceStore
-
-    created = _drag_in_an_agent("qa_agent_true_claim_agent_2")
-    args = _message_args(
-        instance_id=created["persona_instance_id"],
-        session_id=created["default_chat_session_id"],
-    )
-    args.workspace_id = WORKSPACE
-    args.workspace_name = WorkspaceStore().get(WORKSPACE).name
-    with caplog.at_level("INFO", logger=commit_run.logger.name):
-        chat_turn_message._cmd_mission_chat_message(args)
-    payload = json.loads(capsys.readouterr().out)
-
-    assert "admission reached the provider" in str(payload.get("blocker") or ""), payload
-    assert "client_workspace_claim_differs" not in caplog.text

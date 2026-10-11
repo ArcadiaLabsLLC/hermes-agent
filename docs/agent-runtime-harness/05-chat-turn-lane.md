@@ -15,8 +15,10 @@ sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handle
 history without applying a second size ceiling to tool results, assistant/system
 content or tool-call arguments. Upstream sizes results through its own three
 layers (tool caps, spillover, aggregate budgets) and owns context compression. The
-fork's operator-message and composed-user limits remain in
-`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`.
+fork's composed-envelope limits remain in
+`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`;
+the admitted operator message is preserved in full, with the remaining space
+shared by the runtime HUD and skill preload.
 
 `agent_runtime/native_persistence.py::project_native_message` feeds the live
 message and the SQLite row, so both must preserve the upstream-selected result
@@ -24,6 +26,81 @@ and canonical arguments. Spill paths retain upstream's cache lifecycle; they are
 not a durable recovery promise. The real flush/replay, spill, redaction and
 receipt controls live in `tests/agent_runtime/test_native_result_policy_downstream.py`.
 Launcher owns its generated reply-page target independently of these policies.
+
+Native projection preserves upstream message fields, durable identities and all
+valid tool calls. `persona_chat_continuity/content.py` redacts readable content
+without flattening native blocks or scanning opaque media/signatures as text.
+SQLite still uses upstream's durable multimodal projection; preserving a live
+image does not promise that its bytes survive a restart. The native history
+loader requests upstream's replay repair so compression markers survive cold
+reads. These guarantees are exercised through the actual loader and SQLite flush
+in `tests/agent_runtime/test_native_representation_downstream.py`.
+
+## Operator text and full transcript reads
+
+`agent_runtime/operator_message.py::normalize_operator_message` is the admission
+policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
+preserving whitespace. Oversize input receives a typed refusal before dispatch.
+`hermes_cli/harness_parts/persona/chat_history_writes.py::_redact_persona_chat_text`
+and `mission_chat_turns/records.py::_safe_journal_metadata` retain whole redacted
+operator/reply bodies, including recorded-empty replies. They do not introduce
+another post-admission slice. The real admission/handler proof is
+`tests/hermes_cli/test_chat_content_integrity.py`.
+
+`agent_runtime/persona_chat_history/text.py::message_preview` marks abbreviated
+history rows with `text_truncated`, `text_total_chars` and `content_ref`.
+`serve_rpc/chat_verbs.py` registers `runtime.persona.chat.content` on the existing
+Console tier. Its reader, `persona_chat_history/content.py::read_chat_content`,
+uses the existing scoped, read-only SessionDB door. A reference names a message
+or a real tool-call input/result; an offset selects at most 16,000 Unicode
+characters. Continuations require the returned content revision. Changed content,
+wrong ownership, hidden/missing rows and unavailable storage receive refusals.
+Display reads use upstream's compacted/ancestor history; model replay still uses
+upstream's separate replay policy. No new transcript store exists. Each window
+currently scans the session; the indexed-lookup improvement is in `runtime-queue`.
+Tests: `tests/agent_runtime/test_chat_content_read.py`.
+
+`runtime.persona.chat.history.search` (same file, same Console tier as the history read) searches one
+conversation's history without loading it: `persona_chat_history/search.py::persona_chat_session_search`
+scans the curated, un-truncated rows the history read pages (the whole compression lineage), so a hit
+never shows text that read hides. Every query term must occur in one message (case-folded substring,
+so CJK needs no tokenizer); hits come newest-first with a snippet and an `open_before` history cursor
+whose page ends at the hit. Upstream's FTS `search_messages` was not used: it reads raw rows and has no
+session filter (L5.05).
+
+The existing SQLite flush seam calls
+`agent_runtime/native_persistence.py::project_native_sidecar` after upstream has
+assembled `api_content`, including synthesized sidecars. New native writes use
+the same redaction policy as live/cold replay; non-native persistence and opaque
+reasoning fields remain upstream-owned. This does not rewrite historical rows.
+Controls: `tests/agent_runtime/test_native_representation_downstream.py`.
+
+### Native redaction boundary
+
+`persona_chat_continuity/wire.py::native_wire_row` owns native readable-content
+redaction for live messages and cold replay. It redacts `content` (text leaves
+and ordinary JSON credential values), `tool_calls[].function.arguments`, and
+metadata classified by `persona_chat_continuity/content.py::NATIVE_METADATA_REDACTORS`.
+That inventory is the authority for known metadata fields: readable strings
+are masked; provider carriers remain byte-exact, including signed thinking text
+paired with its signature. The upstream durable reasoning-field inventory is
+checked against it, so an upstream addition requires explicit classification.
+
+Unknown top-level extensions and extra tool-call/function metadata still pass
+through without a redaction guarantee. They remain live; only upstream's selected
+top-level fields and persisted nested structures reach SQLite. Opaque carriers
+can include readable text, so this boundary is not a guarantee that every secret
+is removed from provider state. Do not recursively scrub signed/encrypted/media
+payloads or drop unfamiliar provider keys. A newly introduced carrier needs a
+provider-aware review, not an inferred exemption for arbitrary readable text.
+
+The final native sidecar seam deduplicates only after redaction; upstream
+non-native writes and distinct API text remain unchanged. Display curation owns
+message redaction and preview slicing. The operator history adapter preserves
+that text and its content reference without another sanitizer or whitespace
+rewrite. Full reads use the same curation; tool reads retain native redaction.
+Missing or malformed continuation revisions are invalid requests before storage
+is opened; a valid but stale revision remains `content_changed`.
 
 ## Independent native conversations
 
@@ -121,8 +198,21 @@ that turn's `running` dispatches through `running_work.cancel_work` and answers
 operator started has no parent and is never reached. A dispatch cancels to the typed
 `cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
 identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
-replied when the kill lands → the reply is kept; supervised by another process →
-`not_owned_here`, a refusal rather than a pretend kill.
+replied when the kill lands → the reply is kept.
+
+**A cancel is a request to the supervisor** (D1.07, owner rulings 2026-10-10). A process that
+does not supervise a dispatch never kills by pid. On the same machine it writes the row's
+durable `cancel_requested` (`dispatch_store.request_dispatch_cancel`): a row whose child never
+started is settled `cancelled` at once; a running one answers `cancel_requested`, and the
+supervising serve's cancel watch (`tools/agent_chat_dispatch/cancel_watch.py`, one thread per
+process while anything is supervised, a 2 s poll) turns the mark into its own identity-guarded
+cancel. The supervisor also reads the mark before the spawn and after stamping the owner, so a
+cancel racing a spawn is caught by one side. A dispatch whose turn runs on a PAIRED install is
+asked of that install with `peer.agent_chat.cancel` ([03](03-transport-and-wire.md)) from
+whichever process holds the Stop, and answers its typed outcome (`stopping`,
+`already_finished`, `not_running`, `peer_unreachable`, `peer_refused`); a turn stopped there
+keeps the partial output it wrote. `not_owned_here` names only the case a process cannot route
+at all: the dispatch lane is not resident in it.
 
 **One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
 the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
@@ -404,8 +494,8 @@ Every consumer reads one answer, from `permission_options_for_chat` (`:285-301`)
 does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope family lives since lane L5):
 
 - `_blocked_tool_names_for_chat` returns `[]` outright (`:583-586`), so the pre-ruling
-  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py:129-138`: `delegate_task`, `clarify`, `memory`,
-  `send_message`, `cronjob`) does not apply to the default posture. Registry-hygiene names are still
+  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py::persona_blocked_tools`: `delegate_task`, `clarify`,
+  `memory`, `send_message`, `cronjob`, plus registry hygiene) does not apply to the default posture. Registry-hygiene names are still
   unioned at agent construction on every lane — hygiene is junk removal, not a permission tier
   (`:594-597`).
 - `_enabled_toolsets_for_chat` (`:684`) runs the DECLARATION (§4c) → chat capability augmentation →
@@ -622,6 +712,25 @@ chat mismatching on the one input the prewarm cannot reproduce. The wall half of
 hold there (`agent_ready − write_ahead` = 125 / 94 / 750 ms), so the residue costs a rebuild, not the
 old ~3 s construction (`planned/chat-turn-prep-cost.md` §4.2 Stage 2; re-armed 2026-09-07, whose §0.2 names the residue Stage 7 takes).
 
+### 4d. Repo-slot context reaches the prompt once (D1.12, 2026-10-11)
+
+The turn's workdir is resolved ONCE, in `build_mission_chat_turn_context` (its three inputs — the
+persona, the loaded `AGENTS.md` pointer, the primary slot's path — are first in hand there), and
+handed to `mission_chat_reply(workdir=)`; the reply resolves only for a caller that hands none.
+Under a slot assignment each assigned slot's `CLAUDE.md` / `AGENTS.md` loads as its own section
+(`agent_runtime/persona_slots.py::load_slot_context`). When the persona sets
+`include_core_context_files` AND the workdir is grounded, upstream's prompt builder also injects the
+cwd chain for that workdir, so `persona_slots.slot_context_for_prompt` drops every slot section whose
+content (BOM, newlines and outer whitespace normalised) the chain carries WHOLE — found through
+upstream's public `discover_context_files`, clean of the injection scan, inside the 20,000-char cap
+floor (per file and for the merged `AGENTS.md` chain). Every other section is kept: an
+`AGENTS.override.md` that replaced the slot's `AGENTS.md`, a non-primary slot, a config workdir
+elsewhere, an oversized or scan-blocked file. The workspace receipt carries
+`dedup = {"against": <cwd>, "dropped": [[slot, file], …]}`, and the prewarm builds its system message
+and receipt through the same `_turn_workspace`, so a warmed actor still matches its first turn.
+Measured on a one-slot persona carrying this repository's own `CLAUDE.md` + `AGENTS.md`: prompt
+59,503 → 34,669 chars, turn-context build median 4.6 → 9.5 ms (the discovery walk).
+
 ## 5. MCP admission — the profile declares the server
 
 `agent_runtime/mcp_admission.py` turns the lane's honest refusal into a per-run, per-persona
@@ -647,9 +756,14 @@ admission. The invariants it holds (`:19-63`):
    past `max_tool_calls_per_run` with `mcp_admission_budget_exhausted` (`:146`) — the CALL is
    refused, never the turn. Default 120, ~2× the heaviest honest Stage C drill (`:305`).
 
-`teardown_mcp_admission` (`:1593`) removes the run's registry scope at the end of every admitted run
-while the transport stays warm in `tools/mcp_tool._servers`; a teardown fault is a typed
-`mcp_admission_teardown_failed` row and never fails a finished turn. `read_only` admits from a
+Since D1.01 (owner ruling 2026-10-10) the admitted registry scope is RESIDENT
+(`mcp_admission/resident.py`): it lives while the server's transport session, its listed tools and
+the admitted config are unchanged, and isolation is `scope_toolsets_to_admission`. A run binds its
+`McpCallBudget` into the scope's slot; `release_mcp_admission` unbinds it at the end of every
+admitted run (a slot-less dispatch is refused), so `registry.generation` does not move and a reused
+actor's `get_tool_definitions` hits upstream's memo. The runner records
+`profile_timing.mcp_admission_reused` (1 = every admitted server's scope reused). A release fault
+is a typed `mcp_admission_teardown_failed` row and never fails a finished turn. `read_only` admits from a
 **positive** allowlist — the `reviewer` row of the launcher's own per-profile allowlist, pinned as a
 26-tool snapshot (`:190-258`) — so a tool the server grows later is denied by default rather than
 silently inherited; a server whose mutating tools cannot be named admits nothing

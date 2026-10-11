@@ -69,6 +69,24 @@ def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):  
     assert sorted([*receipt_names(receipt, "eager"), *receipt["bridge"]]) == sorted(shipped)
 
 
+def test_a_persona_with_no_defer_list_is_accounted_at_construction(harness_lane):  # noqa: F811
+    """Turn 1 of a prewarmed actor reads the receipt before any turn settle: construction
+    (which the prewarm pays, off the turn) leaves it, and the first settle keeps it."""
+
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer, settle_turn_tool_form
+    from agent_runtime.tool_surface import AGENT_SURFACE_ATTR
+
+    agent = harness_lane.build_agent()
+    shipped = [d["function"]["name"] for d in agent.tools]
+    assert apply_chat_lane_defer(agent, ()) is False
+    at_construction = getattr(agent, AGENT_SURFACE_ATTR, None)
+    assert at_construction is not None and at_construction.get("state") != "not_computed", at_construction
+    assert sorted([*receipt_names(at_construction, "eager"), *at_construction["bridge"]]) == sorted(shipped)
+    receipt = settle_turn_tool_form(agent, pin=False)
+    assert receipt is not None and receipt.source == "unchanged"
+    assert getattr(agent, AGENT_SURFACE_ATTR) == at_construction
+
+
 def test_a_shell_preview_without_the_live_mcp_list_agrees_with_the_factory(harness_lane, monkeypatch):  # noqa: F811
     """The live gap (2026-10-09): ``persona tool-diff neko_supervisor`` said eager 19 /
     ``toolsurf_927c...`` while the turn's prompt record said eager 22 / ``toolsurf_97fc...``: the

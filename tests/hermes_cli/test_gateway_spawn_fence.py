@@ -178,14 +178,17 @@ def test_no_argv_naming_the_real_store_gets_through(argv):
     [
         ["{root}/installs/abc/test-environment/gen-1/venv/Scripts/python.exe", "-c", "pass"],
         ["{root}/installs/abc/venv/bin/python3.12", "-m", "pytest", "-q"],
+        ["{root}/tools/node-26.7.0-win32-x64/node.EXE", "--input-type=module", "-e", "x", "C:/tmp/a"],
+        ["bash", "-lic", "set +m; '{root}/installs/abc/venv/Scripts/python.exe' -c 'pass' 'C:/tmp/a'"],
     ],
-    ids=["gate-venv-python-c", "install-python-m"],
+    ids=["gate-venv-python-c", "install-python-m", "provisioned-node", "bash-quoted-python"],
 )
 def test_an_interpreter_under_the_store_root_is_not_the_store(argv):
     """The gate venv lives under ``<root>/installs``; its interpreter is code, not state.
 
-    Killing mutation: drop the interpreter filter in ``classify`` and both ids red
-    with "REAL store" (the 2026-10-07 gate refused every ``sys.executable`` spawn).
+    Killing mutation: drop the interpreter filter in ``classify`` and every id reds
+    with "REAL store" (the 2026-10-07 gate refused every ``sys.executable`` spawn;
+    the v0.21.6 merge added the provisioned Node and the bash-quoted interpreter).
     """
     real_root = _gateway_fence.real_root()
     if real_root is None:
@@ -199,8 +202,10 @@ def test_an_interpreter_under_the_store_root_is_not_the_store(argv):
     [
         ["{root}/installs/abc/venv/Scripts/python.exe", "{root}/profiles/alice/x.py"],
         ["{root}/installs/abc/venv/Scripts/python.exe", "-m", "pip", "--prefix", "{root}/profiles/alice"],
+        ["{root}/tools/node/node.exe", "{root}/profiles/alice/x.js"],
+        ["bash", "-lic", "'{root}/installs/abc/venv/Scripts/python.exe' '{root}/profiles/alice/x.py'"],
     ],
-    ids=["interpreter-plus-store-script", "interpreter-plus-store-arg"],
+    ids=["interpreter-plus-store-script", "interpreter-plus-store-arg", "node-plus-store-script", "bash-quoted-plus-store-script"],
 )
 def test_an_interpreter_does_not_launder_an_argument_naming_the_store(argv):
     _assert_real_store_refusal(argv)

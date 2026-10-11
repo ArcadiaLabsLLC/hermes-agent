@@ -1,7 +1,9 @@
 # Planned — the cold first core build is still ~11s, and its cost is named
 
-**Status:** NOT IMPLEMENTED as a reduction. The MEASUREMENT is shipped and precise; no
-stage is currently aimed at the number.
+**Status:** direction (2) PARTLY BUILT — stages CF-1..CF-3 below (design sweep D1.05,
+lane build-1011-B2, 2026-10-10) cut the per-process frontmatter and probe cost; the live
+`generation=1 build_ms` gate below is OWED on an operator boot. The MEASUREMENT is shipped
+and precise.
 **Owning doc:** [`../04-boot-and-lifecycle.md`](../04-boot-and-lifecycle.md) Stage 7.
 
 **Scope boundary — read this first.** This plan is about the FIRST build in a process
@@ -90,3 +92,25 @@ the live log across at least three boots — not a synthetic benchmark, and not
 If direction (2) is taken, `sections_top=` must show the reduction in the section that
 was targeted. A total that fell while the targeted section did not is a measurement
 artifact of a warm machine, not a fix.
+
+## Stages CF-1..CF-3 (design sweep D1.05, owner-ruled 2026-10-10)
+
+Designed in [`design-sweep-d1-2026-10-10.md`](design-sweep-d1-2026-10-10.md) § D1.05, which
+holds the cost table, the measurements and the build record. Direction (2) was opened on
+the cold first build of every NEW process (each serve boot, each CLI child), not on boots
+the core cache could have served.
+
+- **CF-1 one parser — BUILT `defbee0ae6f`.** `skill_resolution._skill_root_registry`
+  reads manifests through `_cached_skill_frontmatter`; a cold build parses each manifest
+  once, not twice.
+- **CF-2 cross-process frontmatter cache — BUILT `e05a8524f4`.** `parse_cache.DiskTier`
+  at `<store_root>/derived_cache/skill_frontmatter.json`, validated per entry by the memo's
+  stamp, flushed on the idle keeper's tick; out of the core fingerprint and of realm sync.
+- **CF-3 build-scoped probe memo — BUILT `9dc0b2ad19`.** The Codex readiness probe is
+  answered once per auth-store revision per snapshot build. The kanban offer-time gate and
+  the upstream catalog walk's own frontmatter parse are upstream-owned residue (measured,
+  not built). Gate: `tests/agent_runtime/test_stream_relay.py` cold-child budget and
+  parse count.
+
+OWED: this file's own gate — `snapshot_build_core … generation=1 build_ms=` and
+`sections_top=` across three operator boots, before and after.

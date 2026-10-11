@@ -182,6 +182,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness stream](#hermes-harness-stream)
 - [hermes harness serve](#hermes-harness-serve)
 - [hermes harness serve connect](#hermes-harness-serve-connect)
+- [hermes harness serve settles](#hermes-harness-serve-settles)
+- [hermes harness serve settles rearm](#hermes-harness-serve-settles-rearm)
 - [hermes harness work](#hermes-harness-work)
 - [hermes harness work list](#hermes-harness-work-list)
 - [hermes harness work peek](#hermes-harness-work-peek)
@@ -3103,8 +3105,8 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--agents-file AGENTS_FILE] [--intent-hint INTENT_HINT]
                                            [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
-                                           [--idempotency-key IDEMPOTENCY_KEY] [--stream]
-                                           [--max-seconds MAX_SECONDS]
+                                           [--idempotency-key IDEMPOTENCY_KEY] [--retry-of RETRY_OF]
+                                           [--stream] [--max-seconds MAX_SECONDS]
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
                                            [--compression-protect-first-n COMPRESSION_PROTECT_FIRST_N]
                                            [--compression-protect-last-n COMPRESSION_PROTECT_LAST_N]
@@ -3139,6 +3141,9 @@ options:
   --requested-by REQUESTED_BY
   --client-message-id CLIENT_MESSAGE_ID
   --idempotency-key IDEMPOTENCY_KEY
+  --retry-of RETRY_OF   client_message_id of the interrupted or budget-exhausted turn of this chat
+                        that this send re-runs (recorded as the turn's lineage; any other target is
+                        refused chat_turn_retry_target_invalid)
   --stream              Emit operator-chat deltas and the final payload as NDJSON
   --max-seconds MAX_SECONDS
                         Wall budget for this turn (default:
@@ -3672,27 +3677,29 @@ options:
 
 ```text
 usage: hermes harness serve [-h] [--ndjson] [--no-socket] [--service] [--parent-pid PID]
-                            {connect} ...
+                            {connect,settles} ...
 
 positional arguments:
-  {connect}
-    connect         Connect to this root's live serve socket, perform the hello handshake, and print
-                    the reply as JSON
+  {connect,settles}
+    connect          Connect to this root's live serve socket, perform the hello handshake, and
+                     print the reply as JSON
+    settles          List the chat-turn settle outbox (pending / undelivered / acked); `rearm` re-
+                     sends an undelivered one
 
 options:
-  -h, --help        show this help message and exit
-  --ndjson          NDJSON frame transport over stdio (the only v1 transport)
-  --no-socket       Run stdio-only: do not race for the per-root socket ownership lock and do not
-                    listen (the ready frame reports socket.outcome=disabled)
-  --service         Run as a durable service: stdin EOF means the starter DETACHED, not stop. The
-                    runtime keeps serving both socket lanes and ends only on `serve connect
-                    --drain`, SIGTERM, or a stdio `shutdown` sent before EOF. A starter that loses
-                    the per-root ownership lock exits 0 naming the winner instead of becoming a
-                    second executor. Incompatible with --no-socket (a drain would have no lane to
-                    arrive on).
-  --parent-pid PID  The process that owns this runtime (a bundled Launcher passes its own pid). When
-                    it exits — a crash included — the runtime drains itself and exits; the sidecar
-                    reads `parent_exited`. Omitted: nothing is watched.
+  -h, --help         show this help message and exit
+  --ndjson           NDJSON frame transport over stdio (the only v1 transport)
+  --no-socket        Run stdio-only: do not race for the per-root socket ownership lock and do not
+                     listen (the ready frame reports socket.outcome=disabled)
+  --service          Run as a durable service: stdin EOF means the starter DETACHED, not stop. The
+                     runtime keeps serving both socket lanes and ends only on `serve connect
+                     --drain`, SIGTERM, or a stdio `shutdown` sent before EOF. A starter that loses
+                     the per-root ownership lock exits 0 naming the winner instead of becoming a
+                     second executor. Incompatible with --no-socket (a drain would have no lane to
+                     arrive on).
+  --parent-pid PID   The process that owns this runtime (a bundled Launcher passes its own pid).
+                     When it exits — a crash included — the runtime drains itself and exits; the
+                     sidecar reads `parent_exited`. Omitted: nothing is watched.
 ```
 
 ## hermes harness serve connect
@@ -3712,6 +3719,38 @@ options:
   --client CLIENT       Client name recorded on the connection and in the service's logs (default:
                         harness-serve-connect)
   --timeout TIMEOUT     Socket connect/read timeout in seconds
+```
+
+## hermes harness serve settles
+
+```text
+usage: hermes harness serve settles [-h] [--state {pending,undelivered,acked}] [--json] {rearm} ...
+
+positional arguments:
+  {rearm}
+    rearm               Re-arm an undelivered settle: back to pending with a fresh retry budget,
+                        pushed on the serve's next tick
+
+options:
+  -h, --help            show this help message and exit
+  --state {pending,undelivered,acked}
+                        Only rows in this state (counts always cover every state)
+  --json
+```
+
+## hermes harness serve settles rearm
+
+```text
+usage: hermes harness serve settles rearm [-h] [--session-id SESSION_ID] [--json] ref
+
+positional arguments:
+  ref                   A settle_id, or the turn's client_message_id (with --session-id)
+
+options:
+  -h, --help            show this help message and exit
+  --session-id SESSION_ID
+                        The chat session of a client_message_id ref
+  --json
 ```
 
 ## hermes harness work

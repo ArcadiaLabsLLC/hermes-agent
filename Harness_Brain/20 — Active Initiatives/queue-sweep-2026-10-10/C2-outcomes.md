@@ -1,0 +1,2 @@
+C2.01 = D1.12 = L3.17 · FIXED 32635b1eef defef38b24 a026409f19
+C2.02 = D2.07 = L1.25 · RETURNED design: the worker's create_agent never holds the route id (session.create/prompt.submit are extra="forbid" upstream contracts; the build is queued inside session.create, before _attach writes native_id), a factory-time resolve would freeze the mode for the agent's life, and AIAgent takes no blocked_tool_names (wire/call doors need a per-run bound_tool_block in the worker); redesign via worker_app_functions.bind/reset per turn recorded in design-sweep-d2 § D2.07 (a026409f19)

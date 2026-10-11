@@ -124,6 +124,7 @@ from agent_runtime.dispatch_store.models import (  # noqa: F401 — the package'
     _TABLE,
 )
 from agent_runtime.dispatch_store.db import (  # noqa: F401 — the package's export floor
+    cancel_requested_dispatches,
     dispatch_db_path,
     get_dispatch,
     list_dispatches,
@@ -159,6 +160,7 @@ from agent_runtime.dispatch_store.delivery import (  # noqa: F401 — the packag
     mark_delivered,
     rearm_delivery,
     release_delivery_claim,
+    request_dispatch_cancel,
     restore_undelivered_dispatches,
     set_dispatch_owner,
 )
@@ -180,6 +182,7 @@ __all__ = [
     "STATE_RUNNING",
     "STATE_UNKNOWN",
     "TERMINAL_STATES",
+    "cancel_requested_dispatches",
     "claim_delivery",
     "dispatch_db_path",
     "list_dispatches",
@@ -191,6 +194,7 @@ __all__ = [
     "record_dispatch",
     "remote_media_completions",
     "release_delivery_claim",
+    "request_dispatch_cancel",
     "restore_undelivered_dispatches",
     "running_dispatches",
     "running_dispatches_owned_by_turn",

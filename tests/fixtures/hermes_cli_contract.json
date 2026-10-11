@@ -5725,6 +5725,14 @@
           "required": false,
           "type": null
         },
+        "--retry-of": {
+          "action": "store",
+          "canonical": "--retry-of",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--session-id": {
           "action": "store",
           "canonical": "--session-id",
@@ -13099,7 +13107,8 @@
       ],
       "positionals": [],
       "subcommands": [
-        "connect"
+        "connect",
+        "settles"
       ]
     },
     "harness serve connect": {
@@ -13168,6 +13177,110 @@
         "connect"
       ],
       "positionals": [],
+      "subcommands": []
+    },
+    "harness serve settles": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--state": {
+          "action": "store",
+          "canonical": "--state",
+          "choices": [
+            "acked",
+            "pending",
+            "undelivered"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "serve",
+        "settles"
+      ],
+      "positionals": [],
+      "subcommands": [
+        "rearm"
+      ]
+    },
+    "harness serve settles rearm": {
+      "exclusive_groups": [],
+      "options": {
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--session-id": {
+          "action": "store",
+          "canonical": "--session-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "serve",
+        "settles",
+        "rearm"
+      ],
+      "positionals": [
+        {
+          "action": "store",
+          "choices": null,
+          "name": "ref",
+          "nargs": 1,
+          "required": true,
+          "type": null
+        }
+      ],
       "subcommands": []
     },
     "harness skills": {

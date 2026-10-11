@@ -88,6 +88,29 @@ def chat_turn_reservation_path(key_digest: str) -> Path:
     return chat_turn_reservations_dir() / f"{safe_path_token(key_digest)}.json"
 
 
+def chat_turn_settles_dir() -> Path:
+    """Settle-push records: one per settled chat turn, until the launcher acks it.
+
+    Not a turn-outcome authority (the journal is): a delivery outbox for the
+    serve's ``turn_settled`` push (``chat_turn_settles``).
+    """
+    return store_root() / "chat_turn_settles"
+
+
+def chat_turn_settle_path(settle_id: str) -> Path:
+    return chat_turn_settles_dir() / f"{safe_path_token(settle_id)}.json"
+
+
+def chat_root_send_queue_dir() -> Path:
+    """Operator sends accepted while their chat root was busy, waiting to run.
+
+    One sub-directory per chat root, one JSON entry per ``client_message_id``
+    (``chat_root_send_queue``). Not a turn-outcome authority (the journal is):
+    the entry is deleted once its turn has run and its settle is recorded.
+    """
+    return store_root() / "chat_root_send_queue"
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 
@@ -527,6 +550,21 @@ DELETED_ARCHIVE_DIRNAME = "deleted_archive"
 
 def deleted_archive_dir() -> Path:
     return store_root() / DELETED_ARCHIVE_DIRNAME
+
+
+#: Derived, machine-local caches that let a NEW process skip work an earlier
+#: process already did (D1.05 CF-2: ``skill_frontmatter.json``, the parsed
+#: SKILL.md frontmatter keyed by file signature). Beside the core cache
+#: (owner ruling 2026-10-10), and imported by name -- never re-typed -- by the
+#: two denylists that must agree with it: the core cache's store-root
+#: fingerprint (``core_cache._EXCLUDED_STORE_ENTRIES``; the idle flush would
+#: otherwise flip the key every boot) and realm sync's
+#: ``HARD_EXCLUDED_PATH_PARTS`` (a derived cache never travels).
+DERIVED_CACHE_DIRNAME = "derived_cache"
+
+
+def derived_cache_dir() -> Path:
+    return store_root() / DERIVED_CACHE_DIRNAME
 
 
 def prompt_observability_dir() -> Path:

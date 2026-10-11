@@ -113,7 +113,12 @@ def settle(m, request):
 
 
 def gguf(path, **extra):
-    fields = {"general.architecture": "qwen3", "general.name": "Test model", "qwen3.context_length": 8192, **extra}
+    return gguf_fields(path, {"general.architecture": "qwen3", "general.name": "Test model",
+                              "qwen3.context_length": 8192, **extra})
+
+
+def gguf_fields(path, fields):
+    """A GGUF carrying exactly ``fields`` (no tensors)."""
 
     def string(value):
         data = value.encode()
@@ -457,6 +462,19 @@ def test_a_split_model_needs_every_matching_shard(tmp_path):
     assert validate_model(first)["split.count"] == 2
     gguf(second, **{"split.count": 2, "split.no": 1, "general.name": "Different"})
     with pytest.raises(LocalLlamaError, match="same model"):
+        validate_model(first)
+
+
+def test_a_split_whose_later_parts_carry_only_split_keys_is_complete(tmp_path):
+    """gguf-split's real layout: the model's metadata lives in the first part only."""
+    first = gguf(tmp_path / "model-00001-of-00002.gguf", **{"split.count": 2, "split.no": 0})
+    second = gguf_fields(tmp_path / "model-00002-of-00002.gguf", {"split.count": 2, "split.no": 1})
+    assert validate_model(first)["split.count"] == 2
+    gguf_fields(second, {"split.count": 2, "split.no": 0})
+    with pytest.raises(LocalLlamaError, match="same model"):
+        validate_model(first)
+    second.write_bytes(b"GGUF")
+    with pytest.raises(LocalLlamaError, match="missing or unreadable"):
         validate_model(first)
 
 

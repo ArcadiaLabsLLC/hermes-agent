@@ -373,7 +373,6 @@ def _cmd_persona_permission_set(args) -> int:
 
 
 def _cmd_persona_assignments(args) -> int:
-    cfg = load_agent_runtime_config()
     store = PersonaAssignmentStore()
     if args.persona_id:
         assignments = store.list_for_persona(_normalize_cli_persona_id(args.persona_id))

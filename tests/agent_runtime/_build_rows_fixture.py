@@ -1,4 +1,5 @@
-"""The ONE seeded home behind ``tests/fixtures/builds/build_rows.json`` (build plan §1, row H4).
+"""The ONE seeded home behind ``tests/fixtures/builds/build_rows.json`` and ``build_registry_record_v1.json``
+(build plan §1, row H4; the record golden is the ``qb-live`` registry record as written to disk).
 
 The golden is WRITTEN by the producer from a seeded home, never typed:
 
@@ -23,6 +24,10 @@ from pathlib import Path
 from typing import Any, Iterator
 
 FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "builds" / "build_rows.json"
+#: The registry RECORD (schema_version 1) the ``qb-live`` seed writes, read back from disk: the
+#: launcher QA server mirrors it byte-identical instead of hand-typing one.
+RECORD_FIXTURE_PATH = FIXTURE_PATH.with_name("build_registry_record_v1.json")
+RECORD_JOB_ID = "qb-live"
 NOW = 1_759_590_720.0
 #: pid -> the identity verdict the stubbed probe answers.
 VERDICTS = {
@@ -253,6 +258,14 @@ def produce(root: Path) -> dict[str, Any]:
     return _redact(payload, root)
 
 
+def produce_record(root: Path) -> dict[str, Any]:
+    """The ``qb-live`` record exactly as the seeded registry holds it on disk, redacted."""
+
+    with _seeded(root):
+        stored = (root / "home" / "builds" / f"{RECORD_JOB_ID}.json").read_text(encoding="utf-8")
+    return _redact(json.loads(stored), root)
+
+
 def _source_variants(root: Path) -> dict[str, Any]:
     """``sources.build`` in the states one frame cannot show at once: each sub reason, named."""
 
@@ -314,14 +327,18 @@ def main(argv: list[str]) -> int:
             (Path(temp) / sub).mkdir()
             os.environ[name] = str(Path(temp) / sub)
         os.environ.pop("HERMES_HEAD_HOME", None)
-        live = render(produce(Path(temp) / "seed"))
+        goldens = {FIXTURE_PATH: render(produce(Path(temp) / "seed")),
+                   RECORD_FIXTURE_PATH: render(produce_record(Path(temp) / "record_seed"))}
     if argv[:1] == ["--write"]:
-        FIXTURE_PATH.write_text(live, encoding="utf-8", newline="\n")
-        print(f"wrote {FIXTURE_PATH.name}")
+        for path, live in goldens.items():
+            path.write_text(live, encoding="utf-8", newline="\n")
+            print(f"wrote {path.name}")
         return 0
-    same = FIXTURE_PATH.is_file() and FIXTURE_PATH.read_text(encoding="utf-8") == live
-    print("up to date" if same else "stale: run `python -m tests.agent_runtime._build_rows_fixture --write`")
-    return 0 if same else 1
+    stale = [path.name for path, live in goldens.items()
+             if not (path.is_file() and path.read_text(encoding="utf-8") == live)]
+    print("up to date" if not stale else
+          f"stale {', '.join(stale)}: run `python -m tests.agent_runtime._build_rows_fixture --write`")
+    return 0 if not stale else 1
 
 
 if __name__ == "__main__":

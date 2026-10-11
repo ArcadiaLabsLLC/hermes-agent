@@ -42,6 +42,9 @@ def test_discovered_access_is_profile_scoped_and_unloads(tmp_path, monkeypatch):
     for home in (homes[0], homes[1], homes[0]):
         token = set_hermes_home_override(home)
         try:
+            # The port never discovers (v0216 plan, Q1): a plugin's access exists once
+            # something has loaded that home's plugins.
+            get_plugin_manager().discover_and_load()
             profile = {"model": {"default": "local"}, "terminal": {"backend": "docker"}}
             projected = access.provider_configuration(profile)
             assert projected == {**profile, "providers": {"selected": home.name}}

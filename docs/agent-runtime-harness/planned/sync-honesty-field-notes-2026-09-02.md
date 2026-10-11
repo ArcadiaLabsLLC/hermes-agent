@@ -209,7 +209,8 @@ Two failures under `tests/honcho_plugin/` were checked against a pristine
 `plugins/memory/__init__.py` from `ca8eb228c9` and reproduce identically there —
 `test_oauth_flow.py::test_display_config_path_never_leaks_absolute_path`
 (asserts POSIX separators in a rendered path, on Windows) and
-`test_cli.py::test_local_setup_stores_jwt_under_host_block` (the setup wizard
+`test_cli.py::test_local_setup_stores_jwt_under_host_block` (both files since deleted
+upstream with the bundled honcho provider, `7e53b3ef82`; the setup wizard
 blocks on an
 interactive prompt and hits the 30 s per-test timeout). Pre-existing and
 platform-shaped; not touched.

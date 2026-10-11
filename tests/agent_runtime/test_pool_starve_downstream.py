@@ -109,7 +109,11 @@ def _peer_of(script: str) -> SnapshotPeer:
                          ids=["no_handshake", "idle_request"])
 def test_a_silent_cold_worker_falls_back_within_the_new_bound(monkeypatch, caplog, tmp_path, script, reason):
     caplog.set_level(logging.INFO)
-    monkeypatch.setattr(peer_mod, "HANDSHAKE_SECONDS", 1.0)
+    # The idle case must reach its handshake before it can be judged idle. A cold
+    # interpreter importing psutil took over 1 s under four concurrent copies and read
+    # "silent" (lane h-perf-guard, 2026-10-06), so only the silent case runs the 1 s
+    # handshake bound; the idle case's verdict still comes from IDLE_SECONDS.
+    monkeypatch.setattr(peer_mod, "HANDSHAKE_SECONDS", 1.0 if reason == "silent" else 8.0)
     monkeypatch.setattr(peer_mod, "IDLE_SECONDS", 1.0)
     peers: list[SnapshotPeer] = []
     binding = executor_mod.WorkerBinding(tmp_path, start=lambda home: peers.append(_peer_of(script)) or peers[-1],
@@ -186,8 +190,15 @@ def _session(dispatch, pool):
         pool=pool, turn_claims=TurnClaims(),
         frames=SimpleNamespace(emit=frames.append), dispatch=dispatch,
         serve_request_home=None, read_cache=None,
-        stdout_proxy=SimpleNamespace(flush_request=lambda rid: None),
+        stdout_proxy=SimpleNamespace(
+            flush_request=lambda rid: None,
+            begin_capture=lambda rid, keep_last=None: None,
+            end_capture=lambda rid: [],
+        ),
         stderr_proxy=SimpleNamespace(flush_request=lambda rid: None),
+        # The settle push records a chat turn's settle in ``_reply_exit``; this
+        # fake's subject is the pool, so the record is a no-op here.
+        _record_turn_settle=lambda request, lines, code: None,
         _owner_of=lambda connection: "stdio",
         _bind_launcher_link=lambda request, sink: None,
     )

@@ -59,6 +59,16 @@ HERMES_CONSOLE_SCRIPTS = frozenset({"hermes", "hermes-agent", "hermes-acp"})
 #: ``makeWrapper`` leaves behind in a nix store, and the nix path is a shipped
 #: deployment here (see ``pyproject.toml``'s uv2nix note), so dropping it is not
 #: hypothetical tidiness.
+#: The attribute hermes' OWN published launcher sets on ``sys`` before it imports
+#: anything from the checkout (``hermes_cli._launchers.PIN_DEFAULT_HOME_FLAG``;
+#: spelled here because this module is stdlib-only, pinned equal by
+#: ``tests/hermes_cli/test_cli_entrypoint_gate.py``). That launcher runs
+#: ``python -I -c <script>``, so ``argv[0]`` is ``"-c"`` when ``hermes_cli.main``
+#: is imported, and neither arm above could recognise it: ``hermes.cmd -p alice
+#: mcp list`` answered "'alice' is not a `hermes` command" (2026-10-02). ``-c``
+#: plus the mark is the positive answer — pytest sets neither.
+LAUNCHER_MARK = "_hermes_pin_default_home"
+
 _EXECUTABLE_SUFFIXES = (".exe", ".cmd", ".bat", ".pyw", ".pyc", ".py")
 
 
@@ -131,5 +141,7 @@ def is_hermes_cli_entrypoint(
         return True
     if argv0 is None:
         argv0 = sys.argv[0] if sys.argv else ""
+    if argv0 == "-c" and getattr(sys, LAUNCHER_MARK, False):
+        return True
     return entrypoint_name(argv0) in HERMES_CONSOLE_SCRIPTS
 

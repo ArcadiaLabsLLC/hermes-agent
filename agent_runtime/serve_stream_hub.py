@@ -135,6 +135,26 @@ DROP_REASON_BACKPRESSURE = "backpressure"
 DROP_REASON_PRODUCER_ENDED = "producer_ended"
 DROP_REASON_PRODUCER_ERROR = "producer_error"
 
+
+def _declared_refusal(exc: BaseException) -> dict[str, str] | None:
+    """The refusal class and ``fix_hint`` a producer's exception DECLARES, if any.
+
+    Read from the exception's own ``code`` / ``fix_hint`` attributes (the typed
+    ``AgentRuntimeError`` family and the ``{code, summary, fix_hint}`` issue
+    rows) — never from its message, which is free text. A bare exception
+    declares nothing, and its drop frame keeps its historical shape.
+    """
+
+    out: dict[str, str] = {}
+    for key, attr in (("refusal_class", "code"), ("fix_hint", "fix_hint")):
+        try:
+            value = getattr(exc, attr, None)
+        except Exception:  # pragma: no cover - a property may raise
+            value = None
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()[:2000]
+    return out or None
+
 #: Charged to a frame whose size could not be measured. Never zero: an
 #: unmeasurable frame that costs nothing is how a byte bound gets bypassed by
 #: the exact payloads it exists to bound.
@@ -183,6 +203,7 @@ class StreamSubscription:
         "_lock",
         "_drop_reason",
         "_drop_bound",
+        "_drop_refusal",
         "_closed",
         "_buffer_limit",
         "_byte_limit",
@@ -218,6 +239,9 @@ class StreamSubscription:
         self._drop_reason: str | None = None
         #: Which bound tripped (``frames`` / ``bytes``), or None.
         self._drop_bound: str | None = None
+        #: ``{"refusal_class", "fix_hint"}`` when the producer died of an
+        #: exception that DECLARES them; ``None`` for every other drop.
+        self._drop_refusal: dict[str, str] | None = None
         self._closed = False
         self._buffered_bytes = 0
         self.frames_offered = 0
@@ -265,7 +289,12 @@ class StreamSubscription:
             return False
 
     def mark_dropped(
-        self, reason: str, *, discard: bool = False, bound: str | None = None
+        self,
+        reason: str,
+        *,
+        discard: bool = False,
+        bound: str | None = None,
+        refusal: dict[str, str] | None = None,
     ) -> None:
         """Record the drop and wake the pump to deliver the notification.
 
@@ -285,6 +314,7 @@ class StreamSubscription:
                 return
             self._drop_reason = str(reason)
             self._drop_bound = bound
+            self._drop_refusal = dict(refusal) if refusal else None
         discarded = 0
         discarded_bytes = 0
         if discard:
@@ -399,6 +429,7 @@ class StreamSubscription:
                 # WHICH bound tripped, and both of them, so a drop is a fact an
                 # operator can act on instead of an adjective.
                 "drop_bound": self._drop_bound,
+                "drop_refusal": dict(self._drop_refusal) if self._drop_refusal else None,
                 "buffered": self._queue.qsize(),
                 "buffered_bytes": self._buffered_bytes,
                 "frame_limit": self._buffer_limit,
@@ -778,7 +809,7 @@ class StreamHub:
             self._emit_log(
                 {"event": "serve_stream_producer_error", "reason": reason}
             )
-            self._fail_all(reason)
+            self._fail_all(reason, refusal=_declared_refusal(exc))
         finally:
             handle.state = "closing"
             if source is not None:
@@ -812,11 +843,11 @@ class StreamHub:
         with self._lock:
             return handle.generation != self._generation
 
-    def _fail_all(self, reason: str) -> None:
+    def _fail_all(self, reason: str, *, refusal: dict[str, str] | None = None) -> None:
         with self._lock:
             subscriptions = list(self._subscriptions.values())
         for subscription in subscriptions:
-            subscription.mark_dropped(reason)
+            subscription.mark_dropped(reason, refusal=refusal)
 
     def _emit_log(self, payload: dict[str, Any]) -> None:
         if self._log is None:

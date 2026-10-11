@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["HISTORY_PAGE_MAX", "clamp_history_limit", "persona_chat_history_page"]
+__all__ = ["HISTORY_PAGE_MAX", "clamp_history_limit", "persona_chat_history_page", "persona_chat_history_search"]
 
 #: The page ceiling both doors clamp to (the argv verb's ``--limit`` help).
 HISTORY_PAGE_MAX = 40
@@ -35,5 +35,17 @@ def persona_chat_history_page(session_id: str, *, limit: Any = HISTORY_PAGE_MAX,
 
     return attach_root_observability(
         persona_chat_session_messages(session_id=session_id, limit=clamp_history_limit(limit), before=before),
+        chat_scope=True,
+    )
+
+
+def persona_chat_history_search(session_id: str, query: str, *, limit: Any = None, before: str | None = None) -> dict:
+    """One page of hits in this conversation's history, each openable by the page read above
+    (:mod:`agent_runtime.persona_chat_history.search`); the same ``chat_scope`` stamp."""
+    from ..persona_chat_history.search import persona_chat_session_search
+    from ..root_observability import attach_root_observability
+
+    return attach_root_observability(
+        persona_chat_session_search(session_id=session_id, query=query, limit=limit, before=before),
         chat_scope=True,
     )

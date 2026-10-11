@@ -13,15 +13,12 @@ import pytest
 from agent_runtime.persona_chat_continuity import (
     BOUND_ACTION_DROPPED,
     BOUND_ACTION_TRUNCATED,
-    BOUND_PART_CONTENT,
     BOUND_PART_SKILL_PRELOAD,
-    BOUND_PART_TOOL_ARGUMENTS,
     CONTENT_BOUND_PARTS,
     WIRE_BOUNDARY,
     ContentBoundNote,
     WireBoundaryRow,
     native_wire_row,
-    record_wire_boundary_cut,
     record_wire_boundary_drift,
     safe_native_message,
 )
@@ -141,40 +138,9 @@ def test_tool_call_arguments_arrive_whole_without_bound_notes():
 
     assert bound.row["tool_calls"][0]["function"]["arguments"] == arguments
     assert bound.notes == ()
-    assert bound.argument_loss == 0
     assert bound.holds
 
 
-def test_argument_loss_cannot_cancel_a_content_residue():
-    """Argument loss is REPORTED, never netted into the content arithmetic.
-
-    Summing both into ``accounted_loss`` would let a truncated argument blob
-    cancel out a real content residue and drive ``unaccounted_loss`` to zero —
-    a check that hides exactly what it exists to find. Asserted on a
-    hand-built row so the two quantities can be forced apart.
-    """
-
-    row = WireBoundaryRow(
-        row={"role": "assistant", "content": "..."},
-        notes=(
-            # An argument bound big enough to swallow the content residue below.
-            ContentBoundNote(
-                part=BOUND_PART_TOOL_ARGUMENTS,
-                action=BOUND_ACTION_TRUNCATED,
-                original_chars=9_000,
-                bounded_chars=4_000,
-                limit=4_000,
-            ),
-        ),
-        submitted_chars=1_000,
-        redacted_chars=1_000,
-        wire_chars=600,
-    )
-
-    assert row.accounted_loss == 0, "an argument note must not count as content accounting"
-    assert row.argument_loss == 5_000
-    assert row.unaccounted_loss == 400
-    assert not row.holds
 
 
 def test_applying_the_boundary_twice_is_stable_and_loses_nothing_further():
@@ -231,13 +197,6 @@ def test_redaction_is_not_reported_as_an_unaccounted_bound():
     assert bound.holds
 
 
-def test_the_content_part_split_is_exhaustive():
-    """Every content part must be inside ``CONTENT_BOUND_PARTS``; a new part
-    added outside it would silently stop counting toward the arithmetic."""
-
-    assert BOUND_PART_CONTENT in CONTENT_BOUND_PARTS
-    assert BOUND_PART_SKILL_PRELOAD in CONTENT_BOUND_PARTS
-    assert BOUND_PART_TOOL_ARGUMENTS not in CONTENT_BOUND_PARTS
 
 
 # --------------------------------------------------------------------------- #
@@ -291,38 +250,3 @@ def test_safe_native_message_still_returns_the_plain_row():
 # --------------------------------------------------------------------------- #
 # The accounted cut gets a receipt too
 # --------------------------------------------------------------------------- #
-def test_record_wire_boundary_cut_names_the_tool_and_the_sizes_never_the_content(caplog):
-    # Preserve receipts for accounted degradation independently of retired cuts.
-    bound = WireBoundaryRow(
-        row={"role": "tool", "tool_name": "launcher_generated_list", "content": "SENTINEL"},
-        notes=(ContentBoundNote(BOUND_PART_CONTENT, BOUND_ACTION_TRUNCATED, 30_000, 20_000, 20_000),),
-    )
-    with caplog.at_level(logging.WARNING):
-        notes = record_wire_boundary_cut(bound)
-
-    assert notes == bound.notes and len(notes) == 1
-    assert "launcher_generated_list" in caplog.text
-    assert "30000->20000/20000" in caplog.text
-    assert "SENTINEL" not in caplog.text
-
-
-def test_record_wire_boundary_cut_is_silent_for_a_row_that_arrived_whole(caplog):
-    bound = native_wire_row({"role": "tool", "tool_name": "t", "content": "small"})
-
-    with caplog.at_level(logging.WARNING):
-        assert record_wire_boundary_cut(bound) == ()
-
-    assert "wire boundary cut" not in caplog.text
-
-
-def test_record_wire_boundary_cut_leaves_the_user_row_to_its_own_warning(caplog):
-    """The composed user row already warns from its bounding with per-part
-    arithmetic; a second line for the same cut would read as two cuts."""
-
-    bound = native_wire_row({"role": "user", "content": "u" * 30_000})
-    assert bound.notes
-
-    with caplog.at_level(logging.WARNING):
-        assert record_wire_boundary_cut(bound) == ()
-
-    assert "wire boundary cut" not in caplog.text

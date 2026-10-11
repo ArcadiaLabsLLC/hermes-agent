@@ -1178,13 +1178,21 @@ lane reasons (`agent_chat/mission_agent_model_switcher_view_model.dart`);
 (`hermes_cli/harness_parts/usage/detect.py::_usage_failure_reason`), with class-name-only discipline preserved for
 everything that is not an HTTP status, because a bare status code leaks nothing.
 
-## The board — still capability-only
+## The board — method twins on the hermes side, argv on the launcher
 
-The board is the office's sibling surface and it has NOT made the same journey.
-All six board writes go out as argv capabilities — `board.card.add`, `.move`,
-`.edit`, `.archive`, `.restore`, `board.resolve_conflict`
-(`board/mission_board_write.dart`) — with no `runtime.board.*` RPC method
-registered in `serve_rpc.py`. Board writes are named in the uncovered list
+The board is the office's sibling surface and it is half way through the same
+journey. Since 2026-10-10 (D2.11) each of the six board writes has a
+console-tier method twin — `runtime.board.card.add`, `.edit`, `.move`,
+`.archive`, `.restore` and `runtime.board.resolve_conflict`
+(`agent_runtime/serve_rpc/board.py`) — over the same `BoardStore` verb its argv
+twin calls. The ack is `{"card": _card_row(card, full=True)}` built from the
+card the STORE returned (`agent_runtime/board_store/rows.py`, which the CLI
+shares); a refusal is translated by `BOARD_WRITE_ERRORS` and is terminal;
+`expect_revision` and `idempotency_key` pass through unchanged; the honoured
+keys ride the manifest's `params` block (`BOARD_METHOD_PARAMS`). There is no
+`board_card` fold yet: a fold needs its producer inside `board_lock`. The
+launcher still sends all six as argv capabilities
+(`board/mission_board_write.dart`) until its RPC-first row lands. Board writes are named in the uncovered list
 (`patch_coverage.py:33`), so a board batch demotes to a full core by design.
 One asymmetry worth knowing: the board DOES send `expect_revision`
 (`mission_board_write.dart`, sourced from `card.revision` at

@@ -158,3 +158,8 @@ def _provider_from_config(home: Path, config: dict[str, Any], *, installing: Pat
     name = provider.strip()
     return name if (_is_directory(home / "plugins" / name) or
                     (installing is not None and (home / "plugins" / name).resolve() == installing.resolve())) else None
+
+
+# Fork (ledger row `pm/plugins_state.py`): one parse per config content per process.
+from pm._fork_selection_memo import memoize_read_home_selection  # noqa: E402
+read_home_selection = memoize_read_home_selection(read_home_selection)

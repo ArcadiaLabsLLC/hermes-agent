@@ -35,6 +35,7 @@ and diffed by a test.
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable, Iterator, Mapping
 from types import SimpleNamespace
 from typing import Any
@@ -86,6 +87,11 @@ class APIError(Exception):
     ``isinstance(exc, openai.APIError)`` reads the same on the phone's ``openai`` shim
     (:mod:`agent_runtime.provider_sdk_shim`)."""
 
+    def __init__(self, message: str = "", *args: Any) -> None:
+        # Ends the chain here, so a class :func:`_sdk_shaped` builds over the real SDK's error never
+        # runs the SDK's keyword-only initializers; the subclasses set the attributes they carry.
+        Exception.__init__(self, message, *args)
+
 
 class ProviderHTTPError(APIError):
     """A non-2xx answer, shaped like the SDK's ``APIStatusError`` for the loop's
@@ -129,6 +135,30 @@ class APITimeoutError(APIConnectionError):
 
     def __init__(self, request: httpx.Request | None = None) -> None:
         super().__init__(message="Request timed out.", request=request)
+
+
+_SDK_SHAPED: dict[type, type] = {}
+
+
+def _sdk_shaped(cls: type[APIConnectionError]) -> type[APIConnectionError]:
+    """``cls``, also a subclass of the real SDK's class of that name when the real ``openai`` is loaded.
+
+    A desktop profile with ``agent.provider_sdks: false`` and the SDK installed gets no shim
+    (:mod:`agent_runtime.provider_sdk_shim` never shadows a real SDK), so upstream's
+    ``except openai.APIConnectionError`` (``codex_runtime.run_codex_stream``'s #103673 pre-stream
+    retry) must match the SDK-free error by the SDK's own class. Reads ``sys.modules`` only: never
+    imports the SDK; the shim carries no ``__spec__`` and is not the real one."""
+    real = sys.modules.get("openai")
+    if real is None or getattr(real, "__spec__", None) is None:
+        return cls
+    base = getattr(real, cls.__name__, None)
+    if not isinstance(base, type) or not issubclass(base, BaseException) or issubclass(cls, base):
+        return cls
+    shaped = _SDK_SHAPED.get(base)
+    if shaped is None:
+        shaped = _SDK_SHAPED[base] = type(cls.__name__, (cls, base), {
+            "__module__": __name__, "code": None, "param": None, "type": None})
+    return shaped
 
 
 class SdkFreeWireUnavailable(RuntimeError):
@@ -444,9 +474,9 @@ class HttpCore:
         try:
             response = self._client.send(request, stream=True)
         except httpx.TimeoutException as err:
-            raise APITimeoutError(request=request) from err
+            raise _sdk_shaped(APITimeoutError)(request=request) from err
         except Exception as err:
-            raise APIConnectionError(request=request) from err
+            raise _sdk_shaped(APIConnectionError)(request=request) from err
         if not 200 <= response.status_code < 300:
             self._raise_for_status(response)
         return response

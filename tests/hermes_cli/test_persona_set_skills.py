@@ -36,9 +36,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from hermes_cli.harness_parts.persona import (
-    chat_delete,
     chat_open,
-    chat_target,
     chat_turn_message,
     inspect_commands,
     instance_commands,
@@ -208,9 +206,7 @@ def test_a_config_only_persona_is_refused_not_promoted(monkeypatch, capsys):
     monkeypatch.setattr(agent_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(init_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(workspace_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)

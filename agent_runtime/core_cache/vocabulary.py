@@ -15,6 +15,7 @@ from typing import Mapping
 from agent_runtime.dispatch_delivery.vocabulary import DRAIN_STATE_FILENAME
 from agent_runtime.paths import (
     DELETED_ARCHIVE_DIRNAME,
+    DERIVED_CACHE_DIRNAME,
     OFFICE_ARCHIVE_DIRNAME,
     REALM_SYNC_DIRNAME,
     SERVE_AUTH_TOKEN_FILENAME,
@@ -359,6 +360,9 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
     {
         # The cache's own home (see CORE_CACHE_DIRNAME).
         CORE_CACHE_DIRNAME,
+        # Its sibling: derived per-machine caches (D1.05 CF-2's skill frontmatter
+        # file), rewritten on the serve's idle tick — an output, never an input.
+        DERIVED_CACHE_DIRNAME,
         # Entries appear and vanish at every serve boot/exit, and the auth token
         # appears at first boot. The standing precedent is already recorded at
         # ``agent_runtime/serve_registry.py`` and ``agent_runtime/serve_auth.py``

@@ -1017,6 +1017,25 @@ def _write_manifest() -> None:
 
 
 def main() -> int:
+    """Write the goldens as a CLI process sees the runtime: build detection NOT owned.
+
+    ``agent_runtime.builds.sweep.boot_builds`` (a serve boot) turns detection on
+    for the rest of its process; a bundled test run that booted a serve before
+    the golden gate wrote ``no_slots_declared`` where a CLI snapshot reads
+    ``not_in_process`` (hydrate.json byte 3123). The flag is pinned off for the
+    run and restored after.
+    """
+    from agent_runtime.builds import detect
+
+    owned = detect._ENABLED
+    detect._ENABLED = False
+    try:
+        return _write_goldens()
+    finally:
+        detect._ENABLED = owned
+
+
+def _write_goldens() -> int:
     # SessionDB keeps a process-lifetime SQLite handle on Windows.  Ignoring a
     # cleanup race here lets the interpreter release that handle at exit; the
     # fixture bytes themselves never contain or depend on the temporary path.

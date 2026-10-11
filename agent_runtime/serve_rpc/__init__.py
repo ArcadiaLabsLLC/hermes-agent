@@ -18,6 +18,7 @@ protocol                 models  frames, ``ERR_*`` codes, ``RpcContext`` (and th
 registry                 models  ``_METHODS`` / ``_METHOD_TIERS`` and ``@method``
                                  (the rule-12 reference registry), the manifest
 reasons                  models  ``RpcRefusal``: every ``data.reason`` a guard here spends
+twin_params              models  the honoured ``params`` of every argv-twin method (L4.22)
 params                   policy  the typed parameter readers, ``ParamRefused``, and
                                  the guard frames every office/level verb shares
 office_errors            policy  store exception -> frame rows and the MRO walker
@@ -26,6 +27,8 @@ dispatch                 lanes   ``handle_request``: the one reader of ``_METHOD
 office_read              lanes   ``runtime.office.get/subscribe/unsubscribe``
 office_actor_writes      lanes   ``runtime.office.upsert/remove``
 office_surface_writes    lanes   ``runtime.office.surface_update/resolve_conflict``
+board                    lanes   ``runtime.board.card.*`` / ``.resolve_conflict`` (the
+                                 board's write twins over ``BoardStore``)
 level                    lanes   ``runtime.level.*``
 map                      lanes   ``runtime.map.*``
 prefab                   lanes   ``runtime.prefab.*`` (a profile's prefab shelf)
@@ -50,6 +53,10 @@ chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
+characters               lanes   ``runtime.characters.list/status/thumb/sprite``
+                                 (the character-sheet read twins)
+settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
+                                 outbox's operator verbs)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -71,6 +78,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     office_read,
     office_actor_writes,
     office_surface_writes,
+    board,
     level,
     map,
     prefab,
@@ -95,6 +103,8 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     chat_verbs,
     realm,
     client,
+    characters,
+    settles,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,

@@ -45,7 +45,6 @@ from ..chat_events import (
     _publish_persona_chat_projection_event,
 )
 from ..chat_history_writes import (
-    PERSONA_CHAT_REPLY_LIMIT,
     _chat_turn_tool_names,
     _mirror_persona_chat_message,
     _persona_chat_fault_injection,
@@ -143,7 +142,13 @@ class _SettlePhases:
         # relay at `outcome_unknown` and cost a full re-brief.
         # ONE decision, made by the owned vocabulary rather than a nested
         # conditional spelled inline three times (state, kind, exit code).
-        turn_outcome = classify_turn_failure(exc, provider_submitted=self.provider_submitted)
+        turn_outcome = classify_turn_failure(
+            exc,
+            provider_submitted=self.provider_submitted,
+            # D2.02: a boundary crossed with no request started settles as the
+            # typed `provider_unavailable` refusal, never `outcome_unknown`.
+            request_started=self.provider_request_started,
+        )
         wall_budget_exceeded = (
             turn_outcome.execution_state is ExecutionState.BUDGET_EXHAUSTED
         )
@@ -267,7 +272,7 @@ class _SettlePhases:
         session_id = self.session_id
         runtime_registry = self.runtime_registry
         stream_emitter = self.stream_emitter
-        reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "", limit=PERSONA_CHAT_REPLY_LIMIT)
+        reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "")
         active_session_id = _persona_chat_native_tip(session_db, session_id)
         native_revision = _persona_chat_native_revision(session_db, session_id)
         self.reply_text = reply_text

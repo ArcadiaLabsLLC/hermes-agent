@@ -36,7 +36,6 @@ from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 from hermes_cli.harness_parts.persona import (
     chat_delete,
     chat_open,
-    chat_target,
     chat_turn_commit,
     chat_turn_message,
     inspect_commands,
@@ -187,9 +186,7 @@ def _seed(monkeypatch, provider):
     # S56: this used to flip `enterprise_worker_sessions` on so the persona
     # roster would project. The roster is unconditional now and the block is
     # gone, so a bare config is the same fixture.
-    monkeypatch.setattr(chat_delete, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(inspect_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: AgentRuntimeConfig())
@@ -212,6 +209,9 @@ def _wall_budget_provider(wall_budget):
             pass
 
         def mission_chat_reply(self, *args, **kwargs):
+            # A budget trips while the agent RUNS: the request has left the
+            # process (the runner's agent-ready handoff) before any budget can.
+            kwargs["agent_ready_callback"](object())
             raise RunBudgetExceeded(
                 "wall budget exhausted after 240s", wall_budget=wall_budget
             )

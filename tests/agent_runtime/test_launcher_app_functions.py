@@ -175,13 +175,13 @@ def test_a_silent_connection_is_probed_once(monkeypatch):
 
 
 def test_the_same_list_again_does_not_move_the_registry_epoch():
-    from tools.registry import registry_epoch
+    from tools.registry import check_fn_epoch, registry
 
     link = laf.LauncherLink(_Launcher(), laf.ORIGIN_LOCAL)
     laf.refresh_app_function_tools(link)
-    epoch = registry_epoch()
+    epoch = (registry.generation, check_fn_epoch())
     laf.refresh_app_function_tools(link)
-    assert registry_epoch() == epoch
+    assert (registry.generation, check_fn_epoch()) == epoch
 
 
 def test_an_entry_the_launcher_drops_is_deregistered_once_the_connection_lists_afresh():

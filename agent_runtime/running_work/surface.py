@@ -501,10 +501,10 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     """A dispatch: ``agent_chat_dispatch.request_cancel`` in the process that supervises it.
 
     The lane owns the child's handle and the identity-guarded kill; this only
-    routes. ``not_owned_here`` is a typed refusal, not a pretend success: a
-    dispatch another serve (or another install) supervises has no seam in this
-    process, and the row says so rather than reporting a kill that never
-    happened.
+    routes. A dispatch another serve on this machine supervises answers
+    ``cancel_requested`` — the durable mark that serve's cancel watch acts on
+    (D1.07), reported as a request and never as a kill. ``not_owned_here``
+    remains for a process where the lane is not resident at all.
     """
 
     lane = _module("tools.agent_chat_dispatch")
@@ -515,13 +515,35 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
                 "detail": "this process does not supervise that dispatch"}
     answer = lane.request_cancel(stable, reason=reason)
     outcome = str(answer.get("outcome") or "")
-    if outcome in {"stopping", "cancelled"}:
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
-    if outcome == "already_finished":
-        return {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind,
-                "state": answer.get("state"), "detail": "already finished; its result is kept"}
-    return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
-            "detail": "this process does not supervise that dispatch" if outcome == "not_owned_here" else ""}
+    detail = _DISPATCH_CANCEL_ANSWERED.get(outcome)
+    if detail is None:
+        return {"status": "error", "code": outcome or "cancel_failed", "work_id": work_id, "kind": kind,
+                "detail": _DISPATCH_CANCEL_REFUSAL_DETAIL.get(outcome, str(answer.get("detail") or ""))}
+    result = {"status": "ok", "outcome": outcome, "work_id": work_id, "kind": kind, "reason": reason}
+    if "state" in answer:
+        result["state"] = answer.get("state")
+    if detail:
+        result["detail"] = detail.format(poll_seconds=answer.get("poll_seconds"))
+    return result
+
+
+#: The outcomes of ``request_cancel`` that ANSWER the cancel (``status: ok``), and the
+#: sentence each carries ("" for none). Any other outcome is a typed refusal. A table,
+#: not an ``if outcome ==`` ladder (W0-G5): the remote leg (D1.07) added three.
+_DISPATCH_CANCEL_ANSWERED = {
+    "stopping": "",
+    "cancelled": "",
+    "cancel_requested": "another process supervises it; that process stops it within {poll_seconds}s",
+    "already_finished": "already finished; its result is kept",
+    # A paired install had not started it; the row's mark stops this install sending it.
+    "not_running": "the paired install had not started it; it will not be sent",
+}
+
+#: The sentence each typed dispatch-cancel refusal carries; ``peer_refused`` carries the far side's reason.
+_DISPATCH_CANCEL_REFUSAL_DETAIL = {
+    "not_owned_here": "this process does not supervise that dispatch",
+    "peer_unreachable": "the paired install running it could not be reached; this install will not re-send it",
+}
 
 
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.

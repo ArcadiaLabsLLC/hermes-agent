@@ -359,8 +359,12 @@ def _build_snapshot_uncoalesced(
     # that one owner opens it and the same owner closes it (MCF-27). It sits
     # INSIDE ``runtime_resolution_scope`` because the acquisition resolves its
     # scope from the runtime this build resolved, exactly as it did when the
-    # binding lived in the section below.
-    with runtime_resolution_scope(), persona_session_db_scope() as session_db:
+    # binding lived in the section below. The provider-probe scope answers each
+    # read-only credential probe once per auth-store revision for this build
+    # (D1.05 CF-3).
+    from agent_runtime.provider_probes import provider_probe_build_scope
+
+    with runtime_resolution_scope(), persona_session_db_scope() as session_db, provider_probe_build_scope():
         return _build_snapshot_in_runtime_scope(
             agent_store=agent_store,
             event_log=event_log,

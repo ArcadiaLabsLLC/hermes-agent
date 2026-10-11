@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import re
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -50,6 +50,10 @@ class SlotEnvScope:
 
 
 _SCOPE: ContextVar[SlotEnvScope | None] = ContextVar("hermes_slot_env_scope", default=None)
+#: The directory the command being spawned starts in (the terminal's tracked cwd, which follows a
+#: ``cd`` from an earlier command), bound by the fork's additive pair around upstream
+#: ``LocalEnvironment._run_bash``'s Popen. An in-command ``cd`` is still invisible here.
+_SPAWN_CWD: ContextVar[str | None] = ContextVar("hermes_slot_spawn_cwd", default=None)
 
 
 @contextmanager
@@ -62,6 +66,16 @@ def slot_env_scope(bindings: Iterable[SlotBinding], cwd: Any) -> Iterator[None]:
         yield
     finally:
         _SCOPE.reset(token)
+
+
+def bind_spawn_cwd(cwd: Any) -> Token[str | None]:
+    """Name the spawning command's start directory; pass the token to :func:`release_spawn_cwd`."""
+
+    return _SPAWN_CWD.set(str(cwd or "") or None)
+
+
+def release_spawn_cwd(token: Token[str | None]) -> None:
+    _SPAWN_CWD.reset(token)
 
 
 @dataclass(frozen=True)
@@ -182,10 +196,11 @@ def env_overlay(cwd: Any, bindings: Iterable[SlotBinding] | None = None) -> Slot
 
 
 def apply_slot_env_overlay(env: dict[str, str]) -> dict[str, str]:
-    """THE seam's callee: overlay ``env`` when a turn's scope is set and its cwd is under a slot."""
+    """THE seam's callee: overlay ``env`` when a turn's scope is set and the command's cwd (its
+    spawn cwd when bound, else the turn's workdir) is under a slot."""
 
     scope = _SCOPE.get()
     if scope is None:
         return env
-    overlay = env_overlay(scope.cwd, scope.bindings)
+    overlay = env_overlay(_SPAWN_CWD.get() or scope.cwd, scope.bindings)
     return env if overlay is None else overlay.apply(env)

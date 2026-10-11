@@ -6,8 +6,6 @@ build one shape from one place.
 
 from __future__ import annotations
 
-import json
-
 from agent_runtime.cli_format import emit_json
 from agent.charsheet.errors import CharsheetRefusal, DraftBusy
 
@@ -15,11 +13,8 @@ __layer__ = "lanes"
 __all__ = [
     "_CHARACTERS_EXPECTED",
     "_attempt_label",
-    "_characters_draft_summary",
-    "_characters_draftsman",
     "_characters_emit",
     "_characters_error",
-    "_characters_installed_rows",
     "_characters_next",
     "_characters_refusal_extra",
     "_characters_verb",
@@ -42,30 +37,12 @@ def _characters_error(args, exc: BaseException, **extra) -> int:
     nested object with a code taxonomy), and a launcher panel that already parses
     the pets shape should not have to learn a second one for its sibling verbs.
     """
+    from agent.charsheet.draft.payloads import draftsman
+
     data = {"ok": False, "error": str(exc)}
     data.update(extra)
-    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, "json", False) else data["error"])
+    print(emit_json({**data, **draftsman()}) if getattr(args, "json", False) else data["error"])
     return 2
-
-
-def _characters_draftsman() -> dict:
-    """``{"draftsman": "fake"}`` while the seam is armed, and NOTHING when it is not.
-
-    Additive and conditional, in that order. Additive: the character payloads
-    are ruled supersets, so a key that appears is free. Conditional, and never
-    ``"real"``: an old reader must see byte-identical output on the door it has
-    always used, so "absent" keeps meaning "the provider door" and the key
-    exists only to make the OTHER case impossible to miss — a sandbox that
-    forgot to arm the seam reads as a paid run rather than a silent one, and a
-    field run that armed it by accident says so on every row it writes.
-
-    Read per emit, not once: the variable belongs to the process, and a serve
-    may be spawned by a launcher that set it (RL-26).
-    """
-    from agent.charsheet.fake_draftsman import active_draftsman_name
-
-    name = active_draftsman_name()
-    return {"draftsman": name} if name else {}
 
 
 def _characters_next(verb: str, *flags: str, alternatives=()) -> dict:
@@ -104,7 +81,9 @@ def _characters_next(verb: str, *flags: str, alternatives=()) -> dict:
 
 
 def _characters_emit(args, data: dict, human: str) -> int:
-    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, "json", False) else human)
+    from agent.charsheet.draft.payloads import draftsman
+
+    print(emit_json({**data, **draftsman()}) if getattr(args, "json", False) else human)
     return 0
 
 
@@ -208,99 +187,3 @@ def _characters_verb(args, call, on_error=None) -> int:
     data = {"ok": True, "draft": draft.id, "stage": draft.stage}
     data.update(result)
     return _characters_emit(args, data, human)
-
-
-def _characters_draft_summary(draft) -> dict:
-    """A list row: identity and shape, without walking the revision store.
-
-    ``baseImage`` answers with the SAME spelling of absence ``status --json``
-    uses — a ``str`` or JSON ``null``, never ``""`` — through the one helper
-    (``draft.path_or_none``). ``list`` and ``status`` name the same field, and a
-    consumer that has to remember which of the two flattens absence is a
-    consumer that will get it wrong.
-
-    ``shadows`` is what makes a duplicate ``id`` readable rather than a defect.
-    A backup directory is a copy of a draft directory, so it answers the
-    ORIGINAL's id and two rows carried one id with nothing to tell them apart.
-    The copy stays a row — it is on disk — and names the id it copies, so a
-    consumer drops every row carrying ``shadows`` and keeps the un-shadowed one.
-    ``str`` or JSON ``null``, the same spelling of absence as its neighbours.
-    """
-    from agent.charsheet.draft import path_or_none
-
-    spec = draft.spec
-    return {
-        "id": draft.id,
-        "slug": draft.slug,
-        "displayName": draft.display_name,
-        "concept": draft.concept,
-        "style": draft.style,
-        "shadows": draft.shadows,
-        "authoredBy": draft.authored_by,
-        # Beside `authoredBy` in all three payloads that carry provenance —
-        # this row, `status --json`, and the `start --json` summary (which is
-        # this helper) — so a consumer never has to remember which of the three
-        # answers the question. `str` or JSON `null`, never `""`.
-        "hermesHome": draft.hermes_home,
-        "stage": draft.stage,
-        "rows": len(spec.rows()),
-        "authoredRows": len(spec.authored_rows()),
-        "directions": len(spec.scheme.order),
-        "baseImage": path_or_none(draft.base_image),
-        "directory": str(draft.directory),
-    }
-
-
-def _characters_installed_rows() -> list[dict]:
-    """Installed characters: one row per directory carrying a manifest.
-
-    ``handednessAccepted`` rides on every row because the alternative is that a
-    character carrying a mirrored row its operator overrode looks IDENTICAL here
-    to one that passed clean — which is the shape this whole lane exists to
-    retire. It is a list of ``{row, gain, basis}``, empty for nearly every
-    character.
-
-    ``palette`` is the compose-time colour table (``#RRGGBBAA``, most-used
-    first) and is CONDITIONAL, unlike its neighbours: a character composed
-    before the table existed carries no key at all rather than an empty list.
-    "Nobody recorded a palette" and "this sheet has no colours" are different
-    facts, and the launcher's swatch strip owes an old character a blank strip
-    and a colourless one a defect report. See
-    ``agent/charsheet/draft.py::read_palette``.
-    """
-    from agent.charsheet.draft import (
-        MANIFEST_FILENAME,
-        SHEET_FILENAME,
-        _handedness_accepted,
-        characters_dir,
-        read_palette,
-    )
-
-    root = characters_dir()
-    rows: list[dict] = []
-    for child in sorted(root.iterdir()) if root.is_dir() else []:
-        manifest_path = child / MANIFEST_FILENAME
-        if not manifest_path.is_file():
-            continue
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            manifest = {}
-        if not isinstance(manifest, dict):
-            manifest = {}
-        sheet = child / SHEET_FILENAME
-        palette = read_palette(child)
-        rows.append(
-            {
-                "slug": str(manifest.get("slug", "") or child.name),
-                "displayName": str(manifest.get("displayName", "") or child.name),
-                "draftId": str(manifest.get("draftId", "")),
-                "created": str(manifest.get("created", "")),
-                "directory": str(child),
-                "sheet": str(sheet) if sheet.is_file() else "",
-                "installed": sheet.is_file(),
-                **({"palette": palette} if palette is not None else {}),
-                "handednessAccepted": _handedness_accepted(manifest),
-            }
-        )
-    return rows

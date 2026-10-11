@@ -58,6 +58,7 @@ from hermes_cli.harness_parts.serve.frames import (
 from hermes_cli.harness_parts.serve.handle_message import MessageHandling
 from hermes_cli.harness_parts.serve.lanes import ArgvLanes
 from hermes_cli.harness_parts.serve.request_pool import RequestPool, TurnClaims
+from hermes_cli.harness_parts.serve.settle_push import SettlePush
 from hermes_cli.harness_parts.serve.shell import ServeShell, default_shell
 from hermes_cli.harness_parts.serve.subscriptions import SubscriptionLanes
 
@@ -66,7 +67,7 @@ __layer__ = "lanes"
 __all__ = ["ServeSession", "serve_loop"]
 
 
-class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane):
+class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush):
     """Core dispatch loop over explicit streams. stdio is transport #1; the
     localhost socket is transport #2, and both feed THIS dispatcher.
 
@@ -641,6 +642,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         self.local_llama_bound_root = None
         self.discussion_owner = None
         self.conversation_owner = None
+        self.queued_send_runner = None
         sys.stdout, sys.stderr = self.stdout_proxy, self.stderr_proxy
 
     def _start_background_workers(self) -> None:
@@ -651,6 +653,9 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             name="harness-serve-liveness",
             daemon=True,
         ).start()
+        # Settle push: resumes any pending settle a previous serve left on disk,
+        # and stops with the liveness pump.
+        self._start_settle_pusher()
         # Detached-dispatch delivery. This is the half that makes
         # `agent_chat_send(wait=false)` honest: the target's turn ran in the
         # background, its answer is durable, and this thread forges it back into
@@ -729,6 +734,23 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "dispatch delivery drain did not start; "
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
+            )
+        # Same owner as the drain: one serve runs the busy-root send queue.
+        try:
+            from agent_runtime.chat_root_send_runner import start_queued_send_runner
+            from hermes_cli.harness_parts.serve.queued_turns import queued_turn_runner_policy
+
+            self.queued_send_runner = start_queued_send_runner(
+                stop_event=self.liveness_stop,
+                home=self.serve_request_home,
+                policy=queued_turn_runner_policy(self),
+            )
+        except Exception:
+            import logging as _queue_logging
+
+            _queue_logging.getLogger(__name__).warning(
+                "queued-send runner did not start; sends queued behind a busy root wait for "
+                "the next serve", exc_info=True,
             )
 
     def _bind_subscription_lanes(self) -> None:

@@ -28,7 +28,7 @@ from agent_runtime.models import AgentPersona, PersonaInstance, looks_like_perso
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.runtime_hud import resolve_situational_hud
 from agent_runtime.states import WorkerSessionState
-from hermes_cli.harness_parts.persona import chat_target, instance_commands, lifecycle_commands
+from hermes_cli.harness_parts.persona import instance_commands, lifecycle_commands
 
 
 def _persona(persona_id: str = "dev") -> AgentPersona:
@@ -234,7 +234,6 @@ def _repair_args(persona_instance_id=None, *, scan_all=False, dry_run=False):
 def test_cli_repair_steering_dry_run_then_real(monkeypatch, capsys):
     import json as _json
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
     store = PersonaInstanceStore()
@@ -255,7 +254,6 @@ def test_cli_repair_steering_dry_run_then_real(monkeypatch, capsys):
 
 def test_cli_repair_steering_requires_a_target_or_all(monkeypatch, capsys):
 
-    monkeypatch.setattr(chat_target, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
     code = instance_commands._cmd_persona_instance_repair_steering(_repair_args(None))

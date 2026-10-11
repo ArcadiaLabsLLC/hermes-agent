@@ -13,6 +13,7 @@ the ``_check_subprocess_cmd`` chokepoint every spawn primitive funnels through.
 
 from __future__ import annotations
 
+import ast
 import re
 import shlex
 
@@ -113,6 +114,77 @@ def _without_python_c_argv(raw: list) -> list:
     return raw
 
 
+# Identifiers through which ``python -c CODE`` could start a process or reach a hermes
+# backend in-process. The fence does not follow the child, so CODE is scanned here.
+_SPAWN_CAPABLE_NAMES = frozenset({
+    "subprocess", "os", "pty", "asyncio", "multiprocessing", "runpy", "importlib",
+    "exec", "eval", "compile", "__import__", "ctypes", "sys",
+})
+_BACKEND_NAME_PARTS = ("hermes", "gateway", "serve", "dashboard")
+
+
+def _no_names(_node) -> tuple:
+    return ()
+
+
+def _alias_names(node) -> list:
+    return [*node.name.split("."), *([node.asname] if node.asname else [])]
+
+
+# The identifiers each AST node kind contributes: a name, an attribute, an import
+# alias, an ``import from`` module path. Every other node contributes nothing.
+_NODE_NAMES = {
+    ast.Name: lambda node: (node.id,),
+    ast.Attribute: lambda node: (node.attr,),
+    ast.alias: _alias_names,
+    ast.ImportFrom: lambda node: node.module.split(".") if node.module else (),
+}
+
+# The subset that is an IMPORT: the only way CODE can load a backend in-process without
+# a spawn-capable name (``__import__`` / ``importlib`` / ``runpy`` already are one). A
+# backend word on a plain name or attribute is not a load: a detector the code merely
+# calls (``guard.contains_gateway_lifecycle_command``) boots nothing.
+_IMPORT_NAMES = {
+    ast.alias: _alias_names,
+    ast.ImportFrom: lambda node: node.module.split(".") if node.module else (),
+}
+
+
+def _python_c_code_is_inert(code: str) -> bool:
+    """True when CODE parses, names nothing that could spawn, and imports no backend.
+
+    Only then are its string literals data rather than a command line: the words
+    ``hermes gateway`` inside a literal the code merely builds or compares cannot start
+    one. Anything else (unparseable, any spawn-capable identifier, import or attribute,
+    or an import whose dotted path carries a backend word) keeps the conservative word
+    scan.
+    """
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return False
+    names = set()
+    imports = set()
+    for node in ast.walk(tree):
+        names.update(_NODE_NAMES.get(type(node), _no_names)(node))
+        imports.update(_IMPORT_NAMES.get(type(node), _no_names)(node))
+    if {name.lower() for name in names} & _SPAWN_CAPABLE_NAMES:
+        return False
+    return not any(part in name.lower() for name in imports for part in _BACKEND_NAME_PARTS)
+
+
+def _without_inert_python_c_code(raw: list) -> list:
+    """*raw* without CODE when it is ``python [opts] -c CODE`` and CODE is inert."""
+    if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
+        str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    ) and _python_c_code_is_inert(str(raw[-1])):
+        return raw[:-1]
+    return raw
+
+
+_CODE_PUNCTUATION_RE = re.compile(r"""["'`()\[\]{},;]+""")
+
+
 def _cmd_tokens(cmd, cmd_to_string) -> list:
     # argv lists are tokenized by construction; only strings need shlex,
     # which on Windows would otherwise eat the backslashes in a path.
@@ -124,16 +196,20 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
             raw = shlex.split(cmd_str)
         except ValueError:
             raw = cmd_str.split()
-    raw = _without_python_c_argv(raw)
+    raw = _without_inert_python_c_code(_without_python_c_argv(raw))
     # A wrapper's argument is itself a whole command: ``["bash", "-c",
     # "hermes gateway run"]`` arrives as THREE elements, the last of which
     # is the command. Split on whitespace (not shlex — it would eat the
     # backslashes in a Windows path) so the entry point inside it is
     # reachable. Splitting cannot invent an entry point: a path containing
     # spaces still ends in its own basename.
+    # A word inside code keeps its quotes and call punctuation (``subprocess.run("hermes``,
+    # ``run")``); splitting on them lets the entry point and the subcommand be seen. ``=`` is
+    # not split, so ``--name=gateway`` stays one flag.
     tokens = []
     for token in raw:
-        tokens.extend(script_words(token))
+        for word in script_words(token):
+            tokens.extend(part for part in _CODE_PUNCTUATION_RE.split(word) if part)
     return tokens
 
 

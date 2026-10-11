@@ -65,6 +65,7 @@ from .chat_target import (
     _persona_by_id,
     _resolve_mission_chat_persona_id,
 )
+from .chat_send_queue import _mission_chat_queue_gate, _wake_queued_send_runner
 from .chat_turn_commit import _mission_chat_commit_turn
 
 __layer__ = "lanes"
@@ -718,15 +719,9 @@ def _cmd_mission_chat_message(args) -> int:
     # Everything above RESOLVED this turn; everything below WRITES it, once,
     # under the chat-root lease.
     #
-    # This boundary used to be a self-call: the body re-entered
-    # ``_cmd_mission_chat_message(args)`` from inside ``with lease:`` after
-    # setting an ``args._persona_chat_root_lease_acquired`` flag. Every
-    # resolution above therefore ran TWICE per turn, three durable writes with
-    # it (``open_chat``, the session ensure, the model-override persist), and
-    # the turn's phase state had to be smuggled across the re-entry on
-    # ``args._*`` attributes so the second pass would not re-decide it. The
-    # split retires the recursion, the double writes, and the smuggling
-    # together.
+    # This boundary used to be a self-call re-entered under ``with lease:``; the
+    # split retired the double resolution, its three durable writes, and the
+    # ``args._*`` phase smuggling together.
     display_name = (
         safe_assignment_text(getattr(persona, "display_name", None), limit=120)
         or _display_name_for_profile(normalized_persona)
@@ -771,6 +766,10 @@ def _cmd_mission_chat_message(args) -> int:
     # never reach a write-ahead) announce nothing. See
     # ``agent_runtime.chat_turn_presence``.
     presence = ChatTurnPresence()
+    # Sends already waiting on this root keep arrival order (``chat_send_queue``).
+    queued_code = _mission_chat_queue_gate(args, session_id=session_id, client_message_id=client_message_id)
+    if queued_code is not None:
+        return queued_code
     try:
         # Provenance decided in ONE place (owner id + observer kind from the
         # same serve-request fact) — see _mission_chat_lease_provenance for the
@@ -826,6 +825,9 @@ def _run_deferred_tail(deferred, *, session_db=None) -> None:
 
     from hermes_cli.harness_parts.serve import current_serve_request_id
 
+    # The lease is released: a send queued behind this turn may run now (the
+    # queued-send runner also ticks on its own).
+    _wake_queued_send_runner()
     owner = current_chat_session_writer_owner()
     if owner is not None:
         owner.transfer_to(deferred, session_db)

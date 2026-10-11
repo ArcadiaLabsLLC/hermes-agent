@@ -231,7 +231,22 @@ def test_committed_goldens_are_the_generators_bytes(tmp_path, monkeypatch):
     this only reddens when the PRODUCER changes. Verified before landing:
     three independent regenerations, identical bytes.
     """
+    _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch)
 
+
+def test_a_serve_boot_earlier_in_the_process_does_not_reach_the_goldens(tmp_path, monkeypatch):
+    """A bundled run that booted a serve first left build detection owned
+    (``boot_builds``), and hydrate.json read ``no_slots_declared`` at byte 3123
+    where a CLI snapshot reads ``not_in_process``. The generator pins it off
+    for its run and hands the flag back."""
+    from agent_runtime.builds import detect
+
+    monkeypatch.setattr(detect, "_ENABLED", True)
+    _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch)
+    assert detect.detection_enabled() is True
+
+
+def _assert_the_generator_writes_the_goldens(tmp_path, monkeypatch):
     generator = _generator_module()
     staged = tmp_path / "stream_frames"
     staged.mkdir()

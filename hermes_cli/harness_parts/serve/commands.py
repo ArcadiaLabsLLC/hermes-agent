@@ -92,6 +92,11 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
     from agent_runtime.boot_timeline import BootTimeline
 
     timeline = BootTimeline()
+    # The serve composes the harness's process: its env defaults land here (inherited by
+    # every child it spawns), never from plugin code (v0216 plan §2).
+    from agent_runtime.process_env_defaults import apply_harness_process_env_defaults
+
+    apply_harness_process_env_defaults()
     if not getattr(args, "ndjson", False):
         print(
             json.dumps(

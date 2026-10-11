@@ -12,9 +12,10 @@ from typing import Any
 from ..serde import safe_assignment_text
 
 from .bounds import (
-    BOUND_PART_TOOL_ARGUMENTS, CONTENT_BOUND_PARTS, ContentBoundNote,
+    CONTENT_BOUND_PARTS, ContentBoundNote,
     _redacted, _redacted_content, bound_composed_user_content,
 )
+from .content import content_text_chars, redact_native_content, redact_native_metadata
 
 __layer__ = "policy"
 
@@ -48,7 +49,7 @@ class WireBoundaryRow:
 
     row: dict[str, Any]
     notes: tuple[ContentBoundNote, ...] = ()
-    #: Length of the content handed to the boundary, before redaction.
+    #: String-leaf characters in the content handed to the boundary, before redaction.
     submitted_chars: int = 0
     #: Length after redaction — the input the BOUND was actually applied to.
     #: Redaction is a separate, intended transform; separating the two keeps a
@@ -65,11 +66,7 @@ class WireBoundaryRow:
     def accounted_loss(self) -> int:
         """Characters the notes explain, counting only the CONTENT parts.
 
-        Historical tool-call bound notes live in a different field of the row
-        and are NOT part of the content arithmetic.
-        Summing them here would let an argument truncation cancel out a real
-        content residue and drive :attr:`unaccounted_loss` to zero — a check
-        that hides the thing it exists to find.
+        Only runtime envelope notes explain content loss.
         """
 
         return sum(
@@ -78,15 +75,6 @@ class WireBoundaryRow:
             if note.part in CONTENT_BOUND_PARTS
         )
 
-    @property
-    def argument_loss(self) -> int:
-        """Characters removed from tool-call argument blobs. Reported, not netted."""
-
-        return sum(
-            max(0, note.original_chars - note.bounded_chars)
-            for note in self.notes
-            if note.part == BOUND_PART_TOOL_ARGUMENTS
-        )
 
     @property
     def unaccounted_loss(self) -> int:
@@ -121,7 +109,6 @@ class WireBoundaryRow:
             "redacted_chars": self.redacted_chars,
             "wire_chars": self.wire_chars,
             "accounted_loss": self.accounted_loss,
-            "argument_loss": self.argument_loss,
             "unaccounted_loss": self.unaccounted_loss,
             "notes": [
                 {
@@ -169,30 +156,6 @@ def record_wire_boundary_drift(bound: WireBoundaryRow) -> dict[str, Any] | None:
     return row
 
 
-def record_wire_boundary_cut(bound: WireBoundaryRow) -> tuple[ContentBoundNote, ...]:
-    """Say so when an ACCOUNTED cut shortened a non-user row on its way to the model.
-
-    :func:`record_wire_boundary_drift` reports only the unaccounted residue, and
-    the composed user row warns from its own bounding, so an ordinary tool
-    result cut at the flat bound left no line anywhere: on 2026-10-09 a
-    26,853-character ``launcher_generated_list`` reply was cut to 20,000 — the
-    worked example the model then mis-closed three times was the part past the
-    cut — and the first evidence was a database dig. One warning, naming the
-    tool and the sizes and never the content, is the receipt that was missing.
-    """
-
-    if not bound.notes or bound.row.get("role") == WIRE_ROLE_USER:
-        return ()
-    logger.warning(
-        "persona chat wire boundary cut a %s row%s before the model saw it: %s",
-        bound.row.get("role") or "?",
-        f" (tool={bound.row['tool_name']})" if bound.row.get("tool_name") else "",
-        ", ".join(
-            f"{note.part}={note.action}({note.original_chars}->{note.bounded_chars}/{note.limit})"
-            for note in bound.notes
-        ),
-    )
-    return bound.notes
 
 
 def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
@@ -219,13 +182,14 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
     # three parts with three different contracts — so it is bounded per part
     # (see :func:`bound_composed_user_content`). Other roles retain upstream's
     # result/context policy; redaction does not introduce another size budget.
-    bounded = (
-        bound_composed_user_content(submitted)
-        if role == WIRE_ROLE_USER
-        else _redacted_content(submitted)
-    )
-    content = bounded.text
-    result: dict[str, Any] = {"role": role, "content": content}
+    bounded = None
+    if isinstance(submitted, str):
+        bounded = bound_composed_user_content(submitted) if role == WIRE_ROLE_USER else _redacted_content(submitted)
+    content = bounded.text if bounded is not None else redact_native_content(submitted)
+    # Upstream owns the message shape (reasoning, compression, durable identity
+    # and repair metadata). Change our fields without rebuilding its allowlist.
+    result: dict[str, Any] = {**message, "role": role, "content": content}
+    result.update(redact_native_metadata(message))
     for key in (
         "tool_call_id",
         "tool_name",
@@ -241,11 +205,14 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
         value = safe_assignment_text(raw_value, limit=240)
         if value:
             result[key] = value
-    notes: list[ContentBoundNote] = list(bounded.notes)
+        else:
+            result.pop(key, None)
+    notes = bounded.notes if bounded is not None else ()
     calls = message.get("tool_calls")
+    result.pop("tool_calls", None)
     if isinstance(calls, list):
         safe_calls: list[dict[str, Any]] = []
-        for raw in calls[:64]:
+        for raw in calls:
             if not isinstance(raw, dict):
                 continue
             function = raw.get("function") if isinstance(raw.get("function"), dict) else {}
@@ -256,19 +223,20 @@ def native_wire_row(message: dict[str, Any]) -> WireBoundaryRow:
             arguments = _redacted(function.get("arguments"))
             safe_calls.append(
                 {
+                    **raw,
                     "id": call_id,
                     "type": "function",
-                    "function": {"name": name, "arguments": arguments},
+                    "function": {**function, "name": name, "arguments": arguments},
                 }
             )
         if safe_calls:
             result["tool_calls"] = safe_calls
     return WireBoundaryRow(
         row=result,
-        notes=tuple(notes),
-        submitted_chars=len(submitted) if isinstance(submitted, str) else 0,
-        redacted_chars=bounded.source_chars,
-        wire_chars=len(content),
+        notes=notes,
+        submitted_chars=content_text_chars(submitted),
+        redacted_chars=bounded.source_chars if bounded is not None else content_text_chars(content),
+        wire_chars=content_text_chars(content),
     )
 
 
@@ -316,7 +284,7 @@ def safe_native_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 sort_keys=True,
                 separators=(",", ":"),
             )
-            key = (item["role"], logical_client_id, payload)
+            key = (item["role"], str(item.get("message_uid") or logical_client_id), payload)
             if key in seen_logical_rows:
                 continue
             seen_logical_rows.add(key)
@@ -372,7 +340,7 @@ def native_lineage_summary(session_db: Any, root_session_id: str) -> dict[str, A
 
 def native_history_revision(session_db: Any, root_session_id: str) -> str:
     tip = session_db.resolve_resume_session_id(root_session_id)
-    history = session_db.get_messages_as_conversation(tip, include_ancestors=True)
+    history = session_db.get_messages_as_conversation(tip, include_ancestors=True, repair_alternation=True)
     return native_history_revision_of(tip, history)
 
 

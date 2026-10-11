@@ -8,10 +8,16 @@ the turn".
 
 from __future__ import annotations
 
+from agent_runtime.operator_message import OperatorMessageInvalid, normalize_operator_message
+
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
-from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
+from agent_runtime.mission_chat_outcome import (
+    PROVIDER_UNAVAILABLE_REASON,
+    ChatErrorKind,
+    ExecutionState,
+)
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
@@ -38,14 +44,13 @@ from agent_runtime.persona_chat_durability import (
 )
 from ..chat_events import _mission_chat_emit, _publish_persona_chat_projection_event
 from ..chat_history_writes import (
-    PERSONA_CHAT_REPLY_LIMIT,
     _persona_chat_existing_turn,
     _redact_persona_chat_text,
 )
 from ..chat_reply_stamps import _stamp_reply_media, _stamp_turn_visibility
 from ..chat_request import (
     _invalid_chat_model_override_payload,
-    _missing_chat_message_payload,
+    _invalid_operator_message_payload,
     _requested_chat_model_override,
     _retired_persona_instance_payload,
 )
@@ -84,6 +89,16 @@ def _provider_refused_payload(turn) -> dict[str, Any]:
     }
     if isinstance(refusal_block, dict):
         data["provider_refusal"] = refusal_block
+        if refusal_block.get("reason") == PROVIDER_UNAVAILABLE_REASON:
+            # D2.02: the harness-authored block — the request never left Hermes.
+            # A resend gets the same typed pair the first attempt settled with.
+            data.update(
+                {
+                    "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
+                    "error": "no model provider could take this turn and it never ran; it is settled and needs no resolution",
+                    "next_expected": "configure a provider for this profile, then send a new client_message_id; no turn-resolve is required",
+                }
+            )
     return data
 
 
@@ -111,6 +126,21 @@ def _budget_exhausted_payload(turn) -> dict[str, Any]:
     }
 
 
+def _last_tool(journal: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The last tool element the journal recorded for this turn, or None.
+
+    The journal's elements are already bounded and scrubbed and sorted by
+    ``seq`` (``mission_chat_turns.records._safe_elements``), so the last
+    ``tool`` one is the step the executor reached before it died.
+    """
+
+    tools = [e for e in journal.get("elements") or () if isinstance(e, dict) and e.get("kind") == "tool"]
+    if not tools:
+        return None
+    last = tools[-1]
+    return {key: last.get(key) for key in ("name", "tool_call_id", "status", "exit_code", "summary")}
+
+
 def _outcome_unknown_payload(turn) -> dict[str, Any]:
     # No proven reply and the journal says a provider call may still be
     # outstanding: refuse the resend and route to the resolve verb.
@@ -123,6 +153,17 @@ def _outcome_unknown_payload(turn) -> dict[str, Any]:
             metadata={"provider_submitted": True},
         )
         turn._route_turn_write(_settled, step="resend_settle_outcome_unknown")
+    last_tool = _last_tool(turn.journal)
+    error = "the prior provider outcome cannot be proven; resolve this turn before resending"
+    next_expected = "resolve the exact outcome_unknown turn with action=abandon, then send a new client_message_id"
+    if last_tool is not None:
+        # Name where the dead executor stopped, so the operator's next step is
+        # about THAT tool rather than a generic "something happened".
+        outcome = last_tool["status"] or "no recorded outcome"
+        if last_tool["exit_code"] is not None:
+            outcome += f", exit {last_tool['exit_code']}"
+        error += f"; the last tool this turn ran was '{last_tool['name']}' ({outcome})"
+        next_expected += f"; first check what '{last_tool['name']}' left behind, since it may not have finished"
     return {
         "ok": False,
         "capability_id": "mission.chat.message",
@@ -132,8 +173,9 @@ def _outcome_unknown_payload(turn) -> dict[str, Any]:
         "session_id": turn.session_id,
         "client_message_id": turn.client_message_id,
         "turn_id": turn.journal.get("turn_id") or turn.client_message_id,
-        "error": "the prior provider outcome cannot be proven; resolve this turn before resending",
-        "next_expected": "resolve the exact outcome_unknown turn with action=abandon, then send a new client_message_id",
+        "last_tool": last_tool,
+        "error": error,
+        "next_expected": next_expected,
     }
 
 
@@ -266,9 +308,10 @@ class _AdmitPhases:
         # Resolve the effective instance once. Prompt receipts and execution must
         # observe the same model and skill assignment authority.
         self.persona = apply_instance_model_overrides(self.persona, instance)
-        message = safe_assignment_text(getattr(args, "message", None), limit=12000)
-        if not message:
-            data = _missing_chat_message_payload()
+        try:
+            message = normalize_operator_message(getattr(args, "message", None))
+        except OperatorMessageInvalid as exc:
+            data = _invalid_operator_message_payload(exc)
             _mission_chat_emit(args, data)
             return 2
         self.message = message
@@ -295,7 +338,7 @@ class _AdmitPhases:
         # was invisible to exactly this kind of inline set until 2026-07-26.
         if journal_state in REPLY_RECOVERABLE_TURN_STATES and replay.get("assistant"):
             recovered_reply = _redact_persona_chat_text(
-                replay["assistant"].get("content"), limit=PERSONA_CHAT_REPLY_LIMIT
+                replay["assistant"].get("content")
             )
             _settled = transition_mission_chat_turn(
                 session_id=session_id,
@@ -325,8 +368,7 @@ class _AdmitPhases:
             stored_reply = journal.get("stored_reply")
             if stored_reply is None and replay.get("assistant"):
                 stored_reply = _redact_persona_chat_text(
-                    replay["assistant"].get("content"),
-                    limit=PERSONA_CHAT_REPLY_LIMIT,
+                    replay["assistant"].get("content")
                 )
             _settled = transition_mission_chat_turn(
                 session_id=session_id,
@@ -347,6 +389,44 @@ class _AdmitPhases:
         self.replay = replay
         self.journal = journal
         self.journal_state = journal_state
+
+    def _admit_retry(self) -> int | None:
+        """D2.04: a send carrying ``retry_of`` re-runs a reply-less terminal turn of THIS root.
+
+        Checked after the prior-attempt answer (a replay of this id is answered
+        from its own record) and before the write-ahead, so a refused retry
+        leaves no journal record. The value is stamped on the write-ahead only.
+        """
+
+        from agent_runtime.persona_chat_history.vocabulary import TERMINAL_TURN_MARKERS
+
+        retry_of = safe_assignment_text(getattr(self.args, "retry_of", None), limit=240)
+        if not retry_of:
+            return None
+        target = None
+        if retry_of != self.client_message_id:
+            target = mission_chat_turn_record(session_id=self.session_id, client_message_id=retry_of)
+        target_state = safe_assignment_token((target or {}).get("state")) or None
+        if target_state in TERMINAL_TURN_MARKERS:
+            self.retry_of = retry_of
+            return None
+        data = {
+            "ok": False,
+            "capability_id": "mission.chat.message",
+            "execution_state": ExecutionState.REJECTED,
+            "error_kind": ChatErrorKind.CHAT_TURN_RETRY_TARGET_INVALID,
+            "persona_instance_id": self.instance.id,
+            "persona_id": self.normalized_persona,
+            "session_id": self.session_id,
+            "root_chat_session_id": self.session_id,
+            "client_message_id": self.client_message_id,
+            "retry_of": retry_of,
+            "retry_target_state": target_state,
+            "error": "retry_of names no interrupted or budget-exhausted turn of this chat",
+            "next_expected": "send the message again without retry_of; nothing was run",
+        }
+        _mission_chat_emit(self.args, data)
+        return 2
 
     def _answer_prior_attempt(self) -> int | None:
         """Answer from the prior attempt when it already speaks for this id; ``None`` to run the turn."""
@@ -386,7 +466,7 @@ class _AdmitPhases:
             or _persona_chat_native_revision(session_db, session_id),
         )
         reply_text = _redact_persona_chat_text(
-            journal.get("stored_reply"), limit=PERSONA_CHAT_REPLY_LIMIT
+            journal.get("stored_reply")
         )
         data = {
             "ok": True,
@@ -427,7 +507,7 @@ class _AdmitPhases:
         normalized_persona = self.normalized_persona
         instance = self.instance
         reply_text = _redact_persona_chat_text(
-            self.replay["assistant"].get("content"), limit=PERSONA_CHAT_REPLY_LIMIT
+            self.replay["assistant"].get("content")
         )
         for state, metadata, step in (
             (TURN_STATE_PENDING, {"root_chat_session_id": session_id, "pending_user_message": self.message}, "replay_walk_pending"),

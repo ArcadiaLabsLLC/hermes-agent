@@ -13,6 +13,7 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
       __init__.py          stores   this map; re-exports the importer and test names
       bounds.py            policy   the composed-user-content bound: per-part ceilings,
                                     ContentBoundNote / BoundedUserContent, _redacted
+      content.py           policy   native text/JSON redaction; provider blocks stay typed
       wire.py              policy   THE wire boundary: native_wire_row, safe_native_*,
                                     record_wire_boundary_drift, native_history_revision
       lease.py             stores   the chat-root lease + the scopes a turn holds
@@ -47,15 +48,11 @@ from . import bounds, clarify_index, clarify_tickets, lease, mint_receipts, runt
 from .bounds import (
     BOUND_ACTION_DROPPED,
     BOUND_ACTION_TRUNCATED,
-    BOUND_PART_CONTENT,
-    BOUND_PART_MESSAGE,
     BOUND_PART_RUNTIME_CONTEXT,
     BOUND_PART_SKILL_PRELOAD,
-    BOUND_PART_TOOL_ARGUMENTS,
     CONTENT_BOUND_PARTS,
     BoundedUserContent,
     ContentBoundNote,
-    _MAX_OPERATOR_MESSAGE_CONTENT,
     _MAX_RUNTIME_CONTEXT_CONTENT,
     _MAX_USER_ROW_CONTENT,
     _bound_envelope,
@@ -100,7 +97,6 @@ from .wire import (
     native_history_revision,
     native_lineage_summary,
     native_wire_row,
-    record_wire_boundary_cut,
     record_wire_boundary_drift,
     safe_native_history,
     safe_native_message,
@@ -111,11 +107,8 @@ __layer__ = "stores"
 __all__ = [
     "BOUND_ACTION_DROPPED",
     "BOUND_ACTION_TRUNCATED",
-    "BOUND_PART_CONTENT",
-    "BOUND_PART_MESSAGE",
     "BOUND_PART_RUNTIME_CONTEXT",
     "BOUND_PART_SKILL_PRELOAD",
-    "BOUND_PART_TOOL_ARGUMENTS",
     "CLARIFY_TICKET_ANSWERED",
     "CLARIFY_TICKET_OPEN",
     "CLARIFY_TICKET_REBOUND",
@@ -155,7 +148,6 @@ __all__ = [
     "native_wire_row",
     "persona_chat_root_lease",
     "persona_chat_runtime_registry",
-    "record_wire_boundary_cut",
     "record_wire_boundary_drift",
     "repair_orphaned_chat_turns",
     "runtime_registry",

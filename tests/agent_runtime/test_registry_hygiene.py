@@ -32,7 +32,16 @@ def test_hygiene_set_covers_exactly_the_kanban_and_feishu_toolsets():
         | _static_toolset_tools("feishu_doc")
         | _static_toolset_tools("feishu_drive")
     )
-    assert REGISTRY_HYGIENE_BLOCKED_TOOLS == frozenset(expected)
+    # Since v0.21.6 the set is DERIVED from the builtin manifest (where each tool
+    # registers), so it equals the registry view and covers upstream's static
+    # ``toolsets.py`` list, which lags it: ``kanban_schedule`` registers into
+    # ``kanban`` but is not in the static list, and it must still be blocked.
+    from tools.toolset_manifest import builtin_tool_names_for_toolsets
+
+    assert REGISTRY_HYGIENE_BLOCKED_TOOLS == frozenset(
+        builtin_tool_names_for_toolsets(("kanban", "feishu_doc", "feishu_drive")))
+    assert frozenset(expected) <= REGISTRY_HYGIENE_BLOCKED_TOOLS
+    assert "kanban_schedule" in REGISTRY_HYGIENE_BLOCKED_TOOLS
     # 9 → 12 at the 2026-07-31 upstream sync (kanban card attachments:
     # kanban_attach / kanban_attach_url / kanban_attachments). The detector did
     # its job; the constant was extended deliberately rather than the count

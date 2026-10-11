@@ -22,6 +22,9 @@ def start_worker(home: Path, *, receive: Callable[[dict], None],
         environment["HERMES_AUTH_HOME"] = str(auth_home)
     environment["PYTHONUNBUFFERED"] = "1"
     environment["PYTHONUTF8"] = "1"
+    from agent_runtime.process_env_defaults import apply_harness_process_env_defaults
+
+    apply_harness_process_env_defaults(environment)
     environment.update(spawn_env("native-conversation"))
     # This interpreter is the selected, already-running Hermes installation.
     # No PATH probe, second install selection, shell or terminal window.

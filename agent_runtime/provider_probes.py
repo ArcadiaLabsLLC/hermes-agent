@@ -1,9 +1,38 @@
 """Provider readiness and context-local non-persisting credential selection."""
-from typing import Optional, Dict, Any
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator, Optional, Dict, Any
 from agent_runtime import auth_extensions as auth_ext
 from agent_runtime.pool_rotation import pool_rotation_scope
 
 __layer__ = "stores"
+
+#: D1.05 CF-3: one snapshot build's probe answers, keyed on the credential
+#: stores' revision. ``None`` outside a build: an unscoped caller probes live.
+_BUILD_PROBE_MEMO: ContextVar[dict | None] = ContextVar("provider_probe_build_memo", default=None)
+
+
+@contextmanager
+def provider_probe_build_scope() -> Iterator[None]:
+    """Answer each read-only probe once per credential-store revision for one build.
+
+    A readiness build asked :func:`codex_credentials_resolvable_read_only` once
+    per persona home (11 on the operator's store, ~2.7 s), and ``load_pool``
+    rebuilds the pool from its files on every call. The answer is a function of
+    the auth stores the run path reads, so it is memoised on their identities
+    (``hermes_cli.auth.authentication_owner_stamps``: the profile/shared
+    ``auth.json`` and the global-root fallback) for the life of the scope only;
+    a credential written mid-build changes the stamp and is probed again.
+    Nested scopes share the outermost memo.
+    """
+    if _BUILD_PROBE_MEMO.get() is not None:
+        yield
+        return
+    token = _BUILD_PROBE_MEMO.set({})
+    try:
+        yield
+    finally:
+        _BUILD_PROBE_MEMO.reset(token)
 
 
 def probe_runtime_provider(
@@ -69,8 +98,23 @@ def codex_credentials_resolvable_read_only() -> bool:
     the pre-existing re-auth resync inside ``_available_entries`` — a real
     credential change adopted from ``auth.json``, whose write is honest and was
     never this branch's to suppress.
+
+    Inside :func:`provider_probe_build_scope` the answer is memoised per
+    credential-store revision (D1.05 CF-3).
     """
 
+    memo = _BUILD_PROBE_MEMO.get()
+    if memo is None:
+        return _codex_credentials_resolvable_now()
+    from hermes_cli.auth import authentication_owner_stamps
+
+    key = ("openai-codex", authentication_owner_stamps())
+    if key not in memo:
+        memo[key] = _codex_credentials_resolvable_now()
+    return memo[key]
+
+
+def _codex_credentials_resolvable_now() -> bool:
     # Resolved at call time, not bound at import: the readiness suites stand a
     # fake pool up by setting ``agent.credential_pool.load_pool``, and a
     # module-level binding would not see it.

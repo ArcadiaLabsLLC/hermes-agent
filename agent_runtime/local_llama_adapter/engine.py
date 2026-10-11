@@ -215,13 +215,20 @@ def validate_model(path: Path) -> dict:
         match = _SHARD.fullmatch(path.name)
         if not match or int(match[3]) != count or info.get("split.no") != 0 or int(match[2]) != 1:
             raise _fail("incomplete_model", "Select the first file of a complete GGUF shard set")
+        # Each shard is read as its OWN file: upstream's read_gguf_header answers for the
+        # whole model (first part's metadata) whichever member it is handed. gguf-split
+        # writes the model's metadata into the first part only, so a later part is held
+        # to its split.* keys and to whichever general.* keys it happens to carry.
+        from agent_runtime._upstream_doors import gguf_file_header
+
         for index in range(count):
             shard = path.with_name(f"{match[1]}-{index + 1:05d}-of-{count:05d}.gguf")
             try:
-                part = _header(shard)
-            except LocalLlamaError as exc:
+                part = gguf_file_header(shard).metadata
+            except Exception as exc:  # noqa: BLE001 — OSError or a malformed header alike
                 raise _fail("incomplete_model", "A GGUF shard is missing or unreadable") from exc
-            if any(part.get(k) != info.get(k) for k in ("general.name", "general.architecture", "split.count")) or part.get("split.no") != index:
+            if (part.get("split.count") != count or part.get("split.no") != index
+                    or any(k in part and part[k] != info.get(k) for k in ("general.name", "general.architecture"))):
                 raise _fail("incomplete_model", "GGUF shards do not belong to the same model")
     return info
 

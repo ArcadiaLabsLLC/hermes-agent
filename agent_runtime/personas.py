@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from enum import StrEnum
 
 from .models import AgentPersona
@@ -79,8 +80,8 @@ def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
 
 # Fork registry hygiene (T6c, 2026-07-18). Upstream toolsets the fork's effective
 # registry must never resolve on ANY agent-runtime lane: the whole ``kanban``
-# toolset (12 tools — superseded by the fork board/mission system) and the
-# ``feishu_doc`` + ``feishu_drive`` toolsets (5 tools — an irrelevant Feishu/Lark
+# toolset (superseded by the fork board/mission system) and the
+# ``feishu_doc`` + ``feishu_drive`` toolsets (an irrelevant Feishu/Lark
 # integration). The upstream tool files stay untouched (fork-sync cleanliness);
 # this fork-owned constant is the deregistration mechanism. It is enforced in TWO
 # places so no lane escapes:
@@ -93,39 +94,17 @@ def coerce_agent_role(role: AgentRole | str | None) -> AgentRole | str:
 # keep them registered (both are parallel-authority surfaces; a future lane that
 # enables either owns reconciling delegation-vs-harness-dispatch / upstream-memory-
 # vs-profile-memory).
-REGISTRY_HYGIENE_BLOCKED_TOOLS = frozenset(
-    {
-        # kanban toolset (12)
-        "kanban_show",
-        "kanban_list",
-        "kanban_create",
-        "kanban_complete",
-        "kanban_block",
-        "kanban_link",
-        "kanban_comment",
-        "kanban_unblock",
-        "kanban_heartbeat",
-        # +3 from the 2026-07-31 upstream sync: the kanban card-attachment
-        # verbs. Blocked for the same reason as the rest of the toolset —
-        # upstream kanban itself is KEPT (it is not the fork board), it just
-        # must not resolve on an agent-runtime lane.
-        "kanban_attach",
-        "kanban_attach_url",
-        "kanban_attachments",
-        "kanban_request_review",
-        "kanban_request_changes",
-        # feishu_doc toolset (1)
-        "feishu_doc_read",
-        # feishu_drive toolset (4)
-        "feishu_drive_list_comments",
-        "feishu_drive_list_comment_replies",
-        "feishu_drive_reply_comment",
-        "feishu_drive_add_comment",
-    }
-)
+#
+# The block is by TOOLSET MEMBERSHIP, read from the generated builtin manifest
+# (``tools/toolset_manifest.json``, drift-gated by ``tests/tools/
+# test_toolset_manifest.py``), not a hand-kept tool list: upstream grows these
+# toolsets (+5 kanban verbs at the 2026-07-31 sync, ``kanban_schedule`` at
+# v0.21.6), and an enumerated list let each new verb resolve on a declaring lane
+# until someone noticed. Upstream kanban itself is KEPT (it is not the fork
+# board); it just must not resolve on an agent-runtime lane.
+REGISTRY_HYGIENE_BLOCKED_TOOLSETS = ("kanban", "feishu_doc", "feishu_drive")
 
-
-PERSONA_BLOCKED_TOOLS = frozenset(
+_BOUNDED_LANE_BLOCKED_TOOLS = frozenset(
     {
         "delegate_task",
         "clarify",
@@ -134,7 +113,37 @@ PERSONA_BLOCKED_TOOLS = frozenset(
         "cronjob",
         "cronjob_manage",  # upstream action-tool name; preserve the bounded-lane block
     }
-) | REGISTRY_HYGIENE_BLOCKED_TOOLS
+)
+
+
+@lru_cache(maxsize=1)
+def registry_hygiene_blocked_tools() -> frozenset[str]:
+    """``REGISTRY_HYGIENE_BLOCKED_TOOLS``, resolved on first use: importing this module
+    must not import ``tools`` (a bundle's forced tree mounts ``tools`` after
+    ``agent_runtime`` loads)."""
+    from tools.toolset_manifest import builtin_tool_names_for_toolsets
+
+    return frozenset(builtin_tool_names_for_toolsets(REGISTRY_HYGIENE_BLOCKED_TOOLSETS))
+
+
+@lru_cache(maxsize=1)
+def persona_blocked_tools() -> frozenset[str]:
+    """``PERSONA_BLOCKED_TOOLS``: the bounded-lane block plus registry hygiene."""
+    return _BOUNDED_LANE_BLOCKED_TOOLS | registry_hygiene_blocked_tools()
+
+
+_LAZY_CONSTANTS = {
+    "REGISTRY_HYGIENE_BLOCKED_TOOLS": registry_hygiene_blocked_tools,
+    "PERSONA_BLOCKED_TOOLS": persona_blocked_tools,
+}
+
+
+def __getattr__(name: str):
+    try:
+        return _LAZY_CONSTANTS[name]()
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 def role_from_persona(persona: AgentPersona) -> AgentRole | str:
     return coerce_agent_role(persona.role)
@@ -165,7 +174,7 @@ def blocked_tool_names() -> frozenset[str]:
     stays because it is the name the visibility/runtime lanes already call.
     """
 
-    return PERSONA_BLOCKED_TOOLS
+    return persona_blocked_tools()
 
 
 def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> list[str]:
@@ -181,7 +190,7 @@ def _blocked_tool_names_with_registry_hygiene(requested: list[str] | None) -> li
 
     names = list(requested or [])
     seen = set(names)
-    for name in sorted(REGISTRY_HYGIENE_BLOCKED_TOOLS):
+    for name in sorted(registry_hygiene_blocked_tools()):
         if name not in seen:
             names.append(name)
             seen.add(name)

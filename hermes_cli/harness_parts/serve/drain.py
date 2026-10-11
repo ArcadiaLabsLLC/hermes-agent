@@ -324,6 +324,14 @@ class DrainLane:
                 native_ids = owner.drain_pending(close_idle=not remaining)
                 remaining.extend(native_ids)
                 chat_turn_ids.extend(native_ids)
+            # A queued chat turn (the busy-root send queue's runner) is a chat
+            # turn in flight with no serve request of its own: the drain waits
+            # for it exactly as it waits for a sent one.
+            runner = getattr(self, "queued_send_runner", None)
+            if runner is not None:
+                queued_ids = runner.inflight_request_ids()
+                remaining.extend(queued_ids)
+                chat_turn_ids.extend(queued_ids)
             if not remaining:
                 self._finish_drain(
                     0,
