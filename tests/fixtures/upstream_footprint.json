@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-10",
+  "measured_at": "2026-10-11",
   "base": "818c13be1d",
   "files": 194,
-  "deleted_lines": 945,
+  "deleted_lines": 970,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "console-history-repair: native restore extraction, reviewed consumer consolidation, baseline/deletion compatibility and finite lock waits",
+      "files": "194 -> 194",
+      "deleted_lines": "945 -> 970; heavy 5 -> 5",
+      "reason": "Behavior-preserving native extraction 71ba58a781 is separate from reviewed consumer e38ec5d239. Typed busy/wait is held independently; retention pins stay with resumable restoration. Existing native lock, store, checkout batching and path handling remain owners."
+    },
     {
       "change": "console-history-repair: native atomic history receipts, reviewed file restore/recovery and checkpoint observer API",
       "files": "185 -> 188: SessionDB history mixin/rewind forwarding and CheckpointManager owner APIs",

@@ -401,3 +401,28 @@ qualification; repeat it, including recently merged work, before implementation.
 
 No maintainer request for the extraction, busy/wait or retention-pin API was
 established by this check. No upstream contact or submission was made.
+
+
+### Runtime implementation evidence — 2026-10-11
+
+Operator clarification supersedes the earlier read-compatibility proposal:
+`profile_<name>` is the sole persona-ID contract. `4bd7d84234` removes dedicated
+colon alias handling and updates producers/selectors together. Stored profile
+personas keep their explicit binding; unrelated permission/skill namespaces are
+unchanged. Identity/assignment/curation suites: 227 passed; projection/receipt
+checks: 45 passed. Launcher integration still needs qualification.
+
+H1/H2/H4 repairs are `875e77a0f3` and `e687e9070d`: pre-write contention settles,
+Undo transitions have one typed owner, first-turn baselines and safe restoration
+of agent-deleted files are preserved. Native extraction `71ba58a781` is separate
+from reviewed consumer `e38ec5d239`; lifecycle/Undo/recovery checks: 32 passed.
+Pins remain part of resumable restoration, not a standalone upstream proposal.
+
+H3 killing controls rerun against `e38ec5d239`: disabling the in-transaction
+`check_history_digest` in `hermes_state_messages` makes the in-place rewind race
+test fail at its expected `history_changed` error (an apply result was returned).
+Disabling Undo's recovery-revision check makes the stale recovery test fail at
+its expected `recovery_changed` error (recovery proceeded). Both mutations were
+restored immediately; the two complete suites passed afterward (14 tests).
+This is committed evidence of those named controls, not a claim that every
+concurrency schedule or native UI path has been proved.
