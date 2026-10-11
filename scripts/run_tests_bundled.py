@@ -492,10 +492,13 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
+cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
+_gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
+
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit",
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -649,6 +652,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--git-audit", action="store_true",
         help="record every git a test runs against this checkout to .pytest_cache/hermes_git_in_checkout.jsonl",
     )
+    _gate.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
     if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
@@ -687,6 +691,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     durations = plan.load_durations_with_primary(repo_root, rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
     known_reds = plan.load_known_reds(repo_root)
+    gate = _gate.GateRun.start(args, repo_root)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
@@ -712,7 +717,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     started = time.monotonic()
     result = run(
         files,
-        pytest_args,
+        pytest_args + gate.plugin_args,
         repo_root,
         jobs=args.jobs,
         bundle_size=args.bundle_size,
@@ -737,7 +742,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if clean:
         rtp._save_durations(clean, repo_root)
         print(f"  Durations cached to {rtp._DURATIONS_FILE} ({len(clean)} files)")
-    return _print_summary(result, files, repo_root, elapsed, args.jobs, cost)
+    return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
 
 if __name__ == "__main__":
