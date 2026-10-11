@@ -107,6 +107,23 @@ def _rmtree_readonly_too(path: str) -> None:
         shutil.rmtree(path, onerror=lambda f, p, e: _retry_writable(f, p, e[1]))
 
 
+def _sweep_system_temp_named(environ, root: str, now: float) -> list[str]:
+    """This repo's aged leftovers in the system temp dir, removed and NAMED (D3.08):
+    one line each on stderr and in ``<root>/.temp-sweep.log``."""
+    from tests._downstream.temp_prefixes import sweep_system_temp, system_temp_dirs
+
+    removed = sweep_system_temp(system_temp_dirs(environ, root), now=now, rmtree=_rmtree_readonly_too)
+    if removed:
+        try:
+            with open(os.path.join(root, ".temp-sweep.log"), "a", encoding="utf-8") as log:
+                log.writelines(f"{int(now)} removed {path}\n" for path in removed)
+        except OSError:
+            pass
+        for path in removed:
+            print(f"hermes temp sweep: removed {path}", file=sys.stderr)
+    return removed
+
+
 def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
     root = (environ.get("HERMES_TEST_TMP_ROOT") or "").strip()
     if not root or not os.path.isdir(root):
@@ -135,6 +152,8 @@ def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
                     _rmtree_readonly_too(entry.path)
             except OSError:
                 pass
+        if environ is os.environ:  # never a passed-in environ: the system temp is real
+            _sweep_system_temp_named(environ, root, now)
     run_dir = tempfile.mkdtemp(prefix="run-", dir=root)
     for key in ("TMP", "TEMP", "TMPDIR"):
         environ[key] = run_dir
@@ -911,6 +930,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     from tests._downstream import reserved_dns
 
     reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
+    from tests._downstream import fresh_db_census
+
+    if fresh_db_census.enabled() and not config.pluginmanager.is_registered(fresh_db_census):
+        config.pluginmanager.register(fresh_db_census, "hermes_fresh_db_census")
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
@@ -980,6 +1003,11 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
         f"{_SCOPED_MONKEYPATCH_UNDO_MARK}: the upstream test calls monkeypatch.undo() "
         "mid-body; undo is narrowed to the body's own patches so the fixtures' hermetic "
         "pins hold (applied at collection by an AST walk of the test body).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "fresh_schema_path: the test's subject is a fresh state.db's schema build; "
+        "tests/agent_runtime's autouse SessionDB template is off for it (D3.11).",
     )
     config.addinivalue_line(
         "markers",

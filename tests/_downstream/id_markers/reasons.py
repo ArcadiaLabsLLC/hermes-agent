@@ -126,8 +126,11 @@ def _fork_replaces(symbol: str, sibling: str) -> pytest.MarkDecorator:
 _UP_RED = "upstream-red on Windows at v2026.9.24; no fix yet"
 
 
-def _up_red(detail: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail})")
+def _up_red(detail: str, *, qualified: str = "") -> pytest.MarkDecorator:
+    """``qualified`` names the interpreter / SQLite pair (and date) the row was last seen
+    red on, so the next re-qualification reads the row's age off its reason (D3.13)."""
+    seen = f"; last seen red on {qualified}" if qualified else ""
+    return pytest.mark.xfail(strict=True, reason=f"{_UP_RED} ({detail}{seen})")
 
 
 def _up_red_when(condition: bool, detail: str) -> pytest.MarkDecorator:

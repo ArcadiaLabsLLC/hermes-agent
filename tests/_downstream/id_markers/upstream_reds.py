@@ -11,6 +11,7 @@ The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import functools
 import os
 import sqlite3
 import sys
@@ -24,7 +25,7 @@ from tests._downstream.id_markers.reasons import (
     _PATH_SPELLING,
     _SEPARATOR_SPELLING,
     _TMP_LITERAL,
-    _up_red,
+    _up_red as _up_red_unqualified,
     _up_red_skip,
     _up_red_when,
     _WIN,
@@ -32,14 +33,20 @@ from tests._downstream.id_markers.reasons import (
 
 __layer__ = "models"
 
+#: Re-qualified 2026-10-10 (design sweep D3.13, lane build-1011-C6): every file below was
+#: run by name on the canonical test venv; each strict-xfail row that stays was seen red
+#: (XFAIL) there, and the XPASS, platform-skipped and upstream-deleted rows were removed.
+#: The `_up_red_skip` rows (process-killers) and the install.ps1 suite row (it writes the
+#: user PATH unfenced, D3.15) were not run and carry no stamp.
+QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-10)"
+
+_up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
 }
 
 if _WIN:
     ROWS.update({
-        "tests/tools/test_approval.py::TestDetectDangerousRm::test_nonrecursive_verification_artifact_cleanup_is_not_dangerous": (
-            pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
-        ),
         "tests/tools/test_approval.py::TestDetectDangerousRm::test_symlinked_temp_dir_only_exempts_canonical_target": (
             pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
         ),
@@ -119,7 +126,7 @@ if _WIN:
         "tests/scripts/install/test_install_ps1_script_suites.py::"
         "test_suite_passes[test-install-ps1-longpath.ps1-pwsh]": (
             _up_red("the fabricated 8.3 profile alias is refused as a drive root before "
-                    "the normalizer rebuilds it; 10 of the suite's assertions"),
+                    "the normalizer rebuilds it; 10 of the suite's assertions", qualified=""),
         ),
         # Lane h10-fhrest (2026-09-29): _tool_defs_cache_key is upstream's bytes; on NTFS
         # shutil.copy2 over an existing file keeps its file index and creation-time
@@ -150,11 +157,6 @@ if _WIN:
         "tests/hermes_cli/test_profiles.py::TestFindAliasForProfile::"
         "test_list_profiles_surfaces_custom_alias": (
             _up_red("the alias is read back with its .bat suffix; issue #83938"),
-        ),
-        "tests/hermes_cli/test_resource_limits.py::"
-        "test_named_profile_reroute_defers_limit_to_final_process": (
-            _up_red("spawns a real `hermes serve` (SystemExit 1 upstream; the fork's "
-                    "live-system guard refuses the spawn)"),
         ),
         "tests/hermes_cli/test_desktop_lifecycle_windows_live.py::"
         "test_holder_scan_fallback_respects_token_classifier": (
@@ -260,12 +262,8 @@ if _WIN:
             'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_automatic_backup_omits_crc_valid_partial_member',
             'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_incomplete_pre_update_backup_does_not_rotate_last_complete',
         )},
-        **{node: (_up_red('HOME patched, USERPROFILE not, in a ~-expansion (class c-C, #121222)'),) for node in (
-            'tests/hermes_cli/test_resume_latest_and_in_dir.py::test_in_dir_expands_user_home',
-        )},
         **{node: (_up_red('path spelling: separators or drive-qualified POSIX literals (class c-D, PR class win-path-spelling #121224)'),) for node in (
             'tests/hermes_cli/test_plugin_manifest_v2.py::TestDirectoryPluginKeepsIdentityOverEntryPoint::test_loader_and_listing_prefer_the_installed_directory',
-            'tests/hermes_cli/test_ssh_session_token_parser.py::test_token_file_rejects_parent_escape',
             'tests/hermes_cli/test_startup_fast_guards.py::test_literal_tilde_hermes_home_expands_before_any_reader',
             'tests/hermes_cli/test_startup_fast_guards.py::test_normalize_hermes_home_env_rewrites_tilde_and_leaves_absolute_alone',
             'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env0]',
@@ -278,9 +276,6 @@ if _WIN:
         ),
         **{node: (_up_red('bash invocation with Windows paths inside a POSIX command string (class c-E, #121226)'),) for node in (
             'tests/hermes_cli/test_agent_env_advertisement.py::TestWrapCommandAdvertisesHarness::test_shell_sets_default_and_preserves_outer',
-            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_output_is_streamed_to_writer',
-            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_stderr_is_merged_into_output',
-            'tests/hermes_cli/test_bang_shell_mode.py::TestBangExecution::test_runs_in_requested_cwd',
         )},
         # Lane h10-fhrel 2026-09-29 (fork-hygiene row 'Upstream-owned Windows reds'): the MCP OAuth
         # tests mock sys.stdin.isatty(), but upstream's _stdin_is_console() also asks GetConsoleMode of
@@ -346,18 +341,11 @@ if _WIN:
         )},
         **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
             'tests/hermes_cli/test_agent_plugins.py::test_server_declaration_joins_mcp_and_preserves_liveness',
-            'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_lf_enter_binding_respects_multiline_shortcuts',
-            'tests/hermes_cli/test_cli_init.py::TestPromptToolkitTerminalCompatibility::test_cpr_gating_posix_suppresses_without_ssh',
             'tests/hermes_cli/test_ctrl_enter_newline.py::test_ctrl_j_legacy_submit_when_multiline_shortcuts_disabled',
             'tests/hermes_cli/test_local_runtime_child_env.py::test_spawn_server_keeps_the_callers_environment',
             'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_passes_child_pid_exclude_to_scan',
             'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_kills_descendants_of_killed_roots_but_spares_a_failed_roots_subtree',
             'tests/hermes_cli/test_plugins_cmd_catalog.py::test_catalog_platform_mismatch_refuses_before_install',
-        )},
-        **{node: (_up_red('fake executable is an extensionless #! script, neither run nor found via PATHEXT (class e-EXE)'),) for node in (
-            'tests/hermes_cli/test_goal_gates.py::test_run_gate_fail_captures_output',
-            'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_pr_tree_is_reaped',
-            'tests/hermes_cli/test_worktree.py::TestPrMergedEscapeHatch::test_merged_verdict_memoized_by_branch_and_head',
         )},
         **{node: (_up_red('a same-size, pinned-mtime replacement keeps the NTFS file id and creation ctime (class e-ID)'),) for node in (
             'tests/hermes_cli/test_cli_mcp_config_watch.py::test_pinned_mtime_same_size_replacement_triggers_reload',
@@ -585,15 +573,6 @@ if _WIN:
                 "test_missing_flag_does_not_forward_sticky_profile",
             )
         },
-        **{
-            f"tests/tui_gateway/test_status_profile_home.py::{test}": (
-                _up_red("expects the absolute Path: line; a home under the user profile renders as ~/..."),
-            )
-            for test in (
-                "test_session_status_path_uses_owning_profile_home",
-                "test_session_status_path_without_profile_home_keeps_launch_home",
-            )
-        },
     })
 
 if _WIN:
@@ -644,7 +623,6 @@ if _WIN:
                 )),
             )
             for test in (
-                "test_nested_local_collides_with_top_level_external",
                 "test_support_markdown_does_not_collide_with_real_skill",
             )
         },
@@ -705,9 +683,6 @@ if _WIN:
         ),
         "tests/tools/test_read_file_utf8_binary_regression.py::TestReadFileBinaryClassification::test_nul_byte_in_text_stays_binary": (
             _up_red("the read path classifies a NUL-bearing UTF-8 file as text on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
-        ),
-        "tests/tools/test_spawn_site_child_env.py::test_openviking_server_gets_the_bound_profiles_provider_keys_not_its_bot_tokens": (
-            _up_red("the OpenViking server spawn fails on this host, so its env is never observed (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
         ),
         "tests/tools/test_tts_path_traversal.py::test_media_directive_in_path_is_rejected_before_any_echo": (
             _up_red("the test's MEDIA: path is not a legal Windows filename (WinError 123) before the guard runs (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),

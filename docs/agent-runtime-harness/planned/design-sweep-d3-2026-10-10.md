@@ -259,6 +259,7 @@ test's premise changes, not the plan.
 
 **Verdict: PLAN** (the two design calls the lane returned are made below; one owner
 question on publishing sanitized shapes).
+**BUILT a5e3b2a0af** (build-1011-C6): live root carries no legacy key now, so every `expected_issues.json` is `[]`; the test asserts the producer's roster (enabled personas + auto-promoted `profile_<name>` rows), not the config count.
 
 **Decision and why.** The refusal is fixed (`a40612b68c`, `5c02a698ae`) and
 `tests/agent_runtime/test_persona_records.py::test_a_profile_config_carrying_the_key_keeps_the_producer_serving`
@@ -434,6 +435,7 @@ instrument (P0 row). A fix(merge) commit after the merge is covered by `<merge>.
 ## D3.08 = L7.20 — test and lane runs leave copied homes, runtimes and venvs in `%TEMP%`
 
 **Verdict: PLAN** for the hermes half; the bulk is a LAUNCHER row (filed verbatim below).
+**BUILT b802ea9d57** (build-1011-C6, hermes half): `scripts/run_tests.sh` is upstream (in v0.21.6), so the runner block is additive and ledgered; the launcher row is the parent's to file.
 
 **Decision and why.** Census of the operator's `%TEMP%` on 2026-10-10 (518 directories):
 `realm_sync_test_cred*` 75, `hermes-test-home-*` 17, `legacy_scope*` 15, `open_in_studio*`
@@ -540,6 +542,7 @@ supersession count is visible in the body, not discovered two days later.
 
 **Verdict: PLAN** (the census is a permanent cheap receipt the landing's gate already pays
 for; the widening is one fixture, opt-out, not per-file plumbing).
+**BUILT 7e9fc00871, 7e04062665** (build-1011-C6): fresh builds 304 → 35, 79.9 s → 8.4 s over 124 named files (receipt in `suite-speed-2026-10-05.md` Stage 4F); the template is built per module on first need, the fixture stays in `_session_db_template.py`.
 
 **Decision and why.** `tests/agent_runtime/_session_db_template.py::session_db_from_template`
 monkeypatches `hermes_state.SessionDB.__init__` to copy a module-scoped template into a
@@ -631,6 +634,7 @@ suite: the bundle membership is already recorded.
 ## D3.13 = L8.11 — re-qualify `upstream_reds.py` on the canonical test venv
 
 **Verdict: PLAN** (73 files, not ~200; a named-file run is a lane's run).
+**BUILT 9ac3ae6ff1** (build-1011-C6): the table held 269 rows / 110 files; 17 rows deleted (3 XPASS, 2 upstream-deleted ids, 12 platform-skipped on win32), 24 v0.21.6-proven rows added to `upstream_reds_v0216.py`; the resolve gate is `tests/tooling/test_upstream_reds_rows_resolve.py`.
 
 **Decision and why.** `tests/_downstream/id_markers/upstream_reds.py` carries 69 `_up_red`
 rows (strict xfail) across 73 distinct upstream test files, classified at v2026.9.24 on

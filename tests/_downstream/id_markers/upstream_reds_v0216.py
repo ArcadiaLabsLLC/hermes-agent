@@ -257,7 +257,10 @@ _SSH_REMOTE_CWD_NODES = (
 )
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
-    {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
+    {
+        **{node: (_up_red(_REASON),) for node in _NODES},
+    }
+    if _WIN else {}
 )
 if _WIN:
     ROWS.update({

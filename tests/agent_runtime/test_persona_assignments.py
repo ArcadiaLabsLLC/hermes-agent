@@ -21,7 +21,7 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
-pytestmark = pytest.mark.usefixtures("persisted_persona_samples", "session_db_from_template")
+pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 from hermes_time import now
 
@@ -57,10 +57,6 @@ from agent_runtime.status import build_status
 from agent_runtime.store import AgentStore, RunStore, TaskStore
 from tests.agent_runtime.conftest import release_to_implementation
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
-from tests.agent_runtime._session_db_template import (  # noqa: F401 — fixtures
-    _session_db_template,
-    session_db_from_template,
-)
 from utils import atomic_json_write
 
 
