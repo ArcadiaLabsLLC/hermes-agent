@@ -8,7 +8,7 @@ open stores the test never names. This plugin writes it down.
 
 ``HERMES_TEST_COUNT_FRESH_DBS=1`` registers it (``conftest_plugin`` does, at
 configure; the bundled runner sets the variable, so the landing gate pays the
-census). It wraps ``hermes_state.SessionDB.__init__`` once ``hermes_state`` is
+census). It wraps ``hermes_state.SessionDB._open_writer`` once ``hermes_state`` is
 imported, and counts, per test FILE, the writer opens of a path that did not
 exist when the open began, with the seconds spent inside them. A READ open is
 never counted, and neither is a writer open of an existing file (the template
@@ -47,32 +47,27 @@ def _row(file: str) -> dict[str, float]:
     return _files.setdefault(file, {"fresh_dbs": 0, "fresh_seconds": 0.0, "seconds": 0.0})
 
 
-def _open_args(args: tuple, kwargs: dict) -> tuple[object, bool]:
-    db_path = args[0] if args else kwargs.get("db_path")
-    read_only = args[1] if len(args) > 1 else kwargs.get("read_only", False)
-    return db_path, bool(read_only)
-
-
 def install() -> bool:
-    """Wrap ``SessionDB.__init__`` if ``hermes_state`` is imported; idempotent."""
+    """Wrap ``SessionDB._open_writer`` if ``hermes_state`` is imported; idempotent.
+
+    Not ``__init__``: it names the frame above it as the handle's opener, and a wrapper
+    there would be that frame. ``_open_writer`` is the writer half of the open and holds
+    the schema run, so a read-only open never reaches it.
+    """
 
     module = sys.modules.get("hermes_state")
     if module is None or _installed.get("module") is module:
         return False
-    original = module.SessionDB.__init__
+    original = module.SessionDB._open_writer
 
-    def counted_init(self, *args, **kwargs):
-        db_path, read_only = _open_args(args, kwargs)
-        fresh = False
-        if not read_only:
-            try:
-                target = Path(db_path) if db_path else Path(module._default_db_path())
-                fresh = not target.exists()
-            except Exception:  # the census never decides an open
-                fresh = False
+    def counted_open_writer(self, *args, **kwargs):
+        try:
+            fresh = not Path(self.db_path).exists()
+        except Exception:  # the census never decides an open
+            fresh = False
         started = time.perf_counter()
         try:
-            original(self, *args, **kwargs)
+            return original(self, *args, **kwargs)
         finally:
             if fresh:
                 with _lock:
@@ -80,7 +75,7 @@ def install() -> bool:
                     row["fresh_dbs"] += 1
                     row["fresh_seconds"] += time.perf_counter() - started
 
-    module.SessionDB.__init__ = counted_init
+    module.SessionDB._open_writer = counted_open_writer
     _installed["module"] = module
     return True
 

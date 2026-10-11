@@ -223,9 +223,6 @@ _NODES = (
         'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_tier_paid_forces_keyed_without_key',
         'tests/tui_gateway/test_bot_relay_methods.py::test_deliver_validates_profile_and_runs_transport',
         'tests/tui_gateway/test_bot_relay_methods.py::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed',
-        'tests/tui_gateway/test_composite_carrier_rewind.py::test_prompt_row_id_rewind_preserves_scaffold_before_regeneration',
-        'tests/tui_gateway/test_desktop_session_row_git_meta.py::test_first_submit_row_records_git_branch_and_root',
-        'tests/tui_gateway/test_desktop_session_row_git_meta.py::test_row_git_probe_runs_once_per_session',
         'tests/tui_gateway/test_desktop_session_workspace_persistence.py::test_desktop_inherited_cwd_persists_only_when_the_resolution_adopted_it',
         'tests/tui_gateway/test_display_methods.py::test_install_sudo_card_ignores_a_client_supplied_session_id',
         'tests/tui_gateway/test_display_methods.py::test_install_worker_keeps_the_requested_profile_scope',
@@ -233,13 +230,6 @@ _NODES = (
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestBackgroundProfileOverride::test_background_binds_and_restores_profile_home',
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestBackgroundProfileOverride::test_background_restores_override_on_error',
         'tests/tui_gateway/test_ephemeral_profile_override.py::TestPreviewRestartProfileOverride::test_preview_binds_and_restores_profile_home',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[steered-over-rpc]',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[typed-while-busy]',
-        'tests/tui_gateway/test_free_tier_task_done.py::test_prompt_submit_records_only_untouched_turns[untouched]',
-        'tests/tui_gateway/test_lazy_session_regressions.py::TestPendingTitleValueError::test_valueerror_clears_pending_title',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_desktop_prompt_carries_gateway_rows_appended_after_hydration',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_desktop_prompt_does_not_adopt_its_own_user_row',
-        'tests/tui_gateway/test_out_of_band_history_adoption.py::test_unstamped_prompt_after_a_foreign_compaction_sends_the_compacted_transcript',
 )
 
 # An ssh profile's REMOTE cwd is shape-checked with the host's os.path.isabs
