@@ -6,7 +6,9 @@ make one file's process different from the default solo
 
 * **known reds** (§2) — a file red or timed out in the last recorded run runs
   ONCE, alone, with no flake retry, no straggler retry and a capped timeout
-  (:func:`known_red_timeout`); its output says so and names how its failing
+  (:func:`known_red_timeout`; a file whose last red was a TIMEOUT keeps the flat
+  timeout, so a slow file can earn the green duration the cap is computed
+  from); its output says so and names how its failing
   set moved since the record. A NEW red keeps the full path (bundle → re-run
   alone → leak diagnosis): that is the isolation-leak instrument.
 * **shards** (§3) — on a tail-bound run a slow file runs as k processes, one
@@ -107,11 +109,22 @@ class SoloPolicy:
             out += [(path, via) for via, _args in self._shard_vias(path)] or [(path, whole)]
         return out
 
+    def cap(self, rel: str) -> float:
+        """A known red's timeout. A file that last went red by TIMING OUT keeps the
+        flat timeout: capping it below its real duration would keep it red forever
+        and it would never record the green duration the cap reads (owner ruling
+        2026-10-11 on Q5; `tests/hermes_cli/test_gateway_migrate_multiplex.py`,
+        174 s clean, was stuck at the 120 s cap)."""
+
+        if rel in self.timed_out:
+            return self.flat_timeout
+        return known_red_timeout(rel, self.durations, self.flat_timeout)
+
     def budget(self, path: Path, via: str) -> Tuple[float, int, List[str]]:
         """``(timeout, flake retries, extra pytest args)`` for one process."""
 
         if via == KNOWN_RED_VIA:
-            return known_red_timeout(self.rel_of(path), self.durations, self.flat_timeout), 0, []
+            return self.cap(self.rel_of(path)), 0, []
         return self.default_timeout(path), self.retries, dict(self._shard_vias(path)).get(via, [])
 
     def is_shard(self, path: Path, via: str) -> bool:
@@ -132,7 +145,7 @@ class SoloPolicy:
 
         if via != KNOWN_RED_VIA:
             return output
-        cap = known_red_timeout(rel, self.durations, self.flat_timeout)
+        cap = self.cap(rel)
         tail = [f"known red (last recorded run): ran once, alone, no retry, timeout cap {cap:g}s (fast-gate §2)"]
         if rc == TIMEOUT_RC:
             tail.append(f"known-red timeout cap {cap:g}s; run alone: scripts/run_tests.sh {rel}")
