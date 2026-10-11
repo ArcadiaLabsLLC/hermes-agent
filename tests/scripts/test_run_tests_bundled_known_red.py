@@ -8,7 +8,9 @@ ruling Q5: the caps as written).
   out (they have no failing ids, so the red map alone forgets them).
 * Stage 2 — a known red is a solo, run with no flake retry and the cap, never
   retried as a straggler, and its output names how its failing set moved; a
-  NEW red still goes bundle → re-run alone → leak line.
+  NEW red still goes bundle → re-run alone → leak line. A file whose last red
+  was a TIMEOUT runs at the flat timeout instead of the cap (owner ruling
+  2026-10-11 on Q5: a 174 s file capped at 120 s could never go green again).
 """
 
 from __future__ import annotations
@@ -152,17 +154,17 @@ def test_a_known_red_never_enters_a_bundle_and_runs_once_with_no_retry_and_the_c
     assert result.ledger.summary(2)["processes"]["known-red"] == 1
 
 
-def test_a_timed_out_file_is_known_red_and_its_timeout_exit_is_not_retried_as_a_straggler(tmp_path):
+def test_a_timed_out_file_is_known_red_runs_at_the_flat_timeout_and_is_not_retried_as_a_straggler(tmp_path):
     files = _tree(tmp_path, ["tests/alpha/test_0.py", "tests/alpha/test_hang.py"])
     red = {"tests/alpha/test_hang.py": []}  # killed: no failing ids
     calls: list = []
 
     result = _run(tmp_path, files, red, calls, timed_out=["tests/alpha/test_hang.py"], rc_red=124)
 
-    assert [c for c in calls if c[0] == "solo"] == [("solo", "tests/alpha/test_hang.py", 120.0, 0)]
+    assert [c for c in calls if c[0] == "solo"] == [("solo", "tests/alpha/test_hang.py", 300.0, 0)]
     outcome = next(o for o in result.outcomes if o.file.name == "test_hang.py")
     assert (outcome.via, outcome.rc) == ("known-red", 124)
-    assert "known-red timeout cap 120s; run alone: scripts/run_tests.sh tests/alpha/test_hang.py" in outcome.output
+    assert "known-red timeout cap 300s; run alone: scripts/run_tests.sh tests/alpha/test_hang.py" in outcome.output
     assert result.ledger.summary(2)["processes"]["retry"] == 0
 
 

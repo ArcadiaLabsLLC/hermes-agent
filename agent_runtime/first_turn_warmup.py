@@ -92,6 +92,8 @@ FIRST_TURN_MODULES = (
     # ... and the local-runtime capability probe, and the stdlib netrc the HTTP client's
     # credential lookup imports (the turn-cost guard saw both on turn 0, 2026-10-10).
     "hermes_cli.local_runtime.capabilities", "netrc",
+    # ... and the effort receipt every provider dispatch logs (M2.05; the idle-box guard saw it, 2026-10-11).
+    "agent_runtime.request_effort",
 )
 
 
