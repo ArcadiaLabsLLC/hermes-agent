@@ -116,6 +116,9 @@
         },
         "hermes_cli/worktree_ops.py": {
           "mode": "hunks"
+        },
+        "tests/hermes_cli/test_uninstall_dry_run.py": {
+          "mode": "hunks"
         }
       },
       "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
@@ -126,6 +129,9 @@
       "base_ref": "upstream/main",
       "files": {
         "hermes_cli/auth_nous.py": {
+          "mode": "hunks"
+        },
+        "tests/hermes_cli/test_auth_commands.py": {
           "mode": "hunks"
         }
       },
@@ -158,6 +164,13 @@
             "        if _is_blocked_device_path(target):\n            return True"
           ],
           "reason": "Reviewed proc/device guards carried; fork posix_match_forms/path_identity adapter and import spelling remain independently owned."
+        },
+        "tools/file_tools_paths.py": {
+          "mode": "lines",
+          "fragments": [
+            "def _posix_match_forms(path: str) -> tuple[str, ...]:"
+          ],
+          "reason": "The PR's helper location carried (file_tools.py imports it from here); the fork's body routes the spelling through fork-owned tools.path_identity.posix_match_forms instead of the PR's inline normpath/replace (D3.03, lane build-1011-C5)."
         },
         "tools/file_tools_write_guards.py": {
           "mode": "deferred",
@@ -197,6 +210,9 @@
       "base_ref": "upstream/main",
       "files": {
         "agent/shell_hooks.py": {
+          "mode": "hunks"
+        },
+        "tests/tools/test_windows_agent_loop_papercuts.py": {
           "mode": "hunks"
         }
       },
@@ -372,7 +388,7 @@
           "mode": "lines",
           "fragments": [
             "def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[str, Any]:",
-            "        # ``ensure_home=False`` is the read-only contract: loading config to\n        # LOOK at it must not scaffold the home directory tree (mkdirs +\n        # SOUL.md). Everything below already tolerates an absent home \u2014 the\n        # config stat handles FileNotFoundError and the cache is in-memory.\n        if ensure_home:\n            ensure_hermes_home()",
+            "        # ``ensure_home=False`` is the read-only contract: loading config to\n        # LOOK at it must not scaffold the home directory tree (mkdirs +\n        # SOUL.md). Everything below already tolerates an absent home — the\n        # config stat handles FileNotFoundError and the cache is in-memory.\n        if ensure_home:\n            ensure_hermes_home()",
             "                if ensure_home:\n                    from hermes_cli.config_backups import backup_config\n                    backup_config(config_path, \"good\")"
           ],
           "reason": "Readonly config optimization shares config object; backup write guard follows PR; independent fork loader paths retained."
@@ -439,7 +455,7 @@
         "tools/environments/local.py": {
           "mode": "lines",
           "fragments": [
-            "\n\ndef _windows_system_path_dirs() -> \"list[str]\":\n    \"\"\"Windows dirs that host the native command tooling the agent may shell\n    out to from its bash terminal \u2014 ``cmd.exe``, ``powershell.exe`` (Windows\n    PowerShell 5.1), ``pwsh.exe`` (PowerShell 7), ``ssh``/``curl``, etc.\n\n    The agent's ``terminal`` runs through Git Bash; from there it reaches\n    Windows-native tooling by invoking these executables directly (e.g.\n    ``powershell.exe -NoProfile -Command ...``).  A gateway launched with a\n    minimal/sanitised PATH (service manager, restricted parent env) may not\n    carry these, so we append the ones that exist to the subprocess PATH \u2014\n    append-only, so a healthy native PATH keeps its original precedence.\n    \"\"\"\n    system_root = os.environ.get(\"SystemRoot\") or os.environ.get(\"windir\") or r\"C:\\Windows\"\n    system32 = os.path.join(system_root, \"System32\")\n    candidates = [\n        system32,\n        system_root,\n        os.path.join(system32, \"Wbem\"),  # wmic and friends\n        os.path.join(system32, \"WindowsPowerShell\", \"v1.0\"),  # powershell.exe\n        os.path.join(system32, \"OpenSSH\"),  # ssh/scp\n    ]\n    # PowerShell 7 (pwsh) installs outside System32.\n    for base in (\n        os.environ.get(\"ProgramFiles\", r\"C:\\Program Files\"),\n        os.environ.get(\"ProgramW6432\"),\n        os.environ.get(\"ProgramFiles(x86)\"),\n    ):\n        if base:\n            candidates.append(os.path.join(base, \"PowerShell\", \"7\"))\n    seen: set[str] = set()\n    dirs: list[str] = []\n    for candidate in candidates:\n        if not candidate:\n            continue\n        key = os.path.normcase(candidate)\n        if key in seen:\n            continue\n        seen.add(key)\n        if os.path.isdir(candidate):\n            dirs.append(candidate)\n    return dirs\n\n\ndef _augment_windows_system_path(existing_path: str) -> str:\n    \"\"\"Append missing Windows system tooling dirs to ``existing_path``.\n\n    Preserves the caller PATH verbatim (order + entries) and only appends the\n    system dirs from :func:`_windows_system_path_dirs` that aren't already\n    present (case-insensitive, separator-tolerant). No-op off Windows.\n    \"\"\"\n    if not _IS_WINDOWS:\n        return existing_path\n    entries = (\n        [e for e in existing_path.split(_WINDOWS_PATH_SEP) if e]\n        if existing_path\n        else []\n    )\n    present = {os.path.normcase(e.rstrip(\"\\\\/\")) for e in entries}\n    for directory in _windows_system_path_dirs():\n        if os.path.normcase(directory.rstrip(\"\\\\/\")) not in present:\n            entries.append(directory)\n    return _WINDOWS_PATH_SEP.join(entries)\n\n_WINDOWS_PATH_SEP = \";\""
+            "\n\ndef _windows_system_path_dirs() -> \"list[str]\":\n    \"\"\"Windows dirs that host the native command tooling the agent may shell\n    out to from its bash terminal — ``cmd.exe``, ``powershell.exe`` (Windows\n    PowerShell 5.1), ``pwsh.exe`` (PowerShell 7), ``ssh``/``curl``, etc.\n\n    The agent's ``terminal`` runs through Git Bash; from there it reaches\n    Windows-native tooling by invoking these executables directly (e.g.\n    ``powershell.exe -NoProfile -Command ...``).  A gateway launched with a\n    minimal/sanitised PATH (service manager, restricted parent env) may not\n    carry these, so we append the ones that exist to the subprocess PATH —\n    append-only, so a healthy native PATH keeps its original precedence.\n    \"\"\"\n    system_root = os.environ.get(\"SystemRoot\") or os.environ.get(\"windir\") or r\"C:\\Windows\"\n    system32 = os.path.join(system_root, \"System32\")\n    candidates = [\n        system32,\n        system_root,\n        os.path.join(system32, \"Wbem\"),  # wmic and friends\n        os.path.join(system32, \"WindowsPowerShell\", \"v1.0\"),  # powershell.exe\n        os.path.join(system32, \"OpenSSH\"),  # ssh/scp\n    ]\n    # PowerShell 7 (pwsh) installs outside System32.\n    for base in (\n        os.environ.get(\"ProgramFiles\", r\"C:\\Program Files\"),\n        os.environ.get(\"ProgramW6432\"),\n        os.environ.get(\"ProgramFiles(x86)\"),\n    ):\n        if base:\n            candidates.append(os.path.join(base, \"PowerShell\", \"7\"))\n    seen: set[str] = set()\n    dirs: list[str] = []\n    for candidate in candidates:\n        if not candidate:\n            continue\n        key = os.path.normcase(candidate)\n        if key in seen:\n            continue\n        seen.add(key)\n        if os.path.isdir(candidate):\n            dirs.append(candidate)\n    return dirs\n\n\ndef _augment_windows_system_path(existing_path: str) -> str:\n    \"\"\"Append missing Windows system tooling dirs to ``existing_path``.\n\n    Preserves the caller PATH verbatim (order + entries) and only appends the\n    system dirs from :func:`_windows_system_path_dirs` that aren't already\n    present (case-insensitive, separator-tolerant). No-op off Windows.\n    \"\"\"\n    if not _IS_WINDOWS:\n        return existing_path\n    entries = (\n        [e for e in existing_path.split(_WINDOWS_PATH_SEP) if e]\n        if existing_path\n        else []\n    )\n    present = {os.path.normcase(e.rstrip(\"\\\\/\")) for e in entries}\n    for directory in _windows_system_path_dirs():\n        if os.path.normcase(directory.rstrip(\"\\\\/\")) not in present:\n            entries.append(directory)\n    return _WINDOWS_PATH_SEP.join(entries)\n\n_WINDOWS_PATH_SEP = \";\""
           ],
           "reason": "Windows PATH augmentation pipeline equivalent with multiline lambda formatting; independent workspace and durable process seams retained."
         },
@@ -508,8 +524,8 @@
           "fragments": [
             "    (probe_dir / \"pytest.ini\").write_text(\"[pytest]\\n\", encoding=\"utf-8\")",
             "    _root_the_probe(probe_dir)",
-            "def _root_the_probe(directory: Path) -> Path:\n    \"\"\"Give a probe tree its own ``pytest.ini``, and return the directory.\n\n    Without one, the inner pytest finds no ini file at or above the probe \u2014\n    ``tmp_path`` is under the system temp, which has none \u2014 and its rootdir\n    falls back ABOVE the probe. The collection tree is then rooted over the",
-            "    ``python -m pytest --collect-only <probe>`` cost 58.5 s and died with\n    ``FileNotFoundError`` on a sibling temp dir that vanished underneath the\n    walk, against 1.0 s with this file present. That is why this test FILE\n    could not finish inside its own budget \u2014 one inner invocation cost more\n    than the repo-wide per-test cap, so the file timed out at 8 workers and\n    passed only on the runner's 1-worker retry (185.8 s total, 111.8 s of it\n    the retry).\n\n    An empty ``[pytest]`` section is the entire content: what is wanted is a\n    rootdir anchor, not configuration. The probe deliberately does not inherit\n    this repo's ``addopts`` \u2014 it is a couple of trivial asserts, and the bound\n    that matters to it is the runner's own ``--file-timeout``.\n    \"\"\"\n\n    (directory / \"pytest.ini\").write_text(\"[pytest]\\n\", encoding=\"utf-8\")\n    return directory\n",
+            "def _root_the_probe(directory: Path) -> Path:\n    \"\"\"Give a probe tree its own ``pytest.ini``, and return the directory.\n\n    Without one, the inner pytest finds no ini file at or above the probe —\n    ``tmp_path`` is under the system temp, which has none — and its rootdir\n    falls back ABOVE the probe. The collection tree is then rooted over the",
+            "    ``python -m pytest --collect-only <probe>`` cost 58.5 s and died with\n    ``FileNotFoundError`` on a sibling temp dir that vanished underneath the\n    walk, against 1.0 s with this file present. That is why this test FILE\n    could not finish inside its own budget — one inner invocation cost more\n    than the repo-wide per-test cap, so the file timed out at 8 workers and\n    passed only on the runner's 1-worker retry (185.8 s total, 111.8 s of it\n    the retry).\n\n    An empty ``[pytest]`` section is the entire content: what is wanted is a\n    rootdir anchor, not configuration. The probe deliberately does not inherit\n    this repo's ``addopts`` — it is a couple of trivial asserts, and the bound\n    that matters to it is the runner's own ``--file-timeout``.\n    \"\"\"\n\n    (directory / \"pytest.ini\").write_text(\"[pytest]\\n\", encoding=\"utf-8\")\n    return directory\n",
             "    return _root_the_probe(probe_dir)",
             "    # This probe is a bare file rather than a directory, so `tmp_path` itself is\n    # what the inner pytest has to root on.\n    probe = _root_the_probe(tmp_path) / \"test_flaky_probe.py\"",
             "        encoding=\"utf-8\",\n        errors=\"replace\",",
@@ -563,11 +579,11 @@
         "hermes_cli/main.py": {
           "mode": "lines",
           "fragments": [
-            "def _builtin_verb_subparsers(subparsers, parent: str):\n    \"\"\"The sub-verb action of built-in command ``parent`` (``auth`` \u2192 its ``add``/``list``/...), or None.\"\"\"\n    parent_parser = subparsers.choices.get(parent) if parent in _BUILTIN_SUBCOMMANDS else None\n    actions = getattr(parent_parser, \"_actions\", ())\n    return next((a for a in actions if isinstance(a, argparse._SubParsersAction)), None)\n\n",
+            "def _builtin_verb_subparsers(subparsers, parent: str):\n    \"\"\"The sub-verb action of built-in command ``parent`` (``auth`` → its ``add``/``list``/...), or None.\"\"\"\n    parent_parser = subparsers.choices.get(parent) if parent in _BUILTIN_SUBCOMMANDS else None\n    actions = getattr(parent_parser, \"_actions\", ())\n    return next((a for a in actions if isinstance(a, argparse._SubParsersAction)), None)\n\n",
             "    \"\"\"Register one plugin-provided command from its descriptor: top-level, or under the built-in\n    named by ``cmd_info[\"parent\"]``.\"\"\"\n    if cmd_info.get(\"parent\"):\n        subparsers = _builtin_verb_subparsers(subparsers, cmd_info[\"parent\"])\n        if subparsers is None:\n            raise ValueError(f\"CLI command parent {cmd_info['parent']!r} is not a built-in command with sub-verbs\")",
             "def _declared_cli_command_argv(subparsers) -> str | None:\n    \"\"\"The ``cli_command_key`` argv could name as a manifest-declared plugin command, else None: an\n    unknown first token (``hermes <verb>``) or an unknown sub-verb of a built-in (``hermes auth\n    <verb>``). Known built-in verbs return None and pay nothing.\"\"\"\n    from hermes_cli._parser import command_argv\n\n    args = command_argv(sys.argv[1:])\n    if not args:\n        return None\n    if args[0] not in _BUILTIN_SUBCOMMANDS:\n        return args[0]\n    verbs = _builtin_verb_subparsers(subparsers, args[0])\n    if verbs is None or len(args) < 2 or args[1] in verbs.choices:\n        return None\n    return f\"{args[0]} {args[1]}\"\n\n\ndef _attach_declared_plugin_cli_command(subparsers, key: str) -> bool:\n    \"\"\"Attach the ``plugin.yaml``-declared command spelled ``key``, importing only its plugin.\n\n    Found by reading manifests, never by importing plugins; ``key`` comes from\n    :func:`_declared_cli_command_argv`, so it never shadows a built-in. False when nothing declares\n    ``key`` or it failed to attach.\n    \"\"\"\n    log = logging.getLogger(__name__)\n    try:\n        from hermes_cli.plugins import cli_command_key, discover_declared_cli_commands\n\n        commands = discover_declared_cli_commands()\n    except Exception as exc:\n        log.warning(\"Declared plugin CLI scan failed: %s\", exc)\n        return False\n    for cmd_info in commands:\n        if cli_command_key(cmd_info[\"name\"], cmd_info[\"parent\"]) != key:\n            continue\n        try:\n            _attach_plugin_cli_command(subparsers, cmd_info)\n        except Exception as exc:\n            log.warning(\"Plugin CLI command %r failed to attach: %s\", key, exc)\n            return False\n        return True\n    return False\n\n",
             "    \"\"\"Register plugin-provided commands (each plugin builds its own argparse tree).",
-            "    A manifest-declared command named by argv attaches first and imports only its own plugin.\n    Full discovery is skipped when the invocation targets a known built-in or a declared command\n    \u2014 eagerly importing every bundled plugin module costs 500-650ms.",
+            "    A manifest-declared command named by argv attaches first and imports only its own plugin.\n    Full discovery is skipped when the invocation targets a known built-in or a declared command\n    — eagerly importing every bundled plugin module costs 500-650ms.",
             "    key = _declared_cli_command_argv(subparsers)\n    if key is not None and _attach_declared_plugin_cli_command(subparsers, key):\n        return",
             "        from hermes_cli.plugins import cli_command_key, discover_plugins, get_plugin_manager",
             "            if cli_command_key(cmd_info[\"name\"], cmd_info.get(\"parent\")) not in seen_plugin_commands:",
@@ -636,7 +652,7 @@
             "            try:\n                spec.loader.exec_module(cli_mod)\n            except Exception:",
             "                raise",
             {
-              "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 \u2014 a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
+              "text": "    sys.modules[full_name] = module\n    parent_name, _, child = full_name.rpartition(\".\")\n    if not parent_name:\n        return\n    parent = sys.modules.get(parent_name)\n    if parent is None:\n        return\n    try:\n        setattr(parent, child, module)\n    except Exception:  # noqa: BLE001 — a binding failure must never fail a load\n        logger.debug(\"could not bind %s on %s\", child, parent_name, exc_info=True)",
               "fork_path": "plugins/memory/_module_publish.py",
               "scope_map": {
                 "_publish_module": "publish_module"
@@ -651,6 +667,10 @@
             }
           ],
           "reason": "Exact publish/rollback calls with reviewed _publish_module/_unpublish_module identifier mapping, plus both helper bodies in fork-owned _module_publish.py; differing docstrings omitted."
+        },
+        "plugins/plugin_loader.py": {
+          "mode": "deferred",
+          "reason": "The PR splits the __init__/sys.modules skip (a deletion); the fork carries an additive equivalent — a rebind branch ahead of upstream's unchanged skip line — per owner ruling D3.03 2026-10-10. Retires when the PR merges."
         }
       },
       "reviewed_base": "f5a9361dcc66b0b972fd488b83129561509b3486"
@@ -816,7 +836,7 @@
             "    \"\"\"The launch's relaunch step, run by ``hermes_bootstrap`` before dependency activation.\n\n    Finishes a pending source update and re-enters the managed interpreter when this one is",
             "    \"\"\"\n    import sys\n",
             "    from pm.environments import install_state_permission_message\n\n    try:\n        launch_python = prepare_launch(root, sys.argv[1:])\n        if launch_python is not None:",
-            "    except Exception as exc:\n        if isinstance(exc, PermissionError) and (message := install_state_permission_message(root, exc)):\n            print(f\"hermes: {message}\", file=sys.stderr)\n            raise SystemExit(1) from None\n        # Degrade, never brick the CLI: the previous dependency generation is still selected\n        # (a failed sync commits nothing), so an offline or half-finished update leaves a\n        # usable Hermes plus a warning. Activation after this is the real gate \u2014 a tree whose\n        # dependencies cannot load still exits with the repair remedy.\n        print(f\"hermes: source-update completion failed: {exc}; \"\n              \"running with the previous dependencies \u2014 run `hermes update` to finish it\",\n              file=sys.stderr)"
+            "    except Exception as exc:\n        if isinstance(exc, PermissionError) and (message := install_state_permission_message(root, exc)):\n            print(f\"hermes: {message}\", file=sys.stderr)\n            raise SystemExit(1) from None\n        # Degrade, never brick the CLI: the previous dependency generation is still selected\n        # (a failed sync commits nothing), so an offline or half-finished update leaves a\n        # usable Hermes plus a warning. Activation after this is the real gate — a tree whose\n        # dependencies cannot load still exits with the repair remedy.\n        print(f\"hermes: source-update completion failed: {exc}; \"\n              \"running with the previous dependencies — run `hermes update` to finish it\",\n              file=sys.stderr)"
           ],
           "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained."
         }
