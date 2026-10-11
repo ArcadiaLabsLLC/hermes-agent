@@ -159,3 +159,27 @@ consumers of native APIs, not good reasons to put Eternia policy in upstream.
 The held ledger entries are candidates; this review does not claim an upstream
 PR was opened or accepted. Repair correctness and split a minimal coherent native
 API contribution before considering submission. No upstream publication was done.
+
+## H2 clarification: deletion ownership has multiple readers
+
+The native safe-restore regression is real, but replacing the deletion's null
+`sha256` with its previous hash is not sufficient as a one-line repair of the
+whole feature. `record_agent_write` passes that same ledger entry to the turn
+observer. `recorded_file_diff` compares the evidence hash with the current file
+hash before and after diff generation. A deleted file has a null current hash;
+preserving a non-null old hash there causes deletion attribution to be rejected.
+`operator_turn_changes` also compares current and attributed hashes.
+
+Preserve native ownership semantics while representing the current deletion
+consistently for attribution. Keep current state/hash and prior ownership evidence
+distinct where required, through the existing checkpoint owner; do not create a
+second ledger. Update all affected readers together. H2 acceptance must cover
+native safe restore of an agent-deleted file, deletion display/diff attribution,
+combined Undo, and preservation of a file recreated or edited by the user.
+An absent file with no prior ownership needs an explicit tested classification.
+
+Runtime recovery also explains why Launcher needs more than draft text locally:
+`operator_history_pending` discovers active fences, while terminal Undo clears
+its fence and Branch/Rewind use their atomic receipts without that index. The
+client's durable operation ID is needed after a lost terminal reply. This is
+request intent, not another authoritative operation outcome store.
