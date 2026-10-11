@@ -10,6 +10,14 @@ def test_history_profile_identity_uses_catalog_spelling():
     assert canonical_chat_persona_id("profile_audit") == "profile_audit"
 
 
+def test_history_persona_spelling_uses_the_shared_token_fold():
+    # This boundary tokenizes arbitrary punctuation; it is not an alias lookup
+    # or a promise that raw instance readers accept old persona spellings.
+    assert canonical_chat_persona_id("profile:audit") == "profile_audit"
+    assert canonical_chat_persona_id("team/audit") == "team_audit"
+    assert canonical_chat_persona_id("team-audit.v2") == "team-audit.v2"
+
+
 def test_stored_profile_persona_keeps_explicit_binding_and_exact_settings_target():
     from types import SimpleNamespace
     from agent_runtime.persona_assignments.identity import _profile_id_for_persona_or_template

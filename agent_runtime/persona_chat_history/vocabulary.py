@@ -58,7 +58,9 @@ def canonical_chat_persona_id(value: Any) -> str | None:
 
     A bounded token matching the catalog's ``profile_<name>`` IDs. Not
     ``personas.canonical_persona_id``: that one resolves ALIASES; this one only
-    spells. Pure, so every projection that keys on a history row's persona reads
+    spells. ``safe_assignment_token`` is the fold (punctuation becomes ``_``),
+    not a legacy persona alias resolver. Raw instance IDs use the catalog form.
+    Pure, so every projection that keys on a history row's persona reads
     it from here rather than from the SessionDB reader that first needed it.
     """
     raw = safe_assignment_text(value, limit=160)
