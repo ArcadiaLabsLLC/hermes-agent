@@ -852,6 +852,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     from tests._downstream import reserved_dns
 
     reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
+    from tests._downstream import fresh_db_census
+
+    if fresh_db_census.enabled() and not config.pluginmanager.is_registered(fresh_db_census):
+        config.pluginmanager.register(fresh_db_census, "hermes_fresh_db_census")
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS

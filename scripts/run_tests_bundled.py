@@ -877,6 +877,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.environ["PYTHONPATH"] = os.pathsep.join(
         [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     )
+    # The gate pays the fresh-SessionDB census (D3.11): every child appends its
+    # per-file counts to .pytest_cache/hermes_fresh_dbs.jsonl.
+    os.environ.setdefault("HERMES_TEST_COUNT_FRESH_DBS", "1")
     durations = plan.load_durations_with_primary(repo_root, rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
     known_reds = plan.load_known_reds(repo_root)
