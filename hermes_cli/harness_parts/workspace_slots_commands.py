@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hermes_cli.flag_binding import list_flag_or_empty
-from hermes_cli.harness_support import _object_envelope, _print_stage42, emit_harness_error
+from hermes_cli.harness_parts.verb_runner import run_refusing_verb
 
 __layer__ = "lanes"
 __all__ = [
@@ -43,14 +43,7 @@ def _run_workspace_slot_verb(args, kind: str, action) -> int:
     from agent_runtime.workspace_slot_env import SlotEnvRefused
     from agent_runtime.workspace_slots import SlotRefused
 
-    try:
-        payload = action()
-    except (SlotRefused, SlotEnvRefused) as exc:
-        return emit_harness_error(exc, args=args, code="invalid_payload", message=f"{exc.reason}: {exc.detail}")
-    except ValueError as exc:
-        return emit_harness_error(exc, args=args, code="invalid_payload", message=str(exc))
-    _print_stage42(_object_envelope(kind, payload), args=args, default_output="json")
-    return 0
+    return run_refusing_verb(args, kind, action, refusals=(SlotRefused, SlotEnvRefused), plain=(ValueError,))
 
 
 def _cmd_workspace_slots_show(args) -> int:
