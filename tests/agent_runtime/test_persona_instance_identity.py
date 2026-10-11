@@ -1,7 +1,7 @@
 """Persona-instance identity: canonical-id chokepoint + store reconciliation.
 
 Golden corpus = the live 2026-07-10 store in which one logical channel
-persisted under four id schemes (neko_supervisor had three rows, profile:alice
+persisted under four id schemes (neko_supervisor had three rows, profile_alice
 two) and Mission Control rendered duplicate agent cards.
 """
 
@@ -61,7 +61,7 @@ def _seed_row(
     instance = PersonaInstance(
         id=instance_id,
         persona_id=persona_id,
-        role="profile" if persona_id.startswith("profile:") else persona_id,
+        role="profile" if persona_id.startswith("profile_") else persona_id,
         display_name=display_name,
         profile_id=profile_id,
         spawned_by=spawned_by,
@@ -127,7 +127,7 @@ def test_reconcile_folds_the_live_four_scheme_corpus():
     )
     _seed_row(
         "personainst_profile_alice",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent",
         profile_id="alice",
         updated_at=newer,
@@ -148,7 +148,7 @@ def test_reconcile_folds_the_live_four_scheme_corpus():
     )
     _seed_row(
         "personainst_operator_2c1f1de674e74942",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent",
         profile_id="alice",
         updated_at=older,
@@ -156,7 +156,7 @@ def test_reconcile_folds_the_live_four_scheme_corpus():
     # A deliberate extra instance (add_instance) must never be folded.
     _seed_row(
         "personainst_alice_agent_2",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent 2",
         profile_id="alice",
         updated_at=newer,
@@ -357,8 +357,8 @@ def test_reconcile_repairs_missing_steering_foreign_keys_and_is_idempotent():
 
 def test_identity_alias_helpers_are_pure_over_rows():
     rows = [
-        {"persona_instance_id": "personainst_profile_alice", "persona_id": "profile:alice", "mode": "chat"},
-        {"persona_instance_id": "personainst_operator_2c1f1de674e74942", "persona_id": "profile:alice", "mode": "chat"},
+        {"persona_instance_id": "personainst_profile_alice", "persona_id": "profile_alice", "mode": "chat"},
+        {"persona_instance_id": "personainst_operator_2c1f1de674e74942", "persona_id": "profile_alice", "mode": "chat"},
         {"persona_instance_id": "personainst_task_x_dev", "persona_id": "dev", "mode": "task_bound"},
     ]
     aliases = identity_aliases_for_rows(rows)
@@ -385,7 +385,7 @@ def _event_type(event) -> str:
 def test_persona_instance_id_for_matches_canonical_of_selector():
     # The two derivation functions must agree: canonicalizing the launcher's
     # selector for a persona yields exactly persona_instance_id_for.
-    for persona_id in ("dev", "backend_dev", "qa", "neko_supervisor", "profile:alice"):
+    for persona_id in ("dev", "backend_dev", "qa", "neko_supervisor", "profile_alice"):
         assert (
             canonical_persona_instance_id(f"persona:{persona_id}", persona_id=persona_id)
             == persona_instance_id_for(persona_id)
@@ -410,7 +410,7 @@ def _backed_universe():
 def _orphan_row(instance_id, **over):
     row = {
         "persona_instance_id": instance_id,
-        "persona_id": "profile:ghost",
+        "persona_id": "profile_ghost",
         "role": "profile",
         "profile_id": "ghost",
         "mode": "configured",
@@ -429,7 +429,7 @@ def test_classify_orphan_truth_table():
     backed_ids, backed_profiles = _backed_universe()
     rows = [
         # Prunable orphans.
-        _orphan_row("codex", persona_id="profile:codex_create_probe", profile_id="codex_create_probe"),
+        _orphan_row("codex", persona_id="profile_codex_create_probe", profile_id="codex_create_probe"),
         _orphan_row("pm", persona_id="pm", role="pm", profile_id="pm"),
         # Real product agents — never orphaned, not even held.
         _orphan_row("dev", persona_id="dev", role="dev", profile_id=None),
@@ -437,7 +437,7 @@ def test_classify_orphan_truth_table():
         _orphan_row("neko", persona_id="neko_supervisor", role="neko_supervisor", profile_id=None),
         _orphan_row("bdev", persona_id="backend_dev", role="dev", profile_id=None),
         _orphan_row("base", persona_id="base", role="profile", profile_id="base"),
-        _orphan_row("alice", persona_id="profile:alice", role="profile", profile_id="alice"),
+        _orphan_row("alice", persona_id="profile_alice", role="profile", profile_id="alice"),
         # S56: the fixture still SENDS active_worker_session_id (a stale producer
         # can), but the reader no longer honors it — the row is a plain orphan now.
         _orphan_row("stale_worker_session_field", active_worker_session_id="ws_1"),
@@ -505,14 +505,14 @@ def test_reconcile_prunes_orphans_holds_and_is_idempotent(monkeypatch):
     # Two true orphans (weeks stale), one held orphan (fresh), and real agents kept.
     _seed_row(
         "personainst_profile_codex_create_probe",
-        persona_id="profile:codex_create_probe",
+        persona_id="profile_codex_create_probe",
         display_name="Codex Create Probe",
         mode="configured",
         profile_id="codex_create_probe",
         updated_at=_STALE,
     )
     _seed_row("personainst_pm", persona_id="pm", display_name="Pm", mode="configured", profile_id="pm", updated_at=_STALE)
-    _seed_row("personainst_profile_ghost", persona_id="profile:ghost", display_name="Ghost", mode="configured", profile_id="ghost", updated_at=now())
+    _seed_row("personainst_profile_ghost", persona_id="profile_ghost", display_name="Ghost", mode="configured", profile_id="ghost", updated_at=now())
     _seed_row("personainst_dev", persona_id="dev", display_name="Dev", updated_at=_STALE)
     _seed_row("personainst_base", persona_id="base", display_name="Base", profile_id="base", updated_at=_STALE)
 
@@ -560,7 +560,7 @@ def test_snapshot_emits_orphan_and_no_warning_for_real_agent(monkeypatch):
     cfg = _runtime_config()
     monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
-    # Provide an authoritative (non-empty) profile catalog so the profile:* orphan lane
+    # Provide an authoritative (non-empty) profile catalog so the profile_* orphan lane
     # engages; ``codex_create_probe`` is absent from it and must be flagged.
     monkeypatch.setattr(
         "agent_runtime.snapshot.summaries.available_profile_templates",
@@ -574,7 +574,7 @@ def test_snapshot_emits_orphan_and_no_warning_for_real_agent(monkeypatch):
     )
     _seed_row(
         "personainst_profile_codex_create_probe",
-        persona_id="profile:codex_create_probe",
+        persona_id="profile_codex_create_probe",
         display_name="Codex Create Probe",
         mode="configured",
         profile_id="codex_create_probe",

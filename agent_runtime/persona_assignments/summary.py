@@ -346,7 +346,7 @@ def _persona_instance_is_active_lane(instance: PersonaInstance) -> bool:
 def _profile_visibility_persona(
     instance: PersonaInstance, roster: PersonaRoster | None
 ) -> AgentPersona | None:
-    """The persona a ``profile:``-backed instance with no persona row is shown as.
+    """The persona a ``profile_``-backed instance with no persona row is shown as.
 
     The configured persona binding its profile when ``roster`` (the ``stores``
     caller's ``config.ensure_persisted_personas``) names one, else a standin
@@ -357,11 +357,11 @@ def _profile_visibility_persona(
 
     profile_id = (instance.profile_id or "").strip()
     persona_id = (instance.persona_id or "").strip()
-    if not profile_id and not persona_id.lower().startswith("profile:"):
+    if not profile_id and not persona_id.lower().startswith("profile_"):
         return None
-    if not profile_id and persona_id.lower().startswith("profile:"):
-        profile_id = persona_id.split(":", 1)[1].strip()
-    resolved_persona_id = persona_id or (f"profile:{profile_id}" if profile_id else "profile:unknown")
+    if not profile_id and persona_id.lower().startswith("profile_"):
+        profile_id = persona_id[len("profile_"):].strip()
+    resolved_persona_id = persona_id or (f"profile_{profile_id}" if profile_id else "profile_unknown")
     display_name = instance.display_name or _display_name_for_template(profile_id or resolved_persona_id)
     try:
         persisted_personas = list(roster()) if roster is not None else []

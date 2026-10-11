@@ -91,12 +91,7 @@ def persona_chat_trace_summary(
         return acc
 
     # --- Lane 1: task-run trace, grouped per task. ---
-    # Persona identity is canonicalized the same way the chat-history projection
-    # does (``canonical_chat_persona_id``), NOT via ``safe_assignment_token``: the
-    # latter mangles ids like "profile:alice" → "profile_alice", which never
-    # matches the raw "profile:alice" stored on the events, silently dropping
-    # every profile-instance trace row. Canonicalizing both sides also keeps the
-    # row's ids identical to the history row so the Launcher matches them.
+    # Trace and history use the same canonical persona ID for joins.
     members_by_task: dict[str, list[tuple[Any, str]]] = {}
     for instance in instances:
         mode = safe_assignment_token(getattr(instance, "mode", None))

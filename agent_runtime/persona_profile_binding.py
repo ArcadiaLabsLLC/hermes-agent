@@ -552,12 +552,6 @@ def rebind_persona_profile(
 
     if not persona_id:
         raise PersonaProfileRebindError("persona_not_persisted", "persona_id is required")
-    if persona_id.lower().startswith("profile:"):
-        raise PersonaProfileRebindError(
-            "persona_not_persisted",
-            f"{persona_id} is a synthetic profile channel, not a stored persona; there is no binding to move",
-            details={"persona_id": persona_id},
-        )
     try:
         persona = store.get(persona_id)
     except Exception as exc:  # noqa: BLE001 — surface as a typed refusal

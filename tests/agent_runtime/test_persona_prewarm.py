@@ -362,7 +362,7 @@ def test_an_unknown_persona_is_refused_with_the_CREATE_s_own_reason():
 
 
 def test_a_profile_id_is_refused_with_its_own_reason_not_persona_not_found():
-    """``runtime.agent.create`` ACCEPTS ``profile:`` ids (decision D-U1) and then
+    """``runtime.agent.create`` ACCEPTS ``profile_`` ids (decision D-U1) and then
     resolves the wire row's visibility persona from the freshly minted INSTANCE.
     No instance exists at prewarm time, so the memo keys that resolution will hit
     are unknowable here.
@@ -372,13 +372,13 @@ def test_a_profile_id_is_refused_with_its_own_reason_not_persona_not_found():
     says "this id is fine, there is just nothing to warm for it".
     """
 
-    reply = _prewarm({"persona_id": "profile:gpt-launcher"})
+    reply = _prewarm({"persona_id": "profile_gpt-launcher"})
 
     assert reply["error"]["code"] == -32602
     assert (
         reply["error"]["data"]["reason"] == "profile_persona_not_prewarmable"
     )
-    assert reply["error"]["data"]["persona_id"] == "profile:gpt-launcher"
+    assert reply["error"]["data"]["persona_id"] == "profile_gpt-launcher"
 
 
 # ── the "fills memos and NOTHING else" property ──────────────────────────────

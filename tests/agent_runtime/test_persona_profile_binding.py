@@ -362,7 +362,7 @@ def test_rebind_event_stays_inside_the_payload_cap(profiles):
         ("widget", "", "invalid_value"),
         ("widget", "definitely-missing", "profile_missing"),
         ("ghost", "beta", "persona_not_persisted"),
-        ("profile:alpha", "beta", "persona_not_persisted"),
+        ("profile_alpha", "beta", "persona_not_persisted"),
         ("", "beta", "persona_not_persisted"),
     ],
 )
@@ -522,7 +522,7 @@ def test_agent_list_row_names_both_spellings_agent_create_accepts(profiles):
     `agent list` already enumerated the placeable definitions; what it never
     said is that `--persona` takes TWO spellings for one agent. ``profile`` is
     the BINDING and reads like the second spelling without being one — an
-    operator who types `profile:<that>` for a shared profile gets a different,
+    operator who types `profile_<that>` for a shared profile gets a different,
     defaults-less agent — so the accepted spellings get their own column,
     computed by the same function the refusal's choice list spends.
     """
@@ -532,7 +532,7 @@ def test_agent_list_row_names_both_spellings_agent_create_accepts(profiles):
     sole = _persona(id="widget", hermes_profile="beta", skills=["harness-qa-verdict"])
     row = _agent_definition_row(sole, source_profile="operator-active", roster=[sole])
 
-    assert row["persona_spellings"] == ["widget", "profile:beta"]
+    assert row["persona_spellings"] == ["widget", "profile_beta"]
     assert row["skills"] == ["harness-qa-verdict"]
 
     # Two owners: the bare id survives, the profile spelling does not — the

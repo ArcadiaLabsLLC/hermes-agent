@@ -560,7 +560,7 @@ def test_cli_persona_set_model_profile_id_targets_backing_store_persona(monkeypa
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_base", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["applied_to_persona_id"] == "base"
@@ -571,7 +571,7 @@ def test_cli_persona_set_model_profile_without_backing_record_rejected(monkeypat
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:nonexistent", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_nonexistent", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "persona_not_persisted"
@@ -584,7 +584,7 @@ def test_cli_persona_set_model_ambiguous_profile_rejected(monkeypatch, capsys):
     twin.hermes_profile = "base"
     AgentStore().save(twin)
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_base", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "ambiguous_profile_persona"

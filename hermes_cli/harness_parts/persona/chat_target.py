@@ -51,8 +51,8 @@ def _persona_by_id(cfg, persona_id: str):
     )
     if exact is not None:
         return exact
-    if raw.lower().startswith("profile:"):
-        profile_id = safe_assignment_token(raw.split(":", 1)[1])
+    if raw.lower().startswith("profile_"):
+        profile_id = safe_assignment_token(raw[len("profile_"):])
         if not profile_id:
             return None
         matching_profile_persona, _, _ = profile_persona_resolution(profile_id, personas)
@@ -246,7 +246,7 @@ def _mission_chat_target_decision(
         sender_scope_workspace_id,
     )
 
-    is_profile = normalized_persona.startswith("profile:")
+    is_profile = normalized_persona.startswith("profile_")
     raw_token = safe_assignment_token(raw_persona_id)
     caller_pinned = bool(
         persona_instance_id

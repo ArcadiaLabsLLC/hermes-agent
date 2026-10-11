@@ -28,7 +28,7 @@ model:
 agent_runtime:
   personas:
     neko_supervisor:
-      hermes_profile: gpt-launcher
+      hermes_profile_ gpt-launcher
       toolsets:   # legacy list
         - file
         - terminal
@@ -185,7 +185,7 @@ def test_the_config_migration_strips_the_key_from_every_profile_config(bundled_p
     legacy = get_profile_dir("gpt-launcher") / "config.yaml"
     legacy.write_text(_LEGACY_PROFILE_CONFIG, encoding="utf-8")
     clean = get_profile_dir("qa") / "config.yaml"
-    clean.write_text("# untouched\nagent_runtime:\n  personas:\n    qa: {hermes_profile: qa}\n", encoding="utf-8")
+    clean.write_text("# untouched\nagent_runtime:\n  personas:\n    qa: {hermes_profile_ qa}\n", encoding="utf-8")
     clean_before = clean.read_bytes()
 
     report = strip_legacy_persona_toolsets_from_configs(get_default_hermes_root())

@@ -1,8 +1,8 @@
 """The persona spellings ``_available_persona_summary`` may advertise.
 
 The summary mints one row per profile template with
-``persona_id = "profile:<name>"``, and the launcher's Presets lane carries that
-id verbatim into ``runtime.agent.create``. But ``profile:<name>`` is not
+``persona_id = "profile_<name>"``, and the launcher's Presets lane carries that
+id verbatim into ``runtime.agent.create``. But ``profile_<name>`` is not
 uniformly accepted: ``agent_create.accepted_persona_spellings`` — the ONE
 authority for "how may an operator name this row" — withholds it for a profile
 that two personas declare, because the CLI resolver's synthesis lane inherits
@@ -36,7 +36,7 @@ def _rows(monkeypatch, templates, agents):
 
 
 def test_an_ambiguously_owned_profile_withholds_the_profile_spelling(monkeypatch):
-    """Two personas declare one profile: ``profile:<name>`` parses but inherits
+    """Two personas declare one profile_ ``profile_<name>`` parses but inherits
     nothing, so it is NOT among the spellings the row advertises. The owner ids
     are, because each of them names the agent it actually mints."""
     rows = _rows(
@@ -45,8 +45,8 @@ def test_an_ambiguously_owned_profile_withholds_the_profile_spelling(monkeypatch
         [_Agent("alice", "shared"), _Agent("bob", "shared")],
     )
 
-    row = rows["profile:shared"]
-    assert "profile:shared" not in row["persona_spellings"]
+    row = rows["profile_shared"]
+    assert "profile_shared" not in row["persona_spellings"]
     assert row["persona_spellings"] == ["alice", "bob"]
 
 
@@ -55,17 +55,17 @@ def test_a_uniquely_owned_profile_advertises_both_spellings(monkeypatch):
     persona's defaults, and the bare id comes first (the authority's order)."""
     rows = _rows(monkeypatch, [_Template("solo")], [_Agent("alice", "solo")])
 
-    assert rows["profile:solo"]["persona_spellings"] == ["alice", "profile:solo"]
+    assert rows["profile_solo"]["persona_spellings"] == ["alice", "profile_solo"]
 
 
 def test_an_unowned_profile_advertises_the_synthesis_spelling(monkeypatch):
     """Decision D-U1: a profile no persona declares is the template-only
-    placement lane, and ``profile:<name>`` is the ONLY spelling for it. The
+    placement lane, and ``profile_<name>`` is the ONLY spelling for it. The
     per-persona authority cannot answer this case — it has no persona to key on
     — so the row supplies it and the list is never empty."""
     rows = _rows(monkeypatch, [_Template("orphan")], [_Agent("alice", "solo")])
 
-    assert rows["profile:orphan"]["persona_spellings"] == ["profile:orphan"]
+    assert rows["profile_orphan"]["persona_spellings"] == ["profile_orphan"]
 
 
 def test_the_backing_persona_is_named_only_when_ownership_is_unique(monkeypatch):
@@ -78,5 +78,5 @@ def test_the_backing_persona_is_named_only_when_ownership_is_unique(monkeypatch)
         [_Agent("alice", "shared"), _Agent("bob", "shared"), _Agent("carol", "solo")],
     )
 
-    assert "backs_persona_id" not in rows["profile:shared"]
-    assert rows["profile:solo"]["backs_persona_id"] == "carol"
+    assert "backs_persona_id" not in rows["profile_shared"]
+    assert rows["profile_solo"]["backs_persona_id"] == "carol"

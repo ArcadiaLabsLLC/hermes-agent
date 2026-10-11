@@ -246,11 +246,11 @@ def test_task_archive_moves_task_bound_persona_instance_evidence(isolate_agent_r
 
 def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    first = mint_free_floating("profile:reviewer", store=store)
-    second = mint_free_floating("profile:reviewer", store=store)
+    first = mint_free_floating("profile_reviewer", store=store)
+    second = mint_free_floating("profile_reviewer", store=store)
 
-    assert first.id == second.id == persona_instance_id_for("profile:reviewer")
-    assert first.persona_id == "profile:reviewer"
+    assert first.id == second.id == persona_instance_id_for("profile_reviewer")
+    assert first.persona_id == "profile_reviewer"
     assert first.role == "profile"
     assert first.profile_id == "reviewer"
     assert first.mode == "free_floating"
@@ -262,7 +262,7 @@ def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_age
     instances = store.ensure_for_personas([_persona("dev")])
     by_id = {item.id: item for item in instances}
 
-    assert by_id[first.id].persona_id == "profile:reviewer"
+    assert by_id[first.id].persona_id == "profile_reviewer"
     assert by_id[first.id].mode == "free_floating"
     assert by_id[first.id].state == WorkerSessionState.IDLE
 
@@ -271,21 +271,21 @@ def test_create_operator_chat_from_same_template_gets_distinct_sessions(isolate_
     store = PersonaInstanceStore()
 
     first = store.create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer One",
     )
     second = store.create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer Two",
     )
 
-    assert first.id == second.id == persona_instance_id_for("profile:reviewer")
+    assert first.id == second.id == persona_instance_id_for("profile_reviewer")
     assert first.session_id.startswith(f"persona_chat_{first.id}_")
     assert second.session_id.startswith(f"persona_chat_{second.id}_")
     assert first.session_id != second.session_id
     assert first.mode == "chat"
     assert second.mode == "chat"
-    assert first.persona_id == "profile:reviewer"
+    assert first.persona_id == "profile_reviewer"
     assert first.profile_id == "reviewer"
     assert second.profile_id == "reviewer"
     assert first.display_name == "Reviewer One"
@@ -297,11 +297,11 @@ def test_operator_chat_history_binds_by_unique_session(isolate_agent_runtime_roo
 
     store = PersonaInstanceStore()
     first = store.create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer One",
     )
     second = store.create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer Two",
     )
     db = SessionDB()
@@ -335,12 +335,12 @@ def test_operator_chat_history_binds_by_unique_session(isolate_agent_runtime_roo
 def test_additional_placement_does_not_reuse_another_instance_session(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
     profile = store.create_operator_chat(
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent",
     )
 
     placed = store.add_instance(
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         placement_id="operator_2c1f1de674e74942_agent_2",
         display_name="Alice Agent",
         session_id=profile.session_id,
@@ -385,7 +385,7 @@ def test_additional_placement_stamps_scope_pointers(isolate_agent_runtime_root):
 def test_scope_pointers_default_none_for_unscoped_lanes(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
     chat = store.create_operator_chat(
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent",
     )
     assert chat.workspace_id is None
@@ -546,15 +546,15 @@ def test_snapshot_exposes_operator_created_idle_persona_instance(monkeypatch, is
     cfg = _assignment_config()
     monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
-    created = mint_free_floating("profile:reviewer")
+    created = mint_free_floating("profile_reviewer")
 
     snapshot = build_snapshot()
     by_id = {item["persona_instance_id"]: item for item in list(snapshot["persona_instances"].values())}
 
     assert created.id in by_id
     assert by_id[created.id]["agent_profile_id"] == created.id
-    assert by_id[created.id]["persona_id"] == "profile:reviewer"
-    assert by_id[created.id]["source_persona_id"] == "profile:reviewer"
+    assert by_id[created.id]["persona_id"] == "profile_reviewer"
+    assert by_id[created.id]["source_persona_id"] == "profile_reviewer"
     assert by_id[created.id]["source_profile_id"] == "reviewer"
     assert created.id == "personainst_profile_reviewer"
     assert by_id[created.id]["state"] == "idle"
@@ -1069,7 +1069,7 @@ def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch,
 
     code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
-            persona_id="profile:reviewer",
+            persona_id="profile_reviewer",
             session_id="chat_old_123",
             kill_active=False,
             add_instance=True,
@@ -1087,7 +1087,7 @@ def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch,
         pass
     additional = PersonaInstanceStore().get("personainst_reviewer_agent_2")
     assert primary_missing is True
-    assert additional.persona_id == "profile:reviewer"
+    assert additional.persona_id == "profile_reviewer"
     assert additional.session_id == "chat_old_123"
     assert additional.mode == "chat"
     assert session_db.get_session(additional.session_id) is not None
@@ -1438,16 +1438,16 @@ def test_open_chat_kill_active_flag_cannot_cancel_run_lifecycle(isolate_agent_ru
 
 def test_add_instance_mints_distinct_placement_backed_instance(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    primary = store.create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
+    primary = store.create_operator_chat(persona_id="profile_reviewer", display_name="Reviewer")
     additional = store.add_instance(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         placement_id="reviewer_agent_2",
         display_name="Reviewer 2",
     )
 
     assert primary.id == "personainst_profile_reviewer"
     assert additional.id == "personainst_reviewer_agent_2"
-    assert additional.persona_id == "profile:reviewer"
+    assert additional.persona_id == "profile_reviewer"
     assert additional.profile_id == "reviewer"
     assert additional.session_id.startswith("persona_chat_personainst_reviewer_agent_2_")
     assert store.get(primary.id).session_id == primary.session_id
@@ -1783,7 +1783,7 @@ def test_persona_chat_history_hides_bound_session_deleted_from_session_db(isolat
 def test_persona_instance_update_profile_persists_runtime_overrides_only(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
     instance = store.create_operator_chat(
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         display_name="Alice Agent",
         session_id="chat_alice",
     )
@@ -1797,7 +1797,7 @@ def test_persona_instance_update_profile_persists_runtime_overrides_only(isolate
     )
 
     assert updated.id == instance.id
-    assert updated.persona_id == "profile:alice"
+    assert updated.persona_id == "profile_alice"
     assert updated.profile_id == "alice"
     assert updated.display_name == "Alice Mission Lead"
     assert updated.current_chat_goal == "Keep the operator channel warm."
@@ -2262,7 +2262,7 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
 
     def _args(display_name: str):
         return SimpleNamespace(
-            persona_id="profile:reviewer",
+            persona_id="profile_reviewer",
             display_name=display_name,
             title=f"{display_name} chat",
             message="New operator chat opened. Wait for operator input.",
@@ -2277,11 +2277,11 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
 
     assert lifecycle_commands._cmd_persona_instance_create(_args("Reviewer One")) == 0
     first_session_id = PersonaInstanceStore().get(
-        persona_instance_id_for("profile:reviewer")
+        persona_instance_id_for("profile_reviewer")
     ).session_id
     assert lifecycle_commands._cmd_persona_instance_create(_args("Reviewer Two")) == 0
     second_session_id = PersonaInstanceStore().get(
-        persona_instance_id_for("profile:reviewer")
+        persona_instance_id_for("profile_reviewer")
     ).session_id
     capsys.readouterr()
 
@@ -2295,9 +2295,9 @@ def test_persona_instance_create_persists_empty_operator_chat_history(
     by_session = {row["session_id"]: row for row in rows}
 
     assert set(by_session) == {first_session_id, second_session_id}
-    assert by_session[first_session_id]["persona_id"] == "profile:reviewer"
+    assert by_session[first_session_id]["persona_id"] == "profile_reviewer"
     assert by_session[first_session_id]["persona_instance_id"] == persona_instance_id_for(
-        "profile:reviewer"
+        "profile_reviewer"
     )
     assert by_session[first_session_id]["last_message_preview"] == "No messages yet."
     assert by_session[first_session_id]["redaction_status"] == "safe"
@@ -2319,7 +2319,7 @@ def test_persona_chat_delete_removes_session_and_clears_binding(
 
     store = PersonaInstanceStore()
     instance = store.create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer",
     )
     db.create_session(instance.session_id, "agent_runtime_persona_chat")
@@ -2398,7 +2398,7 @@ def test_persona_chat_delete_unbinds_every_row_pointing_at_the_deleted_session(
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
-    owner = store.create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
+    owner = store.create_operator_chat(persona_id="profile_reviewer", display_name="Reviewer")
     db.create_session(owner.session_id, "agent_runtime_persona_chat")
 
     sibling = store.open_chat(persona_id="qa", session_id="persona_chat_sibling_seed")
@@ -2451,7 +2451,7 @@ def test_persona_chat_delete_leaves_a_pointer_to_another_session_alone(
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
-    instance = store.create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
+    instance = store.create_operator_chat(persona_id="profile_reviewer", display_name="Reviewer")
     deleted_session = instance.default_chat_session_id
     db.create_session(deleted_session, "agent_runtime_persona_chat")
     instance.session_id = "persona_chat_other_live"
@@ -3873,10 +3873,10 @@ def test_profile_persona_resolution_does_not_borrow_role_skills(monkeypatch, iso
         "skills": ["harness-mission-lead", "systematic-debugging"],
     }
 
-    persona = chat_target._persona_by_id(cfg, "profile:alice")
+    persona = chat_target._persona_by_id(cfg, "profile_alice")
 
     assert persona is not None
-    assert persona.id == "profile:alice"
+    assert persona.id == "profile_alice"
     assert persona.role == "profile"
     assert persona.hermes_profile == "alice"
     assert persona.skills == []
@@ -3890,13 +3890,13 @@ def test_profile_persona_resolution_prefers_exact_id_over_profile_owner(
 ):
     from agent_runtime.personas import PROFILE_CHAT_TOOLSET_MATCHED_EXACT, profile_persona_resolution
 
-    exact = _persona("profile:shared")
+    exact = _persona("profile_shared")
     exact.hermes_profile = "different"
     owner = _persona("profile_owner")
     owner.hermes_profile = "shared"
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [owner, exact])
 
-    assert chat_target._persona_by_id(_assignment_config(), "profile:shared") is exact
+    assert chat_target._persona_by_id(_assignment_config(), "profile_shared") is exact
     matched, reason, _ = profile_persona_resolution("shared", [owner, exact])
     assert matched is exact
     assert reason == PROFILE_CHAT_TOOLSET_MATCHED_EXACT
@@ -3913,9 +3913,9 @@ def test_ambiguous_profile_owners_do_not_supply_arbitrary_defaults(
     second.hermes_profile = "shared"
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda _cfg: [first, second])
 
-    resolved = chat_target._persona_by_id(_assignment_config(), "profile:shared")
+    resolved = chat_target._persona_by_id(_assignment_config(), "profile_shared")
     assert resolved is not None
-    assert resolved.id == "profile:shared"
+    assert resolved.id == "profile_shared"
     matched, reason, candidates = profile_persona_resolution("shared", [first, second])
     assert matched is None
     assert reason == PROFILE_CHAT_TOOLSET_AMBIGUOUS
@@ -3950,7 +3950,7 @@ def test_profile_prompt_observability_uses_profile_skills_and_chat_title(
 
     context = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
-            id="profile:alice",
+            id="profile_alice",
             display_name="Alice Agent",
             role="profile",
             model="gpt-test",
@@ -4005,7 +4005,7 @@ def test_prompt_observability_reports_used_skill_from_skill_view_trace(
 
     context = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
-            id="profile:alice",
+            id="profile_alice",
             display_name="Alice Agent",
             role="profile",
             model="gpt-test",
@@ -4059,7 +4059,7 @@ def test_prompt_observability_refreshes_stale_derived_fields(
     db.set_session_title("persona_chat_alice", "Alice Agent chat")
     stale = {
         "context_id": "ctx_stale",
-        "persona_id": "profile:alice",
+        "persona_id": "profile_alice",
         "persona_instance_id": "personainst_profile_alice",
         "profile": "alice",
         "session_id": "persona_chat_alice",
@@ -4096,7 +4096,7 @@ def test_prompt_observability_refreshes_stale_derived_fields(
     prompt_observability.persist_prompt_observability_context(stale)
     built = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
-            id="profile:alice",
+            id="profile_alice",
             display_name="Alice Agent",
             role="profile",
             model="gpt-test",
@@ -4147,7 +4147,7 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
     db.set_session_title("persona_chat_personainst_profile_alice", "Alice Agent chat")
     stale = {
         "context_id": "ctx_stale_profile_alice",
-        "persona_id": "profile:alice",
+        "persona_id": "profile_alice",
         "persona_instance_id": "personainst_profile_alice",
         "profile": "alice",
         "session_id": "persona_chat_personainst_profile_alice",
@@ -4168,7 +4168,7 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
         persona_instances=[
             PersonaInstance(
                 id="personainst_profile_alice",
-                persona_id="profile:alice",
+                persona_id="profile_alice",
                 role="profile",
                 display_name="Alice Agent",
                 profile_id="alice",
@@ -4201,7 +4201,7 @@ def test_snapshot_prompt_observability_builds_profile_instance_context(
     # is pinned by hash equality instead.
     expected_context = prompt_observability.mission_chat_prompt_observability(
         persona=AgentPersona(
-            id="profile:alice",
+            id="profile_alice",
             display_name="Alice Agent",
             role="profile",
             model="gpt-test",
@@ -4328,7 +4328,7 @@ def test_coordinator_close_operator_placed_instance_needs_confirm(monkeypatch, c
 def test_profile_persona_instance_summary_includes_tool_visibility(isolate_agent_runtime_root):
     instance = PersonaInstance(
         id="personainst_profile_alice",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         role="profile",
         display_name="Alice Agent",
         profile_id="alice",
@@ -4363,8 +4363,8 @@ def test_profile_persona_instance_summary_includes_tool_visibility(isolate_agent
     # `harness persona-instance detail` body) — the same bytes the frame used to
     # carry, minus the retired agent_hud_state.
     detail = persona_instance_tool_detail(instance)
-    assert detail["tool_resolution"]["persona_id"] == "profile:alice"
-    assert detail["turn_tool_context"]["persona_id"] == "profile:alice"
+    assert detail["tool_resolution"]["persona_id"] == "profile_alice"
+    assert detail["turn_tool_context"]["persona_id"] == "profile_alice"
     # T9b: this preview is the persona instance's operator CHAT lane, so it
     # reflects whatever that lane actually ships. Under the 2026-08-09 runtime
     # default (`unbounded`) the T3/T6a cost cuts do not apply, so the dev toolkit
@@ -4394,10 +4394,10 @@ def test_profile_persona_instance_preview_reflects_an_operator_restriction(
     """
 
     session_id = "persona_chat_personainst_profile_alice_e898c1dc3794"
-    bounded_chat_session("profile:alice", session_id)
+    bounded_chat_session("profile_alice", session_id)
     instance = PersonaInstance(
         id="personainst_profile_alice",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         role="profile",
         display_name="Alice Agent",
         profile_id="alice",
@@ -4427,7 +4427,7 @@ def test_profile_visibility_preserves_custom_instance_role_without_config(monkey
 
     instance = PersonaInstance(
         id="personainst_profile_researcher",
-        persona_id="profile:researcher",
+        persona_id="profile_researcher",
         role="literature_reviewer",
         display_name="Researcher",
         profile_id="researcher",
@@ -4437,7 +4437,7 @@ def test_profile_visibility_preserves_custom_instance_role_without_config(monkey
 
     persona = _profile_visibility_persona(instance, lambda: [])
 
-    assert persona.id == "profile:researcher"
+    assert persona.id == "profile_researcher"
     assert persona.role == "literature_reviewer"
     assert persona.hermes_profile == "researcher"
 
@@ -4457,7 +4457,7 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
     )
     instance = PersonaInstance(
         id="personainst_profile_researcher",
-        persona_id="profile:researcher",
+        persona_id="profile_researcher",
         role="profile",
         display_name="Raw Profile Chat",
         profile_id="researcher",
@@ -4467,7 +4467,7 @@ def test_profile_visibility_uses_configured_custom_role_without_rewriting_raw_id
 
     persona = _profile_visibility_persona(instance, lambda: [configured])
 
-    assert persona.id == "profile:researcher"
+    assert persona.id == "profile_researcher"
     assert persona.display_name == "Raw Profile Chat"
     assert persona.role == "evidence_synthesist"
     assert persona.hermes_profile == "researcher"
@@ -5309,7 +5309,7 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
 
     # -- caller 1: the operator ``persona chat delete`` verb -----------------
     deleted = store.create_operator_chat(
-        persona_id="profile:reviewer", display_name="Reviewer"
+        persona_id="profile_reviewer", display_name="Reviewer"
     )
     db.create_session(deleted.session_id, "agent_runtime_persona_chat")
     base = len(list(EventLog().iter_from_offset(0)))
@@ -5370,7 +5370,7 @@ def test_persona_chat_delete_takes_the_compression_lineage_with_a_real_session_d
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     instance = PersonaInstanceStore().create_operator_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         display_name="Reviewer",
     )
     root = instance.session_id

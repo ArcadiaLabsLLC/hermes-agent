@@ -1,33 +1,4 @@
-"""dispatch-2540634d5cf3 (2026-08-24) — one persona, one spelling authority.
-
-Agent-to-agent reply delivery was deterministically refused for every
-``profile:`` persona. The delivery forge
-(``agent_runtime/dispatch_delivery.forge_delivery_turn``) hands
-``_cmd_mission_chat_message`` the colon spelling off the instance record
-(``chat_session_owner_persona`` -> ``"profile:alice"``) together with the
-CORRECT ``persona_instance_id`` pin and the explicit ``session_id``. The
-handler's ``foreign_chat_session`` fence then compared
-
-    normalize_persona_or_template_id("profile:alice")  ->  "profile:alice"
-    safe_assignment_token(owner_instance.persona_id)   ->  "profile_alice"
-
-One persona, two normalizers, one predicate — never equal. Every delivery was
-rejected, and because a guard verdict is a pure function of state that a retry
-does not touch, the row then burned all eight attempts against the identical
-refusal and settled as ``attempt_cap`` — so the Activity panel reported that the
-attempts ran out and never that a guard had said no.
-
-Four properties are pinned here, in the order they failed:
-
-* ``personas_equal`` folds both sides through ONE authority.
-* The fence accepts the forge's exact inputs, still refuses a genuinely foreign
-  persona, and does NOT let a matching pin launder a different persona (see
-  ``test_a_matching_pin_does_not_launder_a_different_persona`` for why).
-* A deterministic forge rejection is terminal on the FIRST attempt, with the
-  real verdict left on ``delivery_error``; a busy sender still refunds.
-* ``harness mission-chat dispatch redeliver`` re-arms what that terminal drop
-  left behind.
-"""
+"""Canonical persona/instance comparisons preserve delivery ownership guards."""
 
 from __future__ import annotations
 
@@ -67,20 +38,16 @@ pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 
 def test_personas_equal_truth_table(isolate_agent_runtime_root):
-    # The incident's exact pair: colon form vs token form of ONE persona.
-    assert personas_equal("profile:alice", "profile_alice") is True
-    assert personas_equal("profile_alice", "profile:alice") is True
-    # Identical spellings, either form.
-    assert personas_equal("profile:alice", "profile:alice") is True
+    # One canonical profile ID; unrelated identities never grant access.
+    assert personas_equal("profile_alice", "profile_alice") is True
     assert personas_equal("dev", "dev") is True
     # Genuinely different personas stay different in every spelling pairing.
-    assert personas_equal("profile:alice", "profile:bob") is False
-    assert personas_equal("profile_alice", "profile:bob") is False
+    assert personas_equal("profile_alice", "profile_bob") is False
     assert personas_equal("dev", "qa") is False
-    assert personas_equal("profile:alice", "dev") is False
+    assert personas_equal("profile_alice", "dev") is False
     # Absence is never agreement — a guard reading "" as a match would accept
     # precisely the requests it exists to refuse.
-    assert personas_equal("", "profile:alice") is False
+    assert personas_equal("", "profile_alice") is False
     assert personas_equal(None, None) is False
 
 
@@ -89,17 +56,16 @@ def test_personas_equal_folds_an_instance_id_in_a_persona_slot(
 ):
     """The launcher's fallback path spells the target ``--persona <personainst_…>``.
 
-    That is the same one persona under a third spelling, and it is the shape
+    That is the same one persona through its instance ID, and it is the shape
     convicted as the plausible mechanism behind the OPEN 2026-08-22
     new-chat-first-send record.
     """
 
     instance = PersonaInstanceStore().create_operator_chat(
-        persona_id="profile:alice", display_name="Alice"
+        persona_id="profile_alice", display_name="Alice"
     )
-    assert personas_equal(instance.id, "profile:alice") is True
     assert personas_equal(instance.id, "profile_alice") is True
-    assert personas_equal(instance.id, "profile:bob") is False
+    assert personas_equal(instance.id, "profile_bob") is False
 
 
 # --------------------------------------------------------------------------- #
@@ -172,7 +138,7 @@ def _chat_lane(monkeypatch, db):
     return harness
 
 
-def _owned_root(db, *, persona_id="profile:alice", display_name="Alice"):
+def _owned_root(db, *, persona_id="profile_alice", display_name="Alice"):
     """An instance plus the canonical chat root it owns, as the store mints it."""
 
     instance = PersonaInstanceStore().create_operator_chat(
@@ -244,11 +210,11 @@ def test_the_forge_inputs_are_accepted_regression_dispatch_2540634d5cf3(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
-    assert owner.persona_id == "profile:alice"
+    assert owner.persona_id == "profile_alice"
 
     code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
-            persona_id="profile:alice",  # colon form, straight off the instance record
+            persona_id="profile_alice",  # colon form, straight off the instance record
             persona_instance_id=owner.id,  # the forge ALWAYS supplies the pin
             session_id=owner.session_id,
             client_message_id="cm-2540634d5cf3",
@@ -271,7 +237,7 @@ def test_a_plain_persona_id_is_still_accepted(
     A plain persona id (``dev``) is the case where the two normalizers happened
     to agree — ``normalize_persona_or_template_id`` and ``safe_assignment_token``
     both answer ``"dev"`` — which is the entire reason this defect looked like a
-    delivery-lane problem rather than a spelling one: only the ``profile:``
+    delivery-lane problem rather than a spelling one: only the ``profile_``
     channel has a character the token fold rewrites.
     """
 
@@ -305,7 +271,7 @@ def test_a_genuinely_foreign_persona_without_a_pin_is_still_rejected(
 
     code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
-            persona_id="profile:bob",
+            persona_id="profile_bob",
             persona_instance_id=None,
             session_id=owner.session_id,
             client_message_id="cm-foreign-no-pin",
@@ -332,7 +298,7 @@ def test_a_matching_pin_does_not_launder_a_different_persona(
     (``_resolve_mission_chat_persona_id`` -> ``_persona_by_id``). The fence is
     the last place that reads it.
 
-    So ``--persona profile:bob --persona-instance-id <alice's instance>
+    So ``--persona profile_bob --persona-instance-id <alice's instance>
     --session-id <alice's root>`` under an unconditional short-circuit would be
     accepted, and would then run BOB's persona — bob's model, bob's profile,
     bob's tools — as a turn inside alice's thread, with ``persona_instance_id``
@@ -352,7 +318,7 @@ def test_a_matching_pin_does_not_launder_a_different_persona(
 
     code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
-            persona_id="profile:bob",  # a genuinely different persona…
+            persona_id="profile_bob",  # a genuinely different persona…
             persona_instance_id=owner.id,  # …with a pin that DOES own the root
             session_id=owner.session_id,
             client_message_id="cm-pin-launder",
@@ -394,7 +360,7 @@ def test_a_matching_pin_carries_a_root_whose_owner_persona_is_unreadable(
 
     code = chat_turn_message._cmd_mission_chat_message(
         _send_args(
-            persona_id="profile:alice",
+            persona_id="profile_alice",
             persona_instance_id=owner.id,
             session_id=owner.session_id,
             client_message_id="cm-owner-persona-unreadable",
@@ -424,7 +390,7 @@ def test_open_chat_accepts_the_colon_token_cross(
 
     code = chat_open._cmd_persona_instance_open_chat(
         SimpleNamespace(
-            persona_id="profile:alice",  # colon form vs the stored token fold
+            persona_id="profile_alice",  # colon form vs the stored token fold
             persona_instance_id=owner.id,
             session_id=owner.session_id,
             add_instance=False,
@@ -446,11 +412,11 @@ def test_open_chat_still_refuses_a_foreign_root(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
-    _owned_root(db, persona_id="profile:bob", display_name="Bob")
+    _owned_root(db, persona_id="profile_bob", display_name="Bob")
 
     code = chat_open._cmd_persona_instance_open_chat(
         SimpleNamespace(
-            persona_id="profile:bob",
+            persona_id="profile_bob",
             persona_instance_id=None,
             session_id=owner.session_id,
             add_instance=False,
@@ -501,7 +467,7 @@ def test_open_new_chat_still_refuses_a_genuinely_foreign_instance(
 ):
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
-    foreign = _owned_root(db, persona_id="profile:bob", display_name="Bob")
+    foreign = _owned_root(db, persona_id="profile_bob", display_name="Bob")
 
     code = chat_open._cmd_persona_instance_open_new_chat(
         SimpleNamespace(
@@ -511,7 +477,7 @@ def test_open_new_chat_still_refuses_a_genuinely_foreign_instance(
             kill_active=False,
             json=True,
         ),
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         coordinator_scope=None,
     )
 
@@ -552,13 +518,13 @@ def test_chat_delete_still_refuses_a_foreign_instance(
     db = _canonical_db()
     harness = _chat_lane(monkeypatch, db)
     owner = _owned_root(db)
-    foreign = _owned_root(db, persona_id="profile:bob", display_name="Bob")
+    foreign = _owned_root(db, persona_id="profile_bob", display_name="Bob")
     db.append_message(owner.session_id, "user", "must survive")
 
     code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
             session_id=owner.session_id,
-            persona_id="profile:bob",
+            persona_id="profile_bob",
             persona_instance_id=foreign.id,
             requested_by="test",
             json=True,
@@ -579,8 +545,8 @@ def _completed_dispatch(dispatch_id="dispatch-cap-hygiene", root="persona_chat_s
     dispatch_store.record_dispatch(
         dispatch_id=dispatch_id,
         sender_session_id=root,
-        sender_persona_id="profile:alice",
-        target_persona="profile:bob",
+        sender_persona_id="profile_alice",
+        target_persona="profile_bob",
         target_instance_id="personainst_profile_bob",
         title="ask",
         ask="do the thing",
@@ -596,7 +562,7 @@ def _drain_with(monkeypatch, forge_payload, *, root="persona_chat_sender"):
     from agent_runtime import dispatch_delivery
 
     policy = dispatch_delivery.DrainPolicy(
-        sender_persona=lambda _root: ("profile:alice", "personainst_profile_alice"),
+        sender_persona=lambda _root: ("profile_alice", "personainst_profile_alice"),
         sender_is_idle=lambda _root: True,
     )
 
@@ -836,7 +802,7 @@ def test_chat_delete_refuses_a_retired_owners_chat_to_another_persona(
 ):
     db = _canonical_db()
     _chat_lane(monkeypatch, db)
-    bob = PersonaInstanceStore().create_operator_chat(persona_id="profile:bob", display_name="Bob")
+    bob = PersonaInstanceStore().create_operator_chat(persona_id="profile_bob", display_name="Bob")
     retired = _retired_root(db)
 
     code = chat_delete._cmd_persona_chat_delete(

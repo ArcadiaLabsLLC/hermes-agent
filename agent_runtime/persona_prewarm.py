@@ -184,7 +184,7 @@ PREWARM_STATE_ALREADY_RUNNING = "already_running"
 #: The call named no persona at all.
 PERSONA_ID_REQUIRED_REASON = "persona_id_required"
 
-#: The call named a ``profile:`` id. ``runtime.agent.create`` deliberately
+#: The call named a ``profile_`` id. ``runtime.agent.create`` deliberately
 #: ACCEPTS those (decision D-U1 — the launcher's template browser sends ids for
 #: profiles that own no persona row), and the create's wire-row projection then
 #: resolves its visibility persona from the freshly minted INSTANCE
@@ -390,17 +390,6 @@ def request_persona_prewarm(params: dict[str, Any]) -> PersonaPrewarmOutcome:
             "persona_id is required",
             {"reason": PERSONA_ID_REQUIRED_REASON},
         )
-    if persona_id.lower().startswith("profile:"):
-        return _refused(
-            ERR_INVALID_PARAMS,
-            f"{persona_id!r} names a profile, not a roster persona; its "
-            "visibility memos are keyed on the instance the create mints, so "
-            "there is nothing to warm before that create runs",
-            {
-                "reason": PROFILE_PERSONA_NOT_PREWARMABLE_REASON,
-                "persona_id": persona_id,
-            },
-        )
 
     try:
         persona = resolve_persona(persona_id)
@@ -413,6 +402,18 @@ def request_persona_prewarm(params: dict[str, Any]) -> PersonaPrewarmOutcome:
             persona_roster_unavailable_message(exc),
             {"reason": PERSONA_ROSTER_UNAVAILABLE_REASON},
         )
+    if persona is None and persona_id.lower().startswith("profile_"):
+        return _refused(
+            ERR_INVALID_PARAMS,
+            f"{persona_id!r} names a profile, not a roster persona; its "
+            "visibility memos are keyed on the instance the create mints, so "
+            "there is nothing to warm before that create runs",
+            {
+                "reason": PROFILE_PERSONA_NOT_PREWARMABLE_REASON,
+                "persona_id": persona_id,
+            },
+        )
+
     if persona is None:
         return _refused(
             ERR_INVALID_PARAMS,
