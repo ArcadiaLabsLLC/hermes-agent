@@ -189,8 +189,8 @@ def _reconcile(db, params, record):
             record["files"] = manager.restore_receipt(_operation_key(identity, workdir, params["operation_id"]))
         state = UndoState.PARTIAL
         files = record.get("files") or {}
-        if files.get("success") and (record["mode"] == "files" or files.get("reason") == "rolled_back"):
-            state = UndoState.ROLLED_BACK if files.get("reason") == "rolled_back" else UndoState.COMPLETED
+        if files.get("success") and (record["mode"] == "files" or files.get("reason") == UndoState.ROLLED_BACK):
+            state = UndoState.ROLLED_BACK if files.get("reason") == UndoState.ROLLED_BACK else UndoState.COMPLETED
         _transition(db, params, record, state, reason=record.get("reason") if state == UndoState.PARTIAL else None)
     return _result(params, record)
 
