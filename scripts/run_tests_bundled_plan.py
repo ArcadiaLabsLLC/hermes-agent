@@ -107,12 +107,15 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
 
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
+#: the process kinds the ledger counts (fast-gate §2 adds the known red's one run)
+PROCESS_KINDS = ("bundle", "solo", "known-red", "rerun", "retry")
+
 
 @dataclass
 class Process:
     """One pytest process the run spawned."""
 
-    kind: str  # "bundle" | "solo" | "rerun" | "retry"
+    kind: str  # "bundle" | "solo" | "known-red" | "rerun" | "retry"
     members: List[str]
     started: float
     ended: float
@@ -160,7 +163,7 @@ class RunLedger:
         return {
             "elapsed": round(elapsed, 1),
             "jobs": jobs,
-            "processes": {k: sum(1 for p in self.processes if p.kind == k) for k in ("bundle", "solo", "rerun", "retry")},
+            "processes": {k: sum(1 for p in self.processes if p.kind == k) for k in PROCESS_KINDS},
             "worker_seconds": round(worker_seconds, 1),
             "busy_seconds": round(busy, 1),
             "utilization": round(busy / worker_seconds, 3),
@@ -207,8 +210,8 @@ def render(summary: Mapping[str, object]) -> List[str]:
     procs = summary["processes"]
     lines = [
         "=== Run cost (Stage 0) ===",
-        f"  processes: {procs['bundle']} bundles, {procs['solo']} solos, {procs['rerun']} re-runs alone, "
-        f"{procs['retry']} straggler retries",
+        f"  processes: {procs['bundle']} bundles, {procs['solo']} solos, {procs['known-red']} known reds run once, "
+        f"{procs['rerun']} re-runs alone, {procs['retry']} straggler retries",
         f"  worker-seconds {summary['worker_seconds']}s ({summary['jobs']} × {summary['elapsed']}s); "
         f"busy {summary['busy_seconds']}s = {summary['utilization']:.0%} utilization",
         f"  Σ per-file seconds (collect + tests) {summary['work_seconds']}s = {summary['work_share']:.0%} of "
