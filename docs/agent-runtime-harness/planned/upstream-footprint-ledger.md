@@ -389,6 +389,22 @@ head/base pins remain unchanged. Exact-count scope checks replace existence-only
 fragment matching; moved memory helpers are explicitly mapped, and the live-system
 guard snapshot body is checked with its fork cache-variable rename.
 
+## Console history native candidates — 2026-10-11 (design only)
+
+HELD proposals for the repair of staged PR #7; no native extraction or upstream
+submission has occurred. These planning rows change no measured footprint counts.
+Owner/value/sequence and proof criteria: [history repair audit](console-history-followup-verification-2026-10-11.md),
+"The test for Value beyond Eternia" and "Upstream seam sequence and quality requirements".
+Product neutrality alone does not qualify: require a demonstrated native
+user/maintainer benefit worth the API and maintenance cost, an existing-work
+check, the smallest independent patch, and compatibility/failure-path evidence.
+
+| candidate | upstream owner / minimal seam | fork consumer | qualification and status |
+| --- | --- | --- | --- |
+| Shared native restore writer | `tools/checkpoint_manager.py::_restore`: expose only the existing write mechanics needed by both native restore and reviewed recovery; preserve batching/pathspec/safety behavior | Staged `restore_preview` / `resume_restore` consume only after extraction is qualified | HELD: separate behavior-preserving native code/tests commit, with existing native restore tests before/after; establish standalone native benefit before submission. Keep fork ledger bookkeeping in a separate commit. Acceptance closes this seam only after integration and removal of the carried delta. |
+| Typed checkpoint contention and bounded wait | `tools/checkpoint_pruning.py::store_lock`: typed `PruneError` subtype and optional finite wait, preserving default behavior | Native checkpoint clients and staged Undo distinguish lock acquisition refusal from write failure | HELD: prove native caller value, deadline/release/error compatibility; independently reviewable from restore extraction. No upstream acceptance or new measured hunk claimed. |
+| Restore target and backup retention pins | Native checkpoint refs and pruning/GC ownership; retain required objects across interrupted restore | Staged reviewed restore and finish/rollback | HELD: demonstrate native interrupted-restore benefit and lifecycle proof (creation, pruning/GC, restart, terminal/failure cleanup). No second backup store and no bundled fork coordinator. |
+
 ## Runtime ownership door candidates — 2026-10-07 (design only)
 
 Frozen fork base `8f2f1cdd386`; these proposals add no upstream hunks and do not change footprint counts. No upstream PR filed. Exact controls, lifecycle and acceptance: [Wave2 ownership packet](runtime-wave2-ownership-2026-10-07.md).

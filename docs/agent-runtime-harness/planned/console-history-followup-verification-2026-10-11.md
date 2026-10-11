@@ -208,6 +208,35 @@ than treating the file count as evidence of overengineering.
 implementation. Potential upstream value is an engineering assessment against
 the inspected fork, not a claim of acceptance or an exhaustive survey of upstream.
 
+**The test for "Value beyond Eternia" is demonstrated native benefit, not merely
+product neutrality.** Every proposed contribution must satisfy all of these:
+
+- Name a concrete problem or valuable use case for native Hermes users or
+  maintainers, with evidence. "Our fork needs a hook" or "other clients could use
+  it" alone does not qualify. Explain why the benefit warrants the added API and
+  long-term maintenance cost.
+- Check current upstream code and active contributions; show why an existing
+  primitive cannot already deliver that benefit. Reuse first, and avoid a
+  competing owner or implementation.
+- Offer the smallest independently useful native change. Keep Eternia policy,
+  fork bookkeeping, speculative abstractions and unrelated cleanup out. Prefer
+  clear types and a direct execution path over mode flags and nested dispatch;
+  retain necessary safety checks.
+- Supply compatibility and failure-path evidence for the actual changed
+  contract, including native behavior and performance-sensitive batching where
+  affected. Document the tested limits rather than claiming universal safety.
+- Make the patch reviewable on a pinned upstream base with a professional problem,
+  behavior and validation description. A reviewer must be able to assess its
+  benefit without adopting the Launcher or the runtime fork.
+
+Read the column below as **candidate value, not qualification**. Native receipts,
+branching, the writer extraction, lock waiting and pins have not passed this
+submission test in this audit. Before submission, each entry must name its
+beneficiary/problem evidence, existing-API gap, minimal change and proof. If those
+are missing, keep it HELD as a documented seam; do not manufacture a public API or
+submit a cleanup-only PR merely to reduce our fork diff. Product independence is
+necessary, but it is not the upstream value argument.
+
 | Capability | Existing Hermes owner | PR #7 addition | Disposition for this repair | Value beyond Eternia |
 | --- | --- | --- | --- | --- |
 | Rewind/edit boundary | `SessionRewindMixin.rewind_user_turn` delegates to native `rewind_to_message`, including write guards, archival, counts and compaction handling | Optional full-history digest and immutable receipt in the same transaction | **Reuse + narrow extension.** Keep that writer and its default behavior. Do not implement rewind in the RPC lane or mutate messages in Launcher. Preserve native warm-history adoption. | Acknowledgement-loss recovery and stale-review protection for other clients; generic seam candidate. |
@@ -276,3 +305,59 @@ the whole restore operation once per selected file: that would repeat its
 backup/pruning/selection orchestration. Keep user-edit policy and operation
 receipts with their respective owners, and prove both native and reviewed paths
 exercise the shared mechanism. Avoid a broad checkpoint refactor.
+
+### Upstream seam sequence and quality requirements
+
+The native writer extraction edits the upstream-owned `_restore` function. It is
+a seam, not fork-only cleanup. The inspected upstream tracking snapshot
+`ac0cfa7db9` also has its restore writes inline; re-fetch and pin the actual
+upstream SHA before preparing any implementation/submission, and check for an
+equivalent accepted or active upstream change first.
+
+1. **Native extraction commit:** isolate the smallest behavior-preserving shared
+   write mechanism in the native checkpoint owner, with native tests. Existing
+   restore must use it in that commit. Preserve batching, pathspec/literal path
+   handling, deletion/oversize/user-edit safety, store/index/lock ownership,
+   backup/pruning order, error reporting and return shape. Do not mix the PR's
+   deletion/deduplication repairs, coordinator, RPC or UI changes into extraction.
+   The helper's scope/signature must follow those invariants, not a predetermined
+   one-file-per-Git-command design that would lose batching.
+2. **Native proof:** run the existing restore tests on the pinned base and on
+   extraction. Cover `test_checkpoint_manager.py` restore/safe-restore cases,
+   `test_checkpoint_path_roundtrip.py`, `test_checkpoint_gitlinks.py`,
+   `test_checkpoint_size_cap.py` and `test_checkpoint_store_ownership.py` as
+   applicable through the canonical test runner. Add only missing meaningful
+   characterization of affected behavior (including batching where needed).
+   Record exact commands, commits and outcomes. Passing selected tests supports
+   compatibility; it is not a claim to have proved every possible behavior.
+3. **Fork bookkeeping:** record the held seam and proof in the footprint ledger
+   separately. Fork-only ledger/docs/manifest bookkeeping does not belong in the
+   upstream patch. If it passes the "Value beyond Eternia" test above, the
+   extraction is the native code-and-tests commit an upstream PR should carry,
+   without a later product-removal rewrite. Its preparation is not automatic
+   approval to submit a low-value extraction.
+4. **Consumer commit:** only after extraction is qualified, change reviewed apply
+   and recovery to consume that native primitive and delete their duplicated
+   write mechanics. Keep review, receipts, recovery sequencing and persona policy
+   with their existing owners. Preserve the approved feature behavior.
+5. **Seam closure:** upstream acceptance alone is insufficient; integrate the
+   accepted change into the fork and remove its carried delta/retire that ledger
+   seam. If upstream requests revisions, adapt the consumer to the accepted API.
+   Other history/restore seams remain independently tracked until resolved.
+
+Any upstream proposal must have a concrete native use and value independent of
+Eternia: fewer divergent restore implementations, preserved native safety and a
+usable extension for other checkpoint consumers. A public helper existing only
+to make one fork patch convenient is not enough. Use the smallest coherent typed
+contract; avoid product flags, generic workflow/strategy engines, speculative
+extension points, broad boolean mode matrices or repeated nested dispatch.
+Necessary safety checks remain explicit. Tests should be comprehensive for the
+changed contract, not an assertion count or a large rewrite of unrelated tests.
+
+Typed busy/wait and retention pins are separate, independently reviewable native
+candidates. Each needs its own rationale, compatibility/lifecycle proof, and
+existing-work check before submission. Do not bundle them into the extraction
+just because they share a file family. An upstream PR description must identify
+the native problem, smallest change, before/after behavior, validation and limits.
+This section is the agreed preparation plan; no native code was extracted,
+upstream branch pushed or upstream PR opened by this documentation change.
