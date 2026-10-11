@@ -112,9 +112,11 @@ device holds is fixed at pairing and compared by `call_authorization.authorize_c
 against the tier each method declares; a peer is answered from
 `PEER_METHOD_ALLOWLIST` before the read-tier arm runs, so it inherits nothing.
 
-`PEER_METHOD_ALLOWLIST` at HEAD is six methods: `peer.ping`,
-`peer.agent_chat.execute`, `peer.media.get`, `peer.roster.list`,
-`peer.thread.read`, `peer.announce`. The first two are gateway Stage 7, the
+`PEER_METHOD_ALLOWLIST` at HEAD is seven methods: `peer.ping`,
+`peer.agent_chat.execute`, `peer.agent_chat.cancel`, `peer.media.get`,
+`peer.roster.list`, `peer.thread.read`, `peer.announce`. The ping and execute
+are gateway Stage 7, the cancel is D1.07 (the execute's Stop; it reaches only a
+turn the caller's own execute started — [03](03-transport-and-wire.md)), the
 media verb is P4 (cross-install media), the roster and thread reads are S2b
 (R-IP9, read-only by ruling), and the announce is S2c. Nothing else is
 callable by a peer; a test iterates the registry against the set rather than
