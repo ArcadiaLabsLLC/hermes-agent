@@ -1,0 +1,3 @@
+B3.01 = D2.02 = L2.07 · PARTIAL 7fbd3688e6, e8727550c1: hermes phase rule built (provider_unavailable settles terminal); S2 pre-flight not built per owner ruling; S3 operator live no-credential turn owed; launcher copy row filed in report
+B3.02 = D2.04 = L5.04 · PARTIAL e09b0e15e2, 052c76306d, f1d1affc66, e8727550c1: hermes half complete (S1–S3); launcher half (send retry_of, render retried_as, fall back to plain send on retry_target_invalid) is a launcher row
+B3.03 = D2.05 = L5.09 · PARTIAL bed4892f54, 7308e844a9, 05d7589b5e, e8727550c1: hermes half complete (store, RPC, CLI); launcher diagnostics panel (list undelivered, Re-arm) + CLI-contract re-vendor is a launcher row

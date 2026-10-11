@@ -1,0 +1,3 @@
+B1.01 = D1.01 = L1.03 · FIXED 5260a6b87f 7069d9adeb f925cebe8d
+B1.02 = D1.02 = L3.14 · FIXED f925cebe8d
+B1.03 = D1.03 = L2.24 · FIXED 0df2a3a79c d75fbb323f 602b59fe03
