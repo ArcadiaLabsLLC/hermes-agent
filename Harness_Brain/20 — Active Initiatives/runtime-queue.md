@@ -27,6 +27,11 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Verified Console history PR #7 follow-up — 2026-10-11
+
+- [ ] **Undo must distinguish a pre-write checkpoint-lock refusal from partial file writes.** Its prepared record/send fence survives a zero-wait store-lock failure after preview; real RPC probe changed no file/chat rows but returned partial. Explicit rollback recovers, so do not call it permanent. Reuse PR #7 and the native lock/receipt owners. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H1 · UNCLAIMED
+- [ ] **Centralize Undo's durable state transitions in a typed state and one validator/writer.** `operator_undo.py` has direct string state writes in apply, finish, reconcile and recovery (ten statements counting initialization); retain one coordinator over native chat/file owners. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H4 · PR #7 · UNCLAIMED
+
 - [ ] **Expose operator-text admission capabilities to the Console composer through the existing runtime connection.** `agent_runtime/operator_message.py::MAX_MESSAGE_LENGTH` owns 64,000 Unicode characters; Launcher `composerResourcesFor` independently consumes an entitlement quota (4,000 fallback) and clamps pasted text. Advertise the runtime admission value and counting unit, then let the existing Launcher composer policy resolve it with product entitlements and show any refusal before send without silently losing a paste. Preserve the server refusal as final authority; do not copy another numeric constant or invent a second quota owner. Launcher consumer: `EterniaLauncher/lib/features/messaging/input/composer_resources_binding.dart`. · content-boundary audit 2026-10-10 · UNCLAIMED
 
 - [ ] **Windowed transcript reads scan the conversation for every requested window.** `agent_runtime/persona_chat_history/content.py` reuses the existing curation and native lineage readers so ownership, redaction and hidden-row policy stay authoritative; each 16K response still pays for reading the session. Add a lineage-aware public indexed content lookup at the existing SessionDB boundary, with curation/redaction parity and revision checks, before optimizing this into another cache or store. Launcher reads only on demand. Evidence: chat-content-integrity implementation; response size is bounded, read cost is not. · UNCLAIMED · released 2026-10-10 (lane-1010 returned L1.01, seam; reason in `queue-sweep-2026-10-10/L1-outcomes.md`)
@@ -477,6 +482,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams — fork edits inside upstream files (additive only)
+
+- [ ] **Preserve native checkpoint deduplication and deleted-file safe-restore semantics while exposing turn attribution.** PR #7 caches only successful snapshots, and deletion evidence overwrites a hash with None that existing safe restore skips. Both behavior changes reproduced with real Git snapshots; explicitly disposition the upstream delta and add compatibility positives. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H2 · UNCLAIMED
 
 ### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
