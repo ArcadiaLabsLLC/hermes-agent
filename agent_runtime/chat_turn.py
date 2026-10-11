@@ -62,6 +62,7 @@ length of it. Accept-and-hand-off is the only shape the lane admits.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable
 
 from .chat_turn_reservations import (
@@ -72,6 +73,7 @@ from .chat_turn_reservations import (
 )
 
 from agent_runtime.chat_observation_policy import chat_observation_guidance
+from agent_runtime.param_readers import read_flag, read_text
 from .operator_message import MAX_MESSAGE_LENGTH as MAX_MESSAGE_LENGTH
 from .operator_message import OperatorMessageInvalid, normalize_operator_message
 
@@ -286,21 +288,12 @@ class ChatTurnRequest:
 # ── param normalisation ──────────────────────────────────────────────────────
 
 
+def _invalid(key: str, sentence: str) -> ChatTurnInvalid:
+    return ChatTurnInvalid(f"{key}_invalid", f"invalid params: {sentence}")
+
+
 def _text(params: dict, key: str, *, limit: int) -> str:
-    raw = params.get(key)
-    if raw is None:
-        return ""
-    if not isinstance(raw, str):
-        raise ChatTurnInvalid(
-            f"{key}_invalid", f"invalid params: {key} must be a string when sent"
-        )
-    value = raw.strip()
-    if len(value) > limit:
-        raise ChatTurnInvalid(
-            f"{key}_invalid",
-            f"invalid params: {key} must be {limit} characters or fewer",
-        )
-    return value
+    return read_text(params, key, refuse=_invalid, limit=limit) or ""
 
 
 def _required_text(params: dict, key: str, *, limit: int) -> str:
@@ -319,15 +312,7 @@ def _operator_message(params: dict) -> str:
         raise ChatTurnInvalid(exc.reason, exc.message) from exc
 
 
-def _flag(params: dict, key: str) -> bool:
-    raw = params.get(key)
-    if raw is None:
-        return False
-    if not isinstance(raw, bool):
-        raise ChatTurnInvalid(
-            f"{key}_invalid", f"invalid params: {key} must be a boolean when sent"
-        )
-    return raw
+_flag = partial(read_flag, refuse=_invalid)
 
 
 def _correlation_id(params: dict) -> str | None:

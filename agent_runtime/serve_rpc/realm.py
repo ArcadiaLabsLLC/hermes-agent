@@ -30,9 +30,11 @@ verb here moves the machine owner's session pointer.
 from __future__ import annotations
 
 import threading
+from functools import partial
 from typing import Any, Callable
 
 from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.param_readers import read_flag, read_strings, read_text
 
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,
@@ -100,36 +102,21 @@ def _run_verb(rid: Any, call: Callable[[], dict]) -> dict:
         return _refusal(rid, "not_found", "Realm not found.")
 
 
-# ── param readers (each raises _Refused("invalid_request")) ─────────────────
+# ── param readers: ``agent_runtime.param_readers``, refusing _Refused("invalid_request") ──
 
 
 def _params(params: Any) -> dict:
     return params if isinstance(params, dict) else {}
 
 
-def _param_text(params: dict, name: str, *, required: bool = False) -> str | None:
-    value = params.get(name)
-    if value is None and not required:
-        return None
-    if not isinstance(value, str) or not value.strip():
-        raise _Refused("invalid_request", f"{name} must be a non-empty string")
-    return value.strip()
+def _invalid_request(key: str, sentence: str) -> _Refused:
+    return _Refused("invalid_request", sentence)
 
 
-def _param_flag(params: dict, name: str) -> bool:
-    value = params.get(name, False)
-    if not isinstance(value, bool):
-        raise _Refused("invalid_request", f"{name} must be a boolean")
-    return value
-
-
-def _param_strings(params: dict, name: str) -> list[str] | None:
-    value = params.get(name)
-    if value is None:
-        return None
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise _Refused("invalid_request", f"{name} must be a list of strings")
-    return value
+#: A present value must be non-blank on this lane (``empty_ok=False``).
+_param_text = partial(read_text, refuse=_invalid_request, empty_ok=False)
+_param_flag = partial(read_flag, refuse=_invalid_request)
+_param_strings = partial(read_strings, refuse=_invalid_request)
 
 
 def _credential(params: dict):
