@@ -67,6 +67,8 @@ five objects it composes.
       thumbs.py      lanes    Thumbs: row_thumb, direction_thumb, _finish_thumb
       compose.py     lanes    Composer: compose (collect -> validate -> guard_slug -> write_sheet -> manifest), reopen
       status.py      lanes    StatusReport: status_payload, _item_status
+      payloads.py    lanes    the read rows the argv verbs and runtime.characters.* share: draft_summary,
+                              installed_rows, draftsman, thumb_result
 
     entry point                                     opens
     CharacterDraft.create / load / list_drafts      draft -> layout -> _support

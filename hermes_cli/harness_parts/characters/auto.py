@@ -13,7 +13,7 @@ from typing import Final
 from agent_runtime.cli_format import emit_json_line
 from agent.charsheet.errors import CharsheetRefusal
 
-from .payloads import _CHARACTERS_EXPECTED, _characters_draftsman, _characters_next
+from .payloads import _CHARACTERS_EXPECTED, _characters_next
 from .steps import (
     _characters_rows_next,
     _characters_step_approve_all,
@@ -145,8 +145,10 @@ def _characters_auto_write(args, data: dict, human: str) -> None:
     stream mid-batch is exactly the reader who needs to know which door drew the
     rows it is watching land (RL-26).
     """
+    from agent.charsheet.draft.payloads import draftsman
+
     sys.stdout.write(
-        (emit_json_line({**data, **_characters_draftsman()}) if getattr(args, "json", False) else human) + "\n"
+        (emit_json_line({**data, **draftsman()}) if getattr(args, "json", False) else human) + "\n"
     )
     sys.stdout.flush()
 

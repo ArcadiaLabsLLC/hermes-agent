@@ -257,7 +257,7 @@ def path_or_none(path: Path | None) -> str | None:
     a second spelling one field at a time.
 
     **Public because the rule is not this module's alone.** It shipped private
-    and ``hermes_cli.harness._characters_draft_summary`` — the ``list`` row,
+    and ``agent.charsheet.draft.payloads.draft_summary`` — the ``list`` row,
     carrying the same ``baseImage`` field — kept its own ``str(x) if x else ""``
     for exactly as long. A one-module helper enforcing a payload-wide rule is
     how the fourth field got missed; the CLI imports this one now.
