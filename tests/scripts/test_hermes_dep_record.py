@@ -37,8 +37,17 @@ import sys
 import helper_mod  # already loaded by test_a: no import event fires for it here
 
 def test_spawns():
-    subprocess.run([sys.executable, "-c", "pass"], check=True)
+    subprocess.run([sys.executable, "-c", "import child_mod"], check=True)
     assert helper_mod.VALUE == 1
+'''
+
+
+_FILE_C = '''
+import subprocess
+import sys
+
+def test_spawns_isolated():
+    subprocess.run([sys.executable, "-I", "-c", "pass"], check=True)  # -I ignores PYTHONPATH: no record
 '''
 
 
@@ -52,6 +61,8 @@ def _bundle(tmp_path: Path) -> Path:
     (root / "listed" / "one.txt").write_text("1", encoding="utf-8")
     (root / "test_a.py").write_text(_FILE_A, encoding="utf-8")
     (root / "test_b.py").write_text(_FILE_B, encoding="utf-8")
+    (root / "test_c.py").write_text(_FILE_C, encoding="utf-8")
+    (root / "child_mod.py").write_text("CHILD = 1\n", encoding="utf-8")
     return root
 
 
@@ -59,7 +70,7 @@ def _record(root: Path, deps_dir: Path) -> dict:
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
-         f"--hermes-gate-deps={deps_dir}", "test_a.py", "test_b.py"],
+         f"--hermes-gate-deps={deps_dir}", "test_a.py", "test_b.py", "test_c.py"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
@@ -114,3 +125,15 @@ def test_the_store_is_the_primary_checkouts_unless_overridden(tmp_path):
     assert cache.gate_store_dir(worktree, primary) == primary / ".pytest_cache" / "hermes_gate"
     assert cache.gate_store_dir(primary, None) == primary / ".pytest_cache" / "hermes_gate"
     assert cache.gate_store_dir(worktree, primary, str(tmp_path / "x")) == tmp_path / "x"
+
+
+@pytest.mark.timeout(150)
+def test_a_python_child_records_itself_and_covers_its_parent_but_an_isolated_child_does_not(tmp_path):
+    root = _bundle(tmp_path)
+    files = _record(root, tmp_path / "deps")
+
+    b, c = files["test_b.py"], files["test_c.py"]
+    assert b.child_records == 1 and "child_mod.py" in b.mods, "the child's import is the parent file's dependency"
+    assert b.child_covered and not cache.uncovered_spawn(b.spawn_py, b.spawn_other, b.child_records)
+    assert c.spawn_py == 1 and c.child_records == 0
+    assert not c.child_covered, "a child run with -I leaves no record: its parent keeps the ALL sentinel"

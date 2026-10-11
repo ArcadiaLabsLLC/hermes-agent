@@ -37,7 +37,7 @@ import sys
 import time
 
 import pytest
-from hermes_dep_trail import _SESSION, CURRENT_FILE_ENV, AuditTrail, Bucket  # the pytest-free half
+from hermes_dep_trail import _SESSION, CHILD_DIR_ENV, CURRENT_FILE_ENV, ROOT_ENV, AuditTrail, Bucket
 
 _OPTION = "--hermes-gate-deps"
 
@@ -56,6 +56,18 @@ class _DepRecorder:
         self._flushed: set[str] = set()
         self._running: str | None = None
         sys.addaudithook(self._trail.hook)
+        # a Python child inherits these and records itself (sitecustomize, stage 1b)
+        os.environ[CHILD_DIR_ENV] = directory
+        os.environ[ROOT_ENV] = root
+
+    def _point(self, rel: str) -> None:
+        """Attribute what follows to ``rel`` ("" = the session), here and in any child."""
+
+        self._trail.current = rel
+        if rel:
+            os.environ[CURRENT_FILE_ENV] = rel
+        else:
+            os.environ.pop(CURRENT_FILE_ENV, None)
 
     def _flush(self, rel: str) -> None:
         trail = self._trail
@@ -84,12 +96,12 @@ class _DepRecorder:
 
     def pytest_collectstart(self, collector):
         if isinstance(collector, pytest.Module):
-            self._trail.current = self._rel_of(collector)
+            self._point(self._rel_of(collector))
             self._trail.bucket(self._trail.current)
 
     def pytest_collectreport(self, report):
         if str(report.nodeid).partition("::")[0].endswith(".py"):
-            self._trail.current = _SESSION  # the module is collected: later events are the session's
+            self._point(_SESSION)  # the module is collected: later events are the session's
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_protocol(self, item, nextitem):
@@ -97,8 +109,7 @@ class _DepRecorder:
         if self._running is not None and self._running != rel:
             self._flush(self._running)
         self._running = rel
-        self._trail.current = rel
-        os.environ[CURRENT_FILE_ENV] = rel
+        self._point(rel)
         yield
 
     def pytest_sessionfinish(self, session, exitstatus):
@@ -109,6 +120,8 @@ class _DepRecorder:
 
     def close(self) -> None:
         self._trail.active = False
+        for name in (CHILD_DIR_ENV, ROOT_ENV, CURRENT_FILE_ENV):
+            os.environ.pop(name, None)
         try:
             self._handle.close()
         except OSError:

@@ -380,3 +380,15 @@ def test_a_green_older_than_the_max_age_misses(repo, store):
 
     assert reason(13) == "hit"
     assert reason(15) == "max-age", "owner ruling Q2: a 15-day-old green runs"
+
+
+# ── stage 5 (1b): a recorded Python child retires the ALL sentinel ──────────
+
+
+def test_a_spawner_whose_python_children_all_recorded_depends_only_on_its_records(repo, store):
+    deps = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()}, spawn_py=2, child_records=2)
+    _green(repo, store, deps)
+    _write(repo, "pkg/other.py", "OTHER = 2\n")
+    _commit(repo)
+    assert _reason(repo, store) == "hit", "every child left a record: no whole-tree dependency"
+    assert cache.uncovered_spawn(2, 0, 1) and cache.uncovered_spawn(1, 1, 5) and not cache.uncovered_spawn(0, 0, 0)

@@ -13,6 +13,9 @@ import sys
 
 #: the file the process is running now; a ``sitecustomize`` child inherits it
 CURRENT_FILE_ENV = "HERMES_GATE_CURRENT_FILE"
+#: where a child writes its record, and the repo root it filters by (stage 1b)
+CHILD_DIR_ENV = "HERMES_GATE_CHILD_EVENTS"
+ROOT_ENV = "HERMES_GATE_ROOT"
 _DROP_PARTS = frozenset({".git", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache", ".ruff_cache"})
 _PATH_EVENTS = frozenset({"open"})
 _DIR_EVENTS = frozenset({"os.listdir", "os.scandir"})

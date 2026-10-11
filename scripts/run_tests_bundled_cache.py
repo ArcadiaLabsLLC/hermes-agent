@@ -96,6 +96,12 @@ class FileDeps:
         self.spawn_py += int(record.get("spawn_py") or 0)
         self.spawn_other += int(record.get("spawn_other") or 0)
 
+    @property
+    def child_covered(self) -> bool:
+        """Every process the file started left a record (stage 1b)."""
+
+        return not uncovered_spawn(self.spawn_py, self.spawn_other, self.child_records)
+
 
 class DepsCollector:
     """Reads the recorder's per-process files under one directory, incrementally:
@@ -140,6 +146,10 @@ class DepsCollector:
             if record.get("k") == "deps":
                 mods.update(record.get("mods_add") or ())
                 self.files.setdefault(record["f"], FileDeps()).merge(record, mods)
+            elif record.get("k") == "child":  # a Python child of the file (sitecustomize, stage 1b)
+                deps = self.files.setdefault(record["f"], FileDeps())
+                deps.merge(record, record.get("mods") or ())
+                deps.child_records += 1
 
 
 # ── The store ───────────────────────────────────────────────────────────────
@@ -331,9 +341,10 @@ def census(entries: Dict[str, FileDeps], seconds: Dict[str, float]) -> str:
     spawned = [rel for rel, deps in entries.items() if deps.spawned]
     cost = sum(float(seconds.get(rel) or 0.0) for rel in spawned)
     other = sum(1 for rel in spawned if entries[rel].spawn_other)
+    covered = sum(1 for rel in spawned if entries[rel].child_covered)
     return (
         f"  deps recorded for {len(entries)} files; {len(spawned)} spawned a process "
-        f"(Σ {cost:.1f}s; {other} started a non-Python program)"
+        f"(Σ {cost:.1f}s; {other} started a non-Python program; {covered} fully recorded through their children)"
     )
 
 
@@ -513,9 +524,12 @@ class FixedInputs:
 
 def uncovered_spawn(spawn_py: int, spawn_other: int, child_records: int) -> bool:
     """Whether a file spawned a process whose dependencies are not on record:
-    the file then depends on the whole tree (the ALL sentinel)."""
+    the file then depends on the whole tree (the ALL sentinel). A non-Python
+    program is never on record; a Python child is when it wrote its own record
+    (``sitecustomize``), so the file is covered only when the records number at
+    least the Python spawns, counted over the file and all its children."""
 
-    return bool(spawn_py or spawn_other)
+    return bool(spawn_other) or child_records < spawn_py
 
 
 class Keyer:
