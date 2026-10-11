@@ -187,11 +187,13 @@ def manifest() -> dict[str, Any]:
 
     Send parameters come from ``chat_turn``'s normalizer tuples; open parameters
     come from ``persona_open_chat``. Scoped opens never fall back to an older,
-    account-blind lane.
+    account-blind lane. The argv twins publish theirs too (owner ruling L4.22):
+    ``serve_rpc.twin_params.TWIN_METHOD_PARAMS``.
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
+    from .twin_params import TWIN_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -201,6 +203,7 @@ def manifest() -> dict[str, Any]:
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+                **TWIN_METHOD_PARAMS,
             }.items())
         },
     }

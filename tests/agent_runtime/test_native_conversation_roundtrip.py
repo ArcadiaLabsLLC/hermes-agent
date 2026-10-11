@@ -165,3 +165,52 @@ def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compu
         provider.shutdown()
         provider.server_close()
         thread.join(timeout=3)
+
+
+def test_real_native_turn_carries_a_reviewed_file_and_its_digest_guards_resend(tmp_path):
+    """D2.01 S3: the file reaches the real native session; changed bytes under one turn conflict."""
+    import base64
+
+    from agent_runtime.conversations.model import ConversationError
+
+    Provider.requests = []
+    provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
+    thread = threading.Thread(target=provider.serve_forever, daemon=True)
+    thread.start()
+    root, home = tmp_path / "runtime", tmp_path / "a"
+    root.mkdir()
+    home.mkdir()
+    (home / "config.yaml").write_text(
+        "model:\n  default: test-model\n  provider: custom:local-test\n"
+        f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-a\n"
+        "mcp_servers: {}\n", encoding="utf-8")
+    service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p)
+    scope = ConversationScope("operator", "isolated-account", "a")
+    content = b"reviewed-file-marker-7f3a\n"
+    reviewed = {"name": "review-notes.txt", "media_type": "text/plain",
+                "data": base64.b64encode(content).decode()}
+    prompt = {"text": "Summarize the attached notes", "images": [], "files": [reviewed]}
+    try:
+        sid = service.open(scope, key="files", cwd=str(tmp_path), expected_home=str(home))["session_id"]
+        assert service.observe_execution(scope, sid, "turn-file") == {"admitted": False}
+        sent = service.send(scope, sid, "turn-file", prompt)
+        assert sent["files"][0]["size_bytes"] == len(content)
+        deadline = time.monotonic() + 45
+        while (result := service.read(scope, sid, 0, "turn-file"))["turn"]["state"] in {"dispatching", "running"}:
+            assert time.monotonic() < deadline, "native turn did not settle"
+            time.sleep(.05)
+        assert result["turn"]["state"] == "completed", result
+        bodies = [json.dumps(body) for _, body in Provider.requests]
+        assert any("review-notes.txt" in body for body in bodies), bodies
+        staged = [path for path in tmp_path.rglob("review-notes*.txt") if path.parent.name == "attachments"]
+        assert staged and staged[0].read_bytes() == content
+        assert service.observe_execution(scope, sid, "turn-file")["admitted"] is True
+        changed = {**reviewed, "data": base64.b64encode(b"different bytes\n").decode()}
+        with pytest.raises(ConversationError, match="idempotency_conflict"):
+            service.send(scope, sid, "turn-file", {**prompt, "files": [changed]})
+        assert service.send(scope, sid, "turn-file", prompt)["state"] == "completed"
+    finally:
+        service.close()
+        provider.shutdown()
+        provider.server_close()
+        thread.join(timeout=3)

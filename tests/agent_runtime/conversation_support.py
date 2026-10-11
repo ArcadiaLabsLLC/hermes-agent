@@ -13,6 +13,7 @@ class NativeWorker:
         self.models = {}
         self.events, self.executions, self.questions, self.answers = {}, {}, {}, {}
         self.on_submit = None
+        self.refuse_attach = False
         self.closed = False
         self.retired = set()
         self.protected = set()
@@ -45,6 +46,11 @@ class NativeWorker:
             return {}
         if method == "image.attach_bytes":
             return {"attached": True}
+        if method == "file.attach":
+            return {"attached": not self.refuse_attach, "ref_text": f"@file:attachments/{params['name']}"}
+        if method == "pdf.attach":
+            return {"attached": not self.refuse_attach,
+                    "text": f"[User attached PDF: {params['filename']} (1 page(s))]"}
         if method == "prompt.submit":
             assert params["reject_if_busy"] is True
             self.executions[sid] = {"id": params["execution_id"], "status": "running",
