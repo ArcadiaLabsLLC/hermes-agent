@@ -468,6 +468,13 @@ def _retry_timeout_stragglers(
             on_outcome(outcomes[position])
 
 
+def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> List[str]:
+    """Files whose final attempt was killed by a timeout (exit 124, or the
+    timeout banner): no failing ids, so the record keeps them as ``timed_out``."""
+
+    return [_rel(o.file, repo_root) for o in outcomes if o.rc and rtp._is_retryable_timeout_result(o.rc, o.output, {})]
+
+
 def _read_lines(path: Path) -> List[str]:
     try:
         return path.read_text(encoding="utf-8").splitlines()
@@ -682,7 +689,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     durations = plan.load_durations_with_primary(repo_root, rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
-    known_reds = plan.load_known_reds(repo_root)
+    known_reds, timed_out = plan.load_known_reds(repo_root), plan.load_timed_out(repo_root)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
@@ -724,7 +731,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     elapsed = time.monotonic() - started
     cost = result.ledger.summary(args.jobs)
     final_rc = {_rel(o.file, repo_root): o.rc for o in result.outcomes}
-    plan.record_run(repo_root, cost, final_rc, result.ledger.failed, known_reds)
+    plan.record_run(
+        repo_root, cost, final_rc, result.ledger.failed, known_reds,
+        timed_out=_timed_out(result.outcomes, repo_root), previous_timed_out=timed_out,
+    )
 
     failures = [(o.file, o.output, o.summary) for o in result.outcomes if o.rc != 0]
     leaked = {leak.file for leak in result.leaks}

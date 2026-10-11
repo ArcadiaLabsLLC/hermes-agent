@@ -263,10 +263,9 @@ def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
     return {**(load(primary) if primary is not None else {}), **load(repo_root)}
 
 
-def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
-    """rel → the failing node ids the LAST recorded run carried for it. A
-    missing or torn record is empty: every red is then re-run alone. A
-    worktree with no record of its own reads the primary checkout's."""
+def last_record(repo_root: Path) -> Dict[str, object]:
+    """The LAST gate line of the run record; ``{}`` when it is missing or torn.
+    A worktree with no record of its own reads the primary checkout's."""
 
     record = repo_root / RUNS_FILE
     if not record.is_file():
@@ -284,9 +283,23 @@ def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
         # the idle-box lane's line (scripts/run_tests_idle.sh) carries no red map
         if not isinstance(entry, dict) or entry.get("kind") == IDLE_RUN_KIND:
             continue
-        red = entry.get("red") or {}
-        return {rel: frozenset(ids) for rel, ids in red.items() if ids}
+        return entry
     return {}
+
+
+def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
+    """rel → the failing node ids the LAST recorded run carried for it. A
+    missing or torn record is empty: every red is then re-run alone."""
+
+    red = last_record(repo_root).get("red") or {}
+    return {rel: frozenset(ids) for rel, ids in red.items() if ids}
+
+
+def load_timed_out(repo_root: Path) -> frozenset:
+    """Files whose last attempt in the recorded runs was a TIMEOUT (killed, no
+    failing ids, so absent from the red map) — known reds too (fast-gate §2)."""
+
+    return frozenset(last_record(repo_root).get("timed_out") or ())
 
 
 def is_known_red(rel: str, failed_nodeids: Sequence[str], known: Mapping[str, frozenset]) -> bool:
@@ -303,11 +316,15 @@ def record_run(
     final_rc: Mapping[str, int],
     failed: Mapping[str, Sequence[str]],
     previous: Mapping[str, frozenset],
+    *,
+    timed_out: Iterable[str] = (),
+    previous_timed_out: Iterable[str] = (),
 ) -> Dict[str, List[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
-    partial run never forgets a red it did not look at."""
+    partial run never forgets a red it did not look at. ``timed_out`` (files
+    whose final attempt was a timeout) is carried forward the same way."""
 
     red = {rel: sorted(ids) for rel, ids in previous.items()}
     for rel, rc in final_rc.items():
@@ -316,7 +333,8 @@ def record_run(
             red[rel] = ids
         else:
             red.pop(rel, None)
-    record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items()))}
+    late = sorted((set(previous_timed_out) - set(final_rc)) | set(timed_out))
+    record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items())), "timed_out": late}
     path = repo_root / RUNS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
