@@ -38,10 +38,14 @@ __all__ = [
 class OfficeWriteScope:
     """What a translated refusal names: the request id, the workspace, and the
     verb's own keys a row may carry into ``data`` (``actor_key``,
-    ``expect_revision``, ``take`` …)."""
+    ``expect_revision``, ``take`` …).
+
+    The ``runtime.board.*`` twins ride the same scope: a card verb knows a
+    ``card_id`` and no workspace, so ``workspace_id`` is ``None`` there and
+    ``fields`` holds only the keys the request actually named."""
 
     rid: Any
-    workspace_id: str
+    workspace_id: str | None
     fields: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -70,14 +74,16 @@ def refusal(
     ``reason`` is a constant, or a function of the exception when the reason
     is the exception's own (``ArchiveUnreadable.code`` on a subclass).
     ``message`` defaults to ``str(exc)`` — the store's own sentence.
+    ``workspace_id`` is omitted when the scope has none and a ``carry`` key the
+    scope's ``fields`` does not hold is omitted (a board card verb); every
+    office verb names both, so its frames are unchanged.
     """
 
     def row(exc: BaseException, scope: OfficeWriteScope) -> dict:
-        data: dict[str, Any] = {
-            "reason": reason(exc) if callable(reason) else reason,
-            "workspace_id": scope.workspace_id,
-        }
-        data.update((key, scope.fields[key]) for key in carry)
+        data: dict[str, Any] = {"reason": reason(exc) if callable(reason) else reason}
+        if scope.workspace_id is not None:
+            data["workspace_id"] = scope.workspace_id
+        data.update((key, scope.fields[key]) for key in carry if key in scope.fields)
         text = message(exc, scope) if message is not None else str(exc)
         return err(scope.rid, code, text, data)
 

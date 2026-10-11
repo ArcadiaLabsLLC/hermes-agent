@@ -26,6 +26,8 @@ dispatch                 lanes   ``handle_request``: the one reader of ``_METHOD
 office_read              lanes   ``runtime.office.get/subscribe/unsubscribe``
 office_actor_writes      lanes   ``runtime.office.upsert/remove``
 office_surface_writes    lanes   ``runtime.office.surface_update/resolve_conflict``
+board                    lanes   ``runtime.board.card.*`` / ``.resolve_conflict`` (the
+                                 board's write twins over ``BoardStore``)
 level                    lanes   ``runtime.level.*``
 map                      lanes   ``runtime.map.*``
 prefab                   lanes   ``runtime.prefab.*`` (a profile's prefab shelf)
@@ -71,6 +73,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     office_read,
     office_actor_writes,
     office_surface_writes,
+    board,
     level,
     map,
     prefab,

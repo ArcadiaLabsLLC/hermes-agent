@@ -14,6 +14,12 @@
     "runtime.agent.directory",
     "runtime.agent.retire",
     "runtime.agent.templates",
+    "runtime.board.card.add",
+    "runtime.board.card.archive",
+    "runtime.board.card.edit",
+    "runtime.board.card.move",
+    "runtime.board.card.restore",
+    "runtime.board.resolve_conflict",
     "runtime.chat.message",
     "runtime.chat.queue_skill",
     "runtime.chat.steer",
@@ -182,6 +188,53 @@
     "runtime.workspace.use"
   ],
   "params": {
+    "runtime.board.card.add": [
+      "assignee",
+      "board_id",
+      "column_id",
+      "correlation_id",
+      "created_by",
+      "description",
+      "idempotency_key",
+      "labels",
+      "priority",
+      "title",
+      "workspace_id"
+    ],
+    "runtime.board.card.archive": [
+      "card_id",
+      "correlation_id"
+    ],
+    "runtime.board.card.edit": [
+      "assignee",
+      "card_id",
+      "clear_assignee",
+      "correlation_id",
+      "description",
+      "expect_revision",
+      "idempotency_key",
+      "labels",
+      "priority",
+      "title"
+    ],
+    "runtime.board.card.move": [
+      "after",
+      "before",
+      "card_id",
+      "column_id",
+      "correlation_id",
+      "expect_revision",
+      "idempotency_key"
+    ],
+    "runtime.board.card.restore": [
+      "card_id",
+      "correlation_id"
+    ],
+    "runtime.board.resolve_conflict": [
+      "card_id",
+      "correlation_id",
+      "take"
+    ],
     "runtime.chat.message": [
       "clarify_token",
       "client_scope",
@@ -238,6 +291,12 @@
     "runtime.agent.directory": "console",
     "runtime.agent.retire": "console",
     "runtime.agent.templates": "console",
+    "runtime.board.card.add": "console",
+    "runtime.board.card.archive": "console",
+    "runtime.board.card.edit": "console",
+    "runtime.board.card.move": "console",
+    "runtime.board.card.restore": "console",
+    "runtime.board.resolve_conflict": "console",
     "runtime.chat.message": "console",
     "runtime.chat.queue_skill": "console",
     "runtime.chat.steer": "console",
