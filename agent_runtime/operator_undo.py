@@ -6,7 +6,10 @@ never claims the filesystem and SQLite form a single atomic transaction.
 """
 from __future__ import annotations
 from contextlib import closing, contextmanager
+from enum import StrEnum
 import json
+
+from tools.checkpoint_pruning import CheckpointStoreBusy
 
 from . import chat_session_scope
 from .conversation_owner import require_session_owner
@@ -19,6 +22,35 @@ from .operator_turn_changes import preview_operator_undo
 from .history_cancellation import require_not_cancelled
 
 __layer__ = "lanes"
+
+
+class UndoState(StrEnum):
+    PREPARED = "prepared"
+    PARTIAL = "partial"
+    COMPLETED = "completed"
+    ROLLED_BACK = "rolled_back"
+
+
+_TERMINAL_STATES = frozenset({UndoState.COMPLETED, UndoState.ROLLED_BACK})
+_TRANSITIONS = {
+    None: frozenset({UndoState.PREPARED}),
+    UndoState.PREPARED: frozenset({UndoState.PARTIAL, *_TERMINAL_STATES}),
+    UndoState.PARTIAL: frozenset({UndoState.PARTIAL, *_TERMINAL_STATES}),
+    UndoState.COMPLETED: frozenset({UndoState.COMPLETED}),
+    UndoState.ROLLED_BACK: frozenset({UndoState.ROLLED_BACK}),
+}
+
+
+def _transition(db, params, record, state: UndoState, *, reason=None):
+    """Persist one legal state before releasing its admission/recovery guards."""
+    previous = UndoState(record["state"]) if "state" in record else None
+    if state not in _TRANSITIONS[previous]:
+        raise ValueError(f"Invalid Undo transition: {previous} -> {state}")
+    record.update(state=state, reason=reason)
+    _save(db, params, record)
+    if state in _TERMINAL_STATES:
+        clear_history_operation(params["session_id"], params["operation_id"])
+        _release_backup(params, record)
 
 
 @contextmanager
@@ -66,18 +98,14 @@ def _finish(db, params, record):
         except Exception:
             # Files may already be restored. Even a definite native refusal is
             # now a partial command, never a claim that nothing changed.
-            record.update(state="partial", reason="chat_refresh_required")
-            _save(db, params, record)
+            _transition(db, params, record, UndoState.PARTIAL, reason="chat_refresh_required")
             return _result(params, record)
-    record.update(state="completed", reason=None)
-    _save(db, params, record)
-    clear_history_operation(params["session_id"], params["operation_id"])
-    _release_backup(params, record)
+    _transition(db, params, record, UndoState.COMPLETED)
     return _result(params, record)
 
 
 def _release_backup(params, record):
-    if record["mode"] != "chat":
+    if (record.get("files") or {}).get("recovery_checkpoint"):
         with _checkpoint_session({**params, "workspace_path": record["plan"]["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
             manager.release_restore_checkpoints(_operation_key(identity, workdir, params["operation_id"]))
 
@@ -124,52 +152,46 @@ def apply_operator_undo(params):
         files = plan["files"]
         if mode != "chat" and (plan["restore"] is None or not files or any(not row["eligible"] for row in files)):
             raise OperatorConversationRefused(plan["files_reason"] or "restore_conflict")
-        record = {"state": "prepared", "request_digest": digest, "mode": mode, "plan": plan}
+        record = {"request_digest": digest, "mode": mode, "plan": plan}
         fence_history_operation(params["session_id"], params["operation_id"],
                                 action="undo", workspace=plan["workspace_path"])
-        _save(db, params, record)
+        _transition(db, params, record, UndoState.PREPARED)
         if mode != "chat":
             try:
                 record["files"] = _restore_files(params, plan)
+            except CheckpointStoreBusy:
+                # The native lock refused before any file write. Retain a
+                # terminal receipt so a delayed replay cannot apply it later.
+                _transition(db, params, record, UndoState.ROLLED_BACK, reason="checkpoint_store_busy")
+                return _result(params, record)
             except Exception:
-                # A durable command now exists. Even an acquisition refusal is
-                # recovered through that command, so the client never drops its
-                # local receipt while the server retains the admission fence.
-                record.update(state="partial", reason="file_result_unconfirmed")
-                _save(db, params, record)
+                # Unclassified failures may follow writes; recovery owns them.
+                _transition(db, params, record, UndoState.PARTIAL, reason="file_result_unconfirmed")
                 return _result(params, record)
             _save(db, params, record)
             if not record["files"].get("success"):
-                record["state"] = "partial"
-                _save(db, params, record)
+                _transition(db, params, record, UndoState.PARTIAL)
                 return _result(params, record)
         return _finish(db, params, record)
 
 
 def _reconcile(db, params, record):
-    if record["state"] in {"completed", "rolled_back"}:
-        clear_history_operation(params["session_id"], params["operation_id"])
-        _release_backup(params, record)
+    if record["state"] in _TERMINAL_STATES:
+        _transition(db, params, record, UndoState(record["state"]), reason=record.get("reason"))
         return _result(params, record)
     # A status check observes only. Finishing the remaining writes is explicit.
     receipt = db.get_meta(_receipt_key(params))
     if receipt:
         record["history"] = json.loads(receipt)["result"]
-        record["state"] = "completed"
-        _save(db, params, record)
-        clear_history_operation(params["session_id"], params["operation_id"])
-        _release_backup(params, record)
+        _transition(db, params, record, UndoState.COMPLETED)
     elif record["mode"] != "chat":
         with _checkpoint_session({**params, "workspace_path": record["plan"]["workspace_path"]}, receipt_only=True) as (identity, manager, workdir, _):
             record["files"] = manager.restore_receipt(_operation_key(identity, workdir, params["operation_id"]))
-        record["state"] = "partial"
+        state = UndoState.PARTIAL
         files = record.get("files") or {}
         if files.get("success") and (record["mode"] == "files" or files.get("reason") == "rolled_back"):
-            record["state"] = "rolled_back" if files.get("reason") == "rolled_back" else "completed"
-            clear_history_operation(params["session_id"], params["operation_id"])
-        _save(db, params, record)
-        if record["state"] in {"completed", "rolled_back"}:
-            _release_backup(params, record)
+            state = UndoState.ROLLED_BACK if files.get("reason") == "rolled_back" else UndoState.COMPLETED
+        _transition(db, params, record, state, reason=record.get("reason") if state == UndoState.PARTIAL else None)
     return _result(params, record)
 
 
@@ -193,7 +215,7 @@ def recover_operator_undo(params):
             raise OperatorConversationRefused("restore_receipt_unavailable")
         record = json.loads(raw)
         _reconcile(db, params, record)
-        if record["state"] in {"completed", "rolled_back"}:
+        if record["state"] in _TERMINAL_STATES:
             return _reconcile(db, params, record)
         if params.get("recovery_revision") != _result(params, record)["recovery_revision"]:
             raise OperatorConversationRefused("recovery_changed")
@@ -202,14 +224,10 @@ def recover_operator_undo(params):
             record["files"] = result
             _save(db, params, record)
             if not result.get("success"):
-                record["state"] = "partial"
-                _save(db, params, record)
+                _transition(db, params, record, UndoState.PARTIAL)
                 return _result(params, record)
         if direction == "rollback":
-            record.update(state="rolled_back", reason=None)
-            _save(db, params, record)
-            clear_history_operation(params["session_id"], params["operation_id"])
-            _release_backup(params, record)
+            _transition(db, params, record, UndoState.ROLLED_BACK)
             return _result(params, record)
         return _finish(db, params, record)
 

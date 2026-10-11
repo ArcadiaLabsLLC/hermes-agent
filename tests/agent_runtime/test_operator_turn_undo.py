@@ -43,6 +43,28 @@ def messages(tmp_path, target):
         return db.get_messages(target["session_id"])
 
 
+def test_checkpoint_contention_before_first_write_settles_without_a_send_fence(tmp_path, monkeypatch):
+    from tools.checkpoint_manager import _resolve_checkpoint_base
+    from tools.checkpoint_pruning import store_lock
+    target, work, manager, _, request = setup_turn(tmp_path, monkeypatch)
+    original = CheckpointManager.restore_preview
+
+    def contend(self, *args, **kwargs):
+        with store_lock(_resolve_checkpoint_base()):
+            return original(self, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(CheckpointManager, "restore_preview", contend)
+        result = call("undo.apply", request)
+    assert result["result"]["state"] == "rolled_back", result
+    assert result["result"]["reason"] == "checkpoint_store_busy"
+    assert call("history.pending", target)["result"]["pending"] is None
+    assert len(messages(tmp_path, target)) == 4
+    assert (work / "one.txt").read_text() == "after one\n"
+    assert call("undo.apply", request)["result"]["state"] == "rolled_back"
+    assert call("undo.apply", {**request, "operation_id": "retry-after-busy-lock"})["result"]["state"] == "completed"
+
+
 @pytest.mark.parametrize("mode, retained, content", [("both", 0, "before one\n"), ("chat", 0, "after one\n"), ("files", 4, "before one\n")])
 def test_reviewed_scope_applies_once_with_durable_receipt(tmp_path, monkeypatch, mode, retained, content):
     target, work, manager, plan, request = setup_turn(tmp_path, monkeypatch)
