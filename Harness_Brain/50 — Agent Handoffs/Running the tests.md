@@ -93,7 +93,13 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
 - `tests/acp` cannot collect from a worktree (the editable install resolves to the primary) — run
   it from the primary or name the lanes explicitly.
 - `HERMES_TEST_TMP_ROOT` → a Defender-excluded throwaway dir speeds a run; `X:/Eternia` is already
-  excluded on this box.
+  excluded on this box. It is set once and defaulted by the runners: `scripts/run_tests.sh` (and the
+  bundled runner, which sources it) uses a `test-tmp` directory beside the checkout or beside a
+  worktree's primary checkout when the variable is unset, and exports it as TEMP/TMP for the RUNNER
+  too, so its `hermes-pytest` scratch and upstream's `hermes-test-home-*` stay out of `%TEMP%`
+  (D3.08). The plugin's hourly prune also removes this repo's own aged leftovers from the system
+  temp dir (`tests/_downstream/temp_prefixes.py`) and names each in `<root>/.temp-sweep.log`. Bare
+  pytest gets none of this — one more reason not to run it.
 - A failure seen only in a parallel or bundled run is compared as a SET against a serial
   `scripts/run_tests.sh` run of that file before it is believed (the bundled runner names an
   isolation leak itself: red bundled, green alone → `scripts/test_bundles_unbundled.txt`). A

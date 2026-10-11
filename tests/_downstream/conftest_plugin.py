@@ -98,6 +98,23 @@ def _rmtree_readonly_too(path: str) -> None:
         shutil.rmtree(path, onerror=lambda f, p, e: _retry_writable(f, p, e[1]))
 
 
+def _sweep_system_temp_named(environ, root: str, now: float) -> list[str]:
+    """This repo's aged leftovers in the system temp dir, removed and NAMED (D3.08):
+    one line each on stderr and in ``<root>/.temp-sweep.log``."""
+    from tests._downstream.temp_prefixes import sweep_system_temp, system_temp_dirs
+
+    removed = sweep_system_temp(system_temp_dirs(environ, root), now=now, rmtree=_rmtree_readonly_too)
+    if removed:
+        try:
+            with open(os.path.join(root, ".temp-sweep.log"), "a", encoding="utf-8") as log:
+                log.writelines(f"{int(now)} removed {path}\n" for path in removed)
+        except OSError:
+            pass
+        for path in removed:
+            print(f"hermes temp sweep: removed {path}", file=sys.stderr)
+    return removed
+
+
 def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
     root = (environ.get("HERMES_TEST_TMP_ROOT") or "").strip()
     if not root or not os.path.isdir(root):
@@ -126,6 +143,8 @@ def _maybe_redirect_test_tmp(environ: dict = os.environ) -> str | None:
                     _rmtree_readonly_too(entry.path)
             except OSError:
                 pass
+        if environ is os.environ:  # never a passed-in environ: the system temp is real
+            _sweep_system_temp_named(environ, root, now)
     run_dir = tempfile.mkdtemp(prefix="run-", dir=root)
     for key in ("TMP", "TEMP", "TMPDIR"):
         environ[key] = run_dir
