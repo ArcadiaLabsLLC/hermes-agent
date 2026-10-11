@@ -699,6 +699,25 @@ chat mismatching on the one input the prewarm cannot reproduce. The wall half of
 hold there (`agent_ready − write_ahead` = 125 / 94 / 750 ms), so the residue costs a rebuild, not the
 old ~3 s construction (`planned/chat-turn-prep-cost.md` §4.2 Stage 2; re-armed 2026-09-07, whose §0.2 names the residue Stage 7 takes).
 
+### 4d. Repo-slot context reaches the prompt once (D1.12, 2026-10-11)
+
+The turn's workdir is resolved ONCE, in `build_mission_chat_turn_context` (its three inputs — the
+persona, the loaded `AGENTS.md` pointer, the primary slot's path — are first in hand there), and
+handed to `mission_chat_reply(workdir=)`; the reply resolves only for a caller that hands none.
+Under a slot assignment each assigned slot's `CLAUDE.md` / `AGENTS.md` loads as its own section
+(`agent_runtime/persona_slots.py::load_slot_context`). When the persona sets
+`include_core_context_files` AND the workdir is grounded, upstream's prompt builder also injects the
+cwd chain for that workdir, so `persona_slots.slot_context_for_prompt` drops every slot section whose
+content (BOM, newlines and outer whitespace normalised) the chain carries WHOLE — found through
+upstream's public `discover_context_files`, clean of the injection scan, inside the 20,000-char cap
+floor (per file and for the merged `AGENTS.md` chain). Every other section is kept: an
+`AGENTS.override.md` that replaced the slot's `AGENTS.md`, a non-primary slot, a config workdir
+elsewhere, an oversized or scan-blocked file. The workspace receipt carries
+`dedup = {"against": <cwd>, "dropped": [[slot, file], …]}`, and the prewarm builds its system message
+and receipt through the same `_turn_workspace`, so a warmed actor still matches its first turn.
+Measured on a one-slot persona carrying this repository's own `CLAUDE.md` + `AGENTS.md`: prompt
+59,503 → 34,669 chars, turn-context build median 4.6 → 9.5 ms (the discovery walk).
+
 ## 5. MCP admission — the profile declares the server
 
 `agent_runtime/mcp_admission.py` turns the lane's honest refusal into a per-run, per-persona

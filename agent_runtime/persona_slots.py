@@ -21,16 +21,25 @@ declares and fills slots and never assigns agents.
   (``## launcher — CLAUDE.md``). Receipts list every assigned slot and every file —
   an unbound slot (``slot_unbound_here``, naming the machines that bind it) and a missing
   file (``missing``) included.
+* **Not twice** (D1.12): when the persona opts into core context files and the turn is
+  grounded, upstream's prompt builder injects the cwd chain's ``AGENTS.md`` / ``CLAUDE.md``
+  for the workdir itself. A slot section whose content that chain carries WHOLE is dropped
+  (:func:`slot_context_for_prompt`); every other section is kept, and the receipt names
+  what was dropped and against which cwd.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import functools
+import logging
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 __layer__ = "stores"
+
+logger = logging.getLogger(__name__)
 
 REASON_SLOT_NOT_IN_WORKSPACE = "slot_not_in_workspace"
 REASON_PRIMARY_NOT_ASSIGNED = "primary_not_assigned"
@@ -170,6 +179,10 @@ class SlotContext:
     primary_path: str | None = None
     bound: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     workspace_id: str = ""
+    #: The cwd the sections were deduplicated against (D1.12), or None when no dedup ran.
+    dedup_against: str | None = None
+    #: ``(slot, file)`` of every section dropped because the cwd chain carries it whole.
+    dedup_dropped: tuple[tuple[str, str], ...] = ()
 
     @property
     def bindings(self) -> tuple[Any, ...]:
@@ -182,6 +195,14 @@ class SlotContext:
     @property
     def content(self) -> str:
         return "\n\n".join(f"{section.heading}\n\n{section.content.strip()}" for section in self.sections)
+
+    @property
+    def dedup_receipt(self) -> dict[str, Any] | None:
+        """``{"against": cwd, "dropped": [[slot, file], ...]}``, or None when no dedup ran."""
+
+        if self.dedup_against is None:
+            return None
+        return {"against": self.dedup_against, "dropped": [list(item) for item in self.dedup_dropped]}
 
 
 def _file_receipt(slot: str, file: str, loaded: Any) -> dict[str, Any]:
@@ -231,3 +252,89 @@ def load_slot_context(instance: Any) -> SlotContext | None:
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
     return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id)
+
+
+# ── not twice: the slot sections against the prompt builder's cwd chain (D1.12) ──
+
+#: The context-file kinds upstream renders VERBATIM; ``.hermes.md`` is rendered with its YAML
+#: frontmatter stripped, so equal raw content is not equal prompt text and never matches.
+_VERBATIM_KINDS = frozenset({"agents_md", "claude_md", "cursorrules"})
+
+
+def _comparable(text: str) -> str:
+    """The text as upstream's ``_read_context_file`` yields it: no BOM, universal newlines, stripped.
+
+    The slot loader decodes raw bytes, so a CRLF checkout's section would otherwise never equal
+    the chain's copy of the same file."""
+
+    return text.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+@functools.lru_cache(maxsize=16)
+def _scan_blocks(content: str) -> bool:
+    """Whether upstream's context-scope injection scan BLOCKS ``content``.
+
+    A pure function of the text (module-constant patterns), memoised because the scan costs
+    ~14 ms per turn over two ~12 KB files and a slot's files rarely change between turns."""
+
+    from tools.threat_patterns import scan_for_threats
+
+    return bool(scan_for_threats(content, scope="context"))
+
+
+def _chain_carries_whole(cwd: Path) -> frozenset[str]:
+    """The contents the prompt builder's context-files block carries WHOLE for ``cwd``.
+
+    From upstream's public finder (one discovery walk, the builder's own): non-empty, rendered
+    verbatim, clean of the injection scan (a hit is replaced by a BLOCKED marker), and inside
+    the context-file cap's floor — per file, and for the merged ``AGENTS.md`` directory chain,
+    which the builder caps again. Over the floor a larger model's cap may still carry it, but
+    the guard keeps the section rather than bet on the window.
+    """
+
+    from agent.prompt_builder import CONTEXT_FILE_MAX_CHARS, discover_context_files
+
+    found = [(kind, label, _comparable(content)) for kind, label, _path, content in discover_context_files(cwd)
+             if content and kind in _VERBATIM_KINDS]
+    rendered = {content: len(f"## {label}\n\n{content}") for _kind, label, content in reversed(found)}
+    agents = list(dict.fromkeys(content for kind, _label, content in found if kind == "agents_md"))
+    agents_chain = sum(rendered[content] for content in agents) + 2 * max(len(agents) - 1, 0)
+    return frozenset(
+        content for kind, _label, content in found
+        if rendered[content] <= CONTEXT_FILE_MAX_CHARS
+        and not (kind == "agents_md" and agents_chain > CONTEXT_FILE_MAX_CHARS)
+        and not _scan_blocks(content)
+    )
+
+
+def dedup_against_chain(
+    sections: tuple[SlotContextSection, ...], *, cwd: str
+) -> tuple[tuple[SlotContextSection, ...], tuple[SlotContextSection, ...]]:
+    """``(kept, dropped)``: a section is dropped when the cwd chain carries its content whole.
+
+    Pure and never raises: a finder fault keeps every section (the prompt may carry a file
+    twice, never lose one)."""
+
+    try:
+        carried = _chain_carries_whole(Path(cwd))
+    except Exception:  # a context-file fault never fails a turn, nor drops a section
+        logger.debug("slot context dedup: the cwd chain could not be read for %s", cwd, exc_info=True)
+        return tuple(sections), ()
+    dropped = tuple(section for section in sections if _comparable(section.content) in carried)
+    return tuple(section for section in sections if section not in dropped), dropped
+
+
+def slot_context_for_prompt(slot_context: SlotContext | None, *, persona: Any, workdir: Any) -> SlotContext | None:
+    """The slot context as the turn's PROMPT carries it (D1.12).
+
+    Dedup runs ONLY when the persona opts into core context files (else the builder injects no
+    chain) AND the workdir is grounded (an ungrounded run's cwd is the process cwd, where the
+    builder's install-tree guard decides — the fork does not second-guess it)."""
+
+    if slot_context is None or not bool(getattr(persona, "include_core_context_files", False)):
+        return slot_context
+    if workdir is None or not getattr(workdir, "grounded", False) or not getattr(workdir, "path", None):
+        return slot_context
+    kept, dropped = dedup_against_chain(slot_context.sections, cwd=str(workdir.path))
+    return replace(slot_context, sections=kept, dedup_against=str(workdir.path),
+                   dedup_dropped=tuple((section.slot, section.file) for section in dropped))

@@ -156,7 +156,7 @@ def test_the_prewarm_and_its_first_turn_agree(persisted_persona_samples, bundled
         operating = chat_lane_bundle(persona, session_id=root).operating_skills
         assert request.chat_lane_index_skills == chat_lane_index_skills(persona, operating)
         assert request.system_message == _mission_chat_surface_message(
-            persona, "", workspace_agents_content=prewarm_module._workspace_agents_content(instance)
+            persona, "", workspace_agents_content=prewarm_module._workspace_agents_content(persona, instance)
         )
         assert (LEAN_OPERATIVE_RULES in request.system_message) is lean
 

@@ -652,16 +652,26 @@ def _turn_workspace(
     """``(slot context, workspace agents, its receipt, workdir)``: the turn's workspace facts, each once.
 
     The workdir is resolved HERE (D1.12 S1) because this is where its three inputs are first
-    in hand — the persona, the loaded ``AGENTS.md`` pointer, the primary slot's path.
+    in hand — the persona, the loaded ``AGENTS.md`` pointer, the primary slot's path. Under an
+    assignment the slot sections are then deduplicated against the cwd chain the prompt
+    builder injects for that workdir (D1.12 S2), BEFORE the receipt is composed so the receipt
+    (and the signature it folds into) names what the prompt carries.
     """
 
+    from .persona_slots import slot_context_for_prompt
+
     slot_context = resolvers.load_slot_context(instance)
-    workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)
+    if slot_context is None:
+        workspace_agents, receipt = _workspace_context(resolvers, agents_file, None)
+        workdir = resolvers.mission_chat_workdir(
+            persona, workspace_agents_path=_workspace_agents_path(None, workspace_agents), primary_slot_path=None
+        )
+        return None, workspace_agents, receipt, workdir
     workdir = resolvers.mission_chat_workdir(
-        persona,
-        workspace_agents_path=_workspace_agents_path(slot_context, workspace_agents),
-        primary_slot_path=None if slot_context is None else slot_context.primary_path,
+        persona, workspace_agents_path=None, primary_slot_path=slot_context.primary_path
     )
+    slot_context = slot_context_for_prompt(slot_context, persona=persona, workdir=workdir)
+    workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)
     return slot_context, workspace_agents, receipt, workdir
 
 
@@ -697,6 +707,8 @@ def _workspace_context(
             "primary_slot": slot_context.primary_slot,
             "primary_source": slot_context.primary_source,
         }
+        if slot_context.dedup_receipt is not None:
+            receipt["dedup"] = slot_context.dedup_receipt
         if str(agents_file or "").strip():
             receipt["agents_file"] = {"path": str(agents_file), "included": False, "status": SUPERSEDED_BY_ASSIGNMENT}
         return None, receipt
