@@ -195,7 +195,9 @@ def test_the_ledger_counts_processes_work_and_the_double_run_of_a_red(tmp_path):
     result = _run(tmp_path, files, {"tests/alpha/test_1.py": ["tests/alpha/test_1.py::test_ok"]}, {}, calls)
     cost = result.ledger.summary(2)
 
-    assert cost["processes"] == {"bundle": 1, "solo": 0, "known-red": 0, "rerun": 1, "retry": 0}
+    assert cost["processes"] == {
+        "bundle": 1, "solo": 0, "known-red": 0, "shard": 0, "whole-check": 0, "rerun": 1, "retry": 0
+    }
     # test_0's 0.25 s collect + 0.5 s test; the fake rerun wrote no events
     assert result.ledger.file_seconds == {"tests/alpha/test_0.py": pytest.approx(0.75)}
     assert cost["rerun_seconds"] >= 1.25  # the red's bundle attempt (0.25 + 1.0) plus its run alone

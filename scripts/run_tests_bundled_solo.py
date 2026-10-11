@@ -9,6 +9,10 @@ make one file's process different from the default solo
   (:func:`known_red_timeout`); its output says so and names how its failing
   set moved since the record. A NEW red keeps the full path (bundle → re-run
   alone → leak diagnosis): that is the isolation-leak instrument.
+* **shards** (§3) — on a tail-bound run a slow file runs as k processes, one
+  per ``--hermes-shard=i/k``, and their outcomes are joined back into one
+  (``scripts/run_tests_bundled_shard.py`` plans and joins; this policy only
+  asks it).
 
 :class:`SoloPolicy` is the one object ``run`` asks, per single-file process,
 for its timeout, flake retries and extra pytest args, and which files must
@@ -76,27 +80,50 @@ class SoloPolicy:
     durations: Mapping[str, float]
     known_reds: Mapping[str, frozenset] = field(default_factory=dict)
     timed_out: frozenset = frozenset()
+    #: ``run_tests_bundled_shard.ShardPlan`` (known reds are never in it) and the
+    #: ``ShardJoin`` over it; None: nothing is sharded
+    shards: Optional[object] = None
+    joiner: Optional[object] = None
 
     @property
     def known(self) -> frozenset:
         return frozenset(self.known_reds) | self.timed_out
 
     def alone(self) -> frozenset:
-        """Files that never enter a bundle."""
+        """Files that never enter a bundle: known reds and sharded files."""
 
-        return self.known
+        return self.known | frozenset(self.shards.counts if self.shards is not None else ())
+
+    def _shard_vias(self, path: Path) -> List[Tuple[str, List[str]]]:
+        return self.shards.vias(self.rel_of(path)) if self.shards is not None else []
 
     def jobs(self, solo_order: Sequence[Path]) -> List[Tuple[Path, str]]:
-        """``(path, via)`` for each first-pass solo, in the given order."""
+        """``(path, via)`` for each first-pass process, in the given order: one per
+        shard of a sharded file, one for any other solo."""
 
-        return [(path, KNOWN_RED_VIA if self.rel_of(path) in self.known else SOLO_VIA) for path in solo_order]
+        out: List[Tuple[Path, str]] = []
+        for path in solo_order:
+            whole = KNOWN_RED_VIA if self.rel_of(path) in self.known else SOLO_VIA
+            out += [(path, via) for via, _args in self._shard_vias(path)] or [(path, whole)]
+        return out
 
     def budget(self, path: Path, via: str) -> Tuple[float, int, List[str]]:
         """``(timeout, flake retries, extra pytest args)`` for one process."""
 
         if via == KNOWN_RED_VIA:
             return known_red_timeout(self.rel_of(path), self.durations, self.flat_timeout), 0, []
-        return self.default_timeout(path), self.retries, []
+        return self.default_timeout(path), self.retries, dict(self._shard_vias(path)).get(via, [])
+
+    def is_shard(self, path: Path, via: str) -> bool:
+        return via in dict(self._shard_vias(path))
+
+    def join(self, outcome, run_solo) -> list:
+        """The outcomes to record for ``outcome`` (a shard's waits for its siblings)."""
+
+        return [outcome] if self.joiner is None else self.joiner.feed(outcome, run_solo)
+
+    def closing_lines(self) -> List[str]:
+        return [] if self.joiner is None else self.joiner.closing_lines()
 
     def note(self, rel: str, via: str, rc: int, output: str, tally) -> str:
         """A known red's output, followed by why it ran once and how its failing set

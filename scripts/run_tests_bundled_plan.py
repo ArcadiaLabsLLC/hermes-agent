@@ -107,8 +107,9 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
 
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
-#: the process kinds the ledger counts (fast-gate §2 adds the known red's one run)
-PROCESS_KINDS = ("bundle", "solo", "known-red", "rerun", "retry")
+#: the process kinds the ledger counts, by a kind's first word (fast-gate §2 adds
+#: the known red's one run; §3 a slow file's ``shard i/k`` and its ``whole-check``)
+PROCESS_KINDS = ("bundle", "solo", "known-red", "shard", "whole-check", "rerun", "retry")
 
 
 @dataclass
@@ -142,15 +143,20 @@ class RunLedger:
     first_attempt_seconds: float = 0.0
     known_red: List[str] = field(default_factory=list)
 
-    def record_solo(self, kind: str, rel: str, started: float, session_start: Optional[float], tally) -> None:
+    def record_solo(
+        self, kind: str, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
+    ) -> None:
         """One single-file process: its wall and start-up, and the file's seconds and
-        failing ids from its recorder ``tally`` (None when the recorder wrote nothing)."""
+        failing ids from its recorder ``tally`` (None when the recorder wrote nothing).
+        ``add``: one shard of the file (fast-gate §3), added to its siblings'."""
 
         startup = None if session_start is None else max(0.0, session_start - started)
         self.processes.append(Process(kind, [rel], started, time.time(), startup))
         if tally is not None:
-            self.file_seconds[rel] = tally.collect_seconds + tally.test_seconds
-        self.failed[rel] = list(tally.failed_nodeids) if tally is not None else []
+            before = self.file_seconds.get(rel, 0.0) if add else 0.0
+            self.file_seconds[rel] = before + tally.collect_seconds + tally.test_seconds
+        failed = list(tally.failed_nodeids) if tally is not None else []
+        self.failed[rel] = (self.failed.get(rel, []) if add else []) + failed
 
     def summary(self, jobs: int, *, slowest: int = 20) -> Dict[str, object]:
         ended = self.ended or time.time()
@@ -163,7 +169,7 @@ class RunLedger:
         return {
             "elapsed": round(elapsed, 1),
             "jobs": jobs,
-            "processes": {k: sum(1 for p in self.processes if p.kind == k) for k in PROCESS_KINDS},
+            "processes": {k: sum(1 for p in self.processes if p.kind.split(" ", 1)[0] == k) for k in PROCESS_KINDS},
             "worker_seconds": round(worker_seconds, 1),
             "busy_seconds": round(busy, 1),
             "utilization": round(busy / worker_seconds, 3),
@@ -211,7 +217,8 @@ def render(summary: Mapping[str, object]) -> List[str]:
     lines = [
         "=== Run cost (Stage 0) ===",
         f"  processes: {procs['bundle']} bundles, {procs['solo']} solos, {procs['known-red']} known reds run once, "
-        f"{procs['rerun']} re-runs alone, {procs['retry']} straggler retries",
+        f"{procs['shard']} shards (+{procs['whole-check']} whole checks), {procs['rerun']} re-runs alone, "
+        f"{procs['retry']} straggler retries",
         f"  worker-seconds {summary['worker_seconds']}s ({summary['jobs']} × {summary['elapsed']}s); "
         f"busy {summary['busy_seconds']}s = {summary['utilization']:.0%} utilization",
         f"  Σ per-file seconds (collect + tests) {summary['work_seconds']}s = {summary['work_share']:.0%} of "
@@ -322,12 +329,14 @@ def record_run(
     *,
     timed_out: Iterable[str] = (),
     previous_timed_out: Iterable[str] = (),
+    extra: Optional[Mapping[str, object]] = None,
 ) -> Dict[str, List[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
     partial run never forgets a red it did not look at. ``timed_out`` (files
-    whose final attempt was a timeout) is carried forward the same way."""
+    whose final attempt was a timeout) is carried forward the same way.
+    ``extra`` adds keys a caller carries itself (the shard planner's ``tests``)."""
 
     red = {rel: sorted(ids) for rel, ids in previous.items()}
     for rel, rc in final_rc.items():
@@ -338,6 +347,7 @@ def record_run(
             red.pop(rel, None)
     late = sorted((set(previous_timed_out) - set(final_rc)) | set(timed_out))
     record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items())), "timed_out": late}
+    record.update(extra or {})
     path = repo_root / RUNS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:

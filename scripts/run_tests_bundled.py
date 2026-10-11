@@ -56,6 +56,7 @@ Exit code: 0 if every file passed (alone or in its bundle); 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.util
 import json
 import os
@@ -96,6 +97,7 @@ def _load_sibling(name: str):
 rtp = _load_sibling("run_tests_parallel")
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
+shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
 
 
 # ── Membership ──────────────────────────────────────────────────────────────
@@ -302,10 +304,11 @@ def run(
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
 
     def _record(outcome: FileOutcome) -> None:
-        with lock:
-            outcomes.append(outcome)
-        if on_outcome is not None:
-            on_outcome(outcome)
+        for done in policy.join(outcome, _solo):  # a shard waits for its siblings
+            with lock:
+                outcomes.append(done)
+            if on_outcome is not None:
+                on_outcome(done)
 
     def _solo(path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
         timeout, tries, extra = policy.budget(path, via)
@@ -316,7 +319,7 @@ def run(
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
         with lock:
-            ledger.record_solo(via, rel, t0, first.session_start, tally)
+            ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
         output = policy.note(rel, via, rc, output, tally)
         if via == "rerun" and rc == 0 and leak_info is not None:
             with lock:
@@ -420,6 +423,26 @@ def _solo_policy(
         lambda path: rtp._effective_file_timeout(path, repo_root, flat_timeout, durations),
         flat_timeout, retries, durations, known_reds, frozenset(timed_out),
     )
+
+
+def _with_shards(
+    policy: "solo.SoloPolicy", files: Sequence[Path], repo_root: Path, durations: Dict[str, float], jobs: int
+) -> "solo.SoloPolicy":
+    """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
+    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
+    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+
+    estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
+    green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
+    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
+    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
+
+
+def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> Dict[str, Tuple[float, int]]:
+    """rel → (seconds, tests) of each file's final outcome, for the record's test counts."""
+
+    return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
 
 
 def _where_it_died(
@@ -714,10 +737,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     unbundled = load_unbundled(args.unbundled_list)
     known_reds, timed_out = plan.load_known_reds(repo_root), plan.load_timed_out(repo_root)
     policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
+    policy = _with_shards(policy, files, repo_root, durations, args.jobs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "
-        f"(run once, alone, capped), -j {args.jobs}",
+        f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
 
@@ -760,6 +784,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     plan.record_run(
         repo_root, cost, final_rc, result.ledger.failed, known_reds,
         timed_out=_timed_out(result.outcomes, repo_root), previous_timed_out=timed_out,
+        extra=policy.shards.record(_ran(result.outcomes, repo_root)),
     )
 
     failures = [(o.file, o.output, o.summary) for o in result.outcomes if o.rc != 0]
@@ -769,6 +794,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if clean:
         rtp._save_durations(clean, repo_root)
         print(f"  Durations cached to {rtp._DURATIONS_FILE} ({len(clean)} files)")
+    for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
+        print(line)
     return _print_summary(result, files, repo_root, elapsed, args.jobs, cost)
 
 
