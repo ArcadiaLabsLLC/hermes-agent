@@ -487,6 +487,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams — fork edits inside upstream files (additive only)
 
+- [ ] **Consolidate the new reviewed-restore and recovery file-write mechanics inside CheckpointManager.** PR #7's `restore_preview` and `resume_restore` duplicate checkout/deletion, ledger and per-file receipt updates with different verification. Share a narrow checked write primitive; preserve existing safe-restore/CLI behavior and do not introduce a second manager. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H5 · UNCLAIMED
+
 - [ ] **Preserve native checkpoint deduplication and deleted-file safe-restore semantics while exposing turn attribution.** PR #7 caches only successful snapshots, and deletion evidence overwrites a hash with None that existing safe restore skips. Both behavior changes reproduced with real Git snapshots; explicitly disposition the upstream delta and add compatibility positives. · evidence: `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` H2 · UNCLAIMED
 
 ### Filed on arrival — 2026-10-10 (guard fix, build batch 2 C1–C4, filed by the orchestrator)
