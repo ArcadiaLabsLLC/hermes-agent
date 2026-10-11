@@ -465,6 +465,12 @@ def test_a_blocked_turn_on_one_root_does_not_hold_a_queued_send_on_another(
         runner.dispatch_once()
         assert a_started.wait(5)
         assert b_done.wait(5), "root B's queued send waited behind root A's running turn"
+        # b_done fires inside run_turn; B's worker still settles and releases after it.
+        for _ in range(100):
+            if root_b not in runner.busy_roots():
+                break
+            threading.Event().wait(0.05)
+        assert runner.busy_roots() == {root_a}, "root B's turn did not finish while root A's ran"
         # Root A is still running cm-a1: its next send must wait for it, in order.
         tally = runner.dispatch_once()
         assert tally["occupied"] == 1 and tally["dispatched"] == 0, tally
