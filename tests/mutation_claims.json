@@ -4508,7 +4508,7 @@
     {
       "id": "cxr3-codex-readiness-asks-the-store-before-the-pool",
       "path": "agent_runtime/provider_probes.py",
-      "symbol": "codex_credentials_resolvable_read_only",
+      "symbol": "_codex_credentials_resolvable_now",
       "operator": "invert-source-order",
       "find": "    entry = _load_pool(\"openai-codex\").peek()\n    if entry is not None and (\n        getattr(entry, \"runtime_api_key\", None)\n        or getattr(entry, \"access_token\", None)\n    ):\n        return True\n    return auth_ext.codex_auth_store_credentials_present()",
       "replace": "    if auth_ext.codex_auth_store_credentials_present():\n        return True\n    entry = _load_pool(\"openai-codex\").peek()\n    return bool(\n        entry is not None\n        and (\n            getattr(entry, \"runtime_api_key\", None)\n            or getattr(entry, \"access_token\", None)\n        )\n    )",
