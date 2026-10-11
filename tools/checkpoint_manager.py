@@ -61,7 +61,7 @@ from pathlib import Path, PurePosixPath
 from hermes_constants import get_hermes_home
 from hermes_cli._subprocess_compat import selected_git_env, windows_hide_flags
 from hermes_cli.gitlock import clear_stale_tmp_packs
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from utils import env_int, rmtree_readonly
 
@@ -860,6 +860,14 @@ class CheckpointManager:
         # Optional runtime observer. Called under the store lock, at the same
         # boundary as the native snapshot/write evidence; never inferred later.
         self.history_observer = None
+        # Optional caller-owned remaining turn time. Native callers fail fast;
+        # resident agents rebind this callback for every turn.
+        self.lock_wait_budget: Callable[[], float] | None = None
+
+    def _tool_lock_wait_seconds(self) -> float:
+        if self.lock_wait_budget is None:
+            return 0
+        return min(30.0, max(0.0, self.lock_wait_budget()))
 
     # ------------------------------------------------------------------
     # Turn lifecycle
@@ -936,7 +944,7 @@ class CheckpointManager:
             digest = _hash_file(path)
             if digest is None and path.exists():
                 return
-            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=self._tool_lock_wait_seconds()):
                 store = _store_path()
                 dir_hash = self._ledger_key(str(path))
                 ledger = _load_ledger(store, dir_hash)
@@ -1039,7 +1047,7 @@ class CheckpointManager:
         try:
             from tools.checkpoint_pruning import store_lock
 
-            with store_lock(_resolve_checkpoint_base(), wait_seconds=30):
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=self._tool_lock_wait_seconds()):
                 return self._take(abs_dir, reason)
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
