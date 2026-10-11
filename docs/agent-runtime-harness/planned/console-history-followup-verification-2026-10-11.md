@@ -183,3 +183,75 @@ Runtime recovery also explains why Launcher needs more than draft text locally:
 its fence and Branch/Rewind use their atomic receipts without that index. The
 client's durable operation ID is needed after a lost terminal reply. This is
 request intent, not another authoritative operation outcome store.
+
+## Scoped ownership audit and repair disposition
+
+Audit pins: runtime PR #7 `8cbb135f15b0812c75d772838c31b873974c90dd`,
+runtime main `0205a4b83605ef729753971b040d3831d56f5227`; Launcher PR #55
+`0e9fcd0b448d26ce1f31f67bb4df85749e4933fa`, Launcher main
+`52a0e9df28ea65101799741a33717315d2114cc0`. Both PRs are still draft/open;
+GitHub reports both as conflicting with main at this check.
+This is source/diff and ownership verification against the fetched main and the
+unchanged PR heads. The real reproductions above remain evidence for these heads;
+no new runtime suite, integrated candidate, or native UI proof was run here.
+
+Main has 272 runtime-side commits absent from the PR; eight paths changed on both
+sides. Preserve main's chat-turn retry lineage, profile runner changes, curated
+history and RPC registration when integrating. Existing feature tests qualify
+their recorded tree only. The PR adds/changes 36 paths; the audit traced native
+history/file mutation, attribution, admission, recovery and RPC ownership rather
+than treating the file count as evidence of overengineering.
+
+### Hermes reuse, extension and value table
+
+"Extend" below means repair the already-staged extension, not commission another
+implementation. Potential upstream value is an engineering assessment against
+the inspected fork, not a claim of acceptance or an exhaustive survey of upstream.
+
+| Capability | Existing Hermes owner | PR #7 addition | Disposition for this repair | Value beyond Eternia |
+| --- | --- | --- | --- | --- |
+| Rewind/edit boundary | `SessionRewindMixin.rewind_user_turn` delegates to native `rewind_to_message`, including write guards, archival, counts and compaction handling | Optional full-history digest and immutable receipt in the same transaction | **Reuse + narrow extension.** Keep that writer and its default behavior. Do not implement rewind in the RPC lane or mutate messages in Launcher. Preserve native warm-history adoption. | Acknowledgement-loss recovery and stale-review protection for other clients; generic seam candidate. |
+| Branch at a selected reply | SessionDB session/message owners and `_clone_message_rows`; CLI/API whole-session fork already exists | `SessionHistoryControlsMixin.branch_before_message` clones the reviewed prefix and receipt atomically while keeping the source open | **Necessary new behavior.** The existing API/CLI fork ends the source and copies all messages, so it is not a drop-in substitute. Keep cloning/guards in SessionDB; verify lineage, complete tool pairs and source preservation. Do not add a second fork service/store or change CLI semantics. | Product-neutral selected-boundary branch API; generic seam candidate. |
+| Checkpoint inventory and diffs | `CheckpointManager.list_checkpoints`, `list_all_checkpoints`, `diff`, `session_diff`, and its native Git store | Operator RPC adapters and public facts for reviewed restore/attribution | **Reuse.** Adapter authorization and DTOs only; no second snapshot repository, Git index owner, or diff engine. | Existing native capability, now available through another client boundary. |
+| Reviewed selected-file restore and recovery | `CheckpointManager.restore`, ownership ledger, store lock and pruning owners | Review revision, selected paths, verified backup, per-file receipt, finish/rollback and retention pins | **Extend + consolidate H5.** Share the new apply/recovery checked file-write primitive within CheckpointManager. Separate coordination from writes; do not replace the native CLI restore policy with an Eternia-only coordinator. | Reviewed restore and interrupted-operation recovery are useful native API candidates. |
+| Deleted files and first checkpoint timing | Native write ledger, `_safe_restore_plan`, `ensure_checkpoint` | Deletion evidence and observer notifications; PR also alters deduplication timing | **Repair compatibility H2.** Preserve legacy safe restore and per-turn baseline semantics. Current file state and ownership evidence must agree across native restore, attribution, preview and Undo. Neither remove deletion display nor retain the unsafe one-line hash-only repair. | Compatibility correction; protect existing users before proposing an extension. |
+| Changes card / files belonging to a turn | Native checkpoints and proven write facts already exist; no equivalent operator-turn file attribution index was found on inspected main | `TurnCheckpointRecorder` stores turn/workspace attribution and bounded diff evidence under native metadata; `operator_turn_changes` projects it | **Narrow extension.** Observe the existing checkpoint owner. Keep first operator-turn baseline, reusable-agent rebinding, and inherited branch evidence. Never infer ownership from timestamps or snapshot every file again. | A small optional native checkpoint observer can serve other clients. Operator-turn policy and persona mapping remain fork-owned. |
+| Combined chat/files Undo | Existing native chat and file writers; their stores do not share an atomic transaction | `operator_undo` durable coordinator, plan, file outcome and reviewed recovery | **Justified fork coordination; simplify H1/H4.** One typed state transition owner; distinguish no-write contention from partial writes. Keep server prepared plans authoritative. Do not introduce a generic workflow engine or a client mirror of that plan. | Recoverable combined Undo is useful to other clients of this harness; the persona-bound coordinator is not a drop-in upstream contribution. |
+| Lost reply, restart and delayed request | Native mutation receipts, checkpoint receipts, existing scoped store/lock primitives | Operation status, pending fence index and durable cancel tombstone | **Keep distinct roles.** Pending is a send-admission index, not another outcome store. Recover recorded operations by ID. For an unrecorded request, durably cancel its old ID before a fresh preview. No new RPC is required for the agreed minimal-client design. | Existing staged safety contract; generic receipts can be proposed separately from runtime authorization. |
+| Send/steer concurrency and crashed workers | Chat-root lease, turn journal, admission reservations and process identity already exist | Brief history admission coordination, long history mutation exclusion and orphan reconciliation | **Reuse + narrow integration.** Preserve existing send queue/deduplication and main retry lineage. Prove that contention and dead receipts do not block unrelated chats or masquerade as partial file writes. Avoid another send queue, lease owner or turn journal. | Harness correctness; do not bundle unrelated native send redesign into this PR. |
+| Authorization, identity and RPC exposure | Operator session inspection, `conversation_owner`, profile resolution, existing RPC registry/deferred execution | Sixteen history/checkpoint/Undo/changes methods | **Adapter work.** Preserve account/install/persona-instance/session checks. Use existing canonical persona semantics for nested history entries; do not weaken ownership checks or spread ad-hoc alias maps through widgets. | Eternia/harness binding. Native primitives should remain independent of this policy. |
+
+The current implementation contains one transcript database and one checkpoint
+store. It also contains avoidable duplication in the new file-write mechanics
+(H5) and too many direct coordinator state writers (H4). Multiple records alone
+are not proof of parallel authority: accepted-send journal, native chat receipt,
+file progress receipt, coordinator plan and admission index each record a
+different fact. Keep those distinctions explicit and remove copied decisions.
+
+### Repair acceptance, within the existing PRs
+
+1. Integrate current main into the existing PR lineage, preserving all overlapping
+   owners; record candidate hashes before qualification. Runtime H1/H2 and the
+   Launcher persona receipt blocker are release blockers.
+2. Preserve native semantics while fixing H1/H2 and consolidating H4/H5. Test
+   ordinary CLI safe restore as well as reviewed restore: deletion, user recreate,
+   external edits, unchanged first checkpoint, selection and expired snapshots.
+3. Exercise prepared-before-write, crash between individual file writes, crash
+   after files/before chat receipt, lost terminal reply and stale recovery choice.
+   A partial result must remain inspectable; finish/rollback must not repeat an
+   already-proven write. No-write refusal must not leave an unnecessary send block.
+4. Test real profile-derived identities across apply/status/origin, sibling
+   instances and switched account/install scopes. Join producer and consumer
+   fixtures; method-name inventory alone is insufficient.
+5. Test accepted-send versus history admission, simultaneous sends/steers, dead
+   worker reconciliation and two windows. Preserve the existing outbox/journal
+   idempotency and prove an unrelated chat remains usable.
+6. Record actual killing-mutation reds in a new commit body (H3). Maintain the
+   upstream-footprint ledger honestly, including behavioral compatibility deltas.
+   A held upstream candidate is not an upstream submission.
+
+Scope ends at repair and qualification of Branch/Edit/Undo/File history/Changes
+and their necessary recovery seams. Retain explicit refusals for unsupported
+compressed branches, unsafe attachment draft restoration, unavailable backends
+and multiple-workspace Undo. Generalizing those features, shipping new history
+products, or routing CLI through fork-specific policy requires separate work.
