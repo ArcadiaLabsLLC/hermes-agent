@@ -99,8 +99,28 @@ def submit(peer, native_id: str, prompt: dict, execution_id: str) -> None:
             "filename": image["name"], "content_base64": image["data"]})
         if attached.get("attached") is not True:
             raise ConversationError(Refusal.NATIVE_REFUSAL)
-    result = peer.call("prompt.submit", {"session_id": native_id, "text": prompt["text"],
+    refs = [_attach_file(peer, native_id, item) for item in prompt.get("files", [])]
+    text = "\n\n".join(part for part in (prompt["text"], *refs) if part)
+    result = peer.call("prompt.submit", {"session_id": native_id, "text": text,
         "reject_if_busy": True, "execution_id": execution_id})
     if result.get("status") != "streaming":
         # A queue/steer acknowledgement is not the independent turn we admitted.
         raise ConversationError(Refusal.UNKNOWN)
+
+
+def _attach_file(peer, native_id: str, item: dict) -> str:
+    """Stage one reviewed file in the native session; answer the ref the agent reads it by.
+
+    Bytes travel inline (``data_url`` / ``content_base64``), never a client path.
+    """
+    if item["media_type"] == PDF_MEDIA_TYPE:
+        attached = peer.call("pdf.attach", {"session_id": native_id, "filename": item["name"],
+                                            "content_base64": item["data"]})
+        ref = attached.get("text")
+    else:
+        attached = peer.call("file.attach", {"session_id": native_id, "name": item["name"],
+            "data_url": f"data:{item['media_type']};base64,{item['data']}"})
+        ref = attached.get("ref_text")
+    if attached.get("attached") is not True or not isinstance(ref, str) or not ref:
+        raise ConversationError(Refusal.NATIVE_REFUSAL)
+    return ref
