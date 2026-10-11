@@ -253,13 +253,14 @@ def load_durations_with_primary(repo_root: Path, load) -> Dict[str, float]:
     return {**(load(primary) if primary is not None else {}), **load(repo_root)}
 
 
-def load_known_reds(repo_root: Path) -> Dict[str, frozenset]:
+def load_known_reds(repo_root: Path, record_path: Optional[Path] = None) -> Dict[str, frozenset]:
     """rel → the failing node ids the LAST recorded run carried for it. A
     missing or torn record is empty: every red is then re-run alone. A
-    worktree with no record of its own reads the primary checkout's."""
+    worktree with no record of its own reads the primary checkout's.
+    ``record_path`` names the file outright (the gate store's ``runs.jsonl``)."""
 
-    record = repo_root / RUNS_FILE
-    if not record.is_file():
+    record = record_path if record_path is not None else repo_root / RUNS_FILE
+    if record_path is None and not record.is_file():
         primary = primary_checkout(repo_root)
         record = primary / RUNS_FILE if primary is not None else record
     try:
@@ -293,11 +294,13 @@ def record_run(
     final_rc: Mapping[str, int],
     failed: Mapping[str, Sequence[str]],
     previous: Mapping[str, frozenset],
+    record_path: Optional[Path] = None,
 ) -> Dict[str, List[str]]:
     """Append one JSON line: the run's summary plus the red map — the previous
     map with every file this run ran replaced by what it showed (red with its
     failing ids, or dropped when green). Files not run carry forward, so a
-    partial run never forgets a red it did not look at."""
+    partial run never forgets a red it did not look at. ``record_path`` names
+    the file outright (the gate store's ``runs.jsonl``, fast-gate §1)."""
 
     red = {rel: sorted(ids) for rel, ids in previous.items()}
     for rel, rc in final_rc.items():
@@ -307,7 +310,7 @@ def record_run(
         else:
             red.pop(rel, None)
     record = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), **summary, "red": dict(sorted(red.items()))}
-    path = repo_root / RUNS_FILE
+    path = record_path if record_path is not None else repo_root / RUNS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")

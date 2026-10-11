@@ -688,10 +688,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.environ["PYTHONPATH"] = os.pathsep.join(
         [str(_PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     )
-    durations = plan.load_durations_with_primary(repo_root, rtp._load_durations)
+    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args)  # the store: runs, durations, greens
+    durations = gate.durations(rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
-    known_reds = plan.load_known_reds(repo_root)
-    gate = _gate.GateRun.start(args, repo_root)
+    known_reds = gate.known_reds
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(known_reds)} known red, -j {args.jobs}",
@@ -728,20 +728,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         bundle_seconds=args.bundle_seconds,
         solo_seconds=args.solo_seconds,
         known_reds=known_reds,
-        on_outcome=_progress,
+        on_outcome=gate.chain(_progress),
     )
     elapsed = time.monotonic() - started
     cost = result.ledger.summary(args.jobs)
-    final_rc = {_rel(o.file, repo_root): o.rc for o in result.outcomes}
-    plan.record_run(repo_root, cost, final_rc, result.ledger.failed, known_reds)
-
-    failures = [(o.file, o.output, o.summary) for o in result.outcomes if o.rc != 0]
-    leaked = {leak.file for leak in result.leaks}
-    times = [(o.file, o.seconds) for o in result.outcomes if o.file not in leaked]
-    clean = rtp._clean_pass_durations(times, failures, rtp._FLAKY_RESULTS)
-    if clean:
-        rtp._save_durations(clean, repo_root)
-        print(f"  Durations cached to {rtp._DURATIONS_FILE} ({len(clean)} files)")
+    gate.record(result, cost)
     return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
 
