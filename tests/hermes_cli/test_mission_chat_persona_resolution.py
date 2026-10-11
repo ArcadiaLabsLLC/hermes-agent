@@ -42,7 +42,7 @@ def test_instance_shaped_profile_id_resolves_to_profile(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     assert (
         chat_delete._normalize_cli_persona_or_template_id("personainst_profile_alice")
-        == "profile:alice"
+        == "profile_alice"
     )
 
 

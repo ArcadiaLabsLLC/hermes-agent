@@ -2567,7 +2567,7 @@ usage: hermes harness persona set-model [-h] [--provider PROVIDER] [--model MODE
                                         persona_id
 
 positional arguments:
-  persona_id            Persona id or profile:<name>
+  persona_id            Persona id or profile_<name>
 
 options:
   -h, --help            show this help message and exit
@@ -2590,7 +2590,7 @@ usage: hermes harness persona set-skills [-h] [--skill SKILLS] [--clear-skills]
                                          persona_id
 
 positional arguments:
-  persona_id            Persona id or profile:<name>
+  persona_id            Persona id or profile_<name>
 
 options:
   -h, --help            show this help message and exit
