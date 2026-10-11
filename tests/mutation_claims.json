@@ -1995,8 +1995,8 @@
       "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "use-the-indenting-encoder",
-      "find": "emit_json_line({**data, **_characters_draftsman()})",
-      "replace": "emit_json({**data, **_characters_draftsman()})",
+      "find": "emit_json_line({**data, **draftsman()})",
+      "replace": "emit_json({**data, **draftsman()})",
       "test": [
         "{python}",
         "-m",
@@ -4373,7 +4373,7 @@
       "path": "hermes_cli/harness_parts/characters/payloads.py",
       "symbol": "_characters_emit",
       "operator": "drop-the-draftsman-stamp",
-      "find": "    print(emit_json({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human)",
+      "find": "    print(emit_json({**data, **draftsman()}) if getattr(args, \"json\", False) else human)",
       "replace": "    print(emit_json(data) if getattr(args, \"json\", False) else human)",
       "test": [
         "{python}",
@@ -4386,8 +4386,8 @@
     },
     {
       "id": "ph-payload-stamps-the-provider-door-too",
-      "path": "hermes_cli/harness_parts/characters/payloads.py",
-      "symbol": "_characters_draftsman",
+      "path": "agent/charsheet/draft/payloads.py",
+      "symbol": "draftsman",
       "operator": "name-the-real-door-as-well",
       "find": "    name = active_draftsman_name()\n    return {\"draftsman\": name} if name else {}",
       "replace": "    name = active_draftsman_name()\n    return {\"draftsman\": name or \"real\"}",
@@ -4404,7 +4404,7 @@
       "path": "hermes_cli/harness_parts/characters/auto.py",
       "symbol": "_characters_auto_write",
       "operator": "drop-the-draftsman-stamp",
-      "find": "        (emit_json_line({**data, **_characters_draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
+      "find": "        (emit_json_line({**data, **draftsman()}) if getattr(args, \"json\", False) else human) + \"\\n\"",
       "replace": "        (emit_json_line(data) if getattr(args, \"json\", False) else human) + \"\\n\"",
       "test": [
         "{python}",
