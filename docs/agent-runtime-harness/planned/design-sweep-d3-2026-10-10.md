@@ -881,6 +881,12 @@ remembered to list it.
    `66866fb496` fixed by hand, now caught by the graph).
 3. The docstring's "twenty are a real hole" paragraph is replaced by the row count landed.
 
+**BUILT (build-1011-C4, 2026-10-10):** stage 1 BUILT 32e99e0489; stages 2 and 3 BUILT
+6bc7dc09b4 (one commit: the paragraph lived in the function the scan rewrite replaced). The
+graph sees 151 emitters against the name set's 123; the 28 new ones (not ~20) are ledgered
+by family after reading each — 24 of them (charsheet, workspace slots) name a runtime-queue
+row for the contract change that would let them attach.
+
 **Size.** M: ~120 + ~60 new lines, ~40 changed in the scan, ~20 ledger rows (each read).
 
 **Risks.** Dynamic dispatch (a handler table of callables) is invisible to the graph; today's
@@ -908,7 +914,7 @@ it. Resolution limited to two packages keeps parse cost at a few hundred files.
 | D3.14 = L8.13 | INVESTIGATION (25-file classification) | — | — |
 | D3.15 = L8.19 | PLAN (fence marker honoured by install.ps1) | S | VM or one accepted PATH write for the mutation; carry the hunk? |
 | D3.16 = L8.20 | PLAN (`GIT_OPTIONAL_LOCKS=0` + audit) | S | — |
-| D3.17 = L8.25 | PLAN (import-graph emitter scan) | M | — |
+| D3.17 = L8.25 | PLAN (import-graph emitter scan) — BUILT 32e99e0489 + 6bc7dc09b4 | M | — |
 
 Counts: PLAN 13 (one a pointer), PROGRAM-EXISTS 1, INVESTIGATION 2, DROP 0. Shared
 mechanisms: GIL-hog controls (D3.01 ← D3.09), temp homes (D3.08, launcher row), PATH

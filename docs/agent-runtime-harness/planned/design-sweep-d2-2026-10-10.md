@@ -23,7 +23,7 @@ Verdict table (filled as batches land):
 | D2.08 = L2.26 | PROGRAM-EXISTS | `instance-conversations-2026-10-01.md` § Remaining before cutover; next stage is the parity qualification, with D2.07 as its permission arm |
 | D2.09 = L3.07 | PLAN | the fork modules already exist (`tui_gateway/session_execution.py` and five siblings); two MOVE clusters shrink 7 files to one-line call sites, three files are door PRs, not moves |
 | D2.10 = L4.25 | PLAN | four read-tier twins over the existing payload builders; pixels as the `runtime.media.get` block shape, bounded by `withinConsoleBudget`; one MOVE first |
-| D2.11 = L4.26 | PLAN | six console-tier twins in `serve_rpc/board.py` over `BoardStore`, the office write twin as template; no fold in this lane |
+| D2.11 = L4.26 | PLAN — hermes half BUILT 904edb1105 + 53b623e684 + e2a5bec6bc (build-1011-C4); launcher row owed | six console-tier twins in `serve_rpc/board.py` over `BoardStore`, the office write twin as template; no fold in this lane |
 | D2.12 = L2.28 | PLAN | the THIRD whole-document family files the class: `realm_sync/document_family.py` carries level, map and prefab; prefab is one descriptor |
 | D2.13 = L1.27 | PROGRAM-EXISTS | `eternia-lens-in-hermes.md` §5 L0; all four §6 rulings given 2026-10-02; nothing under `agent_runtime/lens/` yet |
 | D2.14 = L1.30 | PROGRAM-EXISTS | `phone-gate-to-zero-plan-2026-09-30.md`; G2/G3/G6 landed (gate 164 → 16 before G6); next is a re-take, then G5 on the owner's D2–D5 |
@@ -717,6 +717,12 @@ row).
    not) — the twin passes it through unchanged.
 
 ### Stages, tests, killing mutation
+
+**BUILT (build-1011-C4, 2026-10-10):** MOVE BUILT 904edb1105 (names kept with their
+underscore: `test_s48_cli_entity_row_consolidation` reads `_board_active_card_count` by that
+spelling); CHANGE BUILT 53b623e684 + e2a5bec6bc (helper renames for W0-G3). Followed the code
+where it differs: `card_id` and `created_by` are honoured too, and `SyncConflict` maps to
+`card_conflict` (writes) / `conflict_not_found` (resolve). Launcher stage open.
 
 | stage | test | killing mutation |
 |---|---|---|
