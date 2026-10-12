@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-12",
   "base": "818c13be1d",
-  "files": 202,
-  "deleted_lines": 994,
+  "files": 203,
+  "deleted_lines": 1017,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-authorized carry of upstream Session API ordering fix PR #137460",
+      "files": "202 -> 203: gateway/platforms/api_server.py",
+      "deleted_lines": "994 -> 1017; heavy 5 -> 5",
+      "reason": "Carry upstream commits 879c2a31cd and addf508ad5 without a fork wrapper. Worker callbacks and terminal/EOS events share the existing loop writer. The fork reproduces both deterministic fast-worker failures. Retire the carry when the upstream fix is merged; carried_prs.json pins the reviewed head and verifies its hunks."
+    },
     {
       "change": "User-approved first-class reasoning capabilities for the Console",
       "files": "194 -> 202: existing effort/transport owners, serving-catalog recorders, Codex/Copilot/Router provider hooks",

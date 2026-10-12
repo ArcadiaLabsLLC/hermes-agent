@@ -42,6 +42,10 @@ def choose(params, name="first", scope="conversation"):
     return inspect("model.select", {**params, "model_id": model_key(PROVIDER, name), "scope": scope})
 
 
+def inherit(params):
+    return inspect("model.select", {**params, "scope": "conversation", "use_agent_default": True})
+
+
 def stored(params):
     with closing(default_persona_session_db()) as db:
         return _session_model_config(db, params["session_id"])
@@ -68,7 +72,8 @@ def test_model_controls_reuse_session_and_instance_defaults(placed_agent, catalo
 
 
 @pytest.mark.parametrize("protected", ["running", "outcome_unknown", "native_committed", "accepted", "lease", "question"])
-def test_model_selection_cannot_change_unsettled_work(placed_agent, catalog, protected):
+@pytest.mark.parametrize("reset", [False, True])
+def test_model_selection_cannot_change_unsettled_work(placed_agent, catalog, protected, reset):
     params = target(placed_agent["persona_instance_id"])
     before = stored(params)
     if protected == "accepted":
@@ -83,10 +88,95 @@ def test_model_selection_cannot_change_unsettled_work(placed_agent, catalog, pro
             turn_id="working", state=protected, elements=[])
     if protected == "lease":
         with persona_chat_root_lease(params["session_id"]):
-            reply = choose(params)
+            reply = inherit(params) if reset else choose(params)
     else:
-        reply = choose(params)
+        reply = inherit(params) if reset else choose(params)
     assert reply["error"]["data"]["reason"] == "conversation_busy", reply
+    assert stored(params) == before
+
+
+def test_return_to_agent_default_clears_only_this_chat_and_preserves_permissions(placed_agent, catalog, caplog):
+    from agent_runtime.tool_permissions import ChatToolPermissionStore
+    from hermes_constants import get_hermes_home
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.persona_chat_session")
+    params = target(placed_agent["persona_instance_id"])
+    assert "result" in choose(params, "first", "agent_default")
+    opened = _call(dict(persona_id=PERSONA, persona_instance_id=params["persona_instance_id"],
+        new_session=True, idempotency_key="reset-other-chat", client_scope=OWNER))["result"]
+    other = {**params, "session_id": opened["session_id"]}
+    assert other["session_id"] != params["session_id"]
+    assert "result" in choose(params, "second")
+    assert "result" in choose(other, "second")
+    permissions = ChatToolPermissionStore()
+    permissions.set(persona_id=PERSONA, session_id=params["session_id"], mode="read_only",
+                    reason="isolation regression", source="operator")
+    permission = permissions.get(persona_id=PERSONA, session_id=params["session_id"])
+    original = PersonaInstanceStore().get(params["persona_instance_id"])
+    other_before = stored(other)
+    profile_before = (get_hermes_home() / "config.yaml").read_bytes()
+
+    for _ in range(2):
+        result = inherit(params)
+        assert "result" in result, result
+        facts = result["result"]["facts"]
+        assert facts["can_reset_model_override"] is True
+        assert facts["model_is_default"] is True
+        assert facts["current_model_id"] == facts["default_model_id"] == model_key(PROVIDER, "first")
+        assert _chat_model_override_from_config(stored(params)) is None
+        assert stored(params)["client_scope"] == OWNER
+        assert PersonaInstanceStore().get(original.id) == original
+        assert stored(other) == other_before
+        assert permissions.get(persona_id=PERSONA, session_id=params["session_id"]) == permission
+        assert (get_hermes_home() / "config.yaml").read_bytes() == profile_before
+        assert next_turn(params)["effective_model"] == "first"
+        assert next_turn(other)["effective_model"] == "second"
+    assert receipts(caplog, "model_selection")[-1].endswith("outcome=applied saved=session_override_cleared")
+
+
+def test_managed_installation_can_reset_chat_without_saving_an_agent_default(placed_agent, catalog, monkeypatch):
+    params = target(placed_agent["persona_instance_id"])
+    assert "result" in choose(params, "first", "agent_default")
+    assert "result" in choose(params, "second")
+    original = PersonaInstanceStore().get(params["persona_instance_id"])
+    monkeypatch.setattr("hermes_cli.config.is_managed", lambda: True)
+    reply = inherit(params)
+    assert "result" in reply, reply
+    assert reply["result"]["facts"]["can_save_model_default"] is False
+    assert reply["result"]["facts"]["model_is_default"] is True
+    assert _chat_model_override_from_config(stored(params)) is None
+    assert PersonaInstanceStore().get(original.id) == original
+
+
+@pytest.mark.parametrize("change", [
+    {"model_id": model_key(PROVIDER, "first")}, {"scope": "agent_default"},
+    {"use_agent_default": "true"}, {"use_agent_default": 1},
+])
+def test_invalid_inheritance_reset_moves_nothing(placed_agent, catalog, change):
+    params = target(placed_agent["persona_instance_id"])
+    assert "result" in choose(params, "first")
+    before = stored(params)
+    original = PersonaInstanceStore().get(params["persona_instance_id"])
+    reply = inspect("model.select", {**params, "scope": "conversation", "use_agent_default": True, **change})
+    assert reply["error"]["data"]["reason"] == "invalid_model_selection", reply
+    assert stored(params) == before
+    assert PersonaInstanceStore().get(original.id) == original
+
+
+def test_reset_preserves_owner_install_and_console_authorization(placed_agent, catalog):
+    from tests.agent_runtime.test_serve_rpc_open_chat import _device
+    from agent_runtime.call_authorization import REASON_SCOPE_DENIED
+
+    params = target(placed_agent["persona_instance_id"])
+    assert "result" in choose(params, "first")
+    before = stored(params)
+    for change, reason in (({"client_scope": OTHER}, "conversation_owner_changed"),
+                           ({"install_id": "foreign"}, "installation_changed")):
+        reply = inherit({**params, **change})
+        assert reply["error"]["data"]["reason"] == reason
+        assert stored(params) == before
+    reply = inspect("model.select", {**params, "scope": "conversation", "use_agent_default": True}, caller=_device("read"))
+    assert reply["error"]["data"]["reason"] == REASON_SCOPE_DENIED
     assert stored(params) == before
 
 
