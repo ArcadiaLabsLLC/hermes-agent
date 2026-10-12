@@ -12,6 +12,17 @@ tags: [program/mission-control, program]
 can clear only a chat pin and return to agent defaults; no default write or
 permission change. [Contract](../../docs/agent-runtime-harness/03-transport-and-wire.md#operator-model-selection).
 
+Reset qualification: 27 model-control cases and 19 permission-visibility cases
+pass on Python 3.14. The fork landing gate records 12,605 passed / one failed;
+the environment-registry failure reproduces on unchanged main `d72f08870c`
+with an in-checkout venv and is filed in fork hygiene. The shared external-venv
+baseline passes that registry. An applied mutation that ignored the inheritance
+flag failed the persisted reset/other-chat/default/permission regression and
+was restored. No gate or fence was weakened. The initial full run used the old
+3.13 primary venv and was stopped after interpreter-requirement errors; the
+qualified run uses isolated Python 3.14.7. Live Launcher control acceptance and
+the claimed picker/permission bindings remain with the Launcher lane.
+
 `reasoning_capability_cursor::` 2026-10-12 — First-class provider/model capability
 facts cross operator reads, snapshots and provider-only patches. The Launcher
 renders native choices automatically. [Contract and verification](../../docs/downstream/reasoning-capabilities-2026-10-12.md).
