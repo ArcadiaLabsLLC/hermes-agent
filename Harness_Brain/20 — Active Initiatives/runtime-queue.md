@@ -606,6 +606,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+- [ ] **Qualify the selected TTS provider's requirement check against unselected cloud credentials.** · `tests/tools/test_tts_deepinfra.py::test_unselected_cloud_credentials_do_not_expose_edge_tool` expects false with an empty TTS config, unavailable Edge import and only `OPENAI_API_KEY`; `tools.tts_tool.check_tts_requirements()` returns true. Reproduced in isolation on unchanged main during 2026-10-12 reasoning-capability qualification (2 passed, 1 failed). Determine whether the provider requirement or the test's facade patch is stale before changing behavior. · `tools/tts_tool.py`, `tests/tools/test_tts_deepinfra.py` · UNCLAIMED
+
 ### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 
 - [ ] **`tests/verify/test_environment_and_runner.py::test_readiness_timeout_when_nothing_listens` hits the 30 s pytest-timeout on Windows under plain `scripts/run_tests.sh`** · upstream / suite · build-fastgate-FG1 verify-plain run · lane: `scripts/classify_reds_on_tag.py`, then skip-list row or upstream issue
