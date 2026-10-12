@@ -4,7 +4,7 @@ PR #8 is merged at `b989d262e5`; its Fork gates run `38313749609` passed.
 Those gates cover selected fork claims, not the whole regression suite.
 The source baseline for this diagnosis is `56777bc3e5`.
 
-## H03: confirmed delivery race, upstream candidate prepared
+## H03: confirmed delivery race, submitted upstream
 
 The unchanged Session API file passes 39 tests alone. A bounded 30-case probe
 reusing its commentary scenario produces 29 passes and one failure: the wire
@@ -25,7 +25,8 @@ new endpoint test reports two failures (already-finished success/failure) and
 two passes (ordinary scheduling). No callback, assertion or timeout is weakened.
 
 Candidate: [codex/session-sse-order](https://github.com/ArcadiaLabsLLC/hermes-agent/tree/codex/session-sse-order),
-commits `879c2a31cd` and `addf508ad5`. All queued events and EOS use the existing
+commits `879c2a31cd` and `addf508ad5`, then upstream refresh `2426b8dc24`
+(base `b23600860f82`). All queued events and EOS use the existing
 loop scheduler; sequence stamping happens on that loop. There is no second
 buffer, blocking acknowledgment, lock, retry or Eternia import. The existing
 live-bot direct writer and Responses writer are unchanged.
@@ -34,14 +35,22 @@ Qualification: 184 distinct tests across the Session API, API server, ordering,
 keepalive, active-work drain and turn-boundary files pass without retries. The
 four ordering cases also pass after fixture registration cleanup. All 12
 `scripts/check --base ee36aed5adc737db49c94316ffeb97d3fb8dc099` checks pass.
-The exact original red is in the fix commit body. No full upstream suite claim.
+The exact original red is in the fix commit body. Local proof uses Windows /
+Python 3.13.15; supported Python 3.14 remains for upstream CI. After the refresh,
+ten quality checks pass together; shebang file-read and lazy-deps process-start
+errors clear on individual reruns. The latter reports Windows paging-file
+exhaustion. Code health has zero blocking findings and zero advisories.
+No full upstream suite claim.
 
 Existing-work search found [upstream PR #89748](https://github.com/NousResearch/hermes-agent/pull/89748):
 the same executor-completion race on `/v1/runs`, using a bounded blocking
 acknowledgment. It does not cover the Session API endpoint reproduced here.
-Coordinate there before opening another PR; do not claim either patch fixes
-the other endpoint. No upstream comment or new PR has been posted. The candidate
-is **not on fork main**. The unchanged upstream owner remains unchanged in the
+The operator authorized submission after this endpoint distinction was verified.
+[Upstream PR #137460](https://github.com/NousResearch/hermes-agent/pull/137460)
+contains the focused Session API fix, references #89748, and records the
+reproduction, before/after results and local validation limits. No separate
+comment or issue was posted. The candidate is **not on fork main**.
+The unchanged upstream owner remains unchanged in the
 fork, following `Harness_Brain/00 — Maps/Fork Boundary Map.md`.
 
 ## H01: still open, no speculative runtime change
