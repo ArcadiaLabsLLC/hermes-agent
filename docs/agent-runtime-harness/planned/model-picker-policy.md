@@ -48,4 +48,4 @@ Run scripts/run_tests.sh on tests/hermes_cli/test_model_picker_policy.py, tests/
 
 ## Joint landing
 
-Plan on main first, code on a dedicated feature branch. Client plan: `EterniaLauncher/docs/mission_control/planned/agent-model-picker-catalog-ux.md`; that repository owns UX, clipping tests, and Windows visual proof. Neither code branch merges until both validate. Worker reports issues in bulletpoints and fast-forwards runtime then client only after required gates pass. Never force main or overwrite unrelated work. If one push succeeds and the other fails, stop and report the partial landing.
+Plan on main first, code on a dedicated feature branch. Client plan: `EterniaLauncher/docs/archive/mission_control/agent-model-picker-catalog-ux.md`; that repository owns UX, clipping tests, and Windows visual proof. Neither code branch merges until both validate. Worker reports issues in bulletpoints and fast-forwards runtime then client only after required gates pass. Never force main or overwrite unrelated work. If one push succeeds and the other fails, stop and report the partial landing.

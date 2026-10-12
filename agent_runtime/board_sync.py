@@ -1,7 +1,7 @@
 """Realm-sync for the Mission Board: per-card LWW with loud conflicts, no CRDT.
 
 The pure classifier ``classify_board_pull`` implements the exhaustive decision
-table in ``docs/mission_control/BOARD_DESIGN_2026-07-13.md`` §8. Change is
+table in ``docs/archive/mission_control/2026-08-22-pre-consolidation/BOARD_DESIGN_2026-07-13.md`` §8. Change is
 detected against a NEVER-synced baseline sidecar (the semantic content hash H,
 timestamps excluded — so the deterministic default board converges instead of
 conflicting). Conflicts are never silent: a sidecar in ``conflicts/`` + a

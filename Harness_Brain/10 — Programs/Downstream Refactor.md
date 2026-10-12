@@ -19,8 +19,8 @@ Every fork-owned production file under a flat 800-code-line ceiling, split to a 
 - **The plan (the spine):** [`docs/agent-runtime-harness/planned/downstream-god-file-refactor.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor.md) — §0 ground truth, §1 rules, §2 lanes with a layout for every file, §3 order, §4 dead-code list, §5 duplicate list, §6 method (the launcher playbook applied), §7 what the operator owes, §8 ledger.
 - **Field notes:** [`downstream-god-file-refactor-field-notes-2026-09-21.md`](../../docs/agent-runtime-harness/planned/downstream-god-file-refactor-field-notes-2026-09-21.md) — how every number was taken; lane sections appended by builders.
 - **The instrument:** `scripts/refactor_census.py` — code-line counter (matches the operator's table), per-file survey, dead-name census, duplicate-body census.
-- **The method's origin:** `EterniaLauncher/docs/mission_control/planned/mission-control-refactor-program.md` (four owner amendments) and `EterniaLauncher/docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`.
-- **The EXEC_CARD** (one page an exec lane reads) is a Wave 0 deliverable: `planned/downstream-god-file-refactor-EXEC_CARD.md`.
+- **The method's origin:** `EterniaLauncher/docs/archive/mission_control/refactor-program-2026-09/mission-control-refactor-program.md` (four owner amendments) and `EterniaLauncher/docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`.
+- **The EXEC_CARD** (one page an exec lane reads) is a Wave 0 deliverable that was never written — no hermes commit has `downstream-god-file-refactor-EXEC_CARD.md` (checked 2026-10-11).
 
 ## The facts that shape it
 

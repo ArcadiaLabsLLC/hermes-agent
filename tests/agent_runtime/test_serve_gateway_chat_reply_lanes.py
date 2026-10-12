@@ -1,6 +1,6 @@
 """WHICH LANE carries a remote chat turn's start and its reply. A measurement.
 
-Plan ``EterniaLauncher/docs/mission_control/planned/remote-chat-parity.md``
+Plan ``EterniaLauncher/docs/archive/mission_control/remote-chat-parity.md``
 stage C1h §2, and ruling **R-C3** ("the reply is proved in the same stage as the
 send, by a receipt") is written against the answer this file records. C1l has to
 put its ``chat_turn_reply … first_frame=+N ms`` receipt where the console first

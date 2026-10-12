@@ -6,7 +6,7 @@ recorded scenarios, not complete restart parity or native execution-fenced Stop.
 
 Owner scope: full native Launcher Chat/Compare and non-spatial Discuss; preserve
 Mission Control's operator lane. Consumer contract and full receipt table:
-`EterniaLauncher/docs/companion/planned/NATIVE_HERMES_QUALIFICATION_2026-09-26.md`.
+`EterniaLauncher/docs/archive/companion/NATIVE_HERMES_QUALIFICATION_2026-09-26.md`.
 
 ## Evidence
 

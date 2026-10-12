@@ -194,7 +194,7 @@ Errors carry `data.reason`; clients branch on the reason, never on message
 prose. `4090` is the one code minted rather than borrowed — upstream has no
 concurrency code, and `4002` (the obvious guess) is already spent there on
 "invalid value". See `agent_runtime/serve_rpc.py` and
-`docs/mission_control/DECISION_push_and_rpc_2026-08-13.md` (launcher repo) for
+`docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md` (launcher repo) for
 the fork-boundary reasoning behind building the union of our PUSH and upstream's
 CALL.
 

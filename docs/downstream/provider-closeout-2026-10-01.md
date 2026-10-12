@@ -49,7 +49,7 @@ nor a credential writer was added. Both native auth files match inspected upstre
 The upstream footprint drops from 173 to 172 files; no ceiling was raised.
 
 Desktop verification is recorded in
-`EterniaLauncher/docs/companion/planned/PROVIDER_CLOSEOUT_2026-10-01.md`.
+`EterniaLauncher/docs/archive/companion/PROVIDER_CLOSEOUT_2026-10-01.md`.
 No live OAuth grant, unsafe updater test or full-suite green is claimed.
 
 ### Existing baseline failure

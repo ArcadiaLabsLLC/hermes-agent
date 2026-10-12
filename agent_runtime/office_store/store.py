@@ -1,7 +1,7 @@
 """OfficeStore — the single write chokepoint for the Mission Office domain.
 
 Mirrors ``BoardStore`` 1:1 (the plan's lean directive —
-``docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md``, launcher
+``docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md``, launcher
 repo): file-per-actor JSON under the runtime root, the shared store-lock
 discipline, atomic writes, and a typed ``EventLog`` event on EVERY mutation
 (standing store rule — an event-less write is invisible to the watermark-gated

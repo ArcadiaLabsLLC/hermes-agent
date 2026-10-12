@@ -9,8 +9,9 @@ breakdown used below is `.lane-logs/s2-plan-analysis.txt`). The prose report the
 it with `--markdown` at its landing.
 
 Design of record for what the phone must and must not do:
-`EterniaLauncher/docs/embedded_hermes/planned/` — README table ("so do NOT build"),
-`SPEC_2026-09-28.md` §4.4 and §7 (owner decisions 2, 4, 6), `PROFILE_MATRIX_2026-09-28.md`
+`EterniaLauncher/docs/embedded_hermes/subsystems/` — README table ("so do NOT build"),
+`SPEC_2026-09-28.md` §4.4 and §7 (owner decisions 2, 4, 6); and in
+`EterniaLauncher/docs/embedded_hermes/planned/`, `PROFILE_MATRIX_2026-09-28.md`
 ("Bundled phone" column), `IMPLEMENTATION_2026-09-28.md` Stage 2 and Stage 5.
 
 ## 1. The finding list (gate, `c161bb7584`)

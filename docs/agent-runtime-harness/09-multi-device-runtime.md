@@ -59,7 +59,7 @@ own durable identity, the same tiers 1 and 2 — and it never discovers a full
 install's credentials on the same machine (the D0 credential census,
 `docs/downstream/credential-store-census-2026-09-28.md`). The program, its
 profile matrix and its stages are
-`EterniaLauncher/docs/embedded_hermes/planned/README.md`.
+`EterniaLauncher/docs/embedded_hermes/subsystems/README.md`.
 
 ## The entities a runtime holds
 
@@ -268,7 +268,7 @@ launcher doc carries the launcher and backend halves.
 
 | lane | landed (hermes) | plan of record |
 |---|---|---|
-| Universal remote gateway, stages 0–8 (install identity, LAN bind + TLS, device pairing, peer ceremony, cross-install chat, media handles) | 2026-08-27/28, 24 commits, all ancestors of `main` | `archive/remote-gateway.md` → `EterniaLauncher/docs/mission_control/archive/universal-remote-gateway.md` |
+| Universal remote gateway, stages 0–8 (install identity, LAN bind + TLS, device pairing, peer ceremony, cross-install chat, media handles) | 2026-08-27/28, 24 commits, all ancestors of `main` | `archive/remote-gateway.md` → `EterniaLauncher/docs/archive/mission_control/universal-remote-gateway.md` |
 | Instance replication H1–H4 | `a0c171af47` | 01 § The instance-replication lane |
 | Instant workspace switching WS1/WS4 (`scope` fold entity, `runtime.workspace.use` / `runtime.realm.use`, R-B wall) | `cf9abaac4b`, `ffd540bf73` | `archive/instant-workspace-switching.md` |
 | Cross-install media P4 | `ed3c6a11aa` | `EterniaLauncher/…/planned/remote-parity-and-two-machine-proof.md` |
@@ -276,8 +276,8 @@ launcher doc carries the launcher and backend halves.
 | Dialable addresses D1/D1b/D4h/D5h/D6h/D7h/D8h (ordered dial, first candidate, store writes on Windows, `local_policy`, lock deadline) | through `74bb73a124` | `EterniaLauncher/…/archive/dialable-addresses.md` |
 | `reached_at` measured address (D12) | `355460290a` | `planned/d12-reached-at-measured-address.md` |
 | Reachable-switch L1 (dead owner yields, greeting never silent) | `abc13e283c` | `EterniaLauncher/…/archive/reachable-switch-lifecycle.md` |
-| Remote chat parity C1h/C1h-bis/C6h (`open_chat` method, turn presence, 18-key message + `params` block) | `997900010e`, `23df196e69`, `28e502e286` | `EterniaLauncher/…/planned/remote-chat-parity.md` |
-| Local runtime ownership L-h/L-h-b/L-h-c/L-h-d + Q-h (`--service`, busy split, `.ended.json`, `.stderr.log`, RL-23 supersede, RL-24 three exits) | `286a29db04`, `940396b992`, `f7b89826eb`, `a12b16f287`, `6c1dfaf444` | `EterniaLauncher/…/planned/local-runtime-ownership-and-retry-safety.md` §8 |
+| Remote chat parity C1h/C1h-bis/C6h (`open_chat` method, turn presence, 18-key message + `params` block) | `997900010e`, `23df196e69`, `28e502e286` | `EterniaLauncher/docs/archive/mission_control/remote-chat-parity.md` |
+| Local runtime ownership L-h/L-h-b/L-h-c/L-h-d + Q-h (`--service`, busy split, `.ended.json`, `.stderr.log`, RL-23 supersede, RL-24 three exits) | `286a29db04`, `940396b992`, `f7b89826eb`, `a12b16f287`, `6c1dfaf444` | `EterniaLauncher/docs/archive/mission_control/local-runtime-ownership-and-retry-safety.md` §8 |
 
 Live proofs, both machines: replication L3 (2026-09-01), paired both ways
 after the Mac allowed Local Network (2026-09-04), the cockpit switched to the

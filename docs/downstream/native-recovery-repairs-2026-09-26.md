@@ -270,7 +270,7 @@ without replay. Compare tolerates a second unavailable route. Mission Control
 streams independently on the same serve owner; stopping Compare leaves it live.
 Its eventual wall-budget terminal is its own policy. Discuss reopens the exact
 question, accepts the answer, advances one participant, then confirms Stop.
-Launcher evidence: `EterniaLauncher/docs/companion/planned/NATIVE_RECOVERY_REPAIR_PROGRESS_2026-09-27.md`.
+Launcher evidence: `EterniaLauncher/docs/archive/companion/NATIVE_RECOVERY_REPAIR_PROGRESS_2026-09-27.md`.
 
 The additional boundary run passes 46 tests, with two existing failing gates:
 frozen-home assertions and stale test citations. Both reproduce on unchanged

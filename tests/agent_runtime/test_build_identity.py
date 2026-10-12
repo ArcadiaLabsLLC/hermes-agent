@@ -5,7 +5,7 @@ must not change the digest.** RL-20's build-behind restart compares the runtime'
 build against the checkout's, and until this module existed it compared
 ``git rev-parse HEAD`` — so the 2026-09-07 16:25:09Z field restart fired on a
 DOCS-ONLY landing, drained a healthy runtime, and cost the session its socket
-(plan ``restart-drain-fence.md`` §0). The digest here is the same measurement
+(plan ``EterniaLauncher/docs/archive/mission_control/restart-drain-fence.md`` §0). The digest here is the same measurement
 narrowed to the files a running hermes can actually load.
 
 The second property is cross-repo: the launcher computes this digest in Dart

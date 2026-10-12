@@ -9,7 +9,7 @@ tags: [adr, transport, mission-control]
 # 0003 — RPC route first
 
 > [!summary]
-> **Every touched write lane moves to the hermes method lane by manifest membership.** The aim decides the destination (a Mac runs the turn as its own operator's). argv is a fallback **marked for delete**. Cited as R-C4 in `planned/remote-chat-parity.md`.
+> **Every touched write lane moves to the hermes method lane by manifest membership.** The aim decides the destination (a Mac runs the turn as its own operator's). argv is a fallback **marked for delete**. Cited as R-C4 in `EterniaLauncher/docs/archive/mission_control/remote-chat-parity.md`.
 
 ## Context
 

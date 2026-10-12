@@ -2,7 +2,7 @@
 
 Status: feature branch only; NOT approved to merge. The operator's local worker must inspect and validate both repositories before either product branch lands. Plans are already on main. This evidence note is not a work queue.
 
-Implementation contract: `model-picker-policy.md` in this directory. Client contract: `EterniaLauncher/docs/mission_control/planned/agent-model-picker-catalog-ux.md`.
+Implementation contract: `model-picker-policy.md` in this directory. Client contract: `EterniaLauncher/docs/archive/mission_control/agent-model-picker-catalog-ux.md`.
 
 ## Code under test
 

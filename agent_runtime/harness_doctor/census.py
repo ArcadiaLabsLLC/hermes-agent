@@ -115,7 +115,7 @@ def _census_unknown(detail: str, *, unreadable: list[str] | None = None) -> dict
 # notice an operator cannot clear is a notice they stop reading, which is the
 # failure this whole doctor is written against — so the class goes rather than
 # being re-keyed. The plan is
-# ``EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md``
+# ``EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md``
 # (slice 1).
 #
 # What KEPT its place, because none of it was about desks: ``orphan_actors``

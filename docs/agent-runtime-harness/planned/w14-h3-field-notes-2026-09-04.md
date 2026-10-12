@@ -13,7 +13,7 @@ doc_cite_adjacency_test.dart`, shipped 2026-09-04 w12/l1) into hermes: a
 `path.ext:N` cite whose path names no file `git ls-files` reports is a FAILURE,
 because nothing on this side can ever tell a reader that a launcher line number
 went stale. Spec verbatim in the launcher's
-`docs/mission_control/planned/w12-l1-cite-rot-and-console-lifts.md` §A4.
+`docs/archive/mission_control/w12-l1-cite-rot-and-console-lifts.md` §A4.
 
 **What I measured.** The row said 36, distributed 02×1 04×2 05×4 06×20 07×9. Run
 at `3d3a33be3e`: **37 path cites** (06 is 21, not 20) plus **16 bare `:N`

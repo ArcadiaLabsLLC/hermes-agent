@@ -1,6 +1,6 @@
 """RS-3: the ORDER a draining serve leaves in, pinned as an order.
 
-The field (launcher plan ``restart-drain-fence.md`` §0, 2026-09-07): a
+The field (launcher plan ``EterniaLauncher/docs/archive/mission_control/restart-drain-fence.md`` §0, 2026-09-07): a
 replacement runtime lost the socket lock 14 s into the old one's drain, while
 the old one's listener was already closed. Two questions fall out of that, and
 they have different answers:

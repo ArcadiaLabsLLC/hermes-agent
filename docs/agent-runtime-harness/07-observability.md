@@ -805,8 +805,8 @@ drift.
 ## Supersedes
 
 `planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
-commit** (`git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/agent-placement-verb.md`
-recovers it). Its observability half is above: `phases.skills_ms` on the ack,
+commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+reachable from `main` or any remote ref). Its observability half is above: `phases.skills_ms` on the ack,
 the two launcher receipt families, and `placement_census` in the doctor roster.
 
 All others under `archive/2026-08-22-pre-consolidation/`:

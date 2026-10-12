@@ -24,7 +24,7 @@ manifest set without moving `RPC_CONTRACT_VERSION`.
 
 **TTS is the fork's own, on purpose.** The speech pack ships no GPL code (owner
 ruling 2026-09-28, second sitting, item 2; launcher
-`docs/embedded_hermes/planned/GPL_FREE_TTS_OPTIONS_2026-09-28.md`). Upstream's
+`docs/embedded_hermes/evidence/GPL_FREE_TTS_OPTIONS_2026-09-28.md`). Upstream's
 Piper path is `piper-tts` (GPL-3.0, espeak-ng compiled in), so the bundled
 service does not enable it: `speech_onnx_voice.py` runs the voice's ONNX file
 the way Piper's and Kokoro's own inference code does, and

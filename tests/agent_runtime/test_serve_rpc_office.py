@@ -1,7 +1,7 @@
 """The METHOD lane: ``runtime.office.get``, the first typed JSON-RPC method.
 
 Increment 1 of the CALL half (launcher
-``docs/mission_control/DECISION_push_and_rpc_2026-08-13.md`` §3). What is worth
+``docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md`` §3). What is worth
 pinning here is not that a dict comes back — it is the four things that make
 this a template the next 37 methods can be copied from:
 

@@ -181,7 +181,7 @@ class RealmMembershipProvider:
 
 #: The canonicalization chokepoint, whose BODY moved to
 #: :mod:`agent_runtime.sync_text` on 2026-09-12
-#: (``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+#: (``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 #: §4.1). This name stays as the alias every call site in this module — and
 #: ``realm_sync.families.content_hash`` — already spells, so the lift changed
 #: no behaviour anywhere. It moved because the SKILL lane needs the same rule for

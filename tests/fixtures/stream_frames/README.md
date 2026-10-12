@@ -158,4 +158,4 @@ under the update rule below; the generator only hashes them.
 **Update rule:** these fixtures change only in a cross-stack change that lands
 hermes **and** the launcher together (regenerate, copy bytes, update both
 manifests in the same change). Plan:
-`EterniaLauncher/docs/mission_control/TRANSPORT_ENTERPRISE_PLAN_2026-07-16.md`.
+`EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/TRANSPORT_ENTERPRISE_PLAN_2026-07-16.md`.

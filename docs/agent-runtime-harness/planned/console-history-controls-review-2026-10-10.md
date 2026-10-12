@@ -5,7 +5,7 @@ arrival — 2026-10-10 (Console history PR #7 review)" in
 `Harness_Brain/20 — Active Initiatives/runtime-queue.md`. It reviews
 [PR #7](https://github.com/ArcadiaLabsLLC/hermes-agent/pull/7) at `91b79fd19`.
 The launcher half has its own note:
-`eternia_launcher/docs/mission_control/planned/console-history-controls-review-2026-10-10.md`.
+`eternia_launcher/docs/mission_control/evidence/console-history-controls-review-2026-10-10.md`.
 
 **Verdict: changes requested before landing.** Data integrity holds: branch is
 atomic, the parent is untouched, and rewind archives rather than deletes. The

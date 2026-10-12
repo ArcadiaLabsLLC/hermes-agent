@@ -31,7 +31,7 @@ Mission Control is the launcher's command deck for this runtime: the spatial off
 
 - [[0003 — RPC route first]] — every touched write lane moves to the method lane; argv marked for delete.
 - The multi-device canon: launcher doc 10 + hermes doc 09 (2026-09-06) retired stale claims in 01/03/05/06.
-- The launcher's refactor program (`EterniaLauncher/docs/mission_control/planned/mission-control-refactor-program.md`) and its playbook are the method this repo's [[Downstream Refactor]] adopts.
+- The launcher's refactor program (`EterniaLauncher/docs/archive/mission_control/refactor-program-2026-09/mission-control-refactor-program.md`) and its playbook are the method this repo's [[Downstream Refactor]] adopts.
 
 ## Open questions the runtime is waiting on
 

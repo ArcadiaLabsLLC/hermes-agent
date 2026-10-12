@@ -84,7 +84,7 @@ or workstation-freeze candidates ran.
 These checks do not prove provider compliance or interactive JavaScript in the
 native WebView. Launcher catalog guidance and its real creation-to-shared-
 transcript tests are recorded in
-`EterniaLauncher/docs/companion/planned/ARTIFACT_PRESENTATION_REVIEW_2026-09-30.md`.
+`EterniaLauncher/docs/companion/evidence/ARTIFACT_PRESENTATION_REVIEW_2026-09-30.md`.
 Fresh and existing conversations after restart, editable native output,
 interactive WebArtifact behavior and saved-output reopen remain on the
 Launcher's existing native artifact qualification row. The process-global

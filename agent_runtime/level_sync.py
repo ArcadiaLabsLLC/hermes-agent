@@ -4,7 +4,7 @@
 Control workspace can have its own level, and *"realm sync sounds good, deploy"*
 is the transport for setting a REALM's default workspace's level from the
 launcher's map picker. The launcher's own note
-(``EterniaLauncher/docs/spatial/planned/one-engine-one-catalogue-levels-per-workspace.md``,
+(``EterniaLauncher/docs/spatial/subsystems/one-engine-one-catalogue-levels-per-workspace.md``,
 "R15's office half LANDED … and its realm half did NOT") measured why the
 launcher could not do this alone and named this change: the realm store's file
 kinds are hermes's, an unknown path is DROPPED on pull

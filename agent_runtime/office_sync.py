@@ -1,6 +1,6 @@
 """Realm-sync for the Mission Office: per-actor 3-way baseline merge with loud
 conflicts, no CRDT — the board family's shape applied to office actor files
-(``docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` §5,
+(``docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` §5,
 launcher repo).
 
 The pure classifier is the SHARED ``sync_merge.classify_three_way_pull`` (lifted

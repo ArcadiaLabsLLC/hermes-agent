@@ -1,7 +1,7 @@
 """The speech pack's phonemizers, on onnxruntime: no espeak-ng, no torch, no GPL code.
 
 Fork-owned (bundled desktop; owner ruling 2026-09-28, second sitting, item 2 —
-launcher ``docs/embedded_hermes/planned/GPL_FREE_TTS_OPTIONS_2026-09-28.md``).
+launcher ``docs/embedded_hermes/evidence/GPL_FREE_TTS_OPTIONS_2026-09-28.md``).
 Each phonemizer is a downloadable ARTIFACT (an ``.onnx`` + a ``.json``) the
 Launcher places next to the voice it serves; this module is the code that runs
 it. The artifacts are produced by ``scripts/phonemizer_openphonemizer_onnx.py`` and

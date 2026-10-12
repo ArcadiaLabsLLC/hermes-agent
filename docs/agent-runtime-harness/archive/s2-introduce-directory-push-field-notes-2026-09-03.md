@@ -13,7 +13,7 @@ read-only verbs only. No push.
 
 ### What was read, and the shas
 
-* Parent plan `EterniaLauncher/docs/mission_control/archive/same-account-instant-pairing.md`
+* Parent plan `EterniaLauncher/docs/archive/mission_control/same-account-instant-pairing.md`
   at launcher `791cc8030` — all 17 rulings ADOPTED (R-IP15 AMENDED), §2 flows
   + parity table, §3 S2/S2b/S2c with hardening bullets, §5 ledger (S0a
   `e94e022fb6`, S0b `b4a383a1e8`, blocker `368387ae0b` LANDED), §6 audit
