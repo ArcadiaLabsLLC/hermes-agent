@@ -33,7 +33,7 @@ Every check this repo has, who runs it, and what it protects. There is no push g
 
 ## CI
 
-`.github/workflows/tests-os.yml` (one plain `pytest` per OS, fails on zero selected tests), `tests.yml`, `ci.yaml`, `js-tests.yml`, `rust-tests.yml`, `installer-tests.yml`, `plugin-catalog-ci.yml` — all UPSTREAM workflows. On the fork they are "largely inert" (billing) and **no run has fired on `main` since 2026-09-07** (queue row). Do not read CI as evidence until that row closes.
+The fork's `fork-gates.yml` is active again as of 2026-10-12; [main run 38312372163](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38312372163) passed. It runs selected mutation claims plus the tombstone and docket gates. The upstream `ci.yaml` remains disabled at that check. These jobs do not replace the bundled landing suite or native-platform proof. Check the exact workflow and source SHA; [[Running the tests]] owns landing requirements.
 
 ## Positive controls
 
