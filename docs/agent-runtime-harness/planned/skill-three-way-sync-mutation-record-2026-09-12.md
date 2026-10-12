@@ -9,7 +9,7 @@ red is a belief.
 
 Design authority for the lane and for the two mandated mutations (§4.4 "drop the
 re-mirror", "drop the baseline write"):
-`EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md`.
+`EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md`.
 
 ## How this was taken
 

@@ -1,6 +1,6 @@
 """``runtime.persona.instance.open_chat`` — the verb that had no method.
 
-Plan ``EterniaLauncher/docs/mission_control/planned/remote-chat-parity.md``
+Plan ``EterniaLauncher/docs/archive/mission_control/remote-chat-parity.md``
 stage C1h, ruling **R-C5**. Four kinds of claim, and they are in one file
 because they are the same claim from four sides:
 

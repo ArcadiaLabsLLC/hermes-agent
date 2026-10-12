@@ -2,7 +2,7 @@
 two-way `action`.
 
 Since 2026-09-12 (the skill family joined the three-way model —
-``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 section 4.3) ``list_inbox_packages`` rows carry ``decision`` and
 ``baseline_hash``. The listing verb projected a hand-picked key set and dropped
 both, so an operator reading the verb saw ``hold_divergent`` for a package the

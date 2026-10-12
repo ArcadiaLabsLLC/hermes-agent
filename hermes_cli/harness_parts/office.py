@@ -6,7 +6,7 @@
 # the launcher capability lane uses.
 #
 # Design contract: EterniaLauncher
-# docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md. Actor keys
+# docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md. Actor keys
 # are minted store-side (canonical_persona_instance_id at the boundary); the
 # CLI passes the identity triple through verbatim.
 

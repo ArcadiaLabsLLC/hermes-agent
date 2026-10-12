@@ -1,7 +1,7 @@
 # Bundled phone profile — the real Hermes wheel, embedded in the Eternia app on iOS and Android.
 #
 # Source: the "Bundled phone" column of the launcher's profile matrix
-# (`EterniaLauncher/docs/embedded_hermes/planned/PROFILE_MATRIX_2026-09-28.md`) and architecture
+# (`EterniaLauncher/docs/embedded_hermes/subsystems/PROFILE_MATRIX_2026-09-28.md`) and architecture
 # §4/§6 (`EterniaLauncher/docs/embedded_hermes/planned/ARCHITECTURE_2026-09-28.md`).
 # Standing rules: enable, never reimplement; bundle only what is needed; one Python
 # implementation — no vendored copies.

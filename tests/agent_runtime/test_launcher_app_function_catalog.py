@@ -33,7 +33,7 @@ _CONFIRM_TOOL = {
     "description": "Change a setting.",
     "parameters": {"type": "object", "properties": {"key": {"type": "string"}, "value": {}}},
     "requires_confirmation": True,
-    "reach": "local",
+    "reach": "localOnly",
 }
 _STUDIO_TOOL = {
     "name": "launcher_studio_project_list",

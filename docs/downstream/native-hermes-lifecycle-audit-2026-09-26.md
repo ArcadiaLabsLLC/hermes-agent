@@ -3,7 +3,7 @@
 Status: historical findings; [repairs and final qualification](native-recovery-repairs-2026-09-26.md#final-wire-qualification--2026-09-27) now close the approved gaps.
 Baseline `5d00ba8388eebd5fa416a54f8f51bba0aaf875ad`; origin and
 `nekwo/hermes-agent` main advertised the same SHA. Consumer evidence and full
-acceptance matrix: `EterniaLauncher/docs/companion/planned/NATIVE_HERMES_LIFECYCLE_AUDIT_2026-09-26.md`.
+acceptance matrix: `EterniaLauncher/docs/archive/companion/NATIVE_HERMES_LIFECYCLE_AUDIT_2026-09-26.md`.
 This limits, rather than replaces, the earlier
 [qualification](native-hermes-qualification-2026-09-26.md).
 

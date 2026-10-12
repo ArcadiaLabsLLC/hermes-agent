@@ -56,4 +56,4 @@ an isolated `.hermes/profiles/provider-home-qa` and isolated runtime root.
 Native inspection exposed display labels being mistaken for IDs; fixing the
 producer and consuming `id` removed duplicate rows without a Launcher catalog.
 Launcher presentation, scope cancellation and native limits are recorded in
-`EterniaLauncher/docs/companion/planned/PROVIDER_HOME_SLICE_2026-09-25.md`.
+`EterniaLauncher/docs/archive/companion/PROVIDER_HOME_SLICE_2026-09-25.md`.

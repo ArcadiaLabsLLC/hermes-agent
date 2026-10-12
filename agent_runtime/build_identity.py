@@ -10,7 +10,7 @@ commit against the checkout's ``git rev-parse HEAD``. On 2026-09-07 at
 hermes head had moved — by a **docs-only landing**. The replacement started
 while the first was still leaving, lost the socket lock for good, and the
 session spent the rest of its life on the argv lane with `bridge stopped` on
-the sheet (plan ``EterniaLauncher/docs/mission_control/planned/restart-drain-fence.md``
+the sheet (plan ``EterniaLauncher/docs/archive/mission_control/restart-drain-fence.md``
 §0, ruling RS-6).
 
 A commit is the wrong question. The right one is *"does this checkout contain

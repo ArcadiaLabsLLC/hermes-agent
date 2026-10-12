@@ -2,7 +2,7 @@
 
 Lifted VERBATIM out of ``realm_sync._canonicalize_text_bytes`` on 2026-09-12,
 when the SKILL family joined the three-way pull model
-(``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+(``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 §4.1). ``realm_sync._canonicalize_text_bytes`` is now an alias of
 :func:`canonicalize_text_bytes`, so the publish path's behaviour is unchanged
 and the lift is proven by the existing EOL suite

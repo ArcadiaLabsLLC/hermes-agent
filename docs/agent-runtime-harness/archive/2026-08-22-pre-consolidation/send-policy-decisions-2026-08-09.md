@@ -1,6 +1,6 @@
 # Send-policy decisions — T2 / T5 / T7 (2026-08-09)
 
-Companion to `PERF_SEND_ANALYSIS_2026-08-09.md` (launcher repo, commit
+Companion to `EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/PERF_SEND_ANALYSIS_2026-08-09.md` (launcher repo, commit
 `f587e841`). T1/T3/T4/T6 shipped earlier the same day (hermes `ec1dd3498`).
 This note records what happened to the three operator-approved items that
 remained, including the one that is deliberately unimplemented.

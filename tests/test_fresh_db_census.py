@@ -25,7 +25,10 @@ from hermes_state import SessionDB
 
 
 def test_fresh_writer_open(tmp_path):
-    SessionDB(db_path=tmp_path / "fresh.db").close()
+    db = SessionDB(db_path=tmp_path / "fresh.db")
+    # The census must not stand between SessionDB and the opener it names.
+    assert db._creation_site.endswith(".test_fresh_writer_open:" + db._creation_site.rsplit(":", 1)[1])
+    db.close()
 
 
 def test_read_only_open_of_an_absent_store(tmp_path):

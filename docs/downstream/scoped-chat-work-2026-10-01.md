@@ -5,7 +5,7 @@ assignment, execution and lifecycle. This extends the existing Work adapter,
 without a Companion engine, another task store or workflow orchestration.
 
 Contract: [Conversation-scoped Work](../agent-runtime-harness/03-transport-and-wire.md#conversation-scoped-work).
-Launcher receipt: `EterniaLauncher/docs/companion/planned/SCOPED_CHAT_WORK_2026-10-01.md`.
+Launcher receipt: `EterniaLauncher/docs/archive/companion/SCOPED_CHAT_WORK_2026-10-01.md`.
 
 ## Verification
 

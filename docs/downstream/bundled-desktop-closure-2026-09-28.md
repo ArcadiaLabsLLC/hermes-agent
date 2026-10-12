@@ -1,6 +1,6 @@
 # Bundled desktop — import closure and package list (2026-09-28)
 
-What the **bundled-desktop** profile (`agent_runtime/bundle_profiles/bundled-desktop.yaml`) ships, per the standing rule *bundle only what is needed* (launcher `EterniaLauncher/docs/embedded_hermes/planned/PROFILE_MATRIX_2026-09-28.md`). Regenerate (the tables below are the `--markdown` output, pasted unedited):
+What the **bundled-desktop** profile (`agent_runtime/bundle_profiles/bundled-desktop.yaml`) ships, per the standing rule *bundle only what is needed* (launcher `EterniaLauncher/docs/embedded_hermes/subsystems/PROFILE_MATRIX_2026-09-28.md`). Regenerate (the tables below are the `--markdown` output, pasted unedited):
 
 ```
 python scripts/bundle_profile_closure.py --profile bundled-desktop --json <out.json> --markdown <out.md>

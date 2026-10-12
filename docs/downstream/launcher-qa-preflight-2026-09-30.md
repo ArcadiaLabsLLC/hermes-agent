@@ -60,7 +60,7 @@ diagnosis of the earlier Launcher's `launch_helper_wall_clock_timeout`.
 
 Receipts are retained under ignored `qa-artifacts/launcher-qa-preflight-20260930/`.
 Launcher qualification remains in
-`EterniaLauncher/docs/companion/planned/COMBINED_ACCEPTANCE_2026-09-29.md`.
+`EterniaLauncher/docs/companion/evidence/COMBINED_ACCEPTANCE_2026-09-29.md`.
 
 ## Documentation checks
 

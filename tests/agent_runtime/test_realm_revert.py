@@ -1,6 +1,6 @@
 """``hermes harness realm sync revert`` — the per-item revert-to-upstream lane.
 
-Plan: ``docs/mission_control/planned/realm-sync-local-changes-resolution.md``
+Plan: ``docs/archive/mission_control/realm-sync-local-changes-resolution.md``
 (launcher repo) Stage H. Three properties carry the design and each has its own
 section below: the PURE transition table, the ruling that a revert never mints a
 realm-visible tombstone (§AX7 authored-vs-diagnostic), and the accounting —
@@ -858,7 +858,7 @@ def test_a_canvas_dry_run_writes_nothing(tmp_path):
 
 # ══ the SKILL family (2026-09-12) ═══════════════════════════════════════════
 #
-# ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# ``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 # §4.5. This family's upstream is NOT under the subtree: it is the per-realm INBOX
 # mirror, which is the subtree's ``skills/`` tree copied LF-canonical and
 # package-filtered by the pull. A revert adopts THAT copy so a revert and a pull

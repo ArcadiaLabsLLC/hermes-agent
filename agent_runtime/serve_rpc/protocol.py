@@ -10,7 +10,7 @@ and all twenty verb families share.
 The METHOD lane: named JSON-RPC 2.0 methods on the serve transports.
 
 Increment 1 of the "CALL half" ruled in the launcher's
-``docs/mission_control/DECISION_push_and_rpc_2026-08-13.md`` §3, and framed by
+``docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md`` §3, and framed by
 launcher commit ``fa2226750``: **mirror ``tui_gateway``'s JSON-RPC 2.0 shape;
 do not invent a third convention.** Everything structural here is copied from
 ``tui_gateway/server.py`` rather than re-decided — the frames (``:1656``/

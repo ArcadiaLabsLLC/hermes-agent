@@ -23,7 +23,7 @@ Two adjacent defects are fixed in the same pass:
     ``<profile_home>/personas/<basename>`` — the persona was read out of the
     published path and then dropped. Two personas on one profile with
     same-named prompt files clobbered each other (Office realm-sync plan §5.1,
-    ``docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` in the
+    ``docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` in the
     launcher repo, named this; W-H4 fixed profile scoping but not the filename
     keying). Worse, the basename-keyed destination did not even round-trip: a
     publisher whose ``soul_overlay_path`` is ``personas/neko/SOUL.md`` published

@@ -7,7 +7,7 @@ Companion engine nor its daemon is imported. Phone bundles omit this capability.
 
 The contract is [Native Work methods](../agent-runtime-harness/03-transport-and-wire.md#native-work-methods).
 Launcher presentation and its source-parity receipts are recorded in
-`EterniaLauncher/docs/companion/planned/HERMES_WORK_VIEW_2026-09-30.md`.
+`EterniaLauncher/docs/archive/companion/HERMES_WORK_VIEW_2026-09-30.md`.
 
 ## Guarantees and limits
 

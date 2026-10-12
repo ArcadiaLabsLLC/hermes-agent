@@ -1,7 +1,7 @@
 """Per-item revert-to-upstream for realm store drift — the second exit from
 "unpublished changes" (``hermes harness realm sync revert``).
 
-Plan: ``docs/mission_control/planned/realm-sync-local-changes-resolution.md``
+Plan: ``docs/archive/mission_control/realm-sync-local-changes-resolution.md``
 (launcher repo), Stage H. Until this module existed the ONLY exit the product
 offered an operator holding local store drift was **Publish** — pull
 deliberately never clobbers local state (correct), so an operator whose local

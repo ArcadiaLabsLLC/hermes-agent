@@ -24,4 +24,4 @@ Login-health rows expose canonical `id` separately from display `name`. Clients
 join catalog, health and credentials by ID; display labels remain presentation.
 
 Qualification: [runtime evidence](../downstream/provider-setup-verification.md)
-and `EterniaLauncher/docs/companion/planned/PROVIDER_HOME_SLICE_2026-09-25.md`.
+and `EterniaLauncher/docs/archive/companion/PROVIDER_HOME_SLICE_2026-09-25.md`.

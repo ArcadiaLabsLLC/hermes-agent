@@ -23,7 +23,7 @@ Cadence: weekly merge, or sooner when a needed upstream fix lands. The scheduled
 
 ## Consequences
 
-- `docs/agent-runtime-harness/planned/upstream-sync-automation.md` on `main` describes the retired method; it is deleted with the retargeted job description (queue row).
+- `upstream-sync-automation.md` (formerly under `docs/agent-runtime-harness/planned/`) described the retired method; it was deleted with the retargeted job description at `a0b5b2e1b5`.
 - The first merge under this ruling is [[upstream-merge-2026-09-21]].
 
 ## Alternatives

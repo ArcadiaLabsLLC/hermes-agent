@@ -6,7 +6,7 @@ tool schemas, which ship in full on every API call) while the turn was billed
 per call across a 2-19 call tool loop. Two parallel authorities, no
 reconciliation, a 6K inspector next to a 13K bill.
 
-Design: docs/mission_control/TOKEN_AUTHORITY_DESIGN_2026-07-16.md (launcher repo).
+Design: docs/archive/mission_control/2026-08-22-pre-consolidation/TOKEN_AUTHORITY_DESIGN_2026-07-16.md (launcher repo).
 """
 
 from __future__ import annotations

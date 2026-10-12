@@ -1,7 +1,7 @@
 """The SKILL family's half of the three-way realm-sync model.
 
 Added 2026-09-12. Authority:
-``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 §4 (diagnosis in §1–2). Sibling modules — ``board_sync``, ``office_sync``,
 ``persona_config_sync``, ``persona_instance_sync``, ``flow_graph_sync``,
 ``level_sync``, ``profile_artifact_sync`` — each own one family's baseline

@@ -57,7 +57,7 @@ MAX_FOLDERS = 64
 # the conflict guard, the revision check and every EventLog emission on the
 # write path. Handling of legacy per-persona desks is the LAUNCHER's, at its one
 # load chokepoint (drop-and-report) — see the plan
-# ``EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md``.
+# ``EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md``.
 
 
 #: The hook :meth:`OfficeStore.upsert_actor` calls INSIDE ``office_lock`` to

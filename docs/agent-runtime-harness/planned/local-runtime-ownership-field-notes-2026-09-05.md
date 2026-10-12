@@ -624,7 +624,7 @@ check was made rather than assumed.
 ## Q-h — the parser owns its failure; one live device row (RL-24, RL-23)
 
 Queue follow-ups from §8.10 of
-`EterniaLauncher/docs/mission_control/planned/local-runtime-ownership-and-retry-safety.md`
+`EterniaLauncher/docs/archive/mission_control/local-runtime-ownership-and-retry-safety.md`
 (verdicts 3, 4 and 10), built in
 worktree `wt/c1-open-chat`, branch `feat/queue-hermes-followups`, from main
 `f7b89826eb`. Two rulings, one commit each. Nothing here touched the operator's
@@ -1031,7 +1031,7 @@ Lint: `uvx ruff@0.15.10 check` on both product files and both test modules —
 
 Branch `feat/charsheet-fake-draftsman`, worktree `X:/wt/p-fake-draftsman`, base
 `origin/main` at `f7b89826eb`. Filed by
-`EterniaLauncher/docs/mission_control/planned/local-runtime-ownership-and-retry-safety.md`
+`EterniaLauncher/docs/archive/mission_control/local-runtime-ownership-and-retry-safety.md`
 §8.10b, after the P-l builder stopped at RL-25's own fixture gate and wrote the
 gap down instead of spending a provider call.
 

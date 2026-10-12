@@ -9,6 +9,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+from agent_runtime.launcher_app_functions import METHOD_PREFIX
 from agent_runtime.launcher_client_requests import ClientRequestFailed
 from agent_runtime.launcher_invocation import launcher_invocation
 from .worker_app_functions import METHOD
@@ -83,7 +84,7 @@ class NativeAppFunctions:
                 raise ValueError("The requesting turn is no longer active.")
             payload = frame["params"]["request"]
             method, params = payload["method"], payload.get("params", {})
-            if not isinstance(method, str) or not method.startswith("launcher.") or not isinstance(params, dict):
+            if not isinstance(method, str) or not method.startswith(METHOD_PREFIX) or not isinstance(params, dict):
                 raise ValueError("Invalid app-function request.")
             if len(json.dumps(payload, ensure_ascii=True)) > MAX_BYTES:
                 raise ValueError("App-function request exceeds the document limit.")

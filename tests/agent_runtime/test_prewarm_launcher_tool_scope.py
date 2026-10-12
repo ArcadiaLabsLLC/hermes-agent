@@ -37,7 +37,7 @@ _CREATE = {
     "description": "Create editable content in this conversation.",
     "parameters": {"type": "object", "properties": {
         "document_json": {"type": "string"}}, "required": ["document_json"]},
-    "reach": "local",
+    "reach": "localOnly",
     "always_loaded": True,
 }
 

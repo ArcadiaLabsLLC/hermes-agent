@@ -1,7 +1,7 @@
 # Bundled desktop profile — the Hermes that ships inside the Launcher.
 #
 # Source: the "Bundled desktop" column of the launcher's profile matrix
-# (`EterniaLauncher/docs/embedded_hermes/planned/PROFILE_MATRIX_2026-09-28.md`).
+# (`EterniaLauncher/docs/embedded_hermes/subsystems/PROFILE_MATRIX_2026-09-28.md`).
 # Standing rules: enable, never reimplement; bundle only what is needed.
 #
 # Every switch below is an EXISTING Hermes switch. Nothing here adds a flag:
