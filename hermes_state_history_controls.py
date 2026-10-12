@@ -9,6 +9,8 @@ import hashlib
 import json
 import time
 
+from hermes_state_titles import next_title_in_lineage
+
 
 class HistoryControlError(ValueError):
     def __init__(self, reason: str):
@@ -89,7 +91,8 @@ class SessionHistoryControlsMixin:
                        "user_id", "chat_type", "origin_json", "display_name")
             copied = {name: source[name] for name in columns if name in source.keys()}
             copied.update(id=child_session_id, parent_session_id=session_id,
-                          started_at=time.time(), title=title, model_config=json.dumps(model_config))
+                          started_at=time.time(), title=next_title_in_lineage(conn, title),
+                          model_config=json.dumps(model_config))
             conn.execute(f"INSERT INTO sessions ({', '.join(copied)}) VALUES "
                          f"({', '.join('?' for _ in copied)})", tuple(copied.values()))
             comparison = "<=" if after_reply else "<"

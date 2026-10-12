@@ -561,3 +561,31 @@ capture schema with no managed build-status tool. The operator is away and
 requested the remaining independent checks. Native proof is still pending a
 fresh host connection; neither feature PR has been merged. Launcher evidence:
 `EterniaLauncher/docs/mission_control/evidence/console-history-controls-qualification.md`.
+
+### Native sibling-branch defect — 2026-10-12
+
+The fresh Launcher QA lane admitted the rebuilt server and reproduced a real
+runtime defect: the first branch succeeded; a second branch from the same
+source returned an unknown outcome. The native unique session-title index
+rejected the repeated `source · branch` title. Nested branching succeeded
+because it requested a different title. No extra child or receipt was committed.
+
+`SessionHistoryControlsMixin.branch_before_message` now uses the existing
+`hermes_state_titles.next_title_in_lineage` on its writer connection. Title
+allocation, prefix cloning and the receipt remain one transaction; no upstream
+file or index changed and no second naming algorithm was added.
+
+The real serve/SQLite regression
+`test_repeated_sibling_branches_allocate_native_titles_and_replay` failed for
+both boundaries before this change (`turn_outcome_unknown` on the second
+sibling), then passed. It verifies three siblings, unique native titles,
+replay/status identity, exact copied prefixes and unchanged source rows and
+session metadata. Replacing allocation with the supplied title is the killing
+mutation. Per-file authority: **34 passed** across history controls, repair and
+canonical-title guards. Local logs: `history-native-sibling-branch-red.log`,
+`history-native-sibling-branch-green.log`, `history-native-sibling-authority.log`.
+
+The stale capture-session restriction above is historical. Fresh native proof
+is running; combined Undo already passed with actual row and file checks.
+The corrected runtime still needs native repeated-sibling proof. Neither
+feature PR has landed.

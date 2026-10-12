@@ -47,6 +47,41 @@ def test_branch_copies_exact_prefix_leaves_source_and_default_binding_and_replay
     assert status["state"] == "applied" and status["result"]["branch"]["session_id"] == child
 
 
+@pytest.mark.parametrize("boundary", ["before_user_message", "after_reply"])
+def test_repeated_sibling_branches_allocate_native_titles_and_replay(tmp_path, monkeypatch, boundary):
+    target, before, _, _ = setup(tmp_path, monkeypatch)
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        db.set_session_title(target["session_id"], "Review_100%")
+        source = db.get_session(target["session_id"])
+    children = []
+    for index in range(3):
+        preview = call("history.preview", {
+            **target, "action": "branch", "row_id": before[10]["id"], "boundary": boundary,
+        })["result"]
+        request = {**target, "action": "branch", "row_id": preview["row_id"],
+                   "boundary": boundary, "preview_token": preview["preview_token"],
+                   "operation_id": f"sibling-branch-operation-{index}"}
+        response = call("history.apply", request)
+        assert "result" in response, response
+        child = response["result"]["result_session_id"]
+        children.append(child)
+        assert call("history.apply", request)["result"]["result_session_id"] == child
+        status = call("history.status", {**target, "operation_id": request["operation_id"]})["result"]
+        assert status["state"] == "applied"
+        assert status["result"]["branch"]["session_id"] == child
+    assert len(set(children)) == 3
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        assert [db.get_session(child)["title"] for child in children] == [
+            "Review_100% · branch", "Review_100% · branch #2", "Review_100% · branch #3",
+        ]
+        assert db.get_session(target["session_id"]) == source
+        assert db.get_messages(target["session_id"]) == before
+        prefix = before[:12 if boundary == "after_reply" else 10]
+        for child in children:
+            assert [(r["role"], r["content"]) for r in db.get_messages(child)] == [
+                (r["role"], r["content"]) for r in prefix]
+
+
 def test_rewind_archives_instead_of_deleting_and_receipt_survives_restart(tmp_path, monkeypatch):
     target, before, _, request = setup(tmp_path, monkeypatch, "rewind")
     from agent_runtime.persona_chat_session import _persona_chat_native_revision
