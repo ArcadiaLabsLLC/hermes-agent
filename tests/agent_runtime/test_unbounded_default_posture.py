@@ -515,13 +515,16 @@ def test_persona_safety_tools_are_visible_again_under_the_default():
     # (``check_fn``) and simply not registered without a messaging platform
     # configured, which is a capability fact, not a permission one.
     #
-    # ``cronjob`` moved into that same class on 2026-09-03 (S0a A1): the harness
-    # lane now admits by the profile's DECLARATION (``harness_core``), which does
-    # not name the ``cronjob`` toolset, so the tool is absent for want of a
-    # declaration rather than for want of permission. It is still un-blocked —
-    # asserted below — which is the fact this test exists to pin. A profile that
-    # wants it back writes ``toolsets: [harness_core, cronjob]``.
+    # ``cronjob`` moved into that same class on 2026-09-03 (S0a A1): admitted by
+    # the profile's DECLARATION, not by permission. From 2026-09-03 to 2026-10-12
+    # ``harness_core`` did not name the toolset, so the tool was absent for want
+    # of a declaration; ADR 0015 step 1 put ``cronjob`` INTO ``harness_core``
+    # (the serve hosts the ticker now), so it is declared AND un-blocked — both
+    # asserted below.
+    from agent_runtime.harness_toolset import HARNESS_CORE_INCLUDES
+
     assert {"delegate_task", "memory"} <= final
+    assert "cronjob" in HARNESS_CORE_INCLUDES
     assert "cronjob" not in blocked
 
 

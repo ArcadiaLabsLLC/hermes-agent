@@ -421,6 +421,9 @@ def format_process_notification(evt: dict) -> "str | None":
     if evt_type == "mcp_job_finished":  # fork: tools/mcp_job_wake.py
         from tools.mcp_job_wake import format_job_finished
         return format_job_finished(evt)
+    if evt_type == "cron_job_finished":  # fork: agent_runtime/cron_wake.py
+        from agent_runtime.cron_wake import format_cron_job_finished
+        return format_cron_job_finished(evt)
     _sid, _cmd = evt.get("session_id", "unknown"), evt.get("command", "unknown")
     _attribution = _delegation_attribution_line(evt)
     if evt.get("handoff_note"):

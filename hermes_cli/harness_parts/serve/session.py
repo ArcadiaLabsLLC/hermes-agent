@@ -311,6 +311,7 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             return exit_code
         self._boot_embedded_conversations()
         self._boot_gateway_lane()
+        self._boot_cron_lane()
         self._boot_register_instance()
         self._arm_service_stderr_log()
         self._prune_stale_records()
@@ -618,6 +619,10 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         #: lock, its pool, its stream hub and its drain; what it does not share is
         #: the credential (per device, not per root) and the encryption (TLS).
         self.gateway_server: Any = None
+        #: The serve-hosted cron ticker's thread handle (``agent_runtime.cron_lane``; ADR 0015
+        #: step 1), ``None`` when the switch is off, the bundle ships no ``cron``, or in every
+        #: ``serve_loop`` unit test. Stopped by ``liveness_stop``, like the delivery drain.
+        self.cron_ticker: Any = None
         #: The ONE stream producer, built on the first ``subscribe`` and stopped
         #: when the last subscriber leaves. Never per client: a delta batch rebuilds
         #: a full snapshot core, so N generators would cost N of them.

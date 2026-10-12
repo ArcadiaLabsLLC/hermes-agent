@@ -123,6 +123,12 @@
       "tools": [
         "execute_code"
       ]
+    },
+    {
+      "name": "cronjob",
+      "tools": [
+        "cronjob_manage"
+      ]
     }
   ],
   "tools": [
@@ -309,6 +315,13 @@
       "description": "Ask the user one or more questions when you need a decision, clarification, or feedback before proceeding. Pass every question in `questions` (1-5 entries) —..."
     },
     {
+      "name": "cronjob_manage",
+      "toolset": "cronjob",
+      "mutating": false,
+      "gated": true,
+      "description": "Manage scheduled cron jobs: action='create' schedules a job from a prompt and/or skills; 'list' inspects jobs; 'update'/'pause'/'resume'/'remove' manage one..."
+    },
+    {
       "name": "delegate_task",
       "toolset": "delegation",
       "mutating": false,
@@ -443,9 +456,9 @@
     }
   ],
   "counts": {
-    "tools": 45,
-    "toolsets": 15,
-    "token_estimate": 10176
+    "tools": 46,
+    "toolsets": 16,
+    "token_estimate": 11778
   },
   "cli_only_verbs": [
     "persona instance open-chat",

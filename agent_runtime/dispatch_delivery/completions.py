@@ -44,7 +44,9 @@ _background_attempts: dict[str, int] = {}
 #: Event types delivered the way a finished background ``terminal`` is: steered into a busy turn,
 #: dropped loudly when their persona instance is gone. ``mcp_job_finished`` is an MCP server's
 #: job-finished wake (``tools/mcp_job_wake.py``; owner ruling 2026-10-03: a QA build is a background task).
-_PROCESS_LIKE_EVENTS = frozenset({"completion", "mcp_job_finished"})
+#: ``cron_job_finished`` is a bound cron job's finished run (``agent_runtime/cron_wake.py``; ADR 0015
+#: step 1, 2026-10-12): the persona chat that created the job is woken the same way.
+_PROCESS_LIKE_EVENTS = frozenset({"completion", "mcp_job_finished", "cron_job_finished"})
 
 
 def _settled(evt: dict[str, Any]) -> None:

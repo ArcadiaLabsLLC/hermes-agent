@@ -204,6 +204,31 @@ parent is holding its stderr pipe open and reading it as frames, and moving that
 take the output away from the process that asked for it. There is no fd-level `dup2`: a raw fd 2
 would be inherited by every subprocess a handler spawns, which is a different question.
 
+## Stage 4b — the cron lane (ADR 0015 step 1, 2026-10-12)
+
+Between the peer-gateway lane and the registry row, `BootPhases._boot_cron_lane` hands the
+session to `agent_runtime/cron_lane.py::boot_serve_cron_lane`. It starts upstream's own
+`InProcessCronScheduler` on upstream's own `SupervisedTickerThread`, multiplexed over every
+profile home on this install (`profile_homes`, re-enumerated each cycle so a persona profile
+minted after boot is ticked), with no delivery adapters and `can_dispatch` bound to "no drain
+has begun". Until this lane the ticker lived only in upstream's gateway process, which the
+Launcher never runs, so a job a persona created was stored and never fired.
+
+One receipt line, never a frame key: `{"event": "cron_lane", "outcome": ticking | disabled |
+unavailable}`. `disabled` is `cron.serve_ticker: false` (every phone bundle sets it — no
+background ticker on a phone, whose reminders run on its paired host); `unavailable` is a bundle
+that ships no `cron` package (the imports are guarded for the phone closure). Two tickers on
+one home never double-fire: upstream's per-home tick lock serialises a serve beside a gateway.
+
+The ticker stops on `liveness_stop`, like the delivery drain. A run's output is saved by
+upstream (`deliver=local`); the persona chat that created the job is woken by
+`agent_runtime/cron_wake.py` — bound at the `cronjob` create result through the plugin's
+`post_tool_call` observer, polled by the delivery drain each pass, queued as a
+`cron_job_finished` event on `process_registry.completion_queue`, delivered by the same
+process-completion lane as a finished background `terminal` (steered into a busy turn, a turn on
+an idle one, dropped loudly when the persona instance is gone). The binding checkpoint is
+`<background-work home>/cron_jobs.json`, beside `processes.json`, so a restart keeps it.
+
 ## Stage 5 — the hygiene sweeps
 
 **Orphaned turns** (`orphaned_turn_sweep_ms`, `serve.py:3839` →

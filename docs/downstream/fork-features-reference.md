@@ -176,3 +176,15 @@ out) and completion runs an agent turn, upstream's behaviour — the former
 In Mission Control the serve drain delivers it: a busy turn is steered, an idle thread
 gets a turn, an orphaned chat root drops it. `display.background_process_notifications`
 is upstream's (`concise`).
+
+## Cron: the serve hosts the ticker, and a run wakes the chat that scheduled it
+
+ADR 0015 step 1 (2026-10-12). `hermes harness serve` runs upstream's in-process cron ticker
+(`agent_runtime/cron_lane.py`), multiplexed over every profile on the install, so a job a persona
+creates from a chat fires without a gateway. `cronjob` is a `harness_core` member, so every
+persona can schedule; upstream's `cron.allow_agent_scheduling` still keeps a job from scheduling
+jobs. The run's output is saved by upstream; `agent_runtime/cron_wake.py` binds the job to the
+chat that created it (at the `cronjob` create result) and wakes that chat with a
+`cron_job_finished` completion when the run is over — once per run, through the same drain a
+finished background `terminal` uses. Switch: `cron.serve_ticker` (default on; the phone bundle
+sets it off). Receipt: the serve's `cron_lane` stderr line.

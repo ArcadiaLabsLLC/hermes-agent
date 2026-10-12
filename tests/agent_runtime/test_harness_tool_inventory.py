@@ -79,8 +79,11 @@ def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitte
     # ratchet in the same commit, never adjusted to make a red go green.
     # 44 -> 45: HQ1 registered ``harness_query`` into ``agent_chat`` (2026-10-01),
     # re-measured with the ratchet in the same commit.
-    assert inventory["counts"]["tools"] == len(names) == 45
-    assert inventory["counts"]["toolsets"] == 15
+    # 45 -> 46, 15 -> 16: ADR 0015 step 1 (2026-10-12) added the ``cronjob`` toolset
+    # (``cronjob_manage``) to ``harness_core`` — the serve hosts the ticker now, so a
+    # persona can schedule. Re-measured with the ratchet in the same commit.
+    assert inventory["counts"]["tools"] == len(names) == 46
+    assert inventory["counts"]["toolsets"] == 16
     assert inventory["declared"] == ["harness_core"]
 
 

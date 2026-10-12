@@ -44,6 +44,9 @@ toolsets:
 
 config:
   delegation.worktree_isolation: false
+  # The serve-hosted cron ticker (agent_runtime/cron_lane.py): no background ticker on a phone;
+  # a phone's reminders run on its paired host.
+  cron.serve_ticker: false
   terminal.backend: local
   wake_word.enabled: false
   updates.check: false

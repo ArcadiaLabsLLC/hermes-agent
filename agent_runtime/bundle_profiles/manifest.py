@@ -45,6 +45,7 @@ SCHEMA_VERSION = 1
 #: to that file.
 KEYS_READ_OUTSIDE_DEFAULTS = {
     "delegation.worktree_isolation": "tools/delegate_tool_config.py::_get_worktree_isolation",
+    "cron.serve_ticker": "agent_runtime/cron_lane.py::serve_ticker_enabled",
     "mcp.stdio_servers": "tools/mcp_tool_common.py::mcp_stdio_servers_allowed",
     "mcp.client": "tools/mcp_tool_common.py::mcp_client_enabled",
     "tts.piper.download_voices": "tools/tts_tool_local.py::_load_piper_voice_for_config",

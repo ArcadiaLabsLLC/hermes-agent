@@ -440,6 +440,18 @@ class BootPhases:
             except Exception:  # noqa: BLE001 — courtesy channel, never the boot
                 pass
 
+    def _boot_cron_lane(self) -> None:
+        # 3c. THE CRON LANE (ADR 0015 step 1, 2026-10-12): upstream's in-process
+        #     ticker, which only the gateway used to host, so a job a persona
+        #     created was stored and never fired. The lane owns the step
+        #     (``agent_runtime.cron_lane.boot_serve_cron_lane``): the switch, the
+        #     multiplex over profile homes, the drain gate, the one receipt line.
+        #     Stopped by ``liveness_stop``. Never raises: a runtime that cannot
+        #     schedule still serves.
+        from agent_runtime.cron_lane import boot_serve_cron_lane
+
+        boot_serve_cron_lane(self)
+
     def _boot_register_instance(self) -> None:
 
         # 4. DISCOVERY. Multiple runtime roots legitimately coexist on this

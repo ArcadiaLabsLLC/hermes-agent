@@ -311,6 +311,13 @@ def route_blocked_kanban_cards(**kwargs):
     on_kanban_dispatch_tick(**kwargs)
 
 
+def observe_cron_job_result(**kwargs):
+    """``post_tool_call`` observer: a ``cronjob`` create binds the job to the chat that made it."""
+    from agent_runtime.cron_wake import observe_cronjob_result
+
+    observe_cronjob_result(**kwargs)
+
+
 def record_kanban_crash_evidence(**kwargs):
     """``on_kanban_worker_exited`` hook: a redacted crash artifact for the reclaimed run."""
     from hermes_cli.kanban_crash_evidence import on_kanban_worker_exited
@@ -385,6 +392,7 @@ def register(ctx) -> None:
     ctx.register_hook("transform_tool_result", skill_view_result)
     ctx.register_hook("on_kanban_dispatch_tick", route_blocked_kanban_cards)
     ctx.register_hook("on_kanban_worker_exited", record_kanban_crash_evidence)
+    ctx.register_hook("post_tool_call", observe_cron_job_result)
     ctx.register_hook("pre_gateway_dispatch", answer_queue_status)
     # Joins the built-in `skills` toolset by registry membership: a platform bundle reaches it through
     # `skills` (hermes_cli.tools_config._get_platform_tools maps a bundle onto its member toolsets), and

@@ -285,6 +285,17 @@ def sweep_orphaned_dispatches() -> int:
         return 0
 
 
+def _poll_cron_wakes() -> int:
+    """Queue a wake for every bound cron job that finished a run (``agent_runtime/cron_wake.py``).
+
+    Runs BEFORE the background-completion pass of the same tick so a wake it queues is
+    delivered in this pass, not the next one."""
+
+    from ..cron_wake import poll_cron_wakes
+
+    return poll_cron_wakes()
+
+
 def start_delivery_drain(
     *,
     stop_event: threading.Event,
@@ -316,6 +327,10 @@ def start_delivery_drain(
                     drain_once(policy=policy)
                 except Exception:  # pragma: no cover - a drain must never die
                     logger.debug("dispatch delivery pass failed", exc_info=True)
+                try:
+                    _poll_cron_wakes()
+                except Exception:  # pragma: no cover
+                    logger.debug("cron wake pass failed", exc_info=True)
                 try:
                     drain_background_completions(policy=policy)
                 except Exception:  # pragma: no cover
