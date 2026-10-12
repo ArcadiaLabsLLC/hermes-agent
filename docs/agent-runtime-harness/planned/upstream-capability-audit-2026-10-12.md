@@ -329,6 +329,10 @@ transition between modes is a scenario change, not an account change. So "dev/po
 persona kinds" above means the MODE a surface is in, decided per persona profile and per
 scenario, never a label on the user. Agents can do all of it; the surface shows the part
 the scenario needs.
+The canonical everyday case is not a lesser developer: it is a person who just chats
+and wants a small task done, or runs a small business in a loop — a recurring check, a
+follow-up, a thing that takes longer than one reply. That case is served entirely by the
+engine, cron and the persona-side submit verb, with no control on the surface at all.
 
 **Work is already multi-surface, and the engine is not.** The Launcher mounts one Work
 lane (`eternia_work_experience` ports, `eternia_workbench_ui` presentation,
