@@ -1,0 +1,73 @@
+# Session commentary and turn-start diagnosis — 2026-10-12
+
+PR #8 is merged at `b989d262e5`; its Fork gates run `38313749609` passed.
+Those gates cover selected fork claims, not the whole regression suite.
+The source baseline for this diagnosis is `56777bc3e5`.
+
+## H03: confirmed delivery race, upstream candidate prepared
+
+The unchanged Session API file passes 39 tests alone. A bounded 30-case probe
+reusing its commentary scenario produces 29 passes and one failure: the wire
+contains sequence numbers 1, 2, 4, 5, 6. Commentary event 3 was stamped but never
+delivered. The final answer and the separate Responses stream are intact.
+
+Owner: `gateway/platforms/api_server.py::_SessionEventQueue` and
+`APIServerAdapter._handle_session_chat_stream`. Worker callbacks schedule their
+puts onto the loop; terminal events and EOS put directly. On Python 3.13, an
+executor Future may finish before `asyncio.wrap_future` registers its callback.
+Awaiting the already-complete wrapper does not yield. Direct terminal puts can
+therefore reach EOS before the scheduled worker puts. This affects commentary,
+text deltas and tool events, on both successful and failed turns.
+
+A real `ThreadPoolExecutor` that returns only after its submitted work finishes
+makes this interleaving deterministic. On current upstream `ee36aed5adc7`, the
+new endpoint test reports two failures (already-finished success/failure) and
+two passes (ordinary scheduling). No callback, assertion or timeout is weakened.
+
+Candidate: [codex/session-sse-order](https://github.com/ArcadiaLabsLLC/hermes-agent/tree/codex/session-sse-order),
+commits `879c2a31cd` and `addf508ad5`. All queued events and EOS use the existing
+loop scheduler; sequence stamping happens on that loop. There is no second
+buffer, blocking acknowledgment, lock, retry or Eternia import. The existing
+live-bot direct writer and Responses writer are unchanged.
+
+Qualification: 184 distinct tests across the Session API, API server, ordering,
+keepalive, active-work drain and turn-boundary files pass without retries. The
+four ordering cases also pass after fixture registration cleanup. All 12
+`scripts/check --base ee36aed5adc737db49c94316ffeb97d3fb8dc099` checks pass.
+The exact original red is in the fix commit body. No full upstream suite claim.
+
+Existing-work search found [upstream PR #89748](https://github.com/NousResearch/hermes-agent/pull/89748):
+the same executor-completion race on `/v1/runs`, using a bounded blocking
+acknowledgment. It does not cover the Session API endpoint reproduced here.
+Coordinate there before opening another PR; do not claim either patch fixes
+the other endpoint. No upstream comment or new PR has been posted. The candidate
+is **not on fork main**. The unchanged upstream owner remains unchanged in the
+fork, following `Harness_Brain/00 — Maps/Fork Boundary Map.md`.
+
+## H01: still open, no speculative runtime change
+
+An instrumented copy of the original slow-turn scenario, alongside eight of
+the existing H01 files with eight workers, passes: 86 tests, one existing skip,
+65.0 seconds. It retains the original six-second start and 3.6-second end
+bounds. This run omits the two-roots file and the original fast-turn prefix;
+it is additional evidence, not a reproduction of the original entire schedule.
+
+The scenario subscribes without fold capabilities and waits for the fallback
+core carrying both the named start event and `running_work`. Current Launcher
+can use `persona_chat_turn`; this test does not prove that path either way.
+The next failing run needs the received-frame timeline and build/yield receipts
+at the deadline. Do not raise its deadline, classify it as TLS, or retire it
+because the latest run passed. Production code and the original test are unchanged.
+
+## Retained local receipts
+
+Logs are in the shared worktree parent, not operator storage. Temporary probes
+are investigation scaffolding, not new default-suite gates.
+
+| Log | SHA-256 |
+| --- | --- |
+| `stream-delivery-commentary-probe.log` | `02a731a7c6e6410e688ad349f25fe5f91e629f285a53b8883351d05cdd66e36e` |
+| `session-sse-upstream-red.log` | `fe35ad7e04d8cea921226d683baf6dfcba899f1dc6f55a91964275a10e7bd847` |
+| `session-sse-upstream-green.log` | `b47ceb7b23270089cd74e30537ab7e12d90de680a7b096197d856e214f429a38` |
+| `session-sse-upstream-adjacent-green.log` | `4a4ab52b9f2434b345530f3f22b36487db02ad3bae4527cf989440ac818061f8` |
+| `stream-delivery-start-loaded-probe.log` | `d96282cb81f777c787bd7ce7307bebb7453f9d9da67237fb354e60018c78689a` |
