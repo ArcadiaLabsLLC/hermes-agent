@@ -1119,8 +1119,8 @@ class _ProviderAuthResolutionError(RuntimeError):
 
 
 class _SessionEventQueue:
-    """Ordered SSE event queue for one /api/sessions/{id}/chat/stream run. ``payload`` stamps
-    session_id/run_id/seq/ts; ``enqueue`` is executor-thread safe (hops onto the owning loop)."""
+    """Ordered session SSE queue: callbacks, terminal events and EOS share one loop writer.
+    ``payload`` stamps session_id/run_id/seq/ts; ``enqueue`` is executor-thread safe."""
 
     def __init__(self, session_id: str, run_id: str):
         self.loop = asyncio.get_running_loop()
@@ -1138,9 +1138,8 @@ class _SessionEventQueue:
         return name, payload
 
     def enqueue(self, name: str, payload: dict[str, Any]) -> None:
-        # Always schedule, including on the owning loop: a fast worker can finish
-        # before run_in_executor wraps its future, so awaiting it need not yield.
-        # Direct terminal puts would then overtake its queued callback events.
+        # Schedule terminal events too: awaiting a fast worker may not yield.
+        # Only the owning loop stamps sequence numbers and writes to the queue.
         with suppress(RuntimeError):
             self.loop.call_soon_threadsafe(self._put, name, payload)
 
@@ -1148,7 +1147,6 @@ class _SessionEventQueue:
         self.queue.put_nowait(self.payload(name, payload))
 
     def close(self) -> None:
-        """Deliver done and EOS after every event already scheduled on this loop."""
         self.enqueue("done", {})
         self.loop.call_soon_threadsafe(self.queue.put_nowait, None)
 

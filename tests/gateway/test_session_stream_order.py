@@ -7,11 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from tests.gateway.test_session_api import (
-    _create_session_app,
-    adapter,
-    session_db,
-)
+from tests.gateway.test_session_api import _create_session_app
+
+pytest_plugins = ("tests.gateway.test_session_api",)
 
 
 class CompletedWorkerPool(ThreadPoolExecutor):
