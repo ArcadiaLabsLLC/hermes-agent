@@ -27,7 +27,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Follow-on: support chat-specific reasoning effort through the existing operator model-settings verb and session override, so one chat can be quick and another deep without changing their agent default.** · `agent_runtime/operator_session_models.py::_select_operator_model`, `agent_runtime/mission_chat_overrides.py` · current selection accepts model/scope only; use the existing provider capability projection for valid effort levels, preserve inherited defaults and busy-turn/ownership refusals, return effective scope in existing facts and verify persistence plus other-chat isolation · Launcher consumes after Hermes; separate from the claimed provider-capability projection row · owner recommendation 2026-10-12, nonblocking for model selection · UNCLAIMED
+- [ ] **Follow-on: support chat-specific reasoning effort through the existing operator model-settings verb and session override, so one chat can be quick and another deep without changing their agent default.** · `agent_runtime/operator_session_models.py::_select_operator_model`, `agent_runtime/persona_chat_session.py::_persist_chat_model_override` · current selection accepts model/scope only; use the existing provider capability projection for valid effort levels, preserve inherited defaults and busy-turn/ownership refusals, return effective scope in existing facts and verify persistence plus other-chat isolation · Launcher consumes after Hermes; separate from the claimed provider-capability projection row · owner recommendation 2026-10-12, nonblocking for model selection · UNCLAIMED
 
 ### Filed on arrival — 2026-10-12 (composer thinking meter)
 
