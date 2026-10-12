@@ -78,7 +78,9 @@ def operator_model_facts(params: dict) -> dict:
     return {**settings, "facts": {
         **projected, "default_model_id": model_key(provider, name) if provider and name else None,
         "can_save_model_default": not is_managed(),
-        "default_affects_inherited_sessions": True, **effort,
+        "default_affects_inherited_sessions": True,
+        "can_reset_model_override": True,
+        "model_is_default": model["model_is_default"], **effort,
     }}
 
 
@@ -96,6 +98,8 @@ def operator_selected_model_facts(params: dict) -> dict:
                             if default_provider and default_name else None,
         "can_save_model_default": not is_managed(),
         "default_affects_inherited_sessions": True,
+        "can_reset_model_override": True,
+        "model_is_default": model["model_is_default"],
         "reasoning_effort": model["effective_reasoning_effort"],
         "reasoning_effort_source": model["reasoning_effort_source"],
         "reasoning_capabilities": model["reasoning_capabilities"],
@@ -126,33 +130,40 @@ def select_operator_model(params: dict) -> dict:
         reason = getattr(exc, "reason", None) or type(exc).__name__
         log_model_selection(**receipt, outcome=f"refused:{reason}", saved=None)
         raise
-    log_model_selection(**receipt, outcome="applied", saved=_SAVED[params["scope"]])
+    saved = "session_override_cleared" if params.get("use_agent_default") is True else _SAVED[params["scope"]]
+    log_model_selection(**receipt, outcome="applied", saved=saved)
     return facts
 
 
 def _select_operator_model(params: dict) -> dict:
     scope, choice = params.get("scope"), params.get("model_id")
-    if scope not in ("conversation", "agent_default") or not isinstance(choice, str):
+    inherit = params.get("use_agent_default", False)
+    if type(inherit) is not bool or scope not in ("conversation", "agent_default"):
+        raise OperatorConversationRefused("invalid_model_selection")
+    if inherit and (scope != "conversation" or choice is not None):
+        raise OperatorConversationRefused("invalid_model_selection")
+    if not inherit and not isinstance(choice, str):
         raise OperatorConversationRefused("invalid_model_selection")
     with operator_session_read(params) as (instance, _):
         _require_idle(params["session_id"])
-        selection = _selected_model(instance, choice)
+        selection = None if inherit else _selected_model(instance, choice)
     try:
         with persona_chat_root_lease(params["session_id"], observer_kind="model_selection"):
             _require_idle(params["session_id"])
-            _write_model(params, selection, save_default=scope == "agent_default")
+            _write_model(params, selection, save_default=scope == "agent_default", use_agent_default=inherit)
     except PersonaChatBusyError as exc:
         raise OperatorConversationRefused("conversation_busy") from exc
     return operator_model_facts(params)
 
 
-def _write_model(params: dict, selection: tuple[str, str, str], *, save_default: bool) -> None:
+def _write_model(params: dict, selection: tuple[str, str, str] | None, *, save_default: bool,
+                 use_agent_default: bool = False) -> None:
     from hermes_cli.config import is_managed
     from hermes_cli.harness_parts.persona.chat_request import _requested_chat_model_override
 
     if save_default and is_managed():
         raise OperatorConversationRefused("managed_model_default")
-    provider, model, api_mode = selection
+    provider, model, api_mode = selection if selection is not None else (None, None, None)
     with operator_session_read(params) as (instance, session):
         scope = session.scope
     db = chat_session_scope.open_chat_session_db(scope, access=chat_session_scope.SessionDbAccess.WRITE)
@@ -163,7 +174,8 @@ def _write_model(params: dict, selection: tuple[str, str, str], *, save_default:
         if save_default:
             PersonaInstanceStore().update_profile(instance.id, provider=provider,
                 model=model, api_mode=api_mode, requested_by="operator")
+        inherit = save_default or use_agent_default
         override = _requested_chat_model_override(SimpleNamespace(
-            provider=None if save_default else provider, model=None if save_default else model,
-            use_agent_default=save_default))
+            provider=None if inherit else provider, model=None if inherit else model,
+            use_agent_default=inherit))
         _persist_chat_model_override(session_db=db, session_id=params["session_id"], override=override)
