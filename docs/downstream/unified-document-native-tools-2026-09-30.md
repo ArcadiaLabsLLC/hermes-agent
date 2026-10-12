@@ -20,7 +20,7 @@ client; ordinary gateway consumers retain their existing construction path.
 Both in-process and subprocess workers, including isolated compute hosts, use
 this composition. The generated wire catalog comes from the registered model.
 
-Consumer: `EterniaLauncher/docs/companion/planned/UNIFIED_GENERATIVE_UI_2026-09-30.md`.
+Consumer: `EterniaLauncher/docs/companion/subsystems/UNIFIED_GENERATIVE_UI_2026-09-30.md`.
 Verification: 190 related tests and 25 final native/app-function tests pass.
 Real agents execute tools through subprocess, isolated-compute and in-process
 workers. Removing the active-turn check or preserving a forged caller origin

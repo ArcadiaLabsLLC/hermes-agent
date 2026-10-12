@@ -1,7 +1,7 @@
 """Export misaki's English G2P (lexicon + neural fallback) to the speech pack's Kokoro phonemizer artifact.
 
 Fork-owned (bundled desktop, GPL-free speech pack; launcher
-``docs/embedded_hermes/planned/GPL_FREE_TTS_OPTIONS_2026-09-28.md``). A dev-machine
+``docs/embedded_hermes/evidence/GPL_FREE_TTS_OPTIONS_2026-09-28.md``). A dev-machine
 step, never run by bundled Hermes: it needs ``torch``, ``transformers`` and a
 misaki checkout, none of which the speech pack ships.
 

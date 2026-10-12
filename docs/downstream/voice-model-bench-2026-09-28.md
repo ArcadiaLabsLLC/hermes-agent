@@ -1,7 +1,7 @@
 # Voice model bench — 2026-09-28
 
 Lane w3-hvoice. Measurements for the speech tier table in
-`EterniaLauncher/docs/embedded_hermes/planned/BUNDLE_BUDGET_2026-09-28.md` ("Speech: the swap
+`EterniaLauncher/docs/embedded_hermes/subsystems/BUNDLE_BUDGET_2026-09-28.md` ("Speech: the swap
 points"). No product code changed. Taken on `origin/main` `08ee5074cb`.
 
 Eternia is commercial, so every candidate carries a licence for its **code**, its **weights** and
