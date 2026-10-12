@@ -84,10 +84,11 @@ it does not justify changing production session-clearing behavior.
 
 ## Scope and next work
 
-Prioritize H02 safety, H13 diagnostic retention and H03 event delivery. Then
-repair the identified context leak, stale marker and gate-quality findings in
-bounded ownership-aware changes. H01/H04 need the correct execution environment;
-H11/H12 remain investigations until their first-attempt evidence survives.
+H02 attribution/isolation qualification and H13 diagnostic retention are closed
+by [the repair](test-safety-evidence-repair-2026-10-12.md). H03 event delivery,
+the identified context leak, stale marker and inherited gate-quality findings
+remain separate bounded work. H01/H04 need the correct execution environment;
+H11/H12 can now be investigated with retained first-attempt evidence.
 
 No full suite was rerun. The workstation-freeze files were not selected. TLS
 interception settings, test installation and the operator's stores were not

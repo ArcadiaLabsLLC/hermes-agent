@@ -52,10 +52,41 @@ stand-in. There is no parallel runner or receipt store.
 
 ## Verification
 
-Focused checks and mutation controls are recorded in the repair commit body.
-Mutation runs use a disposable checkout; their defects are absent from the
-repair tree. The completed whole-tree gate and any remaining baseline failures
-are recorded below when qualification finishes.
+Source commit `db6ad5b124` records the killing mutations and their actual reds.
+The nine focused files cover 127 passing tests after replacing one incomplete
+test double with the real ledger. Removing original-attempt capture reddens
+all five recovery cases; bypassing redaction reddens those cases and the bound
+test; disabling scoped undo loses the fixture safety pin; using the stale
+remote base misattributes upstream lines. The mutations ran in a disposable
+checkout and are absent from the repair tree.
+
+The real compression-worker/declared-scope pair reproduced its original
+`'telegram' != 'override-src'` assertion, then passed alone (59 final passes,
+exit 0). Both the terminal and the gate-store JSON retained original rc 1,
+the failing node, ordered members and assertion while the final-red map was
+empty. This proves H13 on the actual triaged leak, not only synthetic events.
+
+The canonical `scripts/run_tests_bundled.sh tests` landing gate selected 1,026
+fork files, with zero cached skips: **12,510 passed, 68 failed, one setup error,
+49 skipped**, exit 1, 608.5 seconds. All **69** failing/error nodes match the
+previous untouched-main inventory exactly; none is new. The baseline source
+`5856b5d476` differs from this repair's parent `14c21555e4` only in documentation.
+There were 63 bundles, 12 solos, 15 known-red runs, zero retries, zero process
+deaths and zero final timeouts. The remaining reds are the recorded gateway/TLS
+assertions and Python-version fixture error; this is not a green repository.
+The [qualification record](test-safety-evidence-repair-2026-10-12.json) retains
+the exact node set, source pins and log hashes.
+
+The shared-undo gate, release-attribution cases, behavioral fixture proof and
+all runner/cache tests passed in that broader run. The legibility floor,
+duplicate-helper and upstream-footprint gates passed. The corrected attribution
+also makes the existing source-grep and path-identity gates green; their
+inherited source was not changed. Ruff, diff checks and the canonical citation
+gate passed. Zero upstream-owned files changed.
+
+The existing run-history file has no retention policy and its readers scan
+the full file. That separate lifecycle finding is recorded in the fork-hygiene
+queue; this repair bounds each diagnostic and preserves the existing history.
 
 Remaining scope/backup leaks, Codex process death, TLS/environment failures and
 Session API delivery stay in their existing queue rows. A recovered retry is
