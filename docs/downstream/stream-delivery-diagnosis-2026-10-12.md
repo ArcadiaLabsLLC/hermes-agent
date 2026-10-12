@@ -49,7 +49,9 @@ The operator authorized submission after this endpoint distinction was verified.
 [Upstream PR #137460](https://github.com/NousResearch/hermes-agent/pull/137460)
 contains the focused Session API fix, references #89748, and records the
 reproduction, before/after results and local validation limits. No separate
-comment or issue was posted. The candidate is **not on fork main**.
+comment or issue was posted. The candidate is **not on fork main**. Upstream
+CI run `38317839373` is `action_required`: maintainer approval is needed before
+the workflow runs. It is not a passing CI receipt.
 The unchanged upstream owner remains unchanged in the
 fork, following `Harness_Brain/00 — Maps/Fork Boundary Map.md`.
 
@@ -68,6 +70,29 @@ The next failing run needs the received-frame timeline and build/yield receipts
 at the deadline. Do not raise its deadline, classify it as TLS, or retire it
 because the latest run passed. Production code and the original test are unchanged.
 
+Follow-through on `4104e06401`: the complete original ten-file selection,
+including both chat-lane scenarios and the two-roots file, passes **96 tests /
+one existing skip** with eight workers in 156.3 s. Only failure-message
+instrumentation and INFO logging were added temporarily; assertion deadlines
+are unchanged. The command-level file cap was 600 s, respecting the two-roots
+file's declared allowance. The temporary instrumentation is retained outside
+the checkout and removed from the source tree. H01 remains unresolved.
+
+## H08: CLI spelling condition still exists
+
+The original condition is recorded in
+`docs/agent-runtime-harness/planned/upstream-reds-2026-10-07.md`: the relay
+test compares the launcher basename case-sensitively, rejecting `hermes.EXE`.
+A native Windows probe invokes the original upstream test body with the same
+delivery stub and two resolver outputs: `hermes.exe` passes; `hermes.EXE`
+fails at that exact assertion. Result: **one passed / one failed**.
+
+The local XPASS therefore does not prove that the inherited condition was
+fixed. Correct or reclassify the spelling assertion before retiring the broad
+Windows marker. No test assertion or marker was changed, and no new upstream
+PR was submitted for this finding. The temporary probe is retained outside
+the checkout. This supersedes the earlier proposed unconditional retirement.
+
 ## Retained local receipts
 
 Logs are in the shared worktree parent, not operator storage. Temporary probes
@@ -80,3 +105,5 @@ are investigation scaffolding, not new default-suite gates.
 | `session-sse-upstream-green.log` | `b47ceb7b23270089cd74e30537ab7e12d90de680a7b096197d856e214f429a38` |
 | `session-sse-upstream-adjacent-green.log` | `4a4ab52b9f2434b345530f3f22b36487db02ad3bae4527cf989440ac818061f8` |
 | `stream-delivery-start-loaded-probe.log` | `d96282cb81f777c787bd7ce7307bebb7453f9d9da67237fb354e60018c78689a` |
+| `triage-h01-full-prefix.log` | `38546471d5bc80028eda8c982e36e84cb6b05bfac93bf2f08df7e3fbdf82088a` |
+| `triage-h08-case-control.log` | `177b298c4d920d728bf855a346dc6f3b8499f1a4cd8c0bd85e1043a5382f4b0f` |
