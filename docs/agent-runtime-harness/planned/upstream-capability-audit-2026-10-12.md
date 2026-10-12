@@ -301,3 +301,24 @@ jobs. Developer — a job runs under the persona's profile and model; the incide
 (one alert per failure signature, then silence for `failure_repeat_alert_hours`) stops a
 broken job from spamming. Power user — jobs listed and managed per profile; `cron.model`
 decouples the fleet's model from chat; `max_parallel_jobs` bounds spend.
+
+### Owner principle, 2026-10-12: complexity under the hood, simplicity on the surface
+
+"Everyday" above is wider than "not a developer": it is the non-technical business user,
+the lifestyle user, the streamer, the gamer — everyone for whom a control they do not need
+is complexity, noise and friction. For them every row in this note is a BEHAVIOUR of their
+persona, never a control. The rule each row must satisfy before it lands:
+
+| row | what the everyday user sees | what they never see |
+|---|---|---|
+| loop host | "I'm on it", then a result in the chat, even after a restart | a board, a column, a worker, a dispatcher setting |
+| goal fields on Work submit | the persona keeps going until the thing is done, or says plainly why it cannot | goal mode, judge turns, completion contract — these fields show only on developer and power personas (launcher half) |
+| review door | the persona double-checks before saying done, when its profile says it should | a Review button; review-on-done is persona-profile policy, surfaced as a control only on dev/power personas |
+| worktree isolation | nothing — no repository, no surface | `.worktrees/`, branches |
+| cron | "I'll check back Friday", then the check-back as a message; a failing job stays quiet unless it matters | a jobs list, a schedule editor, an incident log |
+
+Capability is admitted by the persona's PROFILE (`toolsets:`, review policy, scheduling
+allowed); controls are rendered by the Launcher only for the developer and power-user
+persona kinds. The Launcher's standing "no fake buttons" rule already holds the other half:
+a control that exists must do something, and a control that would only do something for a
+developer does not appear for anyone else.
