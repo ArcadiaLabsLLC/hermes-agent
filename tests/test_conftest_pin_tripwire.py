@@ -204,3 +204,37 @@ def test_the_tripwire_is_armed_for_this_very_test():
         "_shared_monkeypatch_pin_tripwire did not fire for this test, so it is "
         "no longer autouse and the tree is unwatched"
     )
+
+
+def test_collected_upstream_undo_keeps_fixture_pins_and_drops_only_body_patches(pytester):
+    """Exercise the real collection hook and scoped undo, not a hand-applied marker."""
+    pytester.makeconftest(_INNER_CONFTEST + '''
+import os
+import pytest
+from tests._downstream.conftest_plugin import pytest_pyfunc_call
+from tests._downstream.id_markers.hooks import pytest_collection_modifyitems
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "scoped_monkeypatch_undo: scope body undo")
+
+@pytest.fixture(autouse=True)
+def pins(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("API_KEY", "")
+    monkeypatch.setenv("SAFETY_PIN", "armed")
+''')
+    pytester.makepyfile(test_upstream='''
+import os
+
+def test_body(monkeypatch, tmp_path):
+    for value in ("first", "second"):
+        monkeypatch.setenv("BODY_PATCH", value)
+        monkeypatch.setenv("SAFETY_PIN", "body")
+        monkeypatch.undo()
+        assert "BODY_PATCH" not in os.environ
+        assert os.environ["SAFETY_PIN"] == "armed"
+        assert os.environ["HERMES_HOME"] == str(tmp_path)
+        assert os.environ["API_KEY"] == ""
+''')
+    result = pytester.runpytest_inprocess("-p", "no:cacheprovider")
+    result.assert_outcomes(passed=1, errors=0, failed=0)

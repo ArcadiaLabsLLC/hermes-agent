@@ -340,12 +340,13 @@ def run(
         events = tally_events(_read_lines(events_path))
         rels = [_rel(m, repo_root) for m in members]
         startup = None if events.session_start is None else max(0.0, events.session_start - started)
+        stopped_in, unreached = _where_it_died(members, rels, events, rc)
         with lock:
             bundle_walls.append((index, wall, rc))
             ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
+            ledger.record_bundle_diagnostic(index, rels, rc, events, output, stopped_in)
         startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
-        stopped_in, unreached = _where_it_died(members, rels, events, rc)
         if stopped_in is not None:
             with lock:
                 deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
@@ -602,6 +603,9 @@ def _print_summary(
     if cost:
         print()
         print("\n".join(plan.render(cost)))
+    if result.ledger is not None:
+        for line in plan.render_bundle_diagnostics(result.ledger.bundle_diagnostics):
+            print(line)
     leaks = [leak for leak in result.leaks if leak.kind == "leak"]
     unreached = [leak for leak in result.leaks if leak.kind == "unreached"]
     if leaks:

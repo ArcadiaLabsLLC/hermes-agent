@@ -83,6 +83,12 @@ files whose last attempt timed out (`timed_out`) and the test count of every fil
 by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
 timings from the log.
 
+An abnormal bundle also records `bundle_diagnostics` in that same line: original process/session
+statuses, ordered members, last observed member, failing IDs and bounded, redacted output. The
+terminal prints it even when isolated retries pass. Summary counts describe final attempts;
+a zero exit after retries is not a clean first attempt. This receipt survives scratch cleanup
+and worktree removal. `scripts/run_tests_bundled_plan.py::RunLedger` owns it.
+
 **Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
 cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
 alone, and solos are submitted before bundles. Both read the store's `durations.json` (clean-pass

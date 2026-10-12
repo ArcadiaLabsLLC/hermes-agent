@@ -26,9 +26,12 @@ from __future__ import annotations
 import json
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+
+if TYPE_CHECKING:
+    from scripts.run_tests_bundled_events import BundleEvents
 
 # ── Stage 1: the upstream-red skip list ─────────────────────────────────────
 
@@ -111,6 +114,64 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
 #: the known red's one run; §3 a slow file's ``shard i/k`` and its ``whole-check``)
 PROCESS_KINDS = ("bundle", "solo", "known-red", "shard", "whole-check", "rerun", "retry")
 
+#: Retain the beginning and end of large diagnostics; scrub BEFORE cutting so
+#: truncation cannot split a credential away from its identifying field name.
+DIAGNOSTIC_CHARS = 64 * 1024
+
+
+@dataclass(frozen=True)
+class BundleDiagnostic:
+    """One original abnormal attempt, independent of its members' later verdicts."""
+
+    bundle_index: int
+    members: List[str]
+    process_rc: int
+    session_rc: Optional[int]
+    session_ended: bool
+    stopped_in: Optional[str]
+    failed: Dict[str, List[str]]
+    output: str
+    omitted_chars: int
+
+    @classmethod
+    def capture(
+        cls, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        stopped_in: Optional[str],
+    ) -> "BundleDiagnostic":
+        from agent_runtime.redaction import scrub_secret_values
+
+        safe = scrub_secret_values(output)
+        omitted = max(0, len(safe) - DIAGNOSTIC_CHARS)
+        if omitted:
+            half = DIAGNOSTIC_CHARS // 2
+            safe = f"{safe[:half]}\n[... {omitted} redacted characters omitted ...]\n{safe[-half:]}"
+        return cls(
+            index, list(members), rc, events.exit_status, events.session_end is not None, stopped_in,
+            {rel: [scrub_secret_values(node) for node in tally.failed_nodeids]
+             for rel, tally in events.files.items() if not tally.clean or tally.failed_nodeids},
+            safe, omitted,
+        )
+
+
+def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> List[str]:
+    """Print each first-attempt output once, even if several members needed a retry."""
+    if not diagnostics:
+        return []
+    lines = ["", "=== Original bundle diagnostics (retained even when retries pass) ===",
+             "Summary counts describe final attempts, not first-pass success."]
+    for item in sorted(diagnostics, key=lambda entry: entry.bundle_index):
+        lines.extend([
+            f"--- bundle #{item.bundle_index}: process rc={item.process_rc}; "
+            f"session rc={item.session_rc}; session ended={item.session_ended} ---",
+            f"  ordered members: {', '.join(item.members)}",
+        ])
+        if item.stopped_in is not None:
+            lines.append(f"  last observed member: {item.stopped_in}")
+        for rel, nodes in item.failed.items():
+            lines.append(f"  recorded failure: {rel}: {', '.join(nodes)}")
+        lines.append(item.output.rstrip() or "(no output captured)")
+    return lines
+
 
 @dataclass
 class Process:
@@ -142,7 +203,23 @@ class RunLedger:
     #: collect + test seconds the bundle attempt of a re-run member cost
     first_attempt_seconds: float = 0.0
     known_red: List[str] = field(default_factory=list)
+    #: Only abnormal bundle attempts; retained before retry scheduling and scratch cleanup.
+    bundle_diagnostics: List[BundleDiagnostic] = field(default_factory=list)
 
+    def record_bundle_diagnostic(
+        self, index: int, members: Sequence[str], rc: int, events: "BundleEvents", output: str,
+        stopped_in: Optional[str] = None,
+    ) -> None:
+        confirmed = rc == 0 and events.session_end is not None and events.exit_status == 0
+        clean = all(rel in events.files and events.files[rel].clean for rel in members)
+        if not (confirmed and clean):
+            self.bundle_diagnostics.append(BundleDiagnostic.capture(index, members, rc, events, output, stopped_in))
+
+    def diagnostic_record(self) -> Dict[str, object]:
+        """The existing runs.jsonl owns durability; final-red caching remains separate."""
+        return {"bundle_diagnostics": [asdict(item) for item in sorted(
+            self.bundle_diagnostics, key=lambda entry: entry.bundle_index,
+        )]}
     def record_solo(
         self, kind: str, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
     ) -> None:
