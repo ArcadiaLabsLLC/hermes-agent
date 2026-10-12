@@ -8,6 +8,10 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`chat_model_reset_cursor::` 2026-10-12 — The existing operator model selector
+can clear only a chat pin and return to agent defaults; no default write or
+permission change. [Contract](../../docs/agent-runtime-harness/03-transport-and-wire.md#operator-model-selection).
+
 `reasoning_capability_cursor::` 2026-10-12 — First-class provider/model capability
 facts cross operator reads, snapshots and provider-only patches. The Launcher
 renders native choices automatically. [Contract and verification](../../docs/downstream/reasoning-capabilities-2026-10-12.md).

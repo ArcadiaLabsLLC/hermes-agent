@@ -34,6 +34,19 @@ compute owners perform the write. [Shared-provider evidence](../downstream/share
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
 
+## Operator model selection
+
+The existing `runtime.operator.conversation.model.select` also accepts
+`scope: "conversation", use_agent_default: true` with no `model_id`. It clears
+only that session's model pin through the existing session-store owner; it does
+not save an instance/profile default. Ordinary model picks still use
+`scope: "conversation", model_id: <catalog id>`, and explicitly saving an agent
+default still uses `scope: "agent_default"`. Model facts advertise
+`can_reset_model_override` and report `model_is_default` so consumers can gate
+the reset and confirm inheritance. The same ownership, console tier, idle-turn
+and root-lease checks cover every selection. Managed installations may reset a
+chat while default writes remain unavailable.
+
 ## Operator thinking capability facts
 
 `_chat_effective_model_payload` projects `reasoning_capabilities` for the same
