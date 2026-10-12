@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **Bound or archive accumulated run receipts through the existing gate store without discarding unresolved first-attempt evidence.** `run_tests_bundled_plan.record_run` appends indefinitely; `last_record` and `GateStore.prior_skip_runs` read the entire `runs.jsonl`, while `GateStore.compact` only compacts green/dependency/module-set records. H13 caps each diagnostic at 64 Ki characters but does not change the existing run-history lifecycle. Define retention/archive semantics once in the store, keeping the latest final-red state and investigation receipts. · fork / suite storage · evidence: named symbols; `docs/downstream/test-safety-evidence-repair-2026-10-12.md` · filed 2026-10-12 test-safety-evidence-repair
+
 - [ ] **CLASS: retain first-attempt evidence when a bundle fails or dies and its isolated retry passes.** · `run_tests_bundled.run._bundle`, `Leak`, `Death` retain summary/node IDs but drop the first output; `run` deletes the event scratch directory. The 2026-10-12 gate lost the diagnostic detail for declared-scope, 19 backup failures and a Codex Responses process death. Extend the existing receipt owner with bounded/redacted original diagnostics, exit status and ordered members; keep retries distinguishable from first-pass green. Evidence: those symbols and `history-native-runtime-final-gate.log`; triage reproduced the scope leak in a two-file bundle whose final exit is zero. · fork / suite · UNCLAIMED · TRIAGE 2026-10-12: [H13](../../docs/downstream/history-red-triage-2026-10-12.md). **TAKEN 2026-10-12 test-safety-evidence-repair**
 
 
