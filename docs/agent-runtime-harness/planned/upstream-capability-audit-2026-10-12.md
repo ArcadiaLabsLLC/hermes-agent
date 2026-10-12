@@ -322,3 +322,34 @@ allowed); controls are rendered by the Launcher only for the developer and power
 persona kinds. The Launcher's standing "no fake buttons" rule already holds the other half:
 a control that exists must do something, and a control that would only do something for a
 developer does not appear for anyone else.
+
+**Roles are scenarios, not users (owner, 2026-10-12).** The same person is an everyday
+user in one chat and a developer in the next; onboarding has zero friction and the runtime
+transition between modes is a scenario change, not an account change. So "dev/power
+persona kinds" above means the MODE a surface is in, decided per persona profile and per
+scenario, never a label on the user. Agents can do all of it; the surface shows the part
+the scenario needs.
+
+**Work is already multi-surface, and the engine is not.** The Launcher mounts one Work
+lane (`eternia_work_experience` ports, `eternia_workbench_ui` presentation,
+`lib/app/work` composition) on the Agent Console chat frame, the operator conversation
+panel and the Intelligence conversation panel; there is no second lane and no second
+engine. Through chat, voice or any route, a persona itself cannot yet put work in the
+store (every `kanban_*` verb is hygiene-blocked); the persona-side submit verb row is
+re-ranked HIGH for that reason, with a fork `work_submit` tool over the existing Work
+service preferred to a kanban exemption.
+
+**Option 1, mechanically.** A fork-owned serve boot phase (beside the socket and peer
+listener phases in `hermes_cli/harness_parts/serve/boot_phases.py`), on by a runtime
+config switch, runs two upstream functions on their own intervals: the kanban tick
+(`hermes_cli/kanban_db_dispatch.py::dispatch_once`, the same function the gateway embeds
+in `gateway/kanban_watchers.py`, under upstream's own single-dispatcher lock and
+`kanban.dispatch_profiles` allowlist, set to the Launcher's persona profiles) and the cron
+ticker (`cron/scheduler.py::InProcessCronScheduler.start`, the call `gateway/run.py`
+makes). Workers are upstream's worker processes; the fork's two kanban hooks start firing
+because the tick fires them; the serve's drain and build-behind restart hand running
+workers off before recycling; `running_work` gains a kanban-worker lane with a durable
+view (the board's `running` rows) like the terminal and delegation lanes. No upstream file
+changes. The 2026-09-30 ruling is fulfilled, not revisited: native kanban still owns
+tasks, dispatch and execution; the only thing superseded is the Work slice's own scope
+note ("does not auto-start it"), whose stated worry the profile allowlist answers.
