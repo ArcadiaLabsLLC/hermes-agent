@@ -7,9 +7,12 @@ name: Fork gates
 # carries the triggers the job used to inherit from ci.yaml.
 
 on:
+  # Skip vault-only changes; never ignore a path any gate reads.
   push:
     branches: [main]
+    paths-ignore: ['Harness_Brain/**']
   pull_request:
+    paths-ignore: ['Harness_Brain/**']
 
 permissions:
   contents: read
