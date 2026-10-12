@@ -52,8 +52,26 @@ reproduction, before/after results and local validation limits. No separate
 comment or issue was posted. The candidate is **not on fork main**. Upstream
 CI run `38317839373` is `action_required`: maintainer approval is needed before
 the workflow runs. It is not a passing CI receipt.
-The unchanged upstream owner remains unchanged in the
-fork, following `Harness_Brain/00 — Maps/Fork Boundary Map.md`.
+The operator subsequently authorized carrying the fix into the fork.
+
+### Fork carry qualification
+
+`codex/session-sse-carry` carries the two source/test commits, without importing
+upstream-main's unrelated commits. The only cherry-pick conflict is the older
+`Dict` annotation; the reviewed implementation remains the same. The exact
+upstream regression test is retained. On fork base `fd5a712977`, it reproduces
+**two failures / two passes** before the carry and four passes after it.
+The six API files pass **184 tests** without retry. Footprint and carry-tool
+checks pass; the source patch reverse-applies against the pinned PR head.
+
+The fork's carry checker itself translated patch bytes through Windows text
+stdin and falsely reported drift. Its existing real-Git controls now use LF
+and CRLF histories: the LF clean-carry assertion failed before the binary-pipe
+repair, then all **57 controls pass**. This tooling repair is fork-only.
+
+The footprint records one additional upstream file (+23/-23), pins PR #137460,
+and names upstream adoption as the retirement condition. This is a prepared
+carry, not a claim of upstream acceptance or a completed fork landing gate.
 
 ## H01: still open, no speculative runtime change
 
