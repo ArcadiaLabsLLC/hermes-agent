@@ -27,6 +27,17 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-12 (cron lane audit)
+
+Evidence: `docs/agent-runtime-harness/planned/cron-lane-audit-2026-10-12.md` (§7 D1–D7). Reference implementation `598bedea` on branch `ccr-cc6cbc42-w6ahvk`, not on main.
+
+- [ ] **D1 — a persona with `file` tools can write `<home>/scripts/x.sh` and schedule it `no_agent`: an unattended shell on a cadence outside the terminal envelope and `approvals.cron_mode`** · fork / cron lane, tool admission · audit §7 D1 · lane: refuse `no_agent` / `script` / `monitor_script` on the persona lane through the plugin's `pre_tool_call` refusal, or `cronjob` for supervisor profiles only; OWNER RULES before the lane lands.
+- [ ] **D3 — a cron wake that arrives while the creating chat is busy is a STEER into the running turn (drain ruling 2026-09-24): a morning brief can land inside an unrelated turn's tool result** · fork / dispatch_delivery · audit §7 D3 · lane: owner rules queue-until-idle vs steer for `cron_job_finished`; a drain policy change either way.
+- [ ] **D4 — the build-behind restart's idle probe reads chat turns and agent runs, not `cron.scheduler.get_running_job_ids()`, so a pull mid-job interrupts a running cron job** · fork / serve restart fence · audit §7 D4 (`hermes_cli/harness_parts/serve`, RL-20) · lane: the idle probe also reads running cron ids, the way upstream's gateway drain does.
+- [ ] **D5 — `cron.max_parallel_jobs` is unbounded and a job runs on the persona's main model; no serve default and no measurement** · fork / cron lane, cost · audit §7 D5 · lane: a serve default of two parallel jobs; measure one week of a real morning job before ruling on `cron.model`.
+- [ ] **D6 — `cronjob_manage`'s local-delivery notice tells the model the output "is never delivered back into the session"; under the chat wake that is false and the persona relays it** · fork / cron lane, tool result · audit §3, §7 D6 (`tools/cronjob_job_args.py::_local_delivery_notice`) · lane: the plugin's `transform_tool_result` replaces the notice on the persona lane.
+- [ ] **Measure: under the serve ticker, does `cronjob_manage` create still append the "gateway is not running" warning? Read says no (`hermes_cli/cron.py::_builtin_gateway_liveness`, #121881 accepts an in-process ticker by heartbeat + writer pid); one live persona turn proves it** · fork / cron lane · audit §3 · lane: live turn on the reference build.
+
 ### Filed on arrival — 2026-10-12 (upstream capability audit)
 
 Evidence: `docs/agent-runtime-harness/planned/upstream-capability-audit-2026-10-12.md` (sections cited per row). Measured on `8a5d6114`.
