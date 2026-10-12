@@ -1,6 +1,6 @@
 # Design sweep D2 — fourteen rows the fix lanes returned as too big (2026-10-10)
 
-**Status:** planned — owner-ruled 2026-10-10 (see Owner rulings at the end); build lanes pending.
+**Status:** IN PROGRESS — per-row entries and domain queues own remaining work. D2.01 and D2.04 producers are built; their Launcher consumers remain queued.
 
 Lane fable-design-D2. Rows: `lanes-1011d/D2-rows.md` (the queue rows carry the claims).
 One section per row, verdict first: **PLAN** (implementation-ready for an Opus lane),
@@ -13,10 +13,10 @@ Verdict table (filled as batches land):
 
 | row | verdict | one line |
 |---|---|---|
-| D2.01 = L2.09 | PLAN | reviewed files ride upstream's `file.attach` data-url arm behind the existing submit owner; capability v3 |
+| D2.01 = L2.09 | PRODUCER BUILT | `d3ce04dfc1` + `5a374d46ec`, recovery qualification `75da78162d`; Launcher C019 consumes capability v3 |
 | D2.02 = L2.07 | PLAN | `provider_submitted` is set before the provider is resolved, so a no-provider turn settles `outcome_unknown`; refuse pre-flight, classify by phase after |
 | D2.03 = L5.03 | PLAN (gated on PR #7) | branch the LINEAGE display rows the way upstream's `/branch` already does; the child is a root, never a compression descendant |
-| D2.04 = L5.04 | PLAN | `retry_of` written once on the new record; `retried_as` projected onto the old marker from it; no write-back |
+| D2.04 = L5.04 | PRODUCER BUILT | `e09b0e15e2` + `052c76306d`, follow-up `f1d1affc66`; Launcher send/render consumer remains queued |
 | D2.05 = L5.09 | PLAN | `runtime.settles.list` / `.rearm` (console tier) + `harness serve settles`; re-arm = `undelivered → pending`, attempts 0, same `settle_id`, `rearm_count` stamped |
 | D2.06 = L4.30 | DROP | the mechanism landed: `persona_chat_turn` overlay carries `running_work` at start (h-turn1 C2) and `running_work_frame` ships at end; the yield docstring is what is stale |
 | D2.07 = L1.25 | PLAN (redesigned 2026-10-10, fable-design-D2.07b) | the serve resolves per turn in `ConversationService.send` (subject `profile:<name>`, session = route id) and sends the typed MODE to the worker over a fork method `eternia.permission.bind`; the worker binds the block inside the existing per-turn `bind`/`reset` seam; no upstream edit |
