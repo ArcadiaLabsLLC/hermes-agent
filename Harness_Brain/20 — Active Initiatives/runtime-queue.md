@@ -27,6 +27,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-12 (owner ask: "do we have goals")
+
+- [ ] **No door to upstream's goal engine on the persona chat lane: `hermes_cli/goals.py` (per-session judge, continuation, turn budget, completion contracts, quality gates, park on a background process, pause/resume, persisted in SessionDB) is reachable only as the `/goal` slash command in CLI/TUI/gateway; the runtime has no `runtime.chat.goal.*` method and the console no action, so a persona chat cannot "keep going until it is done". The fork's `goal_id` / `current_chat_goal` are a label and a display string, not a loop** · fork / chat RPC · evidence: `docs/agent-runtime-harness/planned/upstream-capability-audit-2026-10-12.md` §1–§2; `agent_runtime/state_patches/persona_instance.py` (`current_chat_goal`) · lane: DESIGN — set / status / pause / clear over the RPC lane keyed by the persona chat root, continuation turns forged through the mission-chat door the delivery drain uses; everyday surface: none (the persona keeps going), developer mode: a status line. OWNER RULES.
+
 ### Filed on arrival — 2026-10-12 (cron lane audit)
 
 Evidence: `docs/agent-runtime-harness/planned/cron-lane-audit-2026-10-12.md` (§7 D1–D7). Reference implementation `598bedea` on branch `ccr-cc6cbc42-w6ahvk`, not on main.
