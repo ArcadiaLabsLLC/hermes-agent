@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import pathlib
 import os
+from contextvars import copy_context
+from functools import wraps
 
 import pytest
 
@@ -167,6 +169,27 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
 #: this conftest is loaded — so a combined run would otherwise let these rows
 #: reach a same-named file in another directory. See tests/_env_gap_fence.py.
 _OWNER_DIR = pathlib.Path(__file__).resolve().parents[1] / "agent"
+
+
+@pytest.fixture(autouse=True)
+def _compression_rotation_context(request, monkeypatch):
+    """H10: upstream's clear_session_vars clears rather than restoring tokens.
+
+    Keep that test's real rotation/clear assertions in a copied caller context,
+    so a later bundled test still sees its own environment fallback.
+    """
+    if request.node.nodeid != (
+        "tests/agent/test_compression_worker_isolation.py::"
+        "test_f5_session_contextvar_rebound_after_rotation"
+    ):
+        return
+    original = request.node.obj
+
+    @wraps(original)
+    def in_context(*args, **kwargs):
+        return copy_context().run(original, *args, **kwargs)
+
+    monkeypatch.setattr(request.node, "obj", in_context)
 
 
 def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
