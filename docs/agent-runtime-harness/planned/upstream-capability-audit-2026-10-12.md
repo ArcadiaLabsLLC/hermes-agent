@@ -219,3 +219,84 @@ PM router aimed at a mothballed role; memory with no read surface and `backgroun
 unmeasured. The launcher halves (a Review action, Work submit fields, memory view) are
 named in their rows and filed in the launcher's `mission-control-queue.md` once the hermes
 door each one waits on lands.
+
+## 8. Where we are today, the three loop-host options, and value against friction (owner ask, 2026-10-12)
+
+**Today is none of the three options.** Companion's headless Work engine (the Launcher's own
+daemon and ledger, which did not care where work started) was retired by the 2026-09-30
+ruling. Its presentation survived (`eternia_workbench_ui`); its engine did not. What
+replaced it is the STORE half of upstream kanban — `runtime.work.start` writes a `ready`
+row into the native database — with no engine behind it, because the engine is a loop in
+upstream's gateway process and the Launcher runs `hermes harness serve`. A card submitted
+today stays `ready` forever. The persona chat lane is unaffected: a chat turn runs at once,
+and its background helpers and terminal jobs complete back into the chat, which is headless
+work in Companion's sense, but per turn and not durable.
+
+| | engine code | where it runs | second authority? | what the operator sees |
+|---|---|---|---|---|
+| Companion (retired) | fork, in the Launcher | Launcher daemon | yes (its own ledger) | Work rows in the Launcher |
+| today | none | nowhere | no | Work rows that never move |
+| option 1 (recommended) | upstream's dispatcher, unchanged | inside `hermes harness serve`, scoped to Launcher-owned boards/profiles | no | the same Work rows, moving; workers visible in running-work |
+| option 2 | upstream's dispatcher, unchanged | a separate `hermes kanban dispatch` process the Launcher supervises | no | rows move; workers invisible to running-work (other process) |
+| option 3 ("our own kanban") | fork-written scheduler | anywhere | yes — the thing the ruling forbids | rows move; two systems disagree about what is running |
+
+Option 1 is the closest in SHAPE to Companion: a headless loop that pulls from one shared
+table regardless of how the row got there (the Work form, a chat, a later agent verb), and
+nobody has to look at a board. The board is the table, not a surface.
+
+### Value and friction, the very-high and high rows
+
+Three audiences: **everyday** (talks to a persona, never opens settings), **developer**
+(bound repo slot, edits code with the persona), **power user** (several personas, several
+repos, runs Hermes from a terminal too).
+
+**Loop host (option 1).** Value: Work becomes real — a card from any surface runs without
+the operator doing anything, survives a Launcher restart (the store is durable, the loop
+restarts with the runtime), and its worker shows in running-work as live. Friction:
+everyday — nothing to configure; the only visible change is that cards move. Developer —
+the loop claims only Launcher-owned boards or `kanban.dispatch_profiles`, so a developer
+who also runs upstream's gateway in a terminal for their own boards gets no double
+dispatch. Power user — may keep a separate dispatcher for other boards; the scope keeps
+them apart; `kanban.max_in_progress` caps worker spend. Design item it must respect: the
+build-behind restart fence (RL-20) drains workers before the serve recycles.
+
+**Work submit carries `goal_mode` / `goal_max_turns` / `completion_contract`.** Value: the
+"Plan your task" acceptance criteria become judged criteria; a card keeps iterating until
+the judge agrees or parks it `blocked` for a human; a quality gate makes "done" mechanical
+for a code card. Friction: everyday — optional; a plain brief stays one-shot and the form
+already exists. Developer — the gate is their own test command; judge cost is paid only on
+goal-mode cards. Power user — turn budget and PR contract exposed per card.
+
+**Review door.** Value: an independent second model reads the diff, runs the tests, and
+posts its verdict back into the same chat; no board involved; one button. Friction:
+everyday — a button they can ignore; the result is a message. Developer — costs one
+delegated subagent per press; `auxiliary.review` pins a different model. Power user — a
+stronger or cheaper reviewer per profile; later, the same engine behind the Work review
+lane.
+
+**Worktree isolation for delegated children.** Mechanism
+(`tools/subagent_worktree.py`): with `delegation.worktree_isolation: true`, each
+`delegate_task` child that starts inside a git repo gets its own worktree at
+`<repo>/.worktrees/subagent-<id>` on branch `hermes-subagent/<id>`; the persona's OWN
+foreground edits stay in the bound slot as today; outside a git repo nothing changes;
+docker/ssh backends skip it. On exit a worktree with zero commits and a clean tree is
+pruned; anything else is kept and reported. Value: parallel helpers stop overwriting each
+other and the operator's tree; a helper's result is a branch that can be reviewed before
+it lands. Friction: everyday — invisible; their persona rarely delegates into a repo, and
+when it does the only trace is a `.worktrees/` folder, which must be gitignored and
+surfaced. Developer — their own flow is unchanged (the parent edits in place); what is new
+is a branch per helper, and today nothing merges it, so the developer or the parent
+persona must `git merge` or discard it. That is the landing-verb row: until it lands, the
+dev persona's prompt should say "merge or report the branch", and the delegation
+completion should name the branch and its diff stat. Power user — this is who it is for:
+N children on one repo without stomping; disk is one checkout per child (shared `.git`);
+`.worktrees/` under the repo needs the gitignore.
+
+**Cron on supervisor profiles plus a console route.** Value: "remind me", "check the
+build every morning", "follow up on that PR Friday" become jobs the persona owns, delivered
+into the same chat. Friction: everyday — they ask in plain language; the delivery arrives
+as a message; upstream's `cron.allow_agent_scheduling` default keeps a job from scheduling
+jobs. Developer — a job runs under the persona's profile and model; the incident dedupe
+(one alert per failure signature, then silence for `failure_repeat_alert_hours`) stops a
+broken job from spamming. Power user — jobs listed and managed per profile; `cron.model`
+decouples the fleet's model from chat; `max_parallel_jobs` bounds spend.
