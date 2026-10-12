@@ -148,3 +148,21 @@ office, the Launcher or Intelligence. The one chat-shaped rule is the drain's: i
 persona-chat roots, which, with the Agent Console the one chat widget, is the only chat shape
 there is. A Home card (D9) would read a job's saved output through a runtime method and is
 neutral the same way.
+
+## 10. Recommendations (2026-10-12, for the owner's ruling)
+
+| # | recommend | why |
+|---|---|---|
+| D1 | everyone, minus scripts: keep `cronjob` in `harness_core`, refuse `no_agent` / `script` / `monitor_script` on the persona lane via the plugin's `pre_tool_call` refusal | the everyday case needs reminders and recurring checks, not shell on a cadence |
+| D2 | on by default, phone off | idle-cheap; off-by-default is off for everyone who never opens a setting |
+| D3 | hold a wake until the chat is idle | a brief inside an unrelated turn's tool result reads as a bug; the drain already re-queues |
+| D4 | fix before landing: the idle probe counts running cron jobs (as upstream's gateway drain does) | a pull mid-brief must not kill the brief |
+| D5 | serve default of two parallel jobs; no fleet model pin until one week of a real job is measured | bound the worst case, rule the model on data |
+| D6 | replace the local-delivery notice on the persona lane (plugin `transform_tool_result`) | the persona must not tell the operator the opposite of what happens |
+| D7 | leave as is | the receipt line plus `hermes cron status` covers the everyday case; a job list is developer-mode work |
+| D8 | keep the reference commit on the branch; land it after D1, D3, D4, D6 are built into it and the whole-tree gate runs to completion | tested, right shape, four small fixes belong in the same landing |
+| D9 | both: a Home card is the default for a recurring brief, the chat wake for a one-shot reminder; the card is its own lane after the wake lands (runtime read method + Launcher view) | one run, two readers |
+
+Build order on approval: D4, D1, D6, D3 into the existing commit; gate; land; then D9.
+Everything above is Hermes-side (the Eternia harness in the fork); the Launcher's only part is
+D9's card view.
