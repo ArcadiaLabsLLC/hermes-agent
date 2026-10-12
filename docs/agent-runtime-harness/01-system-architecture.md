@@ -1079,8 +1079,8 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
 ## Supersedes
 
 It also replaces `planned/agent-placement-verb.md`, **deleted 2026-08-27 by the
-S10 fold-in commit** (`git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/agent-placement-verb.md`
-recovers it): the entity half of that plan — the create's three phases, the
+S10 fold-in commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+reachable from `main` or any remote ref): the entity half of that plan — the create's three phases, the
 inverse, and "placed" as a JOIN rather than a merge — is the truth stated above.
 
 Beyond that it replaces, for current truth, the entity/architecture content of

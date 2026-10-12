@@ -3,9 +3,9 @@
 > **SHIPPED 2026-08-27 — this is a build record, not a design, and it is not
 > authority.** The plan these notes were written under
 > (`planned/persona-template-skills.md`) is DELETED, per the index rule
-> ([00-index.md](../00-index.md) § planned/); recover it with
-> `git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/persona-template-skills.md`
-> (which returns `cf69a0d842`, another session's commit — see the S5 entry).
+> ([00-index.md](../00-index.md) § planned/); it was deleted at `cf69a0d842`
+> (another session's commit — see the S5 entry), which sits in the history folded
+> before the 2026-09-15 `main` and is not reachable from `main` or any remote ref.
 > The shipped truth lives in
 > [06 — Office and board](../06-office-and-board.md) § "Two tiers write skills,
 > and only the template one reaches the next placement", and the launcher half

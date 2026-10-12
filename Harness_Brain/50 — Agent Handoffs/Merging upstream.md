@@ -78,7 +78,7 @@ Read Harness_Brain/50 — Agent Handoffs/Merging upstream.md (the one page) and 
 6. Report (<= 30 lines): upstream tag merged, conflicts per file + rule, the verdict counts (drop / extract / upstream / kept), supersession rows retired/kept, the [up-fp] line before/after, test counts with reds marked merge-caused / pre-existing (re-run on origin/main).
 ```
 
-Retired with the old method: the per-file "reconcile X with upstream" prompt, its cumulative `automation/upstream-sync` branch, and `docs/agent-runtime-harness/planned/upstream-sync-automation.md` (deleted with this section).
+Retired with the old method: the per-file "reconcile X with upstream" prompt, its cumulative `automation/upstream-sync` branch, and `upstream-sync-automation.md` (formerly under `docs/agent-runtime-harness/planned/`; deleted at `a0b5b2e1b5`).
 
 ## Known shapes
 

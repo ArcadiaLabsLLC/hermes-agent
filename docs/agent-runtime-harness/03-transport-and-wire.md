@@ -1461,8 +1461,8 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
 ## Supersedes
 
 `planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
-commit** (`git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/agent-placement-verb.md`
-recovers it). Its wire half is above and in 06: `runtime.agent.create` gained an
+commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+reachable from `main` or any remote ref). Its wire half is above and in 06: `runtime.agent.create` gained an
 optional `position`, a `skills` param and four ack keys, and
 `runtime.agent.retire` joined the `rpc` roster — all of it additive, with
 `RPC_CONTRACT_VERSION` never moving, which is the set-plus-integer discipline

@@ -1446,8 +1446,8 @@ Two decisions ride with it:
     byte-equal gate was keying on by accident), `4d3d30c3f` (the sheet, the
     scope control, the stale-docstring sweep). Its plan file is DELETED, per the
     index rule ([00-index.md](00-index.md) § planned/) —
-    `git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/persona-template-skills.md`
-    is how you get the sha and the file back. **The one named gap it left open is
+    its deletion is `cf69a0d842`, in the history folded before the 2026-09-15
+    `main`, so not reachable from `main` or any remote ref. **The one named gap it left open is
     now CLOSED** (operator ruling 2026-09-03): the instance re-inherit door is
     `update-profile --inherit-skills`, which writes `None` where
     `--clear-skills` writes `[]`. See § "`skill_overrides` is a TRI-state"
@@ -1478,8 +1478,8 @@ Two decisions ride with it:
 ## Supersedes
 
 - `planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
-  commit** (`git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/agent-placement-verb.md`
-  is how you get the sha and the file back). Its §0 verdict, §A decisions D1–D12
+  commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+  reachable from `main` or any remote ref). Its §0 verdict, §A decisions D1–D12
   and §A.11's gateway table are the shipped truth stated above; the launcher
   half is `EterniaLauncher/docs/mission_control/04-office-scene.md`; its §C
   killing-mutation table lives on in `tests/mutation_claims.json` and the

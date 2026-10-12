@@ -1146,8 +1146,8 @@ Mechanism exists in code; the NUMBER or live condition was not re-measured here.
 ## Supersedes
 
 `planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
-commit** (`git log --diff-filter=D --oneline -- docs/agent-runtime-harness/planned/agent-placement-verb.md`
-recovers it). Its chat-lane half is §9 above: the third phase, its two gates,
+commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+reachable from `main` or any remote ref). Its chat-lane half is §9 above: the third phase, its two gates,
 the order they actually run in, and the `None -> []` `update-profile` fix.
 
 The rest are archived under [`archive/2026-08-22-pre-consolidation/`](archive/2026-08-22-pre-consolidation/),

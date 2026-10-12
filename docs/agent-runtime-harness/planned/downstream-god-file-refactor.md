@@ -373,7 +373,7 @@ A branch that finishes after a landing has started waits for the next landing, u
 - **After a forced re-rebase:** re-run only the tooling gates (b). The full suite runs again only if an incoming commit touches a file the batch touches.
 - A serial gate chain under exec-lane load cost the launcher's first landing 40 minutes; this is why (a)–(d) launch together.
 
-### 6.3 `EXEC_CARD` — the one page an exec lane reads (lands in Wave 0 as `docs/agent-runtime-harness/planned/downstream-god-file-refactor-EXEC_CARD.md`)
+### 6.3 `EXEC_CARD` — the one page an exec lane reads (due in Wave 0 as `downstream-god-file-refactor-EXEC_CARD.md`; not written as of 2026-10-11)
 
 Setup: `git fetch` from a neutral cwd; `git worktree add <root>/<lane> origin/main -b refactor/<lane>`; never `checkout`/`switch` in the primary; never amend; never force-push; never push to `main`. Discipline: rules 1.1–1.9 stated as facts; MOVE then CHANGE; import sets from the moved span's free identifiers, never by subtraction; positive control tried on a throwaway copy, red pasted, reverted; promotion only with a production caller outside the module; G1 row deleted in the crossing commit; format AFTER the row is gone (a formatter grows a grandfathered file and the GREW arm has no legal repair — measured on the launcher at 835 → 847); a sheet step that ADDS code and moves none is grouped with a shedding step, never its own commit on a grandfathered file; re-anchor doc cites by symbol; source-pin census before every move (rule 1.6); push after every commit; leave the worktree in place (never remove one a lane could resume in; never dispatch a follow-up into another lane's worktree — message the lane).
 
