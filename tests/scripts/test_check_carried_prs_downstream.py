@@ -17,6 +17,7 @@ def history(tmp_path, request):
     git(tmp_path, 'init')
     git(tmp_path, 'config', 'user.name', 'Test')
     git(tmp_path, 'config', 'user.email', 'test@example.invalid')
+    git(tmp_path, 'config', 'core.autocrlf', 'false')
     source = tmp_path / 'code.py'
     source.write_text('def carried():\n    return 1\n\n\ndef independent():\n    return 7\n', newline=request.param)
     git(tmp_path, 'add', '.')
