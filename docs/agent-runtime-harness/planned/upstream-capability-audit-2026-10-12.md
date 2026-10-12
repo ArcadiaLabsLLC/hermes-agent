@@ -357,3 +357,19 @@ view (the board's `running` rows) like the terminal and delegation lanes. No ups
 changes. The 2026-09-30 ruling is fulfilled, not revisited: native kanban still owns
 tasks, dispatch and execution; the only thing superseded is the Work slice's own scope
 note ("does not auto-start it"), whose stated worry the profile allowlist answers.
+
+### The mobile constraint (owner ask, 2026-10-12)
+
+The kanban engine spawns one OS process per worker (`hermes_cli/kanban_db_dispatch.py`,
+`_default_spawn`). Cron does not: the ticker is a daemon thread (`cron/scheduler_thread.py`)
+and jobs run in a thread pool in the same process. The phone bundle
+(`agent_runtime/bundle_profiles/bundled-phone.yaml`) already excludes both — `kanban` and
+`cronjob` dropped, no background ticker, `delegate_task` a placeholder, no subprocess
+workers — and phone bundles omit the Work adapter. So option 1's boot phase is bundle-gated
+and OFF on phone; the phone stays a client of a paired host over the multi-device lane
+(canon 09; the Launcher's `WorkDestination.remoteInstallation`). The engine and cron run
+where a process can live: desktop, home box, or a hosted runtime.
+
+Open product question, not answered by option 1: a mobile-only user with no host has no
+engine, so the small-business-in-a-loop case needs a hosted runtime for them. Option 1 is
+the same code on that server when it exists.
