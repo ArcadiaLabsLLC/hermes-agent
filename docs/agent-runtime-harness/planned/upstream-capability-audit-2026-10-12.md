@@ -210,10 +210,10 @@ way `h-prompt-brief` measured descriptions.
 
 ## Rows filed from this note
 
-Ten rows under "Filed on arrival — 2026-10-12 (upstream capability audit)" in
+Eleven rows under "Filed on arrival — 2026-10-12 (upstream capability audit)" in
 `runtime-queue.md` § Fork-owned: the loop host (one decision, both loops); Work submit
-without `goal_mode` / `completion_contract`; `APPLY_WITH_REVIEW` with no reader; no review
-door; `verify_on_stop` measurement; `cronjob` absent and no cron event on the drain;
+without `goal_mode` / `completion_contract`; the hygiene union admitting no per-profile
+`kanban_*` exemption; `APPLY_WITH_REVIEW` with no reader; no review door; `verify_on_stop` measurement; `cronjob` absent and no cron event on the drain;
 `worktree_isolation` flip plus the landing verb; helper routing guidance; the blocked-card
 PM router aimed at a mothballed role; memory with no read surface and `background_review`
 unmeasured. The launcher halves (a Review action, Work submit fields, memory view) are
