@@ -210,7 +210,7 @@ def _fetch_catalog_items(*, api_key: str = "", base_url: str = "", timeout: floa
     return items if isinstance(items, list) else None
 
 
-def _efforts_cache_only() -> Optional[dict[str, list[str]]]:
+def _efforts_cache_only(*, allow_warm: bool = True) -> Optional[dict[str, list[str]]]:
     """Memory, else the disk mirror (checked once per home). Never HTTP (hot-path safe)."""
     state = _state()
     with _efforts_lock:
@@ -225,7 +225,7 @@ def _efforts_cache_only() -> Optional[dict[str, list[str]]]:
         if state._efforts_cache is None:
             state._efforts_cache = parsed
         cached = state._efforts_cache
-    if age >= _DISK_TTL_SECONDS:
+    if allow_warm and age >= _DISK_TTL_SECONDS:
         _warm_efforts_async()
     return cached
 
@@ -274,14 +274,15 @@ class RouterProfile(ProviderProfile):
         _seed_efforts(items)
         return list(dict.fromkeys(str(i["id"]) for i in items if isinstance(i, dict) and i.get("id"))) or None
 
-    def supported_reasoning_efforts(self, model: Optional[str]) -> Optional[tuple[str, ...]]:
+    def supported_reasoning_efforts(self, model: Optional[str], *, allow_warm: bool = True) -> Optional[tuple[str, ...]]:
         """Catalog-declared effort vocabulary (cache-only; cold cache -> None + warm)."""
         mid = str(model or "").strip()
         if not mid:
             return None
-        efforts_by_id = _efforts_cache_only()
+        efforts_by_id = _efforts_cache_only() if allow_warm else _efforts_cache_only(allow_warm=False)
         if efforts_by_id is None:
-            _warm_efforts_async()
+            if allow_warm:
+                _warm_efforts_async()
             return None
         return tuple(efforts_by_id[mid]) if mid in efforts_by_id else None
 

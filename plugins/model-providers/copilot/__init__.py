@@ -14,6 +14,10 @@ from providers.base import ProviderProfile
 class CopilotProfile(ProviderProfile):
     """GitHub Copilot / GitHub Models — editor headers + reasoning."""
 
+    def supported_reasoning_efforts(self, model):
+        from hermes_cli.models_reasoning_caps import cached_control_efforts
+        return cached_control_efforts(self.name, model)
+
     def build_api_kwargs_extras(
         self, *, model: str | None = None, reasoning_config: dict | None = None,
         supports_reasoning: bool = False, **ctx,
@@ -23,7 +27,9 @@ class CopilotProfile(ProviderProfile):
         try:
             from hermes_cli.models import clamp_github_reasoning_effort, github_model_reasoning_efforts
 
-            supported = github_model_reasoning_efforts(model)
+            supported = self.supported_reasoning_efforts(model)
+            if supported is None:
+                supported = github_model_reasoning_efforts(model)
             if not supported:
                 return {}, {}
             if not reasoning_config:

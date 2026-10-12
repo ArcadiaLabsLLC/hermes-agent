@@ -241,5 +241,7 @@ def test_selected_model_facts_never_walk_inventory(placed_agent, monkeypatch):
     result = reply["result"]
     assert "models" not in result["facts"]
     assert result["facts"]["reasoning_effort"] == result["model"]["effective_reasoning_effort"]
+    assert result["facts"]["reasoning_capabilities"] == result["model"]["reasoning_capabilities"]
+    assert result["facts"]["reasoning_capabilities"]["model"] == result["model"]["effective_model"]
     from agent_runtime.serve_rpc.registry import method_tier
     assert method_tier("runtime.operator.conversation.model.facts") == "console"

@@ -8,6 +8,10 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`reasoning_capability_cursor::` 2026-10-12 — First-class provider/model capability
+facts cross operator reads, snapshots and provider-only patches. The Launcher
+renders native choices automatically. [Contract and verification](../../docs/downstream/reasoning-capabilities-2026-10-12.md).
+
 `history_red_triage_cursor::` 2026-10-12 — [Remaining qualification reds](../../docs/downstream/history-red-triage-2026-10-12.md) classified with current-main controls; repair ownership stays in the domain queues and the completed history scope stays closed.
 
 Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note and the canon live in the launcher's brain; the queue is split by repository — the hermes half is [[runtime-queue]] here.** This note exists so a hermes session knows where to go and what the runtime owes the surface.

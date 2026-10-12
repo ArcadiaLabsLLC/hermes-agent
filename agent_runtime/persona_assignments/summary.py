@@ -12,7 +12,6 @@ from typing import Any
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import AgentPersona, PersonaAssignment, PersonaInstance
 from agent_runtime.persona_assignments.identity import _display_name_for_template
-from agent_runtime.persona_assignments.profile import _model_supports_reasoning_effort
 from agent_runtime.persona_profiles import declared_lane_toolsets, effective_toolsets
 from agent_runtime.serde import safe_assignment_token
 from agent_runtime.states import ACTIVE_LANE_STATES
@@ -139,13 +138,12 @@ def persona_instance_summary(
         "effective_model": model_selection["effective_model"],
         "effective_provider": model_selection["effective_provider"],
         # Per-instance reasoning-effort override (None = inherit runtime default)
-        # plus whether the effective model supports reasoning effort at all, so
-        # the Launcher only offers the effort control for reasoning-capable
-        # models (no fake affordance). Computed offline from the model id.
+        # The legacy boolean remains a projection of the structured provider
+        # capabilities; unknown options never become a guessed four-level dial.
         "reasoning_effort": instance.reasoning_effort,
-        "reasoning_supported": _model_supports_reasoning_effort(
-            model_selection["effective_model"]
-        ),
+        "reasoning_supported": (model_selection["reasoning_capabilities"]["state"] == "supported"
+                                and bool(model_selection["reasoning_capabilities"]["levels"])),
+        "reasoning_capabilities": model_selection["reasoning_capabilities"],
         # The DECLARED lane toolsets (S0a A2), not the persona's legacy field:
         # the field is read by no admission path since A1, so projecting it here
         # made the launcher's instance summary describe a capability set no turn

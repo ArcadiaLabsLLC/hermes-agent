@@ -437,7 +437,7 @@ def _content_cache_key(instructions: str, tools: Optional[list[dict[str, Any]]],
     return "pck_" + hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()[:24]
 
 
-def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any = None) -> Optional[tuple]:
+def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any = None, *, allow_warm: bool = True) -> Optional[tuple]:
     """Provider-profile-declared reasoning-effort vocabulary, or None (fail-open).
 
     Resolves by endpoint host first, then by provider name: a ``custom:<name>`` entry pointed
@@ -448,6 +448,20 @@ def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any
     try:
         from providers import get_provider_profile
 
+        def read(profile):
+            if profile is None:
+                return None
+            hook = profile.supported_reasoning_efforts
+            options = {}
+            if not allow_warm or base_url:
+                import inspect
+                parameters = inspect.signature(hook).parameters
+                if not allow_warm and "allow_warm" in parameters:
+                    options["allow_warm"] = False
+                if base_url and "base_url" in parameters:
+                    options["base_url"] = base_url
+            return hook(model, **options)
+
         name = str(provider or "").strip().lower()
         declared = None
         if base_url:
@@ -457,14 +471,19 @@ def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any
             if inferred and inferred != name:
                 inferred_profile = get_provider_profile(inferred)
                 if inferred_profile is not None:
-                    declared = inferred_profile.supported_reasoning_efforts(model)
+                    declared = read(inferred_profile)
         if declared is None:
             profile = get_provider_profile(name) if name else None
-            declared = profile.supported_reasoning_efforts(model) if profile is not None else None
+            declared = read(profile)
     except Exception as exc:
         logger.debug("profile-declared efforts lookup failed: %s", exc)
         return None
     return None if declared is None else tuple(declared)
+
+
+def declared_reasoning_efforts(provider: str, model: str, base_url: str | None = None) -> Optional[tuple]:
+    """Read-only public projection of the transport's endpoint-first declaration."""
+    return _profile_declared_efforts(provider, model, base_url, allow_warm=False)
 
 
 def _is_azure_foundry_responses(params: dict[str, Any]) -> bool:

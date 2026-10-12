@@ -69,7 +69,8 @@ def operator_model_facts(params: dict) -> dict:
     settings = inspect_operator_settings(params)
     model = settings["model"]
     effort = {"reasoning_effort": model["effective_reasoning_effort"],
-              "reasoning_effort_source": model["reasoning_effort_source"]}
+              "reasoning_effort_source": model["reasoning_effort_source"],
+              "reasoning_capabilities": model["reasoning_capabilities"]}
     provider, name = model["agent_provider"], model["agent_model"]
     projected = facts(params["session_id"], {"info": {
         "provider": model["effective_provider"], "model": model["effective_model"],
@@ -97,6 +98,7 @@ def operator_selected_model_facts(params: dict) -> dict:
         "default_affects_inherited_sessions": True,
         "reasoning_effort": model["effective_reasoning_effort"],
         "reasoning_effort_source": model["reasoning_effort_source"],
+        "reasoning_capabilities": model["reasoning_capabilities"],
     }}
 
 

@@ -2373,6 +2373,8 @@ def fetch_github_model_catalog(
             # checks still apply).
             models = _copilot_text_models(items, ignore_picker_flag=True)
         if models:
+            from hermes_cli.models_reasoning_caps import record_control_catalog
+            record_control_catalog("copilot", models)
             _github_model_catalog_cache = copy.deepcopy(models)
             _github_model_catalog_cache_key = api_key
             _github_model_catalog_cache_time = time.monotonic()
@@ -2480,6 +2482,10 @@ def _github_reasoning_efforts_for_model_id(model_id: str) -> list[str]:
     normalized = normalize_copilot_model_id(model_id).lower()
     if is_astra_model(normalized):
         return list(CODEX_ASTRA_EFFORTS)
+    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
+    bare = normalized.rsplit("/", 1)[-1]
+    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
+        return list(codex_supported_efforts(bare))
     if normalized.startswith("gpt-5"):
         return list(COPILOT_REASONING_EFFORTS_GPT5)
     return []

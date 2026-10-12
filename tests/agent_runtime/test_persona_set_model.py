@@ -691,7 +691,8 @@ def test_reasoning_effort_is_isolated_per_instance():
     "gpt-6.1-sol", "openai/gpt-6.1-sol-900k", " GPT-6-LUNA ",
 ])
 def test_persona_instance_summary_projects_reasoning_fields(model):
-    persona = _persona(model=model)
+    from dataclasses import replace
+    persona = replace(_persona(model=model), hermes_profile=None)
     store = PersonaInstanceStore()
     a, b = _two_instances(store, persona)
     store.update_profile(b.id, reasoning_effort="high")
@@ -700,7 +701,7 @@ def test_persona_instance_summary_projects_reasoning_fields(model):
     overridden = persona_instance_summary(store.get(b.id), persona)
 
     assert plain["reasoning_effort"] is None
-    assert plain["reasoning_supported"] is True
+    assert plain["reasoning_supported"] is True, plain["reasoning_capabilities"]
     assert plain["model_is_override"] is False
 
     assert overridden["reasoning_effort"] == "high"

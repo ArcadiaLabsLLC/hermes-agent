@@ -352,6 +352,10 @@ def test_flag_on_profile_model_override_ships_recomputed_derived_fields(set_delt
 
 @pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6.1-sol-900k"])
 def test_flag_on_gpt6_model_change_enables_reasoning(set_delta_patches, isolate_agent_runtime_root, model):
+    from hermes_cli.profiles import get_profile_dir
+    home = get_profile_dir("reviewer")
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.yaml").write_text("{}", encoding="utf-8")
     set_delta_patches(True)
     store = PersonaInstanceStore()
     instance = mint_free_floating("profile_reviewer", store=store)

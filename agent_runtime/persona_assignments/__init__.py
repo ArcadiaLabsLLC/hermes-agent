@@ -80,7 +80,6 @@ from agent_runtime.persona_assignments.errors import (
 )
 
 from agent_runtime.persona_assignments.profile import (
-    _model_supports_reasoning_effort,
     _safe_skill_overrides,
 )
 
@@ -190,7 +189,6 @@ __all__ = [
     "StaleModelOverrideWrite",
     "TERMINAL_ASSIGNMENT_STATES",
     "_display_name_for_template",
-    "_model_supports_reasoning_effort",
     "_normalize_instance_source_persona",
     "_profile_id_for_persona_or_template",
     "_profile_visibility_persona",

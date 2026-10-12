@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-11",
+  "measured_at": "2026-10-12",
   "base": "818c13be1d",
-  "files": 194,
-  "deleted_lines": 970,
+  "files": 202,
+  "deleted_lines": 981,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "User-approved first-class reasoning capabilities for the Console",
+      "files": "194 -> 202: existing effort/transport owners, serving-catalog recorders, Codex/Copilot/Router provider hooks",
+      "deleted_lines": "970 -> 981; heavy 5 -> 5",
+      "reason": "The operator approved a provider/model capability contract instead of per-model UI registration. Additive metadata capture reuses already-fetched catalogs and the existing disk mirror; generic read-only hook projection suppresses warming and checks explicit endpoint scope. Exact reported choices also reach transport clamping. No parallel resolver, credential store or frontend provider policy."
+    },
     {
       "change": "console-history-repair: native restore extraction, reviewed consumer consolidation, baseline/deletion compatibility and finite lock waits",
       "files": "194 -> 194",

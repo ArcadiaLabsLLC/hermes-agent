@@ -162,7 +162,10 @@ def route_supported_efforts(
     accepted wherever the model's ladder reaches ``max`` (codex runs it at ``max``; a model without
     ``max`` rejects it), so it is sent verbatim there."""
     if (provider or "").strip().lower() == "openai-codex":
-        supported = codex_supported_efforts(model)
+        from providers import get_provider_profile
+        profile = get_provider_profile("openai-codex")
+        declared = profile.supported_reasoning_efforts(model) if profile is not None else None
+        supported = tuple(declared) if declared is not None else codex_supported_efforts(model)
         return (*supported, "ultra") if api_mode == "codex_app_server" and "max" in supported else supported
     return OPENAI_COMPAT_WIRE_EFFORTS
 
