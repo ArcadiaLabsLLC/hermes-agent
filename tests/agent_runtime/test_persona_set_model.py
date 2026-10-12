@@ -686,8 +686,12 @@ def test_reasoning_effort_is_isolated_per_instance():
     assert store.get(b.id).reasoning_effort == "high"
 
 
-def test_persona_instance_summary_projects_reasoning_fields():
-    persona = _persona(model="gpt-5.6-luna")  # reasoning-capable gpt-5 family
+@pytest.mark.parametrize("model", [
+    "gpt-5.6-luna", "gpt-6-luna", "gpt-6-luna-900k", "gpt-6-sol",
+    "gpt-6.1-sol", "openai/gpt-6.1-sol-900k", " GPT-6-LUNA ",
+])
+def test_persona_instance_summary_projects_reasoning_fields(model):
+    persona = _persona(model=model)
     store = PersonaInstanceStore()
     a, b = _two_instances(store, persona)
     store.update_profile(b.id, reasoning_effort="high")
@@ -696,7 +700,7 @@ def test_persona_instance_summary_projects_reasoning_fields():
     overridden = persona_instance_summary(store.get(b.id), persona)
 
     assert plain["reasoning_effort"] is None
-    assert plain["reasoning_supported"] is True  # gpt-5 exposes reasoning effort
+    assert plain["reasoning_supported"] is True
     assert plain["model_is_override"] is False
 
     assert overridden["reasoning_effort"] == "high"
