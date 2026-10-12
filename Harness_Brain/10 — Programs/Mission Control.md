@@ -8,6 +8,8 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`history_red_triage_cursor::` 2026-10-12 — [Remaining qualification reds](../../docs/downstream/history-red-triage-2026-10-12.md) classified with current-main controls; repair ownership stays in the domain queues and the completed history scope stays closed.
+
 Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note and the canon live in the launcher's brain; the queue is split by repository — the hermes half is [[runtime-queue]] here.** This note exists so a hermes session knows where to go and what the runtime owes the surface.
 
 `history_controls_cursor::` 2026-10-12 — Native selected-turn Branch/Edit/Undo,
