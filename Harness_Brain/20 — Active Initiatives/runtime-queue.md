@@ -27,6 +27,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-12 (composer thinking meter)
+
+- [ ] **Restore the Console thinking meter for the recognised GPT-6 model tiers by reusing the canonical runtime effort-family declarations.** · `persona_assignments/profile.py::_model_supports_reasoning_effort` uses the Copilot offline fallback, whose GPT family check stops at `gpt-5`; snapshot summaries and model-change patches therefore report GPT-6 Luna/Sol as unsupported even though `agent/reasoning_effort.py` defines their wire ladders. Preserve existing models and negative controls; pin both native projections. Launcher consumer: `EterniaLauncher/lib/features/agent_console/agent_console_model_switcher_view_model.dart`. · **TAKEN 2026-10-12 codex-thinking-meter**
+
+- [ ] **Replace the Console snapshot's model-only reasoning heuristic with a provider-aware capability projection for the resolved next-turn route.** · `persona_assignments/profile.py::_model_supports_reasoning_effort`, `persona_assignments/summary.py::persona_instance_summary`, `state_patches/persona_instance.py::_persona_instance_wire_row`; capability support currently comes from a Copilot fallback regardless of provider, and the Launcher owns a fixed four-level ladder. Use the existing provider/transport capability owner to advertise support, allowed levels and default without network work per snapshot or duplicate UI model rules; preserve unknown states and inherited-runtime model resolution. Immediate GPT-6 recognition is the separate scoped repair above. · UNCLAIMED
+
 ### Filed on arrival — 2026-10-11 (lane h-s17, one-action-layer S17)
 
 - [ ] **The R10 entry-id gate (landing from lane h-s17, `tests/tooling/`) sees only the dotted spelling `launcher.<area>.<verb>`; the Launcher's tool-name spelling of the same id (`launcher_<area>_<verb>`, from `appFunctionToolName`) walks through.** Live instance: an incident comment in `tools/tool_search_downstream.py` names `launcher_generated_list`. A naive `launcher_\w+` pattern would flag fork module names (`launcher_app_functions`, `launcher_client_requests`), so the answer is a typed name rule (tool names derived from the listed entry only, or a shared name-shape the gate can enumerate), not a wider regex. Plan: `EterniaLauncher/docs/embedded_hermes/subsystems/ONE_ACTION_LAYER_2026-10-10.md` R10. · fork · UNCLAIMED
