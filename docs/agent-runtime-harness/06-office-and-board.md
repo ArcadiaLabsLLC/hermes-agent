@@ -53,7 +53,7 @@ nothing to retire and refuses `not_found`, terminally by invariant 1.
 `runtime.office.remove` needs only the surface and the actor FILE, so it is the
 verb that can reach it, and the launcher now routes to it on that FACT rather
 than on the shape of the key (launcher plan
-`docs/mission_control/planned/realm-actor-lifecycle-refactor.md` A1, in the
+`docs/archive/mission_control/realm-actor-lifecycle-refactor.md` A1, in the
 EterniaLauncher repo).
 
 > **"A pull adopts office ACTORS and never instances" was superseded by the
@@ -88,7 +88,7 @@ EterniaLauncher repo).
 > `2026-09-01T05:42:04Z`, `source: "realm_sync"`), the badge cleared, and a
 > chat with the replica produced a real turn record — a working agent, not a
 > reference. Authority for the stage list, the landed wire contract, and the
-> proof receipts: `docs/mission_control/archive/instance-replication.md` in the
+> proof receipts: `docs/archive/mission_control/instance-replication.md` in the
 > EterniaLauncher repo, stamped EXECUTED AND PROVEN LIVE.
 >
 > **The one non-convergence that stage filed is CLOSED, 2026-09-02.** A steering
@@ -223,7 +223,7 @@ be deleted and replaced rather than kept alive by a compatibility path. Hermes
 holds no migration for them and needs none: an old `<persona>_desk` item still
 decodes and still writes here, because this store never knew what the id meant.
 
-The plan is `EterniaLauncher/docs/mission_control/planned/generic-desk-and-inspector-tables.md`
+The plan is `EterniaLauncher/docs/archive/mission_control/generic-desk-and-inspector-tables.md`
 (slice 1 is this change), cited in prose rather than linked because a cross-repo
 link is a dead link the docs gate takes.
 
@@ -290,7 +290,7 @@ is its EXECUTION, and the three consequences it named each landed:
 
 The launcher-side documents this used to cite in prose — `office-desk-litter-
 cleanup.md` §DL-H2 and `realm-actor-lifecycle-refactor.md` §D5/D6, both under
-`EterniaLauncher/docs/mission_control/planned/` — are superseded for desks by
+`EterniaLauncher/docs/archive/mission_control/` — are superseded for desks by
 `generic-desk-and-inspector-tables.md` in the same folder. All four are cited in
 prose rather than linked, because a cross-repo link is a dead link the docs gate
 takes.
@@ -839,7 +839,7 @@ Receipts: `8d69f8858b` (A1), `4d60060dc3` (A2), `dba7ed19b6` (A3),
 
 The placement verb was designed against the unbuilt Hermes Gateway
 (`hermes-agent/docs/agent-runtime-harness/archive/remote-gateway.md`, launcher
-`EterniaLauncher/docs/mission_control/archive/universal-remote-gateway.md`) so that
+`EterniaLauncher/docs/archive/mission_control/universal-remote-gateway.md`) so that
 no part of
 it would have to be redesigned when a remote connector arrives. The obligations
 below are stated as what the SHIPPED verb already is; the gateway itself is not
@@ -1385,7 +1385,7 @@ Two decisions ride with it:
   forgotten by a peer that never heard of it; and the pull's archive arm must
   account for itself instead of swallowing failures. Both are staged as **C1 and
   C2 of the launcher's
-  `EterniaLauncher/docs/mission_control/planned/realm-actor-lifecycle-refactor.md`**
+  `EterniaLauncher/docs/archive/mission_control/realm-actor-lifecycle-refactor.md`**
   (cross-repo, cited as prose); the class-key half stays with task #33, whose
   disposition `tests/agent_runtime/test_office_class_key_one_fence.py` carries.
 

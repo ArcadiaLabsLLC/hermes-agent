@@ -4,7 +4,7 @@
 file holds the four things that are only true because ``realm_sync`` was
 changed, and each of them is the exact thing the launcher measured as missing at
 `6d79b6d724` (EterniaLauncher
-``docs/spatial/planned/one-engine-one-catalogue-levels-per-workspace.md``,
+``docs/spatial/subsystems/one-engine-one-catalogue-levels-per-workspace.md``,
 "R15's office half LANDED … and its realm half did NOT"):
 
 1. a level is MINTED as an artifact, so publish carries it;

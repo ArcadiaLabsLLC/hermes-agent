@@ -469,7 +469,7 @@ def skill_baseline_path(realm_id: str) -> Path:
     # three-way pull model. Until then it was the only synced family with no
     # baseline, so "I edited it" and "they edited it" were the same verdict
     # (``hold_divergent``) and the sheet could only offer "adopt theirs" — see
-    # ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+    # ``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
     # section 4.2.
     return realm_sync_root() / safe_path_token(realm_id) / "skill_baseline.json"
 

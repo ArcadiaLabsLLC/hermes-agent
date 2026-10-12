@@ -1,6 +1,6 @@
 """H2: the publish envelope says WHICH paths moved and what drift the baselines left.
 
-Contract: `EterniaLauncher/docs/mission_control/planned/realm-history-and-publish-policy-design-sheet.md`
+Contract: `EterniaLauncher/docs/mission_control/subsystems/realm-history-and-publish-policy-design-sheet.md`
 §3 H2 — ``changed_paths`` / ``changed_count`` from the publish's own diff, and
 ``residual_drift`` rows (a store-drift row plus ``reason``: ``baseline_refused``,
 ``baseline_write_failed`` or ``not_in_publish_set``).

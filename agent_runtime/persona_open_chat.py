@@ -1,6 +1,6 @@
 """Opening a chat on the method lane — ONE implementation, two doors.
 
-Plan ``EterniaLauncher/docs/mission_control/planned/remote-chat-parity.md``,
+Plan ``EterniaLauncher/docs/archive/mission_control/remote-chat-parity.md``,
 stage C1h, ruling **R-C5**: *"Opening a chat is a method."* Until this module
 existed the runtime registered nineteen ``runtime.*`` verbs and none of them
 opened a chat, so a console aimed at another install could place an agent, move

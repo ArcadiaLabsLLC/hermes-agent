@@ -16,7 +16,7 @@ For any change to `hermes harness serve`: `harness_parts/serve.py` (`serve_loop`
 1. [`docs/agent-runtime-harness/04-boot-and-lifecycle.md`](../../docs/agent-runtime-harness/04-boot-and-lifecycle.md) — spawn → authoritative, stage by stage, each with its receipt.
 2. [`03-transport-and-wire.md`](../../docs/agent-runtime-harness/03-transport-and-wire.md) — frames, the drain (`_finish_drain` releases the socket lock), `gateway_block_when_no_listener`.
 3. [`09-multi-device-runtime.md`](../../docs/agent-runtime-harness/09-multi-device-runtime.md) + `EterniaLauncher/docs/mission_control/10-multi-device-architecture.md` — the runtime that outlives its launcher, registration, the redial.
-4. `EterniaLauncher/docs/mission_control/planned/runtime-observability.md` — RO-1..RO-9, the sidecar, the timeline tool (`dart run tool/mission_runtime_timeline.dart`).
+4. `EterniaLauncher/docs/archive/mission_control/runtime-observability.md` — RO-1..RO-9, the sidecar, the timeline tool (`dart run tool/mission_runtime_timeline.dart`).
 
 ## Hard rules
 

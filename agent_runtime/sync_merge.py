@@ -2,7 +2,7 @@
 
 Lifted VERBATIM from ``board_sync.classify_board_pull`` on 2026-07-17, when the
 Mission Office family became the classifier's second consumer
-(``docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` §5 —
+(``docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md`` §5 —
 launcher repo). ``board_sync`` re-exports the board-named aliases so its
 exhaustive decision-table tests keep passing unmodified, which is the proof the
 lift changed nothing.

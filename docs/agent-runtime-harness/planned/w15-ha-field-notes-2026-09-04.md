@@ -345,5 +345,5 @@ Nothing here is a hermes change; it is the handback for the launcher lane.
   `characters[].palette` / `status.palette`, both `conditional: true`. Key
   counts move `list` 28→29 and `status` 71→72; `sprite` (34) and `thumb` (17)
   are unchanged.
-* Then Studio stages 2–3 of `docs/studio/planned/w14-t1-palette-swatch-strip.md`.
+* Then Studio stages 2–3 of `docs/archive/studio/w14-t1-palette-swatch-strip.md`.
   Stage 4 (palette ops) is a later row by the ruling's own ordering.

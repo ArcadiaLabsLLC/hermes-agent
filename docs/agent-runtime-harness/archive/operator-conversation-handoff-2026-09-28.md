@@ -5,7 +5,7 @@ Latest-main reconciliation: `105195343c`, including `0cf918c853`.
 Final sync: `fc8f0a35cc`, including the speech-pack changes through `f85a141b98`.
 Owner authorized coordinated main landing on 2026-09-28 after automated checks.
 This record does not claim native desktop acceptance.
-Launcher tracking: `EterniaLauncher/docs/companion/planned/CROSS_INTERFACE_RECOVERY_2026-09-28.md`.
+Launcher tracking: `EterniaLauncher/docs/archive/companion/CROSS_INTERFACE_RECOVERY_2026-09-28.md`.
 
 ## Implemented boundary
 

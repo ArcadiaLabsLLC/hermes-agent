@@ -1,6 +1,6 @@
 """No hermes code names a Launcher entry id — intents come only from the Launcher's list.
 
-One-action-layer R10 (launcher ``docs/embedded_hermes/planned/ONE_ACTION_LAYER_2026-10-10.md``
+One-action-layer R10 (launcher ``docs/embedded_hermes/subsystems/ONE_ACTION_LAYER_2026-10-10.md``
 §3, slice S17): the runtime learns what the Launcher can do ONLY from
 ``launcher.app_functions.list``. A ``launcher.<area>.<verb>`` literal anywhere
 else is a second, unlisted copy of the Launcher's catalog — it survives the

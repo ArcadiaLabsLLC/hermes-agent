@@ -24,7 +24,7 @@ Sibling launcher/frontend child brain. Source-of-truth for the Mission Control S
 
 - Before any Mission Control work: `10 — Programs/Mission Control.md`, then `docs/mission_control/00-index.md` and `10-multi-device-architecture.md`.
 - To file or claim work on the SURFACE: `20 — Active Initiatives/mission-control-queue.md`. Runtime work whose fix is in this repository is [[runtime-queue]] here.
-- For the refactor method: `docs/mission_control/planned/mission-control-refactor-program.md`, `wave4/EXEC_CARD.md`, `docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`, `docs/tooling/AGENT_WALL_TIME_2026-09-18.md`.
+- For the refactor method: `docs/archive/mission_control/refactor-program-2026-09/mission-control-refactor-program.md`, `EterniaLauncher/docs/mission_control/EXEC_CARD.md`, `docs/tooling/SUBAGENT_DEPLOYMENT_PLAYBOOK_2026-09-21.md`, `docs/tooling/AGENT_WALL_TIME_2026-09-18.md`.
 - For the launcher's heavy-command discipline (slot wrapper, bundled tier): its `CLAUDE.md` § Commands.
 
 ## When to write to it (vs. here)

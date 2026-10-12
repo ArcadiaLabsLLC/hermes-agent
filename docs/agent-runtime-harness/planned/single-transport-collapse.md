@@ -56,7 +56,7 @@ The plan's §0 records that ruling #42 — *finish the main path, make fallbacks
 prove they are dead, delete cheapest-first* — exists nowhere on disk as
 quotation. The paraphrase lives in the archived
 `OFFICE_GESTURE_FOLD_PROMOTION_PLAN_2026-08-16.md` §10.4. Until the verbatim
-text lands in the launcher's `DECISION_push_and_rpc_2026-08-13.md`, every
+text lands in the launcher's `EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md`, every
 citation of `#42` is a citation of a paraphrase and must be read as one.
 
 ## What this plan explicitly does not promise

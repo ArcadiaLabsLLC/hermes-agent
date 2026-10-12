@@ -1,6 +1,6 @@
 """RS-4: a contender WAITS for an owner that is leaving, bounded, and says how long.
 
-The field (launcher plan ``restart-drain-fence.md`` §0, 2026-09-07 16:25Z on the
+The field (launcher plan ``EterniaLauncher/docs/archive/mission_control/restart-drain-fence.md`` §0, 2026-09-07 16:25Z on the
 operator's PC): a build-behind restart drained the old runtime and, 14 s into
 that drain, a replacement's ``acquire()`` answered
 ``serve_socket_lock_held_elsewhere lock_held_by:35944``. The old owner was alive

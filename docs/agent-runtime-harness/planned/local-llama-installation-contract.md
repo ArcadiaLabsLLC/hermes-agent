@@ -5,7 +5,7 @@ Reviewed 2026-09-14 against Hermes `31bf01536a` and Launcher UX plan
 `d3d6e02c3`. This is the backend extension of
 [the canonical local llama plan](local-llama-agent-console.md), not a replacement
 for its implemented inference/lifecycle contract. Launcher owns the visual plan
-at `docs/mission_control/planned/local-llama-manager-ux.md` in its repository.
+at `docs/archive/mission_control/local-llama-manager-ux.md` in its repository.
 No installation, runtime restart, model download, or product change was performed
 to write this plan. New methods below must not be enabled before producer proof.
 

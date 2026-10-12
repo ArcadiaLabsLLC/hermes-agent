@@ -382,7 +382,7 @@ was computed from); and a local skill edit lit nothing at all, because
 `store_drift` had no skill family, so the sheet read "In sync" over a canonical
 package that differed from the realm's. Diagnosis, operator rulings and the
 contract packet:
-`EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md`.
+`EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md`.
 
 What is true now:
 
@@ -563,7 +563,7 @@ published; the Mac's freshly booted serve pulled and minted
 `source: "realm_sync"`), the launcher's "Not linked here" badge cleared, and
 the operator's chat with the replica produced a real turn record. A realm pull
 delivers a working agent, demonstrated live across two machines — the receipt
-ledger is `docs/mission_control/archive/instance-replication.md` in the
+ledger is `docs/archive/mission_control/instance-replication.md` in the
 EterniaLauncher repo.
 
 **And the CANVAS travels with the agent** (2026-09-04, stages S1–S5). The
@@ -910,7 +910,7 @@ That reach is the whole reason it exists. `characters turnaround|rows|auto` are
 the runtime's only long runs and every one of them is a generation, so before
 this seam no sandboxed `harness serve` could run a batch to completion without
 spending money, and the long-run acceptance proof stopped at its own fixture
-gate (`EterniaLauncher/docs/mission_control/planned/local-runtime-ownership-and-retry-safety.md`
+gate (`EterniaLauncher/docs/archive/mission_control/local-runtime-ownership-and-retry-safety.md`
 §8.10b). It is also VISIBLE rather than silent: while it is armed, every
 `characters` verb's `--json` result carries `"draftsman": "fake"`
 (`hermes_cli/harness_parts/characters/payloads.py::_characters_draftsman`, applied in `_characters_emit`

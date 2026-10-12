@@ -629,7 +629,7 @@ def test_plan_and_result_are_frozen_dataclasses(tmp_path):
 
 # ══ the sync hash is EOL-agnostic (2026-09-12) ══════════════════════════════
 #
-# ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# ``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 # §4.1. Two hashes for one package, deliberately: the BYTE hash
 # (``skill_package_content_hash``) still answers "are these the same bytes on
 # disk" for the resolver cache and the installer-ownership manifest, and the SYNC

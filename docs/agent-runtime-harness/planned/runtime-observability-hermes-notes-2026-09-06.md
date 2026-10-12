@@ -1,7 +1,7 @@
 # Runtime observability — the hermes half's running record (2026-09-06)
 
 Field notes for the hermes stages of
-`EterniaLauncher/docs/mission_control/planned/runtime-observability.md`. The
+`EterniaLauncher/docs/archive/mission_control/runtime-observability.md`. The
 launcher half's notes live beside that plan; this file is the record of what was
 built in THIS repo, what it cost to learn, and what is still not proven.
 

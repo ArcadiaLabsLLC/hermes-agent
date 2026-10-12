@@ -313,7 +313,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "board.rebalanced": EventContract("board.rebalanced", "Board column order keys rebalanced", ("board_id", "column_id"), ("card_count",)),
     # Mission Office events — the OfficeStore chokepoint emits one on EVERY
     # mutation (same standing store rule as boards; realm-synced the same way).
-    # See EterniaLauncher docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md.
+    # See EterniaLauncher docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md.
     "office.surface.created": EventContract("office.surface.created", "Office surface created", ("workspace_id",), ()),
     "office.surface.updated": EventContract("office.surface.updated", "Office surface updated", ("workspace_id", "change"), ("revision",)),
     "office.actor.upserted": EventContract("office.actor.upserted", "Office actor placement upserted", ("workspace_id", "actor_key"), ("persona_id", "items", "revision")),

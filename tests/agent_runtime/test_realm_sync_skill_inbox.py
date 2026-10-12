@@ -742,7 +742,7 @@ def test_dry_run_pull_writes_nothing_with_a_ledger(tmp_path):
 
 # ══ the three-way model (2026-09-12) ════════════════════════════════════════
 #
-# Authority: ``EterniaLauncher/docs/mission_control/planned/held-skill-publish-direction.md``
+# Authority: ``EterniaLauncher/docs/archive/mission_control/held-skill-publish-direction.md``
 # §4. Until this lane landed the skill family was the only synced family deciding
 # TWO-way (canonical vs inbox, no baseline), which is why the launcher's SKILLS
 # HELD card could offer nothing but "adopt theirs": with no baseline, "I edited

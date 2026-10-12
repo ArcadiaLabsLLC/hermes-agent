@@ -45,14 +45,14 @@ one batch boundary, V6 gone by construction) carries the plan on its own.
   ruling register (RAN, evidence sweep). The nearest on-disk kin is the
   DECISION doc's borrowed cutover pattern: keep old polls as "SLOW BACKSTOPS
   … so nothing goes dark mid-upgrade"
-  (`DECISION_push_and_rpc_2026-08-13.md:165-169`, launcher repo, READ).
+  (`EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md:165-169`, launcher repo, READ).
   **Work item C-W1 — PARTLY DISCHARGED 2026-08-16.** The ruling, its accepted
   cost and the other cited numbers are now recorded on disk in
   `OFFICE_GESTURE_FOLD_PROMOTION_PLAN_2026-08-16.md` §10.4 ("Register — the
   numbers this document cites"), which is the authority until a real register
   exists; read `R#42` there for this plan's citations of `#42`. What remains
   open is the narrower half: the ruling's verbatim text belongs in the
-  launcher's `DECISION_push_and_rpc_2026-08-13.md` beside the cutover pattern
+  launcher's `EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md` beside the cutover pattern
   it extends. Until that lands, the §10.4 entry is a paraphrase written from
   relayed text, not a quotation — treat it as such.
 
@@ -348,7 +348,7 @@ the office lane, and the hub all remain load-bearing. Rollback: revert (2),
 - Build cost (Plans B/D3 territory): one producer still builds full cores
   for uncovered batches.
 - The argv CALL half: 38 capability ids / ~46 subcommand paths stay argv
-  (inventory: launcher `HANDOFF_durable_service_2026-08-13.md` §5b-c,
+  (inventory: launcher `EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/HANDOFF_durable_service_2026-08-13.md` §5b-c,
   corrected count at `DECISION_…:404-407` — evidence sweep). That migration
   is the DECISION doc's Stage 2, not this plan.
 - The TCP socket lane stays undialled (D-C3): a second PROCESS attaching

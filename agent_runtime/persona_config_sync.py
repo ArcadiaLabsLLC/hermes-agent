@@ -12,7 +12,7 @@ leave a machine:
    ``profiles/base/config.yaml``; a member's pull overwrote THEIR fork seed —
    the file every new profile on that machine is created from. The Office
    realm-sync plan §5.1
-   (``docs/mission_control/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md``,
+   (``docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md``,
    launcher repo) explicitly ruled the base seed must never sync, but the guard
    was written against the base *persona id*, so
    a persona merely *bound to* the base profile home walked straight past it.

@@ -139,7 +139,7 @@ PATH DOES NOT RESOLVE: 6
   planned/duplicate-implementation-retirement.md:231  read_model.py:167
   planned/duplicate-implementation-retirement.md:235  projector.py:28
   planned/duplicate-implementation-retirement.md:248  read_model.py:167
-  archive/remote-gateway-field-notes.md:35   docs/mission_control/archive/universal-remote-gateway.md:524
+  archive/remote-gateway-field-notes.md:35   docs/archive/mission_control/universal-remote-gateway.md:524
   archive/remote-gateway-field-notes.md:812  universal-remote-gateway.md:740
 
 LINE IS PAST THE END OF THE FILE: 0

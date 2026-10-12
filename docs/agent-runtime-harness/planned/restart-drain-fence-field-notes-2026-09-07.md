@@ -1,6 +1,6 @@
 # Field notes — the restart drain fence, hermes half (2026-09-07)
 
-The hermes half of the launcher plan `restart-drain-fence.md` (rulings RS-3 and
+The hermes half of the launcher plan `EterniaLauncher/docs/archive/mission_control/restart-drain-fence.md` (rulings RS-3 and
 RS-4, its Stage 2). Written AS THE WORK HAPPENED, so the order of the sections
 below is the order the facts arrived, not a tidy retelling. The launcher half of
 these notes lives beside the plan in the launcher repo.

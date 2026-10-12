@@ -12,7 +12,7 @@
 # no operator or script uses the argv form); the read stays for operators.
 #
 # Design contract: EterniaLauncher
-# docs/spatial/planned/one-engine-one-catalogue-levels-per-workspace.md (R15).
+# docs/spatial/subsystems/one-engine-one-catalogue-levels-per-workspace.md (R15).
 
 # A real module (lane H1, 2026-09-24): it imports everything it reads, and a
 # test patches a name HERE, where this module looks it up — never on

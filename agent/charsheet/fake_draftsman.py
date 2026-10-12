@@ -8,7 +8,7 @@ for everything that runs in-process and for nothing that does not. A SPAWNED
 only long-running verb the runtime has (``_LONG_RUN_COMMANDS``) could not be
 exercised end to end against a real child without a billed provider call, and
 the long-run acceptance proof stopped at that gate (launcher
-``EterniaLauncher/docs/mission_control/planned/local-runtime-ownership-and-retry-safety.md``
+``EterniaLauncher/docs/archive/mission_control/local-runtime-ownership-and-retry-safety.md``
 §8.10b, ruling RL-26).
 
 This module is that missing arm, and it is deliberately three small things:

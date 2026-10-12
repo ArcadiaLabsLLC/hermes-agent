@@ -1,6 +1,6 @@
 # L1 — the listener start path: field notes (2026-09-04)
 
-Stage L1 of `reachable-switch-lifecycle.md` (launcher repo,
+Stage L1 of `EterniaLauncher/docs/archive/mission_control/reachable-switch-lifecycle.md` (launcher repo,
 `docs/mission_control/planned/`). Base `fe742b60c2`, branch
 `feat/l1-listener-start-path`, worktree `X:\wt\l1-listener`. Rulings consumed:
 **R-L1** (the greeting is never silent about the gateway) and **R-L2** (a dead

@@ -1428,7 +1428,7 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
   [09 — Multi-device runtime](09-multi-device-runtime.md) § Open rows (R12/R13
   unruled, the broker appendix unstaged, the A→B→A cycle, the `unknown_device`
   read, D12's launcher half). The staged history stays where it is:
-  `archive/universal-remote-gateway.md` in the EterniaLauncher repo and
+  `EterniaLauncher/docs/archive/mission_control/universal-remote-gateway.md` and
   [archive/remote-gateway.md](archive/remote-gateway.md), the hermes-half
   pointer.
 - **`serve.py:105` says the RPC registry holds "currently eight" methods; ten
@@ -1521,7 +1521,7 @@ this projection. Unknown and archived lifecycle states are never flattened to
 success. Stop, redirect and retry are not advertised.
 
 Launcher presentation and verification record:
-`EterniaLauncher/docs/companion/planned/HERMES_WORK_VIEW_2026-09-30.md`.
+`EterniaLauncher/docs/archive/companion/HERMES_WORK_VIEW_2026-09-30.md`.
 
 ### Conversation-scoped Work
 
@@ -1546,4 +1546,4 @@ global fallback. Pending clients retain the original reference when another surf
 retries. Native task transfer may deliberately clear origin under native policy.
 
 The shared presentation receipt is
-`EterniaLauncher/docs/companion/planned/SCOPED_CHAT_WORK_2026-10-01.md`.
+`EterniaLauncher/docs/archive/companion/SCOPED_CHAT_WORK_2026-10-01.md`.

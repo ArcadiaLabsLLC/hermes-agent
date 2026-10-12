@@ -1,7 +1,7 @@
 """WS1: the ``scope`` fold entity, and the demote that stops firing.
 
 Instant-workspace-switching plan §1.1 (EterniaLauncher
-``docs/mission_control/archive/instant-workspace-switching.md``; hermes pointer
+``docs/archive/mission_control/instant-workspace-switching.md``; hermes pointer
 ``docs/agent-runtime-harness/archive/instant-workspace-switching.md``).
 
 A workspace switch is the cheapest state change this runtime has — two scalars

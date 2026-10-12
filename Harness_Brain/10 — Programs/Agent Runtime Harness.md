@@ -72,9 +72,9 @@ with the fork's ACP surface (owner ruling 2026-09-26, lane ACP-DROP): the
 | program | plan | state 2026-09-21 |
 |---|---|---|
 | chat-turn prep cost (pre-admit span, three skill walkers) | `chat-turn-prep-cost.md` | Stages 6–8 landed (`5bacb491c4`); Stage 8's numbers unverified — ten live turns owed; Mac CP-9 read owed; a fourth walker (`used_skills_context` per-name resolve) found by Stage 8 |
-| restart drain fence (RL-20 build-behind spawned a second runtime mid-drain) | launcher `runtime-observability.md` + hermes RS-1..7 | Stages 1–2 landed (`114bfd69e7`); Stage 3 builder running |
+| restart drain fence (RL-20 build-behind spawned a second runtime mid-drain) | launcher `EterniaLauncher/docs/archive/mission_control/runtime-observability.md` + hermes RS-1..7 | Stages 1–2 landed (`114bfd69e7`); Stage 3 builder running |
 | boot sweep identity flip (the restart killer) | `boot-sweep-…` RB-1..RB-9 | all landed (`e29b522e1`); owed: one boot on the RB-9 build; a row on bare `HERMES_HOME` as a host root |
-| runtime observability RO-1..RO-9 | launcher `runtime-observability.md`, hermes O-h | all on main; killer UNNAMED; RO-1 sidecar names the next one; timeline tool `dart run tool/mission_runtime_timeline.dart` |
+| runtime observability RO-1..RO-9 | launcher `EterniaLauncher/docs/archive/mission_control/runtime-observability.md`, hermes O-h | all on main; killer UNNAMED; RO-1 sidecar names the next one; timeline tool `dart run tool/mission_runtime_timeline.dart` |
 | local runtime ownership (rows L/R/W), remote chat parity R-C1..C8, instant pairing D1..D11 | canon 09 + launcher doc 10 | landed; owed operator proofs (held send, real pull, reap, C5 re-run both machines, D3 run #7) |
 | local llama agent console | `planned/local-llama-agent-console.md` | design only |
 | harness-runtime-model SKILL.md over its 16,384-byte ceiling since 2026-09-03 | — | unrowed; rewritten last from the refactor's field notes |

@@ -4,7 +4,7 @@
 > changes (`docs/agent-runtime-harness/mission-control-stream.md`) because five
 > of its eight stages are hermes-owned and every producer/coverage test it names
 > is in `tests/agent_runtime/`. Its format follows the launcher repo's staged
-> plan family (`docs/mission_control/READ_MODEL_ENTERPRISE_PLAN_2026-07-16.md`
+> plan family (`docs/archive/mission_control/2026-08-22-pre-consolidation/READ_MODEL_ENTERPRISE_PLAN_2026-07-16.md`
 > — the S-stage house format the S7-A code cites as "the plan"), because that is
 > the format the read-model workstream's stages have always used. It was NOT
 > placed in the launcher's `docs/mission_control/` only because that checkout is
@@ -40,7 +40,7 @@ not on the gesture path itself.
 
 ## 0. The ask, and the operator ruling this plan serves
 
-- 2026-08-13 ruling (`DECISION_push_and_rpc_2026-08-13.md`, launcher repo): we
+- 2026-08-13 ruling (`EterniaLauncher/docs/archive/mission_control/2026-08-22-pre-consolidation/DECISION_push_and_rpc_2026-08-13.md`, launcher repo): we
   own the better PUSH, upstream owns the better CALL; build the union. The
   office push lane (`runtime.office.subscribe` / `runtime.office.patch`) is
   the PUSH half; it must actually fold.

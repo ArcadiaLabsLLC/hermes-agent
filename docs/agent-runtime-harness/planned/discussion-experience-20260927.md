@@ -57,7 +57,7 @@ produced four expected failures; synthesis-off controls passed.
 
 Launcher now uses one neutral Discussion client for both surfaces; native
 authority and protocol are unchanged. See
-`EterniaLauncher/docs/companion/planned/DISCUSSION_EXPERIENCE_2026-09-27.md`.
+`EterniaLauncher/docs/archive/companion/DISCUSSION_EXPERIENCE_2026-09-27.md`.
 The original native UI acceptance and broader gates are still owed. The earlier
 interrupted full suite is not a passing result or a baseline classification.
 
@@ -107,7 +107,7 @@ requests. Producer/consumer fixtures still match byte-for-byte.
 
 The Launcher closeout maps the original eight acceptance steps, structural
 measurements, native revisions and explicit release/layout limits:
-`EterniaLauncher/docs/companion/planned/DISCUSSION_CLOSEOUT_2026-09-28.md`.
+`EterniaLauncher/docs/archive/companion/DISCUSSION_CLOSEOUT_2026-09-28.md`.
 No broad-suite or host-freeze resolution claim is made. The contained continuation
 exposed an updater isolation gap; its remaining population is not rerun on the
 operator desktop. The fork-hygiene queue owns isolated completion.
