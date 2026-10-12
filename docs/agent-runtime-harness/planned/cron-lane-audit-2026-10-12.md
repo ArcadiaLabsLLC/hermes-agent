@@ -123,7 +123,7 @@ implementation, sets `cron.serve_ticker: false`; a phone's reminders run on its 
 | D6 | **The tool's own words.** | unchanged upstream notices | The local-delivery notice (§3) says the output is never delivered; the persona will say so to the operator. Fix shape: the plugin's `transform_tool_result` replaces the notice on the persona lane. Row. |
 | D7 | **Observability.** | the serve's `cron_lane` stderr line; `hermes cron status/list` on the CLI | No `harness` verb and no snapshot section lists a persona's jobs; the Launcher sees only running rows. Enough for the everyday case; a developer mode would want a list. Later. |
 | D9 | **Delivery surface: chat, Home, or both.** | chat wake only | Cron is not chat: a run ends as a saved output file and a job record, which any surface can read. A brief on Intelligence Home or a right-panel card on open needs a `runtime.cron.*` read lane (none exists) and a Launcher view; "brief on open" can run the job now (upstream's run-now) and show the last output meanwhile. Per job or per persona: chat for "remind me Friday", a Home card for a morning brief, both from one run. Owner rules; nothing built. |
-| D10 | **Which chats the wake can reach.** | persona-chat roots only | The drain resolves an owner only for a `persona_chat_` root with a live persona instance (`dispatch_delivery/completions.py::_chat_root_of_completion`): the Agent Console and Mission Control operator chat bound to a persona instance. Intelligence's native conversations run in a separate worker process (`agent_runtime/conversations/worker.py`) on native session ids, so a job created there binds a key the drain never resolves: the job runs and saves its output, the wake stays queued. Either the wake learns native conversation routes (the same join the native worker link already makes) or those chats are served by the Home card (D9). Owner rules. |
+| D10 | **Which chats the wake can reach.** WITHDRAWN 2026-10-12 (owner: Intelligence chat is being removed; the Agent Console is the one chat widget, ruling 2026-10-02), so persona-chat roots are the single chat shape and this is not a domain assumption. Kept for the record. | persona-chat roots only | The drain resolves an owner only for a `persona_chat_` root with a live persona instance (`dispatch_delivery/completions.py::_chat_root_of_completion`): the Agent Console and Mission Control operator chat bound to a persona instance. Intelligence's native conversations run in a separate worker process (`agent_runtime/conversations/worker.py`) on native session ids, so a job created there binds a key the drain never resolves: the job runs and saves its output, the wake stays queued. Either the wake learns native conversation routes (the same join the native worker link already makes) or those chats are served by the Home card (D9). Owner rules. |
 | D8 | **Keep or revert the reference commit.** | on the branch, not on main | Keep as the implementation ADR 0015 step 1 lands from, after D1–D6 are ruled; or revert on the branch. |
 
 ## 8. The reference implementation at `598bedea`, exactly
@@ -138,3 +138,13 @@ killing mutations each recorded red (commit body); eight neighbouring suites gre
 landing gate was started and STOPPED on the owner's instruction; it has not reported.
 
 Does not: anything in D1–D7's alternatives; continuable deliveries; a cron list for the Launcher.
+
+## 9. Is the lane domain-bound? (owner ask, 2026-10-12)
+
+No. `agent_runtime/cron_lane.py` imports the config switch, the profile list and upstream's
+`cron` package; `agent_runtime/cron_wake.py` imports the session context, the cron store, the
+process registry, the redactor and the background-work home. Neither names Mission Control, the
+office, the Launcher or Intelligence. The one chat-shaped rule is the drain's: it delivers to
+persona-chat roots, which, with the Agent Console the one chat widget, is the only chat shape
+there is. A Home card (D9) would read a job's saved output through a runtime method and is
+neutral the same way.
