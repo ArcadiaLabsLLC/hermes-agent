@@ -32,7 +32,9 @@ allowance, skipped assertion or upstream-file edit is part of this repair.
 
 ## Qualification
 
-All runs use Windows / Python 3.13.15 and the canonical wrappers.
+The original red/green controls use Windows / Python 3.13.15 and the canonical
+wrappers. The paired candidate is also qualified on supported Python 3.14.7
+below.
 
 | Run | First attempt |
 | --- | --- |
@@ -62,6 +64,15 @@ landing gate. `Harness_Brain/50 — Agent Handoffs/Running the tests.md` require
 session-chain changes to join a release-merge batch; this repair awaits that
 batch's whole-tree qualification before landing. No full suite was run here.
 
+After pairing with H08 on `256c151c76`, the original 20-file bundle also
+passes on the isolated PM-built Python 3.14.7 environment: **204 passed,
+ten skipped and two existing xfails**, one bundle, zero reruns, 25.0 s.
+The same candidate passes **56 focused tests**, three skips and one existing
+xfail across relay delivery, footprint, environment registry and the existing
+CLI fixture-boundary checks. The source is unchanged by the subsequent
+H03-main merge. These results still do not substitute for the session-chain
+batch gate.
+
 The broader upstream fixture limitation remains: patching a defining module
 does not update previously imported aliases. Backup is qualified and repaired
 through the fork's existing test seam. Other consumers, including
@@ -79,3 +90,5 @@ evidence, not another backlog.
 | `triage-h11-whole-bundle-green.log` | `5f1b87797cd9762b4d523af357664d088ec16668d964df80554eb2817794bf7e` |
 | `triage-h11-adjacent.log` | `89ba997d2be8e26fcbf60b5639435498f3ef3e56109f0777c729408ec361fc23` |
 | `triage-h11-registration-red.log` | `88b0bc9afe378b9072f6b1dd5139fc1fe5984df496a1ea15a9cc004ae60c15bc` |
+| `triage-h11-batch-green314.log` | `76240889e0ece4b9331dd0b6fcc80a62e8b982cefee6e9ec1ba6fb4de878703e` |
+| `triage-batch-focused314.log` | `ed8edf795f65620df9bb2715f0bfe9d212f9ba276e80f9bb403c094528144a46` |
