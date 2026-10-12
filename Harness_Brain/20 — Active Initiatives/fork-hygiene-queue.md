@@ -7,6 +7,9 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **Make `scripts/check` print diagnostics reliably on a Windows cp1252 console.** · 2026-10-12 reasoning-capability gate: all jobs were collected, then `main` raised `UnicodeEncodeError` while printing U+2717 at `scripts/check:273`, leaving no readable check results. A UTF-8 invocation is the immediate qualification path; the tool should retain its result receipt under the host's ordinary encoding too. · `scripts/check` · UNCLAIMED
+- [ ] **Distinguish unexecuted bundle members from proven isolation leaks after an abnormal bundle exit.** · 2026-10-12 reasoning-capability gate: bundle 85 hit an idle-turn guard and the report labelled 21 green-alone members as isolation leaks; its first listed member `test_backend_postgres_proof.py` had `{}` counts and zero earlier members. Preserve the abnormal-exit receipt and classify non-execution separately before claiming earlier-file contamination. · `scripts/run_tests_bundled_plan.py`, `scripts/run_tests_bundled.py` · UNCLAIMED
+
 - [ ] **Bound or archive accumulated run receipts through the existing gate store without discarding unresolved first-attempt evidence.** `run_tests_bundled_plan.record_run` appends indefinitely; `last_record` and `GateStore.prior_skip_runs` read the entire `runs.jsonl`, while `GateStore.compact` only compacts green/dependency/module-set records. H13 caps each diagnostic at 64 Ki characters but does not change the existing run-history lifecycle. Define retention/archive semantics once in the store, keeping the latest final-red state and investigation receipts. · fork / suite storage · evidence: named symbols; `docs/downstream/test-safety-evidence-repair-2026-10-12.md` · filed 2026-10-12 test-safety-evidence-repair
 
 
