@@ -221,7 +221,6 @@ _NODES = (
         'tests/tools/test_modal_sandbox_fixes.py::TestHostPrefixList::test_all_common_host_paths_flagged_unusable',
         'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_keyless_disabled_falls_through_to_key_error',
         'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_tier_paid_forces_keyed_without_key',
-        'tests/tui_gateway/test_bot_relay_methods.py::test_deliver_validates_profile_and_runs_transport',
         'tests/tui_gateway/test_bot_relay_methods.py::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed',
         'tests/tui_gateway/test_desktop_session_workspace_persistence.py::test_desktop_inherited_cwd_persists_only_when_the_resolution_adopted_it',
         'tests/tui_gateway/test_display_methods.py::test_install_sudo_card_ignores_a_client_supplied_session_id',

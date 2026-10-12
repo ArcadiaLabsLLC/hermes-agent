@@ -105,11 +105,23 @@ A native Windows probe invokes the original upstream test body with the same
 delivery stub and two resolver outputs: `hermes.exe` passes; `hermes.EXE`
 fails at that exact assertion. Result: **one passed / one failed**.
 
-The local XPASS therefore does not prove that the inherited condition was
-fixed. Correct or reclassify the spelling assertion before retiring the broad
-Windows marker. No test assertion or marker was changed, and no new upstream
-PR was submitted for this finding. The temporary probe is retained outside
-the checkout. This supersedes the earlier proposed unconditional retirement.
+The local XPASS did not prove that the inherited condition was fixed. The
+repair now supplies the CLI resolver result and checks that the handler uses
+that exact path, with `hermes`, `hermes.exe` and `hermes.EXE` beneath a directory
+containing spaces. Native launcher selection retains its existing tests.
+[Upstream PR #137478](https://github.com/NousResearch/hermes-agent/pull/137478),
+commit `458dd40910`, changes only this test (+6/-3). Before the assertion repair,
+the uppercase case fails and the other two pass. On Windows Python 3.14.7 the
+three repaired cases pass; delivery plus launcher-selection files report
+31 passed and one unrelated reported-turn timeout. That timeout reproduces
+alone with the unchanged upstream test file in the same environment. All 12
+upstream quality checks pass; zero health findings. No production change.
+
+The fork candidate carries the exact patch and removes only this test's broad
+Windows marker. The unrelated timeout marker stays. H08 joins H11 in
+`codex/triage-followthrough`: both touch the shared test-fixture chain, so their
+whole-tree qualification belongs to the release batch. They are prepared,
+not landed; the upstream PR is open, not accepted.
 
 ## Retained local receipts
 

@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-12",
   "base": "818c13be1d",
-  "files": 203,
-  "deleted_lines": 1017,
+  "files": 204,
+  "deleted_lines": 1020,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Carry the upstream relay delivery test repair PR #137478; retire its Windows marker",
+      "files": "203 -> 204: tests/tui_gateway/test_bot_relay_methods.py",
+      "deleted_lines": "1017 -> 1020; heavy 5 -> 5",
+      "reason": "The test now provides and verifies the exact resolver result, covering hermes/hermes.exe/hermes.EXE with spaces. The old Windows xfail hid a case-sensitive assertion and is removed only with its upstream repair. Retire this test carry on the upstream merge; the unrelated reported-turn timeout marker remains."
+    },
     {
       "change": "Owner-authorized carry of upstream Session API ordering fix PR #137460",
       "files": "202 -> 203: gateway/platforms/api_server.py",
