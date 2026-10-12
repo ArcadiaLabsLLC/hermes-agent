@@ -222,9 +222,10 @@ door each one waits on lands.
 
 ## 8. Where we are today, the three loop-host options, and value against friction (owner ask, 2026-10-12)
 
-**Today is none of the three options.** Companion's headless Work engine (the Launcher's own
-daemon and ledger, which did not care where work started) was retired by the 2026-09-30
-ruling. Its presentation survived (`eternia_workbench_ui`); its engine did not. What
+**Today is none of the three options.** Companion is a separate repository, never part of
+the Launcher; its headless Work engine (its own daemon and ledger, which did not care where
+work started) was NOT imported by the 2026-09-30 ruling. Only its presentation was reused
+(`eternia_workbench_ui`, from Companion `5629016153de`). What
 replaced it is the STORE half of upstream kanban — `runtime.work.start` writes a `ready`
 row into the native database — with no engine behind it, because the engine is a loop in
 upstream's gateway process and the Launcher runs `hermes harness serve`. A card submitted
@@ -234,7 +235,7 @@ work in Companion's sense, but per turn and not durable.
 
 | | engine code | where it runs | second authority? | what the operator sees |
 |---|---|---|---|---|
-| Companion (retired) | fork, in the Launcher | Launcher daemon | yes (its own ledger) | Work rows in the Launcher |
+| Companion (separate repo, engine not imported) | Companion's own | Companion's daemon | yes (its own ledger) | Work rows, in Companion |
 | today | none | nowhere | no | Work rows that never move |
 | option 1 (recommended) | upstream's dispatcher, unchanged | inside `hermes harness serve`, scoped to Launcher-owned boards/profiles | no | the same Work rows, moving; workers visible in running-work |
 | option 2 | upstream's dispatcher, unchanged | a separate `hermes kanban dispatch` process the Launcher supervises | no | rows move; workers invisible to running-work (other process) |
