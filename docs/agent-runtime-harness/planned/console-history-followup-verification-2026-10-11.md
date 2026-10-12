@@ -524,3 +524,40 @@ schema rather than the required in-app capture and managed build-status door.
 Final main integration `4a780e08c2` includes the queue-only main update
 `367555d5c1`. The runtime source is unchanged from `c0b289a072`; the gate evidence
 above is not presented as a rerun after documentation-only integration.
+
+### Current-main preparation and bounded failure comparison — 2026-10-12
+
+Runtime merge `d0e0f40a9b` integrates main `50a9165fc2`. The runtime source is
+unchanged from `c0b289a072`. Profile identity, checkpoint turn wait, combined
+Undo and Session API checks report **54 passed**, including the runner's
+isolated retry. That total alone is misleading: the first Session API attempt
+reported **38 passed / one failed** at
+`test_interim_commentary_reaches_session_sse_and_responses_stream`, and the
+runner explicitly recorded an isolation leak. The failed bundle contained only
+this file; it did not follow another member in the same process. Log:
+`history-native-runtime-integration.log`.
+
+An untouched-main control at `50a9165fc2` initially passed all 39 Session API
+tests and 21 existing turn-budget tests in separate bundles. A bounded follow-up
+then reproduced the exact commentary failure on its first attempt: **38 passed /
+one failed**, followed by **39 passed** on the automatic isolated retry. The
+follow-up stopped at that reproduction. Both used the canonical bundled wrapper
+and Python 3.13.15, with no cached-green skip. There is no feature delta in
+`tests/gateway/test_session_api.py`, `gateway/platforms/api_server.py` or the
+root test fixtures. Logs: `history-session-bundle-main-control.log` and
+`history-session-main-repeat-1.log`.
+
+This closes the earlier gap in baseline equivalence for this failure. It does
+not diagnose the intermittent event loss or turn either red run green. The
+existing fork-hygiene row now records that distinction in main `52f2b7d56a`;
+feature merge `62f6f28d90` includes the queue update. No production behavior,
+test assertion, retry rule or gate allowance changed for this comparison.
+
+The operator authorized the QA MCP rebuild from Launcher main and conditional
+landing in runtime-then-Launcher order. The canonical rebuild succeeded from
+Launcher `718df80817`, and its server suites passed 51 tests. The installed
+executable is current, but this chat still advertises the retired PrintWindow
+capture schema with no managed build-status tool. The operator is away and
+requested the remaining independent checks. Native proof is still pending a
+fresh host connection; neither feature PR has been merged. Launcher evidence:
+`EterniaLauncher/docs/mission_control/evidence/console-history-controls-qualification.md`.
