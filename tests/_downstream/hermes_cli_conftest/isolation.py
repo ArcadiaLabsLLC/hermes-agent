@@ -1,7 +1,8 @@
 """Fixtures that keep one test's STATE from outliving it.
 
-The kanban live-worker registry, ``hermes_cli.web_server.app`` (state and the
-merged lifespan), ``gateway.pairing.PAIRING_DIR`` and ``sys.modules`` identity.
+The backup native-home binding, kanban live-worker registry,
+``hermes_cli.web_server.app`` (state and the merged lifespan),
+``gateway.pairing.PAIRING_DIR`` and ``sys.modules`` identity.
 Each is autouse and bound by name on the package ``__init__``. The map is
 ``tests/_downstream/hermes_cli_conftest/__init__.py``.
 """
@@ -15,6 +16,26 @@ import pytest
 from tests.hermes_cli import _module_identity
 
 __layer__ = "lanes"
+
+
+@pytest.fixture(autouse=True)
+def _backup_native_home_follows_test_home(monkeypatch, _hermetic_environment):
+    """Rebind the backup module's native-home alias after the root fixture.
+
+    A bundle can import backup during collection, before home isolation is
+    active. Its imported function then bypasses the root fixture's patch.
+    Delegate to that existing authority so body-level overrides still apply;
+    do not import backup into tests that never use it.
+    """
+    module = sys.modules.get("hermes_cli.backup")
+    if module is not None:
+        import hermes_constants
+
+        monkeypatch.setattr(
+            module, "_get_platform_default_hermes_home",
+            lambda: hermes_constants._get_platform_default_hermes_home(),
+        )
+
 
 @pytest.fixture(autouse=True)
 def _kanban_live_worker_registry_is_per_test():
