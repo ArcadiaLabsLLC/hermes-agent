@@ -10,6 +10,12 @@ tags: [program/mission-control, program]
 
 Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note and the canon live in the launcher's brain; the queue is split by repository — the hermes half is [[runtime-queue]] here.** This note exists so a hermes session knows where to go and what the runtime owes the surface.
 
+`history_controls_cursor::` 2026-10-12 — Native selected-turn Branch/Edit/Undo,
+turn-attributed files and reviewed recovery qualify through the paired Launcher.
+SessionDB and CheckpointManager remain the owners. [Evidence and repository
+limits](../../docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md).
+Compressed-ancestry branching and held upstream candidates remain queued.
+
 ## Where the truth lives
 
 - Program note: `EterniaLauncher/Launcher_Brain/10 — Programs/Mission Control.md`.

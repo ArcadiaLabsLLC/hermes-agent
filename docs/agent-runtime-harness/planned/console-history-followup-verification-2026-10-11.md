@@ -587,5 +587,53 @@ canonical-title guards. Local logs: `history-native-sibling-branch-red.log`,
 
 The stale capture-session restriction above is historical. Fresh native proof
 is running; combined Undo already passed with actual row and file checks.
-The corrected runtime still needs native repeated-sibling proof. Neither
-feature PR has landed.
+The corrected runtime's repeated-sibling proof subsequently passed in v5;
+the final qualification below supersedes this earlier acceptance status.
+
+### Final native qualification and full gate — 2026-10-12
+
+Runtime `292a429351` passed native first/nested/repeated-sibling Branch,
+Original chat navigation, Edit/resend admission, chat-only/files-only/combined
+Undo, and protected-file selective restoration. Seeded partial and lost-receipt
+records were discovered by the Launcher and then finished or rolled back through
+real native controls, with exact file hashes and SQLite rows checked. The final
+Launcher build `2f59d4ce23` also proves fresh Edit → provider refusal → combined
+Undo in one live controller, leaving the original and sibling chats unchanged.
+Recovery proves persisted-state reconciliation; no actual live process kill or
+generated model answer is claimed. Captures, source/runtime ownership receipts,
+redaction and cleanup are recorded at
+`EterniaLauncher/docs/mission_control/evidence/console-history-native-2026-10-12/v5/native-proof.md`.
+
+The final canonical full gate on `292a429351` ran **1,535 files: 19,064 passed,
+74 failed, one error and 233 skipped**, with four cached green files. All 56
+native checkpoint tests passed; history controls (13), combined Undo (9) and
+the footprint gate (9) pass. This is not a green whole-fork run.
+
+Of the 75 final failure/error nodes, 73 match the recorded unchanged-main
+baseline. The Session API commentary failure was separately reproduced on
+unchanged main `50a9165fc2` as described above. The remaining layout failure is
+the empty retired `tests/honcho_plugin` directory in this long-lived worktree;
+the already-recorded fresh-checkout control passes. The known exit-flush process
+failure also remains. No assertion, TLS pin, process-safety rule or footprint
+allowance was weakened.
+
+Two bundle-isolation failures and a Codex Responses bundle death passed alone;
+their first failures are retained. The exact 14-file prefix reproduces the
+declared-conversation-scope failure on unchanged main `9b9b0d4010`. The backup
+prefix control passed on main, so its intermittent failure is not baseline-
+proven; neither is the Codex Responses bundle death. Those open suite findings
+are in the fork-hygiene queue (`9b9b0d4010`, updated `608680e3ca`), separate from
+feature qualification. The bounded main run reports **561 passed / 10 skipped**
+after the declared-scope isolated retry; it is not a clean first attempt.
+
+Local logs: `history-native-runtime-final-gate.log`,
+`history-runtime-current-main-baseline.log`,
+`history-native-new-leaks-main-control.log`, `history-session-main-repeat-1.log`.
+Latest main integration contains documentation/queue changes only; runtime
+source equivalence to the native-tested pin is checked before landing.
+
+Completed repair claims close with the landing. Compressed-ancestry prefix
+cloning continues to refuse safely and remains queued. The behavior-preserving
+write extraction and reviewed consumer remain separate commits. Upstream
+candidates are held behind the native-value and maintainer-demand standard;
+retention pins are not a standalone submission. No upstream PR was opened.

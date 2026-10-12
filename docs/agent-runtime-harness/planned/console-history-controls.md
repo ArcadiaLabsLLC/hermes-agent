@@ -180,7 +180,18 @@ Evidence under `console-history-evidence/runtime`: `repair-landing.log`,
 `repair-final-gates.log`, and `repair-clean-final.log`. No repeated whole-fork
 run was used to hide the original reds.
 
-Native Launcher qualification remains outstanding.
-The Launcher QA schema still exposes PrintWindow rather than required in-app
-capture; its policy blocks native verification until the connected server is
-refreshed. Do not mark this work landed or feature qualification complete.
+Native qualification completed on 2026-10-12 through a fresh Launcher QA lane.
+The rebuilt server admits in-app capture; stale schema is session-local and no
+longer stops the program. Runtime `292a429351` and final Launcher `2f59d4ce23`
+passed selected-boundary and repeated sibling branching, Edit/resend admission,
+chat/files/both Undo, protected-file selective restore, and finish/rollback of
+seeded partial and lost-receipt states. The final same-controller provider-refusal
+regression passed without navigation or restart. These are actual native UI,
+SQLite and file observations on disposable data, not a generated model answer
+or a live process-kill claim.
+
+The latest full gate and unchanged-main comparisons are recorded in
+[follow-up verification](console-history-followup-verification-2026-10-11.md#final-native-qualification-and-full-gate--2026-10-12).
+The whole repository remains red for the named baseline and suite-isolation
+issues; no allowance or assertion was relaxed. Selected-turn history is
+qualified; compressed-ancestry cloning and upstream submissions remain held.
