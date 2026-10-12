@@ -464,3 +464,63 @@ by its reviewed-restore consumer. Busy/wait is an independent held candidate;
 retention pins belong to resumable restore. No upstream submission was made.
 Launcher native in-app proof remains a landing requirement for the paired PRs.
 Both PRs stay draft; runtime changes are committed and pushed to PR #7, not main.
+
+### Final follow-up and full-gate comparison — 2026-10-11
+
+Main was integrated through `8a5d6114df` in `f525b6d002`. Runtime candidate
+`c0b289a072` adds the final scoped follow-ups:
+
+- `5a54ddd63c` names `safe_assignment_token` as the shared punctuation fold and
+  tests that boundary. It adds no profile-colon alias helper, migration or raw
+  reader compatibility. `profile_<name>` remains the only emitted contract.
+- `a90ac74fa1` binds checkpoint tool waits to the existing turn wall budget
+  through an optional remaining-time callback. A resident turn rebinds that
+  callback; no second clock or budget authority is introduced. Each tool wait
+  is capped by both 30 seconds and remaining turn time. Unbudgeted native
+  callers retain zero wait. The red test observed `[30, 30, 30, 30]` instead of
+  `[30, 0.25, 0, 2]`, plus native waits `[30, 30]` instead of `[0, 0]`; both reds
+  and the 76-test focused green are recorded in the commit body.
+- The full gate found one owned footprint regression: the Callable import
+  replaced a native import line, raising deleted lines from 970 to 971.
+  `c0b289a072` uses an additive `collections.abc` import instead. The ledger
+  follows the measured 421-added / 33-deleted manager diff. No ratchet allowance
+  changed. Complete footprint, wait-budget and native checkpoint suites:
+  **67 passed**.
+
+The complete fork gate on `a90ac74fa1` ran 1,535 files with no cached-green skips:
+**19,077 passed / 75 failed / one error / 233 skipped**, plus an exit-flush test
+process that terminates without a test total. Nineteen files were red. This
+supersedes the earlier full-run counts, but is not a green gate claim.
+
+Every red file was then run on untouched main `8a5d6114df` through the same
+bundled wrapper and Python 3.13.15 environment: **154 passed / 72 failed / one
+error / one skipped**, with the same exit-flush process death. The differences
+are explicit:
+
+| Candidate red | Unchanged-main result | Disposition |
+| --- | --- | --- |
+| TLS/gateway/media/peer families; source-grep and path gates; shared-monkeypatch gate; bot relay strict XPASS | Same failures | Existing failure classes, outside this feature; certificate pinning and gate allowances remain intact. |
+| PM slow-exit setup | Same Python 3.14 requirement versus configured 3.13 interpreter error | Environment qualification still owed, not a worker behavior pass. |
+| Exit-flush process death | Same death, no completed total | Existing Windows test-process qualification row. |
+| Upstream footprint | Nine passed | Owned regression fixed above; complete follow-up passed. |
+| Retired test-directory layout | Two passed | Candidate checkout contains the previously recorded empty untracked directory; no tracked source delta. Earlier cleanup was refused by automatic approval review and was not bypassed. |
+| Session API commentary in bundle | All 39 passed alone | Candidate also passes all 39 alone. The bundled/order-dependent failure remains unqualified; isolation success does not erase it. |
+
+The four residual classes without specific rows were filed in the fork-hygiene
+queue on main in `367555d5c1`. Existing TLS, source/path and exit-flush rows keep
+their ownership; no duplicate feature backlog or unrelated production repair
+was added. Logs: `history-final-runtime-gate.log`,
+`history-runtime-current-main-baseline.log`, `history-final-runtime-focused.log`,
+`history-runtime-footprint-final.log`, and
+`history-runtime-final-session-isolation.log`. Focused counts overlap.
+
+The native extraction and reviewed consumer remain separate. Busy/wait is a
+held independent upstream candidate; retention pins remain part of resumable
+restoration. No upstream submission was made. The paired feature PRs remain
+draft and unmerged until the native Launcher proof and unresolved qualification
+requirements are met; the connected MCP still advertises the retired capture
+schema rather than the required in-app capture and managed build-status door.
+
+Final main integration `4a780e08c2` includes the queue-only main update
+`367555d5c1`. The runtime source is unchanged from `c0b289a072`; the gate evidence
+above is not presented as a rerun after documentation-only integration.
