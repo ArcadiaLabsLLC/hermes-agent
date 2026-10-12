@@ -2475,22 +2475,6 @@ def normalize_copilot_model_id(
     return raw
 
 
-def _github_reasoning_efforts_for_model_id(model_id: str) -> list[str]:
-    raw = (model_id or "").strip().lower()
-    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
-        return list(COPILOT_REASONING_EFFORTS_O_SERIES)
-    normalized = normalize_copilot_model_id(model_id).lower()
-    if is_astra_model(normalized):
-        return list(CODEX_ASTRA_EFFORTS)
-    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
-    bare = normalized.rsplit("/", 1)[-1]
-    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
-        return list(codex_supported_efforts(bare))
-    if normalized.startswith("gpt-5"):
-        return list(COPILOT_REASONING_EFFORTS_GPT5)
-    return []
-
-
 def _should_use_copilot_responses_api(model_id: str) -> bool:
     """opencode's ``shouldUseCopilotResponsesApi``: GPT-5+ uses the Responses API except
     ``gpt-5-mini``; non-GPT models (Claude, Gemini, ...) use Chat Completions."""
@@ -2631,7 +2615,8 @@ def github_model_reasoning_efforts(
         # Legacy list-shaped capabilities: only a "reasoning" tag unlocks the pattern defaults.
         if "reasoning" not in {str(c).strip().lower() for c in catalog_entry.get("capabilities", [])}:
             return []
-    return _github_reasoning_efforts_for_model_id(str(model_id or normalized))
+    from hermes_cli.models_reasoning_caps import github_default_reasoning_efforts
+    return github_default_reasoning_efforts(str(model_id or normalized))
 
 
 # Negative cache: monotonic timestamp of the last timed-out probe, keyed

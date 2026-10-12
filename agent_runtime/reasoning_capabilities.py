@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any
 
 __layer__ = "stores"
+logger = logging.getLogger(__name__)
 
 
 class ReasoningSupport(str, Enum):
@@ -137,4 +139,5 @@ def reasoning_capabilities(
             source=source)
     except Exception:
         # Capability inspection must not break the existing model/effort read path.
+        logger.debug("Reasoning capability inspection unavailable", exc_info=True)
         return ReasoningCapabilities(**base, source="lookup_unavailable")

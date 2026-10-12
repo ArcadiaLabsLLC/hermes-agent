@@ -26,6 +26,7 @@ from providers.base import ProviderProfile, _profile_user_agent
 logger = logging.getLogger(__name__)
 
 ROUTER_DEFAULT_BASE_URL = "https://api.router.com/v1"
+_DISK_TTL_SECONDS = 24 * 3600
 
 #: model id -> accepted effort levels. ``[]`` = model accepts NO reasoning
 #: fields; absent = unknown (callers keep their defaults).

@@ -332,6 +332,22 @@ def _control_catalog_key(provider: str) -> str:
     return f"reasoning-control:{provider}:{digest}"
 
 
+def github_default_reasoning_efforts(model_id: str) -> list[str]:
+    """Offline defaults, sharing native tier vocabulary with the transport."""
+    m = _origin()
+    raw = (model_id or "").strip().lower()
+    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
+        return list(m.COPILOT_REASONING_EFFORTS_O_SERIES)
+    normalized = m.normalize_copilot_model_id(model_id).lower()
+    if m.is_astra_model(normalized):
+        return list(m.CODEX_ASTRA_EFFORTS)
+    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
+    bare = normalized.rsplit("/", 1)[-1]
+    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
+        return list(codex_supported_efforts(bare))
+    return list(m.COPILOT_REASONING_EFFORTS_GPT5) if normalized.startswith("gpt-5") else []
+
+
 def cached_control_capabilities(provider: str, model: str, *, base_url: Optional[str] = None) -> Optional[dict[str, Any]]:
     """Strict cache read for snapshot/RPC inspection: no fetch, refresh or warmer."""
     caps, age = _load_reasoning_caps_disk(_control_catalog_key(provider))
@@ -359,7 +375,7 @@ def _save_control_capabilities(provider: str, caps: Caps) -> None:
         _save_reasoning_caps_disk(_control_catalog_key(provider), caps)
     except Exception as exc:
         # Optional inspection metadata must not fail successful model discovery.
-        logger.debug("Failed to scope reasoning-control catalog: %s", exc)
+        logger.debug("Failed to scope reasoning-control catalog: %s", exc, exc_info=True)
 
 
 def cached_control_efforts(provider: str, model: Optional[str], *, base_url: Optional[str] = None) -> Optional[tuple[str, ...]]:

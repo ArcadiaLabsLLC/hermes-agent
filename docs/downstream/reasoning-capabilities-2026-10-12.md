@@ -48,7 +48,7 @@ from widget or RPC tests alone.
 - Native stream/list/patch projection and footprint contract follow-up: **41 passed**,
   4 files. Generator fixtures were refreshed from real constructors and mirrored
   byte-for-byte to the Launcher with their SHA manifest. The approved upstream
-  seam budget records 194 -> 202 files, 970 -> 981 deleted lines, heavy unchanged
+  seam budget records 194 -> 202 files, 970 -> 994 deleted lines, heavy unchanged
   at 5; its reason names the operator-approved capability contract.
 - Launcher restored capability/Focus/view-model/app-binding suite: **105 passed**.
   Composer model journeys: **14 passed**. Focus and mirrored stream fixtures:
@@ -82,3 +82,23 @@ Python 3.14 (this runner is 3.13.15); its existing queue remains authoritative.
 The gateway two-root test passed its long-run allowance on this run. Bundle
 abnormal-exit/isolation classification and Windows source-check printing were
 filed in fork hygiene. A final stable-tree gate/check receipt follows below.
+
+## Stable-tree landing qualification
+
+The second whole-tree fork gate completed **1158 files, 14936 passed, 1 failed,
+1 setup error, 62 skipped in 619.2 s**, exit 1. Only the unchanged-main TTS
+requirement and Python-version PM setup remain red; both are queued. Three
+files were retried alone, so this is a qualified receipt, not a clean first pass.
+The shape/projection/list/footprint repairs were green in this gate.
+
+Final source-health follow-up added traceback logging at the two new fail-open
+boundaries, defined Router's missing disk TTL, and moved offline defaults into
+the existing reasoning sibling to keep the models facade below its prior size.
+The Router regression was killed by removing the TTL definition: **1 failed,
+7 passed**, actual `NameError: _DISK_TTL_SECONDS is not defined`; restored
+reasoning/model/patch/Copilot/fixture/footprint follow-up: **148 passed**, 8 files.
+Changed-unit code health against current main: **0 blocking, 0 advisory**;
+touched Python Ruff checks passed. The full upstream-reference check remains
+non-green (1879 blocking findings across 5077 files, plus existing footgun/tmp/
+Ruff guard residue); its Windows printing defect was reproduced and queued.
+No broad check is presented as fully green.

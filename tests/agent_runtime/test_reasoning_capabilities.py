@@ -138,3 +138,21 @@ def test_explicit_endpoint_does_not_borrow_another_serving_catalog():
     assert reasoning_capabilities("openai-codex", "endpoint-model", base_url="https://serving-a.example/v1/").levels == ("low", "max")
     assert reasoning_capabilities("openai-codex", "endpoint-model", base_url="https://serving-b.example/v1").levels is None
     assert declared_reasoning_efforts("openai-codex", "endpoint-model", "https://serving-b.example/v1") is None
+
+
+def test_router_disk_cache_is_readable_and_inspection_does_not_warm(monkeypatch):
+    import sys
+    from providers import get_provider_profile
+    from agent.transports.codex import declared_reasoning_efforts
+    module = sys.modules[get_provider_profile("router").__class__.__module__]
+    monkeypatch.setattr(module, "_efforts_cache", None)
+    monkeypatch.setattr(module, "_disk_checked", False)
+    monkeypatch.setattr(module, "_load_disk", lambda: ({"cached": ["low", "high"]}, 86401))
+    warmed = []
+    monkeypatch.setattr(module, "_warm_efforts_async", lambda: warmed.append(True))
+    assert declared_reasoning_efforts("router", "cached") == ("low", "high")
+    assert warmed == []
+    monkeypatch.setattr(module, "_efforts_cache", None)
+    monkeypatch.setattr(module, "_disk_checked", False)
+    assert get_provider_profile("router").supported_reasoning_efforts("cached") == ("low", "high")
+    assert warmed == [True]
