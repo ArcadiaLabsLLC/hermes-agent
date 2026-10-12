@@ -38,16 +38,20 @@ def _safe_model_override_text(value: str, *, field_name: str) -> str:
 def _model_supports_reasoning_effort(model_id: str | None) -> bool:
     """True when the model exposes reasoning-effort control (offline id-heuristic).
 
-    Reuses the canonical Copilot/GPT-5/o-series id heuristic with no catalog or
-    api_key so this stays a cheap, network-free check safe to run for every
-    instance in a snapshot. A resolution failure degrades to ``False`` (control
-    hidden) rather than raising inside the projection.
+    Recognises the GPT-6 families from the transport's canonical declarations,
+    then reuses the Copilot/GPT-5/o-series offline fallback. No catalog or
+    api_key is read, keeping this safe for every snapshot and incremental patch.
+    A resolution failure hides the control rather than breaking the projection.
     """
     if not str(model_id or "").strip():
         return False
     try:
+        from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES
         from hermes_cli.models import github_model_reasoning_efforts
 
+        bare = str(model_id).strip().lower().rsplit("/", 1)[-1]
+        if bare.startswith(GPT6_TIER_PREFIXES + NO_DISABLE_TIER_PREFIXES):
+            return True
         return bool(github_model_reasoning_efforts(model_id))
     except Exception:
         return False

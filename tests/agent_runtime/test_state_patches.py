@@ -350,6 +350,21 @@ def test_flag_on_profile_model_override_ships_recomputed_derived_fields(set_delt
     assert "reasoning_supported" in changed
 
 
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6.1-sol-900k"])
+def test_flag_on_gpt6_model_change_enables_reasoning(set_delta_patches, isolate_agent_runtime_root, model):
+    set_delta_patches(True)
+    store = PersonaInstanceStore()
+    instance = mint_free_floating("profile_reviewer", store=store)
+
+    store.update_profile(instance.id, model=model, provider="openai-codex")
+
+    changed = _patches()[0].payload["changed"]
+    assert changed["effective_model"] == model
+    assert changed["effective_provider"] == "openai-codex"
+    assert changed["reasoning_supported"] is True
+    assert store.get(instance.id).reasoning_effort is None
+
+
 def test_flag_on_inherit_skills_ships_a_null_skill_overrides_field(set_delta_patches, isolate_agent_runtime_root):
     """``[] -> None`` is a CHANGE, and the patch lane has to say so.
 
