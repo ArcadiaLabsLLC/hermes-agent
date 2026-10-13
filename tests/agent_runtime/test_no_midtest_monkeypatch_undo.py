@@ -380,7 +380,7 @@ def test_the_gate_scanned_a_real_tree():
     for expected_path in (
         "tests/cron/test_cron_profile_isolation.py",
         "tests/hermes_cli/test_plugins.py",
-        "tests/plugins/memory/test_holographic_store.py",
+        "tests/plugins/memory/test_byterover_provider.py",
         "tests/plugins/platforms/photon/test_sidecar_paths.py",
         "tests/tools/test_process_registry.py",
     ):
