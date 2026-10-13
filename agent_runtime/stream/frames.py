@@ -157,7 +157,7 @@ def heartbeat_frame(
 def batch_changes_chat_turn_presence(batch: list[tuple[int, Event]]) -> bool:
     """Whether a turn entered or left the running-work set in this batch."""
 
-    return any(event.type in {EVENT_TURN_STARTED, EVENT_TURN_ENDED} for _, event in batch)
+    return any(getattr(event, "type", None) in {EVENT_TURN_STARTED, EVENT_TURN_ENDED} for _, event in batch)
 
 
 def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
