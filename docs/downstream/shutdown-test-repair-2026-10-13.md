@@ -76,3 +76,11 @@ and were explicitly reaped. Adding the `.exe` spelling alone still failed to
 discover the running child. The ready-receipt fix removes that test dependency;
 it does not establish native MSYS process-tree cleanup correctness. A separate
 queue row calls for a bounded native reproduction before proposing runtime work.
+
+An adjacent, unchanged POSIX fixture deserves separate isolation qualification:
+the SIGTERM test saves only the previous SIGTERM handler, but installation also
+replaces SIGINT. Its `_restore_signal_state` clears the installed-handler map
+after restoring only the supplied entries. Both baseline and candidate Linux
+runs pass, so those results do not prove that the handler state is restored for
+later tests. This source finding is queued for a before/after handler probe;
+no production signal-handling defect is claimed.
