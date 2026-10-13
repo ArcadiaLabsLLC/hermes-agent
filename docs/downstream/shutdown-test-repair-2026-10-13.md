@@ -62,8 +62,10 @@ constructed a Proactor event loop for
 `test_launcher_app_functions.py::test_an_entry_the_launcher_drops_is_deregistered_once_the_connection_lists_afresh`.
 The file passed isolated recovery. No source in that bundle or its fixtures
 changed; the shutdown test ran in another process. The runner's isolation-leak
-label describes the observed retry pattern, not a proven cause. Matched original-
-group baseline/candidate qualification is pending; the finding remains queued.
+label describes the observed retry pattern, not a proven cause. Matched original-group checks then passed without retries on both pinned base
+`25f893f03d` (139 passed, 68.8 s) and candidate `1f200eae63` (139 passed, 62.5 s).
+The original socket error did not reproduce; it remains an unresolved intermittent,
+not a proven baseline failure or fixed defect. No retry/timeout setting changed.
 
 ## Upstream overlap check
 
@@ -96,3 +98,9 @@ after restoring only the supplied entries. Both baseline and candidate Linux
 runs pass, so those results do not prove that the handler state is restored for
 later tests. This source finding is queued for a before/after handler probe;
 no production signal-handling defect is claimed.
+
+Fork evidence digests (SHA-256):
+
+- `h09-fork-gate.log`: `c0ea877f957e89e945c6b85c04cefaf18ab8ae4b212412b94d3292fe4dc30aed`
+- `h09-baseline-socket-context.log`: `2c7a0f1696bc9b96eea4b8a9f3c23612cfa93cc2cedff54bf360476bbc02a769`
+- `h09-shutdown-socket-context.log`: `f6a1f5ee40e45ed875bb7aaa7b7701b41bdbff7d2ab6e7a5e266d46d721fcaa6`
