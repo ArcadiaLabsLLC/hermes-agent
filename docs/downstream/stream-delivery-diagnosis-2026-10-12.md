@@ -169,8 +169,8 @@ upstream quality checks pass; zero health findings. No production change.
 The fork candidate carries the exact patch and removes only this test's broad
 Windows marker. The unrelated timeout marker stays. H08 joins H11 in
 `codex/triage-followthrough`: both touch the shared test-fixture chain, so their
-whole-tree qualification belongs to the release batch. They are prepared,
-not landed; the upstream PR is open, not accepted.
+whole-tree qualification belongs to the release batch. The completed batch
+qualification is recorded below; the upstream PR remains open, not accepted.
 
 On the paired fork candidate `256c151c76`, supported Python 3.14.7
 qualification passes 56 tests across relay delivery, footprint, environment
@@ -297,9 +297,49 @@ original group exactly. Both jobs use `scripts/run_tests_bundled.sh`, the
 original four-worker count, no result cache and no changed test deadlines.
 This comparison supplements the original run; it is not a new full-tree pass.
 
-Landing remains held until the comparisons complete and their original
-diagnostics are assessed. The workflow and its explicit selection belong to
-the temporary proof branch and must not be merged into the implementation.
+The candidate completes all 344 files in 1,863.6 s: 4,184 passed, 61 failed,
+95 errors and 188 skipped. Its ledger retains 70 original diagnostics,
+including 21 abnormal exits; recovery does not make this a clean first attempt.
+All eight final timeout files also time out on the direct baseline comparison.
+The two direct-comparison timeout differences pass this candidate run; the
+installer still needs a serial retry.
+
+The grouped baseline exceeded both configured limits and was cancelled. It
+produced no baseline artifact, and GitHub returned no job log after cancellation.
+No baseline result is inferred from that stall. The continuation,
+[run 38439426620](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38439426620),
+checks the 36 unmatched cases on the same pinned baseline and runner image.
+Three bounded selections preserve their 15 original four-file groups, verified
+through the existing planner. The command writes directly to a log file; no
+test deadline, assertion, exclusion or runner implementation changes.
+
+Together, the completed comparisons reproduce **all 159 final failure/error
+IDs** and **189 of 191 original diagnostic IDs** from the candidate. The
+remaining two are first-attempt timing failures that pass isolated recovery:
+`TestRunConversation.test_redirect_from_input_thread_cancels_live_model_request`
+misses its two-second entry event while plugins initialize, and
+`TestClarifyEagerReseed.test_double_clarify_boundary_reseed_chain` checks the
+second seed after a fixed 50 ms drain. Neither assertion reproduced on the
+baseline; the run-agent group's baseline first attempt instead times out in
+the preceding rotation test and then passes after re-bundling.
+
+These remain unresolved findings, not claimed fixes or proven baseline
+reproductions. Between `958e574c2e` and `3c2ba45c4b`, all production files,
+both test files and their fixture owners are byte-identical. A collection
+diagnostic through the canonical runner confirms the new backup fixture is
+absent from both cases and present in the backup control. That diagnostic
+executes no test bodies; its collection-only exit is not a passing test receipt.
+The temporary inspection plugin was removed. Their queue row retains the
+receipts and calls for completion-based synchronization and reliable cleanup.
+
+The batch therefore lands the qualified H08/H11 repairs, the H12 fixture carry
+and the bounded H01 presence fix; it does not retire the wider Windows
+timing/isolation findings or certify a clean whole suite. The final fork gate
+above remains 12,717 passed without retry. After merging current-main evidence,
+the nine tooling files pass 163 tests, with eleven existing skips; citation
+checks have no new failures or stale waivers. No production bytes changed
+after that integration gate. The proof workflow and selection files remain
+on the temporary branch and are excluded from the implementation.
 
 ## Retained local receipts
 
@@ -308,6 +348,11 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| run `38439426620`, part 1 `gate.log` | `d66f4b8821b2322273c7f26154df372fde4481de81e2ff8519a225a7e385f47b` |
+| run `38439426620`, part 2 `gate.log` | `1b742920aa7ecdafe96f8fb73f69503b769c6311677234ee4dde49f2d33f4de4` |
+| run `38439426620`, part 3 `gate.log` | `800935baf32fb96e0305862e45f7843193380730c3dc45ecd2e544f3ea57cb6a` |
+| run `38427670480`, candidate `gate.log` | `0f1b7c1e04fc7d9d7b7f804ae5afd98b608186776aec572ace05a1bc76e6cfae` |
+| `triage-fixture-exposure.jsonl` | `42bd97d5eea58c2ac864ede993c3146c388e2b4eb044245b19b4c891f30d3f6f` |
 | run `38426498916`, baseline `gate.log` | `98691f0823c21f8be50e5b42be3d64ee4bffbb6410b488fe982e7d4cf54a08d4` |
 | run `38426498916`, candidate `gate.log` | `efa0f145854428a90a4900635e4ea577e4b35248803d43e876ecae6614356c43` |
 | hosted run `38364979651`, `gate.log` | `ea93dd491f400e8c2caf1c43871fe3cebfd0a2eee48c8d4db4c456a38b6f618d` |

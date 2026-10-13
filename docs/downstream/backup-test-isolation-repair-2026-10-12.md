@@ -61,8 +61,8 @@ bash scripts/run_tests_bundled.sh --no-cache --bundle-size 20 \
 
 Ruff passes for the two changed modules. This is scoped qualification, not the
 landing gate. `Harness_Brain/50 — Agent Handoffs/Running the tests.md` requires
-session-chain changes to join a release-merge batch; this repair awaits that
-batch's whole-tree qualification before landing. No full suite was run here.
+session-chain changes to join a release-merge batch. This repair joined the
+owner-authorized isolated batch; its broader qualification is recorded below.
 
 After pairing with H08 on `256c151c76`, the original 20-file bundle also
 passes on the isolated PM-built Python 3.14.7 environment: **204 passed,
@@ -70,8 +70,13 @@ ten skipped and two existing xfails**, one bundle, zero reruns, 25.0 s.
 The same candidate passes **56 focused tests**, three skips and one existing
 xfail across relay delivery, footprint, environment registry and the existing
 CLI fixture-boundary checks. The source is unchanged by the subsequent
-H03-main merge. These results still do not substitute for the session-chain
-batch gate.
+H03-main merge. The [combined qualification](stream-delivery-diagnosis-2026-10-12.md#combined-candidate-qualification--2026-10-13)
+records the hosted whole-tree traversal, completed original-group candidate
+and baseline comparisons, and the clean 12,717-test final fork gate. All 159
+final candidate failure/error IDs reproduce on the baseline. Two inherited
+first-attempt timing failures remain explicitly queued; actual fixture
+bindings confirm neither receives this fixture. This is a qualified repair
+landing, not a claim that the wider upstream suite is green.
 
 The broader upstream fixture limitation remains: patching a defining module
 does not update previously imported aliases. Backup is qualified and repaired
