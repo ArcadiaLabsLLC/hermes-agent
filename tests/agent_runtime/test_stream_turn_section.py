@@ -434,15 +434,20 @@ def test_a_declaring_stream_carries_a_turn_without_a_core(isolate_agent_runtime_
 
     turn = _Turn("turn-stream")
     turn.start()
+    presence = next(frames)
+    assert presence["type"] == "running_work"
+    # This fixture publishes events only; the journal-backed presence cases
+    # live in test_stream_running_work_on_turn_end.py.
+    assert presence["running_work"]["rows"] == []
+    assert "watermark" not in presence
     first = next(frames)
     assert first["type"] == "persona_chat_turn"
     assert first["base_offset"] == held
     turn.end()
     # The END batch: the running_work section frame first (unchanged), then
     # the overlay, which applies from the START frame's watermark.
-    seen = [next(frames)]
-    if seen[0]["type"] == "running_work":
-        seen.append(next(frames))
+    seen = [next(frames), next(frames)]
+    assert seen[0]["type"] == "running_work"
     assert seen[-1]["type"] == "persona_chat_turn"
     assert seen[-1]["base_offset"] == first["watermark"]["event_offset"]
     assert builds.calls == builds_before

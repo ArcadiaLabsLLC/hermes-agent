@@ -38,7 +38,7 @@ claims of a production incident. Baseline reproduction proves age, not cause.
 | H09 | `test_serve_exit_flush.py` dies in a bundle and alone, with no completed test assertion; it is already recorded in the timeout class. | P2 bounded process investigation. Preserve process exit/timeout diagnostics and isolate this file under the existing runner. Do not infer an assertion failure from an empty summary or rerun the full suite. Existing timeout-class row retains ownership. |
 | H10 | The compression rotation test leaked its ContextVar into the next file. | **Closed:** [PR #8](https://github.com/ArcadiaLabsLLC/hermes-agent/pull/8) merged as `b989d262e5`. Only that test body runs in a copied context through the existing fixture owner; production and upstream tests are unchanged. 59 pair passes without retry, 25 focused passes / 3 existing skips, four recorded killing boundary controls. H11 remains open. |
 | H11 | Full original bundle reproduces all 19 failures: a later member imports backup during collection, freezing its native-home resolver before isolation. | Repair [4c440bbdd5](https://github.com/ArcadiaLabsLLC/hermes-agent/commit/4c440bbdd5) uses the existing CLI fixture seam. [Proof](backup-test-isolation-repair-2026-10-12.md): 204 clean first-attempt bundle passes, 69 adjacent passes, registration-removal control restores 19 reds. Pushed on the repair branch; awaits the required session-chain batch qualification, not on main. |
-| H12 | Codex Responses process died in bundle 9 and passed alone; current isolated file passes all 69 tests. Original exit details are absent from the retained report. Cause and baseline equivalence remain unproven. | P2 unresolved process failure. H13 first, then exact ordered-bundle reproduction with exit diagnostics. No claim of timeout, resource exhaustion or a history regression is justified yet. Existing Codex Responses row. |
+| H12 | Retained neighborhood evidence exposes a process-wide `time.sleep` override in the native Codex retry fixture. Its removal reuses the existing retry-backoff owner; a behavioral regression fails when the override is restored. The old incident still cannot be attributed exclusively to it. | Native candidate `057b9339c0`: 70 tests and all 12 upstream checks pass. GitHub refused PR creation; no submission is claimed. The fork carry passes the integrated gate and awaits the combined landing. Separate metadata-network timeouts and setup-death attribution are filed with their existing owners. [Scope and receipts](stream-delivery-diagnosis-2026-10-12.md#h12-shared-sleep-override-removed-broader-qualification-remains-open). |
 | H13 | Recurring diagnostic loss: `_bundle` drops first-attempt output when the retry passes; `Leak` lacks that output, `Death` lacks exit status/prefix/output, and `run` removes event scratch. Scope, backup and Codex death expose this same weakness. | Repaired through the existing run ledger and gate-store receipt: original diagnostics survive green retries and scratch cleanup. See [the repair evidence](test-safety-evidence-repair-2026-10-12.md). H11 now has a proven fixture repair awaiting batch qualification; H12 remains undiagnosed. |
 
 ## Current-main controls
@@ -123,12 +123,17 @@ qualified on the supported interpreter. H08 joins H11 for the shared-fixture
 batch gate. Inherited test-quality reviews remain bounded candidates.
 H01's stream intermittent still needs diagnosis.
 H11 now has a reproduced cause and a scoped repair awaiting batch qualification.
-H12 remains open and can use retained first-attempt evidence on recurrence.
+H12 has a qualified native fixture repair and a prepared fork carry. The
+original incident and broader neighborhood remain open: the retained output
+also exposes live model-catalog reads and incorrect setup-death attribution.
+Neither is hidden by the integrated gate's clean result.
 
 The initial triage did not rerun a full suite or change the test installation.
 The later H03 carry ran the fork landing gate and built an isolated supported
-PM environment, as recorded above. No full upstream suite was run; the
-workstation-freeze files stayed excluded. The agent changed no TLS interception
+PM environment, as recorded above. The H08/H11 shared-fixture batch is now
+running the complete reached tree on a disposable Windows Actions runner;
+no whole-tree run was started on the workstation, and the standing exclusions
+remain in force. The agent changed no TLS interception
 settings or operator stores; the operator-reported setting change is qualified
 above. Launcher dispositions live in
 `EterniaLauncher/docs/mission_control/evidence/history-red-triage-2026-10-12.md`.

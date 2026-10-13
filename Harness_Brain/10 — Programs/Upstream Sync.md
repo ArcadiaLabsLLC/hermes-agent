@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-10-12 — H03 Session API ordering: native upstream PR #137460, fork carry ce3609b4a8 qualified by 13,269 passing tests without retry on Python 3.14.7. H08 relay test PR #137478 is native-only; its fork marker retirement joins H11 fixture repair in the pending session-chain batch. H04 supported-runtime qualification passes. Evidence: docs/downstream/stream-delivery-diagnosis-2026-10-12.md. H01 and H12 remain open."
+cursor: "2026-10-13 — H03 is landed in the fork; native PR #137460 remains submitted. H08 relay PR #137478 and H11 backup isolation await the hosted shared-fixture batch qualification. H12 native candidate 057b9339c0 removes global sleep patching through the existing retry fixture; 70 native tests and 12 checks pass, but GitHub refused PR creation. Combined fork candidate passes 12,715 tests without retry; not landed. H01 has failure diagnostics and remains open. Evidence: docs/downstream/stream-delivery-diagnosis-2026-10-12.md."
 tags: [program/upstream-sync, program, upstream]
 ---
 

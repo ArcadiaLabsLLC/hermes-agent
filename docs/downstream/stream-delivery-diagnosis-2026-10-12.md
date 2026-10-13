@@ -123,6 +123,28 @@ one expected failure includes the received hydrate/ack timeline. Restoring
 the allowance passes both file tests. This verifies diagnostics, not a
 killing mutation for the unresolved runtime intermittent.
 
+### Reproduced turn-presence delay and scoped repair — 2026-10-13
+
+A separate controlled probe adds the real `conversation_request_assembled` /
+`conversation_provider_returned` markers around the scripted provider dwell.
+With the current client fold declaration, both an explicitly bound snapshot
+worker and the supported in-process mode miss the unchanged six-second
+running-row bound. Both marker-free controls pass. The mixed batch demotes
+before publishing; its core waits behind the provider window. This corrects
+the D2.06 DROP verdict for the existing turn-presence queue row. It does not
+establish the cause of the older marker-free H01 intermittent.
+
+The repair extends the existing `running_work_frame` publication in
+`StreamSession.flush` to start and end transitions. It reads once per batch,
+before the heavier projection, and leaves the event watermark and snapshot
+yield rule unchanged. There is no new frame type, read model or client path.
+Two journal-backed regression cases fail on the old implementation (one and
+two starts in a batch produce `delta` before `running_work`). The repaired
+current-client probe passes all four cases; 32 focused tests pass without
+retry across presence, turn sections and the original gateway measurement.
+Existing end, unreadable-store,
+quiet-batch and declaring-client checks retain their safety assertions.
+
 ## H08: CLI spelling condition still exists
 
 The original condition is recorded in
@@ -221,6 +243,10 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| `triage-h01-start-overlay-final.log` | `77ae456ee54277bb2e3435b82a62bb24180c2296821c907c4cdeaa909c2df91b` |
+| `triage-h01-start-overlay-red.log` | `eedf95b96c744544b4ea0fc66434379a67f5b944e9b14070db964c981951a895` |
+| `triage-h01-current-client-bound-probe.log` | `da9affb89a216e96bdd00dc280807e9ca02c51649ff8095491773d3e18b7d4ee` |
+| `triage-h01-current-client-repaired-probe.log` | `9fb25faa79a329c1cfcdf3153d72819b225e2fef78dc53da6ade8e5910e06266` |
 | `triage-integration-gate.log` | `3d4e2d3f9fb2747afb42acc3eb3ef3c7c391ff1baf8ab36dbfb355ae158a89f8` |
 | `triage-integration-doc-cites.log` | `e9d0b6b8ebdbc18bff57d8a4fe2985f15951993898edc40df38f2d5e2607faf4` |
 | `triage-h12-supported-neighborhood.log` | `ba03a3860aa9b5449d31e19c5928bec60cf44f5bdc4d128e8eb86ccbb1e03b0a` |
