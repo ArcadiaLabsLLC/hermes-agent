@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-13",
   "base": "818c13be1d",
-  "files": 205,
-  "deleted_lines": 1027,
+  "files": 206,
+  "deleted_lines": 1064,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-authorized native Windows shutdown-test repair (H09)",
+      "files": "205 -> 206: tests/tui_gateway/test_serve_exit_flush.py",
+      "deleted_lines": "1027 -> 1064; heavy 5 -> 5",
+      "reason": "Carry native 747f657234: bounded signal child, owned foreground PID receipt and cleanup on setup failure. Existing eight behavioral cases retained; production, shared fixtures and runners unchanged. Windows controls and native checks recorded in docs/downstream/shutdown-test-repair-2026-10-13.md. Retire on upstream adoption."
+    },
     {
       "change": "Owner-authorized native Codex retry-test isolation repair",
       "files": "204 -> 205: tests/agent/test_run_agent_codex_responses.py",
