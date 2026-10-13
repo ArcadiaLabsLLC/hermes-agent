@@ -215,7 +215,7 @@ def test_create_with_a_roster_persona_still_mints(qa_persona, session_db, capsys
     both tests above pass forever.
 
     Kill-mutation (MEASURED): make ``require_known_persona`` always refuse.
-    Both this test and the ``profile:`` one below go red, which is what an
+    Both this test and the ``profile_`` one below go red, which is what an
     over-broad guard looks like from the caller's side.
     """
 
@@ -232,19 +232,19 @@ def test_a_profile_id_for_a_profile_that_owns_nothing_still_instantiates(
     qa_persona, session_db, capsys
 ):
     """Decision D-U1, on the argv lane. The launcher's template/preset browser
-    lowers ``persona.profile.instantiate`` to THIS verb with a ``profile:``
+    lowers ``persona.profile.instantiate`` to THIS verb with a ``profile_``
     id, and ``_persona_by_id`` synthesises a persona for profiles that own
     nothing. The token here deliberately matches no persona and no profile —
-    ``profile:qa`` would pass even under a mutant that validated profile ids,
+    ``profile_qa`` would pass even under a mutant that validated profile ids,
     since ``qa`` is seeded, and would prove nothing.
 
     ANTI-VACUITY, corrected after MEASURING rather than asserting. The obvious
-    claim — "kill: drop the ``profile:`` carve-out" — is FALSE on this lane,
+    claim — "kill: drop the ``profile_`` carve-out" — is FALSE on this lane,
     and the mutant survives:
 
     * ``_persona_is_unknown`` short-circuits on a caller-supplied persona
       object, and the CLI's ``_persona_by_id`` SYNTHESISES one for any
-      ``profile:<token>``. So this lane never reaches the carve-out;
+      ``profile_<token>``. So this lane never reaches the carve-out;
     * dropping the object short-circuit alone also survives, because THEN it
       reaches the carve-out.
 
@@ -257,10 +257,10 @@ def test_a_profile_id_for_a_profile_that_owns_nothing_still_instantiates(
     ``test_serve_rpc_agent_create.py::test_a_profile_id_for_a_profile_that_owns_nothing_still_creates``.
     """
 
-    code, data = _create(capsys, "profile:nosuchprofile", placement="ph_profile_agent_2")
+    code, data = _create(capsys, "profile_nosuchprofile", placement="ph_profile_agent_2")
 
     assert code == 0
-    assert data["persona_id"] == "profile:nosuchprofile"
+    assert data["persona_id"] == "profile_nosuchprofile"
     assert paths.persona_instance_path("personainst_ph_profile_agent_2").exists()
 
 

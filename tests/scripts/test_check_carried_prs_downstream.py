@@ -12,17 +12,18 @@ def git(repo, *args):
                           capture_output=True, text=True, encoding='utf-8', timeout=10).stdout.strip()
 
 
-@pytest.fixture
-def history(tmp_path):
+@pytest.fixture(params=["\n", "\r\n"], ids=["lf", "crlf"])
+def history(tmp_path, request):
     git(tmp_path, 'init')
     git(tmp_path, 'config', 'user.name', 'Test')
     git(tmp_path, 'config', 'user.email', 'test@example.invalid')
+    git(tmp_path, 'config', 'core.autocrlf', 'false')
     source = tmp_path / 'code.py'
-    source.write_text('def carried():\n    return 1\n\n\ndef independent():\n    return 7\n')
+    source.write_text('def carried():\n    return 1\n\n\ndef independent():\n    return 7\n', newline=request.param)
     git(tmp_path, 'add', '.')
     git(tmp_path, 'commit', '-m', 'base')
     git(tmp_path, 'branch', 'upstream')
-    source.write_text(source.read_text().replace('return 1', 'return 2'))
+    source.write_bytes(source.read_bytes().replace(b'return 1', b'return 2'))
     git(tmp_path, 'add', '.')
     git(tmp_path, 'commit', '-m', 'PR change')
     git(tmp_path, 'branch', 'pr-head')
@@ -46,7 +47,7 @@ def save(history):
 
 def test_carried_hunk_mutation_is_drift(history):
     assert run(history)[0] == 0
-    history[1].write_text(history[1].read_text().replace('return 2', 'return 99'))
+    history[1].write_bytes(history[1].read_bytes().replace(b'return 2', b'return 99'))
     code, output = run(history)
     assert code == 1
     assert any(line.startswith('DRIFT PR #12 code.py') for line in output)

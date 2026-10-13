@@ -3,13 +3,19 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import math
 import os
+import time
 from pathlib import Path
 from typing import Callable
 
 
 class PruneError(RuntimeError):
     """Pruning stopped without permission to discard another snapshot."""
+
+
+class CheckpointStoreBusy(PruneError):
+    """Acquisition failed before the protected operation began."""
 
 
 GC_PENDING_NAME = ".gc-pending"
@@ -21,16 +27,21 @@ def store_lock_path(base: Path) -> Path:
 
 
 @contextmanager
-def store_lock(base: Path):
+def store_lock(base: Path, *, wait_seconds: float = 0):
     """Serialize whole operations, including GC and clear, across processes."""
     from hermes_cli.runtime_state import _lock
 
+    if not math.isfinite(wait_seconds) or wait_seconds < 0:
+        raise ValueError("checkpoint lock wait must be finite and nonnegative")
     base.parent.mkdir(parents=True, exist_ok=True)
     # Outside base so clear_all and legacy migration cannot replace its inode.
     fd = os.open(store_lock_path(base), os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        if not _lock(fd, wait=False):
-            raise PruneError(f"checkpoint store is busy: {base}")
+        deadline = time.monotonic() + wait_seconds
+        while not _lock(fd, wait=False):
+            if time.monotonic() >= deadline:
+                raise CheckpointStoreBusy(f"checkpoint store is busy: {base}")
+            time.sleep(0.05)
         yield
     finally:
         os.close(fd)

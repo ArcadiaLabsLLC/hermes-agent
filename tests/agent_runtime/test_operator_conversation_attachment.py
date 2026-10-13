@@ -11,23 +11,23 @@ from agent_runtime.states import WorkerSessionState
 from hermes_state import SessionDB
 
 
-def fixture(home, monkeypatch, name):
+def fixture(home, monkeypatch, name, *, persona_id="builder"):
     home.mkdir(exist_ok=True)
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(home))
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(home / "runtime"))
     install = ensure_install_identity(paths.store_root()).install_id
-    instance = "personainst_builder"
+    instance = f"personainst_{persona_id}"
     session = f"persona_chat_{instance}_123456abcdef"
     store = PersonaInstanceStore()
-    store._write(PersonaInstance(id=instance, persona_id="builder", role="builder",
+    store._write(PersonaInstance(id=instance, persona_id=persona_id, role="builder",
         display_name=name, profile_id=None, runtime_root=str(paths.store_root()),
         state=WorkerSessionState.IDLE, workspace_id="ws", default_chat_session_id=session))
     with closing(SessionDB(db_path=home / "state.db")) as db:
         db.create_session(session, source="mission_chat")
         for i in range(44):
             db.append_message(session, "user" if i % 2 == 0 else "assistant", f"{name} message {i}")
-    return dict(install_id=install, workspace_id="ws", persona_id="builder",
+    return dict(install_id=install, workspace_id="ws", persona_id=persona_id,
         persona_instance_id=instance, session_id=session)
 
 

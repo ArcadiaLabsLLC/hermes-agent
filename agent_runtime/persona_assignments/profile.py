@@ -13,7 +13,6 @@ __layer__ = "policy"
 
 __all__ = [
     "_as_utc",
-    "_model_supports_reasoning_effort",
     "_normalize_reasoning_effort_override",
     "_safe_model_override_text",
     "_safe_skill_overrides",
@@ -33,24 +32,6 @@ def _safe_model_override_text(value: str, *, field_name: str) -> str:
     if any(ord(ch) < 0x20 for ch in text):
         raise ValueError(f"{field_name} contains control characters")
     return text
-
-
-def _model_supports_reasoning_effort(model_id: str | None) -> bool:
-    """True when the model exposes reasoning-effort control (offline id-heuristic).
-
-    Reuses the canonical Copilot/GPT-5/o-series id heuristic with no catalog or
-    api_key so this stays a cheap, network-free check safe to run for every
-    instance in a snapshot. A resolution failure degrades to ``False`` (control
-    hidden) rather than raising inside the projection.
-    """
-    if not str(model_id or "").strip():
-        return False
-    try:
-        from hermes_cli.models import github_model_reasoning_efforts
-
-        return bool(github_model_reasoning_efforts(model_id))
-    except Exception:
-        return False
 
 
 def _normalize_reasoning_effort_override(value: str) -> str | None:

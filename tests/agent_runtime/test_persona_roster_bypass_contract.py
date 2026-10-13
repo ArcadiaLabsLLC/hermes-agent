@@ -7,7 +7,7 @@
 
 That is deliberate and documented (D-U1): the caller's already-resolved persona
 object comes from a resolver that is a strict SUPERSET of
-``agent_create.resolve_persona`` — it also handles ``profile:`` synthesis and
+``agent_create.resolve_persona`` — it also handles ``profile_`` synthesis and
 persona-INSTANCE id spellings — so "the caller found one" settles the question
 without a second, narrower lookup contradicting it.
 
@@ -21,7 +21,7 @@ placement for an agent class nobody declared.
 WHY THE FENCE IS A TEST AND NOT RUNTIME CODE. Making ``_persona_is_unknown``
 re-verify the passed object against the roster would re-introduce exactly the
 contradiction the parameter exists to avoid: the strict CLI resolver legitimately
-answers for ids the narrow roster lookup does not (``profile:<token>`` owns no
+answers for ids the narrow roster lookup does not (``profile_<token>`` owns no
 persona row at all — see D-U1's carve-out and its own witness test). The risk is
 "a NEW caller arrives with a persona from somewhere else", which is a change to
 the caller set; a test over the caller set is the instrument that matches it, and
@@ -64,7 +64,7 @@ PERSONA_TAKING_ENTRY_POINTS = {
 #: The resolvers a caller may hand to those entry points. Each reads the roster
 #: through ``config.ensure_persisted_personas`` and answers ``None`` — never a
 #: synthesised stand-in — for a persona the roster does not hold, EXCEPT for the
-#: sanctioned ``profile:`` synthesis D-U1 carves out by id shape rather than by
+#: sanctioned ``profile_`` synthesis D-U1 carves out by id shape rather than by
 #: object. (``_cli_create_persona`` left with the argv ``agent create``,
 #: deleted 2026-10-02.)
 STRICT_RESOLVERS = {
@@ -145,7 +145,7 @@ def test_the_bypass_is_the_documented_first_statement_not_an_accident():
 
     Order is the property. A mutant that moved the roster read above it would
     make every other test in this file pass while turning the D-U1 carve-out
-    (``profile:`` ids own no persona row) into a refusal for the launcher's
+    (``profile_`` ids own no persona row) into a refusal for the launcher's
     template browser — and it would ALSO turn a roster fault into a raise on a
     path that had already been answered.
     """

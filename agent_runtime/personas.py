@@ -360,7 +360,7 @@ def profile_persona_resolution(
             persona
             for persona in declared
             if str(getattr(persona, "id", "") or "").strip()
-            in {profile, f"profile:{profile}"}
+            in {profile, f"profile_{profile}"}
         ),
         None,
     )

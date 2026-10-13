@@ -21,9 +21,9 @@ LEDGER = 'docs/agent-runtime-harness/planned/upstream-footprint-ledger.md'
 MANIFEST = 'tests/fixtures/carried_prs.json'
 
 
-def git(repo, *args, env=None, input=None):
+def git(repo, *args, env=None, input=None, encoding="utf-8"):
     result = subprocess.run(['git', '-C', str(repo), *args], input=input,
-                            capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
+                            capture_output=True, text=encoding is not None, encoding=encoding, env=env, timeout=30)
     if result.returncode:
         raise ValueError(result.stderr.strip() or result.stdout.strip() or 'git command failed')
     return result.stdout
@@ -216,7 +216,8 @@ def _check_symbols(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
 
 def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
     """The whole PR patch must reverse-apply cleanly to the fork tree."""
-    patch = git(repo, 'diff', '--binary', '--no-renames', base, head, '--', path)
+    # Git patches are bytes: text pipes translate LF to CRLF on Windows.
+    patch = git(repo, 'diff', '--binary', '--no-renames', base, head, '--', path, encoding=None)
     with tempfile.TemporaryDirectory(prefix='carried-pr-index-') as directory:
         env = dict(os.environ, GIT_INDEX_FILE=str(Path(directory) / 'index'))
         git(repo, 'read-tree', fork_ref or 'HEAD', env=env)
@@ -224,7 +225,7 @@ def _check_hunks(repo, rule, path, pr_path, base, head, fork_ref, mismatches):
             git(repo, 'add', '-A', '--', path, env=env)
         result = subprocess.run(['git', '-C', str(repo), 'apply', '--cached',
                                  '--reverse', '--check', '-'], input=patch,
-                                capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
+                                capture_output=True, env=env, timeout=30)
         matches = result.returncode == 0
     return matches, '', False
 

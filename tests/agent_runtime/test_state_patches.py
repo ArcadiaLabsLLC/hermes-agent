@@ -99,8 +99,8 @@ def _patches() -> list[Event]:
 
 def _steered_child(store: PersonaInstanceStore):
     """A fresh child steered under a fresh parent — the flagship steer case."""
-    parent = mint_free_floating("profile:parent", store=store)
-    child = mint_free_floating("profile:child", store=store)
+    parent = mint_free_floating("profile_parent", store=store)
+    child = mint_free_floating("profile_child", store=store)
     store.set_parents(child.id, [parent.id])
     return store.get(child.id), parent
 
@@ -252,7 +252,7 @@ def test_persona_instance_projection_parity_with_summary(isolate_agent_runtime_r
     skip the side-effecting full summary call."""
 
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
     instance = store.update_profile(instance.id, model="claude-opus-4-8", provider="anthropic")
     agents = AgentStore().list_all()
     persona = {p.id: p for p in agents}.get(str(instance.persona_id or ""))
@@ -319,7 +319,7 @@ def test_flag_on_steer_patch_fits_cap(set_delta_patches, isolate_agent_runtime_r
 def test_flag_on_profile_display_name_emits_upsert_with_mirror(set_delta_patches, isolate_agent_runtime_root):
     set_delta_patches(True)
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
 
     store.update_profile(instance.id, display_name="Renamed Reviewer")
 
@@ -335,7 +335,7 @@ def test_flag_on_profile_display_name_emits_upsert_with_mirror(set_delta_patches
 def test_flag_on_profile_model_override_ships_recomputed_derived_fields(set_delta_patches, isolate_agent_runtime_root):
     set_delta_patches(True)
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
 
     store.update_profile(instance.id, model="claude-opus-4-8", provider="anthropic")
 
@@ -348,6 +348,25 @@ def test_flag_on_profile_model_override_ships_recomputed_derived_fields(set_delt
     assert changed["effective_provider"] == "anthropic"
     assert changed["model_is_override"] is True
     assert "reasoning_supported" in changed
+
+
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6.1-sol-900k"])
+def test_flag_on_gpt6_model_change_enables_reasoning(set_delta_patches, isolate_agent_runtime_root, model):
+    from hermes_cli.profiles import get_profile_dir
+    home = get_profile_dir("reviewer")
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.yaml").write_text("{}", encoding="utf-8")
+    set_delta_patches(True)
+    store = PersonaInstanceStore()
+    instance = mint_free_floating("profile_reviewer", store=store)
+
+    store.update_profile(instance.id, model=model, provider="openai-codex")
+
+    changed = _patches()[0].payload["changed"]
+    assert changed["effective_model"] == model
+    assert changed["effective_provider"] == "openai-codex"
+    assert changed["reasoning_supported"] is True
+    assert store.get(instance.id).reasoning_effort is None
 
 
 def test_flag_on_inherit_skills_ships_a_null_skill_overrides_field(set_delta_patches, isolate_agent_runtime_root):
@@ -368,7 +387,7 @@ def test_flag_on_inherit_skills_ships_a_null_skill_overrides_field(set_delta_pat
 
     set_delta_patches(True)
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
     store.update_profile(instance.id, clear_skills=True)
     assert store.get(instance.id).skill_overrides == []
 
@@ -387,7 +406,7 @@ def test_inherit_skills_refuses_to_ride_with_a_set_or_a_clear(isolate_agent_runt
     without going through argparse."""
 
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
     store.update_profile(instance.id, skills=["harness-qa-verdict"])
 
     with pytest.raises(ValueError):
@@ -401,7 +420,7 @@ def test_inherit_skills_refuses_to_ride_with_a_set_or_a_clear(isolate_agent_runt
 def test_flag_off_profile_update_emits_no_patch(set_delta_patches, isolate_agent_runtime_root):
     set_delta_patches(False)
     store = PersonaInstanceStore()
-    instance = mint_free_floating("profile:reviewer", store=store)
+    instance = mint_free_floating("profile_reviewer", store=store)
     store.update_profile(instance.id, display_name="Renamed Reviewer")
     assert _patches() == []
 
@@ -462,7 +481,7 @@ def test_open_chat_create_emits_a_complete_row_upsert_stamped_created(
     store = PersonaInstanceStore()
     before = _log_end()
     instance = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_open_create",
         display_name="Reviewer",
     )
@@ -515,7 +534,7 @@ def test_open_chat_create_row_fits_the_payload_cap_with_headroom(
     store = PersonaInstanceStore()
     before = _log_end()
     store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_open_create_sized",
         display_name="Reviewer",
     )
@@ -541,9 +560,9 @@ def test_open_chat_create_resolves_the_backing_persona_like_the_snapshot_does(
     stored agent, or ``None`` for a profile instance that has none.
     ``project_persona_instance_full_wire_row`` reproduces that with
     ``_resolve_persona_for``. Skipping it (passing ``None`` always) LOOKS fine
-    for a ``profile:`` instance — the summary's own ``_profile_visibility_persona``
+    for a ``profile_`` instance — the summary's own ``_profile_visibility_persona``
     standin covers it — which is exactly why the other create tests here cannot
-    catch the bug: they all use ``profile:reviewer``. For an instance backed by a
+    catch the bug: they all use ``profile_reviewer``. For an instance backed by a
     STORED persona the standin returns ``None`` outright, and the inserted row
     would carry ``model``/``provider``/``skills``/``toolsets`` emptied — a roster
     row that disagrees with the very next full core.
@@ -598,7 +617,7 @@ def test_open_chat_create_projection_is_side_effect_free(
     set_delta_patches(True)
     store = PersonaInstanceStore()
     store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_open_create_effects",
         display_name="Reviewer",
     )
@@ -629,7 +648,7 @@ def test_a_create_row_that_cannot_fit_losslessly_degrades_to_refresh(
     store = PersonaInstanceStore()
     before = _log_end()
     instance = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_open_create_oversize",
         display_name="Reviewer",
     )
@@ -664,14 +683,14 @@ def test_open_chat_reopen_emits_the_diffed_upsert_with_the_parity_fields(
     set_delta_patches(True)
     store = PersonaInstanceStore()
     created = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_open_reopen",
         display_name="Reviewer",
     )
 
     before = _log_end()
     reopened = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         persona_instance_id=created.id,
         session_id="persona_chat_open_reopen_second",
         display_name="Reviewer Renamed",
@@ -727,7 +746,7 @@ def test_open_chat_never_emits_a_patchless_covered_event(
     set_delta_patches(True)
     store = PersonaInstanceStore()
     created = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_head_only",
         display_name="Reviewer",
     )
@@ -743,7 +762,7 @@ def test_open_chat_never_emits_a_patchless_covered_event(
     )
     before = _log_end()
     store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         persona_instance_id=created.id,
         session_id="persona_chat_head_only",
         display_name="Reviewer",
@@ -773,14 +792,14 @@ def test_open_chat_noop_reopen_still_emits_nothing_at_all(
     set_delta_patches(True)
     store = PersonaInstanceStore()
     created = store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_noop",
         display_name="Reviewer",
     )
 
     before = _log_end()
     store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         persona_instance_id=created.id,
         session_id="persona_chat_noop",
         display_name="Reviewer",
@@ -797,7 +816,7 @@ def test_open_chat_emits_no_patch_with_the_lane_off(
     store = PersonaInstanceStore()
     before = _log_end()
     store.open_chat(
-        persona_id="profile:reviewer",
+        persona_id="profile_reviewer",
         session_id="persona_chat_dark",
         display_name="Reviewer",
     )

@@ -170,7 +170,4 @@ def _safe_model_selection(value: dict[str, Any] | None) -> dict[str, Any]:
 
 def _safe_persona_id(value: Any) -> str:
     raw = str(value or "").strip()
-    if raw.lower().startswith("profile:"):
-        profile = safe_assignment_token(raw.split(":", 1)[1])
-        return f"profile:{profile}" if profile else "profile:unknown"
     return safe_assignment_token(raw) or "unknown"

@@ -609,16 +609,16 @@ def test_a_seeded_persona_still_creates(qa_persona):
 def test_a_profile_id_for_a_profile_that_owns_nothing_still_creates(qa_persona):
     """Decision D-U1, with the witness the plan says it must have.
 
-    The launcher's template/preset browser sends ``profile:<token>`` ids for
+    The launcher's template/preset browser sends ``profile_<token>`` ids for
     profiles that have NO persona row — the CLI resolver synthesises one. That
     lane had no test at all, which is exactly why making validation uniform
     would have broken it silently.
 
     ANTI-VACUITY. The kill-mutation is "apply the bare-id roster check to
-    ``profile:`` ids too". The probe is a durable instance FILE plus a placed
+    ``profile_`` ids too". The probe is a durable instance FILE plus a placed
     actor; under the mutant the create refuses and writes neither, so the
     mutant cannot set the probed state. Note the profile token deliberately
-    matches NO persona and NO profile — ``profile:qa`` would pass even under
+    matches NO persona and NO profile — ``profile_qa`` would pass even under
     the mutant, since ``qa`` is seeded, and would prove nothing.
     """
 
@@ -626,11 +626,11 @@ def test_a_profile_id_for_a_profile_that_owns_nothing_still_creates(qa_persona):
 
     _seed_workspace()
     reply = _call(
-        _params(persona_id="profile:nosuchprofile", placement_id="profile_lane_agent_2")
+        _params(persona_id="profile_nosuchprofile", placement_id="profile_lane_agent_2")
     )
 
     result = reply["result"]
-    assert result["persona_id"] == "profile:nosuchprofile"
+    assert result["persona_id"] == "profile_nosuchprofile"
     assert paths.persona_instance_path("personainst_profile_lane_agent_2").exists()
     assert result["actor_key"] in _actors()
 
@@ -1636,7 +1636,7 @@ def test_the_unknown_persona_refusal_spells_out_what_is_placeable():
     pre-change code could not emit, and the ids are seeded by this test rather
     than assumed off the operator root.
 
-    ``profile:launcher-qa`` is the probe that matters: the second accepted
+    ``profile_launcher-qa`` is the probe that matters: the second accepted
     spelling appears in NO listing, and the ``profile`` column that looks like
     it is one is the persona's binding, not an argument.
     """
@@ -1653,15 +1653,15 @@ def test_the_unknown_persona_refusal_spells_out_what_is_placeable():
     # The cure sentence is not replaced by the list; both are owed.
     assert "harness agent list" in message
     assert "Placeable now:" in message
-    assert "qa (or profile:launcher-qa)" in message
+    assert "qa (or profile_launcher-qa)" in message
     # A persona with no profile binding gets exactly one spelling, and the
     # message must not invent a second.
     assert "scribe" in message
-    assert "profile:scribe" not in message
+    assert "profile_scribe" not in message
 
 
 def test_a_profile_two_personas_share_is_not_offered_as_a_spelling():
-    """``profile:<token>`` parses for ANY token (D-U1 exempts every ``profile:``
+    """``profile_<token>`` parses for ANY token (D-U1 exempts every ``profile_``
     id from the roster check), so printing a binding two personas share would
     offer a spelling that mints a DIFFERENT agent with none of either's defaults.
 
@@ -1678,7 +1678,7 @@ def test_a_profile_two_personas_share_is_not_offered_as_a_spelling():
     message = reply["error"]["message"]
     assert reply["error"]["data"]["reason"] == "persona_not_found"
     assert "dev_a" in message and "dev_b" in message
-    assert "profile:shared-profile" not in message
+    assert "profile_shared-profile" not in message
 
 
 # ── the ``skills`` param reaches the instance (plan S4 / D5) ────────────────

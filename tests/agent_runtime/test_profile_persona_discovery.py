@@ -92,7 +92,7 @@ def test_real_named_profile_is_admitted_before_snapshot_and_backs_template():
     first = build_snapshot()
     personas = [item for item in first["agents"] if item["persona_id"] == "profile_sample_agent"]
     assert len(personas) == 1
-    templates = [item for item in first["available_personas"] if item["persona_id"] == "profile:sample_agent"]
+    templates = [item for item in first["available_personas"] if item["persona_id"] == "profile_sample_agent"]
     assert len(templates) == 1
     assert templates[0]["backs_persona_id"] == "profile_sample_agent"
     assert [item.id for item in AgentStore().list_all()] == ["profile_sample_agent"]

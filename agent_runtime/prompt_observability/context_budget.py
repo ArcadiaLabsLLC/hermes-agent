@@ -41,9 +41,7 @@ def _profile_persona_from_instance(instance: Any) -> Any | None:
     raw_persona_id = str(getattr(instance, "persona_id", "") or "").strip()
     profile = safe_assignment_token(getattr(instance, "profile_id", None))
     lowered = raw_persona_id.lower()
-    if lowered.startswith("profile:"):
-        profile = safe_assignment_token(raw_persona_id.split(":", 1)[1])
-    elif lowered.startswith("profile_"):
+    if not profile and lowered.startswith("profile_"):
         profile = safe_assignment_token(raw_persona_id[len("profile_") :])
     if not profile:
         return None
@@ -59,7 +57,7 @@ def _profile_persona_from_instance(instance: Any) -> Any | None:
     from ..models import AgentPersona
 
     return AgentPersona(
-        id=f"profile:{profile}",
+        id=f"profile_{profile}",
         display_name=display_name,
         role="profile",
         model=None,
@@ -73,7 +71,7 @@ def _profile_persona_from_instance(instance: Any) -> Any | None:
 
 def _profile_prompt_skills_need_snapshot(item: dict[str, Any]) -> bool:
     persona_id = str(item.get("persona_id") or "").strip().lower()
-    if not (persona_id.startswith("profile:") or persona_id.startswith("profile_")):
+    if not persona_id.startswith("profile_"):
         return False
     skills = item.get("accessible_skills") or item.get("skills")
     if not isinstance(skills, list) or not skills:

@@ -83,6 +83,12 @@ files whose last attempt timed out (`timed_out`) and the test count of every fil
 by reason, audit defects and flakes). Quote that line in a landing report instead of reconstructing
 timings from the log.
 
+An abnormal bundle also records `bundle_diagnostics` in that same line: original process/session
+statuses, ordered members, last observed member, failing IDs and bounded, redacted output. The
+terminal prints it even when isolated retries pass. Summary counts describe final attempts;
+a zero exit after retries is not a clean first attempt. This receipt survives scratch cleanup
+and worktree removal. `scripts/run_tests_bundled_plan.py::RunLedger` owns it.
+
 **Bundles are planned by duration.** A bundle closes at `--bundle-size` files (20) or before its
 cached seconds pass `--bundle-seconds` (120); a file cached slower than `--solo-seconds` (60) runs
 alone, and solos are submitted before bundles. Both read the store's `durations.json` (clean-pass
@@ -280,9 +286,11 @@ baselined; if it is not already a row, file it in `fork-hygiene-queue.md`.
 
 There is no pre-push hook (deleted 2026-09-03, `504953f6ad`); nothing gates a push, and every check
 above is something someone runs. `main` went red unreported twice because nobody did (`6979bad59`;
-2026-09-04). The fork's CI has not fired on `main` since 2026-09-07 and is not evidence until that
-queue row closes. `scripts/unattended_suite_run.ps1` is a report the operator may schedule, never a
-gate.
+2026-09-04). Fork CI is running again: [main run 38312372163](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38312372163)
+passed on 2026-10-12. `fork-gates.yml` checks selected mutation claims, the tombstone registry and
+docket stage claims; it does not run the bundled landing suite. The upstream `ci.yaml` workflow
+was still disabled when checked. Verify the workflow, jobs and exact source SHA before treating a
+green run as evidence. `scripts/unattended_suite_run.ps1` is a report, never a gate.
 
 **When a contract dump reds, read the diff before regenerating.** A removed command, flag or payload
 key is a launcher button that now exits 2 or a stale default acted on; re-vendor the launcher's copy

@@ -25,17 +25,16 @@ upstream's copy is upstream's to police, and the fork's gates look at the
 files the fork actually touched. This module answers that one question, once,
 for every gate that needs it.
 
-MEASURED AGAINST THE MERGE BASE, NOT THE ``upstream/main`` TIP
-==============================================================
+MEASURED AGAINST THE RECORDED RELEASE BASE
+========================================
 
-"Upstream's copy" is the copy the fork last MERGED: ``git merge-base HEAD
-upstream/main`` (:func:`upstream_base`), as ``scripts/upstream_footprint.py``
-measures the footprint. The fork merges release tags (owner, 2026-10-06), so the
-tip runs ahead of what the fork carries; against the tip, every upstream line
-changed after the base read as fork-authored and the fork's bans fired on
-upstream code the fork may not edit (``hermes_cli/bundles.py:72``: the base
-``ee5f49b943`` carries ``List[str]``, upstream ``d76cce4f11`` respelled it after,
-and the flag-binding ban flagged the unchanged line).
+The footprint manifest records the upstream release the fork integrated.
+Read its base through ``scripts.upstream_footprint.read_manifest`` and verify
+that it resolves to a commit in HEAD's ancestry. The same base owns footprint
+measurement and line attribution; a missing or stale local ``upstream/main``
+cannot redefine authorship. On 2026-10-12 that ref still pointed at July while
+the manifest recorded October's v0.21.6, falsely flagging twelve upstream
+``undo()`` calls already covered by the scoped-undo hook.
 
 WHAT "FORK-TOUCHED" MEANS, AND WHY A SECOND, NARROWER ANSWER EXISTS
 ===================================================================
@@ -64,9 +63,8 @@ ships.
 FAIL CLOSED
 ===========
 
-When the ``upstream/main`` ref is not there — a clone without the remote, CI
-that fetches one branch, a shallow checkout — when HEAD and it share no merge
-base, or when any git invocation fails,
+When the manifest is missing, its base is invalid, unavailable or not an
+ancestor of HEAD, or when any git invocation fails,
 every file reads as fork-touched and the gates scan exactly what they scanned
 before this module existed. A scope helper that failed OPEN would silently turn
 a ban into a no-op on the one machine nobody was watching.
@@ -74,7 +72,7 @@ a ban into a no-op on the one machine nobody was watching.
 THE COST
 ========
 
-One ``git merge-base`` and one ``git ls-tree -r <base>`` per process, cached; one
+One base validation and one ``git ls-tree -r <base>`` per process, cached; one
 ``git hash-object``, and at most one ``git cat-file``, per path actually asked
 about, cached. Callers ask about FINDINGS, not about every file they walk (see
 each gate), so those two are paid a handful of times at most, and a green gate
@@ -88,8 +86,9 @@ import functools
 import subprocess
 from pathlib import Path
 
+from scripts.upstream_footprint import read_manifest
+
 __all__ = [
-    "UPSTREAM_REF",
     "fork_authored_lines",
     "is_fork_authored",
     "is_fork_touched",
@@ -99,12 +98,6 @@ __all__ = [
     "upstream_blobs",
     "working_blob",
 ]
-
-#: The upstream ref the merge base is taken against. The fork integrates
-#: upstream by a history-preserving merge of release tags, so a fork-owned line
-#: is measured against ``git merge-base HEAD UPSTREAM_REF`` (:func:`upstream_base`),
-#: never against this ref's tip.
-UPSTREAM_REF = "upstream/main"
 
 _UNSET = object()
 
@@ -137,28 +130,36 @@ def _git(args: list[str], *, cwd: Path) -> bytes | None:
     return completed.stdout
 
 
-def read_merge_base(root: Path, ref: str = UPSTREAM_REF) -> str | None:
-    """``git merge-base HEAD <ref>`` in ``root``, or ``None`` (fail closed)."""
+def read_recorded_base(root: Path) -> str | None:
+    """The footprint's integrated release, validated locally; otherwise fail closed."""
 
-    out = _git(["merge-base", "HEAD", ref], cwd=root)
+    try:
+        base, _paths = read_manifest(root / "tests/fixtures/upstream_manifest.txt")
+    except (OSError, UnicodeError):
+        return None
+    if base is None:
+        return None
+    out = _git(["rev-parse", "--verify", f"{base}^{{commit}}"], cwd=root)
     if out is None:
         return None
     base = out.decode("ascii", "replace").strip()
-    return base or None
+    if not base or _git(["merge-base", "--is-ancestor", base, "HEAD"], cwd=root) is None:
+        return None
+    return base
 
 
 @functools.lru_cache(maxsize=1)
 def upstream_base() -> str | None:
     """The upstream commit this checkout last merged, once per process."""
 
-    return read_merge_base(repo_root())
+    return read_recorded_base(repo_root())
 
 
 def read_upstream_blobs(root: Path, ref: str | None = None) -> dict[str, str] | None:
     """``{repo-relative posix path: blob sha}`` for ``ref``, or ``None``.
 
-    ``ref`` defaults to the merge base of HEAD and ``upstream/main`` in ``root``
-    (``None`` when there is none — the fail-closed answer).
+    ``ref`` defaults to the validated manifest base in ``root``
+    (``None`` when unavailable — the fail-closed answer).
 
     ``root`` and ``ref`` are parameters rather than module constants so a test
     can drive the fail-closed path against a real empty repository instead of
@@ -170,7 +171,7 @@ def read_upstream_blobs(root: Path, ref: str | None = None) -> dict[str, str] | 
     """
 
     if ref is None:
-        ref = read_merge_base(root)
+        ref = read_recorded_base(root)
         if ref is None:
             return None
     out = _git(["ls-tree", "-r", "-z", ref], cwd=root)

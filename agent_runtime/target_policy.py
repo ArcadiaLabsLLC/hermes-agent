@@ -77,7 +77,7 @@ def evaluate_target(
     """Decide whether a bare-persona-id chat target is unambiguous.
 
     Refuse ``ambiguous_target`` ONLY when the target is a bare persona id, the
-    caller pinned no specific instance, the persona is not a ``profile:<name>``
+    caller pinned no specific instance, the persona is not a ``profile_<name>``
     (out of scope by contract), and MORE THAN ONE live instance exists. Every
     other case — a pinned instance, a profile target, or a single live instance
     (the common case) — resolves as before.

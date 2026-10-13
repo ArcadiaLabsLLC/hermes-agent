@@ -1,0 +1,176 @@
+# Session commentary and turn-start diagnosis — 2026-10-12
+
+PR #8 is merged at `b989d262e5`; its Fork gates run `38313749609` passed.
+Those gates cover selected fork claims, not the whole regression suite.
+The source baseline for this diagnosis is `56777bc3e5`.
+
+## H03: confirmed delivery race, submitted upstream
+
+The unchanged Session API file passes 39 tests alone. A bounded 30-case probe
+reusing its commentary scenario produces 29 passes and one failure: the wire
+contains sequence numbers 1, 2, 4, 5, 6. Commentary event 3 was stamped but never
+delivered. The final answer and the separate Responses stream are intact.
+
+Owner: `gateway/platforms/api_server.py::_SessionEventQueue` and
+`APIServerAdapter._handle_session_chat_stream`. Worker callbacks schedule their
+puts onto the loop; terminal events and EOS put directly. On Python 3.13, an
+executor Future may finish before `asyncio.wrap_future` registers its callback.
+Awaiting the already-complete wrapper does not yield. Direct terminal puts can
+therefore reach EOS before the scheduled worker puts. This affects commentary,
+text deltas and tool events, on both successful and failed turns.
+
+A real `ThreadPoolExecutor` that returns only after its submitted work finishes
+makes this interleaving deterministic. On current upstream `ee36aed5adc7`, the
+new endpoint test reports two failures (already-finished success/failure) and
+two passes (ordinary scheduling). No callback, assertion or timeout is weakened.
+
+Candidate: [codex/session-sse-order](https://github.com/ArcadiaLabsLLC/hermes-agent/tree/codex/session-sse-order),
+commits `879c2a31cd` and `addf508ad5`, then upstream refresh `2426b8dc24`
+(base `b23600860f82`). All queued events and EOS use the existing
+loop scheduler; sequence stamping happens on that loop. There is no second
+buffer, blocking acknowledgment, lock, retry or Eternia import. The existing
+live-bot direct writer and Responses writer are unchanged.
+
+Qualification: the original Windows / Python 3.13.15 reproduction and
+checks are retained below. The current upstream PR head `2426b8dc24` is now
+qualified on Windows / Python 3.14.7: **184 tests** across all six API files
+pass in one run without retries, and all **12 quality checks pass together**
+against pinned base `b23600860f82`, with zero health findings. The original
+red is recorded in the fix commit body. No full upstream suite claim.
+
+Existing-work search found [upstream PR #89748](https://github.com/NousResearch/hermes-agent/pull/89748):
+the same executor-completion race on `/v1/runs`, using a bounded blocking
+acknowledgment. It does not cover the Session API endpoint reproduced here.
+The operator authorized submission after this endpoint distinction was verified.
+[Upstream PR #137460](https://github.com/NousResearch/hermes-agent/pull/137460)
+contains the focused Session API fix, references #89748, and records the
+reproduction, before/after results and local validation limits. No separate
+comment or issue was posted. The fork carry is qualified below. Upstream
+CI run `38317839373` is `action_required`: maintainer approval is needed before
+the workflow runs. It is not a passing CI receipt.
+The operator subsequently authorized carrying the fix into the fork.
+
+### Fork carry qualification
+
+`codex/session-sse-carry` carries the two source/test commits, without importing
+upstream-main's unrelated commits. The only cherry-pick conflict is the older
+`Dict` annotation; the reviewed implementation remains the same. The exact
+upstream regression test is retained. On fork base `fd5a712977`, it reproduces
+**two failures / two passes** before the carry and four passes after it.
+The six API files pass **184 tests** without retry. Footprint and carry-tool
+checks pass; the source patch reverse-applies against the pinned PR head.
+
+The fork's carry checker itself translated patch bytes through Windows text
+stdin and falsely reported drift. Its existing real-Git controls now use LF
+and CRLF histories: the LF clean-carry assertion failed before the binary-pipe
+repair, then all **57 controls pass**. This tooling repair is fork-only.
+
+The footprint records one additional upstream file (+23/-23), pins PR #137460,
+and names upstream adoption as the retirement condition. Fork source commit
+`ce3609b4a8` carries the fix; `30f3aa4aa9` and `a359a8f8bc` qualify the
+binary carry-checker pipe and its host-independent controls.
+
+The landing gate on `a359a8f8bc`, after merging fork main `c81d716323`,
+passes **13,269 tests in 1,088 files**, zero failures/errors, 60 skips,
+**zero reruns, straggler retries or abnormal bundle diagnostics**. Nothing
+was skipped by the green cache. The receipt records 76 bundles, 13 solos
+and two known-red files run once; elapsed time 541.6 s (terminal). Selection
+covers 1,029 fork files and 59 reached inherited files; the standing six
+upstream exclusions and three idle-box files remain excluded. This is the
+fork landing gate, not the entire upstream suite. The command was
+`scripts/run_tests_bundled.sh --since c81d7163230705cb2a1d664e9074d0f12a605ec4 --file-retries 0 tests`.
+
+Python 3.14.7 comes from a lane-owned environment built by the existing PM
+owner, with `python -m pm.build_env --source . --out <fresh-env>
+--python <supported-python> --cache <lane-cache> --group dev --group test
+--extra all`; `HERMES_PYTHON` selects that interpreter in the test wrappers.
+No shared interpreter was mutated. Reverting only the API source restores
+the same two ordering failures on 3.14; restoring it passes all four.
+The untouched H04 slow-exit file also passes in this environment. The first
+minimal environment lacked the API dependency `aiohttp`; its collection
+error is an environment setup receipt, not a killing control.
+
+## H01: still open, no speculative runtime change
+
+An instrumented copy of the original slow-turn scenario, alongside eight of
+the existing H01 files with eight workers, passes: 86 tests, one existing skip,
+65.0 seconds. It retains the original six-second start and 3.6-second end
+bounds. This run omits the two-roots file and the original fast-turn prefix;
+it is additional evidence, not a reproduction of the original entire schedule.
+
+The scenario subscribes without fold capabilities and waits for the fallback
+core carrying both the named start event and `running_work`. Current Launcher
+can use `persona_chat_turn`; this test does not prove that path either way.
+The next failing run needs the received-frame timeline and build/yield receipts
+at the deadline. Do not raise its deadline, classify it as TLS, or retire it
+because the latest run passed. Production code and the original test are unchanged.
+
+Follow-through on `4104e06401`: the complete original ten-file selection,
+including both chat-lane scenarios and the two-roots file, passes **96 tests /
+one existing skip** with eight workers in 156.3 s. Only failure-message
+instrumentation and INFO logging were added temporarily; assertion deadlines
+are unchanged. The command-level file cap was 600 s, respecting the two-roots
+file's declared allowance. The temporary instrumentation is retained outside
+the checkout and removed from the source tree. H01 remains unresolved.
+
+## H08: CLI spelling condition still exists
+
+The original condition is recorded in
+`docs/agent-runtime-harness/planned/upstream-reds-2026-10-07.md`: the relay
+test compares the launcher basename case-sensitively, rejecting `hermes.EXE`.
+A native Windows probe invokes the original upstream test body with the same
+delivery stub and two resolver outputs: `hermes.exe` passes; `hermes.EXE`
+fails at that exact assertion. Result: **one passed / one failed**.
+
+The local XPASS did not prove that the inherited condition was fixed. The
+repair now supplies the CLI resolver result and checks that the handler uses
+that exact path, with `hermes`, `hermes.exe` and `hermes.EXE` beneath a directory
+containing spaces. Native launcher selection retains its existing tests.
+[Upstream PR #137478](https://github.com/NousResearch/hermes-agent/pull/137478),
+commit `458dd40910`, changes only this test (+6/-3). Before the assertion repair,
+the uppercase case fails and the other two pass. On Windows Python 3.14.7 the
+three repaired cases pass; delivery plus launcher-selection files report
+31 passed and one unrelated reported-turn timeout. That timeout reproduces
+alone with the unchanged upstream test file in the same environment. All 12
+upstream quality checks pass; zero health findings. No production change.
+
+The fork candidate carries the exact patch and removes only this test's broad
+Windows marker. The unrelated timeout marker stays. H08 joins H11 in
+`codex/triage-followthrough`: both touch the shared test-fixture chain, so their
+whole-tree qualification belongs to the release batch. They are prepared,
+not landed; the upstream PR is open, not accepted.
+
+On the paired fork candidate `256c151c76`, supported Python 3.14.7
+qualification passes 56 tests across relay delivery, footprint, environment
+registry and fixture-boundary files (three existing skips and one existing
+xfail). The original
+H11 20-file bundle passes 204 tests, ten skips and two existing xfails,
+with no reruns. These are scoped results: removing a marker under
+`tests/_downstream/` joins H11 in the owed session-chain release batch.
+
+## Retained local receipts
+
+Logs are in the shared worktree parent, not operator storage. Temporary probes
+are investigation scaffolding, not new default-suite gates.
+
+| Log | SHA-256 |
+| --- | --- |
+| `stream-delivery-commentary-probe.log` | `02a731a7c6e6410e688ad349f25fe5f91e629f285a53b8883351d05cdd66e36e` |
+| `session-sse-upstream-red.log` | `fe35ad7e04d8cea921226d683baf6dfcba899f1dc6f55a91964275a10e7bd847` |
+| `session-sse-upstream-green.log` | `b47ceb7b23270089cd74e30537ab7e12d90de680a7b096197d856e214f429a38` |
+| `session-sse-upstream-adjacent-green.log` | `4a4ab52b9f2434b345530f3f22b36487db02ad3bae4527cf989440ac818061f8` |
+| `stream-delivery-start-loaded-probe.log` | `d96282cb81f777c787bd7ce7307bebb7453f9d9da67237fb354e60018c78689a` |
+| `triage-h01-full-prefix.log` | `38546471d5bc80028eda8c982e36e84cb6b05bfac93bf2f08df7e3fbdf82088a` |
+| `triage-h08-case-control.log` | `177b298c4d920d728bf855a346dc6f3b8499f1a4cd8c0bd85e1043a5382f4b0f` |
+| `session-sse-fork-red314.log` | `19c239feacf98492458890ade8ba4657cf509a2b7dcdc0c3d3452fdb70a9a03c` |
+| `session-sse-supported-green314.log` | `03dcffedc3a8febce267129391a8b1e426c5bda50ce07847a418f369453eeeae` |
+| `session-sse-fork-landing314.log` | `fad7f86c2dd06d30f098379ab4e5cefd6145d932dc07ad66c04eaf961ddaa82a` |
+| `session-sse-upstream-green314.log` | `072821570bff8444434acbee087872400ff6bc48702662839e2401f5f0593f54` |
+| `session-sse-upstream-check314.log` | `2052f2b2b0462c1528f29878f6769c946565c3bf20fc40be27133916e7f36357` |
+| `carry-check-lf-red.log` | `cdd463b624eb6d89fcb6a0c9c42656152180d9a70c5eaf6ccb41031db790e020` |
+| `relay-cli-upstream-red.log` | `cd89be74ed4a843072feedf43e0f3312c364c09ebb3001dd57b3fe862ee76add` |
+| `relay-cli-upstream-green314.log` | `1b73917bcdaf6ea3f7552331168323fe2669dd18636604c732a9c681a80f6ee8` |
+| `relay-cli-upstream-baseline314.log` | `269b56bea6841a1abccb85f417d8d8ae66f4dce170dc5861874d67696bc82036` |
+| `relay-cli-upstream-check314.log` | `78a5be93d5f219b036a95392e01ca5b83020328542f8ccdb6dd50392f823cd3d` |
+| `triage-batch-focused314.log` | `ed8edf795f65620df9bb2715f0bfe9d212f9ba276e80f9bb403c094528144a46` |
+| `triage-h11-batch-green314.log` | `76240889e0ece4b9331dd0b6fcc80a62e8b982cefee6e9ec1ba6fb4de878703e` |

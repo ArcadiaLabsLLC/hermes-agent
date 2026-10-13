@@ -80,7 +80,7 @@ def _session_target(args, persona_instance_id: str | None, normalized_persona: s
     An operator CHANNEL id handed back as the session (``<persona>::<tail>``,
     the conversation's own thread id) is adopted. A fresh seeded instance has
     no chat, so its channel's tail is its INSTANCE id, and the first send
-    before "new chat" arrived as ``profile:base::personainst_profile_base`` and
+    before "new chat" arrived as ``profile_base::personainst_profile_base`` and
     was refused ``unknown_chat_session`` (2026-10-02). It names a thread hermes
     minted: a session tail becomes the session; an instance tail becomes the
     instance pin with the session omitted, so resolve-or-mint opens the root.
@@ -199,7 +199,7 @@ def _cmd_mission_chat_message(args) -> int:
             "error_kind": ChatErrorKind.UNSUPPORTED_PERSONA,
             "error": safe_assignment_text(str(exc), limit=240),
             "persona_id": safe_assignment_token(args.persona_id),
-            "next_expected": "pass a configured persona id, profile:<name>, or a known personainst_* instance id",
+            "next_expected": "pass a configured persona id, profile_<name>, or a known personainst_* instance id",
         }
         _mission_chat_emit(args, data)
         return 2
@@ -243,7 +243,7 @@ def _cmd_mission_chat_message(args) -> int:
             "error_kind": ChatErrorKind.UNSUPPORTED_PERSONA,
             "error": f"unknown persona {safe_assignment_token(args.persona_id)}",
             "persona_id": safe_assignment_token(args.persona_id),
-            "next_expected": "persist the persona, use profile:<name>, or address a known personainst_* instance",
+            "next_expected": "persist the persona, use profile_<name>, or address a known personainst_* instance",
         }
         _mission_chat_emit(args, data)
         return 2
@@ -385,7 +385,7 @@ def _cmd_mission_chat_message(args) -> int:
     # disambiguated (an explicit `persona_instance_id`, a `personainst_*` target,
     # or ANY caller-chosen session id — the operator console always carries an
     # instance-bearing session id, so its chats to every sibling keep working),
-    # for a `profile:<name>` target, or for a single-instance persona.
+    # for a `profile_<name>` target, or for a single-instance persona.
     target_decision = _mission_chat_target_decision(
         instance_store=instance_store,
         normalized_persona=normalized_persona,
@@ -451,7 +451,7 @@ def _cmd_mission_chat_message(args) -> int:
         # ONE spelling authority on BOTH sides (``personas_equal``). This fence
         # used to compare ``safe_assignment_token(owner.persona_id)`` against
         # ``normalize_persona_or_template_id(caller_persona)`` — token form vs
-        # colon form, two normalizers, one persona — so ``profile:alice`` could
+        # colon form, two normalizers, one persona — so ``profile_alice`` could
         # never equal ``profile_alice`` and EVERY agent-to-agent reply delivery
         # for a profile persona was refused as foreign
         # (2026-08-24, dispatch-2540634d5cf3).

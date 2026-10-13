@@ -197,7 +197,7 @@ def test_parity_warnings_flags_orphaned_trace_row():
         "persona_instance_runtime": {"enabled": True},
         "persona_instances": [{"persona_id": "neko_supervisor", "persona_instance_id": "personainst_neko"}],
         "persona_chat_trace": [
-            {"persona_id": "profile:ghost", "persona_instance_id": "personainst_ghost", "entries": []},
+            {"persona_id": "profile_ghost", "persona_instance_id": "personainst_ghost", "entries": []},
         ],
         "summary": {"open_tasks": 0},
         "tasks": [],
@@ -209,9 +209,9 @@ def test_parity_warnings_flags_orphaned_trace_row():
 def test_parity_warnings_clean_when_trace_matches_instance():
     data = {
         "persona_instance_runtime": {"enabled": True},
-        "persona_instances": [{"persona_id": "profile:alice", "persona_instance_id": "personainst_profile_alice"}],
+        "persona_instances": [{"persona_id": "profile_alice", "persona_instance_id": "personainst_profile_alice"}],
         "persona_chat_trace": [
-            {"persona_id": "profile:alice", "persona_instance_id": "personainst_profile_alice", "entries": []},
+            {"persona_id": "profile_alice", "persona_instance_id": "personainst_profile_alice", "entries": []},
         ],
         # S4: operator_channels is an id-keyed map (empty here).
         "operator_channels": {},

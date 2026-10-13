@@ -23,7 +23,7 @@ from agent_runtime.prompt_observability.workspace_agents import MAX_WORKSPACE_AG
 def test_prompt_observability_preserves_profile_persona_identity():
     context = mission_chat_prompt_observability(
         persona=SimpleNamespace(
-            id="profile:alice",
+            id="profile_alice",
             hermes_profile="alice",
             display_name="Alice Agent",
             role="profile",
@@ -32,7 +32,7 @@ def test_prompt_observability_preserves_profile_persona_identity():
         session_id="persona_chat_alice",
     )
 
-    assert context["persona_id"] == "profile:alice"
+    assert context["persona_id"] == "profile_alice"
     assert context["profile"] == "alice"
 
 

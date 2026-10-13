@@ -1010,7 +1010,7 @@ def test_profile_role_sentinel_resolves_to_supervisor_capabilities():
     assert coerce_agent_role("profile") == "profile"
 
     profile = AgentPersona(
-        id="profile:alice",
+        id="profile_alice",
         display_name="Alice Agent",
         role="profile",
         model="gpt-5.5",
@@ -1039,7 +1039,7 @@ def test_mission_chat_reply_runs_for_profile_persona(tmp_path, monkeypatch):
     from agent_runtime.models import AgentPersona
 
     profile = AgentPersona(
-        id="profile:alice",
+        id="profile_alice",
         display_name="Alice Agent",
         role="profile",
         model="gpt-5.5",
@@ -1104,7 +1104,7 @@ def test_mission_chat_reply_has_no_api_call_cap_and_keeps_iteration_failsafe(
     from agent_runtime.models import AgentPersona
 
     profile = AgentPersona(
-        id="profile:alice",
+        id="profile_alice",
         display_name="Alice Agent",
         role="profile",
         model="gpt-5.5",
@@ -1154,7 +1154,7 @@ def test_mission_chat_reply_honors_core_context_file_opt_in(tmp_path, monkeypatc
 
     def _capture_skip(include_core: bool) -> bool:
         persona = AgentPersona(
-            id="profile:alice",
+            id="profile_alice",
             display_name="Alice Agent",
             role="profile",
             model="gpt-5.5",

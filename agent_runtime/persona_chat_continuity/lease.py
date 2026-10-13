@@ -230,8 +230,9 @@ def repair_orphaned_chat_turns() -> list[str]:
 
     from ..mission_chat_turns.journal import mark_stale_inflight_turns_interrupted
     from ..mission_chat_turns.reads import inflight_chat_session_roots
+    from ..chat_turn_reservations import repair_orphaned_chat_receipts
 
-    repaired: list[str] = []
+    repaired: list[str] = repair_orphaned_chat_receipts()
     for root in inflight_chat_session_roots():
         try:
             with persona_chat_root_lease(root, observer_kind="orphan_sweep"):

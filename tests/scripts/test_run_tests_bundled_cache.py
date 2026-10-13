@@ -207,7 +207,7 @@ def test_a_worktree_and_its_primary_share_one_store_and_the_run_record_lives_the
     assert from_primary.store.root.resolve() == (repo / ".pytest_cache" / "hermes_gate").resolve()
 
     outcome = SimpleNamespace(file=worktree / T, rc=1)
-    ledger = SimpleNamespace(failed={T: [f"{T}::test_ok"]}, file_seconds={T: 2.0, "tests/test_u.py": 3.0})
+    ledger = bundled.plan.RunLedger(failed={T: [f"{T}::test_ok"]}, file_seconds={T: 2.0, "tests/test_u.py": 3.0})
     green = SimpleNamespace(file=worktree / "tests/test_u.py", rc=0)
     from_worktree.record(SimpleNamespace(outcomes=[outcome, green], ledger=ledger, leaks=[]), {"elapsed": 1.0})
     again = gate_mod.GateRun.start(args, worktree, [], [], [], environ={})

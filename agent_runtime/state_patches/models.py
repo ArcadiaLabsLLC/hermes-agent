@@ -99,10 +99,11 @@ _PERSONA_INSTANCE_STORE_TO_WIRE: dict[str, tuple[str, ...]] = {
     "display_name": ("display_name", "agent_profile_display_name"),
     "current_chat_goal": ("current_chat_goal",),
     "skill_overrides": ("skill_overrides", "skills"),
-    "model": ("model", "effective_model", "model_is_override", "reasoning_supported"),
-    "provider": ("provider", "effective_provider", "model_is_override"),
-    "api_mode": ("api_mode",),
-    "reasoning_effort": ("reasoning_effort", "model_is_override", "reasoning_supported"),
+    "model": ("model", "effective_model", "model_is_override", "reasoning_supported", "reasoning_capabilities"),
+    "provider": ("provider", "effective_provider", "model_is_override", "reasoning_supported", "reasoning_capabilities"),
+    "api_mode": ("api_mode", "reasoning_supported", "reasoning_capabilities"),
+    "base_url": ("reasoning_supported", "reasoning_capabilities"),
+    "reasoning_effort": ("reasoning_effort", "model_is_override", "reasoning_supported", "reasoning_capabilities"),
     # ── the ``open_chat`` half (office fold-promotion plan §V2, 2026-08-16) ──
     # ``persona_instance.chat_opened`` was covered with NO paired producer: the
     # bind writes real wire-visible state and emitted no ``state.patched`` at

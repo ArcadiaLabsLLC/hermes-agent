@@ -63,13 +63,15 @@ def _persona_instance_wire_row(instance: Any, persona: Any) -> dict[str, Any]:
     to the instance overrides), mirroring the summary's
     ``getattr(visibility_persona, ...)`` exactly."""
 
-    from ..persona_assignments import _model_supports_reasoning_effort
+    from ..config import load_agent_runtime_config
+    from ..persona_chat_session import _chat_effective_model_payload
 
     overrides = instance.skill_overrides
-    persona_model = getattr(persona, "model", None)
-    persona_provider = getattr(persona, "provider", None)
     persona_skills = list(getattr(persona, "skills", []) or [])
-    effective_model = instance.model or persona_model
+    selection = _chat_effective_model_payload(
+        persona=persona, config=load_agent_runtime_config(), override=None, instance=instance,
+    )
+    effective_model = selection["effective_model"]
     # ``persona_instance_summary`` derives all three profile names from this one
     # value (``instance.profile_id or visibility_persona.hermes_profile``); the
     # standin's fallback is None, mirrored here by ``getattr(persona, ...)``.
@@ -89,11 +91,13 @@ def _persona_instance_wire_row(instance: Any, persona: Any) -> dict[str, Any]:
         "model": instance.model,
         "effective_model": effective_model,
         "provider": instance.provider,
-        "effective_provider": instance.provider or persona_provider,
+        "effective_provider": selection["effective_provider"],
         "api_mode": instance.api_mode,
         "reasoning_effort": instance.reasoning_effort,
         "model_is_override": bool(instance.model or instance.provider or instance.reasoning_effort),
-        "reasoning_supported": _model_supports_reasoning_effort(effective_model),
+        "reasoning_supported": (selection["reasoning_capabilities"]["state"] == "supported"
+                                and bool(selection["reasoning_capabilities"]["levels"])),
+        "reasoning_capabilities": selection["reasoning_capabilities"],
         # The ``open_chat`` fields. Same rule as everything above: these are the
         # WIRE names and the WIRE derivations, not the store attributes.
         "workspace_id": instance.workspace_id,
@@ -120,7 +124,11 @@ def _resolve_persona_for(instance: Any) -> Any:
 
         persona_id = str(getattr(instance, "persona_id", "") or "")
         personas = AgentStore().list_all()
-        return {p.id: p for p in personas}.get(persona_id)
+        persona = {p.id: p for p in personas}.get(persona_id)
+        if persona is None:
+            from ..persona_assignments.summary import _profile_visibility_persona
+            persona = _profile_visibility_persona(instance, lambda: personas)
+        return persona
     except Exception:
         return None
 

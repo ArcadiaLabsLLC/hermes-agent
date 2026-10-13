@@ -358,7 +358,7 @@ def test_snapshot_evicts_layer_bodies_while_disk_keeps_them(
     po.persist_prompt_observability_context(
         {
             "context_id": "ctx_alice",
-            "persona_id": "profile:alice",
+            "persona_id": "profile_alice",
             "persona_instance_id": "personainst_profile_alice",
             "profile": "alice",
             "session_id": "persona_chat_alice",
@@ -417,7 +417,7 @@ def _profile_instance(session_id: str):
 
     return PersonaInstance(
         id="personainst_profile_alice",
-        persona_id="profile:alice",
+        persona_id="profile_alice",
         role="profile",
         display_name="Alice Agent",
         profile_id="alice",
@@ -432,7 +432,7 @@ def _persist_alice_row(context_id: str = "ctx_alice"):
     po.persist_prompt_observability_context(
         {
             "context_id": context_id,
-            "persona_id": "profile:alice",
+            "persona_id": "profile_alice",
             "persona_instance_id": "personainst_profile_alice",
             "profile": "alice",
             "session_id": "persona_chat_alice",

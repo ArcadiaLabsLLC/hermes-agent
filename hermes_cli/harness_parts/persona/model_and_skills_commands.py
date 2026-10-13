@@ -251,7 +251,7 @@ def _template_write_store_target(store, persona_id: str, *, what: str):
     Shared by ``persona set-model`` and ``persona set-skills`` because both
     write the same tier and must answer the same three questions identically:
 
-    * ``profile:<name>`` resolves to the SINGLE store row bound to that profile
+    * ``profile_<name>`` resolves to the SINGLE store row bound to that profile
       (several rows ⇒ ``ambiguous_profile_persona``, none ⇒ the refusal below);
     * a config-only catalog id is REFUSED ``persona_not_persisted`` rather than
       promoted into a store row. Minting a row to persist one field would
@@ -264,9 +264,13 @@ def _template_write_store_target(store, persona_id: str, *, what: str):
     never raises for a resolution outcome.
     """
 
-    if persona_id.startswith("profile:"):
-        profile_name = persona_id.split(":", 1)[1]
-        candidates = [item for item in store.list_all() if str(getattr(item, "hermes_profile", "") or "") == profile_name]
+    if persona_id.startswith("profile_"):
+        profile_name = persona_id[len("profile_"):]
+        roster = store.list_all()
+        exact = next((item for item in roster if item.id == persona_id), None)
+        if exact is not None:
+            return exact, None
+        candidates = [item for item in roster if str(getattr(item, "hermes_profile", "") or "") == profile_name]
         if not candidates:
             return None, {
                 "ok": False,
@@ -452,7 +456,7 @@ def _cmd_persona_set_skills(args) -> int:
     The skills half of ``persona set-model``, and deliberately its twin: same
     store-row write target (``_template_write_store_target``), same
     ``persona_not_persisted`` refusal for a config-only catalog id, same
-    ``profile:<name>`` resolution, same supersede clock — on its OWN field
+    ``profile_<name>`` resolution, same supersede clock — on its OWN field
     (``skills_override_issued_at``), so a skills write and a model write can
     never supersede each other.
 

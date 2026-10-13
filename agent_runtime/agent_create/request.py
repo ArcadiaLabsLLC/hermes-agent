@@ -120,7 +120,7 @@ def resolve_persona(persona_id: str) -> Any | None:
     """The persisted persona for *persona_id*, or ``None``.
 
     Deliberately narrow: exact id, then the safe-token spelling. It does NOT
-    synthesise a ``profile:`` persona the way the CLI's ``_persona_by_id`` does,
+    synthesise a ``profile_`` persona the way the CLI's ``_persona_by_id`` does,
     because the only field this module reads off the result is
     ``display_name`` and a synthesised profile persona's is derived from the
     profile token — which is exactly what the fallback below computes anyway.
@@ -160,15 +160,9 @@ def accepted_persona_spellings(persona: Any, roster: Sequence[Any]) -> list[str]
     ``harness agent list`` row. Two spellings at most, and the second is
     CONDITIONAL on something the id alone cannot show.
 
-    ``profile:<token>`` does not reach this roster at all — it reaches the CLI
-    resolver's synthesis lane (``_persona_by_id``), which fills the synthesised
-    persona's model/provider/toolsets from ``profile_persona_resolution``, and
-    that returns a persona only for a profile with exactly ONE owner. So a
-    profile two personas declare is deliberately NOT advertised here: the
-    spelling still parses (D-U1 exempts every ``profile:`` id from the roster
-    check), but it would mint a defaults-less agent DIFFERENT from the id
-    printed beside it, and an error message that offers that trade silently is
-    worse than one that offers nothing.
+    A stored ID resolves first. Otherwise ``profile_<token>`` names a
+    synthesized profile persona. Advertise that alternative only when the
+    profile has one owner, so choosing it cannot lose the named agent's defaults.
     """
 
     persona_id = str(getattr(persona, "id", "") or "").strip()
@@ -181,7 +175,7 @@ def accepted_persona_spellings(persona: Any, roster: Sequence[Any]) -> list[str]
         for row in roster
         if str(getattr(row, "hermes_profile", "") or "").strip() == profile
     ]
-    profile_spelling = f"profile:{profile}"
+    profile_spelling = f"profile_{profile}"
     if owners == [persona_id] and profile_spelling not in spellings:
         spellings.append(profile_spelling)
     return spellings
@@ -228,7 +222,7 @@ def persona_not_found_message(persona_id: Any) -> str:
     script, a cron or a remote ``call`` leg, none of which can run a second
     command to find out what the first would have accepted. Both accepted
     spellings ride along for the same reason ``--persona`` takes two: ``qa``
-    and ``profile:launcher-qa`` are the same agent, and nothing else in the
+    and ``profile_launcher-qa`` are the same agent, and nothing else in the
     CLI says so.
     """
 
@@ -244,9 +238,9 @@ def persona_not_found_message(persona_id: Any) -> str:
 def _persona_is_unknown(persona_id: str, persona: Any | None = None) -> bool:
     """Does this create name a persona that does not exist?
 
-    Decision **D-U1**, and it is load-bearing: a ``profile:``-prefixed id is
+    Decision **D-U1**, and it is load-bearing: a ``profile_``-prefixed id is
     deliberately NOT checked. The launcher's template/preset browser sends
-    ``profile:<token>`` ids for profiles that own no persona row at all, and
+    ``profile_<token>`` ids for profiles that own no persona row at all, and
     the CLI's ``_persona_by_id`` SYNTHESISES a persona for them on purpose
     (``profile_persona_resolution`` returns ``None`` matches without raising).
     Making validation uniform would break that lane silently, since nothing
@@ -272,7 +266,7 @@ def _persona_is_unknown(persona_id: str, persona: Any | None = None) -> bool:
 
     if persona is not None:
         return False
-    if str(persona_id or "").lower().startswith("profile:"):
+    if str(persona_id or "").lower().startswith("profile_"):
         return False
     raw = str(persona_id or "").strip()
     token = safe_assignment_token(raw)
@@ -465,8 +459,8 @@ def normalize_agent_create(
     # durable roster row and a placement for an agent class nobody asked for.
     # So the collapse is detected before it happens, on the same tokenizer.
     if not safe_assignment_token(
-        persona_raw.split(":", 1)[1]
-        if persona_raw.strip().lower().startswith("profile:")
+        persona_raw[len("profile_"):]
+        if persona_raw.strip().lower().startswith("profile_")
         else persona_raw
     ):
         raise AgentCreateInvalid(

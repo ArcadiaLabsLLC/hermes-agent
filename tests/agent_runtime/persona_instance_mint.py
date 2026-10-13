@@ -9,9 +9,9 @@ method nothing proves; the mint moved here and the store method was deleted
 (``docs/agent-runtime-harness/planned/duplicate-implementation-retirement.md``
 Stage 4; the tombstone row lives in ``test_tombstone_registry.py``).
 
-BEHAVIOUR IS UNCHANGED from the deleted method, deliberately: same id
+The fixture preserves the deleted method's contracts: same id
 derivation (``persona_instance_id_for``), same identity resolution for the
-``"profile:<x>"`` spelling, same idempotent adopt-or-create, same
+canonical ``"profile_<x>"`` spelling, same idempotent adopt-or-create, same
 ``persona_instance.created`` event with ``{"mode": "free_floating"}``, same
 "return the row read back off disk" contract.
 
@@ -44,8 +44,7 @@ def free_floating_identity(
 ) -> tuple[str, str, str, str | None]:
     """(persona_id, role, display_name, profile_id) for a persona or template.
 
-    Verbatim from the deleted ``persona_assignments._free_floating_identity``,
-    which had no other caller and left with the method.
+    Kept in tests after the production mint lost its last caller.
     """
 
     if isinstance(persona_or_template, AgentPersona):
@@ -56,9 +55,9 @@ def free_floating_identity(
             persona_or_template.hermes_profile,
         )
     raw = str(persona_or_template or "").strip()
-    if raw.lower().startswith("profile:"):
-        profile = safe_assignment_token(raw.split(":", 1)[1])
-        persona_id = f"profile:{profile}" if profile else "profile:persona"
+    if raw.lower().startswith("profile_"):
+        profile = safe_assignment_token(raw[len("profile_"):])
+        persona_id = f"profile_{profile}" if profile else "profile_persona"
         return (persona_id, "profile", _display_name_for_template(profile), profile or None)
     persona_id = safe_assignment_token(raw) or "persona"
     return (persona_id, persona_id, persona_id, None)

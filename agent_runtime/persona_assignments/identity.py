@@ -79,7 +79,7 @@ def is_canonical_persona_channel(instance: PersonaInstance) -> bool:
 
     The canonical channel is the global-singleton id
     ``persona_instance_id_for(persona_id)`` (e.g. ``personainst_qa`` for persona
-    ``qa``, ``personainst_profile_alice`` for ``profile:alice``). A
+    ``qa``, ``personainst_profile_alice`` for ``profile_alice``). A
     placement-backed or otherwise deliberate instance carries a distinct
     placement-derived id (``personainst_qa_agent_2``) whose tail is the scene
     itemId, so it never collapses onto the canonical id — that is exactly the
@@ -208,9 +208,6 @@ def _display_name_for_template(profile: str) -> str:
 
 def _normalize_instance_source_persona(persona_or_template_id: str) -> str:
     raw = str(persona_or_template_id or "").strip()
-    if raw.lower().startswith("profile:"):
-        profile = safe_assignment_token(raw.split(":", 1)[1])
-        return f"profile:{profile}" if profile else "profile:persona"
     return safe_assignment_token(raw) or "persona"
 
 
@@ -301,7 +298,7 @@ def _profile_id_for_persona_or_template(
     """The profile an instance projection should be stamped with at creation.
 
     B-4. This function used to answer ``None`` for every id that was not a
-    synthetic ``profile:<name>`` channel — which is to say, for every real
+    synthetic ``profile_<name>`` channel — which is to say, for every real
     persona. That is the factory that mints null ``profile_id`` projections: the
     live store carries one (``personainst_qa_agent_644595cc``, persona ``qa``,
     whose persona binds ``launcher-qa``).
@@ -324,8 +321,6 @@ def _profile_id_for_persona_or_template(
     :func:`_role_for_persona_or_template`.
     """
     raw = str(persona_or_template_id or "").strip()
-    if raw.lower().startswith("profile:"):
-        return safe_assignment_token(raw.split(":", 1)[1]) or None
     if not raw:
         return None
     try:
@@ -336,4 +331,6 @@ def _profile_id_for_persona_or_template(
         # A store/config read failure must never block minting an instance.
         # Falling back to None reproduces exactly the previous behaviour.
         return None
+    if raw.lower().startswith("profile_"):
+        return safe_assignment_token(raw[len("profile_"):]) or None
     return None

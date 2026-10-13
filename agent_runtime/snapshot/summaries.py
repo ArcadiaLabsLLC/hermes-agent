@@ -262,9 +262,9 @@ def _available_persona_summary(agents) -> list[dict]:
     The launcher's Presets lane takes ``persona_id`` off these rows verbatim
     into ``runtime.agent.create`` -> ``--persona``, so a row that advertises a
     spelling the CLI's own authority withholds places something the operator did
-    not choose. ``profile:<name>`` is exactly such a spelling for a profile that
+    not choose. ``profile_<name>`` is exactly such a spelling for a profile that
     TWO personas declare: it still parses (decision D-U1 exempts every
-    ``profile:`` id from the roster check) but ``profile_persona_resolution``
+    ``profile_`` id from the roster check) but ``profile_persona_resolution``
     returns no match for an ambiguously-owned profile, so the resolver
     synthesises a persona with config defaults and NO toolsets — a different
     agent from the id printed beside it.
@@ -275,14 +275,14 @@ def _available_persona_summary(agents) -> list[dict]:
     this function still has to think:
 
     * two or more owners — the authority answers each owner's bare id and
-      withholds ``profile:<name>``, so the row advertises the ids and not the
+      withholds ``profile_<name>``, so the row advertises the ids and not the
       profile spelling.
-    * exactly one owner — bare id first, then ``profile:<name>``, which inherits
+    * exactly one owner — bare id first, then ``profile_<name>``, which inherits
       that owner's defaults.
     * no owner at all — the template-only placement lane the launcher's library
       exists for. The per-persona authority cannot answer it (there is no
       persona to key on) and its synthesis is INTENDED here, so the row supplies
-      ``profile:<name>`` itself and the list is never empty.
+      ``profile_<name>`` itself and the list is never empty.
 
     ``backs_persona_id`` follows the same rule for the same reason. It used to
     be built by a dict comprehension keyed on profile name, which silently kept
@@ -310,7 +310,7 @@ def _available_persona_summary(agents) -> list[dict]:
         if not profile_name:
             continue
         item = {
-            "persona_id": f"profile:{profile_name}",
+            "persona_id": f"profile_{profile_name}",
             "display_name": _display_name_for_profile(profile_name),
             "role": "profile",
             "hermes_profile": profile_name,

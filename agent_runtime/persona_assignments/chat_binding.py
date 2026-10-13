@@ -395,13 +395,13 @@ def _load_or_mint_chat_instance(
         # Opening another chat root must not cancel or rebind live work.
         pass
     ts = now()
-    role = "profile" if normalized_persona.startswith("profile:") else normalized_persona
+    role = "profile" if normalized_persona.startswith("profile_") else normalized_persona
     instance = PersonaInstance(
         id=instance_id,
         persona_id=normalized_persona,
         role=role,
-        display_name=display_name or _display_name_for_template(normalized_persona.split(":", 1)[1] if normalized_persona.startswith("profile:") else normalized_persona),
-        profile_id=profile_id or (normalized_persona.split(":", 1)[1] if normalized_persona.startswith("profile:") else None),
+        display_name=display_name or _display_name_for_template(normalized_persona[len("profile_"):] if normalized_persona.startswith("profile_") else normalized_persona),
+        profile_id=profile_id or (normalized_persona[len("profile_"):] if normalized_persona.startswith("profile_") else None),
         runtime_root=str(paths.store_root()),
         state=WorkerSessionState.IDLE,
         updated_at=ts,
@@ -439,8 +439,8 @@ def _apply_open_fields(
         instance.display_name = default_display_name
     if profile_id:
         instance.profile_id = profile_id
-    elif normalized_persona.startswith("profile:") and not instance.profile_id:
-        instance.profile_id = normalized_persona.split(":", 1)[1]
+    elif normalized_persona.startswith("profile_") and not instance.profile_id:
+        instance.profile_id = normalized_persona[len("profile_"):]
     # Scope-provenance pointers: a provided workspace/realm is the caller's
     # authoritative placement-scope claim (the launcher stamps its active
     # scope when minting a placement) and applies on create AND re-open; an

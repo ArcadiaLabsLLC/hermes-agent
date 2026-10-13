@@ -310,9 +310,10 @@ class GateRun:
             }
         final_rc = {cache.rel_of(o.file, self.repo_root): o.rc for o in result.outcomes}
         failed = result.ledger.failed if result.ledger is not None else {}
+        diagnostics = result.ledger.diagnostic_record() if result.ledger is not None else {}
         plan.record_run(
             self.repo_root, cost, final_rc, failed, self.known_reds, timed_out=timed_out,
-            previous_timed_out=self.timed_out, extra=extra, record_path=self.store.runs,
+            previous_timed_out=self.timed_out, extra={**(extra or {}), **diagnostics}, record_path=self.store.runs,
         )
         skip = {cache.rel_of(p, self.repo_root) for p, _out in rtp._FLAKY_RESULTS}
         skip |= {cache.rel_of(leak.file, self.repo_root) for leak in result.leaks}

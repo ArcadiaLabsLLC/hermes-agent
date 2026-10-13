@@ -229,7 +229,7 @@ def test_a_config_only_persona_is_refused_not_promoted(monkeypatch, capsys):
 def test_profile_id_targets_the_single_backing_store_row(capsys):
     _seed_persona("qa", skills=["seeded-skill"])
 
-    code = _dispatch(_set_skills("profile:qa", "--skill", "alpha"))
+    code = _dispatch(_set_skills("profile_qa", "--skill", "alpha"))
     data = json.loads(capsys.readouterr().out)
 
     assert code == 0
@@ -246,7 +246,7 @@ def test_an_ambiguous_profile_is_refused_and_names_the_candidates(capsys):
     twin.hermes_profile = "qa"
     AgentStore().save(twin)
 
-    code = _dispatch(_set_skills("profile:qa", "--skill", "alpha"))
+    code = _dispatch(_set_skills("profile_qa", "--skill", "alpha"))
     data = json.loads(capsys.readouterr().out)
 
     assert code == 2

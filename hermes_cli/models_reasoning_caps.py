@@ -140,6 +140,8 @@ def _seed_reasoning_caps(url: str, items: Any) -> Optional[Caps]:
     if not caps_by_id:
         return None
     _save_reasoning_caps_disk(url, caps_by_id)
+    provider = "openrouter" if url == _OPENROUTER_CATALOG_URL else "nous"
+    _save_control_capabilities(provider, caps_by_id)
     return caps_by_id
 
 
@@ -304,3 +306,129 @@ def warm_openrouter_reasoning_caps_async() -> None:
 def warm_nous_reasoning_caps_async() -> None:
     """Nous Portal counterpart of :func:`warm_openrouter_reasoning_caps_async`."""
     _warm_caps_async(_NOUS_CAPS)
+
+
+def _control_catalog_key(provider: str) -> str:
+    """Opaque scope key: profile, credential-owner revision, endpoint and env keys.
+
+    Contains no credential bytes and never resolves or refreshes a credential.
+    Model/effort preference changes do not invalidate a provider's catalog.
+    """
+    import hashlib
+    from agent.secret_scope import get_secret
+    from hermes_cli.auth import authentication_owner_stamps
+    from hermes_constants import get_hermes_home
+    from providers import get_provider_profile
+    from hermes_cli.config import load_config_readonly
+
+    profile = get_provider_profile(provider)
+    env_names = (*getattr(profile, "env_vars", ()), "NOUS_INFERENCE_BASE_URL", "HERMES_CODEX_BASE_URL")
+    env = {name: hashlib.sha256((get_secret(name) or "").encode()).hexdigest() for name in env_names}
+    cfg = load_config_readonly() or {}
+    model = cfg.get("model") or {}
+    endpoint = model.get("base_url") if isinstance(model, dict) else None
+    scope = [str(get_hermes_home()), authentication_owner_stamps(), env, endpoint]
+    digest = hashlib.sha256(json.dumps(scope, default=str, sort_keys=True).encode()).hexdigest()
+    return f"reasoning-control:{provider}:{digest}"
+
+
+def github_default_reasoning_efforts(model_id: str) -> list[str]:
+    """Offline defaults, sharing native tier vocabulary with the transport."""
+    m = _origin()
+    raw = (model_id or "").strip().lower()
+    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
+        return list(m.COPILOT_REASONING_EFFORTS_O_SERIES)
+    normalized = m.normalize_copilot_model_id(model_id).lower()
+    if m.is_astra_model(normalized):
+        return list(m.CODEX_ASTRA_EFFORTS)
+    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
+    bare = normalized.rsplit("/", 1)[-1]
+    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
+        return list(codex_supported_efforts(bare))
+    return list(m.COPILOT_REASONING_EFFORTS_GPT5) if normalized.startswith("gpt-5") else []
+
+
+def cached_control_capabilities(provider: str, model: str, *, base_url: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Strict cache read for snapshot/RPC inspection: no fetch, refresh or warmer."""
+    caps, age = _load_reasoning_caps_disk(_control_catalog_key(provider))
+    if caps is None or age >= _REASONING_CAPS_DISK_TTL_SECONDS:
+        return None
+    result = caps.get(model)
+    if result is None and provider == "openai-codex":
+        from agent.model_metadata import strip_codex_context_variant_suffix
+        result = caps.get(strip_codex_context_variant_suffix(model))
+    if not isinstance(result, dict):
+        return None
+    endpoint = result.get("endpoint_scope")
+    if base_url and endpoint and endpoint != _endpoint_scope(base_url):
+        return None
+    return dict(result)
+
+
+def _endpoint_scope(base_url: str) -> str:
+    import hashlib
+    return hashlib.sha256(base_url.strip().rstrip("/").encode()).hexdigest()
+
+
+def _save_control_capabilities(provider: str, caps: Caps) -> None:
+    try:
+        _save_reasoning_caps_disk(_control_catalog_key(provider), caps)
+    except Exception as exc:
+        # Optional inspection metadata must not fail successful model discovery.
+        logger.debug("Failed to scope reasoning-control catalog: %s", exc, exc_info=True)
+
+
+def cached_control_efforts(provider: str, model: Optional[str], *, base_url: Optional[str] = None) -> Optional[tuple[str, ...]]:
+    """Provider hook vocabulary: None is unknown; empty is definitive unsupported."""
+    caps = cached_control_capabilities(provider, model or "", base_url=base_url)
+    if caps is None:
+        return None
+    if caps.get("supports_reasoning") is False:
+        return ()
+    levels = caps.get("supported_efforts")
+    if not isinstance(levels, list):
+        return None
+    from agent.reasoning_effort import EFFORT_LADDER
+    return tuple(level for level in EFFORT_LADDER
+                 if level in levels and not (level == "none" and caps.get("mandatory")))
+
+
+def record_control_catalog(provider: str, items: Any, *, base_url: Optional[str] = None) -> None:
+    """Reuse an already-fetched serving catalog. No new request or model allowlist."""
+    if not isinstance(items, list):
+        return
+    caps: Caps = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        model = item.get("slug") or item.get("id")
+        if not isinstance(model, str) or not model.strip():
+            continue
+        if provider == "copilot":
+            detail = item.get("capabilities")
+            supports = detail.get("supports") if isinstance(detail, dict) else None
+            levels = supports.get("reasoning_effort") if isinstance(supports, dict) else None
+        else:
+            levels = item.get("supported_reasoning_levels")
+        if not isinstance(levels, list):
+            caps[model.strip()] = None
+            continue
+        efforts: list[str] = []
+        descriptions: dict[str, str] = {}
+        for level in levels:
+            effort = level.get("effort") if isinstance(level, dict) else level
+            if isinstance(effort, str) and effort.strip():
+                effort = effort.strip().lower()
+                if effort not in efforts:
+                    efforts.append(effort)
+                description = level.get("description") if isinstance(level, dict) else None
+                if isinstance(description, str) and description.strip():
+                    descriptions[effort] = description.strip()
+        default = item.get("default_reasoning_level") or item.get("default_reasoning_effort")
+        caps[model.strip()] = {"supports_reasoning": bool(efforts), "supported_efforts": efforts,
+                              "default_effort": default if isinstance(default, str) else None,
+                              "descriptions": descriptions}
+        if base_url:
+            caps[model.strip()]["endpoint_scope"] = _endpoint_scope(base_url)
+    if caps:
+        _save_control_capabilities(provider, caps)

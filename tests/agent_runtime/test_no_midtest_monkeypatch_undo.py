@@ -101,16 +101,16 @@ This is a fork-only gate enforcing a fork ruling, and since the 2026-09-21
 ``upstream/main`` merge the tree it walks also holds upstream's tests. A
 finding is reported only when the FORK wrote the line
 (``tests/_fork_scope.is_fork_authored``): a file byte-identical to
-``upstream/main`` is upstream's to police, and in a file the fork extended, the
+the recorded release is upstream's to police, and in a file the fork extended, the
 fork owns the lines it added and nothing else. Owner ruling, 2026-09-21:
 upstream code and upstream tests are never edited — additively or not at all —
 so a finding on an upstream line is one this repo is forbidden to fix, and a
 gate that reports it is a standing red, which is the camouflage this suite has
 been bitten by before. It is scope, not an exemption: nothing is named, nothing
-is waived, and the filter is derived from the ref, per finding. Upstream's own
+is waived, and the filter is derived from the manifest base, per finding. Upstream's own
 lines keep the BEHAVIOURAL witness, the root conftest's autouse
 ``_shared_monkeypatch_pin_tripwire``, which runs for every test in the tree
-whoever wrote it. When the ``upstream/main`` ref is absent the filter fails
+whoever wrote it. When the recorded release base is unavailable the filter fails
 CLOSED and this gate scans exactly what it scanned before.
 
 =============================================================================
@@ -393,7 +393,7 @@ def test_the_gate_scanned_a_real_tree():
 def test_the_fork_scope_filter_still_reports_the_forks_own_lines():
     """Anti-vacuity, direction 1: the filter is not a blanket "not ours".
 
-    This file is fork-authored and absent from ``upstream/main``, so every line
+    This file is fork-authored and absent from the recorded release, so every line
     in it is inside the gate. If this ever reads False the gate has stopped
     reporting anything at all and every test above it passes vacuously.
     """
@@ -409,16 +409,16 @@ def test_the_fork_scope_filter_actually_removes_upstream_from_the_scan():
     A helper that answered True for everything would be indistinguishable from
     no filter at all — it would pass the test above, and the fork would think
     it had scoped a gate it had not. So prove the other side: at least one
-    module this gate WALKS is byte-identical to ``upstream/main`` and therefore
-    outside the gate. Derived from the ref, not named here, so it cannot go
+    module this gate WALKS is byte-identical to the recorded release and therefore
+    outside the gate. Derived from the manifest base, not named here, so it cannot go
     stale against a file someone edits tomorrow.
     """
 
     blobs = upstream_blobs()
     assert blobs is not None, (
-        "the upstream/main ref is not in this checkout, so the scope filter is "
-        "in its fail-closed mode and this direction cannot be driven; fetch "
-        "upstream (`git fetch upstream main`) to run it"
+        "the manifest's recorded release base is unavailable or invalid, so the "
+        "scope filter is in its fail-closed mode; restore the integrated history "
+        "and verify tests/fixtures/upstream_manifest.txt"
     )
 
     root = _repo_root()
@@ -431,17 +431,17 @@ def test_the_fork_scope_filter_actually_removes_upstream_from_the_scan():
 
     assert found is not None, (
         "every module this gate walks reads as fork-touched, though "
-        f"{len(listed)} of them are listed in {len(blobs)} upstream/main "
+        f"{len(listed)} of them are listed in {len(blobs)} recorded-release "
         "entries — the filter is answering True unconditionally and is not "
         "scoping anything"
     )
 
 
-def test_the_fork_scope_filter_fails_closed_without_the_upstream_ref():
+def test_the_fork_scope_filter_fails_closed_without_the_recorded_base():
     """The fence the whole scoping rests on, driven rather than argued.
 
-    On a clone with no ``upstream`` remote, a CI job that fetches one branch, or
-    any git failure at all, the filter must answer "fork-touched" for every
+    With no valid recorded base, missing release history, or any git failure,
+    the filter must answer "fork-touched" for every
     file so this gate keeps scanning what it scanned before it was scoped. A
     scope helper that failed OPEN would turn the ban into a silent no-op on
     exactly the machine nobody is watching.
@@ -456,8 +456,8 @@ def test_the_fork_scope_filter_fails_closed_without_the_upstream_ref():
 def test_the_fork_scope_filter_fails_closed_against_a_real_refless_repo(tmp_path):
     """...and not only when ``blobs=None`` is handed in by hand.
 
-    The reader is pointed at a REAL repository that has no ``upstream/main``,
-    so the ls-tree it runs fails the way it would fail in CI, and the failure
+    The reader is pointed at a REAL repository that has no recorded base,
+    so attribution fails the way it would fail in CI, and the failure
     is the one the contract above promises.
     """
 

@@ -124,7 +124,7 @@ def _agent_definition_row(
     operator can read as the second spelling and be wrong. The list comes from
     :func:`agent_create.accepted_persona_spellings`, the same function the
     refusal's choice list spends, so the verb and the error cannot disagree.
-    ``roster`` is this enumeration's OWN batch, because the ``profile:`` spelling
+    ``roster`` is this enumeration's OWN batch, because the ``profile_`` spelling
     is offered only for a uniquely-owned profile and ownership is a property of
     the set the row was read from — under ``--all-profiles`` that is the
     enumerated profile's config merge, not the active root's.

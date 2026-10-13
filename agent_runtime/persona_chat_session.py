@@ -281,6 +281,26 @@ def _chat_effective_model_payload(
     agent_model = instance_model or default_model
     provider = (override or {}).get("provider") or agent_provider
     model = (override or {}).get("model") or agent_model
+    from agent_runtime.reasoning_capabilities import ReasoningCapabilities, reasoning_capabilities
+
+    capabilities = ReasoningCapabilities(provider, model)
+    if binding is not None and binding.readiness == "ready":
+        with persona_profile_scope(binding):
+            from hermes_cli.config import load_config
+
+            profile_config = load_config() or {}
+            model_config = profile_config.get("model") or {}
+            api_mode = getattr(instance, "api_mode", None) or (
+                model_config.get("api_mode") if isinstance(model_config, dict) else None)
+            capabilities = reasoning_capabilities(
+                provider, model, api_mode=api_mode,
+                default_effort=reasoning_effort_label(reasoning_config_for(None, model)),
+                config=profile_config,
+                base_url=getattr(instance, "base_url", None) or (
+                    model_config.get("base_url") if isinstance(model_config, dict) else None),
+            )
+    elif binding is None:
+        capabilities = reasoning_capabilities(provider, model, api_mode=getattr(instance, "api_mode", None))
     return {
         "default_provider": default_provider,
         "default_model": default_model,
@@ -294,6 +314,7 @@ def _chat_effective_model_payload(
         "effective_model": model,
         "effective_reasoning_effort": reasoning_effort_label(reasoning),
         "reasoning_effort_source": "instance" if effort else ("profile" if reasoning else "default"),
+        "reasoning_capabilities": capabilities.wire(),
         "model_is_default": not bool(override and ((override.get("provider") or "") or (override.get("model") or ""))),
         "model_is_instance_override": bool(instance_provider or instance_model),
         "scope": "mission_control_chat_session",

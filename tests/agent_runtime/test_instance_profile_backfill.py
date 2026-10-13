@@ -86,7 +86,7 @@ def _instance(instance_id: str, profile_id: str | None) -> PersonaInstance:
 def test_creation_stamps_the_personas_profile_explicitly(store_root, monkeypatch):
     """A newly minted projection carries its persona's profile, not None.
 
-    Kill-mutation: return to ``return None`` for non-``profile:`` ids. The
+    Kill-mutation: return to ``return None`` for non-``profile_`` ids. The
     stamped value becomes None and this goes red.
 
     Anti-vacuity: the expected value (``launcher-qa``) is written into the
@@ -115,11 +115,11 @@ def test_creation_leaves_an_unbound_persona_null(store_root):
 
 
 def test_synthetic_profile_channel_is_unchanged(store_root):
-    """The pre-existing ``profile:<name>`` behaviour must not regress."""
+    """The pre-existing ``profile_<name>`` behaviour must not regress."""
     from agent_runtime.config import ensure_persisted_personas
     from agent_runtime.persona_assignments import _profile_id_for_persona_or_template
 
-    assert _profile_id_for_persona_or_template("profile:alice", ensure_persisted_personas) == "alice"
+    assert _profile_id_for_persona_or_template("profile_alice", ensure_persisted_personas) == "alice"
 
 
 # ---------------------------------------------------------------------------

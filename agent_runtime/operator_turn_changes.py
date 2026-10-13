@@ -1,0 +1,113 @@
+"""Turn-attributed changes and an exact, read-only combined undo preview."""
+from __future__ import annotations
+
+from .operator_checkpoints import _checkpoint_session
+from .operator_conversation import OperatorConversationRefused
+from .operator_history import _target, _plan, _digest, require_history_idle
+from .operator_session_inspection import operator_session_read
+from .turn_checkpoints import read_turn_checkpoint, checkpoint_for_tree
+from .persona_chat_history.history_evidence import history_source_sessions
+from .conversation_owner import require_session_owner
+
+__layer__ = "lanes"
+
+
+def _sources(session, params):
+    sources = [params["session_id"], *history_source_sessions(session.db, params["session_id"])]
+    for source in sources:
+        require_session_owner(session.db.get_session(source), params.get("client_scope"))
+    return sources
+
+
+def _turn_record(sources, turn):
+    if turn:
+        for source in sources:
+            record = read_turn_checkpoint(source, turn)
+            if record is not None:
+                return record
+    return None
+
+
+def operator_turn_changes(params):
+    turn = params.get("client_message_id")
+    if not isinstance(turn, str) or not turn:
+        raise OperatorConversationRefused("invalid_history_target")
+    with operator_session_read(params) as (_, session):
+        _target(session.db, params["session_id"], client_message_id=turn, after_reply=True)
+        sources = _sources(session, params)
+    try:
+        with _checkpoint_session(params) as (identity, manager, workdir, _):
+            record = _turn_record(sources, turn)
+            workspace = (record or {}).get("workspaces", {}).get(workdir)
+            checkpoint = checkpoint_for_tree(manager, workdir, workspace["before_tree"]) if workspace else None
+            return {**identity, "client_message_id": turn, "workspace_path": workdir,
+                    "files": list(workspace["files"].values()) if workspace else [],
+                    "checkpoint": checkpoint, "tracked": workspace is not None,
+                    "other_workspaces": bool(record and set(record["workspaces"]) - {workdir})}
+    except OperatorConversationRefused as exc:
+        if exc.reason not in {"workspace_unavailable", "checkpoint_backend_unsupported"}:
+            raise
+        from .operator_session_inspection import inspection_identity
+        return {**inspection_identity(params, params.get("client_scope")), "client_message_id": turn,
+                "workspace_path": "", "files": [], "checkpoint": None, "tracked": False,
+                "other_workspaces": False, "unavailable_reason": exc.reason}
+
+
+
+def _collect_attribution(sources, turns, workdir):
+    baseline, attributed, reason = None, {}, None
+    for turn in turns:
+        record = _turn_record(sources, turn)
+        if record and set(record["workspaces"]) - {workdir}:
+            reason = "multiple_workspaces"
+        workspace = (record or {}).get("workspaces", {}).get(workdir)
+        if workspace:
+            baseline = baseline or workspace["before_tree"]
+            attributed.update(workspace["files"])
+    return baseline, attributed, reason
+
+
+def _preview_attributed_restore(manager, workdir, sources, turns):
+    baseline, attributed, reason = _collect_attribution(sources, turns, workdir)
+    plan = {"workspace_path": workdir, "files": [], "restore": None, "files_reason": reason}
+    if reason:
+        return plan
+    if not baseline:
+        plan["files_reason"] = "no_tracked_changes" if not attributed else None
+        return plan
+    checkpoint = checkpoint_for_tree(manager, workdir, baseline)
+    if checkpoint is None:
+        return {**plan, "files_reason": "checkpoint_expired"}
+    restore = manager.preview_restore(workdir, checkpoint)
+    if not restore.get("success"):
+        return {**plan, "files_reason": restore["reason"]}
+    # Unattributed changes remain untouched, including another chat's writes.
+    files = [row for row in restore["files"] if row["path"] in attributed]
+    for row in files:
+        if row["current_sha256"] != attributed[row["path"]]["sha256"]:
+            row.update(eligible=False, reason="changed_after_turn")
+    # Do not disclose the whole-workspace diff when only attributed paths apply.
+    restore = {**restore, "workspace_path": workdir, "files": files, "diff": "", "diff_truncated": False}
+    return {**plan, "restore": restore, "files": files}
+
+
+def preview_operator_undo(params):
+    from agent.context_compressor import user_originated_turn_view
+    from .persona_chat_history.vocabulary import logical_persona_chat_client_message_id
+
+    with operator_session_read(params) as (_, session):
+        require_history_idle(params)
+        history = _plan({**params, "action": "rewind"}, session)
+        rows = session.db.get_messages_as_conversation(history["tip"], include_row_ids=True)
+        turns = [logical_persona_chat_client_message_id(row.get("message_id")) for row in rows
+                 if row["_row_id"] >= history["row_id"] and user_originated_turn_view(row) is not None]
+        sources = _sources(session, params)
+    file_plan = {"workspace_path": None, "files": [], "restore": None, "files_reason": None}
+    try:
+        with _checkpoint_session(params) as (_, manager, workdir, _):
+            file_plan["workspace_path"] = workdir
+            file_plan = _preview_attributed_restore(manager, workdir, sources, turns)
+    except OperatorConversationRefused as exc:
+        file_plan["files_reason"] = exc.reason
+    body = {"history": history, **file_plan}
+    return {**history, **body, "client_message_id": params["client_message_id"], "preview_token": _digest(body)}

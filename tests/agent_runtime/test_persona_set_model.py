@@ -560,7 +560,7 @@ def test_cli_persona_set_model_profile_id_targets_backing_store_persona(monkeypa
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_base", model="claude-x"))
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["applied_to_persona_id"] == "base"
@@ -571,7 +571,7 @@ def test_cli_persona_set_model_profile_without_backing_record_rejected(monkeypat
     harness = _patched_harness(monkeypatch)
     ensure_persisted_personas(_cfg())
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:nonexistent", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_nonexistent", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "persona_not_persisted"
@@ -584,7 +584,7 @@ def test_cli_persona_set_model_ambiguous_profile_rejected(monkeypatch, capsys):
     twin.hermes_profile = "base"
     AgentStore().save(twin)
 
-    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile:base", model="claude-x"))
+    code = model_and_skills_commands._cmd_persona_set_model(_persona_args("profile_base", model="claude-x"))
     assert code == 2
     data = json.loads(capsys.readouterr().out)
     assert data["error_code"] == "ambiguous_profile_persona"
@@ -686,8 +686,13 @@ def test_reasoning_effort_is_isolated_per_instance():
     assert store.get(b.id).reasoning_effort == "high"
 
 
-def test_persona_instance_summary_projects_reasoning_fields():
-    persona = _persona(model="gpt-5.6-luna")  # reasoning-capable gpt-5 family
+@pytest.mark.parametrize("model", [
+    "gpt-5.6-luna", "gpt-6-luna", "gpt-6-luna-900k", "gpt-6-sol",
+    "gpt-6.1-sol", "openai/gpt-6.1-sol-900k", " GPT-6-LUNA ",
+])
+def test_persona_instance_summary_projects_reasoning_fields(model):
+    from dataclasses import replace
+    persona = replace(_persona(model=model), hermes_profile=None)
     store = PersonaInstanceStore()
     a, b = _two_instances(store, persona)
     store.update_profile(b.id, reasoning_effort="high")
@@ -696,7 +701,7 @@ def test_persona_instance_summary_projects_reasoning_fields():
     overridden = persona_instance_summary(store.get(b.id), persona)
 
     assert plain["reasoning_effort"] is None
-    assert plain["reasoning_supported"] is True  # gpt-5 exposes reasoning effort
+    assert plain["reasoning_supported"] is True, plain["reasoning_capabilities"]
     assert plain["model_is_override"] is False
 
     assert overridden["reasoning_effort"] == "high"

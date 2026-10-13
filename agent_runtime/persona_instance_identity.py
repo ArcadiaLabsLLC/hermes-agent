@@ -233,8 +233,8 @@ def _row_is_backed(
     pid = (persona_id or "").strip()
     if pid and pid in backed_persona_ids:
         return True
-    if pid.startswith("profile:"):
-        name = pid.split(":", 1)[1].strip()
+    if pid.startswith("profile_"):
+        name = pid[len("profile_"):].strip()
         if name and name in backed_profile_names:
             return True
     prof = (profile_id or "").strip()
@@ -461,9 +461,9 @@ def classify_orphan_persona_instances(
     min-age grace protects ordinary orphans, but not a retired definition: the
     shared lifecycle predicate prevents that row from being rematerialized.
 
-    ``profile_catalog_authoritative`` guards the ``profile:<name>`` lane: when the profile
+    ``profile_catalog_authoritative`` guards the ``profile_<name>`` lane: when the profile
     template catalog could not be positively enumerated (empty/failed read), a missing
-    template is indistinguishable from an unreadable catalog, so ``profile:*`` rows are
+    template is indistinguishable from an unreadable catalog, so ``profile_*`` rows are
     NEVER classified as ``orphan-no-profile`` — a blind catalog must not reap real
     profile channels. ``legacy-role`` and plain-id resolution are unaffected.
     """
@@ -486,7 +486,7 @@ def classify_orphan_persona_instances(
         profile_id = str(_row_get(row, "profile_id", "source_profile_id", "backing_profile") or "").strip() or None
 
         is_backed = _row_is_backed(persona_id, profile_id, backed_ids, backed_profiles)
-        if not is_backed and persona_id.startswith("profile:") and not profile_catalog_authoritative:
+        if not is_backed and persona_id.startswith("profile_") and not profile_catalog_authoritative:
             # Blind catalog: can't confirm the template is truly gone — never reap it.
             is_backed = True
         is_retired = not is_runtime_persona({"persona_id": persona_id, "role": role})

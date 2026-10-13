@@ -861,9 +861,6 @@ def _identity_map(snapshot: dict[str, Any]) -> dict[str, str]:
             alias = optional_text(instance.get(key))
             if alias:
                 identity[alias] = canonical
-        persona_id = optional_text(instance.get("persona_id"))
-        if persona_id and persona_id.startswith("profile:"):
-            identity[persona_id.replace(":", "_")] = persona_id
     for channel in section_rows(snapshot.get("operator_channels")):
         if not isinstance(channel, dict):
             continue
