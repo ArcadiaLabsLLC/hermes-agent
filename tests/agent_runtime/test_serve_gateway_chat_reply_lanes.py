@@ -231,6 +231,7 @@ class _Recorder:
         self._frames: list[tuple[float, dict]] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
+        self._read_error: str | None = None
         self.started_at = time.monotonic()
         self._thread = threading.Thread(
             target=self._pump, name="reply-lane-recorder", daemon=True
@@ -243,7 +244,8 @@ class _Recorder:
         while not self._stop.is_set():
             try:
                 frame = self._connection.read_frame()
-            except Exception:
+            except Exception as exc:
+                self._read_error = f"{type(exc).__name__}: {exc}"[:300]
                 return
             if frame is None:
                 return
@@ -270,7 +272,20 @@ class _Recorder:
             if hits:
                 return hits[0]
             time.sleep(0.01)
-        raise AssertionError(f"no frame for {what} within {timeout}s")
+        timeline = [
+            {
+                "at_ms": round(self.since_start_ms(at)),
+                "type": frame.get("type"),
+                "event": frame.get("event"),
+                "events": _event_types_of(frame),
+                "running_work": (frame.get("core") or {}).get("running_work"),
+            }
+            for at, frame in self.frames()[-32:]
+        ]
+        raise AssertionError(
+            f"no frame for {what} within {timeout}s; "
+            f"reader_error={self._read_error}; received={json.dumps(timeline)}"
+        )
 
     def since_start_ms(self, at: float) -> float:
         return (at - self.started_at) * 1000.0

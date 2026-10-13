@@ -113,6 +113,16 @@ are unchanged. The command-level file cap was 600 s, respecting the two-roots
 file's declared allowance. The temporary instrumentation is retained outside
 the checkout and removed from the source tree. H01 remains unresolved.
 
+On 2026-10-13, the same ten-file selection on Python 3.14.7 passes **96 tests /
+one existing skip**, without retries, in 195.5 s. The cause still does not
+reproduce. The existing test recorder now retains its reader exception and
+the last 32 received frame summaries when its wait fails. It keeps the same
+transport, subscriptions, assertions and deadlines; no runtime path changes.
+Forcing only the start-wait allowance to zero exercises that reporting path:
+one expected failure includes the received hydrate/ack timeline. Restoring
+the allowance passes both file tests. This verifies diagnostics, not a
+killing mutation for the unresolved runtime intermittent.
+
 ## H08: CLI spelling condition still exists
 
 The original condition is recorded in
@@ -155,6 +165,9 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| `triage-h01-diagnostic314-20261013.log` | `894a9271cfdb2454235209524d9abb814c9c68ab36073990363b50c6d3fad811` |
+| `triage-h01-diagnostic-control.log` | `7683a7ca11302fd40fa82c01abbdeb9641a62d37ab18517c2453c1d3b733bf2a` |
+| `triage-h01-diagnostic-green.log` | `2c826fa3eb5f5ddb3f344381411beebe7cdb5d013dee38ebf0757724322d89d9` |
 | `stream-delivery-commentary-probe.log` | `02a731a7c6e6410e688ad349f25fe5f91e629f285a53b8883351d05cdd66e36e` |
 | `session-sse-upstream-red.log` | `fe35ad7e04d8cea921226d683baf6dfcba899f1dc6f55a91964275a10e7bd847` |
 | `session-sse-upstream-green.log` | `b47ceb7b23270089cd74e30537ab7e12d90de680a7b096197d856e214f429a38` |
