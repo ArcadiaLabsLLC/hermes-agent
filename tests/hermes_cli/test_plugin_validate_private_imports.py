@@ -28,16 +28,16 @@ def test_private_core_import_warns_with_file_and_line_but_validate_passes(tmp_pa
     plugin = _plugin(tmp_path / "router", {"lib/agent_runner.py": (
         "import json\n"
         "def run():\n"
-        "    from tools.tirith_security import ensure_installed\n"
+        "    from tools.checkpoint_manager import CheckpointManager\n"
         "    from hermes_cli.config import _private_helper\n"
-        "    return ensure_installed, _private_helper\n"
+        "    return CheckpointManager, _private_helper\n"
     )})
 
     report = validate_plugin_dir(plugin)
 
     assert report.ok, report.failures
     [warning] = _private_warnings(report)
-    assert "lib/agent_runner.py:3 tools.tirith_security.ensure_installed" in warning
+    assert "lib/agent_runner.py:3 tools.checkpoint_manager.CheckpointManager" in warning
     assert "lib/agent_runner.py:4 hermes_cli.config._private_helper" in warning
     assert "catalog rule 9" in warning
 
