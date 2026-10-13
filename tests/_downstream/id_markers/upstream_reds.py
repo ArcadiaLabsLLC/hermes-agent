@@ -681,9 +681,6 @@ if _WIN:
         "tests/tools/test_computer_use.py::TestRegistration::test_cua_driver_cmd_env_override_is_resolved_dynamically": (
             _up_red("the override path is not an executable on Windows, so the resolver returns None (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
         ),
-        "tests/tools/test_read_file_utf8_binary_regression.py::TestReadFileBinaryClassification::test_nul_byte_in_text_stays_binary": (
-            _up_red("the read path classifies a NUL-bearing UTF-8 file as text on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
-        ),
         "tests/tools/test_tts_path_traversal.py::test_media_directive_in_path_is_rejected_before_any_echo": (
             _up_red("the test's MEDIA: path is not a legal Windows filename (WinError 123) before the guard runs (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
         ),
