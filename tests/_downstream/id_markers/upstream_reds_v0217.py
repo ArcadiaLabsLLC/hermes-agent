@@ -102,7 +102,7 @@ _NODES = (
         'tests/hermes_cli/test_update_eol_churn.py::test_churn_across_more_files_than_fit_in_one_argv',
         'tests/hermes_cli/test_update_interrupted_pull.py::test_concurrent_launches_take_turns_and_all_rerun_from_the_restored_tree',
         'tests/tools/test_browser_use_cli.py::TestExecHybridPrivateUrlRouting::test_private_url_runs_on_local_sidecar_or_is_refused[lan-new_tab("http://192.168.0.1:9120/login")-None]',
-        'tests/tools/test_browser_use_cli.py::TestExecHybridPrivateUrlRouting::test_private_url_runs_on_local_sidecar_or_is_refused[mixed-new_tab("https://example.com/x")/nnew_tab("http://192.168.0.1:9120/login")-None]',
+        'tests/tools/test_browser_use_cli.py::TestExecHybridPrivateUrlRouting::test_private_url_runs_on_local_sidecar_or_is_refused[mixed-new_tab("https://example.com/x")\\nnew_tab("http://192.168.0.1:9120/login")-None]',
         'tests/tools/test_browser_use_cli.py::TestExecHybridPrivateUrlRouting::test_private_url_runs_on_local_sidecar_or_is_refused[rebind-private-then-public-new_tab("http://rebind.example/login")-None]',
         'tests/tools/test_browser_use_cli.py::TestExecHybridPrivateUrlRouting::test_sidecar_route_has_its_own_daemon_and_sticks_for_url_less_calls',
         'tests/tools/test_known_file_write_baseline.py::test_paged_read_carries_only_when_every_page_was_read',
