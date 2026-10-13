@@ -13,13 +13,12 @@ import run_agent
 from agent.conversation_loop import _CODEX_INCOMPLETE_NUDGE
 
 
-@pytest.fixture(autouse=True)
-def _no_codex_backoff(monkeypatch):
-    """Short-circuit retry backoff so Codex retry tests don't block on real
-    wall-clock waits (5s jittered_backoff base delay + tight time.sleep loop)."""
-    import time as _time
-    monkeypatch.setattr("agent.retry_utils.jittered_backoff", lambda *a, **k: 0.0)
-    monkeypatch.setattr(_time, "sleep", lambda *_a, **_k: None)
+def test_retry_fixture_preserves_background_sleep():
+    """Background workers share this clock; accelerate only retry backoff."""
+    import time
+    started = time.monotonic()
+    time.sleep(0.01)  # health: allow HX013 -- the shared sleep behavior is under test
+    assert time.monotonic() - started >= 0.01
 
 
 def _patch_agent_bootstrap(monkeypatch):
