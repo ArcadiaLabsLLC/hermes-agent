@@ -148,7 +148,7 @@ def pkce_login_start(authorize_url: str, *, client_id: str, scope: str, redirect
         cookie_payload={"hermes_session_pkce": f"state={state};verifier={code_verifier}"})
 
 
-def parse_json_body(response: httpx.Response) -> Dict[str, Any]:
+def parse_json_body(response: httpx.Response) -> dict[str, Any]:
     """JSON object body, or ``{}`` for non-JSON content-type / parse error / non-dict."""
     if not response.headers.get("content-type", "").startswith("application/json"):
         return {}
@@ -160,8 +160,8 @@ def parse_json_body(response: httpx.Response) -> Dict[str, Any]:
 
 
 def exchange_token(
-    url: str, data: Dict[str, str], *, headers: Optional[Dict[str, str]] = None, bad_request_exc: type[Exception],
-    idp: str, endpoint: str, token_key: str, missing_msg: str) -> tuple[str, Dict[str, Any]]:
+    url: str, data: dict[str, str], *, headers: Optional[dict[str, str]] = None, bad_request_exc: type[Exception],
+    idp: str, endpoint: str, token_key: str, missing_msg: str) -> tuple[str, dict[str, Any]]:
     """POST a token grant and return ``(token, payload)``.
 
     A 400 (OAuth-shaped error envelope) raises ``bad_request_exc`` — ``InvalidCodeError``
@@ -189,7 +189,7 @@ def exchange_token(
     return token, payload
 
 
-def refresh_token_from(payload: Dict[str, Any], fallback: str = "") -> str:
+def refresh_token_from(payload: dict[str, Any], fallback: str = "") -> str:
     """The token response's refresh token, or ``fallback`` when absent/non-string
     (the session then behaves as access-token-only until expiry)."""
     rt = payload.get("refresh_token")
@@ -197,7 +197,7 @@ def refresh_token_from(payload: Dict[str, Any], fallback: str = "") -> str:
 
 
 def session_from_claims(
-    provider: str, claims: Dict[str, Any], *, access_token: str, refresh_token: str,
+    provider: str, claims: dict[str, Any], *, access_token: str, refresh_token: str,
     label: str = "token", email: str = "", display_name: str = "", org_id: str = "") -> Session:
     """Map verified JWT claims onto a Session; ``sub`` is mandatory."""
     user_id = str(claims.get("sub", ""))
@@ -223,7 +223,7 @@ def make_jwks_client(jwks_url: str) -> Any:
 def verify_jwt(
     token: str, jwks_client: Any, *, algorithms: list[str], audience: str, issuer: str, label: str,
     leeway: float = DEFAULT_TOKEN_LEEWAY_SECONDS,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Verify ``token`` against ``jwks_client`` with pinned ``aud``/``iss``.
 
     ``leeway`` is seconds of clock-skew tolerance on the time claims (default

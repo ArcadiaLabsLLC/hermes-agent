@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-13",
-  "base": "818c13be1d",
+  "base": "71d34bad10",
   "files": 205,
-  "deleted_lines": 1027,
+  "deleted_lines": 1025,
   "heavy": 5,
   "reasons": [
     {
