@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-10-13 — H08 relay assertion, H11 backup isolation, H12 retry-fixture carry and bounded H01 presence repair land with 12,717 clean fork integration passes. Hosted comparisons reproduce all 159 final candidate failure/error IDs; two unchanged-code first-attempt timing failures remain queued with fixture-scope proof. H03/H08 native PRs #137460/#137478 remain open; GitHub refused H12 PR creation. The original H01 intermittent and broader H12 diagnosis stay open. Evidence: docs/downstream/stream-delivery-diagnosis-2026-10-12.md."
+cursor: "2026-10-13 — H09 Windows shutdown-test repair lands as native carry c3a4f0c3f1: Windows 8 passed / 2 POSIX skips, Linux 10 passed on candidate and base, 12 upstream checks. Fork gate: 12,646 passes; one retained WinError 10055 recovered alone, and its original 20-file group passes 139 tests on both base and candidate. Keep that intermittent and separate MSYS/POSIX fixture findings open. GitHub refused H09/H12 PR creation; native branches retained. Earlier H03/H08 submissions remain tracked. Evidence: docs/downstream/shutdown-test-repair-2026-10-13.md."
 tags: [program/upstream-sync, program, upstream]
 ---
 
