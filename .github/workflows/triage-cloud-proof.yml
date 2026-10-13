@@ -11,9 +11,9 @@ permissions:
 
 jobs:
   compare:
-    name: compare (${{ matrix.name }})
+    name: recovery contexts (${{ matrix.name }})
     runs-on: windows-latest
-    timeout-minutes: 100
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -38,8 +38,8 @@ jobs:
           cache-python: 'false'
           cache-node: 'false'
 
-      - name: Compare the failing files through the existing isolated runner
-        timeout-minutes: 85
+      - name: Compare the original recovery groups through the bundled runner
+        timeout-minutes: 70
         shell: bash
         env:
           HERMES_GATE_CACHE_DIR: ${{ runner.temp }}/triage-proof/gate
@@ -51,69 +51,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE"
           "$HERMES_PYTHON" --version > "$RUNNER_TEMP/triage-proof/python.txt"
           printf '%s\n' "$ImageOS" "$ImageVersion" > "$RUNNER_TEMP/triage-proof/runner-image.txt"
-          cat > "$RUNNER_TEMP/triage-proof/files.txt" <<'FILES'
-          tests/agent/lsp/test_workspace_release.py
-          tests/agent/test_compaction_prompt_rebuild.py
-          tests/agent/test_skill_commands.py
-          tests/ci/test_update_ci_routing.py
-          tests/gateway/test_approve_deny_commands.py
-          tests/gateway/test_readiness.py
-          tests/hermes_cli/test_desktop_build_lock.py
-          tests/hermes_cli/test_enable_no_capabilities.py
-          tests/hermes_cli/test_legacy_launchers_windows_live.py
-          tests/hermes_cli/test_logs.py
-          tests/hermes_cli/test_memory_dependency_admission.py
-          tests/hermes_cli/test_nous_recommendation_disk_cache.py
-          tests/hermes_cli/test_plugin_dependency_consent.py
-          tests/hermes_cli/test_plugin_install_ref.py
-          tests/hermes_cli/test_plugin_uninstall_windows_live.py
-          tests/hermes_cli/test_plugin_update_transaction.py
-          tests/hermes_cli/test_plugin_worker_lifecycle.py
-          tests/hermes_cli/test_plugins_admission_setter.py
-          tests/hermes_cli/test_plugins_cmd_enable_disable_nested.py
-          tests/hermes_cli/test_plugins_cmd.py
-          tests/hermes_cli/test_plugins_picker_effective_state.py
-          tests/hermes_cli/test_plugins_update_sync.py
-          tests/hermes_cli/test_shared_metrics_install_run.py
-          tests/hermes_cli/test_source_build.py
-          tests/hermes_cli/test_update_interrupted_pull.py
-          tests/hermes_cli/test_update_lock_protocol.py
-          tests/hermes_cli/test_update_pause_debt_windows_live.py
-          tests/hermes_cli/test_venv_sync_currency.py
-          tests/hermes_cli/test_version_info.py
-          tests/hermes_cli/test_web_memory_provider_setup_install.py
-          tests/hermes_cli/test_worktree_pushed_tier.py
-          tests/hermes_cli/test_worktree.py
-          tests/hermes_state/test_get_messages_include_compacted.py
-          tests/pm/test_build_operations.py
-          tests/pm/test_windows_build_deps.py
-          tests/scripts/desktop_update/test_desktop_update_windows_marker.py
-          tests/scripts/install/test_install_clone_throttle_fallback.py
-          tests/scripts/install/test_install_diverged_rescue_ref.py
-          tests/scripts/install/test_install_ps1_native_calls.py
-          tests/scripts/install/test_install_ps1_pinned_git_extract.py
-          tests/scripts/install/test_install_ps1_script_suites.py
-          tests/scripts/install/test_install_ps1_staged_git.py
-          tests/scripts/test_code_health_cli.py
-          tests/scripts/test_icon_flavors.py
-          tests/scripts/test_run_tests_parallel.py
-          tests/test_env_gap_registry.py
-          tests/tools/test_bot_retry_policy.py
-          tests/tools/test_delegate.py
-          tests/tools/test_kanban_descendant_scope.py
-          tests/tools/test_known_file_write_baseline.py
-          tests/tools/test_read_file_utf8_binary_regression.py
-          tests/tools/test_search_auto_multiline.py
-          tests/tools/test_search_zero_match_and_multipath.py
-          tests/tools/test_terminal_macos_open.py
-          tests/tools/test_web_keyless_fallback.py
-          tests/tui_gateway/test_serve_exit_flush.py
-          tests/tui_gateway/test_status_profile_home.py
-          tests/verify/test_environment_and_runner.py
-          FILES
+          git show "$GITHUB_SHA:.github/triage/recovery-contexts.txt" > "$RUNNER_TEMP/triage-proof/files.txt"
+          mapfile -t files < "$RUNNER_TEMP/triage-proof/files.txt"
           set +e
-          timeout 4800 bash scripts/run_tests.sh \
-            --files-from "$RUNNER_TEMP/triage-proof/files.txt" -j 2 --file-retries 0 \
+          timeout 3900 bash scripts/run_tests_bundled.sh \
+            --since 958e574c2e7c4fbb88a5c278003bdd3e175aec52 --no-cache -j 4 --file-retries 0 "${files[@]}" \
             2>&1 | tee "$RUNNER_TEMP/triage-proof/gate.log"
           result=${PIPESTATUS[0]}
           printf '%s\n' "$result" > "$RUNNER_TEMP/triage-proof/exit-code.txt"
@@ -123,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: comparison-${{ matrix.name }}
+          name: recovery-contexts-${{ matrix.name }}
           path: ${{ runner.temp }}/triage-proof/
           if-no-files-found: error
           retention-days: 14
