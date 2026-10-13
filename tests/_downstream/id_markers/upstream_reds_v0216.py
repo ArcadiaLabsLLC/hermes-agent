@@ -146,7 +146,6 @@ _NODES = (
         'tests/hermes_platform/test_resolver_app.py::test_locate_reports_expanded_path_when_missing',
         'tests/hermes_state/test_lease_pid_namespace.py::test_flock_holder_record_qualifies_pid_namespaces',
         'tests/plugins/memory/test_byterover_multiplex_child_env.py::test_secondary_profile_child_uses_its_own_key_not_defaults',
-        'tests/plugins/memory/test_holographic_profile_db_path.py::test_save_config_stores_only_this_profiles_default_path_as_the_placeholder[display]',
         'tests/pm/test_build_operations.py::test_frozen_export_preserves_git_commit_pin',
         'tests/pm/test_custom_root_union.py::test_home_layout_joins_sibling_union[default]',
         'tests/pm/test_plugin_survival_contract.py::test_update_sync_survives_unreadable_secondary_profile',
