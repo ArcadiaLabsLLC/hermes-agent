@@ -41,7 +41,17 @@ The candidate additionally checks the command's output, not just its return code
 
 Hosted Windows and Linux qualification, including adjacent session persistence,
 is [run 38448892243](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38448892243).
-Results are pending. Its temporary workflow lives only on the evidence branch.
+All three jobs passed, on Python 3.14.7, without retries:
+
+| Pinned source / host | Result | Gate-log SHA-256 |
+|---|---|---|
+| `747f657234` / Windows | 8 passed, 2 POSIX skips | `35e017802da1f6cb91c326c1b1b1aba8770a4b4322f0af6722fbbc98542b44e9` |
+| `747f657234` / Linux | 10 passed | `527b5e0bc465540e5e1cf5786cdb8a64c647b50ce89f2565ba13eb3a9061aab2` |
+| `8f817911723e` / Linux baseline | 10 passed | `cdb9002fdb7cc35933e5892ab20228e5c4fd9ad3aab3e5b1bd58a8ae18867c03` |
+
+The temporary workflow lives only on the evidence branch. The native branch
+contains exactly one commit after the pinned upstream base and only the test file.
+Fork integration qualification is pending.
 
 ## Upstream overlap check
 
@@ -53,6 +63,11 @@ repair this file. [Issue #94724](https://github.com/NousResearch/hermes-agent/is
 is the closed original persistence campaign, not a maintainer request for this
 test repair. No maintainer endorsement is claimed. This patch adds no public
 API or fork-specific behavior; the native Windows reproduction is its value.
+
+Submission attempted after native checks and hosted proof. GitHub refused
+`CreatePullRequest` for the connected account. No upstream PR exists for this
+repair. The pushed native branch and review-ready body are retained; no alternate
+identity or permission workaround was attempted.
 
 ## Remaining observation
 
