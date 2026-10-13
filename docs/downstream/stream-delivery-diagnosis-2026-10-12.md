@@ -254,8 +254,52 @@ budget, sized from the measured four-worker throughput. Individual test
 deadlines, assertions, exclusions and the existing runner are unchanged.
 The proof-only workflow also disables inherited shell `errexit` around the
 pipeline so a timeout records its exit code before artifact upload.
-Landing remains held until this run completes and its original diagnostics
-are assessed. The temporary workflow branch must not be merged.
+That run exited 124 at its 220-minute command cap. It reported all 6,486
+selected files, but recovery was still running: 58 files' latest reported
+result failed and no final ledger was emitted. Thirteen of those files show
+the real-store/subprocess guard refusing a call, nine show strict expected
+failures that now pass, and nineteen have timeout banners. These categories
+are observations, not causal attribution or proof of baseline failure.
+The artifact retains the exact source, interpreter and exit code, plus the
+original log (digest below). This was hosted Windows, not the operator's PC;
+the result cannot be attributed to the operator's antivirus configuration.
+
+[Run 38426498916](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38426498916)
+compares the exact 58-file selection through `scripts/run_tests.sh` on both
+pinned revisions, with the same PM setup and two workers. Individual test
+deadlines and assertions are unchanged. It records the runner-image version
+and preserves both outcomes, including failed jobs.
+
+The direct comparison completed on identical `win25-vs2026` image
+`20260925.250.1` and Python 3.14.7. The baseline has 46 final failing files;
+the candidate has 48. Every one of the candidate's 154 failing/error node IDs
+also occurs among the baseline's 155. The one baseline-only assertion is
+`TestWidenedPruner.test_squash_merged_tree_is_reaped`. The update-routing gate
+has the identical violation list on both: `hermes_cli/interpreter_abi.py`
+is imported by `hermes_cli/venv_sync.py` but missing from `e2e_upgrade` routing.
+
+The candidate-only failing files are timeout-shaped, with no new assertion:
+`test_install_ps1_native_calls.py` dies while waiting for `_stage` in
+`test_rerun_parks_local_work_and_pins_only_branch_commits`, and
+`test_kanban_descendant_scope.py` dies while waiting for a descendant in
+`test_terminal_descendants_cannot_mutate_even_after_task_is_removed`.
+The kanban file also times out in the baseline's first attempt, then passes
+its serial retry. The installer file passes the direct baseline attempt.
+Neither test's deadline was widened; assess the original-group comparison
+before concluding the timeout difference is unrelated to this repair.
+
+[Run 38427670480](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38427670480)
+also compares the original collection context for the 106 files whose latest
+mode was recovery. Calling the existing `assign_bundles` on the original
+6,486-file selection reconstructs 1,632 cold groups and eleven solos. The
+selected 86 groups contain 344 files; re-planning that subset reproduces every
+original group exactly. Both jobs use `scripts/run_tests_bundled.sh`, the
+original four-worker count, no result cache and no changed test deadlines.
+This comparison supplements the original run; it is not a new full-tree pass.
+
+Landing remains held until the comparisons complete and their original
+diagnostics are assessed. The workflow and its explicit selection belong to
+the temporary proof branch and must not be merged into the implementation.
 
 ## Retained local receipts
 
@@ -264,6 +308,9 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| run `38426498916`, baseline `gate.log` | `98691f0823c21f8be50e5b42be3d64ee4bffbb6410b488fe982e7d4cf54a08d4` |
+| run `38426498916`, candidate `gate.log` | `efa0f145854428a90a4900635e4ea577e4b35248803d43e876ecae6614356c43` |
+| hosted run `38364979651`, `gate.log` | `ea93dd491f400e8c2caf1c43871fe3cebfd0a2eee48c8d4db4c456a38b6f618d` |
 | hosted run `38352941865`, `gate.log` | `85f31c6d01fb900370c7c1c3cf2345b5368ba2068b42995aa0d503f42c02ee6e` |
 | `triage-final-integration-gate.log` | `1741861b0185e3195ccdc1069f89514542b97f655c5088981262e08fd31d55fe` |
 | `triage-final-integration-doc-cites.log` | `e9d0b6b8ebdbc18bff57d8a4fe2985f15951993898edc40df38f2d5e2607faf4` |
