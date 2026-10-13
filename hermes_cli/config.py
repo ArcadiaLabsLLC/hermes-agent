@@ -2076,7 +2076,7 @@ def load_config() -> dict[str, Any]:
     return _load_config_impl(want_deepcopy=True)
 
 
-def load_config_readonly() -> Dict[str, Any]:
+def load_config_readonly() -> dict[str, Any]:
     """Read cached config without scaffolding the home; mutations are refused."""
     from hermes_cli.config_read_scope import project_readonly_config
     return project_readonly_config(_load_config_impl(want_deepcopy=False, ensure_home=False))

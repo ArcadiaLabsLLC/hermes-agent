@@ -44,7 +44,7 @@ def load_config_section(logger: logging.Logger, tag: str, *path: str) -> dict:
         from copy import deepcopy
 
         cfg = load_config_readonly()
-    except Exception as exc:  # noqa: BLE001 — broad catch is intentional
+    except Exception as exc:
         logger.debug("%s: load_config() raised %s; falling back to env-only configuration", tag, exc)
         return {}
     section = cfg_get(cfg, *path, default=None)

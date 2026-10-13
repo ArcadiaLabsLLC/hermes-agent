@@ -68,7 +68,7 @@ def _wake_word_providers() -> Tuple[str, ...]:
     return tuple(_PROVIDER_PREFERENCE)
 
 
-def _select(description: str, *options: str, **extra: Any) -> Dict[str, Any]:
+def _select(description: str, *options: str, **extra: Any) -> dict[str, Any]:
     return {"type": "select", "description": description, "options": list(options), **extra}
 
 
