@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-12",
+  "measured_at": "2026-10-13",
   "base": "818c13be1d",
-  "files": 204,
-  "deleted_lines": 1020,
+  "files": 205,
+  "deleted_lines": 1027,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-authorized native Codex retry-test isolation repair",
+      "files": "204 -> 205: tests/agent/test_run_agent_codex_responses.py",
+      "deleted_lines": "1020 -> 1027; heavy 5 -> 5",
+      "reason": "Exact native patch 057b9339c0 reuses the existing agent conftest and preserves shared time.sleep for background maintenance. The regression fails with the removed fixture restored; 70 native tests and all 12 upstream checks pass. Submission is held because GitHub refused PR creation. Retire the carry when upstream adopts the repair; no production or Harness behavior changes."
+    },
     {
       "change": "Carry the upstream relay delivery test repair PR #137478; retire its Windows marker",
       "files": "203 -> 204: tests/tui_gateway/test_bot_relay_methods.py",
