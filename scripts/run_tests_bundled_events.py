@@ -22,13 +22,13 @@ _CATEGORIES = ("passed", "failed", "skipped", "errors", "xfailed", "xpassed")
 
 @dataclass
 class FileTally:
-    counts: Dict[str, int] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
     collect_seconds: float = 0.0
     test_seconds: float = 0.0
     collect_error: bool = False
-    failed_nodeids: List[str] = field(default_factory=list)
+    failed_nodeids: list[str] = field(default_factory=list)
 
-    def summary(self) -> Dict[str, int]:
+    def summary(self) -> dict[str, int]:
         out = {k: v for k, v in self.counts.items() if v}
         if self.collect_error:
             out["errors"] = out.get("errors", 0) + 1
@@ -41,10 +41,11 @@ class FileTally:
 
 @dataclass
 class BundleEvents:
-    files: Dict[str, FileTally] = field(default_factory=dict)
+    files: dict[str, FileTally] = field(default_factory=dict)
     session_start: Optional[float] = None
     session_end: Optional[float] = None
     exit_status: Optional[int] = None
+    last_begun: Optional[str] = None  # the file whose test most recently STARTED (begin record)
 
 
 def tally_events(lines: Iterable[str]) -> BundleEvents:
@@ -66,6 +67,8 @@ def tally_events(lines: Iterable[str]) -> BundleEvents:
         elif kind == "end":
             events.session_end = record.get("t")
             events.exit_status = record.get("rc")
+        elif kind == "begin":
+            events.last_begun = record.get("f")
         elif kind == "collect":
             tally = events.files.setdefault(record["f"], FileTally())
             tally.collect_seconds += float(record.get("d") or 0.0)
@@ -99,7 +102,7 @@ def effective_bundle_rc(events: BundleEvents, bundle_rc: int) -> int:
     return int(events.exit_status or 0)
 
 
-def members_to_rerun(member_rels: Sequence[str], events: BundleEvents, bundle_rc: int) -> List[str]:
+def members_to_rerun(member_rels: Sequence[str], events: BundleEvents, bundle_rc: int) -> list[str]:
     """The members of a non-zero bundle that must be re-run alone.
 
     A member is re-run when it recorded a failure or error, or recorded
@@ -118,7 +121,11 @@ def members_to_rerun(member_rels: Sequence[str], events: BundleEvents, bundle_rc
     complete = set(member_rels)
     if events.session_end is None:
         ran = [i for i, rel in enumerate(member_rels) if rel in events.files and events.files[rel].counts]
-        complete = set(member_rels[: ran[-1]]) if ran else set()
+        if events.last_begun in member_rels:
+            # A member that began a test and never reported it was the one running when the
+            # process died (setup, or the test body): it and everything behind it re-run.
+            ran.append(member_rels.index(events.last_begun))
+        complete = set(member_rels[: max(ran)]) if ran else set()
     rerun = [
         rel
         for rel in member_rels
