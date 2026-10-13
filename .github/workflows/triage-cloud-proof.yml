@@ -13,7 +13,9 @@ permissions:
 jobs:
   qualify:
     runs-on: windows-latest
-    timeout-minutes: 120
+    # The first four-worker run completed 3853/6486 files in 110 minutes.
+    # Budget the whole selection; preserve individual test deadlines.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
         with:
@@ -31,6 +33,7 @@ jobs:
           cache-node: 'false'
 
       - name: Qualify the complete shared-fixture selection
+        timeout-minutes: 225
         shell: bash
         env:
           HERMES_GATE_CACHE_DIR: ${{ runner.temp }}/triage-proof/gate
@@ -39,7 +42,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/triage-proof"
           git rev-parse HEAD > "$RUNNER_TEMP/triage-proof/source-sha.txt"
           "$HERMES_PYTHON" --version > "$RUNNER_TEMP/triage-proof/python.txt"
-          timeout 6600 bash scripts/run_tests_bundled.sh \
+          set +e
+          timeout 13200 bash scripts/run_tests_bundled.sh \
             --since 958e574c2e7c4fbb88a5c278003bdd3e175aec52 --no-cache --file-retries 0 tests \
             2>&1 | tee "$RUNNER_TEMP/triage-proof/gate.log"
           result=${PIPESTATUS[0]}
