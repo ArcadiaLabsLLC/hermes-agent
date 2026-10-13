@@ -51,7 +51,19 @@ All three jobs passed, on Python 3.14.7, without retries:
 
 The temporary workflow lives only on the evidence branch. The native branch
 contains exactly one commit after the pinned upstream base and only the test file.
-Fork integration qualification is pending.
+Fork gate at `a29d33758f` completed: 1,030 files, 12,646 passed, 58 skipped,
+zero final failures/errors in 571.2 seconds, eight workers. The shutdown file
+passed all six Windows cases in its original bundle. Documentation checks passed
+with no new failures or stale waivers.
+
+This was **not a clean first attempt**: bundle 15 retained one setup error,
+`WinError 10055`, from `socket.socketpair()` while `_ensure_current_event_loop`
+constructed a Proactor event loop for
+`test_launcher_app_functions.py::test_an_entry_the_launcher_drops_is_deregistered_once_the_connection_lists_afresh`.
+The file passed isolated recovery. No source in that bundle or its fixtures
+changed; the shutdown test ran in another process. The runner's isolation-leak
+label describes the observed retry pattern, not a proven cause. Matched original-
+group baseline/candidate qualification is pending; the finding remains queued.
 
 ## Upstream overlap check
 
