@@ -10,37 +10,38 @@ permissions:
   contents: read
 
 jobs:
-  compare:
-    name: unmatched baseline contexts (${{ matrix.part }})
-    runs-on: windows-latest
-    timeout-minutes: 35
+  shutdown:
+    name: shutdown (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        part: [1, 2, 3]
+        include:
+          - {label: windows-candidate, os: windows-latest, source: 747f657234b0b322fb3bdb27d0e65de94cdd1ef5}
+          - {label: linux-candidate, os: ubuntu-latest, source: 747f657234b0b322fb3bdb27d0e65de94cdd1ef5}
+          - {label: linux-baseline, os: ubuntu-latest, source: 8f817911723e3ec13e7f47fc022fdcc9e2149354}
     steps:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
         with:
-          ref: 958e574c2e7c4fbb88a5c278003bdd3e175aec52
+          ref: ${{ matrix.source }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Prepare the existing PM test environment
         uses: ./.github/actions/setup-pm
         with:
-          extras: '["all", "anthropic", "bedrock", "mistral", "fal", "modal", "daytona", "parallel-web"]'
+          extras: '["all"]'
           test-environment: 'true'
           cache: 'false'
           cache-python: 'false'
           cache-node: 'false'
 
-      - name: Check only the unmatched original groups on the baseline
-        timeout-minutes: 25
+      - name: Check shutdown and neighboring session persistence
+        timeout-minutes: 10
         shell: bash
         env:
-          HERMES_GATE_CACHE_DIR: ${{ runner.temp }}/triage-proof/gate
-          EXPECTED_SOURCE: 958e574c2e7c4fbb88a5c278003bdd3e175aec52
-          CONTEXT_PART: ${{ matrix.part }}
+          EXPECTED_SOURCE: ${{ matrix.source }}
         run: |
           set -uo pipefail
           mkdir -p "$RUNNER_TEMP/triage-proof"
@@ -48,21 +49,16 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE"
           "$HERMES_PYTHON" --version > "$RUNNER_TEMP/triage-proof/python.txt"
           printf '%s\n' "$ImageOS" "$ImageVersion" > "$RUNNER_TEMP/triage-proof/runner-image.txt"
-          git show "$GITHUB_SHA:.github/triage/unmatched-contexts-$CONTEXT_PART.txt" > "$RUNNER_TEMP/triage-proof/files.txt"
-          mapfile -t files < "$RUNNER_TEMP/triage-proof/files.txt"
-          set +e
-          timeout --kill-after=15s 1200 bash scripts/run_tests_bundled.sh \
-            --since 958e574c2e7c4fbb88a5c278003bdd3e175aec52 --no-cache -j 4 --file-retries 0 "${files[@]}" \
-            > "$RUNNER_TEMP/triage-proof/gate.log" 2>&1
+          timeout --kill-after=15s 480 bash scripts/run_tests.sh -j 1 --file-retries 0             tests/tui_gateway/test_serve_exit_flush.py tests/tui_gateway/test_reaper_flush_profile_scope.py -v             > "$RUNNER_TEMP/triage-proof/gate.log" 2>&1
           result=$?
           printf '%s\n' "$result" > "$RUNNER_TEMP/triage-proof/exit-code.txt"
           exit "$result"
 
-      - name: Preserve both successful and failed evidence
+      - name: Preserve successful and failed evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: unmatched-baseline-${{ matrix.part }}
+          name: shutdown-${{ matrix.label }}
           path: ${{ runner.temp }}/triage-proof/
           if-no-files-found: error
           retention-days: 14
