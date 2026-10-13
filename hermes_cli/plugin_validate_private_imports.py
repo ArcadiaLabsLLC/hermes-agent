@@ -1,7 +1,7 @@
 """Admission lint: name a plugin's imports of private Hermes core modules (a warning, never a refusal).
 
 Catalog rule 9 ("public surfaces only") is enforced for runtime rebinds by
-``plugin_validate_core_override``; an import of a core internal (``tools.tirith_security``,
+``plugin_validate_core_override``; an import of a core internal (``tools.checkpoint_manager``,
 ``hermes_cli.cli_config_load._parse_service_tier_config``) passes that check yet breaks the plugin on
 the release that moves or removes the internal. This static pass lists those imports, with
 file:line, so reviewers see the coupling at admission. Imports of the plugin's own modules, the
