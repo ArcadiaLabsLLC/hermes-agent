@@ -1,0 +1,56 @@
+name: Scoped triage qualification
+
+# Temporary proof branch only. Calls existing PM and bundled-test owners;
+# this workflow is not part of the implementation or its landing.
+on:
+  push:
+    branches: [codex/triage-cloud-proof]
+    paths: [.github/workflows/triage-cloud-proof.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
+        with:
+          ref: 3c2ba45c4b
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare the existing PM test environment
+        uses: ./.github/actions/setup-pm
+        with:
+          extras: '["all", "anthropic", "bedrock", "mistral", "fal", "modal", "daytona", "parallel-web"]'
+          test-environment: 'true'
+          cache: 'false'
+          cache-python: 'false'
+          cache-node: 'false'
+
+      - name: Qualify the complete shared-fixture selection
+        shell: bash
+        env:
+          HERMES_GATE_CACHE_DIR: ${{ runner.temp }}/triage-proof/gate
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/triage-proof"
+          git rev-parse HEAD > "$RUNNER_TEMP/triage-proof/source-sha.txt"
+          "$HERMES_PYTHON" --version > "$RUNNER_TEMP/triage-proof/python.txt"
+          timeout 6600 bash scripts/run_tests_bundled.sh \
+            --since 958e574c2e --no-cache --file-retries 0 tests \
+            2>&1 | tee "$RUNNER_TEMP/triage-proof/gate.log"
+          result=${PIPESTATUS[0]}
+          printf '%s\n' "$result" > "$RUNNER_TEMP/triage-proof/exit-code.txt"
+          exit "$result"
+
+      - name: Preserve the original receipt even when tests fail
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shared-fixture-qualification
+          path: ${{ runner.temp }}/triage-proof/
+          if-no-files-found: error
+          retention-days: 14
