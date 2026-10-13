@@ -151,12 +151,12 @@ def test_an_explicit_harness_core_is_the_same_answer_with_its_own_provenance(pro
 
 
 def test_an_opt_in_integration_rides_beside_the_bundle(profile_config):
-    persona = profile_config("toolsets:\n  - harness_core\n  - spotify\n")
+    persona = profile_config("toolsets:\n  - harness_core\n  - discord\n")
 
     declaration = declared_lane_toolsets(persona)
 
     assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
-    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS + ["spotify"]
+    assert list(declaration.toolsets) == HARNESS_CORE_MEMBERS + ["discord"]
 
 
 def test_a_stale_explicit_list_is_honored_verbatim(profile_config):
@@ -166,12 +166,12 @@ def test_a_stale_explicit_list_is_honored_verbatim(profile_config):
     ``withheld``: the cue to write the explicit set, delivered as a diff rather
     than as a silent rewrite of the operator's file."""
 
-    persona = profile_config("toolsets:\n  - hermes-cli\n  - spotify\n")
+    persona = profile_config("toolsets:\n  - hermes-cli\n  - discord\n")
 
     declaration = declared_lane_toolsets(persona)
 
     assert declaration.source == TOOLSET_SOURCE_PROFILE_CONFIG
-    assert list(declaration.toolsets) == ["hermes-cli", "spotify"]
+    assert list(declaration.toolsets) == ["hermes-cli", "discord"]
 
 
 def test_malformed_yaml_resolves_narrow_rather_than_wide(profile_config):
@@ -242,7 +242,7 @@ def test_a_readable_known_declaration_carries_no_issue(profile_config):
     spelled right, carries no issue rows — so an issue row is the fixture's
     doing, never the reader's default."""
 
-    persona = profile_config("toolsets:\n  - harness_core\n  - spotify\n")
+    persona = profile_config("toolsets:\n  - harness_core\n  - discord\n")
 
     declaration = declared_lane_toolsets(persona)
 

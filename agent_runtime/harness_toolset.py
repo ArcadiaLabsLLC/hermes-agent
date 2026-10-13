@@ -20,7 +20,7 @@ HARNESS_CORE = "harness_core"
 _DESCRIPTION = (
     "Mission Control harness lane: the fork's agent-to-agent chat and board tools plus the "
     "conversational core. The ONE toolset an Eternia persona profile declares; integrations "
-    "(spotify, discord, homeassistant, yuanbao, bfl, video_gen, computer_use, cronjob, image_gen) "
+    "(discord, homeassistant, yuanbao, bfl, video_gen, computer_use, cronjob, image_gen) "
     "are opt-in by name beside it. Membership is by toolset so a tool registered into one of "
     "these later joins without an edit here."
 )
