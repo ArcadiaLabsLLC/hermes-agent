@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-10-13 — H09 Windows shutdown-test repair lands as native carry c3a4f0c3f1: Windows 8 passed / 2 POSIX skips, Linux 10 passed on candidate and base, 12 upstream checks. Fork gate: 12,646 passes; one retained WinError 10055 recovered alone, and its original 20-file group passes 139 tests on both base and candidate. Keep that intermittent and separate MSYS/POSIX fixture findings open. GitHub refused H09/H12 PR creation; native branches retained. Earlier H03/H08 submissions remain tracked. Evidence: docs/downstream/shutdown-test-repair-2026-10-13.md."
+cursor: "2026-10-13 — release merge v0.21.7 (71d34bad10) landed from merge/upstream-v0.21.7: 33 conflicted files / 52 hunks, verdicts kept 33 / drop 0; [up-fp] 205/1027/5 -> 206/1062/5 at the new base (H09 on top; nothing raised by the merge); five fix(merge) repairs (spotify left core, holographic probe, contract catalog, one stale red row, three typing-only carried lines); Step 5d wrote upstream_reds_v0217.py (125 strict rows) and one skip row; 27 landing-gate reds all pre-existing or rowed. H08/H03 native PRs #137478/#137460 still open; H12 PR still refused by GitHub; daily branch stale since 2026-10-07 (row). Evidence: the merge commit body and fork-hygiene-queue.md \"Filed on arrival — 2026-10-13\".""
 tags: [program/upstream-sync, program, upstream]
 ---
 
