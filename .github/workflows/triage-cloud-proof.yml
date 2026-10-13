@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
         with:
-          ref: 3c2ba45c4b
+          ref: 3c2ba45c4bf82fced3440cf59a05c66b898825c1
           fetch-depth: 0
           persist-credentials: false
 
@@ -40,7 +40,7 @@ jobs:
           git rev-parse HEAD > "$RUNNER_TEMP/triage-proof/source-sha.txt"
           "$HERMES_PYTHON" --version > "$RUNNER_TEMP/triage-proof/python.txt"
           timeout 6600 bash scripts/run_tests_bundled.sh \
-            --since 958e574c2e --no-cache --file-retries 0 tests \
+            --since 958e574c2e7c4fbb88a5c278003bdd3e175aec52 --no-cache --file-retries 0 tests \
             2>&1 | tee "$RUNNER_TEMP/triage-proof/gate.log"
           result=${PIPESTATUS[0]}
           printf '%s\n' "$result" > "$RUNNER_TEMP/triage-proof/exit-code.txt"
