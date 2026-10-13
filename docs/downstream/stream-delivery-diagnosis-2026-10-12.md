@@ -190,9 +190,29 @@ test-isolation evidence, not proof that the sleep repair regressed the
 runtime, and not a clean neighborhood qualification: its final exit is 1,
 with 206 passes and one timed-out pruning file after three bundle deaths.
 The repaired Codex file passes 70 tests and its downstream consumer passes 12
-when reached. H12 remains open while supported-runtime and baseline controls
-are assessed. The original process-death
+when reached. On Python 3.14.7, the same neighborhood ends with 212 passes,
+but an earlier metadata-read timeout still requires re-bundling. The unchanged
+pruning file passes all six tests alone on the baseline; that intermittent
+network dependency remains open. The original process-death
 incident cannot be attributed exclusively to this override from the old log.
+
+## Combined candidate qualification — 2026-10-13
+
+Candidate `624c75e50e` passes the fork integration gate on Python 3.14.7:
+**12,715 passed, 56 skipped, zero failures/errors**, 1,032 files in 548.9 s.
+The receipt has no bundle diagnostics, retries, re-bundles or cache skips.
+Both H01 file tests, all 70 native Codex tests and all 12 downstream Codex
+tests pass on their first attempt. The citation gate reports no new failures
+and no stale waivers (21 existing waivers).
+
+This gate uses `--since 3c2ba45c4bf82fced3440cf59a05c66b898825c1`: every fork
+file plus the three inherited files reached by the later edits. No shared
+fixture changed after that base. It supplements, rather than replaces,
+the H08/H11 whole-tree qualification on the isolated Windows Actions runner:
+[run 38352941865](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38352941865),
+pinned to `3c2ba45c4b` against `958e574c2e`. The temporary proof workflow is
+on its own branch and is not part of the implementation. Landing still
+depends on assessing that run's original failures, if any.
 
 ## Retained local receipts
 
@@ -201,6 +221,10 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| `triage-integration-gate.log` | `3d4e2d3f9fb2747afb42acc3eb3ef3c7c391ff1baf8ab36dbfb355ae158a89f8` |
+| `triage-integration-doc-cites.log` | `e9d0b6b8ebdbc18bff57d8a4fe2985f15951993898edc40df38f2d5e2607faf4` |
+| `triage-h12-supported-neighborhood.log` | `ba03a3860aa9b5449d31e19c5928bec60cf44f5bdc4d128e8eb86ccbb1e03b0a` |
+| `triage-h12-catalog-baseline313.log` | `b7f883f3a07992501436892b9f9b020654582f33e1a5b85ff49c249aaf00ec1a` |
 | `triage-h01-diagnostic314-20261013.log` | `894a9271cfdb2454235209524d9abb814c9c68ab36073990363b50c6d3fad811` |
 | `triage-h01-diagnostic-control.log` | `7683a7ca11302fd40fa82c01abbdeb9641a62d37ab18517c2453c1d3b733bf2a` |
 | `triage-h01-diagnostic-green.log` | `2c826fa3eb5f5ddb3f344381411beebe7cdb5d013dee38ebf0757724322d89d9` |
