@@ -238,8 +238,24 @@ fixture changed after that base. It supplements, rather than replaces,
 the H08/H11 whole-tree qualification on the isolated Windows Actions runner:
 [run 38352941865](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38352941865),
 pinned to `3c2ba45c4b` against `958e574c2e`. The temporary proof workflow is
-on its own branch and is not part of the implementation. Landing still
-depends on assessing that run's original failures, if any.
+on its own branch and is not part of the implementation.
+
+That four-worker run reached the command's 110-minute cap after reporting
+3,853 of 6,486 files: 41,043 passes, 768 skips and 238 expected failures,
+with no failed/error result reported in that partial log. The recorded modes
+are 3,842 bundled files and 11 solos. This is incomplete qualification, not
+a whole-tree pass; the interrupted run produced no final ledger. The original
+log is retained in the run's `shared-fixture-qualification` artifact and its
+digest is below. Source and interpreter are the pinned values above.
+
+[Run 38364979651](https://github.com/ArcadiaLabsLLC/hermes-agent/actions/runs/38364979651)
+repeats the same selection on the same source with a 220-minute command
+budget, sized from the measured four-worker throughput. Individual test
+deadlines, assertions, exclusions and the existing runner are unchanged.
+The proof-only workflow also disables inherited shell `errexit` around the
+pipeline so a timeout records its exit code before artifact upload.
+Landing remains held until this run completes and its original diagnostics
+are assessed. The temporary workflow branch must not be merged.
 
 ## Retained local receipts
 
@@ -248,6 +264,7 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| hosted run `38352941865`, `gate.log` | `85f31c6d01fb900370c7c1c3cf2345b5368ba2068b42995aa0d503f42c02ee6e` |
 | `triage-final-integration-gate.log` | `1741861b0185e3195ccdc1069f89514542b97f655c5088981262e08fd31d55fe` |
 | `triage-final-integration-doc-cites.log` | `e9d0b6b8ebdbc18bff57d8a4fe2985f15951993898edc40df38f2d5e2607faf4` |
 | `triage-presence-integration-gate.log` | `ca9ab961b29d45b1737edaff97e980735ef371cc295f7c457ea8cf4eaf42525b` |
