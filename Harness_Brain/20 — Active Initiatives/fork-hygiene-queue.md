@@ -22,6 +22,8 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-09 console history qualification
 
+- [ ] **Record the active test before setup so bundle deaths are attributed correctly.** `scripts/_bundle_plugin/hermes_bundle_report.py::_Recorder` emits only completed phase reports; `scripts/run_tests_bundled.py::_where_it_died` consequently names the previous file when setup dies. The H12 neighborhood receipt on `34d27ed88d` names `test_rotation_flush_persisted_boundary.py`, but retained output shows its pass followed by a timeout in `test_run_agent_codex_responses.py::test_api_mode_uses_explicit_provider_when_codex` during agent initialization. Preserve the existing event/ledger owners and prove first-test setup death with a subprocess control. Evidence: those symbols and retained `triage-h12-neighborhood313-20261013.log`. · fork / suite tooling · UNCLAIMED
+
 
 ## Filed on arrival — 2026-10-09 (final gates)
 
