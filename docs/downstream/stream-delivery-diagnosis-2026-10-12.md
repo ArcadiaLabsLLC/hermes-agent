@@ -220,12 +220,17 @@ incident cannot be attributed exclusively to this override from the old log.
 
 ## Combined candidate qualification — 2026-10-13
 
-Candidate `624c75e50e` passes the fork integration gate on Python 3.14.7:
-**12,715 passed, 56 skipped, zero failures/errors**, 1,032 files in 548.9 s.
+Final candidate `911275e641` passes the fork integration gate on Python 3.14.7:
+**12,717 passed, 56 skipped, zero failures/errors**, 1,032 files in 546.7 s.
 The receipt has no bundle diagnostics, retries, re-bundles or cache skips.
 Both H01 file tests, all 70 native Codex tests and all 12 downstream Codex
 tests pass on their first attempt. The citation gate reports no new failures
 and no stale waivers (21 existing waivers).
+
+The intermediate presence candidate `0f525bd2b3` failed the stream bookkeeping
+test because it removed the existing optional-event guard. `911275e641`
+restores that guard; all 13 coalescing/presence tests pass, followed by the
+clean full fork gate above. The failed receipt is retained below.
 
 This gate uses `--since 3c2ba45c4bf82fced3440cf59a05c66b898825c1`: every fork
 file plus the three inherited files reached by the later edits. No shared
@@ -243,6 +248,10 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| `triage-final-integration-gate.log` | `1741861b0185e3195ccdc1069f89514542b97f655c5088981262e08fd31d55fe` |
+| `triage-final-integration-doc-cites.log` | `e9d0b6b8ebdbc18bff57d8a4fe2985f15951993898edc40df38f2d5e2607faf4` |
+| `triage-presence-integration-gate.log` | `ca9ab961b29d45b1737edaff97e980735ef371cc295f7c457ea8cf4eaf42525b` |
+| `triage-h01-presence-guard-green.log` | `5010c3feb4be8e37d7cbe0b77a66c53c8e3f4f3a9f3b06e696a32c81b7554c47` |
 | `triage-h01-start-overlay-final.log` | `77ae456ee54277bb2e3435b82a62bb24180c2296821c907c4cdeaa909c2df91b` |
 | `triage-h01-start-overlay-red.log` | `eedf95b96c744544b4ea0fc66434379a67f5b944e9b14070db964c981951a895` |
 | `triage-h01-current-client-bound-probe.log` | `da9affb89a216e96bdd00dc280807e9ca02c51649ff8095491773d3e18b7d4ee` |

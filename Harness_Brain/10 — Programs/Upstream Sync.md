@@ -2,7 +2,7 @@
 type: program
 program: upstream-sync
 status: active
-cursor: "2026-10-13 — H03 is landed in the fork; native PR #137460 remains submitted. H08 relay PR #137478 and H11 backup isolation await the hosted shared-fixture batch qualification. H12 native candidate 057b9339c0 removes global sleep patching through the existing retry fixture; 70 native tests and 12 checks pass, but GitHub refused PR creation. Combined fork candidate passes 12,715 tests without retry; not landed. H01 has failure diagnostics and remains open. Evidence: docs/downstream/stream-delivery-diagnosis-2026-10-12.md."
+cursor: "2026-10-13 — H03 is landed in the fork; native PR #137460 remains submitted. H08 relay PR #137478 and H11 backup isolation await the hosted shared-fixture batch qualification. H12 native candidate 057b9339c0 removes global sleep patching through the existing retry fixture; 70 native tests and 12 checks pass, but GitHub refused PR creation. Combined candidate 911275e641 passes 12,717 tests without retry; not landed. H01 now has a bounded presence repair using the existing frame; its older marker-free intermittent remains open. Evidence: docs/downstream/stream-delivery-diagnosis-2026-10-12.md."
 tags: [program/upstream-sync, program, upstream]
 ---
 
