@@ -1,10 +1,16 @@
 {
-  "measured_at": "2026-10-12",
+  "measured_at": "2026-10-13",
   "base": "818c13be1d",
-  "files": 203,
-  "deleted_lines": 1017,
+  "files": 204,
+  "deleted_lines": 1024,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-authorized native Codex retry-test isolation repair",
+      "files": "203 -> 204: tests/agent/test_run_agent_codex_responses.py",
+      "deleted_lines": "1017 -> 1024; heavy 5 -> 5",
+      "reason": "Exact native patch 057b9339c0 reuses the existing agent conftest and preserves shared time.sleep for background maintenance. The regression fails with the removed fixture restored; 70 native tests and all 12 upstream checks pass. Submission is held because GitHub refused PR creation. Retire the carry when upstream adopts the repair; no production or Harness behavior changes."
+    },
     {
       "change": "Owner-authorized carry of upstream Session API ordering fix PR #137460",
       "files": "202 -> 203: gateway/platforms/api_server.py",

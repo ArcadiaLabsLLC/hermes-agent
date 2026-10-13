@@ -2,8 +2,8 @@
 
 The SDK-free client (the embedded phone's, ``agent.transports.httpx_client``)
 must take upstream's #103673 pre-stream retry exactly as the SDK does. Moved
-out of the upstream file so its bytes stay upstream's; upstream's helpers and
-its autouse ``_no_codex_backoff`` are imported by name.
+out of the upstream file; upstream's helpers are imported by name. Retry
+acceleration belongs to the shared agent conftest.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import pytest
 from tests.agent.test_run_agent_codex_responses import (  # noqa: F401 — upstream names the moved test uses
     _build_agent,
     _codex_request_kwargs,
-    _no_codex_backoff,
 )
 
 

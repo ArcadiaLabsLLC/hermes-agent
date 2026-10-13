@@ -148,6 +148,42 @@ H11 20-file bundle passes 204 tests, ten skips and two existing xfails,
 with no reruns. These are scoped results: removing a marker under
 `tests/_downstream/` joins H11 in the owed session-chain release batch.
 
+## H12: shared sleep override removed; broader qualification remains open
+
+The retained 20-file neighborhood on `34d27ed88d` reproduces a process death:
+pytest's 30-second timeout stops the first Codex Responses test during agent
+initialization/plugin discovery. A terminal cleanup thread is simultaneously
+running configuration work. This is the maximal surrounding selection, not
+the exact original bundle boundary: the old planning cache was not retained.
+The runner misattributes setup death to the previous completed file; its
+retained output identifies the active Codex test. That tooling defect is filed.
+
+The native Codex test fixture replaces process-wide `time.sleep`, so every
+background thread loses its pacing. The agent conftest already owns zero-delay
+retry backoff. Native candidate `057b9339c0` removes the redundant override and
+adds a behavioral sleep control, with no production changes. Reinstating the
+old fixture makes the control fail (a 10 ms request takes approximately
+0.0006 ms). Removing it passes all 70 native file tests on Windows Python
+3.14.7, without retry; all 12 upstream checks pass against `63d0b9412002`.
+The fork removes the downstream test's import of that same deleted fixture;
+both files now use the existing agent conftest.
+
+The native branch `upstream/codex-retry-isolation` contains one commit on pure
+upstream history. GitHub refused PR creation for the authenticated account on
+2026-10-13; no PR number or acceptance is claimed. Preserve the prepared body
+and branch for submission when that permission is available.
+
+The broader candidate neighborhood also exposes live OpenRouter metadata reads
+in neighboring pruning/rotation tests. Those HTTPS reads time out before the
+Codex file; rotation did so before this repair too. This is separately filed
+test-isolation evidence, not proof that the sleep repair regressed the
+runtime, and not a clean neighborhood qualification: its final exit is 1,
+with 206 passes and one timed-out pruning file after three bundle deaths.
+The repaired Codex file passes 70 tests and its downstream consumer passes 12
+when reached. H12 remains open while supported-runtime and baseline controls
+are assessed. The original process-death
+incident cannot be attributed exclusively to this override from the old log.
+
 ## Retained local receipts
 
 Logs are in the shared worktree parent, not operator storage. Temporary probes
@@ -155,6 +191,11 @@ are investigation scaffolding, not new default-suite gates.
 
 | Log | SHA-256 |
 | --- | --- |
+| `triage-h12-neighborhood313-20261013.log` | `f555653c2b87fe35bbb81c3d4878c54ea690abe873a6256ebb243d3d1ce9cdc1` |
+| `triage-h12-final-mutation-red.log` | `21e1ee68809b908c8757f13e32706d9c468d4809ea84a296123783b96287b58e` |
+| `triage-h12-final-native-green.log` | `f260f18180829f795fc6f20c6398c08ad711aee0d496ada682f22876a82d080d` |
+| `triage-h12-final-check.log` | `32a77fa7cad034e20fbaa2e53c01256d70f6bc13744bc58da775ee4c5c554b78` |
+| `triage-h12-final-neighborhood-green.log` | `f6606ac5b5148b108c2b0c316a77e4cfeb34131e5d76429c795f51615fbdda35` |
 | `stream-delivery-commentary-probe.log` | `02a731a7c6e6410e688ad349f25fe5f91e629f285a53b8883351d05cdd66e36e` |
 | `session-sse-upstream-red.log` | `fe35ad7e04d8cea921226d683baf6dfcba899f1dc6f55a91964275a10e7bd847` |
 | `session-sse-upstream-green.log` | `b47ceb7b23270089cd74e30537ab7e12d90de680a7b096197d856e214f429a38` |
