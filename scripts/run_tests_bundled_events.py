@@ -1,7 +1,7 @@
 """Per-file results out of one bundle process (``scripts/run_tests_bundled.py``).
 
 The bundle plugin (``scripts/_bundle_plugin/hermes_bundle_report.py``) writes
-one JSON line per session start/end, collected module and test report; this
+one JSON line per session start/end, collected module, test start and report; this
 module folds those lines into per-file tallies and decides, from them and the
 process exit code, which members of a bundle must be re-run alone.
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 _CATEGORIES = ("passed", "failed", "skipped", "errors", "xfailed", "xpassed")
 
@@ -48,6 +48,46 @@ class BundleEvents:
     last_begun: Optional[str] = None  # the file whose test most recently STARTED (begin record)
 
 
+def _record_start(events: BundleEvents, record: dict[str, Any]) -> None:
+    events.session_start = record.get("t")
+
+
+def _record_end(events: BundleEvents, record: dict[str, Any]) -> None:
+    events.session_end = record.get("t")
+    events.exit_status = record.get("rc")
+
+
+def _record_begin(events: BundleEvents, record: dict[str, Any]) -> None:
+    events.last_begun = record.get("f")
+
+
+def _record_collection(events: BundleEvents, record: dict[str, Any]) -> None:
+    tally = events.files.setdefault(record["f"], FileTally())
+    tally.collect_seconds += float(record.get("d") or 0.0)
+    tally.collect_error = tally.collect_error or bool(record.get("err"))
+
+
+def _record_test(events: BundleEvents, record: dict[str, Any]) -> None:
+    tally = events.files.setdefault(record["f"], FileTally())
+    tally.test_seconds += float(record.get("d") or 0.0)
+    category = record.get("c") or ""
+    if category == "error":
+        category = "errors"
+    if category in _CATEGORIES:
+        tally.counts[category] = tally.counts.get(category, 0) + 1
+    if record.get("n"):
+        tally.failed_nodeids.append(record["n"])
+
+
+_EVENT_HANDLERS = {
+    "start": _record_start,
+    "end": _record_end,
+    "begin": _record_begin,
+    "collect": _record_collection,
+    "test": _record_test,
+}
+
+
 def tally_events(lines: Iterable[str]) -> BundleEvents:
     """Fold the plugin's JSON lines into per-file tallies. A torn last line
     (process killed mid-write) is ignored."""
@@ -61,28 +101,9 @@ def tally_events(lines: Iterable[str]) -> BundleEvents:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
-        kind = record.get("k")
-        if kind == "start":
-            events.session_start = record.get("t")
-        elif kind == "end":
-            events.session_end = record.get("t")
-            events.exit_status = record.get("rc")
-        elif kind == "begin":
-            events.last_begun = record.get("f")
-        elif kind == "collect":
-            tally = events.files.setdefault(record["f"], FileTally())
-            tally.collect_seconds += float(record.get("d") or 0.0)
-            tally.collect_error = tally.collect_error or bool(record.get("err"))
-        elif kind == "test":
-            tally = events.files.setdefault(record["f"], FileTally())
-            tally.test_seconds += float(record.get("d") or 0.0)
-            category = record.get("c") or ""
-            if category == "error":
-                category = "errors"
-            if category in _CATEGORIES:
-                tally.counts[category] = tally.counts.get(category, 0) + 1
-            if record.get("n"):
-                tally.failed_nodeids.append(record["n"])
+        handler = _EVENT_HANDLERS.get(record.get("k"))
+        if handler is not None:
+            handler(events, record)
     return events
 
 
