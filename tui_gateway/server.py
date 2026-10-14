@@ -47,7 +47,7 @@ from tui_gateway import git_probe
 from tui_gateway.checkpoints import (_load_checkpoints_enabled, _resolve_checkpoint_hash,
                                      resolve_checkpoints_enabled as _resolve_checkpoints_enabled)
 from tui_gateway._env import env_float, env_int
-from tui_gateway.turn_marker import clear_turn_marker, marker_writer_state, read_turn_marker, record_turn_start  # noqa: F401
+from tui_gateway.turn_marker import clear_turn_marker, marker_writer_state, read_turn_marker, record_turn_start
 # Fork seam (embedded Hermes): the registry the profile selects (pydantic, or the generated catalog).
 from tui_gateway.contract_seam import registry as _contracts
 # User-facing copy shared with the split method modules (they close over this namespace).
