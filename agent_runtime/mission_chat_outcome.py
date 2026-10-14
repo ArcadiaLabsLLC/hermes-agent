@@ -358,6 +358,9 @@ class ProviderRefusal:
     #: choose copy, which is ``reason``'s job.
     failure_reason: str | None = None
 
+    missing_packages: tuple[str, ...] = ()
+    repair_hint: str | None = None
+
     def resets_in_seconds(self, *, now: float | None = None) -> int | None:
         """Whole seconds until the refusal lifts, or ``None`` when unknown.
 
@@ -384,6 +387,11 @@ class ProviderRefusal:
         old behaviour did was send operators to that verb.
         """
 
+        if self.repair_hint:
+            return (
+                f"repair the runtime dependencies: {self.repair_hint}; send a NEW "
+                "client_message_id; this turn is settled and needs NO turn-resolve"
+            )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
                 "no model provider could take this request and it never left Hermes; "
@@ -412,9 +420,12 @@ class ProviderRefusal:
             ("provider", self.provider),
             ("model", self.model),
             ("failure_reason", self.failure_reason),
+            ("repair_hint", self.repair_hint),
         ):
             if isinstance(value, str) and value.strip():
                 block[key] = value.strip()
+        if self.missing_packages:
+            block["missing_packages"] = list(self.missing_packages)
         if self.reset_at not in (None, ""):
             block["reset_at"] = self.reset_at
         resets_in = self.resets_in_seconds(now=now)
@@ -602,6 +613,18 @@ def classify_turn_failure(
     request may have started, which keeps ``outcome_unknown`` honest.
     """
 
+    from .provider_health import ProviderDependencyError
+
+    if isinstance(exc, ProviderDependencyError):
+        return replace(
+            PROVIDER_UNAVAILABLE_OUTCOME,
+            provider_refusal=ProviderRefusal(
+                status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
+                reason=exc.reason, message=_text(str(exc)), provider=exc.provider,
+                model=exc.model, missing_packages=exc.missing_packages,
+                repair_hint=exc.repair_hint,
+            ),
+        )
     budget_tripped = wall_budget_exceeded(exc, provider_submitted=provider_submitted)
     if provider_submitted and not budget_tripped:
         refusal = provider_refusal(exc)

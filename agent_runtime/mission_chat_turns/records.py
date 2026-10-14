@@ -246,6 +246,15 @@ def safe_provider_refusal(value: Any) -> dict[str, Any] | None:
         text = safe_assignment_text(value.get(key), limit=limit)
         if text:
             block[key] = text
+    packages = value.get("missing_packages")
+    if isinstance(packages, list):
+        safe_packages = [safe_assignment_token(package) for package in packages if isinstance(package, str)]
+        safe_packages = list(dict.fromkeys(package for package in safe_packages if package))
+        if safe_packages:
+            block["missing_packages"] = safe_packages
+    hint = safe_assignment_text(value.get("repair_hint"), limit=4000)
+    if hint:
+        block["repair_hint"] = hint
     reset_at = number_or_bounded_text(value.get("reset_at"), limit=80)
     if reset_at is not None:
         block["reset_at"] = reset_at

@@ -64,6 +64,18 @@ def provider_health_for_persona(persona: AgentPersona) -> dict[str, Any]:
     return provider_health_for_personas([persona])
 
 
+class ProviderDependencyError(ImportError):
+    """A pre-token dependency refusal with structured operator remediation."""
+
+    def __init__(self, message: str, *, persona: AgentPersona, issues: list[dict[str, str]]):
+        super().__init__(message)
+        self.reason = issues[0]["kind"]
+        self.provider = getattr(persona, "provider", None)
+        self.model = getattr(persona, "model", None)
+        self.missing_packages = tuple(dict.fromkeys(issue["package"] for issue in issues))
+        self.repair_hint = "\n".join(issue["summary"] for issue in issues)
+
+
 def assert_provider_health_for_persona(persona: AgentPersona) -> None:
     health = provider_health_for_persona(persona)
     if health["ok"]:
@@ -74,4 +86,7 @@ def assert_provider_health_for_persona(persona: AgentPersona) -> None:
         kind = issue.get("kind") or "runtime_dependency_missing"
         issue_bits.append(f"{kind}:{package}")
     detail = ", ".join(issue_bits) or "runtime dependency issue"
-    raise ImportError(f"Harness provider dependency preflight failed before token spend: {detail}; interpreter={sys.executable}")
+    raise ProviderDependencyError(
+        f"Harness provider dependency preflight failed before token spend: {detail}; interpreter={sys.executable}",
+        persona=persona, issues=health["issues"],
+    )
