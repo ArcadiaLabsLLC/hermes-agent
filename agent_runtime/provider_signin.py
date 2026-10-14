@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import contextvars
 import json
+import math
 import queue
 import secrets
 import threading
@@ -90,6 +91,8 @@ class _Session:
     state: str = "starting"
     verification_uri: str | None = None
     user_code: str | None = None
+    provider_started_at: float | None = None
+    provider_expires_at: float | None = None
     error_code: str | None = None
     updated_at: float = 0.0
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -102,6 +105,8 @@ class _Session:
             "state": self.state,
             "needs_code": self.state == "awaiting_code",
             "started_at": self.started_at,
+            "provider_started_at": self.provider_started_at,
+            "provider_expires_at": self.provider_expires_at,
             "updated_at": self.updated_at or self.started_at,
         }
         if self.verification_uri is not None:
@@ -329,6 +334,16 @@ class ProviderSignIns:
         session.state = "awaiting_code" if session.flow == "paste_code" else "awaiting_user"
         session.updated_at = self._clock()
 
+    def _on_expiry(self, session: _Session, event: dict) -> None:
+        start, end = event.get("provider_started_at"), event.get("provider_expires_at")
+        if (not isinstance(start, (int, float)) or isinstance(start, bool)
+                or not isinstance(end, (int, float)) or isinstance(end, bool)
+                or not math.isfinite(start) or not math.isfinite(end) or start <= 0 or end <= start):
+            return
+        session.provider_started_at = float(start)
+        session.provider_expires_at = float(end)
+        session.updated_at = self._clock()
+
     def _on_done(self, session: _Session, event: dict) -> None:
         if event.get("ok") is True:
             self._finish(session, "succeeded", None)
@@ -338,7 +353,7 @@ class ProviderSignIns:
         self._finish(session, "failed", code if code in CHILD_ERROR_CODES else "login_failed")
 
     # The child's event vocabulary, one handler per kind; unknown kinds are ignored.
-    _EVENT_HANDLERS = {"code": _on_code, "done": _on_done, "error": _on_error}
+    _EVENT_HANDLERS = {"expiry": _on_expiry, "code": _on_code, "done": _on_done, "error": _on_error}
 
 
 _REGISTRY: ProviderSignIns | None = None

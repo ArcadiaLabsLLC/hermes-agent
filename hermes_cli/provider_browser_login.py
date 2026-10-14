@@ -20,30 +20,30 @@ def _persist(provider_id: str, state: dict) -> None:
     _persist_provider_state_to_store(provider_id, state, _auth_file_path(), set_active=False)
 
 
-def _codex(verify: Callable[[str, str], None], flow: str) -> None:
+def _codex(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """Connect an account in the selected store without choosing an inference route."""
     from hermes_cli.auth_codex import _codex_device_code_login, _save_codex_tokens
     from hermes_cli.auth_codex_browser import _codex_browser_login
-    state = (_codex_browser_login(open_browser=False, on_verification=verify)
-             if flow == "browser" else _codex_device_code_login(on_verification=verify))
+    state = (_codex_browser_login(open_browser=False, on_verification=verify, on_expiry=expiry)
+             if flow == "browser" else _codex_device_code_login(on_verification=verify, on_expiry=expiry))
     _save_codex_tokens(state["tokens"], last_refresh=state["last_refresh"], set_active=False)
 
 
-def _xai(verify: Callable[[str, str], None], flow: str) -> None:
+def _xai(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """A fresh grant belongs to this profile, never the account it previously borrowed."""
     from hermes_cli.auth_xai import _xai_oauth_device_code_login
-    state = _xai_oauth_device_code_login(open_browser=False, on_verification=verify)
+    state = _xai_oauth_device_code_login(open_browser=False, on_verification=verify, on_expiry=expiry)
     _persist("xai-oauth", {**state, "auth_mode": "oauth_device_code"})
 
 
-def _minimax(verify: Callable[[str, str], None], flow: str) -> None:
+def _minimax(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """Connect without changing the selected provider or model."""
     from hermes_cli.auth_minimax import _minimax_oauth_login
-    state = _minimax_oauth_login(open_browser=False, on_verification=verify, persist=False)
+    state = _minimax_oauth_login(open_browser=False, on_verification=verify, persist=False, on_expiry=expiry)
     _persist("minimax-oauth", state)
 
 
-def _nous(verify: Callable[[str, str], None], flow: str) -> None:
+def _nous(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """Preserve free-tier connectors, or connect a fresh account to this profile."""
     from hermes_cli import anon_auth
     from hermes_cli.auth_nous import _nous_device_code_login, _sync_nous_pool_from_auth_store
@@ -58,7 +58,7 @@ def _nous(verify: Callable[[str, str], None], flow: str) -> None:
                     raise RuntimeError("Nous sign-in did not finish")
                 return
         raise RuntimeError("Nous sign-in ended without confirmation")
-    state = _nous_device_code_login(open_browser=False, on_verification=verify)
+    state = _nous_device_code_login(open_browser=False, on_verification=verify, on_expiry=expiry)
     _persist("nous", state)
     _sync_nous_pool_from_auth_store()
 
@@ -67,7 +67,7 @@ def _nous(verify: Callable[[str, str], None], flow: str) -> None:
 _ANTHROPIC_AUTHORIZE_URL = re.compile(r"https://claude\.ai/oauth/authorize\?\S+")
 
 
-def _anthropic(verify: Callable[[str, str], None], flow: str) -> None:
+def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """Upstream's own ``hermes auth add anthropic --type oauth``, with its terminal swapped.
 
     ``run_hermes_oauth_login_pure`` prints the authorize link and ``input()``s the
@@ -250,6 +250,9 @@ def run_browser_login(
         send({"event": "code", "verification_uri": url, "user_code": code})
         send({"event": "pending"})
 
+    def expiry(started_at: float, expires_at: float) -> None:
+        send({"event": "expiry", "provider_started_at": started_at, "provider_expires_at": expires_at})
+
     methods = browser_login_methods(provider)
     chosen = flow or default_login_method(provider)
     if chosen not in methods:
@@ -258,7 +261,7 @@ def run_browser_login(
     reader = _READ_LINE.set(read_line)
     try:
         with quiet():
-            _DRIVERS[provider](verify, chosen)
+            _DRIVERS[provider](verify, chosen, expiry)
     except (Exception, SystemExit, KeyboardInterrupt) as error:
         # Never serialize the exception message, response body, or token payload.
         codes = {"codex_browser_port_busy": "browser_busy",

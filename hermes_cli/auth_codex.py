@@ -1107,12 +1107,16 @@ def _codex_exchange_authorization_code(
     return tokens
 
 
-def _codex_device_code_login(*, on_verification=None) -> dict[str, Any]:
+def _codex_device_code_login(*, on_verification=None, on_expiry=None) -> dict[str, Any]:
     """Run the OpenAI device code login flow and return credentials dict."""
     from hermes_cli.auth import _utc_now_z
     issuer, client_id = "https://auth.openai.com", CODEX_OAUTH_CLIENT_ID
     device_data = _codex_request_device_code(issuer, client_id)
     user_code = device_data["user_code"]
+    # The provider may omit expiry; the local polling cap is not its code lifetime.
+    if on_expiry is not None and device_data.get("expires_in") is not None:
+        started_at = time.time()
+        on_expiry(started_at, started_at + float(device_data["expires_in"]))
 
     # Step 2: Show user the code
     print("To continue, follow these steps:\n")
