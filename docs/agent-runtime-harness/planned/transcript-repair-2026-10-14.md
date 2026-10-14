@@ -57,3 +57,11 @@ notification's recorded identity. It now carries that identity without inventing
 an anchor. The inbox/SQLite test compares raw and canonical ordering; removing
 the system identity carry made it fail at the notification's position. No
 persona or operator-policy authority moved.
+
+The reviewed candidate `9bb47086c1` completed the fork landing gate: 1,115
+selected files, 12,044 tests passed, zero failed, one setup error and 49
+skipped in 595.5 seconds. There were no isolated retries. The result cache
+skipped 247 unchanged green files and re-ran 25 audit samples, all clean.
+The sole setup error is the independently reproduced Python-version fixture
+mismatch above; the gate remains red for that known environment issue.
+Independent CHANGE review reported no remaining findings on this candidate.
