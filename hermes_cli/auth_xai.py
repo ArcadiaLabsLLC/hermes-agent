@@ -555,7 +555,7 @@ def _xai_oauth_poll_device_token(
 
 
 def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser: bool = True,
-                               on_verification=None) -> dict[str, Any]:
+                               on_verification=None, on_expiry=None) -> dict[str, Any]:
     from hermes_cli.auth import _can_open_graphical_browser, _is_remote_session, _print_device_code_instructions, _utc_now_z, _xai_oauth_discovery, _xai_oauth_poll_device_token
     discovery = _xai_oauth_discovery(timeout_seconds)
     timeout = httpx.Timeout(max(20.0, timeout_seconds))
@@ -569,6 +569,9 @@ def _xai_oauth_device_code_login(*, timeout_seconds: float = 20.0, open_browser:
             swallow_open_errors=True,
         )
         print(f"Waiting for approval (polling every {max(1, interval)}s)...")
+        if on_expiry is not None:
+            started_at = time.time()
+            on_expiry(started_at, started_at + int(device_data["expires_in"]))
         if on_verification is not None:
             on_verification(
                 str(device_data.get("verification_uri_complete") or device_data["verification_uri"]),

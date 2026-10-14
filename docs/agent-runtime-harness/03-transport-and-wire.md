@@ -1438,6 +1438,20 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
     `SocketConnection.payload()`, from every log line, and from `DeviceRecord`,
     which has no field for it by construction.
 
+### Provider sign-in deadline projection
+
+`provider_signin._Session.view` adds nullable `provider_started_at` and
+`provider_expires_at`, both UNIX seconds, to `runtime.provider.signin.*` results.
+`provider_browser_login.run_browser_login` forwards the same fields in an optional
+NDJSON `expiry` event. The original registry `started_at` stays session creation;
+its 15-minute cap is not advertised as the provider's code lifetime.
+
+Optional `on_expiry` callbacks on the existing Nous/xAI/MiniMax/Codex helpers
+report their provider response expiry. Codex browser login reports its actual
+loopback callback timeout. Missing device expiry and Anthropic paste-code expiry
+stay null. `tests/hermes_cli/test_provider_signin_expiry_downstream.py` proves the
+deadline through each machine driver and the registry, plus unknown/invalid values.
+
 ## Open rows
 
 - **Single-transport collapse is half-done** — the hub lane is primary and

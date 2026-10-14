@@ -19,6 +19,7 @@ from __future__ import annotations
 import hmac
 import logging
 import secrets
+import time
 import webbrowser
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
@@ -109,7 +110,7 @@ def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier:
 
 def _codex_browser_login(
     *, open_browser: bool = True, timeout_seconds: Optional[float] = None,
-    on_verification=None) -> dict[str, Any]:
+    on_verification=None, on_expiry=None) -> dict[str, Any]:
     """Authorization-code + PKCE login on the loopback listener; returns the device-flow creds shape.
 
     Raises ``AuthError(code=CODEX_BROWSER_PORT_BUSY_CODE)`` when :1455 cannot be bound so the caller
@@ -126,6 +127,9 @@ def _codex_browser_login(
     redirect_uri = f"http://localhost:{server.server_address[1]}{CODEX_BROWSER_CALLBACK_PATH}"
     auth_url = _codex_browser_authorize_url(
         redirect_uri=redirect_uri, state=state, code_challenge=_pkce_code_challenge(code_verifier))
+    if on_expiry is not None:
+        started_at = time.time()
+        on_expiry(started_at, started_at + float(timeout_seconds or CODEX_BROWSER_CALLBACK_TIMEOUT_SECONDS))
     if on_verification is not None:
         on_verification(auth_url, "")
 
