@@ -104,6 +104,8 @@ def test_real_inbox_flush_and_reopen_keep_user_and_notice_separate(tmp_path, iso
     from agent.session_persistence import SessionPersistenceMixin
     from agent_runtime.mission_chat_steer import start_active_mission_chat_turn, submit_mission_chat_steer
     from agent_runtime.persona_chat_history.curation import _safe_curated_messages
+    from agent_runtime.operator_channels.history_messages import _conversation_history_message
+    from agent_runtime.persona_chat_history.markers import _ordered_message_rows
     from hermes_state import SessionDB
     from hermes_cli.harness_parts.persona.chat_events import _ChatProtocolV2Emitter
 
@@ -143,3 +145,12 @@ def test_real_inbox_flush_and_reopen_keep_user_and_notice_separate(tmp_path, iso
         assert by_id["steer"]["text"] == "Check tests"
         assert by_id["steer"]["turn_id"] == "prompt"
         assert 0 < by_id["notice"]["turn_seq"] < by_id["steer"]["turn_seq"] < history[-1]["turn_seq"]
+        canonical = [_conversation_history_message(row, channel_id="channel", index=index,
+                     persona_id="profile_dev", persona_instance_id="dev") for index, row in enumerate(history)]
+        ordered = _ordered_message_rows(canonical)
+        assert [row.get("client_message_id") for row in ordered] == [
+            row.get("client_message_id") for row in history]
+        notice = next(row for row in ordered if row.get("client_message_id") == "notice")
+        assert notice["role"] == "system"
+        assert notice["turn_id"] == "prompt"
+        assert notice["turn_seq"] == by_id["notice"]["turn_seq"]

@@ -290,17 +290,17 @@ class HistoryMessage:
             message["steered"] = True
 
     def _turn_identity(self, message: dict[str, Any]) -> None:
-        if not self.client_message_id:
-            return
-        if self.role == OPERATOR:
+        # System notifications retain their recorded position too. Only an
+        # operator/agent row may derive a turn identity from a client id.
+        turn_id = safe_assignment_token(self.row.get("turn_id"))
+        if self.client_message_id:
             message["client_message_id"] = self.client_message_id
-            message["turn_id"] = (safe_assignment_token(self.row.get("turn_id"))
-                                  or canonical_persona_chat_turn_id(self.client_message_id))
-        elif self.role == AGENT:
-            message["turn_id"] = canonical_persona_chat_turn_id(
-                self.client_message_id
-            ) or safe_assignment_token(self.row.get("turn_id"))
-            message["client_message_id"] = self.client_message_id
+            if self.role == OPERATOR:
+                turn_id = turn_id or canonical_persona_chat_turn_id(self.client_message_id)
+            elif self.role == AGENT:
+                turn_id = canonical_persona_chat_turn_id(self.client_message_id) or turn_id
+        if turn_id:
+            message["turn_id"] = turn_id
 
 
 def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:

@@ -43,5 +43,17 @@ prompts. Existing upstream steering and compression tests remain intact.
 
 Recorded before implementation: the recovery suite had five failing cases;
 the provenance suite failed the user-wrapper, coalesced-input and overwritten-id
-checks. Commit `0cb2ba0faa` records those red results. Follow-up checks and the
+checks. Commit `30c0cd3c50` records those red results. Follow-up checks and the
 final gate receipt are recorded in the landing commit.
+
+The second whole-tree selection ran 1,115 files (81 cached greens, 25 clean
+cache-audit samples): 14,236 passed, one failed, one setup error and 51 skipped.
+Its routing-ladder failure was in the new input row builder. The builder now
+chooses user/notification shape once, then attaches shared metadata. The focused
+recovery, provenance and routing checks passed all 25 tests after that correction.
+
+Independent review also found that the canonical projection dropped a system
+notification's recorded identity. It now carries that identity without inventing
+an anchor. The inbox/SQLite test compares raw and canonical ordering; removing
+the system identity carry made it fail at the notification's position. No
+persona or operator-policy authority moved.

@@ -23,16 +23,19 @@ class _Input:
     metadata: dict[str, Any] | None = None
 
     def row(self) -> dict[str, Any]:
-        row = (steer_user_row(self.text) if self.kind == "steer" else {
-            "role": "user", "content": f"[Runtime note: background event, not a user instruction]\n{self.text}",
-            "display_kind": self.kind,
-        })
-        if self.metadata or self.platform_id or self.kind != "steer":
-            row["display_metadata"] = {**(self.metadata or {}), "steering": True}
-        if self.kind == "steer" and self.platform_id:
-            row["display_metadata"]["display_text"] = self.text
-        if self.kind != "steer":
-            row["display_metadata"].update(display_text=self.title, notification_category=self.category)
+        metadata = dict(self.metadata or {})
+        if self.kind == "steer":
+            row = steer_user_row(self.text)
+            if self.platform_id:
+                metadata["display_text"] = self.text
+        else:
+            row = {
+                "role": "user", "content": f"[Runtime note: background event, not a user instruction]\n{self.text}",
+                "display_kind": self.kind,
+            }
+            metadata.update(display_text=self.title, notification_category=self.category)
+        if metadata or self.platform_id:
+            row["display_metadata"] = {**metadata, "steering": True}
         if self.platform_id:
             row["platform_message_id"] = self.platform_id
         return row
