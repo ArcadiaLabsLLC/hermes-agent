@@ -8,6 +8,10 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`execution_controls_cursor::` 2026-10-14 — Native conversation approval/speed
+settings validate route and owner, bind the existing approval queue, and apply
+speed to cold/reused actors. [Contract and verification](../../docs/downstream/session-controls-2026-10-14.md).
+
 `chat_model_reset_cursor::` 2026-10-12 — The existing operator model selector
 can clear only a chat pin and return to agent defaults; no default write or
 permission change. [Contract](../../docs/agent-runtime-harness/03-transport-and-wire.md#operator-model-selection).
