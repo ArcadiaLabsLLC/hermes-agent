@@ -7,9 +7,15 @@ filesystem would go red rather than keep passing on a shared shape.
 
 from __future__ import annotations
 
+import os
+import shutil
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+from hermes_cli import venv_integrity
 from hermes_cli.venv_integrity import (
     canonical_distribution,
     import_name_for,
@@ -39,6 +45,55 @@ def test_single_dist_info_is_clean(tmp_path):
     _dist_info(tmp_path, "jiter", "0.15.0")
 
     assert metadata_issues(["jiter"], directories=[tmp_path]) == []
+
+
+@pytest.mark.parametrize("initial_conflict", [False, True], ids=["addition", "repair"])
+def test_metadata_health_refreshes_with_the_same_directory_timestamp(tmp_path, initial_conflict):
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    added = _dist_info(tmp_path, "jiter", "0.15.0") if initial_conflict else None
+    stamp = tmp_path.stat().st_mtime_ns
+    conflict = ["runtime_dependency_metadata_conflict"]
+    assert [issue["kind"] for issue in metadata_issues(["jiter"], directories=[tmp_path])] == (
+        conflict if initial_conflict else []
+    )
+
+    if added is None:
+        _dist_info(tmp_path, "jiter", "0.15.0")
+    else:
+        shutil.rmtree(added)
+    os.utime(tmp_path, ns=(stamp, stamp))
+    assert tmp_path.stat().st_mtime_ns == stamp
+    assert [issue["kind"] for issue in metadata_issues(["jiter"], directories=[tmp_path])] == (
+        [] if initial_conflict else conflict
+    )
+
+
+def test_metadata_listing_checks_only_metadata_shaped_entry_types(tmp_path, monkeypatch):
+    metadata = _dist_info(tmp_path, "jiter", "0.15.0")
+    (tmp_path / "unrelated_package").mkdir()
+    (tmp_path / "unrelated.py").write_text("", encoding="utf-8")
+    (tmp_path / "not_a_directory.dist-info").write_text("", encoding="utf-8")
+    real_scandir = os.scandir
+    checked = []
+
+    class Entry:
+        def __init__(self, entry):
+            self.entry = entry
+            self.name, self.path = entry.name, entry.path
+
+        def is_dir(self):
+            checked.append(self.name)
+            assert self.name.endswith((".dist-info", ".egg-info"))
+            return self.entry.is_dir()
+
+    @contextmanager
+    def entries(directory):
+        with real_scandir(directory) as scan:
+            yield (Entry(entry) for entry in scan)
+
+    monkeypatch.setattr(os, "scandir", entries)
+    assert venv_integrity._metadata_dirs_by_distribution(tmp_path) == {"jiter": [metadata]}
+    assert sorted(checked) == ["jiter-0.15.0.dist-info", "not_a_directory.dist-info"]
 
 
 def test_three_conflicting_dist_info_dirs_are_reported(tmp_path):

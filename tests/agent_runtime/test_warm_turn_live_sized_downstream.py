@@ -10,8 +10,10 @@ re-listed site-packages for its provider-health check.
 This file seeds roots of that size (synthetic) and drives the serve's own path -- the argv lanes, the
 chat-open prewarm, three ``mission-chat message --stream`` turns against the loopback Responses fake
 (``test_turn_cost_guard_downstream``'s scaffolding) -- and asserts, for every warm turn, inside its
-anchor -> ``request_sent`` window: no skill-root walk, no shared-catalog build and no site-packages
-listing on any thread but the deferred re-walk's, and the window under :data:`WARM_BUDGET_MS`.
+anchor -> ``request_sent`` window: no skill-root walk or shared-catalog build on any thread but
+the deferred re-walk's, and the window under :data:`WARM_BUDGET_MS`. Metadata uses a fresh,
+single-directory scandir: directory timestamps cannot certify unchanged package names.
+Its cost stays inside the same turn budget; its freshness is tested in test_venv_integrity.
 
 Killing mutation (recorded in the CHANGE commit): ``run.py`` handing the turn a plain ``dict``
 instead of ``TurnRootRegistries`` (every warm turn walks its roots and rebuilds the catalog).
@@ -27,7 +29,7 @@ import time
 import pytest
 
 from tests.agent_runtime import test_turn_cost_guard_downstream as guard
-from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home  # noqa: F401
+from tests.agent_runtime.test_stream_turn_section import INSTANCE, _seed_chat, home
 from tests.fakes.providers import openai_responses
 from tests.fakes.providers.openai_responses import FakeResponsesServer
 
@@ -81,7 +83,6 @@ class _Windows:
         from agent_runtime import skill_resolution, skills_inventory
         from agent_runtime.mission_chat_phases import TurnPhaseMarks
         from agent_runtime.skill_root_freshness import REVALIDATE_THREAD_NAME
-        from hermes_cli import venv_integrity
 
         self.windows: list[list[float | None]] = []
         self.calls: list[tuple[str, float, str]] = []
@@ -103,8 +104,7 @@ class _Windows:
         monkeypatch.setattr(TurnPhaseMarks, "__init__", init)
         monkeypatch.setattr(TurnPhaseMarks, "mark", mark)
         for owner, attr, kind in ((skill_resolution, "_skill_root_signature", "skill_root_walk"),
-                                  (skills_inventory, "build_shared_catalog", "shared_catalog_build"),
-                                  (venv_integrity, "_list_metadata_dirs", "site_packages_listing")):
+                                  (skills_inventory, "build_shared_catalog", "shared_catalog_build")):
             self._count(monkeypatch, owner, attr, kind, REVALIDATE_THREAD_NAME)
 
     def _count(self, monkeypatch, owner, attr, kind, deferred_thread) -> None:
@@ -126,7 +126,7 @@ class _Windows:
 
 @pytest.mark.timeout(240)
 def test_warm_turns_over_live_sized_skill_roots_walk_nothing_before_request_sent(
-    monkeypatch, capsys, isolate_agent_runtime_root, home  # noqa: F811
+    monkeypatch, capsys, isolate_agent_runtime_root, home
 ):
     from agent_runtime import provider_preconnect
     from agent_runtime.persona_chat_continuity.runtime_registry import (
