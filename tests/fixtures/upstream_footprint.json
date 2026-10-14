@@ -1,10 +1,24 @@
 {
-  "measured_at": "2026-10-13",
+  "measured_at": "2026-10-14",
   "base": "71d34bad10",
-  "files": 207,
+  "files": 209,
   "deleted_lines": 1063,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-requested conversation approval and speed controls",
+      "before": {
+        "files": 207,
+        "deleted_lines": 1063,
+        "heavy": 5
+      },
+      "after": {
+        "files": 209,
+        "deleted_lines": 1063,
+        "heavy": 5
+      },
+      "reason": "Two additive native approval APIs expose task-scoped policy/gateway presence and effective YOLO bypass. Console consumes the existing guard, guardian, deny floors and gateway queue; no copied detector or approval engine. Scoped policy cannot override hosted policy. Upstream candidate remains documented, not submitted."
+    },
     {
       "change": "Owner-approved reviewed Redo using existing native restore/recovery",
       "files": "206 -> 207: tools/checkpoint_maintenance.py",

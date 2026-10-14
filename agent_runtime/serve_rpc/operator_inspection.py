@@ -5,6 +5,9 @@ from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import inspect_operator_settings, inspect_operator_skills
 from agent_runtime.operator_session_models import operator_model_facts, operator_selected_model_facts, select_operator_model
+from agent_runtime.operator_session_controls import (
+    operator_control_facts, operator_approval_facts, set_operator_control, respond_operator_approval,
+)
 from agent_runtime.skill_inspection import SkillInspectionError
 from .protocol import DEFERRED, RpcContext, deferred_reply, err, ok
 from .registry import method
@@ -62,3 +65,23 @@ def model_facts(rid, params: dict, context: RpcContext | None = None):
 def select_model(rid, params: dict, context: RpcContext | None = None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.model.select",
                                select_operator_model)
+
+
+@method("runtime.operator.conversation.controls", tier=TIER_CONSOLE)
+def controls(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.controls", operator_control_facts)
+
+
+@method("runtime.operator.conversation.control.set", tier=TIER_CONSOLE)
+def set_control(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.control.set", set_operator_control)
+
+
+@method("runtime.operator.conversation.approvals", tier=TIER_CONSOLE)
+def approvals(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.approvals", operator_approval_facts)
+
+
+@method("runtime.operator.conversation.approval.respond", tier=TIER_CONSOLE)
+def respond_approval(rid, params: dict, context: RpcContext | None = None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.approval.respond", respond_operator_approval)

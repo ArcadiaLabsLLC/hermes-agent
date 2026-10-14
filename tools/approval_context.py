@@ -8,11 +8,40 @@ gate in :mod:`tools.approval`.
 import contextvars
 import logging
 import os
+from contextlib import contextmanager
 from agent.i18n import t
 from hermes_cli.config import cfg_get
 from utils import env_var_enabled, is_truthy_value
 
 logger = logging.getLogger("tools.approval")
+
+_surface_policy = contextvars.ContextVar("approval_surface_policy", default=None)
+
+
+@contextmanager
+def scoped_approval_policy(mode: str, *, gateway_session: bool = False):
+    """Bind an interactive surface's policy to this task, without changing config.
+
+    Hosted-room policy still wins; hardline/deny-rule checks and YOLO semantics
+    remain in the existing guards. The surface owns its gateway notify lifecycle.
+    """
+    if mode not in _VALID_MODES:
+        raise ValueError("invalid approval mode")
+    token = _surface_policy.set((mode, gateway_session))
+    try:
+        yield
+    finally:
+        _surface_policy.reset(token)
+
+
+def approval_policy_mode() -> str:
+    """The current task's effective approval policy, including hosted policy."""
+    return _get_approval_mode()
+
+
+def approval_policy_modes() -> tuple[str, ...]:
+    """The native engine's valid policy vocabulary for interactive surfaces."""
+    return _VALID_MODES
 
 
 def _ctx(name: str, default: str | None = "") -> contextvars.ContextVar:
@@ -188,6 +217,9 @@ def _is_gateway_approval_context() -> bool:
     """
     if _is_cron_approval_context() or _is_unattended_platform_approval_context():
         return False
+    policy = _surface_policy.get()
+    if policy is not None and policy[1]:
+        return True
     return env_var_enabled("HERMES_GATEWAY_SESSION") or bool(_get_session_platform())
 
 
@@ -250,6 +282,9 @@ def _get_approval_mode() -> str:
             return room_policy.approval_mode
     except Exception:
         pass
+    policy = _surface_policy.get()
+    if policy is not None:
+        return policy[0]
     return _normalize_approval_mode(_get_approval_config().get("mode", "manual"))
 
 
