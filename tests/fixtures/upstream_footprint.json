@@ -1,10 +1,28 @@
 {
-  "measured_at": "2026-10-12",
-  "base": "63d0b94120027d487c9a5235b9ec64b696af1b26",
+  "measured_at": "2026-10-13",
+  "base": "71d34bad10",
   "files": 176,
   "deleted_lines": 883,
   "heavy": 4,
   "reasons": [
+    {
+      "change": "Owner-approved reviewed Redo using existing native restore/recovery",
+      "files": "206 -> 207: tools/checkpoint_maintenance.py",
+      "deleted_lines": "1062 -> 1063: remove one unused native restore index-path local caught by the installed pre-commit hook; heavy 5 unchanged",
+      "reason": "Extend the held reviewed-restore seam with inverse review of its existing receipt and finite completed-restore leases. Maintenance releases expired pins through the same checkpoint owner; unfinished recovery never expires. No new file writer, store, scheduler or Eternia policy in native modules. Upstream submission remains held for native-user value and maintainer-demand review."
+    },
+    {
+      "change": "Owner-authorized native Codex retry-test isolation repair",
+      "files": "204 -> 205: tests/agent/test_run_agent_codex_responses.py",
+      "deleted_lines": "1020 -> 1027; heavy 5 -> 5",
+      "reason": "Exact native patch 057b9339c0 reuses the existing agent conftest and preserves shared time.sleep for background maintenance. The regression fails with the removed fixture restored; 70 native tests and all 12 upstream checks pass. Submission is held because GitHub refused PR creation. Retire the carry when upstream adopts the repair; no production or Harness behavior changes."
+    },
+    {
+      "change": "Carry the upstream relay delivery test repair PR #137478; retire its Windows marker",
+      "files": "203 -> 204: tests/tui_gateway/test_bot_relay_methods.py",
+      "deleted_lines": "1017 -> 1020; heavy 5 -> 5",
+      "reason": "The test now provides and verifies the exact resolver result, covering hermes/hermes.exe/hermes.EXE with spaces. The old Windows xfail hid a case-sensitive assertion and is removed only with its upstream repair. Retire this test carry on the upstream merge; the unrelated reported-turn timeout marker remains."
+    },
     {
       "change": "Owner-authorized carry of upstream Session API ordering fix PR #137460",
       "files": "202 -> 203: gateway/platforms/api_server.py",
@@ -636,6 +654,12 @@
       "files": "192 -> 191: -tests/hermes_cli/test_worktree_sync_base.py (1/1, a respelled comment)",
       "deleted_lines": "937 -> 931: test_worktree_sync_base -1, plugin_loader -1, file_tools_read_tracking -4; heavy unchanged at 4",
       "reason": "the sync landed eight upstream edits with no ledger reason and no manifest entry (L6.02). Read against the PR diffs: test_auth_commands (PR #121642), test_uninstall_dry_run (PR #121640) and test_windows_agent_loop_papercuts (PR #123892) are those PRs' own test hunks, now named in carried_prs.json; file_tools_paths' helper is PR #121645's location; plugin_loader's split is PR #128651's, carried additively per the owner's ruling"
+    },
+    {
+      "change": "Owner-authorized native Windows shutdown-test repair (H09)",
+      "files": "205 -> 206: tests/tui_gateway/test_serve_exit_flush.py",
+      "deleted_lines": "1027 -> 1064; heavy 5 -> 5",
+      "reason": "Carry native 747f657234: bounded signal child, owned foreground PID receipt and cleanup on setup failure. Existing eight behavioral cases retained; production, shared fixtures and runners unchanged. Windows controls and native checks recorded in docs/downstream/shutdown-test-repair-2026-10-13.md. Retire on upstream adoption."
     },
     {
       "change": "Job3 daily integration ownership manifest refreshed to frozen upstream cc75e8f402",

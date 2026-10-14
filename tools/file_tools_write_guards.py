@@ -25,8 +25,8 @@ from tools.binary_extensions import (
 from tools.file_tools_paths import (
     _expand_tilde, _resolve_path_for_task, _ssh_path_escapes_home, _terminal_env_type_for_task)
 from tools.file_tools_read_tracking import _has_full_write_baseline, _is_own_blind_patch, _read_mtime_drifted
-from tools.path_identity import denotes_same_file, posix_match_forms
 import itertools
+from tools.path_identity import denotes_same_file, posix_match_forms
 
 # Prefixes matched after realpath. macOS: /private/var mirrors /var — block the
 # sensitive subtrees only; a blanket "/private/var/" refuses every temp-file

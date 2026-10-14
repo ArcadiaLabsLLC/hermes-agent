@@ -7,7 +7,8 @@ from agent_runtime.operator_checkpoints import (
     recover_operator_checkpoint,
 )
 from agent_runtime.operator_turn_changes import operator_turn_changes, preview_operator_undo
-from agent_runtime.operator_undo import apply_operator_undo, operator_undo_status, recover_operator_undo
+from agent_runtime.operator_undo import apply_operator_undo, apply_operator_redo, operator_undo_status, recover_operator_undo
+from agent_runtime.operator_redo import preview_operator_redo, operator_redo_available
 from agent_runtime.operator_history_recovery import operator_history_pending, cancel_unapplied_history
 from .operator_inspection import _inspect_off_reader
 from .registry import method
@@ -82,6 +83,21 @@ def turn_changes(rid, params, context=None):
 @method("runtime.operator.conversation.undo.preview", tier=TIER_CONSOLE)
 def undo_preview(rid, params, context=None):
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.undo.preview", preview_operator_undo)
+
+
+@method("runtime.operator.conversation.redo.available", tier=TIER_CONSOLE)
+def redo_available(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.redo.available", operator_redo_available)
+
+
+@method("runtime.operator.conversation.redo.preview", tier=TIER_CONSOLE)
+def redo_preview(rid, params, context=None):
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.redo.preview", preview_operator_redo)
+
+
+@method("runtime.operator.conversation.redo.apply", tier=TIER_CONSOLE)
+def redo_apply(rid, params, context=None):
+    return _mutate_off_reader(rid, params, context, "runtime.operator.conversation.redo.apply", apply_operator_redo)
 
 
 @method("runtime.operator.conversation.undo.apply", tier=TIER_CONSOLE)

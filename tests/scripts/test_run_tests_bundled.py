@@ -148,6 +148,35 @@ def test_events_fold_into_per_file_counts():
     assert events.session_end == 2.0
 
 
+def test_a_death_during_setup_is_blamed_on_the_member_that_began_not_the_last_that_finished():
+    """The plugin writes ``begin`` before setup runs. A process killed in b.py's fixture has
+    a.py as the last member with a FINISHED phase; the blame, the solo re-run and the
+    re-bundle cut must follow the member that began (2026-10-13: the fork gate blamed the
+    previous file for a death in the next one's setup)."""
+    members = ["a.py", "b.py", "c.py"]
+    events = bundled.tally_events(
+        _event_lines(
+            [{"k": "start", "t": 1.0}]
+            + [{"k": "collect", "f": m, "d": 0.1, "err": False} for m in members]
+            + [
+                {"k": "begin", "f": "a.py"},
+                {"k": "test", "f": "a.py", "c": "passed", "d": 1.0},
+                {"k": "begin", "f": "b.py"},
+            ]
+        )
+    )
+
+    assert events.last_begun == "b.py"
+    assert bundled.members_to_rerun(members, events, 1) == ["b.py", "c.py"]
+    stopped_in, unreached = bundled._where_it_died([Path(m) for m in members], members, events, 1)
+    assert (stopped_in, unreached) == ("b.py", [Path("c.py")])
+    # Positive control: without a begin record the old answer stands, so the record is the mechanism.
+    without = bundled.tally_events(
+        _event_lines([{"k": "start", "t": 1.0}, {"k": "test", "f": "a.py", "c": "passed", "d": 1.0}])
+    )
+    assert bundled._where_it_died([Path(m) for m in members], members, without, 1)[0] == "a.py"
+
+
 def test_a_killed_bundle_reruns_the_running_member_and_everything_behind_it():
     members = ["a.py", "b.py", "c.py", "d.py"]
     events = bundled.tally_events(

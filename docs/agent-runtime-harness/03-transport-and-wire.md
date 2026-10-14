@@ -1516,6 +1516,13 @@ All others under `archive/2026-08-22-pre-consolidation/`:
 | [`SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/SINGLE_TRANSPORT_COLLAPSE_PLAN_2026-08-16.md) | landed stages → §2/§5; open half → `planned/single-transport-collapse.md` |
 | [`CORRELATION_ID_PLAN_2026-08-16.md`](archive/2026-08-22-pre-consolidation/CORRELATION_ID_PLAN_2026-08-16.md) | landed stages → §8; open half → `planned/correlation-id-coverage.md` |
 
+## Console history: reviewed Redo
+
+Console Redo extends the existing authenticated history operation, not the
+native Work task system. Its endpoint and recovery contract is recorded in
+[Reviewed Console Redo](../downstream/console-redo-2026-10-13.md); Undo status,
+recovery and pending discovery serve both directions.
+
 ## Native Work methods
 
 `agent_runtime/work/` adapts Hermes's public Kanban APIs. Tasks, task IDs,

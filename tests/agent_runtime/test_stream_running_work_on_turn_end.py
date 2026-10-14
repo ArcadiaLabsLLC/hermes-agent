@@ -1,4 +1,4 @@
-"""A finished chat turn leaves ``running_work`` the moment it ends.
+"""Turn presence reaches ``running_work`` before the batch's heavier projection.
 
 Measured live 2026-10-01 (events.81417412 lines 17594-17595, the base serve's
 log): ``persona_chat.turn_ended`` at 19:37:28.105Z, and the next frame that
@@ -7,8 +7,8 @@ behind another caller's. A turn-end batch can never promote to a patch (the
 event is uncovered), so for all of that the stream said the turn was running.
 
 The stream now ships the section ALONE, before the batch's core: one
-``running_work`` frame per batch that carries a turn end. These cases replay
-that turn's tail order — projected, then turn_ended — against a real journal.
+``running_work`` frame per batch that carries a turn start or end. These cases
+use the real journal and publisher, with one section read for the whole batch.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import pytest
 import agent_runtime.stream as stream_mod
 import agent_runtime.stream.frames as stream_frames_module
 from agent_runtime import running_work
-from agent_runtime.chat_turn_presence import EVENT_TURN_ENDED, ChatTurnPresence
+from agent_runtime.chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED, ChatTurnPresence
 from agent_runtime.events import EventLog
 from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 from agent_runtime.models import Event
@@ -132,6 +132,39 @@ def _stream(max_frames: int):
     )
 
 
+@pytest.mark.parametrize("turn_count", [1, 2])
+def test_turn_start_ships_running_work_before_building_the_batch(
+    isolate_agent_runtime_root, home, monkeypatch, turn_count
+):
+    builds = _BuildCounter(monkeypatch)
+    frames = _stream(max_frames=2)
+    hydrate = next(frames)
+    assert _chat_turn_ids(hydrate["core"]["running_work"]) == []
+    builds_before = builds.calls
+
+    turns = [_Turn(f"starting-{index}") for index in range(turn_count)]
+    for turn in turns:
+        turn.start()
+    section = next(frames)
+
+    assert section["type"] == "running_work"
+    expected = [f"chat_turn:{turn.turn_id}" for turn in turns]
+    assert sorted(_chat_turn_ids(section["running_work"])) == expected
+    assert builds.calls == builds_before
+    assert "core" not in section and "watermark" not in section
+    started_offset = max(
+        offset for offset, event in EventLog().iter_from_offset(0)
+        if event.type == EVENT_TURN_STARTED
+    )
+    assert section["as_of_offset"] >= started_offset
+
+    # One section for the batch, then its ordinary delta at the same offset.
+    delta = next(frames)
+    assert delta["type"] == "delta"
+    assert delta["watermark"]["event_offset"] == section["as_of_offset"]
+    assert sorted(_chat_turn_ids(delta["core"]["running_work"])) == expected
+
+
 def test_running_work_is_empty_right_after_turn_ended(isolate_agent_runtime_root, home, monkeypatch):
     builds = _BuildCounter(monkeypatch)
     turn = _Turn("agent-chat-send-be095523")
@@ -166,8 +199,8 @@ def test_running_work_is_empty_right_after_turn_ended(isolate_agent_runtime_root
     assert _chat_turn_ids(delta["core"]["running_work"]) == []
 
 
-def test_a_batch_without_a_turn_end_ships_no_section_frame(isolate_agent_runtime_root, home):
-    """No publish storm: the section rides turn ends only."""
+def test_a_batch_without_a_presence_change_ships_no_section_frame(isolate_agent_runtime_root, home):
+    """No publish storm: ordinary updates do not repeat the presence section."""
 
     turn = _Turn("turn-quiet")
     turn.start()

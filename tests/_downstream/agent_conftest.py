@@ -172,6 +172,28 @@ _OWNER_DIR = pathlib.Path(__file__).resolve().parents[1] / "agent"
 
 
 @pytest.fixture(autouse=True)
+def _model_catalog_is_offline(monkeypatch):
+    """No test under tests/agent reaches OpenRouter's model catalog.
+
+    ``AIAgent`` built on an OpenRouter base URL spawns the ``openrouter-prewarm`` thread and
+    the compressor's context-length resolution calls ``fetch_model_metadata`` on the main
+    thread, both through ``agent.model_metadata_http.get``: 179 files in this directory
+    construct such an agent, and each test process paid one live HTTPS read (the H12
+    neighbourhood's retained stacks timed out in it, 2026-10-13). The transport is the one
+    seam both paths share; ``fetch_model_metadata`` catches the refusal and answers its
+    cache, so the behaviour under test is unchanged and nothing waits on a socket. A test
+    that exercises the HTTP path itself patches ``model_metadata_http.get`` after this and
+    wins.
+    """
+    from agent import model_metadata_http
+
+    def _offline(url, **kwargs):
+        raise ConnectionError(f"tests/agent is offline: live model catalog refused ({url})")
+
+    monkeypatch.setattr(model_metadata_http, "get", _offline)
+
+
+@pytest.fixture(autouse=True)
 def _compression_rotation_context(request, monkeypatch):
     """H10: upstream's clear_session_vars clears rather than restoring tokens.
 
@@ -192,7 +214,7 @@ def _compression_rotation_context(request, monkeypatch):
     monkeypatch.setattr(request.node, "obj", in_context)
 
 
-def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
+def pytest_collection_modifyitems(items):
     """Raise the watchdog ceiling for the slow-probe tests, then apply the skips."""
     for item in items:
         node_ids = _SLOW_LOOPBACK_TIMEOUT_NODE_IDS.get(item.path.name)
@@ -205,10 +227,10 @@ def pytest_collection_modifyitems(items):  # noqa: D401 — pytest hook
 
 
 __all__ = [
-    "_SLOW_LOOPBACK_TIMEOUT_SECONDS",
-    "_SLOW_LOOPBACK_TIMEOUT_NODE_IDS",
-    "_shell_hook_scripts_are_not_directly_executable",
     "_ENV_GAP_SKIPS",
     "_OWNER_DIR",
+    "_SLOW_LOOPBACK_TIMEOUT_NODE_IDS",
+    "_SLOW_LOOPBACK_TIMEOUT_SECONDS",
+    "_shell_hook_scripts_are_not_directly_executable",
     "pytest_collection_modifyitems",
 ]

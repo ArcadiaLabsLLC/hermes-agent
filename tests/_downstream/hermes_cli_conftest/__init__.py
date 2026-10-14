@@ -17,7 +17,7 @@ execs this file under a synthetic module name, where a relative import has no pa
       __init__.py     wiring   this map; ``import dotenv`` FIRST; binds the fixtures and every pinned name;
                                DEFINES the five pytest hooks, _OWNER_DIR and the KNOWN DEFECTS tracker
       fences.py       lanes    "no test reaches this machine": the gateway fence, the pause token, psutil, agent-browser
-      isolation.py    lanes    "no test's state outlives it": kanban workers, web_server.app, PAIRING_DIR, sys.modules
+      isolation.py    lanes    per-test backup home, kanban workers, web_server.app, PAIRING_DIR, sys.modules
       probes.py       stores   every host probe, each answering once per process
       registry.py     stores   TABLES: _ENV_GAP_SKIPS, _WEB_BUILD_PREREQ_FILES, _KNOWN_DEFECTS
 
@@ -54,6 +54,7 @@ from tests._downstream.hermes_cli_conftest.fences import (  # noqa: E402, F401
     _no_live_process_table,
 )
 from tests._downstream.hermes_cli_conftest.isolation import (  # noqa: E402, F401
+    _backup_native_home_follows_test_home,
     _APP_BASELINE,
     _web_server_app_is_pristine,
     _pairing_dir_follows_the_test_home,

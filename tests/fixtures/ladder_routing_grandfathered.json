@@ -206,10 +206,6 @@
    "site": "scripts/generate_agent_runtime_stream_fixtures.py|_offset_rank_map.walk|isinstance|value"
   },
   {
-   "arms": 4,
-   "site": "scripts/run_tests_bundled_events.py|tally_events|ladder|kind"
-  },
-  {
    "arms": 3,
    "site": "tests/_downstream/live_guard_classify.py|_without_python_c_argv|ladder|token"
   },

@@ -204,15 +204,16 @@ def test_an_opt_in_integration_is_added_by_name_and_counted(declaring_profile):
         """
         toolsets:
           - harness_core
-          - spotify
+          - discord
         """,
         profile="gpt-launcher",
     )
 
     preview = _preview(_persona("dev"))
 
-    assert preview["effective_toolsets"] == HARNESS_CORE_MEMBERS + ["spotify"]
-    assert preview["final_tool_count"] == DECLARED_TOOL_COUNT + 7
+    assert preview["effective_toolsets"] == HARNESS_CORE_MEMBERS + ["discord"]
+    from toolsets import resolve_toolset
+    assert preview["final_tool_count"] == DECLARED_TOOL_COUNT + len(resolve_toolset("discord"))
 
 
 def test_a_static_bundle_declaration_resolves_by_registry_membership(declaring_profile):
@@ -237,7 +238,7 @@ def test_a_static_bundle_declaration_resolves_by_registry_membership(declaring_p
         """
         toolsets:
           - hermes-cli
-          - spotify
+          - discord
         """,
         profile="gpt-launcher",
     )
@@ -245,7 +246,9 @@ def test_a_static_bundle_declaration_resolves_by_registry_membership(declaring_p
     preview = _preview(_persona("dev"))
 
     assert preview["toolset_declaration"]["source"] == "profile_config"
-    assert preview["final_tool_count"] == 7  # spotify only, by registry membership
+    # discord only, by registry membership (spotify left core for its catalog plugin in
+    # upstream v0.21.7; the count comes from the registry, never a frozen literal).
+    assert preview["final_tool_count"] == len(resolve_toolset("discord"))
     # Upstream consolidated preview tools and renamed process/todo. Assert the
     # useful members rather than freezing an unrelated total tool count.
     assert {"terminal", "process_manage", "todo_list"} <= set(

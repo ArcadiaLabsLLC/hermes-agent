@@ -154,10 +154,10 @@ def heartbeat_frame(
     return frame
 
 
-def batch_ends_a_chat_turn(batch: list[tuple[int, Event]]) -> bool:
-    """Whether ``batch`` carries a ``persona_chat.turn_ended`` publish."""
+def batch_changes_chat_turn_presence(batch: list[tuple[int, Event]]) -> bool:
+    """Whether a turn entered or left the running-work set in this batch."""
 
-    return any(getattr(event, "type", None) == EVENT_TURN_ENDED for _, event in batch)
+    return any(getattr(event, "type", None) in {EVENT_TURN_STARTED, EVENT_TURN_ENDED} for _, event in batch)
 
 
 def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
@@ -168,7 +168,9 @@ def running_work_frame(*, as_of_offset: int | None) -> dict[str, Any] | None:
     left ``running_work`` was the next full core — measured 2026-10-01 at
     16.6 s after the event (a 10.2 s build queued behind another caller's), and
     every console showed the finished turn as running for all of it. The
-    section is cheap on its own; the core around it is not.
+    section is cheap on its own; the core around it is not. A start batch can
+    also demote to a core and wait behind a provider window, so both transitions
+    publish this section before building the rest of the batch.
 
     ``as_of_offset`` is the log position the read was taken AFTER, and it is
     deliberately not a ``watermark``: this frame is an overlay of one section on

@@ -32,7 +32,9 @@ allowance, skipped assertion or upstream-file edit is part of this repair.
 
 ## Qualification
 
-All runs use Windows / Python 3.13.15 and the canonical wrappers.
+The original red/green controls use Windows / Python 3.13.15 and the canonical
+wrappers. The paired candidate is also qualified on supported Python 3.14.7
+below.
 
 | Run | First attempt |
 | --- | --- |
@@ -59,8 +61,22 @@ bash scripts/run_tests_bundled.sh --no-cache --bundle-size 20 \
 
 Ruff passes for the two changed modules. This is scoped qualification, not the
 landing gate. `Harness_Brain/50 — Agent Handoffs/Running the tests.md` requires
-session-chain changes to join a release-merge batch; this repair awaits that
-batch's whole-tree qualification before landing. No full suite was run here.
+session-chain changes to join a release-merge batch. This repair joined the
+owner-authorized isolated batch; its broader qualification is recorded below.
+
+After pairing with H08 on `256c151c76`, the original 20-file bundle also
+passes on the isolated PM-built Python 3.14.7 environment: **204 passed,
+ten skipped and two existing xfails**, one bundle, zero reruns, 25.0 s.
+The same candidate passes **56 focused tests**, three skips and one existing
+xfail across relay delivery, footprint, environment registry and the existing
+CLI fixture-boundary checks. The source is unchanged by the subsequent
+H03-main merge. The [combined qualification](stream-delivery-diagnosis-2026-10-12.md#combined-candidate-qualification--2026-10-13)
+records the hosted whole-tree traversal, completed original-group candidate
+and baseline comparisons, and the clean 12,717-test final fork gate. All 159
+final candidate failure/error IDs reproduce on the baseline. Two inherited
+first-attempt timing failures remain explicitly queued; actual fixture
+bindings confirm neither receives this fixture. This is a qualified repair
+landing, not a claim that the wider upstream suite is green.
 
 The broader upstream fixture limitation remains: patching a defining module
 does not update previously imported aliases. Backup is qualified and repaired
@@ -79,3 +95,5 @@ evidence, not another backlog.
 | `triage-h11-whole-bundle-green.log` | `5f1b87797cd9762b4d523af357664d088ec16668d964df80554eb2817794bf7e` |
 | `triage-h11-adjacent.log` | `89ba997d2be8e26fcbf60b5639435498f3ef3e56109f0777c729408ec361fc23` |
 | `triage-h11-registration-red.log` | `88b0bc9afe378b9072f6b1dd5139fc1fe5984df496a1ea15a9cc004ae60c15bc` |
+| `triage-h11-batch-green314.log` | `76240889e0ece4b9331dd0b6fcc80a62e8b982cefee6e9ec1ba6fb4de878703e` |
+| `triage-batch-focused314.log` | `ed8edf795f65620df9bb2715f0bfe9d212f9ba276e80f9bb403c094528144a46` |

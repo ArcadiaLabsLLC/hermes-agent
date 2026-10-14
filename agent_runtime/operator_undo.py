@@ -31,6 +31,11 @@ class UndoState(StrEnum):
     ROLLED_BACK = "rolled_back"
 
 
+class UndoDirection(StrEnum):
+    UNDO = "undo"
+    REDO = "redo"
+
+
 _TERMINAL_STATES = frozenset({UndoState.COMPLETED, UndoState.ROLLED_BACK})
 _TRANSITIONS = {
     None: frozenset({UndoState.PREPARED}),
@@ -47,10 +52,12 @@ def _transition(db, params, record, state: UndoState, *, reason=None):
     if state not in _TRANSITIONS[previous]:
         raise ValueError(f"Invalid Undo transition: {previous} -> {state}")
     record.update(state=state, reason=reason)
+    from .operator_redo import settle_redo_retention
+    if state in _TERMINAL_STATES:
+        settle_redo_retention(db, params, record)
     _save(db, params, record)
     if state in _TERMINAL_STATES:
         clear_history_operation(params["session_id"], params["operation_id"])
-        _release_backup(params, record)
 
 
 @contextmanager
@@ -76,7 +83,8 @@ def _save(db, params, record):
 def _result(params, record):
     result = {**inspection_identity(params, params.get("client_scope")), "operation_id": params["operation_id"],
             "state": record["state"], "mode": record["mode"], "files": record.get("files"),
-            "history": record.get("history"), "reason": record.get("reason")}
+            "history": record.get("history"), "reason": record.get("reason"),
+            "direction": record.get("direction", UndoDirection.UNDO)}
     return {**result, "recovery_revision": _digest(result)}
 
 
@@ -84,6 +92,10 @@ def _rewind(db, params, record):
     receipt = db.get_meta(_receipt_key(params))
     if receipt:
         record["history"] = json.loads(receipt)["result"]
+        return
+    if record.get("direction") == UndoDirection.REDO:
+        from .operator_redo import restore_redo_history
+        restore_redo_history(db, params, record)
         return
     plan = record["plan"]["history"]
     source = db.get_session(params["session_id"])
@@ -117,7 +129,8 @@ def _restore_files(params, plan):
             raise OperatorConversationRefused("workspace_changed")
         return manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
             selected_paths=[row["path"] for row in plan["files"]],
-            operation_id=_operation_key(identity, workdir, params["operation_id"]))
+            operation_id=_operation_key(identity, workdir, params["operation_id"]),
+            **({"recovery_operation_id": restore["recovery_operation_id"]} if "recovery_operation_id" in restore else {}))
 
 
 @contextmanager
@@ -134,29 +147,41 @@ def _workspace_writer():
 
 
 def apply_operator_undo(params):
-    mode = params.get("mode")
-    if mode not in {"both", "chat", "files"}:
-        raise OperatorConversationRefused("invalid_undo_mode")
+    return _apply_command(params, UndoDirection.UNDO)
+
+
+def apply_operator_redo(params):
+    return _apply_command(params, UndoDirection.REDO)
+
+
+def _apply_command(params, direction):
+    from .operator_redo import preview_operator_redo, prepare_redo_source
     digest = _digest(params)
     with _undo_store_writer(params) as db, _workspace_writer(), history_write_scope(params):
         require_not_cancelled(db, _receipt_key(params))
         raw = db.get_meta(_key(params))
         if raw:
             record = json.loads(raw)
-            if record["request_digest"] != digest:
+            if record["request_digest"] != digest or record.get("direction", UndoDirection.UNDO) != direction:
                 raise OperatorConversationRefused("operation_payload_changed")
             return _reconcile(db, params, record)
-        plan = preview_operator_undo(params)
+        plan = {UndoDirection.UNDO: preview_operator_undo, UndoDirection.REDO: preview_operator_redo}[direction](params)
+        mode = plan["mode"] if direction == UndoDirection.REDO else params.get("mode")
+        if mode not in {"both", "chat", "files"}:
+            raise OperatorConversationRefused("invalid_undo_mode")
         if plan["preview_token"] != params.get("preview_token"):
             raise OperatorConversationRefused("history_changed")
         files = plan["files"]
-        if mode != "chat" and (plan["restore"] is None or not files or any(not row["eligible"] for row in files)):
-            raise OperatorConversationRefused(plan["files_reason"] or "restore_conflict")
-        record = {"request_digest": digest, "mode": mode, "plan": plan}
+        restores_files = mode != "chat"
+        if restores_files and (plan["restore"] is None or not files or any(not row["eligible"] for row in files)):
+            raise OperatorConversationRefused(plan.get("files_reason") or "restore_conflict")
+        record = {"request_digest": digest, "mode": mode, "plan": plan, "direction": direction}
+        if direction == UndoDirection.UNDO:
+            prepare_redo_source(db, params, record)
         fence_history_operation(params["session_id"], params["operation_id"],
-                                action="undo", workspace=plan["workspace_path"])
+                                action=direction, workspace=plan["workspace_path"])
         _transition(db, params, record, UndoState.PREPARED)
-        if mode != "chat":
+        if restores_files:
             try:
                 record["files"] = _restore_files(params, plan)
             except CheckpointStoreBusy:
@@ -241,6 +266,7 @@ def _recover_undo_files(params, record, *, rollback):
             if rollback:
                 return {"success": True, "reason": "rolled_back", "restored_files": [], "failed_files": []}
             return manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
-                selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key)
+                selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key,
+                **({"recovery_operation_id": restore["recovery_operation_id"]} if "recovery_operation_id" in restore else {}))
         from tools.checkpoint_manager import restore_revision
         return manager.resume_restore(key, revision=restore_revision(result), rollback=rollback)

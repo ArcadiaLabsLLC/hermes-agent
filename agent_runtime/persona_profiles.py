@@ -59,7 +59,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
     Treating the bare ``["hermes-cli"]`` as undeclared is reading the upstream
     default as the default it is (``hermes_cli.config_defaults`` writes it for an
     unset key), not overriding an operator: any list an operator actually wrote —
-    ``[harness_core, spotify]``, or a stale explicit ``[hermes-cli, …]`` — is
+    ``[harness_core, discord]``, or a stale explicit ``[hermes-cli, …]`` — is
     honored verbatim and shows up as ``profile_config`` in ``tool-diff``.
 
     * a ``config.yaml`` that exists but will not read or parse ⇒ the lane

@@ -3630,6 +3630,7 @@ apps/desktop/src/lib/persisted.ts
 apps/desktop/src/lib/personalities.ts
 apps/desktop/src/lib/platform-status.ts
 apps/desktop/src/lib/platform.ts
+apps/desktop/src/lib/plugin-catalog.test.ts
 apps/desktop/src/lib/plugin-catalog.ts
 apps/desktop/src/lib/plugin-source-urls.test.ts
 apps/desktop/src/lib/plugin-source-urls.ts
@@ -4916,6 +4917,7 @@ contributors/emails/aurelien.gek@gmail.com
 contributors/emails/austin-brace@users.noreply.github.com
 contributors/emails/austinpickett@users.noreply.github.com
 contributors/emails/awain7@gmail.com
+contributors/emails/axiomhermes@gmail.com
 contributors/emails/aydinhrrs@gmail.com
 contributors/emails/aydnoktay@users.noreply.github.com
 contributors/emails/ayoub@gmail.com
@@ -4929,6 +4931,7 @@ contributors/emails/badiyee85@users.noreply.github.com
 contributors/emails/baleian90@gmail.com
 contributors/emails/barnicskolaci@gmail.com
 contributors/emails/bash@opencode.itc.local
+contributors/emails/basil@sendit.zone
 contributors/emails/baslam@users.noreply.github.com
 contributors/emails/bb@users.noreply.github.com
 contributors/emails/bbasketballer75@gmail.com
@@ -5057,6 +5060,7 @@ contributors/emails/coe0718@icloud.com
 contributors/emails/coffee@coffeebot.dev
 contributors/emails/colabonate@gmail.com
 contributors/emails/colin@colingreig.com
+contributors/emails/connns@users.noreply.github.com
 contributors/emails/connorjosephblack@gmail.com
 contributors/emails/contact@danteschrauwen.be
 contributors/emails/contact@eliebruno.com
@@ -5077,6 +5081,7 @@ contributors/emails/crdesign8@hotmail.com
 contributors/emails/crew-infra@localhost.invalid
 contributors/emails/croycrabtree@gmail.com
 contributors/emails/cruzlxyz@gmail.com
+contributors/emails/cspears32@gmail.com
 contributors/emails/csreyes92@gmail.com
 contributors/emails/cto@phrase.local
 contributors/emails/cursoragent@cursor.com
@@ -5184,6 +5189,7 @@ contributors/emails/dumanxiang@qq.com
 contributors/emails/durgun.ismail@gmail.com
 contributors/emails/dustin.persek@protonmail.com
 contributors/emails/duu261@users.noreply.github.com
+contributors/emails/duub.site@gmail.com
 contributors/emails/dzhen7454@gmail.com
 contributors/emails/e-macgregor@users.noreply.github.com
 contributors/emails/e2e@ikbi.test
@@ -5291,8 +5297,10 @@ contributors/emails/gaoanze@meituan.com
 contributors/emails/gas@users.noreply.github.com
 contributors/emails/gc@erek.ai
 contributors/emails/gchablemeneses@gmail.com
+contributors/emails/geniok@gmail.com
 contributors/emails/geoffreybutler94@gmail.com
 contributors/emails/george@parallel.ai
+contributors/emails/georgeclawrence@me.com
 contributors/emails/gercamjr.dev@gmail.com
 contributors/emails/getkolt@gmail.com
 contributors/emails/gh.chiller@pm.me
@@ -5519,6 +5527,8 @@ contributors/emails/jinultimate@JinUltimates-MacBook-Air.local
 contributors/emails/jiqing.liu@whu.edu.cn
 contributors/emails/jj@duckboat.ai
 contributors/emails/jkobject@gmail.com
+contributors/emails/jmas@softcatala.org
+contributors/emails/jnolan@nvidia.com
 contributors/emails/joaomarcosdias444@gmail.com
 contributors/emails/joby@ellingtonlife.com
 contributors/emails/jodybagdonas@gmail.com
@@ -5558,6 +5568,8 @@ contributors/emails/justin@actual.computer
 contributors/emails/justin@actual.inc
 contributors/emails/justin@bowes.org
 contributors/emails/justinjohnson25600@users.noreply.github.com
+contributors/emails/k.ivanow@gmail.com
+contributors/emails/k800elik@gmail.com
 contributors/emails/kaiyisg@yahoo.com.sg
 contributors/emails/kalice-vi@users.noreply.github.com
 contributors/emails/kalice@users.noreply.github.com
@@ -5957,6 +5969,7 @@ contributors/emails/razsoc.01@gmail.com
 contributors/emails/razultull@gmail.com
 contributors/emails/rborkows@gmail.com
 contributors/emails/rcarratalasanchez@gmail.com
+contributors/emails/realfaisal20@gmail.com
 contributors/emails/redpiggy-cyber@users.noreply.github.com
 contributors/emails/regardv4life@gmail.com
 contributors/emails/reinbeumer@gmail.com
@@ -6002,6 +6015,7 @@ contributors/emails/roli@hermes-labs.ai
 contributors/emails/romain.charton@gmail.com
 contributors/emails/ronny.pietschke@icloud.com
 contributors/emails/ronny@kesuek.de
+contributors/emails/roqianjas@users.noreply.github.com
 contributors/emails/royzhrxy-glitch@users.noreply.github.com
 contributors/emails/rroveri@nvidia.com
 contributors/emails/rs545837@gmail.com
@@ -6059,10 +6073,12 @@ contributors/emails/shamrock@cypherpunks.to
 contributors/emails/shanthan@oneam.ai
 contributors/emails/shauneccles@gmail.com
 contributors/emails/shaurya@linkup.so
+contributors/emails/shawnpana@Shawns-MacBook-Pro.local
 contributors/emails/shellybotmoyer@users.noreply.github.com
 contributors/emails/shikanga-hermes@shikanga.co.uk
 contributors/emails/shimakaze001@outlook.com
 contributors/emails/shiqiming.sqm@taobao.com
+contributors/emails/shoesroom13@users.noreply.github.com
 contributors/emails/shreyanshjain646@gmail.com
 contributors/emails/shtorm@fedosis.ru
 contributors/emails/shubhambc09@gmail.com
@@ -6110,6 +6126,7 @@ contributors/emails/steve.darlow@gmail.com
 contributors/emails/steve@cuppett.com
 contributors/emails/steveahlstrom@gmail.com
 contributors/emails/stevehsu0524.ttlc@gmail.com
+contributors/emails/steven.hubert@gmail.com
 contributors/emails/stjt2004127@gmail.com
 contributors/emails/stocki.lukasz@gmail.com
 contributors/emails/stoltemberg@users.noreply.github.com
@@ -6177,6 +6194,7 @@ contributors/emails/tl2493@columbia.edu
 contributors/emails/toannhu.dev@gmail.com
 contributors/emails/tobenwarrior@users.noreply.github.com
 contributors/emails/tobiassafaie@MacBook-Air-von-Tobias-3.local
+contributors/emails/tom.kubik@gmail.com
 contributors/emails/tom.mulkins@gmail.com
 contributors/emails/tom@clientspike.com
 contributors/emails/tom@spoct.com
@@ -7171,6 +7189,7 @@ hermes_cli/observability/shared_metrics_consent.py
 hermes_cli/observability/shared_metrics_contract.py
 hermes_cli/observability/shared_metrics_desktop.py
 hermes_cli/observability/shared_metrics_disabled.py
+hermes_cli/observability/shared_metrics_drift.py
 hermes_cli/observability/shared_metrics_efficiency.py
 hermes_cli/observability/shared_metrics_engagement.py
 hermes_cli/observability/shared_metrics_events.py
@@ -8590,14 +8609,17 @@ package.json
 plugin-catalog/0bull.yaml
 plugin-catalog/README.md
 plugin-catalog/accent-picker.yaml
+plugin-catalog/account-pool.yaml
 plugin-catalog/acedatacloud-media.yaml
 plugin-catalog/acedatacloud.yaml
 plugin-catalog/adaption.yaml
 plugin-catalog/adspirer.yaml
+plugin-catalog/adwhispr.yaml
 plugin-catalog/afterforge.yaml
 plugin-catalog/agent-analytics.yaml
 plugin-catalog/agent-batch.yaml
 plugin-catalog/agent-hold-em.yaml
+plugin-catalog/agent-ledger.yaml
 plugin-catalog/agent-log.yaml
 plugin-catalog/agent-mail-gateway.yaml
 plugin-catalog/agent_memory_es.yaml
@@ -8624,10 +8646,12 @@ plugin-catalog/apify.yaml
 plugin-catalog/approval-ledger.yaml
 plugin-catalog/ard-kit.yaml
 plugin-catalog/artifact-relay.yaml
+plugin-catalog/auto-pin.yaml
 plugin-catalog/aux-ledger.yaml
 plugin-catalog/beam.yaml
 plugin-catalog/bento.yaml
 plugin-catalog/better-session-appearance.yaml
+plugin-catalog/betterdb.yaml
 plugin-catalog/billing.yaml
 plugin-catalog/biomimetic-brain.yaml
 plugin-catalog/birkin-mnemosyne.yaml
@@ -8640,12 +8664,14 @@ plugin-catalog/brave-search.yaml
 plugin-catalog/brethof-brain.yaml
 plugin-catalog/bridge-adapter.yaml
 plugin-catalog/browser-toggle.yaml
+plugin-catalog/browserpaw.yaml
 plugin-catalog/bunny_space-platform.yaml
 plugin-catalog/by2kb.yaml
 plugin-catalog/camofox-human-auth.yaml
 plugin-catalog/carbonvoice-platform.yaml
 plugin-catalog/cashew.yaml
 plugin-catalog/cdp-manager.yaml
+plugin-catalog/channel3.yaml
 plugin-catalog/chat-studio.yaml
 plugin-catalog/chatto-platform.yaml
 plugin-catalog/cheatsheet.yaml
@@ -8663,11 +8689,13 @@ plugin-catalog/codex-account-switch.yaml
 plugin-catalog/codex-chat-look.yaml
 plugin-catalog/cognee.yaml
 plugin-catalog/cognition.yaml
+plugin-catalog/colorado-traffic.yaml
 plugin-catalog/command-ledger.yaml
 plugin-catalog/command-tray.yaml
 plugin-catalog/commandcode-oauth.yaml
 plugin-catalog/compartment.yaml
 plugin-catalog/composer-modes.yaml
+plugin-catalog/context-audit.yaml
 plugin-catalog/corpus.yaml
 plugin-catalog/cortexlayer.yaml
 plugin-catalog/covision.yaml
@@ -8710,6 +8738,7 @@ plugin-catalog/entropicmem.yaml
 plugin-catalog/epistemic-harness.yaml
 plugin-catalog/error-ledger.yaml
 plugin-catalog/evalroute.yaml
+plugin-catalog/event-read.yaml
 plugin-catalog/excel_line.yaml
 plugin-catalog/file-tray.yaml
 plugin-catalog/filebox.yaml
@@ -8749,6 +8778,7 @@ plugin-catalog/health-data.yaml
 plugin-catalog/health-insights.yaml
 plugin-catalog/healthcare.yaml
 plugin-catalog/healthrelay.yaml
+plugin-catalog/heartbeat2.yaml
 plugin-catalog/hermes-activity.yaml
 plugin-catalog/hermes-adaptive-effort.yaml
 plugin-catalog/hermes-agent-builder.yaml
@@ -8756,6 +8786,7 @@ plugin-catalog/hermes-anilist.yaml
 plugin-catalog/hermes-atoll.yaml
 plugin-catalog/hermes-auto-titler.yaml
 plugin-catalog/hermes-beads.yaml
+plugin-catalog/hermes-call-ledger.yaml
 plugin-catalog/hermes-cloud-file-manager.yaml
 plugin-catalog/hermes-codex-resets.yaml
 plugin-catalog/hermes-council.yaml
@@ -8766,6 +8797,7 @@ plugin-catalog/hermes-dreaming.yaml
 plugin-catalog/hermes-experientiallabs.yaml
 plugin-catalog/hermes-field-notes.yaml
 plugin-catalog/hermes-gemini-live.yaml
+plugin-catalog/hermes-guide.yaml
 plugin-catalog/hermes-herald.yaml
 plugin-catalog/hermes-honcho-plugin.yaml
 plugin-catalog/hermes-impossibl.yaml
@@ -8774,7 +8806,10 @@ plugin-catalog/hermes-iroh-interconnect.yaml
 plugin-catalog/hermes-jailbreak-kernel.yaml
 plugin-catalog/hermes-kame-api-rotation.yaml
 plugin-catalog/hermes-kame-provider.yaml
+plugin-catalog/hermes-lang-ca.yaml
+plugin-catalog/hermes-lang-el.yaml
 plugin-catalog/hermes-lang-it.yaml
+plugin-catalog/hermes-lang-th.yaml
 plugin-catalog/hermes-lang-vi.yaml
 plugin-catalog/hermes-lcm-x.yaml
 plugin-catalog/hermes-ledgerline.yaml
@@ -8782,6 +8817,7 @@ plugin-catalog/hermes-live-voice.yaml
 plugin-catalog/hermes-loadout.yaml
 plugin-catalog/hermes-memory-ui.yaml
 plugin-catalog/hermes-memory-wiki.yaml
+plugin-catalog/hermes-mobile.yaml
 plugin-catalog/hermes-monitor.yaml
 plugin-catalog/hermes-monitoring-dashboard.yaml
 plugin-catalog/hermes-mpp.yaml
@@ -8836,6 +8872,8 @@ plugin-catalog/hermes-terminal.yaml
 plugin-catalog/hermes-toolsmith.yaml
 plugin-catalog/hermes-town.yaml
 plugin-catalog/hermes-trove.yaml
+plugin-catalog/hermes-vcc.yaml
+plugin-catalog/hermes-verifier.yaml
 plugin-catalog/hermes-video-editor.yaml
 plugin-catalog/hermes-vision-inline.yaml
 plugin-catalog/hermes-windows-computer-use.yaml
@@ -8860,6 +8898,7 @@ plugin-catalog/icarus.yaml
 plugin-catalog/identity.yaml
 plugin-catalog/image-utils.yaml
 plugin-catalog/index-network.yaml
+plugin-catalog/index-search.yaml
 plugin-catalog/infisical.yaml
 plugin-catalog/inkbox.yaml
 plugin-catalog/inline-platform.yaml
@@ -8910,6 +8949,7 @@ plugin-catalog/kiro-provider.yaml
 plugin-catalog/kiwi.yaml
 plugin-catalog/klipper-print-watch.yaml
 plugin-catalog/kuma.yaml
+plugin-catalog/kumiho-memory.yaml
 plugin-catalog/lancedb-suite.yaml
 plugin-catalog/lancedb.yaml
 plugin-catalog/langfuse.yaml
@@ -8921,8 +8961,10 @@ plugin-catalog/linkup.yaml
 plugin-catalog/liquid-inference-provider.yaml
 plugin-catalog/little-canary.yaml
 plugin-catalog/live-time.yaml
+plugin-catalog/llm-antidote.yaml
 plugin-catalog/local-system-one-hermes.yaml
 plugin-catalog/local_knowledge.yaml
+plugin-catalog/long-conversations.yaml
 plugin-catalog/looot.yaml
 plugin-catalog/loreconvo.yaml
 plugin-catalog/lowrouter.yaml
@@ -8966,9 +9008,11 @@ plugin-catalog/morning-briefing.yaml
 plugin-catalog/mrscraper.yaml
 plugin-catalog/my-github.yaml
 plugin-catalog/mybot-farm.yaml
+plugin-catalog/myswarm.yaml
 plugin-catalog/nachos.yaml
 plugin-catalog/needs-you.yaml
 plugin-catalog/nerve.yaml
+plugin-catalog/netmind-provider.yaml
 plugin-catalog/next-prompt.yaml
 plugin-catalog/next-steps.yaml
 plugin-catalog/nextdns.yaml
@@ -8993,6 +9037,7 @@ plugin-catalog/openrouter-spend.yaml
 plugin-catalog/openrouter-voice.yaml
 plugin-catalog/openspec.yaml
 plugin-catalog/openviking.yaml
+plugin-catalog/operations.yaml
 plugin-catalog/optchat.yaml
 plugin-catalog/optmem-hermes.yaml
 plugin-catalog/orbit-desktop.yaml
@@ -9008,6 +9053,7 @@ plugin-catalog/pcs-security-tls-posture.yaml
 plugin-catalog/pdf-surgeon.yaml
 plugin-catalog/penny.yaml
 plugin-catalog/pep-ref.yaml
+plugin-catalog/phone-harness.yaml
 plugin-catalog/pinned-folders.yaml
 plugin-catalog/pixel-worlds.yaml
 plugin-catalog/plan-mode.yaml
@@ -9105,6 +9151,7 @@ plugin-catalog/tamahermes.yaml
 plugin-catalog/tameru.yaml
 plugin-catalog/telegram-client.yaml
 plugin-catalog/telegram-notify.yaml
+plugin-catalog/telegram-stickers.yaml
 plugin-catalog/telegram_dashboard_probe.yaml
 plugin-catalog/telnyx-provider.yaml
 plugin-catalog/thomas.yaml
@@ -9116,6 +9163,7 @@ plugin-catalog/tokenwatch.yaml
 plugin-catalog/tool-slimmer.yaml
 plugin-catalog/toolaria.yaml
 plugin-catalog/touchdesigner.yaml
+plugin-catalog/ttsbuddy.yaml
 plugin-catalog/turn-bell.yaml
 plugin-catalog/turn-usage.yaml
 plugin-catalog/twenty-crm.yaml
@@ -9149,6 +9197,7 @@ plugin-catalog/web-toon.yaml
 plugin-catalog/web-venice.yaml
 plugin-catalog/wechat-social-assistant.yaml
 plugin-catalog/whatsapp-agent-platform.yaml
+plugin-catalog/wicked-memory.yaml
 plugin-catalog/wiki-ref.yaml
 plugin-catalog/woof.yaml
 plugin-catalog/wyoming-voice-bridge.yaml
@@ -9635,6 +9684,7 @@ scripts/ci/archive_inputs.py
 scripts/ci/assemble_review_comment.py
 scripts/ci/check_agents_md_size.py
 scripts/ci/check_blob_size.py
+scripts/ci/check_catalog_cors.py
 scripts/ci/check_docs_drift.py
 scripts/ci/check_lazy_deps_imports.py
 scripts/ci/check_os_marker_fakes.py
@@ -11220,6 +11270,7 @@ tests/ci/desktop_release_roles.py
 tests/ci/test_assemble_review_comment.py
 tests/ci/test_channel_build_publication.py
 tests/ci/test_check_blob_size.py
+tests/ci/test_check_catalog_cors.py
 tests/ci/test_check_os_marker_fakes.py
 tests/ci/test_classify_changes.py
 tests/ci/test_clean_worktree_check.py
@@ -15003,7 +15054,9 @@ tests/scripts/test_footgun_subprocess_encoding.py
 tests/scripts/test_fresh_source_install.py
 tests/scripts/test_icon_flavors.py
 tests/scripts/test_icon_generation_exit.py
+tests/scripts/test_install_ps1_chosen_channel.py
 tests/scripts/test_install_ps1_desktop_stage.py
+tests/scripts/test_install_sh_chosen_channel.py
 tests/scripts/test_install_sh_launch_handoff.py
 tests/scripts/test_install_sh_python_pin_indent.py
 tests/scripts/test_install_stage_frames.py
@@ -15619,6 +15672,8 @@ tests/tools/test_mcp_trust_gating.py
 tests/tools/test_mcp_utility_capability_gating.py
 tests/tools/test_mcp_windows_orphan_fix.py
 tests/tools/test_media_caption_split.py
+tests/tools/test_memory_patch_action.py
+tests/tools/test_memory_target_contract.py
 tests/tools/test_memory_tool.py
 tests/tools/test_memory_tool_import_fallback.py
 tests/tools/test_memory_tool_schema.py
@@ -16097,6 +16152,7 @@ tests/tui_gateway/test_personality_clobbers_system_prompt.py
 tests/tui_gateway/test_ping_probe.py
 tests/tui_gateway/test_plugin_inject_host.py
 tests/tui_gateway/test_plugin_skill_slash.py
+tests/tui_gateway/test_plugins_catalog_lookup.py
 tests/tui_gateway/test_plugins_manage_install.py
 tests/tui_gateway/test_plugins_manage_late_activation.py
 tests/tui_gateway/test_plugins_manage_remove.py
@@ -16670,6 +16726,7 @@ tui_gateway/methods_groups.py
 tui_gateway/methods_i18n.py
 tui_gateway/methods_images.py
 tui_gateway/methods_onboarding.py
+tui_gateway/methods_plugin_catalog.py
 tui_gateway/methods_profiles.py
 tui_gateway/methods_projects.py
 tui_gateway/methods_prompt.py

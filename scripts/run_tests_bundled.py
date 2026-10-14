@@ -114,7 +114,7 @@ def load_unbundled(path: Path) -> set[str]:
     return set(scope.load_path_list(path))
 
 
-def _group_key(rel: str) -> Tuple[str, ...]:
+def _group_key(rel: str) -> tuple[str, ...]:
     parts = tuple(rel.split("/"))
     return parts[:2] if len(parts) > 2 else parts[:1]
 
@@ -125,10 +125,10 @@ def assign_bundles(
     bundle_size: int,
     unbundled: Iterable[str] = (),
     *,
-    durations: Optional[Dict[str, float]] = None,
+    durations: Optional[dict[str, float]] = None,
     bundle_seconds: float = 0.0,
     solo_seconds: float = 0.0,
-) -> Tuple[List[List[Path]], List[Path]]:
+) -> tuple[list[list[Path]], list[Path]]:
     """Split ``files`` into ``(bundles, solos)``.
 
     Every file lands in exactly one bundle or in ``solos``. Solos are the files
@@ -141,22 +141,22 @@ def assign_bundles(
     skip = set(unbundled)
     durations = durations or {}
     by_rel = sorted(((_rel(f, repo_root), f) for f in files), key=lambda item: item[0])
-    solos: List[Path] = []
-    groups: Dict[Tuple[str, ...], List[Path]] = {}
+    solos: list[Path] = []
+    groups: dict[tuple[str, ...], list[Path]] = {}
     for rel, path in by_rel:
         slow = solo_seconds > 0 and float(durations.get(rtp._format_file(path, repo_root)) or 0.0) > solo_seconds
         if bundle_size < 2 or rel in skip or slow:
             solos.append(path)
             continue
         groups.setdefault(_group_key(rel), []).append(path)
-    bundles: List[List[Path]] = []
+    bundles: list[list[Path]] = []
     for key in sorted(groups):
         sized = [(m, _estimate(m, repo_root, durations)) for m in groups[key]]
         bundles.extend(plan.cut_by_budget(sized, bundle_seconds, bundle_size))
     return bundles, solos
 
 
-def _estimate(path: Path, repo_root: Path, durations: Dict[str, float]) -> float:
+def _estimate(path: Path, repo_root: Path, durations: dict[str, float]) -> float:
     return float(durations.get(rtp._format_file(path, repo_root)) or _UNCACHED_ESTIMATE_SECONDS)
 
 
@@ -164,7 +164,7 @@ def bundle_timeout(
     bundle: Sequence[Path],
     repo_root: Path,
     flat_timeout: float,
-    durations: Dict[str, float],
+    durations: dict[str, float],
 ) -> float:
     """``max(flat, 3 × Σ member estimates)`` — the per-file runner's scaling
     rule (``_effective_file_timeout``) applied to the bundle's total."""
@@ -201,7 +201,7 @@ class FileOutcome:
     file: Path
     rc: int
     output: str
-    summary: Dict[str, int]
+    summary: dict[str, int]
     seconds: float
     via: str  # "bundle" | "solo" | "rerun"
     bundle_index: Optional[int] = None
@@ -221,24 +221,24 @@ class Leak:
 
     file: Path
     bundle_index: int
-    earlier: List[str]
-    in_bundle: Dict[str, int]
-    failed_nodeids: List[str]
+    earlier: list[str]
+    in_bundle: dict[str, int]
+    failed_nodeids: list[str]
     kind: str = "leak"
     stopped_in: Optional[str] = None
 
 
 @dataclass
 class RunResult:
-    outcomes: List[FileOutcome]
-    leaks: List[Leak]
-    bundle_walls: List[Tuple[int, float, int]]  # (index, wall, rc)
-    bundles: List[List[Path]]
-    solos: List[Path]
+    outcomes: list[FileOutcome]
+    leaks: list[Leak]
+    bundle_walls: list[tuple[int, float, int]]  # (index, wall, rc)
+    bundles: list[list[Path]]
+    solos: list[Path]
     reruns: int
-    deaths: List["Death"] = field(default_factory=list)
+    deaths: list[Death] = field(default_factory=list)
     rebundles: int = 0
-    ledger: Optional["plan.RunLedger"] = None
+    ledger: Optional[plan.RunLedger] = None
 
 
 @dataclass
@@ -249,16 +249,16 @@ class Death:
 
     bundle_index: int
     stopped_in: str
-    unreached: List[str]
+    unreached: list[str]
 
 
-BundleRunner = Callable[[Path, List[str], Path, float], Tuple[Path, int, str, Dict[str, int], float]]
-SoloRunner = Callable[[Path, List[str], Path, float, int], Tuple[Path, int, str, Dict[str, int], float]]
+BundleRunner = Callable[[Path, list[str], Path, float], tuple[Path, int, str, dict[str, int], float]]
+SoloRunner = Callable[[Path, list[str], Path, float, int], tuple[Path, int, str, dict[str, int], float]]
 
 
 def run(
     files: Sequence[Path],
-    pytest_args: List[str],
+    pytest_args: list[str],
     repo_root: Path,
     *,
     jobs: int,
@@ -266,11 +266,11 @@ def run(
     unbundled: Iterable[str] = (),
     flat_timeout: float,
     retries: int,
-    durations: Dict[str, float],
+    durations: dict[str, float],
     bundle_seconds: float = 0.0,
     solo_seconds: float = 0.0,
-    known_reds: Optional[Dict[str, frozenset]] = None,
-    solo_policy: Optional["solo.SoloPolicy"] = None,
+    known_reds: Optional[dict[str, frozenset]] = None,
+    solo_policy: Optional[solo.SoloPolicy] = None,
     bundle_runner: Optional[BundleRunner] = None,
     solo_runner: Optional[SoloRunner] = None,
     on_outcome: Optional[Callable[[FileOutcome], None]] = None,
@@ -294,12 +294,12 @@ def run(
     solo_seq = iter(range(1 << 30))
 
     lock = threading.Lock()
-    outcomes: List[FileOutcome] = []
-    leaks: List[Leak] = []
-    bundle_walls: List[Tuple[int, float, int]] = []
-    deaths: List[Death] = []
+    outcomes: list[FileOutcome] = []
+    leaks: list[Leak] = []
+    bundle_walls: list[tuple[int, float, int]] = []
+    deaths: list[Death] = []
     first_pass_bundles = len(bundles)
-    futures: List[Future] = []
+    futures: list[Future] = []
     reruns = 0
     scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
 
@@ -326,7 +326,7 @@ def run(
                 leaks.append(leak_info)
         _record(FileOutcome(fpath, rc, output, summary, wall, via, bundle_index))
 
-    def _bundle(index: int, members: List[Path], executor: ThreadPoolExecutor) -> None:
+    def _bundle(index: int, members: list[Path], executor: ThreadPoolExecutor) -> None:
         nonlocal reruns
         events_path = scratch / f"bundle-{index:04d}.jsonl"
         args = [str(m) for m in members[1:]] + list(pytest_args) + [
@@ -412,10 +412,10 @@ def _solo_policy(
     repo_root: Path,
     flat_timeout: float,
     retries: int,
-    durations: Dict[str, float],
-    known_reds: Dict[str, frozenset],
+    durations: dict[str, float],
+    known_reds: dict[str, frozenset],
     timed_out: Iterable[str] = (),
-) -> "solo.SoloPolicy":
+) -> solo.SoloPolicy:
     """The run's :class:`SoloPolicy`, bound to this runner's rel spelling and the
     per-file runner's timeout scaler."""
 
@@ -427,8 +427,8 @@ def _solo_policy(
 
 
 def _with_shards(
-    policy: "solo.SoloPolicy", files: Sequence[Path], repo_root: Path, durations: Dict[str, float], jobs: int
-) -> "solo.SoloPolicy":
+    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int
+) -> solo.SoloPolicy:
     """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
     with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
     known red, never a file on ``scripts/test_files_unsharded.txt``."""
@@ -440,15 +440,15 @@ def _with_shards(
     return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
 
 
-def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> Dict[str, Tuple[float, int]]:
+def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> dict[str, tuple[float, int]]:
     """rel → (seconds, tests) of each file's final outcome, for the record's test counts."""
 
     return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
 
 
 def _where_it_died(
-    members: List[Path], rels: List[str], events: BundleEvents, rc: int
-) -> Tuple[Optional[str], List[Path]]:
+    members: list[Path], rels: list[str], events: BundleEvents, rc: int
+) -> tuple[Optional[str], list[Path]]:
     """``(stopped_in, unreached)`` for a bundle process that died before its
     session ended: the member it died in and the members queued behind it,
     which never started. ``(None, [])`` for a bundle that finished."""
@@ -456,13 +456,18 @@ def _where_it_died(
     if effective_bundle_rc(events, rc) == 0 or events.session_end is not None:
         return None, []
     ran = [rel for rel in rels if rel in events.files and events.files[rel].counts]
-    stopped_in = ran[-1] if ran else rels[0]
+    if events.last_begun in rels:
+        # The begin record is written before setup: a death in a fixture of the NEXT member
+        # used to be blamed on the last member with a finished phase (2026-10-13).
+        stopped_in = events.last_begun
+    else:
+        stopped_in = ran[-1] if ran else rels[0]
     return stopped_in, [m for m, rel in zip(members, rels) if rels.index(rel) > rels.index(stopped_in)]
 
 
 def _first_pass_order(
-    bundles: List[List[Path]], solos: List[Path], repo_root: Path, durations: Dict[str, float]
-) -> Tuple[List[Path], List[int]]:
+    bundles: list[list[Path]], solos: list[Path], repo_root: Path, durations: dict[str, float]
+) -> tuple[list[Path], list[int]]:
     """Solos longest-first, then bundle indices longest-first; solos are
     submitted first (Stage 3: the slow files start before the bundles fill the pool)."""
 
@@ -474,7 +479,7 @@ def _first_pass_order(
     return solo_order, bundle_order
 
 
-def _drain_futures(futures: List[Future], lock: threading.Lock) -> None:
+def _drain_futures(futures: list[Future], lock: threading.Lock) -> None:
     """Wait on every future. Re-runs are submitted from inside bundle jobs, so
     drain until the list stops growing."""
 
@@ -490,12 +495,12 @@ def _drain_futures(futures: List[Future], lock: threading.Lock) -> None:
 
 
 def _retry_timeout_stragglers(
-    outcomes: List[FileOutcome],
-    pytest_args: List[str],
+    outcomes: list[FileOutcome],
+    pytest_args: list[str],
     repo_root: Path,
     flat_timeout: float,
     solo_runner: SoloRunner,
-    ledger: "plan.RunLedger",
+    ledger: plan.RunLedger,
     on_outcome: Optional[Callable[[FileOutcome], None]],
 ) -> None:
     """The per-file runner's straggler rule, unchanged: a file whose failure is
@@ -515,14 +520,14 @@ def _retry_timeout_stragglers(
             on_outcome(outcomes[position])
 
 
-def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> List[str]:
+def _timed_out(outcomes: Sequence[FileOutcome], repo_root: Path) -> list[str]:
     """Files whose final attempt was killed by a timeout (exit 124, or the
     timeout banner): no failing ids, so the record keeps them as ``timed_out``."""
 
     return [_rel(o.file, repo_root) for o in outcomes if o.rc and rtp._is_retryable_timeout_result(o.rc, o.output, {})]
 
 
-def _read_lines(path: Path) -> List[str]:
+def _read_lines(path: Path) -> list[str]:
     try:
         return path.read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -553,14 +558,14 @@ _OUR_FLAGS = {
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
 
-def _split_argv(argv: List[str]) -> Tuple[List[str], List[str]]:
+def _split_argv(argv: list[str]) -> tuple[list[str], list[str]]:
     if "--" in argv:
         sep = argv.index("--")
         before, explicit = argv[:sep], argv[sep + 1 :]
     else:
         before, explicit = argv, []
-    ours: List[str] = []
-    passthrough: List[str] = []
+    ours: list[str] = []
+    passthrough: list[str] = []
     i = 0
     while i < len(before):
         tok = before[i]
@@ -659,7 +664,7 @@ def _print_summary(
     return 1 if failures else 0
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     rtp._make_stdio_glyph_safe()
     ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

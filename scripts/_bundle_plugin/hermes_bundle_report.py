@@ -45,7 +45,7 @@ def pytest_addoption(parser):
 
 class _Recorder:
     def __init__(self, path: str, config) -> None:
-        self._handle = open(path, "a", encoding="utf-8")  # noqa: SIM115 — closed at unconfigure
+        self._handle = open(path, "a", encoding="utf-8")
         self._config = config
         self._collect_started: dict[str, float] = {}
 
@@ -79,6 +79,12 @@ class _Recorder:
                 "err": bool(report.failed),
             }
         )
+
+    def pytest_runtest_logstart(self, nodeid, location):
+        # Written BEFORE setup runs, so a process that dies in a fixture leaves this file as the
+        # last record; ``pytest_runtest_logreport`` fires only for a phase that finished, which
+        # blamed the previous member for a death in the next one's setup (2026-10-13).
+        self._write({"k": "begin", "f": self._file_of(nodeid)})
 
     def pytest_runtest_logreport(self, report):
         category, _letter, _word = self._config.hook.pytest_report_teststatus(

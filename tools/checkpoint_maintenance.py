@@ -14,6 +14,7 @@ from tools.checkpoint_manager import (
     _project_meta_path, _ref_name, _resolve_checkpoint_base, _run_git, _store_has_head,
     _store_path,
 )
+from tools.checkpoint_manager import release_expired_restore_checkpoints
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,7 @@ def _prune_checkpoints(
     max_total_size_mb: int, orphan_allowlist: Optional[set],
 ) -> dict[str, int]:
     size_before = _dir_size_bytes(base)
+    release_expired_restore_checkpoints(base)
 
     # --- Legacy pre-v2 per-project shadow repos (kept directly under base) ---
     # Pre-v2 layout: ``base/<hash>/HEAD`` etc.  We treat these exactly as the

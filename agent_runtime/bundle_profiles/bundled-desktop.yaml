@@ -238,7 +238,6 @@ packaging:
     - security-guidance
     - disk-cleanup
     - hermes-achievements
-    - spotify
   # Left out of the bundle, each with its reason (bundle-root-relative:
   # app/... or site-packages/...; a trailing path or an fnmatch glob).
   excluded_data:

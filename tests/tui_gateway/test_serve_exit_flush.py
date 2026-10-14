@@ -16,7 +16,12 @@ covers the kill path itself:
 from __future__ import annotations
 
 import os
+from pathlib import Path
+import shlex
 import signal
+import subprocess
+import sys
+import textwrap
 import time
 
 import pytest
@@ -110,25 +115,38 @@ def test_sigterm_flushes_populated_session_into_state_db(
     assert any("survive the kill" in str(r.get("content", "")) for r in rows)
     db.close()
 
+@pytest.mark.timeout(60)
 def test_ignored_sigint_leaves_terminal_commands_runnable():
     """SIGINT inherited as SIG_IGN (a server started as ``cmd &`` from a non-interactive shell) ends
     nothing, so it must not raise the one-way exit fence: the process lives on and every later
     terminal command would return 'host is exiting' rc 130."""
-    from tools.environments.local import LocalEnvironment
+    # A regression in signal chaining must fail this test, not kill pytest.
+    # os.kill(pid, SIGINT) invokes TerminateProcess on Windows; raise_signal
+    # delivers SIGINT to the installed Python handler on every supported host.
+    probe = textwrap.dedent("""\
+        import os
+        import signal
+        from tools.environments.local import LocalEnvironment
+        from tui_gateway import server
 
-    prev = {signal.SIGTERM: signal.getsignal(signal.SIGTERM),
-            signal.SIGINT: signal.signal(signal.SIGINT, signal.SIG_IGN)}
-    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         assert server.install_exit_flush_signal_handlers() is True
-        os.kill(os.getpid(), signal.SIGINT)
-        time.sleep(0.05)
-    finally:
-        _restore_signal_state(prev)
-    env = LocalEnvironment(cwd=os.getcwd())
-    try:
-        assert env.execute("echo still-alive", timeout=30)["returncode"] == 0
-    finally:
-        env.cleanup()
+        signal.raise_signal(signal.SIGINT)
+        env = LocalEnvironment(cwd=os.getcwd())
+        try:
+            result = env.execute("echo still-alive", timeout=10)
+            assert result["returncode"] == 0, result
+            assert "still-alive" in result["output"], result
+        finally:
+            env.cleanup()
+    """)
+    repo = Path(server.__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", probe], cwd=repo,
+        env={**os.environ, "PYTHONPATH": str(repo)},
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_exit_flush_is_bounded(registered_session):
@@ -174,7 +192,7 @@ def test_shutdown_sessions_flushes_before_teardown(monkeypatch):
     assert "close:sess-order" in order
 
 
-def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
+def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch, tmp_path):
     """SIGTERM/EOF while a turn's foreground terminal command runs: the shutdown chokepoint must
     end the command's process group (it would outlive the gateway, reparented to init) and the
     turn's tool result must be in the transcript before per-session teardown persists it."""
@@ -182,14 +200,25 @@ def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
 
     import psutil
 
+    from tools.environments.base import kill_live_foreground_processes
     from tools.environments.local import LocalEnvironment
     from tools.interrupt import set_interrupt
 
     env = LocalEnvironment(cwd=os.getcwd())
     messages = [{"role": "assistant", "tool_calls": [{"id": "call-1"}]}]
+    # Identify the actual command by its ready receipt, not a platform-specific
+    # process name. Publish atomically so the reader cannot see an empty PID.
+    ready = tmp_path / "sleeper.pid"
+    child = (
+        "import os, time; from pathlib import Path; "
+        f"p = Path({ready.as_posix()!r}); "
+        "p.with_suffix('.tmp').write_text(str(os.getpid())); "
+        "p.with_suffix('.tmp').replace(p); time.sleep(600)"
+    )
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote(child)}"
 
     def turn():
-        out = env.execute("sleep 3518", timeout=600)
+        out = env.execute(command, timeout=600)
         time.sleep(0.2)  # the agent's post-tool bookkeeping before the result lands in history
         messages.append({"role": "tool", "tool_call_id": "call-1", "content": out["output"]})
 
@@ -201,15 +230,7 @@ def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
         def interrupt(self, message=None):  # the real agent fans this out to its tool threads
             set_interrupt(True, thread_id=run_thread.ident)
 
-    run_thread.start()
-    deadline = time.monotonic() + 20.0
     sleeper = None
-    while sleeper is None and time.monotonic() < deadline:
-        sleeper = next((p for p in psutil.Process().children(recursive=True)
-                        if p.name() == "sleep" and "3518" in " ".join(p.cmdline())), None)
-        time.sleep(0.05)
-    assert sleeper is not None, "test setup: foreground sleep never started"
-
     at_teardown: list = []
     monkeypatch.setattr(server, "_release_gateway_wake_owner", lambda: None, raising=False)
     monkeypatch.setattr(server, "_flush_sessions_before_exit", lambda budget_s=None: 0)
@@ -218,9 +239,15 @@ def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
     monkeypatch.setattr(server, "_EXIT_TURN_SETTLE_S", 10.0)
     session = {"agent": _Agent(), "session_key": "sess-mid-tool", "running": True,
                "_run_thread": run_thread, "history_lock": threading.RLock()}
-    with server._sessions_lock:
-        server._sessions["sess-mid-tool"] = session
+    run_thread.start()
     try:
+        deadline = time.monotonic() + 20.0
+        while not ready.exists() and run_thread.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert ready.exists(), f"test setup: foreground command never became ready: {messages}"
+        sleeper = psutil.Process(int(ready.read_text()))
+        with server._sessions_lock:
+            server._sessions["sess-mid-tool"] = session
         server._shutdown_sessions()
         _gone, alive = psutil.wait_procs([sleeper], timeout=15.0)
         assert not alive, "foreground command survived gateway shutdown"
@@ -229,13 +256,17 @@ def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
     finally:
         with server._sessions_lock:
             server._sessions.pop("sess-mid-tool", None)
-        if sleeper.is_running():
+        # Includes setup failures, before a sleeper or session was registered.
+        kill_live_foreground_processes(now=True)
+        if sleeper is not None and sleeper.is_running():
             sleeper.kill()
+            sleeper.wait(5.0)
+        run_thread.join(5.0)
         set_interrupt(False, thread_id=run_thread.ident)
         env.cleanup()
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX process groups + trap")
+@pytest.mark.platforms("posix")
 def test_sigterm_grace_hard_exit_kills_a_sigterm_ignoring_command(monkeypatch):
     """The SIGTERM path os._exit()s after a ~1s grace, while the graceful foreground kill runs after a
     flush of up to 5s and then waits 1s between TERM and KILL. The grace timer's exit must SIGKILL the
@@ -244,23 +275,24 @@ def test_sigterm_grace_hard_exit_kills_a_sigterm_ignoring_command(monkeypatch):
 
     import psutil
 
+    from tools.environments.base import kill_live_foreground_processes
     from tools.environments.local import LocalEnvironment
     from tui_gateway import entry
 
     env = LocalEnvironment(cwd=os.getcwd())
     run_thread = threading.Thread(
         target=lambda: env.execute("trap '' TERM; sleep 3522", timeout=600), daemon=True)
-    run_thread.start()
-    deadline = time.monotonic() + 20.0
     sleeper = None
-    while sleeper is None and time.monotonic() < deadline:
-        sleeper = next((p for p in psutil.Process().children(recursive=True)
-                        if p.name() == "sleep" and "3522" in " ".join(p.cmdline())), None)
-        time.sleep(0.05)
-    assert sleeper is not None, "test setup: foreground sleep never started"
     exits: list = []
     monkeypatch.setattr(entry.os, "_exit", exits.append)
+    run_thread.start()
     try:
+        deadline = time.monotonic() + 20.0
+        while sleeper is None and time.monotonic() < deadline:
+            sleeper = next((p for p in psutil.Process().children(recursive=True)
+                            if p.name() == "sleep" and "3522" in p.cmdline()), None)
+            time.sleep(0.05)
+        assert sleeper is not None, "test setup: foreground sleep never started"
         t0 = time.monotonic()
         entry._hard_exit()
         elapsed = time.monotonic() - t0
@@ -268,8 +300,7 @@ def test_sigterm_grace_hard_exit_kills_a_sigterm_ignoring_command(monkeypatch):
         assert not alive, "SIGTERM-ignoring foreground command survived the hard exit"
         assert exits == [0] and elapsed < 0.9, f"hard exit waited {elapsed:.2f}s (a TERM grace) first"
     finally:
-        if sleeper.is_running():
-            sleeper.kill()
+        kill_live_foreground_processes(now=True)
         run_thread.join(5.0)
         env.cleanup()
 
