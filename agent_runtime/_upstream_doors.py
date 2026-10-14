@@ -23,6 +23,7 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
+    "codex_account_claims",
     "codex_bounded_prompt_cache_key",
     "codex_cache_scope_from_session_id",
     "codex_content_cache_key",
@@ -384,3 +385,13 @@ def gguf_file_header(path: Path):
     from hermes_cli.local_runtime.gguf import _read_part
 
     return _read_part(Path(path))
+
+
+def codex_account_claims(token, identity: str) -> dict:
+    """Existing JWT decoder, only for the credential whose usage was reported."""
+    from agent.account_usage import _codex_snapshot_identity
+    from hermes_cli.auth_constants import _decode_jwt_claims
+
+    if not isinstance(token, str) or _codex_snapshot_identity(token) != identity:
+        return {}
+    return _decode_jwt_claims(token)

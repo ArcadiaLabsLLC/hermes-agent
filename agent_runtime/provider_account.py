@@ -54,10 +54,13 @@ def _iso(value: datetime | None) -> str | None:
 
 
 def _usage_view(provider: str, snapshot: Any) -> dict:
+    from .provider_account_view import account_view
+
     if snapshot is None:
-        return {"provider": provider, "available": False, "unavailable_reason": "no_usage_source"}
+        return {"account": account_view(provider, snapshot), "provider": provider, "available": False, "unavailable_reason": "no_usage_source"}
     return {
         "provider": snapshot.provider,
+        "account": account_view(provider, snapshot),
         "available": bool(snapshot.available),
         "source": snapshot.source,
         "title": snapshot.title,
@@ -73,13 +76,9 @@ def _usage_view(provider: str, snapshot: Any) -> dict:
 
 
 def _nous_snapshot() -> Any:
-    from agent.account_usage import build_nous_credits_snapshot
-    from hermes_cli.nous_account import get_nous_portal_account_info
+    from .provider_account_metadata import nous_usage_snapshot
 
-    account = get_nous_portal_account_info(force_fresh=True)
-    if account is None or not getattr(account, "logged_in", False):
-        return None
-    return build_nous_credits_snapshot(account)
+    return nous_usage_snapshot()
 
 
 def provider_usage(provider: str) -> dict:
@@ -90,10 +89,12 @@ def provider_usage(provider: str) -> dict:
         try:
             snapshot = _nous_snapshot()
         except Exception as exc:  # noqa: BLE001 - fail open like upstream's /usage, class name only
-            return {"provider": provider, "available": False, "unavailable_reason": type(exc).__name__}
+            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__}
     else:
         snapshot = fetch_account_usage(provider)
-    return _usage_view(provider, snapshot)
+    from .provider_account_metadata import usage_snapshot
+
+    return _usage_view(provider, usage_snapshot(provider, snapshot))
 
 
 def _known(provider: str) -> None:

@@ -1452,6 +1452,25 @@ loopback callback timeout. Missing device expiry and Anthropic paste-code expiry
 stay null. `tests/hermes_cli/test_provider_signin_expiry_downstream.py` proves the
 deadline through each machine driver and the registry, plus unknown/invalid values.
 
+### Provider account display projection
+
+`provider_account._usage_view` and `usage.serialize._serialize_usage_lane` emit
+the same additive `account` block: `email`, `organisation`, and `plan` are each
+string or null. Unknown stays null; account IDs and provider labels are never
+substituted for account identity. Legacy `plan` remains available.
+
+`provider_account_metadata.nous_usage_snapshot` reuses the existing portal report's
+email/organisation and usage plan. `usage_snapshot` reads existing Codex credentials
+without refresh and uses `_upstream_doors.codex_account_claims` only when their
+principal matches the usage snapshot identity. Codex email comes from that JWT's
+profile claim; organisation stays null when not reported. The current Anthropic
+OAuth usage reader provides no identity or plan; these remain null until a trusted
+report supplies them. No new account endpoint or auth flow is introduced.
+
+`provider_account_view.account_view` is pure; credential reads remain in fetch
+code. `tests/agent_runtime/test_provider_account_metadata.py` proves transport
+parity, nulls, secret exclusion, existing Nous projection and Codex account matching.
+
 ## Open rows
 
 - **Single-transport collapse is half-done** — the hub lane is primary and
