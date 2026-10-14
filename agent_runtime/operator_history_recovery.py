@@ -2,6 +2,7 @@
 from .history_recovery import pending_history_record, clear_history_operation
 from .operator_history import history_write_scope
 from .operator_session_inspection import operator_session_read, inspection_identity
+from .operator_undo import UndoDirection
 
 __layer__ = "lanes"
 
@@ -15,7 +16,7 @@ def operator_history_pending(params):
         return {**identity, "pending": None}
     scoped = {**params, "operation_id": pending["operation_id"]}
     with history_write_scope(scoped):
-        if pending["action"] == "undo":
+        if pending["action"] in UndoDirection:
             from .operator_undo import _undo_store_writer, _key, _reconcile
             import json
             with _undo_store_writer(scoped) as db:
@@ -46,7 +47,7 @@ def cancel_unapplied_history(params):
     from .history_cancellation import cancellation_key
     from .operator_conversation import OperatorConversationRefused
     action = params.get("action")
-    if action not in {*HistoryAction, "undo", "restore"}:
+    if action not in {*HistoryAction, *UndoDirection, "restore"}:
         raise OperatorConversationRefused("invalid_history_action")
     with _undo_store_writer(params) as db, history_write_scope(params):
         applied = db.get_meta(_receipt_key(params)) or db.get_meta(_key(params))

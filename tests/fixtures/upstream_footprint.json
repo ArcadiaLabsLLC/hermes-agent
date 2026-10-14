@@ -1,10 +1,16 @@
 {
   "measured_at": "2026-10-13",
   "base": "71d34bad10",
-  "files": 206,
-  "deleted_lines": 1062,
+  "files": 207,
+  "deleted_lines": 1063,
   "heavy": 5,
   "reasons": [
+    {
+      "change": "Owner-approved reviewed Redo using existing native restore/recovery",
+      "files": "206 -> 207: tools/checkpoint_maintenance.py",
+      "deleted_lines": "1062 -> 1063: remove one unused native restore index-path local caught by the installed pre-commit hook; heavy 5 unchanged",
+      "reason": "Extend the held reviewed-restore seam with inverse review of its existing receipt and finite completed-restore leases. Maintenance releases expired pins through the same checkpoint owner; unfinished recovery never expires. No new file writer, store, scheduler or Eternia policy in native modules. Upstream submission remains held for native-user value and maintainer-demand review."
+    },
     {
       "change": "Owner-authorized native Codex retry-test isolation repair",
       "files": "204 -> 205: tests/agent/test_run_agent_codex_responses.py",

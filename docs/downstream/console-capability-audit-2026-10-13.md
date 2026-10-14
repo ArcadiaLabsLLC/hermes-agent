@@ -55,7 +55,7 @@ endpoint name is presented as implemented. All source links below are in Hermes.
 | D08 — Offer complete conversation export, and in which formats? | **Useful for review/support:** preserve a portable record without repeatedly copying loaded messages. | [Desktop exporter](../../apps/desktop/src/lib/session-export.ts), [paged reader](../../apps/desktop/src/api/sessions.ts), [session contract](../../tui_gateway/contracts/sessions.py). Upstream HTTP: `GET /api/sessions/{id}/messages`; Gateway: `session.save`. Console's available Runtime read: `runtime.persona.chat.history`. | Reuse curated paging and redaction for Console export; do not export only loaded rows or bypass the runtime to read hidden database content. Choose JSON/Markdown and attachment treatment. No new implementation claim. |
 | D09 — Add bookmarks and copy-link to a durable step? | **High for repeated investigations:** return to an exact failure, decision or result without searching from scratch. | [Durable history rows](../../agent_runtime/persona_chat_history/history_rows.py), [history RPC](../../agent_runtime/serve_rpc/chat_verbs.py). Runtime: `runtime.persona.chat.history` is the read/open foundation. No bookmark or Console step-link endpoint exists. | Existing Launcher design row is claimed by **q-mc**. Decide per-operator bookmark persistence and a route in the existing app deep-link router; no new Hermes bookmark service is implied. A link must resolve before a Copy link action ships. |
 | D10 — Enable regenerate with another model? | **High for comparison/recovery:** try another model while keeping the original answer and retry relationship intelligible. | [Operator send](../../agent_runtime/serve_rpc/operator_conversation.py), [model control](../../agent_runtime/serve_rpc/operator_inspection.py), [retry admission](../../agent_runtime/chat_turn.py). Runtime: `runtime.operator.conversation.message` with `retry_of`, and `runtime.operator.conversation.model.select`. | Retry lineage/model control exist; a polished regenerate operation does not follow automatically. Existing Launcher follow-on is claimed by **q-mc2** and **owner-deferred**. Decision is whether to lift that deferral and define per-reply model scope without changing unrelated defaults. |
-| D11 — Add Redo after a completed Undo? | **High for Undo users:** recover from undoing too far and compare alternatives without rerunning model/tool work or paying to recreate an answer. | [Undo coordinator](../../agent_runtime/operator_undo.py), [history RPCs](../../agent_runtime/serve_rpc/operator_history.py), [checkpoint owner](../../tools/checkpoint_manager.py). **No Redo endpoint exists.** Adjacent Runtime APIs include `runtime.operator.conversation.undo.preview`, `runtime.operator.conversation.undo.apply`, `runtime.operator.conversation.undo.recover`, and `runtime.operator.conversation.checkpoint.restore`. | Proposal: start with one reviewed Redo of the last completed Undo, preserving its chat/files/both mode. Decide retention and behavior after new turns or file edits. Extend SessionDB/CheckpointManager and the existing operation owner; no parallel history store. Recovery from a partial Undo is not Redo. No new implementation claim. |
+| D11 — Redo after a completed Undo | **High for Undo users:** recover from undoing too far without rerunning model/tool work or paying to recreate an answer. | [Undo coordinator](../../agent_runtime/operator_undo.py), [history RPCs](../../agent_runtime/serve_rpc/operator_history.py), [checkpoint owner](../../tools/checkpoint_manager.py). Runtime: `runtime.operator.conversation.redo.available`, `.redo.preview`, `.redo.apply`; existing Undo status/recovery handles either direction. | **Owner approved 2026-10-13.** One reviewed Redo of the last completed Undo, preserving chat/files/both scope for seven days; intervening history or affected-file changes refuse. [Implementation and boundaries](console-redo-2026-10-13.md). No multi-level history or model rerun. |
 
 ### Current prerequisite and verified claim: v3 / reviewed file input
 
@@ -75,16 +75,12 @@ that entry: its claim covers the remaining Launcher integration and qualificatio
 
 ### Redo value and boundary
 
-Redo has high recovery value; its later delivery recommendation reflects the
-missing durable contract, not low usefulness. It must restore the reviewed
-pre-Undo chat/file state rather than regenerate an answer. Existing Undo releases
-restore retention pins when it reaches a terminal state
-(`operator_undo.py::_transition` / `_release_backup`); current recovery backups
-therefore cannot promise a durable Redo window. A design must retain the required
-before/after state, detect intervening changes, define expiry and restore chat/files
-consistently through the current owners. External tool side effects such as a sent
-message are outside a chat/file Redo. Multi-level history is a separate decision;
-D11 does not authorize building it or changing the existing Undo behavior.
+The approved implementation restores saved chat/file state through the existing
+Undo coordinator, SessionDB and CheckpointManager. The last completed Undo retains
+its native backup for seven days; unfinished recovery retains its existing pins.
+Redo refuses intervening history and affected-file edits, preserves the current
+composer draft and never reruns an agent. External side effects and multi-level
+history remain outside D11. See [the implementation contract](console-redo-2026-10-13.md).
 
 ## Boundaries and recommendation
 

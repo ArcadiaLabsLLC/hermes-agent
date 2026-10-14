@@ -51,6 +51,7 @@ project until total store size is under ``max_total_size_mb``.
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -809,12 +810,13 @@ def release_restore_checkpoints(operation_id: str) -> None:
         _release_restore_checkpoints_locked(operation_id)
 
 
-def _release_restore_checkpoints_locked(operation_id: str) -> None:
-    if not _store_path().exists():
+def _release_restore_checkpoints_locked(operation_id: str, base: Path | None = None) -> None:
+    base = base or _resolve_checkpoint_base()
+    if not _store_path(base).exists():
         return
     for name in ("target", "backup"):
         ok, _, _ = _run_git(["update-ref", "-d", f"refs/operator-restore/{operation_id}/{name}"],
-                           _store_path(), str(_resolve_checkpoint_base()))
+                           _store_path(base), str(base))
         if not ok:
             raise OSError("checkpoint recovery reference could not be released")
 
@@ -824,6 +826,21 @@ def checkpoint_metadata_directory(namespace: str) -> Path:
     if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", namespace) is None:
         raise ValueError("invalid checkpoint metadata namespace")
     return _resolve_checkpoint_base() / namespace
+
+
+def release_expired_restore_checkpoints(base: Path) -> None:
+    """Expire completed restore leases under the caller's native store lock.
+
+    Unfinished recoveries have no expiry. Receipts remain as replay evidence.
+    """
+    for path in (base / "restore_receipts").glob("*.json"):
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            expires = (receipt.get("request") or {}).get("retain_until")
+            if type(expires) in (int, float) and math.isfinite(expires) and expires <= time.time():
+                _release_restore_checkpoints_locked(path.stem, base)
+        except (OSError, ValueError, AttributeError, TypeError):
+            logger.warning("Checkpoint retention receipt unreadable: %s", path.name)
 
 
 class CheckpointManager:
@@ -903,7 +920,7 @@ class CheckpointManager:
         ok, tree, _ = _run_git(["rev-parse", f"{commit}^{{tree}}"], _store_path(), working_dir)
         return tree.strip() if ok else None
 
-    def recorded_file_diff(self, working_dir: str, before_tree: str, path: Path, evidence: Dict) -> Optional[str]:
+    def recorded_file_diff(self, working_dir: str, before_tree: str, path: Path, evidence: dict) -> Optional[str]:
         """Diff one proven write without changing the snapshot owner's index.
 
         Called by the observer inside the native store lock. None means unsafe
@@ -1120,7 +1137,7 @@ class CheckpointManager:
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return results
 
-    def preview_restore(self, working_dir: str, commit_hash: str) -> Dict:
+    def preview_restore(self, working_dir: str, commit_hash: str) -> dict:
         """Strict operator preview: project membership, content pins and conflicts.
 
         Unlike the legacy safe flag, absent write evidence never permits a
@@ -1130,10 +1147,15 @@ class CheckpointManager:
         with store_lock(_resolve_checkpoint_base()):
             return self._restore_preview_locked(str(_normalize_path(working_dir)), commit_hash)
 
-    def _restore_preview_locked(self, working_dir: str, commit_hash: str) -> Dict:
+    def _restore_preview_locked(self, working_dir: str, commit_hash: str, *, recovery_operation_id=None) -> dict:
         if not isinstance(commit_hash, str) or not re.fullmatch(r"[0-9a-f]{40}", commit_hash):
             return {"success": False, "reason": "invalid_checkpoint"}
-        if not any(row["hash"] == commit_hash for row in self.list_checkpoints(working_dir)):
+        reversal = None
+        if recovery_operation_id is not None:
+            reversal = self._restore_reversal_source(working_dir, recovery_operation_id)
+            if not reversal or reversal["result"]["recovery_checkpoint"] != commit_hash:
+                return {"success": False, "reason": "redo_unavailable"}
+        if reversal is None and not any(row["hash"] == commit_hash for row in self.list_checkpoints(working_dir)):
             return {"success": False, "reason": "checkpoint_unavailable"}
         if _dir_file_count(working_dir) > _MAX_FILES:
             return {"success": False, "reason": "workspace_too_large"}
@@ -1150,6 +1172,14 @@ class CheckpointManager:
             ledger = _load_ledger(store, self._ledger_key(working_dir))
             files = [self._restore_file_preview(working_dir, commit_hash, rel, ledger)
                      for rel in filter(None, names.split("\x00"))]
+            if reversal is not None:
+                selected = reversal["request"]["plan"]
+                files = [row for row in files if row["path"] in selected]
+                # Even another agent's authored edit is not the state reversed
+                # by this request. Check the exact previous restore targets.
+                for rel, original in selected.items():
+                    if _history_current_blob(working_dir, rel) != original["target_blob"]:
+                        return {"success": False, "reason": "workspace_changed"}
             ok, diff, _ = _run_git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames",
                                     "-R", commit_hash], store, working_dir, index_file=index)
             if not ok:
@@ -1162,7 +1192,7 @@ class CheckpointManager:
         finally:
             _run_git(["read-tree", _ref_name(_project_hash(working_dir))], store, working_dir, index_file=index)
 
-    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: Dict) -> Dict:
+    def _restore_file_preview(self, working_dir: str, commit_hash: str, rel: str, ledger: dict) -> dict:
         path = Path(working_dir) / rel
         reason = None
         if _validate_file_path(rel, working_dir) or path.is_symlink() or any(
@@ -1192,7 +1222,7 @@ class CheckpointManager:
                 "eligible": reason is None, "reason": reason}
 
     def restore_preview(self, working_dir: str, commit_hash: str, *, revision: str,
-                        selected_paths: List[str], operation_id: str) -> Dict:
+                        selected_paths: list[str], operation_id: str, recovery_operation_id=None) -> dict:
         """Apply the exact reviewed subset; durable receipt prevents blind replay.
 
         A pending receipt means the previous process may have changed files.
@@ -1204,7 +1234,10 @@ class CheckpointManager:
                 or len(selected_paths) != len(set(selected_paths))):
             return {"success": False, "reason": "invalid_restore_request"}
         working_dir = str(_normalize_path(working_dir))
-        digest = hashlib.sha256(json.dumps([working_dir, commit_hash, revision, sorted(selected_paths)]).encode()).hexdigest()
+        evidence = [working_dir, commit_hash, revision, sorted(selected_paths)]
+        if recovery_operation_id is not None:
+            evidence.append(recovery_operation_id)
+        digest = hashlib.sha256(json.dumps(evidence).encode()).hexdigest()
         with store_lock(_resolve_checkpoint_base()):
             receipt_path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
             if receipt_path.exists():
@@ -1212,7 +1245,7 @@ class CheckpointManager:
                 if receipt["request_digest"] != digest:
                     return {"success": False, "reason": "operation_payload_changed"}
                 return {**self._settled_restore_receipt(receipt["result"]), "replayed": True}
-            plan = self._restore_preview_locked(working_dir, commit_hash)
+            plan = self._restore_preview_locked(working_dir, commit_hash, recovery_operation_id=recovery_operation_id)
             if not plan.get("success"):
                 return plan
             if plan["revision"] != revision:
@@ -1257,7 +1290,7 @@ class CheckpointManager:
             self._write_restore_receipt(receipt_path, digest, result)
             return result
 
-    def _restore_backup_matches(self, working_dir: str, commit_hash: str, selected_paths: List[str]) -> bool:
+    def _restore_backup_matches(self, working_dir: str, commit_hash: str, selected_paths: list[str]) -> bool:
         store = _store_path()
         for rel in selected_paths:
             if not (Path(working_dir) / rel).exists():
@@ -1273,7 +1306,7 @@ class CheckpointManager:
         return True
 
     @staticmethod
-    def _write_restore_receipt(path: Path, digest: str, result: Dict, *, request=None) -> None:
+    def _write_restore_receipt(path: Path, digest: str, result: dict, *, request=None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         if request is None and path.exists():
             request = json.loads(path.read_text(encoding="utf-8")).get("request")
@@ -1359,7 +1392,46 @@ class CheckpointManager:
     def release_restore_checkpoints(self, operation_id: str) -> None:
         release_restore_checkpoints(operation_id)
 
-    def restore_receipt(self, operation_id: str) -> Optional[Dict]:
+    def retain_restore_checkpoints(self, operation_id: str, *, until: float) -> None:
+        """Lease an existing successful restore's recovery refs; never recreate them."""
+        from tools.checkpoint_pruning import store_lock
+        if not re.fullmatch(r"[0-9a-f]{64}", operation_id or "") or not math.isfinite(until):
+            raise ValueError("invalid restore retention")
+        with store_lock(_resolve_checkpoint_base()):
+            path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            if not receipt["result"].get("success"):
+                raise ValueError("unfinished restore cannot expire")
+            receipt["request"]["retain_until"] = until
+            self._write_restore_receipt(path, receipt["request_digest"], receipt["result"], request=receipt["request"])
+
+    def _restore_reversal_source(self, working_dir: str, operation_id: str):
+        if not re.fullmatch(r"[0-9a-f]{64}", operation_id or ""):
+            return None
+        path = _resolve_checkpoint_base() / "restore_receipts" / f"{operation_id}.json"
+        if not path.is_file():
+            return None
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        request, result = receipt.get("request") or {}, receipt["result"]
+        if (request.get("working_dir") != working_dir or not result.get("success")
+                or result.get("reason") != "restored" or request.get("retain_until", 0) <= time.time()):
+            return None
+        ok, saved, _ = _run_git(["rev-parse", f"refs/operator-restore/{operation_id}/backup"],
+                                _store_path(), working_dir, allowed_returncodes={128})
+        return receipt if ok and saved.strip() == result["recovery_checkpoint"] else None
+
+    def preview_restore_reversal(self, working_dir: str, operation_id: str) -> dict:
+        """Review a completed restore's inverse through the same file plan/writer."""
+        from tools.checkpoint_pruning import store_lock
+        working_dir = str(_normalize_path(working_dir))
+        with store_lock(_resolve_checkpoint_base()):
+            source = self._restore_reversal_source(working_dir, operation_id)
+            if source is None:
+                return {"success": False, "reason": "redo_unavailable"}
+            return self._restore_preview_locked(working_dir, source["result"]["recovery_checkpoint"],
+                                                recovery_operation_id=operation_id)
+
+    def restore_receipt(self, operation_id: str) -> Optional[dict]:
         """Read an immutable apply receipt; this never retries filesystem work."""
         from tools.checkpoint_pruning import store_lock
         if not re.fullmatch(r"[0-9a-f]{64}", operation_id or ""):
@@ -1374,7 +1446,7 @@ class CheckpointManager:
             return self._settled_restore_receipt(json.loads(path.read_text(encoding="utf-8"))["result"])
 
     @staticmethod
-    def _settled_restore_receipt(result: Dict) -> Dict:
+    def _settled_restore_receipt(result: dict) -> dict:
         # Called ONLY while holding the same store lock as restore_preview:
         # an in-progress writer cannot still own a pending receipt at this point.
         # A crash left unknown individual writes; report review-required paths
@@ -1684,7 +1756,6 @@ class CheckpointManager:
         self._take(abs_dir, f"pre-rollback snapshot (restoring to {commit_hash[:8]})", prune=False)
 
         dir_hash = _project_hash(abs_dir)
-        index_file = _index_path(store, dir_hash)
 
         if restore_paths is not None:
             # Split into files present in the checkpoint (checkout) and

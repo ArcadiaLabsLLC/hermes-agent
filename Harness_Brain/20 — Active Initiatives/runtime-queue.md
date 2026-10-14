@@ -27,7 +27,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **D11 — Implement one reviewed Redo of the last completed Undo (chat/files/both), with durable recovery, change guards and bounded retention through existing SessionDB, CheckpointManager and history-operation owners.** Launcher consumes the same operation contract; preserve unrelated claims. Evidence: `docs/downstream/console-capability-audit-2026-10-13.md` § Redo value and boundary. Owner approved 2026-10-13. **TAKEN 2026-10-13 console-redo**
 
 
 - [ ] **Follow-on: support chat-specific reasoning effort through the existing operator model-settings verb and session override, so one chat can be quick and another deep without changing their agent default.** · `agent_runtime/operator_session_models.py::_select_operator_model`, `agent_runtime/persona_chat_session.py::_persist_chat_model_override` · current selection accepts model/scope only; use the existing provider capability projection for valid effort levels, preserve inherited defaults and busy-turn/ownership refusals, return effective scope in existing facts and verify persistence plus other-chat isolation · Launcher consumes after Hermes; separate from the claimed provider-capability projection row · owner recommendation 2026-10-12, nonblocking for model selection · UNCLAIMED

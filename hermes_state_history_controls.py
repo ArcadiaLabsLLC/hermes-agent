@@ -45,6 +45,53 @@ def write_history_receipt(conn, receipt: tuple[str, str] | None) -> None:
 
 
 class SessionHistoryControlsMixin:
+    def history_control_snapshot(self, session_id: str) -> dict:
+        """References and revision only; the native rows retain all message bytes."""
+        with self._read_ctx() as conn:
+            row = conn.execute("SELECT rewind_count FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            return {"revision": history_digest(conn, session_id),
+                    "ids": [r[0] for r in conn.execute(
+                        "SELECT id FROM messages WHERE session_id = ? AND active = 1 ORDER BY id", (session_id,))],
+                    "high_water": conn.execute("SELECT MAX(id) FROM messages WHERE session_id = ?", (session_id,)).fetchone()[0],
+                    "rewind_count": row[0] or 0}
+
+    def _check_rewind_redo(self, conn, session_id: str, snapshot: dict, boundary: int) -> str:
+        """Reject intervening turns, rewinds, compaction and archived payload edits."""
+        rows = [dict(r) for r in conn.execute("SELECT * FROM messages WHERE session_id = ? ORDER BY id", (session_id,))]
+        count = conn.execute("SELECT rewind_count FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        original = set(snapshot["ids"])
+        active = [r["id"] for r in rows if r["active"]]
+        if (not count or count[0] != snapshot["rewind_count"] + 1
+                or (rows[-1]["id"] if rows else None) != snapshot["high_water"]
+                or active != [i for i in snapshot["ids"] if i < boundary]):
+            raise HistoryControlError("history_changed")
+        restored = [{k: {"sqlite_blob": v.hex()} if isinstance(v, bytes) else v
+                     for k, v in {**row, "active": 1}.items()} for row in rows if row["id"] in original]
+        digest = hashlib.sha256(json.dumps(restored, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+        if digest != snapshot["revision"]:
+            raise HistoryControlError("history_changed")
+        return history_digest(conn, session_id)
+
+    def preview_rewind_redo(self, session_id: str, snapshot: dict, boundary: int) -> str:
+        with self._read_ctx() as conn:
+            return self._check_rewind_redo(conn, session_id, snapshot, boundary)
+
+    def redo_rewind(self, session_id: str, *, snapshot: dict, boundary: int,
+                    expected_history_digest: str, operation_receipt: tuple[str, str]) -> None:
+        """Reactivate exactly one reviewed rewind, atomically with its receipt."""
+        def apply(conn):
+            self._check_transcript_write_guards(conn, session_id, None,
+                reject_active_turn_lease=True, reject_active_compression_lock=True)
+            check_history_digest(conn, session_id, expected_history_digest)
+            self._check_rewind_redo(conn, session_id, snapshot, boundary)
+            conn.executemany("UPDATE messages SET active = 1 WHERE session_id = ? AND id = ?",
+                             [(session_id, i) for i in snapshot["ids"] if i >= boundary])
+            messages, tools = self._active_transcript_counts(conn, session_id)
+            conn.execute("UPDATE sessions SET message_count = ?, tool_call_count = ? WHERE id = ?",
+                         (messages, tools, session_id))
+            write_history_receipt(conn, operation_receipt)
+        self._execute_write(apply)
+
     def archived_history_message_ids(self, session_id: str) -> list[str]:
         """Only identity columns for rewind archives; never reload message bodies."""
         lineage = self._resume_lineage_ids(session_id)
