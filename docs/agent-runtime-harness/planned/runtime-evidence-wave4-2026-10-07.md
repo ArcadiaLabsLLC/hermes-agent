@@ -30,3 +30,19 @@ Focused support: eight exact existing nodes produce10passed: auth errno paramete
 Dedicated-tree work artifacts: runtime-auth-lock-capture.py/.log and auth-lock-fixture2/receipt.json; runtime-ready-stream-capture.py/.log (original timeout); runtime-handoff-corrected.py/.log; runtime-timing-capture.json/.log and test_runtime_timing_capture.py; runtime-evidence-focused.log. Coordinator isolated fixture directories retain final-receipt.json, serve stdout/stderr and logs; exact paths are in local outputs report.
 
 R003 needs consumer refusal mapping and historical owner/errno. R013 needs actual Launcher lifecycle identity and post-handoff turn/build attribution. R018/R019 need matched full turn/prewarm/title-provider/refresh/persistence stack captures. R021 needs R034 plus an authorized isolated authenticated provider fixture. Five claims retained; only old R017 assertion removed. Claude owns final full-suite proof; user owns landing.
+
+## R003 consumer qualification — 2026-10-14
+
+`tests/hermes_cli/test_auth_read_turn_refusal_downstream.py` injects EACCES only
+on an isolated auth fixture's `Path.read_text`, calls the real `_load_auth_store`
+from runtime resolution, and drives the real mission-chat command. It settles
+`chat_turn_provider_unavailable` / terminal `provider_refused`, requires no
+turn-resolve, and preserves the fixture bytes. No auth-store retry or empty-store
+fallback is added: the existing reader correctly fails closed on unreadable data.
+
+Killing control: change the reader's OSError branch to return `_empty_auth_store`.
+The fake resolution then reaches agent-ready and a generic failure; the consumer
+assertion fails (1 failed, exit 1). Restored focused boundary batch: 143 passed,
+exit 0, isolated home/environment and explicit 600-second bound. This adds the
+consumer link to the prior real share-deny evidence; it does not attribute the
+historical race or prove which UI probe raised needs-attention. R003 remains OPEN.
