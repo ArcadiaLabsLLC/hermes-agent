@@ -27,6 +27,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-14 (Console execution controls)
+
+- [ ] **Retire process-wide run serialization before a human approval wait can be independent of unrelated agent roots.** · fork / Mission Chat · `agent_runtime/profile_runner/execute.py::AgentRunExecution.scopes` holds `profile_runner/workdir.py::_WORKDIR_LOCK` across the entire turn; serve chat workers share that process. Move process-global profile/cwd state into isolated execution ownership, then prove another root can progress while one approval waits without crossing profiles, stores or command environments. · UNCLAIMED
+
 
 
 - [ ] **Follow-on: support chat-specific reasoning effort through the existing operator model-settings verb and session override, so one chat can be quick and another deep without changing their agent default.** · `agent_runtime/operator_session_models.py::_select_operator_model`, `agent_runtime/persona_chat_session.py::_persist_chat_model_override` · current selection accepts model/scope only; use the existing provider capability projection for valid effort levels, preserve inherited defaults and busy-turn/ownership refusals, return effective scope in existing facts and verify persistence plus other-chat isolation · Launcher consumes after Hermes; separate from the claimed provider-capability projection row · owner recommendation 2026-10-12, nonblocking for model selection · UNCLAIMED
