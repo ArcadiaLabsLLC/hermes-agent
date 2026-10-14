@@ -3751,14 +3751,14 @@ def _requeue_pending_steer(agent, steer_text: str) -> None:
     # Under the lock the slot is read directly: an initialized agent always has both attributes, so a
     # missing ``_pending_steer`` there is a real bug and must fail loud. The lock-less branch only
     # exists for test stubs built via ``object.__new__`` that skipped ``__init__``.
-    from agent.steering import join_pending_steer
+    from agent.steering import requeue_pending_steer
     _lock = getattr(agent, "_pending_steer_lock", None)
     if _lock is not None:
         with _lock:
-            agent._pending_steer = join_pending_steer(steer_text, agent._pending_steer) if agent._pending_steer else steer_text
+            agent._pending_steer = requeue_pending_steer(agent._pending_steer, steer_text)
     else:
         existing = getattr(agent, "_pending_steer", None)
-        agent._pending_steer = join_pending_steer(steer_text, existing) if existing else steer_text
+        agent._pending_steer = requeue_pending_steer(existing, steer_text)
 
 
 def apply_pending_steer_to_tool_results(agent, messages: list, num_tool_msgs: int) -> None:

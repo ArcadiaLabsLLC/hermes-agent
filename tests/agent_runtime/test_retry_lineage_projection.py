@@ -55,7 +55,7 @@ def test_the_interrupted_marker_names_its_retry_and_the_retry_names_its_origin(
         _reply("cm-retry", "done"),
     ])
 
-    marker = next(row for row in rows if row.get("settled_state") == "interrupted")
+    marker = next(row for row in rows if row.get("kind") == "turn_interrupted")
     assert marker["client_message_id"] == "cm-orig"
     assert marker["retried_as"] == "cm-retry"
     retry_operator = next(

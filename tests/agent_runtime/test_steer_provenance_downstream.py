@@ -52,15 +52,15 @@ def test_native_steer_keeps_identity_and_parent_turn_position():
 
 
 def test_steer_stays_between_tools_and_reply_after_projection(isolate_agent_runtime_root):
-    from agent.prompt_builder import steer_user_row
+    from agent.steering import PendingSteer
     from agent_runtime.persona_chat_history.curation import _safe_curated_messages
     from agent_runtime.operator_channels.history_messages import _conversation_history_message
     from agent_runtime.persona_chat_history.markers import _ordered_message_rows
 
     rows = [
         {"role": "user", "content": "Start", "platform_message_id": "prompt"},
-        {**steer_user_row("Check tests"), "platform_message_id": "steer-1",
-         "display_metadata": {"turn_id": "prompt", "turn_seq": 3}},
+        PendingSteer.from_text("Check tests", platform_id="steer-1",
+                               metadata={"turn_id": "prompt", "turn_seq": 3}).rows()[0],
         {"role": "assistant", "content": "Done", "platform_message_id": "prompt:assistant:8"},
     ]
     db = SimpleNamespace(get_messages=lambda _: rows)

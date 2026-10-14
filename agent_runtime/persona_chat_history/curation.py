@@ -388,8 +388,8 @@ class CurationState:
             raw.get("content") or raw.get("text")
         )
         if raw.get("display_kind") == "steer":
-            from agent.conversation_compression import _extract_steer_text_from_message
-            raw_content = _extract_steer_text_from_message(raw) or raw_content
+            display = raw.get("display_metadata") or {}
+            raw_content = display.get("display_text") or raw_content
         curated = _curate_chat_message_text(ctx.role, raw_content)
         if not curated:
             self._silent_candidate(ctx, raw_content)

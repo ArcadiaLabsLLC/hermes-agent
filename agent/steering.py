@@ -29,6 +29,8 @@ class _Input:
         })
         if self.metadata or self.platform_id or self.kind != "steer":
             row["display_metadata"] = {**(self.metadata or {}), "steering": True}
+        if self.kind == "steer" and self.platform_id:
+            row["display_metadata"]["display_text"] = self.text
         if self.kind != "steer":
             row["display_metadata"].update(display_text=self.title, notification_category=self.category)
         if self.platform_id:
@@ -80,3 +82,10 @@ def join_pending_steer(first: str | None, second: str) -> PendingSteer:
 
 def pending_steer_rows(text: str) -> list[dict[str, Any]]:
     return PendingSteer.from_text(text).rows()
+
+
+def requeue_pending_steer(existing: str | None, text: str) -> PendingSteer:
+    """A drained batch precedes new arrivals; plain text retains append semantics."""
+    if isinstance(text, PendingSteer) and existing:
+        return join_pending_steer(text, existing)
+    return join_pending_steer(existing, text)
