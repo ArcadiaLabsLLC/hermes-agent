@@ -23,11 +23,12 @@ from tests.waiting import wait_until
 
 
 @pytest.fixture
-def chat(placed_agent):
+def chat(request):
+    placement = request.getfixturevalue("placed_agent")
     persona = AgentStore().get(PERSONA)
     persona.provider, persona.model = "openai", "gpt-6.1-sol"
     AgentStore().save(persona)
-    return target(placed_agent["persona_instance_id"])
+    return target(placement["persona_instance_id"])
 
 
 def set_control(chat, setting, picked_value, **changed):
@@ -77,6 +78,16 @@ def test_busy_and_read_only_callers_cannot_change_execution_policy(chat):
     reply = inspect("control.set", {**chat, "setting": "approval_mode", "value": "off"}, caller=_device("read"))
     assert "error" in reply
     assert SessionControlStore().read(chat["session_id"]) == {}
+
+
+def test_omitted_value_cannot_reset_a_saved_approval_policy(chat):
+    SessionControlStore().update(chat["session_id"], "approval_mode", "manual")
+    reply = inspect("control.set", {**chat, "setting": "approval_mode",
+        "expected_provider": "openai", "expected_model": "gpt-6.1-sol"})
+    assert reply["error"]["data"]["reason"] == "invalid_setting"
+    assert SessionControlStore().read(chat["session_id"])["approval_mode"] == "manual"
+    explicit = set_control(chat, "approval_mode", None)
+    assert explicit["result"]["controls"]["approval"]["mode"] == "smart"
 
 
 def test_speed_is_route_and_transport_specific_and_normal_clears_paid_overrides():

@@ -55,3 +55,27 @@ queue with the existing scope/lock symbols; this change does not relax profile o
 cwd isolation.
 
 Full landing qualification is recorded below after the final candidate runs.
+
+### Landing qualification
+
+The whole-tree bundled gate ran 1,118 files: 15,387 passed, 39 failed, 77 skipped,
+zero errors. The new controls passed within it. The office manifest failures were
+fixed by regenerating the checked fixture with its actual producer (215 methods).
+The remaining failures used an excessively long Windows temporary path inside a
+Git checkout: checkpoint refs exceeded Windows path limits, and project discovery
+correctly found that checkout. Rechecking all twelve failed files plus the controls
+with a short temporary root outside a project passed 861 tests, zero failed.
+This records the first-attempt failures rather than calling that gate green.
+
+A further mutation removed `value` from the required setting fields: the omitted
+value case failed (one failed, eleven deselected, exit 1), proving omission could
+silently reset a saved policy. Restored. Final controls/footprint run passed 21
+tests, including all twelve controls cases. CLI contract freshness and documentation
+citation adjacency passed. Changed production modules pass ruff; code health
+reports zero blocking and zero advisory findings.
+
+The repository-wide lint gate remains red in `footguns`, `no-tmp` and `ruff`.
+An unchanged-main control reproduced all three, including 2,121 ruff findings;
+repair ownership is recorded in the fork hygiene queue. The normal Windows console
+also reproduced the already queued output-encoding fault; UTF-8 supplied readable
+diagnostics. No lint rule or test baseline was weakened.

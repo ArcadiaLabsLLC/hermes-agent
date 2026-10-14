@@ -34,6 +34,9 @@ def operator_control_facts(params: dict) -> dict:
 
 
 def set_operator_control(params: dict) -> dict:
+    required = ("setting", "value", "expected_provider", "expected_model")
+    if any(key not in params for key in required):
+        raise OperatorConversationRefused("invalid_setting")
     key, value = params.get("setting"), params.get("value")
     if key not in ("approval_mode", "service_tier") or (value is not None and not isinstance(value, str)):
         raise OperatorConversationRefused("invalid_setting")
