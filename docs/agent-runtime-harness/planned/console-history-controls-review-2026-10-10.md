@@ -1,5 +1,8 @@
 # Console history controls — review of draft PR #7 (2026-10-10)
 
+Current disposition: [October 14 reconciliation](#reconciliation--october-14).
+The original review below is retained as historical evidence.
+
 This note is the evidence behind the rows filed under "Fork-owned → Filed on
 arrival — 2026-10-10 (Console history PR #7 review)" in
 `Harness_Brain/20 — Active Initiatives/runtime-queue.md`. It reviews
@@ -154,3 +157,23 @@ at the existing RPC boundary and preserves its exact outcome. Seven RPC cases
 cover accepted, pending, already-finished and refused cancellation; removing
 `ok` from the accepted set fails all five accepted cases. No process supervisor,
 history store or parallel lifecycle was introduced.
+
+### Landing gate receipt
+
+Candidate `8bf7337cd1`, Python 3.14.7, canonical fork scope over `tests`:
+**1,034 files, 12,673 passed, zero final failures or errors, 56 skipped**, in
+884.3 seconds with four workers. No cached greens were skipped. The runner used
+64 bundles, eight solos, three known-red files run once, and one isolated retry;
+there were no process deaths or straggler retries. The documented upstream and
+idle-box exclusions remained in effect. The doc-citation probe also passed.
+
+This was **not a clean first attempt**. In completed bundle #34,
+`test_skill_root_freshness.py` had four passes and one failure after
+`test_skill_realm_sync_status.py`: the metadata-directory grouping test saw one
+listing rather than two. All five tests passed on the isolated retry. The
+original diagnostic remains in the existing gate store's `runs.jsonl`; fork
+hygiene owns the investigation. A follow-up per-file run reproduced the same
+failure before passing on retry, so the runner's isolation-leak label does not
+establish bundle contamination. No unbundled exception or production caching
+change was added. The runner contract's 22 tests passed; the freshness file's
+five final passes must be read with its recorded first-attempt failure.

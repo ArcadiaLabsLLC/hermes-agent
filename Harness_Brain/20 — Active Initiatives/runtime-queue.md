@@ -85,10 +85,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **Word-based redaction, the CLASS (third instance): a secret WORD still blanks whole text in `profile_runner/dispatch_payloads.py` (`_line_has_secret` / `_OPERATOR_SECRET_MARKERS`) and in `progress._looks_sensitive` / `_looks_sensitive_or_pathish` (reasoning, dispatch, skill-name, scalar fields); the answer is one value-redactor (`redaction.scrub_secret_values`) for every lane and the word lists deleted** · fork / redaction · `a325b7c08e` body (L2.21 moved the command, output, target and path lanes) · lane: redaction one owner
 - [ ] **The queued-turn peer map (`_queued_turn_settle_peers`) has no expiry: a gateway-origin entry that requeues, or whose settle is never pushed, keeps its sink referenced until the next push for that rid** · fork / chat queue · `hermes_cli/harness_parts/serve/queued_turn_origin.py::queued_turn_peer` (L5.14) · lane: busy-root queue
 
-### Filed on arrival — 2026-10-10 (Console history PR #7 review)
-
-Historical review evidence: [review note](../../docs/agent-runtime-harness/planned/console-history-controls-review-2026-10-10.md). Qualified repair rows were discharged with PR #7; remaining work stays in its own rows.
-
 ### Filed on arrival — 2026-10-10 (release merge v0.21.6 reds)
 
 
