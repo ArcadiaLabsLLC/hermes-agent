@@ -27,6 +27,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Connections: trace the missing browser sign-in `done` event for the isolated QA profile.** Owner report/review 2026-10-14: ChatGPT or Codex Subscription web sign-in completed, but the login-stream `done` event did not reach the Launcher and the pane remained pending; the selected isolated profile subsequently had a credential entry and canonical `logged_in=true`. Root cause is unproven: no historical completion frame was captured. Start at producer `hermes_cli/provider_browser_login.py::run_browser_login` (`send` of `done`), trace `agent_runtime/serve_rpc/provider_signin.py` and the consumer `EterniaLauncher/lib/shared/provider_connections/provider_connection_state.dart::ProviderSetupController` under the same profile; capture redacted lifecycle/transport evidence and pin reliable terminal delivery. The Launcher projection reconciliation on `fix/sol-connect-20261014` is a safety net, not the root-cause fix. Preserve the QA binding; never capture credentials or account identifiers. · fork / launcher seam · found 2026-10-14 sol-connect review · UNCLAIMED
+
 ### Filed on arrival — 2026-10-14 (Console execution controls)
 
 - [ ] **Retire process-wide run serialization before a human approval wait can be independent of unrelated agent roots.** · fork / Mission Chat · `agent_runtime/profile_runner/execute.py::AgentRunExecution.scopes` holds `profile_runner/workdir.py::_WORKDIR_LOCK` across the entire turn; serve chat workers share that process. Move process-global profile/cwd state into isolated execution ownership, then prove another root can progress while one approval waits without crossing profiles, stores or command environments. · UNCLAIMED
