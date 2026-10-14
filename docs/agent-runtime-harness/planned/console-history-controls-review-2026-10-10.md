@@ -118,3 +118,39 @@ accept. A killed serve can block history controls forever.
   - no test of admission-lock ordering or of concurrent accepts;
   - the rewind test never asserts the returned draft;
   - `test_archived_marker`'s negative assertion has no positive control.
+
+## Reconciliation — October 14
+
+The findings above describe `91b79fd19`, not current main. Re-audited the landed
+history implementation at `fa124924aa` before changing it. The repair retains
+SessionDB, CheckpointManager and the existing history coordinator as owners.
+
+| Original finding | Current implementation and verification |
+|---|---|
+| Native writer refusal reported as uncertain | `operator_history.apply_operator_history` maps the native guard exceptions. The real-store `test_native_write_guards_are_definite_refusals` cases pass for branch and rewind. |
+| Admission contention misclassified | The short admission lock waits; the mutation lock has its own refusal. `test_two_short_admissions_wait_instead_of_false_history_conflict` passes. |
+| Dead accepted turn blocks history | `repair_orphaned_chat_receipts` settles only proven-dead owners and is called by boot reconciliation. `test_dead_accept_owner_settles_once_and_live_owner_remains` passes. |
+| Busy checkpoint store and missed tool snapshots | Typed `CheckpointStoreBusy` refusals and pre-write undo rollback already exist. Tool waits consume the remaining turn budget; the native default remains fail-fast. `test_operator_turn_undo.py`, `test_checkpoint_store_wait_downstream.py`, and `test_checkpoint_turn_wait.py` pass. |
+| Curation/target validation and lock scope | Curation reads are inside the typed boundary, checkpoint targets are validated before mutation, and lock acquisition errors are caught before yielding to the operation body. No second implementation added. |
+| Deleted files and stale footprint prose | Native ownership hashes survive deletion; compatibility tests pass. The old footprint fixture description has already been corrected. |
+| Unrecorded private SessionDB dependency | Added the missing private-API seam row to the existing footprint ledger. No upstream source changes or submission. |
+| Rewind race and coverage gaps | The landed in-place-content race test detects a missing digest pin. Added real compaction-carrier/lineage cases, an actual Windows junction case, a returned-draft assertion and a positive interruption-marker control. |
+
+Focused qualification: **77 passing tests across 11 files** after correcting an
+initial test fixture that conflated a compaction carrier with a plain prompt in
+a compressed child. The production refusal behavior was retained. Changed
+Python files pass Ruff.
+
+Applied mutations establish the limits of these claims: dropping the revision
+pin permits the in-place race; dropping linked-path validation makes a matching
+external file eligible; omitting the draft or marker fails their new assertions.
+Removing the lineage guard permits an incomplete preview. Removing the carrier
+guard changes the specific refusal (a later guard still refuses it), so that
+case proves accurate classification, not the absence of every other safeguard.
+Each mutation was restored; exact reds are recorded in the repair commit body.
+
+The separate Dispatch Stop repair accepts the cancellation owner's `ok` status
+at the existing RPC boundary and preserves its exact outcome. Seven RPC cases
+cover accepted, pending, already-finished and refused cancellation; removing
+`ok` from the accepted set fails all five accepted cases. No process supervisor,
+history store or parallel lifecycle was introduced.

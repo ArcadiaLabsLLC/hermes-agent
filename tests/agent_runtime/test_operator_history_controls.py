@@ -89,6 +89,7 @@ def test_rewind_archives_instead_of_deleting_and_receipt_survives_restart(tmp_pa
         old_revision = _persona_chat_native_revision(db, target["session_id"])
     result = call("history.apply", request)
     assert "result" in result, result
+    assert result["result"]["draft"] == before[10]["content"]
     with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
         assert len(db.get_messages(target["session_id"])) == 10
         assert len(db.get_messages(target["session_id"], include_inactive=True)) == len(before)
@@ -195,6 +196,9 @@ def test_archived_marker_is_hidden_and_branch_keeps_inherited_trace(tmp_path, mo
         elements=[{"kind": "segment", "id": "first-thought", "turn_id": "first", "seq": 1,
                    "state": "done", "seg_type": "plan", "text": "Saved reasoning"}])
     persist_mission_chat_turn(session_id=root, client_message_id="second", turn_id="second", state="interrupted", elements=[])
+    original = call("read", target)["result"]["messages"]
+    assert any(row.get("kind") == "turn_interrupted" and row.get("client_message_id") == "second"
+               for row in original), original
     plan = call("history.preview", {**target, "action": "branch", "client_message_id": "second"})
     assert "result" in plan, plan
     request = {**target, "action": "branch", "row_id": plan["result"]["row_id"],

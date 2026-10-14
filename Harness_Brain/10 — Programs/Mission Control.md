@@ -8,6 +8,11 @@ tags: [program/mission-control, program]
 
 # Mission Control (runtime side)
 
+`history_review_cursor::` 2026-10-14 — Old Console history review reconciled
+against the landed owners; missing safety coverage and private-API seam record
+added. Dispatch cancellation preserves the owning lane's verdict through RPC.
+[Evidence](../../docs/agent-runtime-harness/planned/console-history-controls-review-2026-10-10.md#reconciliation--october-14).
+
 `chat_model_reset_cursor::` 2026-10-12 — The existing operator model selector
 can clear only a chat pin and return to agent defaults; no default write or
 permission change. [Contract](../../docs/agent-runtime-harness/03-transport-and-wire.md#operator-model-selection).

@@ -14,8 +14,9 @@ from agent_runtime.serve_rpc.registry import method
 
 __layer__ = "lanes"
 
-#: A Stop that landed: killed now, or asked of a writer that ends its own build.
-_STOPPED = frozenset({"cancelled", "cancel_requested"})
+#: The owning lane accepted cancellation; its payload retains the exact outcome
+#: (including asynchronous requests and dispatches that had already finished).
+_CANCEL_ACCEPTED = frozenset({"ok", "cancelled", "cancel_requested"})
 
 
 def _row_or_refusal(rid, params):
@@ -42,7 +43,7 @@ def _runtime_work_cancel(rid, params, context=None):
     if refusal is not None:
         return refusal
     result = cancel_work(row["work_id"], reason=str((params or {}).get("reason") or "operator_cancel"))
-    if result.get("status") in _STOPPED:
+    if result.get("status") in _CANCEL_ACCEPTED:
         return ok(rid, result)
     return err(rid, ERR_CONFLICT, "The work could not be stopped.",
                {"reason": result.get("code") or "cancel_failed", "detail": result.get("detail") or ""})

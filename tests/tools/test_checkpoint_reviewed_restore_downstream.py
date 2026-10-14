@@ -68,7 +68,7 @@ def test_external_edit_after_preview_and_failed_backup_refuse(tmp_path, monkeypa
 
 
 def test_checkpoint_from_another_project_is_refused(tmp_path, monkeypatch):
-    manager, work, checkpoint = workspace(tmp_path, monkeypatch)
+    manager, work, _checkpoint = workspace(tmp_path, monkeypatch)
     other = tmp_path / "other"
     other.mkdir()
     (other / "private.txt").write_text("other project")
@@ -152,3 +152,39 @@ def test_external_deletion_and_oversize_are_preserved(tmp_path, monkeypatch):
     manager.max_file_size_mb = 1
     large = manager.preview_restore(str(work), checkpoint)
     assert next(row for row in large["files"] if row["path"] == "agent.txt")["reason"] == "oversize"
+
+
+def test_review_refuses_a_linked_directory_even_with_matching_authored_bytes(tmp_path, monkeypatch):
+    import os
+    import subprocess
+
+    manager, work, checkpoint = workspace(tmp_path, monkeypatch)
+    directory = work / "tracked"
+    directory.mkdir()
+    path = directory / "note.txt"
+    path.write_text("before")
+    manager.new_turn()
+    assert manager.ensure_checkpoint(str(work))
+    checkpoint = manager.list_checkpoints(str(work))[0]["hash"]
+    path.write_text("authored")
+    manager.record_agent_write(str(path))
+    normal = manager.preview_restore(str(work), checkpoint)
+    assert next(row for row in normal["files"] if row["path"] == "tracked/note.txt")["eligible"]
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "note.txt").write_text("authored")
+    path.unlink()
+    directory.rmdir()
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(directory), str(outside)], check=True, capture_output=True)
+        assert directory.is_junction()
+    else:
+        directory.symlink_to(outside, target_is_directory=True)
+        assert directory.is_symlink()
+    preview = manager.preview_restore(str(work), checkpoint)
+    row = next(row for row in preview["files"] if row["path"] == "tracked/note.txt")
+    assert not row["eligible"] and row["reason"] == "unsafe_path"
+    refused = manager.restore_preview(str(work), checkpoint, revision=preview["revision"],
+                                      selected_paths=["tracked/note.txt"], operation_id="3" * 64)
+    assert not refused["success"]
+    assert (outside / "note.txt").read_text() == "authored"
