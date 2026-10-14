@@ -28,3 +28,8 @@ four skill-root checks, three provider-health checks and live-sized turn check.
 
 All changed production code is fork-owned. No upstream source, harness RPC,
 provider policy or Launcher authority is introduced or changed.
+
+The fork landing gate on 2026-10-14 completed 1,035 files in 1,069.5 seconds
+with four workers: 12,687 passed, 56 skipped, zero failures or errors. No file
+needed a retry, and no cached green result was used. The native two-directory
+probe also returned current metadata on all 100 reads after the repair.
