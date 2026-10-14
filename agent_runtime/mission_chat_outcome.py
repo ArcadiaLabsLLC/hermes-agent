@@ -583,7 +583,8 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 
 
 def classify_turn_failure(
-    exc: BaseException, *, provider_submitted: bool, request_started: bool = True
+    exc: BaseException, *, provider_submitted: bool, request_started: bool = True,
+    request_dispatched: bool | None = None
 ) -> TurnOutcome:
     """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing.
 
@@ -600,6 +601,11 @@ def classify_turn_failure(
     request started is a known, terminal ``provider_unavailable``. The default
     is the conservative answer for a caller with no phase evidence: assume the
     request may have started, which keeps ``outcome_unknown`` honest.
+
+    ``request_dispatched`` is independent positive send/reply evidence, never a
+    timing-mark read. When explicitly false, a typed ProviderNotConfiguredError
+    (agent construction refused) can settle unavailable even after agent-ready.
+    Generic failures retain uncertainty; true dispatch evidence always wins.
     """
 
     budget_tripped = wall_budget_exceeded(exc, provider_submitted=provider_submitted)
@@ -607,7 +613,16 @@ def classify_turn_failure(
         refusal = provider_refusal(exc)
         if refusal is not None:
             return replace(PROVIDER_REFUSED_OUTCOME, provider_refusal=refusal)
-        if not request_started:
+        from agent.auxiliary_unavailable import ProviderNotConfiguredError
+
+        # Agent-ready is a handoff, before assembly/dispatch. This typed setup
+        # exception guarantees construction refused; generic failures do not.
+        # Positive send/response evidence always wins over the exception type.
+        if request_dispatched is not True and (
+            not request_started or (
+                request_dispatched is False and isinstance(exc, ProviderNotConfiguredError)
+            )
+        ):
             return replace(
                 PROVIDER_UNAVAILABLE_OUTCOME,
                 provider_refusal=ProviderRefusal(

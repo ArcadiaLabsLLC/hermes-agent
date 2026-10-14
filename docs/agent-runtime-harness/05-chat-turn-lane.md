@@ -20,6 +20,23 @@ proves real journal-to-history-to-console projection, reply deduplication and
 uncertainty separation. Launcher consumes the same typed marker; operator live
 no-credential acceptance is not claimed by this deterministic proof.
 
+### Known setup refusal before provider dispatch
+
+`mission_chat_outcome.classify_turn_failure` retains the phase-aware repair from
+`7fbd3688e6`: failure before agent-ready settles terminal `provider_unavailable`.
+Agent-ready itself precedes prompt assembly and HTTP dispatch. A typed
+`ProviderNotConfiguredError` after that handoff also settles unavailable when
+the runtime has seen neither a request-sent receipt nor reply text. The type's
+contract is an agent-construction setup refusal; generic exceptions retain
+uncertainty. Positive dispatch evidence always wins over the exception type.
+
+`TurnCommit._stream_progress` records a separate dispatch fact from the validated
+request-sent event; `_settle_failure` also reads the emitter's observed-reply fact.
+The classifier does not branch on timing-mark snapshots or redefine budgets.
+`tests/hermes_cli/test_mission_chat_provider_unavailable_payload.py` drives the
+real command/journal through local, sent, generic and duplicate-refusal cases.
+The remaining provider-neutral dispatch-evidence gap is queued separately.
+
 ## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.

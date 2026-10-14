@@ -39,7 +39,7 @@ from .test_mission_chat_budget_payload import (
 NO_PROVIDER = "No LLM provider configured. Run `hermes model` to select a provider."
 
 
-def _unconfigured_provider(*, request_started: bool):
+def _unconfigured_provider(*, request_started: bool, request_dispatched: bool = False, generic_failure: bool = False):
     from agent.auxiliary_unavailable import ProviderNotConfiguredError
 
     class _Provider:
@@ -49,7 +49,10 @@ def _unconfigured_provider(*, request_started: bool):
         def mission_chat_reply(self, *args, **kwargs):
             if request_started:
                 kwargs["agent_ready_callback"](object())
-            raise ProviderNotConfiguredError(NO_PROVIDER)
+            if request_dispatched:
+                kwargs["trace_callback"]({"phase": "timing", "step": "conversation_request_sent"})
+            error = RuntimeError if generic_failure else ProviderNotConfiguredError
+            raise error(NO_PROVIDER)
 
     return _Provider
 
@@ -132,7 +135,7 @@ def test_the_same_error_after_the_request_started_stays_ambiguous(
 
     from agent_runtime.mission_chat_turns import mission_chat_turn_record
 
-    _seed(monkeypatch, _unconfigured_provider(request_started=True))
+    _seed(monkeypatch, _unconfigured_provider(request_started=True, generic_failure=True))
     code = chat_turn_message._cmd_mission_chat_message(_args("started_turn"))
     payload = json.loads(capsys.readouterr().out)
 
@@ -144,3 +147,19 @@ def test_the_same_error_after_the_request_started_stays_ambiguous(
         session_id=_SESSION_ID, client_message_id="started_turn"
     )
     assert record["state"] == "outcome_unknown"
+
+
+@pytest.mark.parametrize("dispatched", [False, True])
+def test_typed_setup_refusal_after_agent_ready_uses_dispatch_evidence(monkeypatch, capsys, isolate_agent_runtime_root, dispatched):
+    """Killing mutation: ignore typed setup refusal -> local pre-request case becomes unknown."""
+    _seed(monkeypatch, _unconfigured_provider(request_started=True, request_dispatched=dispatched))
+    assert chat_turn_message._cmd_mission_chat_message(_args("typed_setup")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    if dispatched:
+        assert payload["error_kind"] == ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN
+        assert "provider_refusal" not in payload
+    else:
+        assert payload["execution_state"] == ExecutionState.FAILED
+        assert payload["error_kind"] == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
+        assert payload["provider_refusal"]["reason"] == "provider_unavailable"
+        assert payload["turn_resolution_required"] is False

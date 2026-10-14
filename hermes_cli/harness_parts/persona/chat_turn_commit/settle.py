@@ -148,6 +148,9 @@ class _SettlePhases:
             # D2.02: a boundary crossed with no request started settles as the
             # typed `provider_unavailable` refusal, never `outcome_unknown`.
             request_started=self.provider_request_started,
+            request_dispatched=(
+                self.provider_request_dispatched or stream_emitter._provider_first_byte_marked
+            ),
         )
         wall_budget_exceeded = (
             turn_outcome.execution_state is ExecutionState.BUDGET_EXHAUSTED
