@@ -9375,6 +9375,24 @@
         "title": "ConnectionAnswerTarget",
         "type": "object"
       },
+      "ConnectionDisplay": {
+        "additionalProperties": false,
+        "description": "``manage_connections`` action ``display``: the directory card, with these slugs pinned as Suggested.",
+        "properties": {
+          "suggested": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested",
+            "type": "array"
+          }
+        },
+        "required": [
+          "suggested"
+        ],
+        "title": "ConnectionDisplay",
+        "type": "object"
+      },
       "ConnectionOperationParams": {
         "additionalProperties": false,
         "properties": {
@@ -9916,6 +9934,17 @@
             ],
             "default": null,
             "title": "Tool Call Id"
+          },
+          "display": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionDisplay"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
