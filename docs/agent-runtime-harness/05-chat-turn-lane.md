@@ -1188,3 +1188,19 @@ superseded for the chat-turn lane by this document.
 | `PROVIDER_LOGIN_FIRST_CLASS_PLAN_2026-08-16.md` | PL-1 (`_provider_visibility_catalog` in `hermes_cli/harness.py`) and PL-2 (`hermes_cli/auth_noninteractive.py`) shipped; PL-3/4/5/6 are launcher-repo work, not tracked here |
 | `PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md` | B-1 shipped; remainder → `planned/persona-binding-env-authority.md` |
 | `eager-tool-discovery-audit-2026-08-09.md` | Fix B and Fix C shipped same-night; the lazy-builtin-discovery half is a startup-perf item, not a chat-lane one |
+
+### Dependency preflight refusal
+
+A missing or damaged provider SDK is refused before token spend. The additive
+`provider_refusal` block uses `status_code: 0`, the exact health issue `reason`
+(`runtime_dependency_missing`, `runtime_dependency_corrupt`,
+`runtime_dependency_metadata_conflict`, `runtime_dependency_metadata_unreadable`,
+`runtime_dependency_shadowed`), selected `provider`/`model`, `missing_packages`
+(the affected distribution names, including the `jiter.from_json` symptom), and
+`repair_hint` (the existing health remediation summaries). It settles as
+`chat_turn_provider_unavailable` / `failed` with exit 2, requiring no turn-resolve.
+Generic pre-request failures keep `provider_unavailable` without dependency fields.
+The source install selects provider extras in
+`EterniaLauncher/lib/features/mission_control/data/install/hermes_install_manifest.dart`;
+PM's `[all]` intentionally excludes opt-in provider SDKs. The bundled desktop
+profile separately declares Anthropic and retains its explicit provider exclusions.
