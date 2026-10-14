@@ -269,12 +269,15 @@ class InterruptControlMixin:
         interrupt); multiple calls concatenate with newlines. Returns False for empty text."""
         if not text or not text.strip():
             return False
-        cleaned = text.strip()
+        from agent.steering import join_pending_steer
+
         with _ic_lock(self, "_pending_steer_lock"):
             existing = _ic_slot(self, "_pending_steer_lock", "_pending_steer")
-            self._pending_steer = (existing + "\n" + cleaned) if existing else cleaned
+            pending = join_pending_steer(existing, text)
+            self._pending_steer = pending
         # The turn no longer ran on its own (first-task-done detection reads this off the result).
-        self._turn_user_intervened = True
+        if pending.user_intervened:
+            self._turn_user_intervened = True
         return True
 
     def redirect(self, text: str) -> bool:

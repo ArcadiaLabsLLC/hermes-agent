@@ -51,7 +51,9 @@ def _steer_mcp_admission_notice(agent: Any, request: AgentRunRequest, outcome: A
     if not line:
         return False
     try:
-        steer(f"[harness] {line.removeprefix('- ')}")
+        from tools.process_registry_notifications import TimelineNotification
+        steer(TimelineNotification(f"[harness] {line.removeprefix('- ')}",
+                                   "Tool availability update", "runtime_notice", "diagnostic"))
     except Exception:  # pragma: no cover - a notice must never fail a turn
         return False
     return True

@@ -84,6 +84,7 @@ def record_chat_message(
     client_message_id: Any = None,
     relay_marker: Any = None,
     steered: bool = False,
+    turn_seq: int | None = None,
     session_db: Any = None,
 ) -> bool:
     """Append one persisted chat message to the live mirror.
@@ -127,6 +128,8 @@ def record_chat_message(
         # turn ALREADY RUNNING, so a reader must be able to tell it from the
         # order that opened the turn.
         payload["steered"] = True
+    if turn_seq is not None:
+        payload["turn_seq"] = turn_seq
     payload.update(_relay_sender_fields(relay_marker))
     if not _append_line(path, payload):
         return False

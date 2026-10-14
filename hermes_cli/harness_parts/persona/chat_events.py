@@ -332,6 +332,7 @@ class _ChatProtocolV2Emitter:
         # single Context from being entered concurrently (RuntimeError).
         self._turn_context = _contextvars.copy_context()
         self._emit_lock = _threading.Lock()
+        self._sequence_lock = _threading.Lock()
         # Debounce bookkeeping only — element timing fields keep using
         # time.monotonic directly so an injected test clock cannot skew them.
         self._clock = clock
@@ -530,14 +531,23 @@ class _ChatProtocolV2Emitter:
         finally:
             self._finishing = False
 
+    def _next_sequence(self) -> int:
+        with self._sequence_lock:
+            self._seq += 1
+            return self._seq
+
+    def input_position(self) -> dict[str, object]:
+        """An accepted input is a real row between elements of this same turn."""
+        return {"turn_id": self.turn_id, "turn_seq": self._next_sequence()}
+
     def _ensure_segment(self) -> dict[str, object]:
         if self._current_segment is not None:
             return self._current_segment
-        self._seq += 1
+        seq = self._next_sequence()
         self._segment_count += 1
         segment = {
             "turn_id": self.turn_id,
-            "seq": self._seq,
+            "seq": seq,
             "id": f"{self.turn_id}_seg_{self._segment_count}",
             "kind": "segment",
             "seg_type": "answer" if self._tool_count else "plan",
@@ -565,7 +575,7 @@ class _ChatProtocolV2Emitter:
         return segment
 
     def _tool_started(self, payload: dict[str, object]) -> None:
-        self._seq += 1
+        seq = self._next_sequence()
         self._tool_count += 1
         name = _tool_name_from_progress(payload)
         command = safe_text(payload.get("command_full"), limit=_STREAM_TEXT_LIMIT) or safe_text(
@@ -573,7 +583,7 @@ class _ChatProtocolV2Emitter:
         )
         tool = {
             "turn_id": self.turn_id,
-            "seq": self._seq,
+            "seq": seq,
             "id": f"{self.turn_id}_tool_{self._tool_count}",
             "kind": "tool",
             "name": name,
@@ -672,11 +682,11 @@ class _ChatProtocolV2Emitter:
         name = _tool_name_from_progress(payload)
         tool = self._match_started_tool(name, payload)
         if tool is None:
-            self._seq += 1
+            seq = self._next_sequence()
             self._tool_count += 1
             tool = {
                 "turn_id": self.turn_id,
-                "seq": self._seq,
+                "seq": seq,
                 "id": f"{self.turn_id}_tool_{self._tool_count}",
                 "kind": "tool",
                 "name": name,

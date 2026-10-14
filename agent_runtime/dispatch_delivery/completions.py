@@ -173,6 +173,7 @@ def _steer_into_busy_turn(
             persona_id=owner[0],
             persona_instance_id=owner[1],
             timeout_seconds=STEER_ACK_SECONDS,
+            notification=True,
         )
     except Exception:
         logger.debug("completion steer into %s failed", root, exc_info=True)

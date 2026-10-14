@@ -38,6 +38,27 @@ in `tests/agent_runtime/test_native_representation_downstream.py`.
 
 ## Operator text and full transcript reads
 
+### Mid-turn input and recorded recovery
+
+The existing steer buffer preserves `TimelineNotification` provenance through
+`agent/steering.py`. Machine notices never acquire the user-steer wrapper or
+set the user-intervention flag. Addressed operator steers retain their own
+client ID and a position allocated by the chat emitter's sequence authority;
+native SQLite persistence carries both through `display_metadata`. History
+curation uses that position inside the original turn, before its final reply.
+The background completion inbox and delivery acknowledgements remain the same.
+
+Operator history rows carry terminal outcomes read from the existing turn
+journal. `runtime.chat.turn.resolve` also accepts `dismiss` for an exact
+interrupted turn owned by the requested persona instance. Dismissal uses the
+same root lease and journal writer as `abandon`; it records acknowledgement
+without changing the interrupted outcome. Its marker remains as terminal
+evidence for tool settlement and carries `resolution: dismiss` for presentation.
+Retry availability depends on an actually available original message; the
+marker text does not promise one. Controls are in
+`tests/agent_runtime/test_transcript_recovery.py` and
+`tests/agent_runtime/test_steer_provenance_downstream.py`.
+
 `agent_runtime/operator_message.py::normalize_operator_message` is the admission
 policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
 preserving whitespace. Oversize input receives a typed refusal before dispatch.

@@ -33,7 +33,7 @@ from agent_runtime.mission_chat_turns import (
     INFLIGHT_TURN_STATES,
     TERMINAL_TURN_STATES,
     MissionChatTurnPersistOutcome,
-    abandon_mission_chat_turn,
+    resolve_mission_chat_turn,
     mark_stale_inflight_turns_interrupted,
     mission_chat_turn_record,
     transition_mission_chat_turn,
@@ -485,7 +485,7 @@ def test_budget_exhausted_requires_no_turn_resolve():
         state="budget_exhausted",
     )
     assert (
-        abandon_mission_chat_turn(
+        resolve_mission_chat_turn(
             session_id=_SESSION,
             client_message_id=_CLIENT,
             turn_id=_TURN,

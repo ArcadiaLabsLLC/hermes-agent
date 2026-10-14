@@ -20,6 +20,7 @@ from ..mission_chat_turns.reads import (
     mission_chat_turn_elements,
     mission_chat_turn_records,
 )
+from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_relay_sender_marker
 from ..runtime_hud.envelopes import (
@@ -53,14 +54,14 @@ from .vocabulary import (
 
 __layer__ = "stores"
 __all__ = [
-    "CurationState",
     "ROLE_CURATORS",
+    "CurationState",
     "RoleCurator",
     "RowContext",
-    "_safe_curated_messages",
-    "_history_revision",
-    "_encode_history_cursor",
     "_decode_history_cursor",
+    "_encode_history_cursor",
+    "_history_revision",
+    "_safe_curated_messages",
 ]
 
 
@@ -164,23 +165,23 @@ class RoleCurator(Protocol):
 
     role: MessageRole
 
-    def before_curation(self, state: "CurationState", ctx: RowContext) -> None: ...
+    def before_curation(self, state: CurationState, ctx: RowContext) -> None: ...
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]: ...
 
-    def on_visible(self, state: "CurationState", ctx: RowContext) -> None: ...
+    def on_visible(self, state: CurationState, ctx: RowContext) -> None: ...
 
     def annotate(self, row: dict[str, Any], ctx: RowContext) -> bool: ...
 
     def turn_seq(self, is_pre_trace_ack: bool) -> int | None: ...
 
-    def after_row(self, state: "CurationState", row: dict[str, Any], ctx: RowContext) -> None: ...
+    def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None: ...
 
 
 class _OperatorCurator:
     role = MessageRole.OPERATOR
 
-    def before_curation(self, state: "CurationState", ctx: RowContext) -> None:
+    def before_curation(self, state: CurationState, ctx: RowContext) -> None:
         return None
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
@@ -191,7 +192,7 @@ class _OperatorCurator:
         raw_content, skill_preload = extract_skill_preload_envelope(raw_content)
         return raw_content, runtime_context, skill_preload
 
-    def on_visible(self, state: "CurationState", ctx: RowContext) -> None:
+    def on_visible(self, state: CurationState, ctx: RowContext) -> None:
         return None
 
     def annotate(self, row: dict[str, Any], ctx: RowContext) -> bool:
@@ -232,9 +233,23 @@ class _OperatorCurator:
         # C8 ordering key: the operator message opens its turn.
         return TURN_SEQ_OPERATOR
 
-    def after_row(self, state: "CurationState", row: dict[str, Any], ctx: RowContext) -> None:
+    def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None:
+        metadata = ctx.raw.get("display_metadata") or {}
+        if ctx.raw.get("display_kind") == "steer" or metadata.get("steering"):
+            row["steered"] = ctx.raw.get("display_kind") == "steer"
+            if metadata.get("turn_id"):
+                row["turn_id"] = safe_assignment_token(metadata["turn_id"])
+            if isinstance(metadata.get("turn_seq"), int):
+                row["turn_seq"] = metadata["turn_seq"]
+            if not row["steered"]:
+                row["role"] = MessageRole.SYSTEM
+                row["kind"] = "system_message"
+            return
         # D2.04: the turn this message re-ran, read off its own journal record.
         record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
+        settled_state = (record or {}).get("state")
+        if settled_state in TERMINAL_TURN_STATES:
+            row["settled_state"] = settled_state
         retry_of = safe_assignment_text((record or {}).get("retry_of"), limit=240)
         if retry_of:
             row["retry_of"] = retry_of
@@ -243,14 +258,14 @@ class _OperatorCurator:
 class _AgentCurator:
     role = MessageRole.AGENT
 
-    def before_curation(self, state: "CurationState", ctx: RowContext) -> None:
+    def before_curation(self, state: CurationState, ctx: RowContext) -> None:
         if ctx.logical_client_message_id:
             state.assistant_client_message_ids.add(ctx.logical_client_message_id)
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
         return raw_content, None, None
 
-    def on_visible(self, state: "CurationState", ctx: RowContext) -> None:
+    def on_visible(self, state: CurationState, ctx: RowContext) -> None:
         if ctx.logical_client_message_id:
             # This turn SPOKE. Recorded before redaction can replace the body:
             # a redacted reply is still a reply the operator was shown, and
@@ -277,7 +292,7 @@ class _AgentCurator:
         # carry no anchor and stay on the fallback order.
         return None if is_pre_trace_ack else TURN_SEQ_TERMINAL
 
-    def after_row(self, state: "CurationState", row: dict[str, Any], ctx: RowContext) -> None:
+    def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None:
         if not ctx.client_message_id:
             return
         record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""), {})
@@ -339,7 +354,7 @@ class CurationState:
     silent_turn_candidates: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
-    def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> "CurationState":
+    def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> CurationState:
         from .history_evidence import history_turn_records
         turn_records = (history_turn_records(session_db, session_id, raw_messages)
                         if session_db is not None else mission_chat_turn_records(session_id=session_id))
@@ -372,6 +387,9 @@ class CurationState:
         raw_content, runtime_context, skill_preload = curator.strip_envelopes(
             raw.get("content") or raw.get("text")
         )
+        if raw.get("display_kind") == "steer":
+            from agent.conversation_compression import _extract_steer_text_from_message
+            raw_content = _extract_steer_text_from_message(raw) or raw_content
         curated = _curate_chat_message_text(ctx.role, raw_content)
         if not curated:
             self._silent_candidate(ctx, raw_content)
@@ -448,6 +466,10 @@ class CurationState:
                 session_id=self.session_id,
                 assistant_client_message_ids=self.assistant_client_message_ids,
                 records=self.turn_records,
+                operator_client_message_ids={
+                    str(row["client_message_id"]) for row in self.rows
+                    if row["role"] == MessageRole.OPERATOR and row.get("client_message_id")
+                },
             )
         )
         return _ordered_message_rows(rows)

@@ -216,7 +216,6 @@ class _RunPhases:
     def _observe(self) -> None:
         """The record-at-injection observability row and the fed envelope. Marks ``observability_built``."""
 
-        args = self.args
         turn_context = self.turn_context
         instance = self.instance
         # Stage 6 item 2: taken off the built context, not re-measured. The builder
@@ -377,6 +376,7 @@ class _RunPhases:
                 persona_id=self.normalized_persona,
                 persona_instance_id=self.instance.id,
                 client_message_id=self.client_message_id,
+                input_position=self.stream_emitter.input_position,
             )
             return handle.close
         finally:

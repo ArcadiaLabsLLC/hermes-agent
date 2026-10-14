@@ -7,7 +7,7 @@ import pytest
 
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
-    abandon_mission_chat_turn,
+    resolve_mission_chat_turn,
     mission_chat_turn_record,
     transition_mission_chat_turn,
 )
@@ -198,13 +198,13 @@ def test_13_executing_can_become_outcome_unknown(isolate_agent_runtime_root, mon
 def test_14_exact_unknown_turn_can_be_abandoned(isolate_agent_runtime_root):
     for state in ("pending", "executing", "outcome_unknown"):
         transition_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn", state=state)
-    assert abandon_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn") is MissionChatTurnPersistOutcome.PERSISTED
+    assert resolve_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn") is MissionChatTurnPersistOutcome.PERSISTED
 
 
 def test_15_abandon_rejects_turn_mismatch(isolate_agent_runtime_root):
     for state in ("pending", "executing", "outcome_unknown"):
         transition_mission_chat_turn(session_id="root", client_message_id="client", turn_id="turn", state=state)
-    assert abandon_mission_chat_turn(session_id="root", client_message_id="client", turn_id="other") is MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
+    assert resolve_mission_chat_turn(session_id="root", client_message_id="client", turn_id="other") is MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
 
 
 def test_16_safe_message_redacts_secrets():

@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-14",
   "base": "71d34bad10",
-  "files": 209,
-  "deleted_lines": 1063,
+  "files": 211,
+  "deleted_lines": 1075,
   "heavy": 5,
   "reasons": [
     {
@@ -674,6 +674,12 @@
       "files": "205 -> 206: tests/tui_gateway/test_serve_exit_flush.py",
       "deleted_lines": "1027 -> 1064; heavy 5 -> 5",
       "reason": "Carry native 747f657234: bounded signal child, owned foreground PID receipt and cleanup on setup failure. Existing eight behavioral cases retained; production, shared fixtures and runners unchanged. Windows controls and native checks recorded in docs/downstream/shutdown-test-repair-2026-10-13.md. Retire on upstream adoption."
+    },
+    {
+      "change": "codex-transcript-repair (2026-10-14): typed input in the existing steer buffer",
+      "files": "209 -> 211: agent/interrupt_control.py and agent/turn_iteration_prep.py",
+      "deleted_lines": "1063 -> 1075; heavy unchanged at 5",
+      "reason": "Owner-authorized transcript provenance and ordering repairs. Existing TimelineNotification identity was erased and machine text acquired user authority. Preserve typed inputs through the same queue, lock, drains and native persistence. No caller-side hook retains metadata through the string concatenation. Generic seam held for upstream value evaluation; tests and baseline reds recorded in the repair commit."
     }
   ]
 }

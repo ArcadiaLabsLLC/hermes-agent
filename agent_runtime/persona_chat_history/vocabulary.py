@@ -21,35 +21,35 @@ from ..turn_visibility import SILENT_REASONS, VisibilityReason
 
 __layer__ = "policy"
 __all__ = [
-    "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
-    "PERSONA_PRE_TRACE_ACK_KIND",
-    "PERSONA_RELAYED_MESSAGE_KIND",
-    "PERSONA_HARNESS_DELIVERY_KIND",
-    "PERSONA_TURN_INTERRUPTED_KIND",
-    "PERSONA_TURN_BUDGET_EXHAUSTED_KIND",
-    "TerminalTurnMarker",
-    "TERMINAL_TURN_MARKERS",
-    "PERSONA_TURN_SILENT_KIND",
-    "SILENT_TURN_MARKER_TEXTS",
-    "ChatReadStatus",
-    "MessageRole",
-    "WIRE_ROLES",
-    "CHAT_READ_UNAVAILABLE",
     "CHAT_READ_FAILED",
-    "CHAT_SCOPE_UNRESOLVED",
-    "CHAT_SCOPE_MISMATCH",
+    "CHAT_READ_UNAVAILABLE",
     "CHAT_REDACTION_UNKNOWN",
+    "CHAT_SCOPE_MISMATCH",
+    "CHAT_SCOPE_UNRESOLVED",
     "DEFAULT_PERSONA_CHAT_MESSAGE_TAIL",
     "MAX_PERSONA_CHAT_MESSAGE_TAIL",
     "PERSONA_CHAT_MESSAGE_TEXT_LIMIT",
+    "PERSONA_HARNESS_DELIVERY_KIND",
+    "PERSONA_PRE_TRACE_ACK_FINISH_REASON",
+    "PERSONA_PRE_TRACE_ACK_KIND",
+    "PERSONA_RELAYED_MESSAGE_KIND",
+    "PERSONA_TURN_BUDGET_EXHAUSTED_KIND",
+    "PERSONA_TURN_INTERRUPTED_KIND",
+    "PERSONA_TURN_SILENT_KIND",
+    "SILENT_TURN_MARKER_TEXTS",
+    "TERMINAL_TURN_MARKERS",
+    "WIRE_ROLES",
     "_CHAT_MODEL_OVERRIDE_CONFIG_KEY",
-    "_TRACE_EVENT_TYPES",
-    "_TRACE_FETCH_HEADROOM",
-    "_TRACE_FETCH_CEILING",
     "_SECRET_RE",
-    "logical_persona_chat_client_message_id",
-    "canonical_persona_chat_turn_id",
+    "_TRACE_EVENT_TYPES",
+    "_TRACE_FETCH_CEILING",
+    "_TRACE_FETCH_HEADROOM",
+    "ChatReadStatus",
+    "MessageRole",
+    "TerminalTurnMarker",
     "canonical_chat_persona_id",
+    "canonical_persona_chat_turn_id",
+    "logical_persona_chat_client_message_id",
 ]
 
 
@@ -137,8 +137,7 @@ TERMINAL_TURN_MARKERS: dict[str, TerminalTurnMarker] = {
         kind=PERSONA_TURN_INTERRUPTED_KIND,
         id_slug="turn-interrupted",
         text=(
-            "Agent turn interrupted before a reply was recorded. Retry the message "
-            "to run a fresh turn."
+            "Agent turn interrupted before a reply was recorded."
         ),
     ),
     "budget_exhausted": TerminalTurnMarker(
@@ -298,7 +297,7 @@ class MessageRole(StrEnum):
     SYSTEM = "system"
 
     @classmethod
-    def from_wire(cls, value: Any) -> "MessageRole | None":
+    def from_wire(cls, value: Any) -> MessageRole | None:
         return WIRE_ROLES.get(safe_assignment_token(value))
 
 

@@ -128,7 +128,8 @@ class WallBudgetCheckpoint:
         steer = getattr(agent, "steer", None)
         if callable(steer):
             try:
-                steer(nudge)
+                from tools.process_registry_notifications import TimelineNotification
+                steer(TimelineNotification(nudge, "Time budget checkpoint", "runtime_notice", "diagnostic"))
             except Exception:
                 pass
         drained = turn_budget.drain_iteration_budget(agent)
