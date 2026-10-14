@@ -19,6 +19,7 @@ from agent_runtime.config import resolve_mission_chat_max_seconds
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
     mark_from_trace_payload as _mark_turn_phase_from_trace_payload,
+    phase_timing_marker_step,
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
 from agent_runtime.mission_chat_turns.journal import (
@@ -333,6 +334,10 @@ class _RunPhases:
     def _stream_progress(self, payload: dict[str, object] | None) -> None:
         if payload:
             self.trace_payloads.append(payload)
+            from agent_runtime.conversation_observability import TRANSPORT_REQUEST_SENT_STEP
+
+            if phase_timing_marker_step(payload) == TRANSPORT_REQUEST_SENT_STEP:
+                self.provider_request_dispatched = True
             # The conversation loop's dispatch-start marker becomes the
             # `request_assembled` phase mark here — the loop cannot hold the
             # turn's TurnPhaseMarks itself (it lives a layer below the
