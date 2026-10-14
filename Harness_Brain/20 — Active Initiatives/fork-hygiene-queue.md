@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **The slow-exit PM test cannot reach its worker under the shared Python 3.13 test interpreter.** `tests/pm/test_worker_slow_exit_downstream.py` uses `tests/pm/_fixtures.py::isolated_python`; `pm.environment` forces the host interpreter into a staged project requiring `==3.14.*`. Candidate and unchanged base `0525cc6c37` both fail in fixture setup with the same `uv sync` error (2026-10-14 transcript repair gate). Use the canonical PM-built 3.14 test environment or make the fixture honor its interpreter contract; preserve the worker assertion. · UNCLAIMED
+
 - [ ] **Restore the full local lint gate on current main.** The October 14 session-controls qualification reproduced `scripts/check --only footguns,no-tmp,ruff` on unchanged main: all three fail, with 2,121 ruff findings. The candidate's changed production modules pass ruff and its health ratchet has zero blocking/advisory findings. Repair the existing footgun diagnostics, literal temporary-path documentation findings and repository-wide typing/style residue without weakening the checks. The Windows output-encoding issue has its own row below. · fork / lint · evidence: `docs/downstream/session-controls-2026-10-14.md` · UNCLAIMED
 
 
