@@ -233,6 +233,9 @@ class HistoryMessage:
             message["client_message_id"] = self.client_message_id
         if turn_id:
             message["turn_id"] = turn_id
+        refusal = self.row.get("provider_refusal")
+        if isinstance(refusal, dict):
+            message["provider_refusal"] = dict(refusal)
         _carry_turn_seq(message, self.row)
         _carry_history_run_budget(message, self.row)
         _carry_retry_lineage(message, self.row)

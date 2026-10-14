@@ -186,6 +186,15 @@ def _terminal_turn_marker_rows(
             # row (a turn has a reply or a marker, never both).
             "turn_seq": TURN_SEQ_TERMINAL,
         }
+        if state == "provider_refused":
+            refusal = record.get("provider_refusal")
+            if isinstance(refusal, dict):
+                marker_row["provider_refusal"] = dict(refusal)
+                if refusal.get("reason") == "provider_unavailable":
+                    marker_row["text"] = (
+                        "This request never left Hermes because the model provider was unavailable. "
+                        "Review this profile's provider setup, then send a new message."
+                    )
         if client_message_id in retried_as:
             marker_row["retried_as"] = retried_as[client_message_id]
         _carry_run_budget(marker_row, record)
