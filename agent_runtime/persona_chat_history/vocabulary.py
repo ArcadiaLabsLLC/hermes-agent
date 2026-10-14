@@ -140,6 +140,11 @@ TERMINAL_TURN_MARKERS: dict[str, TerminalTurnMarker] = {
             "Agent turn interrupted before a reply was recorded."
         ),
     ),
+    "provider_refused": TerminalTurnMarker(
+        kind="provider_refused",
+        id_slug="turn-provider-refused",
+        text="The model provider refused this request before it ran. Review the provider account, then send a new message.",
+    ),
     "budget_exhausted": TerminalTurnMarker(
         kind=PERSONA_TURN_BUDGET_EXHAUSTED_KIND,
         id_slug="turn-budget-exhausted",

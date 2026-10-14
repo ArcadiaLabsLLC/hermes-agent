@@ -5,7 +5,22 @@ runs a bounded, receipted, durable turn. The old goal/task mission lane remains
 removed. Independent conversations and discussion runs share runtime authority
 without replacing the operator's session or prompt policy.
 Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
-sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
+sits under `### Durable provider-refusal transcript marker
+
+`persona_chat_history.vocabulary.TERMINAL_TURN_MARKERS` includes `provider_refused`.
+`markers._terminal_turn_marker_rows` emits that typed terminal marker when no
+assistant reply exists and carries the journal's sanitized `provider_refusal`.
+The unavailable reason says the request never left Hermes and directs the operator
+to review profile provider setup before sending a new message. HTTP refusals retain
+generic provider-refusal copy; uncertain outcomes do not acquire setup-recovery copy.
+
+`operator_channels.HistoryMessage.marker` preserves the refusal block and presents
+status `provider_refused`. `tests/agent_runtime/test_provider_refusal_history.py`
+proves real journal-to-history-to-console projection, reply deduplication and
+uncertainty separation. Launcher consumes the same typed marker; operator live
+no-credential acceptance is not claimed by this deterministic proof.
+
+## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
 

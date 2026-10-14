@@ -61,6 +61,10 @@ FLOW_MESSAGE_KINDS = frozenset({"thinking_summary", "turn", "tool_call"})
 # ``_turnInterruptedFlowMessage`` / ``_budgetExhaustedFlowMessage``), so no
 # launcher change is required to render either marker.
 _TERMINAL_TURN_MARKER_PRESENTATION = {
+    "provider_refused": {
+        "status": "provider_refused",
+        "display_title": "Provider could not run this request",
+    },
     PERSONA_TURN_INTERRUPTED_KIND: {
         "status": "interrupted",
         "display_title": "Turn interrupted",
