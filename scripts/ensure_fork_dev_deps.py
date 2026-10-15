@@ -89,10 +89,10 @@ def main(requirements: Path = REQUIREMENTS) -> int:
     if not unmet(pins(requirements.read_text(encoding="utf-8"))):
         return 0
     with install_lock():
-        return _install(requirements)
+        return _pip_install_requirements(requirements)
 
 
-def _install(requirements: Path) -> int:
+def _pip_install_requirements(requirements: Path) -> int:
     missing = unmet(pins(requirements.read_text(encoding="utf-8")))
     if not missing:
         return 0
