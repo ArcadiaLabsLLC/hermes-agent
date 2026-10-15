@@ -881,6 +881,8 @@ class FinalizationWarningKind(StrEnum):
     INSTANCE_STATE_COMMIT_FAILED = "instance_state_commit_failed"
     #: A turn-journal transition returned a non-``persisted`` outcome.
     TURN_RECORD_NOT_PERSISTED = "turn_record_not_persisted"
+    #: A steer left over after the final tool drain could not be queued as the next turn.
+    LEFTOVER_STEER_NOT_QUEUED = "leftover_steer_not_queued"
 
 
 @dataclass(frozen=True, slots=True)
