@@ -756,6 +756,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - [ ] **Importing hermes through the owner's live venv interpreter with a foreign HERMES_HOME runs a source-update dependency completion against that venv** — 2026-10-15, a launcher lane ran `X:/Eternia/.hermes/venvs/hermes-agent/Scripts/python.exe` with `HERMES_HOME` on a scratch copy of the QA home and hermes printed `source-update completion failed … running with the previous dependencies` (it attempted, and failed, to install into the live venv; site-packages verified unchanged). A read/import path must never mutate an interpreter's packages; gate the completion on the home that owns the environment · fork / pm source-update completion · found by launcher lane console-scroll-2
 
+## Filed on arrival — 2026-10-15 (launcher lane w1015-misc-l)
+
+- [ ] **`history.pending` never answers on the owner install (`7dd9f676fc5`): the Launcher logs `[ConsoleHistory] history_unavailable stage=runtime reason=rpc_timeout` twice per new Base chat (live 2026-10-15, release `89e675ef6a`)** · launcher side done (loads bounded, sends unblocked) · launcher MC queue row 'A brand-new Base chat is refused'
+
 ## Filed on arrival — 2026-10-15 (owner rulings: hermes builds first for the Agent Console)
 
 - [ ] **Report a missing provider SDK in the provider/connection probe, and offer a one-extra install RPC** — OWNER RULING 2026-10-15: a missing provider SDK is a WARNING on that provider's Connections row with the fix offered there (install only that extra, edition-aware; the phone edition is SDK-free), never a Harness repair door. The launcher's `launcher.connections.list` (launcher `6f8dd1dea1`) cannot carry a `dependency` state until the probe says which providers lack their SDK; the install needs an RPC that extends the active environment by one extra (today `pm install --extra` builds a new one). Launcher half: mission-control-queue row '"Open Harness repair" for a missing provider SDK is a dead end' · fork / serve_rpc provider probe + pm
