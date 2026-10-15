@@ -176,7 +176,14 @@ def _wait(predicate, seconds=5.0):
 
 @pytest.fixture
 def no_network(monkeypatch):
-    """Every socket connect and every child process raises; attempts are counted."""
+    """Every socket connect, every httpx request and every child process raises; attempts are counted.
+
+    The httpx transports are fenced too: a socket-only fence let ``agent.model_metadata_http`` fetch
+    the live catalog with HTTP 200 while both socket patches were in place (2026-10-13), and the Hub
+    client (``huggingface_hub``) speaks httpx.
+    """
+    import httpx
+
     attempts = []
 
     def refuse(*args, **kwargs):
@@ -187,7 +194,20 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket, "create_connection", refuse)
     monkeypatch.setattr(socket, "getaddrinfo", refuse)
     monkeypatch.setattr(subprocess, "Popen", refuse)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", refuse)
     return attempts
+
+
+def test_the_no_network_fence_refuses_an_httpx_request_at_its_transport(no_network):
+    """Positive control for the fence itself: an httpx request is refused BY THE FENCE (counted,
+    its own message), not by whatever the socket layer happens to do. Mutation: drop the two httpx
+    patches -> httpcore wraps the socket refusal in its own ConnectError (not an OSError)."""
+    import httpx
+
+    with pytest.raises(OSError, match="blocked in this test"):
+        httpx.Client().get("http://127.0.0.1:9/")
+    assert len(no_network) == 1
 
 
 @pytest.fixture
