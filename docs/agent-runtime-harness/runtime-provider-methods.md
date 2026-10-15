@@ -43,7 +43,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
-| `runtime.provider.list` | local files only | 10 s |
+| `runtime.provider.list` | local files, plus — only for a credential in cooldown — upstream's throttled Codex quota probe (`_probe_codex_quota_restored`, `timeout=10.0`, after an expired-token refresh) | 30 s |
 | `runtime.provider.signin.poll` | in-memory session read | 10 s |
 | `runtime.provider.signin.complete` | one line written to the child's stdin | 10 s |
 | `runtime.provider.signin.cancel` | kills the child | 10 s |

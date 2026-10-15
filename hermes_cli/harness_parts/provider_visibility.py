@@ -164,6 +164,28 @@ def _provider_visibility_catalog() -> list[dict]:
     ]
 
 
+def _lift_reopened_cooldowns(pool, entries: list) -> list:
+    """Clear a cooldown that has elapsed or (Codex) reopened early before reporting it.
+
+    Live 2026-10-15: Connections showed a ChatGPT/Codex credential "Temporarily
+    limited" until 2026-10-21 while its usage read healthy and a turn answered at once.
+    A cooldown is only lifted where a credential is SELECTED (upstream's
+    ``_available_entries(clear_expired=True)``, with its throttled quota probe); this read
+    never selected, so it reported a stale window for days. The same public lift
+    ``select()`` performs (``CredentialPool.lift_reopened_cooldowns``), run only when an
+    entry is in cooldown; a failure keeps the rows as read.
+    """
+    from agent.credential_pool import STATUS_EXHAUSTED
+
+    if not any(getattr(entry, "last_status", None) == STATUS_EXHAUSTED for entry in entries):
+        return entries
+    try:
+        pool.lift_reopened_cooldowns()
+        return pool.entries()
+    except Exception:
+        return entries
+
+
 def build_provider_visibility() -> dict:
     """Typed, machine-readable snapshot of every credential pool — the contract
     the Launcher's provider/model surfaces consume instead of scraping the
@@ -188,6 +210,7 @@ def build_provider_visibility() -> dict:
         entries = pool.entries()
         if not entries:
             continue
+        entries = _lift_reopened_cooldowns(pool, entries)
         current = pool.peek()
         credentials = []
         for idx, entry in enumerate(entries, start=1):
