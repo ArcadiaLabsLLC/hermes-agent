@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 221,
-  "deleted_lines": 1047,
+  "files": 222,
+  "deleted_lines": 1050,
   "heavy": 4,
   "reasons": [
     {
@@ -798,6 +798,20 @@
         "heavy": 4
       },
       "reason": "One additive BOOT_FILES entry: pm/environments.py's fork tail (w1015c-dev 5d93d4f0064) imports pm/_fork_dependency_borrow.py, so the boot tree this upstream fixture mints (shared by tests/pm/test_source_launcher_stages.py and test_source_update_launch.py) copies it. Retire when the borrow leaves environments.py's tail."
+    },
+    {
+      "change": "Owner-approved Console subagents Step 4 (2026-10-15)",
+      "before": {
+        "files": 221,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "after": {
+        "files": 222,
+        "deleted_lines": 1050,
+        "heavy": 4
+      },
+      "reason": "Exact-record predicates in native steer/interrupt require two helper signature replacements (new tools/delegate_tool_registry.py +6/-2). Existing-only HostSupervisor.control guards its existing start call (+4/-1); the compute receiver adds four lines. Reusing both native execution helpers and the existing sender avoids parallel authorities. Held hook candidates; per-seam proof and retirement conditions in docs/downstream/agent-console-subagents-controls-2026-10-15.md."
     }
   ]
 }

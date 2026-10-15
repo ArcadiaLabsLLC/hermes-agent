@@ -31,6 +31,7 @@ except ImportError:  # fork seam: phone wheel — the local execution environmen
 logger = logging.getLogger(__name__)
 
 MUTATOR_ROUTE_TABLE: dict[str, str] = {
+    "eternia.subagents.steer": "run-concurrent", "eternia.subagents.stop": "run-concurrent",
     "prompt.submit": "turn-path", "session.interrupt": "turn-path", "reload.mcp": "run-concurrent",
     "session.save": "run-concurrent", "session.compress": "idle-gated",
     "prompt.submit.truncate": "idle-gated", "slash.model": "idle-gated",
@@ -331,6 +332,7 @@ class HostSupervisor:
     def control(
         self, sid: str, *, route_name: str, payload: dict[str, Any] | None = None,
         wait: bool = True, timeout: float = 30.0, on_late_ack: Callable[[dict], None] | None = None,
+        existing_only: bool = False,
     ) -> dict:
         """Send a control frame; with ``wait`` block up to ``timeout`` for its ack. ``on_late_ack``
         (only with ``wait``) keeps the request adoptable after the waiter gives up: the host's
@@ -338,7 +340,8 @@ class HostSupervisor:
         ``_LATE_CONTROL_TTL_SECS``/``_MAX``) instead of being dropped."""
         if route_name not in MUTATOR_ROUTE_TABLE:
             raise ValueError(f"unclassified host mutator route: {route_name}")
-        self.start()
+        if not existing_only:
+            self.start()
         payload = payload or {}
         request_id = str(payload.get("request_id") or uuid.uuid4().hex)
         frame = {"type": "control", **payload, "sid": sid, "route_name": route_name,

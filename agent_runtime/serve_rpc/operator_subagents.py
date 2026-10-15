@@ -1,9 +1,9 @@
-"""Console-private child inspection; no control verbs in this approval."""
+"""Console-private owned child inspection and commands on the existing lane."""
 from functools import partial
 
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.operator_conversation import OperatorConversationRefused
-from agent_runtime.subagents.model import OPERATIONS, SubagentError
+from agent_runtime.subagents.model import OPERATIONS, MUTATIONS, Refusal, SubagentError
 from agent_runtime.subagents.operator import inspect_operator
 from .protocol import DEFERRED, deferred_reply, err, ok
 from .registry import method
@@ -17,7 +17,8 @@ def _subagent_reply(operation, rid, params):
     except (OperatorConversationRefused, SubagentError) as exc:
         return err(rid, 4090, "This conversation's subagents are unavailable.", {"reason": exc.reason})
     except Exception:
-        return err(rid, 4090, "Subagent ownership could not be verified.", {"reason": "subagent_unavailable"})
+        reason = Refusal.UNKNOWN if operation in MUTATIONS else Refusal.UNAVAILABLE
+        return err(rid, 4090, "Subagent outcome could not be verified.", {"reason": reason})
 
 
 def _dispatch(operation, rid, params, context=None):
