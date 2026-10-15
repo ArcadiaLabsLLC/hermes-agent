@@ -53,7 +53,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015h-mc-l)
 
-- [ ] **Regenerating `tests/fixtures/response_envelopes` also refreshes the launcher mirror `test/fixtures/hermes_responses/` (owner ruling 2026-10-15)** — one regeneration writes both, so the mirror cannot drift; no non-hermetic launcher test · launcher mission-control-queue row "The hermes response-fixture mirror drifted". **TAKEN 2026-10-15 w1015i-rt**
 
 ### Filed on arrival — 2026-10-15 (lane w1015h-comp-l)
 
