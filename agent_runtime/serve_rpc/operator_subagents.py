@@ -1,4 +1,4 @@
-"""Console-private child inspection; no control verbs in this approval."""
+"""Console-private owned child inspection and commands on the existing lane."""
 from functools import partial
 
 from agent_runtime.call_authorization import TIER_CONSOLE

@@ -235,6 +235,7 @@ class ComputeHost:
             method = frame.get("method")
             if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight",
                               "eternia.subagents.capabilities", "eternia.subagents.list", "eternia.subagents.tail",
+                              "eternia.subagents.receipt",
                               "session.events.since", "session.retire"}:
                 raise ValueError("Unsupported observation")
             response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
@@ -508,6 +509,9 @@ class ComputeHost:
 
     def _control_ack(self, server: Any, frame: dict[str, Any], session: dict) -> dict:
         """control.ack payload for one classified route, or ``{"error": message}``."""
+        if frame.get("route_name") in {"eternia.subagents.steer", "eternia.subagents.stop"}:
+            from agent_runtime.subagents.compute import control_ack
+            return control_ack(server, frame, self._transport)
         sid = str(frame.get("sid") or "")
         route_name = str(frame.get("route_name") or "")
         command = str(frame.get("command") or "")

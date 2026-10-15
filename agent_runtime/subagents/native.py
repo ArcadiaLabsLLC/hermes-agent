@@ -1,6 +1,6 @@
 """Isolated compatibility bridge to upstream child records and owner predicates.
 
-Read-only; controls retain their own later approval. All private upstream
+All private upstream
 dependencies and retirement conditions are recorded in the subagent seam ledger.
 """
 import hmac
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from agent_runtime import _upstream_doors as upstream
 from agent_runtime.redaction import scrub_secret_values
-from .model import VERSION, TAIL_BYTES, Refusal, SubagentError, validate_request
+from .model import VERSION, TAIL_BYTES, MUTATIONS, Refusal, SubagentError, validate_request
 from .output import read_public_tail
 from .references import references
 
@@ -48,13 +48,28 @@ def still_registered(record: dict) -> bool:
         return current is not None and current.get("agent") is record.get("agent") and current.get("started_at") == record.get("started_at")
 
 
-def inspect_records(operation, params, *, owner, visible, exact, revalidate):
+def revalidate_reply(operation, revalidate):
+    try:
+        revalidate()
+    except Exception as exc:
+        if operation in MUTATIONS:
+            raise SubagentError(Refusal.UNKNOWN) from exc
+        raise
+
+
+def inspect_records(operation, params, *, owner, visible, exact, revalidate, controllable=None):
     validate_request(operation, params)
     generation = references.require_generation(owner, params.get("expected_generation"))
     result = {"version": VERSION, "generation": generation, "observed_at": time.time()}
     if operation == "capabilities":
-        return {**result, "operations": ["list", "tail"], "tail_bytes": TAIL_BYTES}
+        return {**result, "operations": ["list", "tail", *MUTATIONS, "receipt"], "tail_bytes": TAIL_BYTES}
     records = [record for record in visible if still_registered(record)]
+    controllable = controllable or exact
+    if operation in (*MUTATIONS, "receipt"):
+        from .commands import control_records
+        data = control_records(operation, params, owner=owner, records=records, exact=controllable, revalidate=revalidate)
+        revalidate_reply(operation, revalidate)
+        return {**result, **data}
     if operation == "list":
         children = []
         budget = 0
@@ -64,6 +79,7 @@ def inspect_records(operation, params, *, owner, visible, exact, revalidate):
                 if isinstance(value, str):
                     row[key] = scrub_secret_values(value[:4096])
             row["child_ref"] = references.child(owner, record) if exact(record) else None
+            row["controllable"] = controllable(record)
             budget += len(json.dumps(row, ensure_ascii=True))
             if budget > 800 * 1024:
                 break
@@ -107,7 +123,7 @@ def inspect_native(operation: str, params: dict) -> dict:
         from .compute import observe
 
         data = observe(operation, params, owner)
-        revalidate()
+        revalidate_reply(operation, revalidate)
         return data
 
     visible = [record for record in upstream.subagent_visible_records(session_id, transport, session)
