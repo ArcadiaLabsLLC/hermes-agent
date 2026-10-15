@@ -438,7 +438,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 
 - [ ] **The dependency recorder cannot see existence checks (`os.stat`/`Path.exists` raise no audit event): a test whose result depends on a repo file appearing that it never opened or listed can stay a cached green; bounded only by the audit sample and the 14-day max age** · fork / suite · `scripts/_bundle_plugin/hermes_dep_trail.py` (build/fastgate-FG1) · lane: fast-gate §1 follow-up **TAKEN 2026-10-15 w1015b-fh-b**
-- [ ] **`run_tests_bundled.sh`'s run-in-hermes-env re-exec compares `$__BUNDLED_DIR` (from a relative BASH_SOURCE, `X:/…` under a drive-spelled PWD) with `run_tests.sh`'s `$SCRIPT_DIR` (`/x/…`) and exits 2 "wrapper is out of date"** · fork / suite · build-fastgate-FG1 lane log (worked around with HERMES_PYTHON) · lane: runner **TAKEN 2026-10-15 w1015b-fh-b**
 
 ## Filed on arrival — 2026-10-11 (fast-gate landing, whole-tree gate, filed by the orchestrator)
 
