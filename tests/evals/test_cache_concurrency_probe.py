@@ -15,8 +15,8 @@ import pytest
 
 pytest.importorskip("anthropic")
 
-import agent.prompt_caching as prompt_caching  # noqa: E402
-from anthropic.resources.messages import Messages  # noqa: E402
+from agent import prompt_caching
+from anthropic.resources.messages import Messages
 
 MODULE = "evals.postmortem.live_ab.cache_concurrency_probe"
 
