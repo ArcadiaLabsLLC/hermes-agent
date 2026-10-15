@@ -2,8 +2,8 @@
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
   "files": 216,
-  "deleted_lines": 1079,
-  "heavy": 5,
+  "deleted_lines": 1047,
+  "heavy": 4,
   "reasons": [
     {
       "change": "Owner-requested conversation approval and speed controls",
@@ -728,6 +728,20 @@
         "heavy": 5
       },
       "reason": "scripts/check main(): four added lines reconfigure stdout/stderr with errors='backslashreplace' before the results print, so a tool's U+2717 on a Windows cp1252 console no longer raises UnicodeEncodeError and loses the receipt (2026-10-12 reasoning-capability gate). 0 deletions. No caller-side door: the script is the entry point the hooks and operators invoke. Upstream candidate."
+    },
+    {
+      "change": "fork-hygiene row 'ADOPT _split_pathspec' (w1015b-fh-a): retire the fork's _split_path_list carry",
+      "before": {
+        "files": 216,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "after": {
+        "files": 216,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "scripts/run_tests_parallel.py: upstream's v0.21.7 _split_pathspec re-glues Windows drive letters itself; the fork's _split_path_list (PR #125263 carry) and the delegating body are deleted and upstream's body restored byte-for-byte. The downstream test is platform-honest (drive letters asserted on win32 only; the long-list case on every host). The file falls 187/48 -> 145/16 against the base and out of 'heavy'."
     }
   ]
 }
