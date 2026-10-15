@@ -117,6 +117,29 @@ def test_the_write_back_waits_for_the_idle_tick(root):
     assert idle_turn_keeper.tick_once()[0] == [], "nothing new to write: the second tick is a no-op"
 
 
+@pytest.mark.timeout(240)
+def test_a_child_that_never_idles_flushes_its_parses_at_exit(root):
+    """A CLI child takes no idle tick: its parses reach the next process through the exit flush."""
+    assert not _cache_file().exists()
+
+    assert _child_parses(root) == _MANIFESTS
+    assert len(json.loads(_cache_file().read_text(encoding="utf-8"))["entries"]) == _MANIFESTS
+    assert _child_parses(root) == 0, "the second child reads what the first one left at exit"
+
+
+def test_a_serve_that_takes_no_turn_arms_the_keeper_on_its_first_parse(root):
+    """No ``request_sent`` ever arms a serve that only builds snapshots; its first parse must."""
+    previous = idle_turn_keeper._LIVE["check"]
+    idle_turn_keeper.bind_registry_live(lambda: True)
+    try:
+        assert idle_turn_keeper.keeper_thread_for_tests() is None
+        _build(root)
+        assert idle_turn_keeper.keeper_thread_for_tests() is not None
+    finally:
+        idle_turn_keeper.bind_registry_live(previous)
+        idle_turn_keeper.reset_for_tests()
+
+
 def test_a_stale_stamp_misses_and_a_corrupt_file_is_ignored(root, monkeypatch):
     _build(root)
     sr.flush_skill_frontmatter_disk_cache()

@@ -42,6 +42,24 @@ installer, then refresh the service safely: MCP availability is process-cached
 (`agent_runtime/mcp_admission/transport.py::mcp_sdk_available`). Re-prove the live
 catalog and one non-mutating MCP call before requesting Launcher acceptance.
 
+### The dependency, named (2026-10-15)
+
+For scheduling the Launcher's combined native desktop acceptance:
+
+- **Client surface:** upstream `tools/mcp_tool.py` (`from mcp import ClientSession`),
+  reached by the fork only through `agent_runtime/_upstream_doors.py::mcp_sdk_available_flag`.
+- **Distribution:** the `mcp` extra in `pyproject.toml` (`mcp==2.0.0`, with its
+  `httpx2` / `starlette` floors). The bundled Eternia Harness ships it
+  (`agent_runtime/bundle_profiles/bundled-desktop.yaml` `packaging.extras`); a
+  Developer Edition home installs it with `hermes pm install --extra mcp`.
+- **Readiness probe, before any turn:** `hermes harness query instance personainst_qa --json`
+  (or the `harness_query` tool) — `mcp.sdk` is `available` or `mcp_sdk_unavailable` for
+  the OBSERVING process (read `observer` first: the serve's answer is the one that counts),
+  beside `configured` / `admitted`. The flag is cached per process, so a serve started
+  before the install needs a restart.
+- **Exercised proof** stays a turn's receipt (`profile_timing.mcp_calls_spent` > 0), as
+  above: the catalog plus one non-mutating call.
+
 ## Local startup stall
 
 A bounded 20-second stack probe of the read-only CLI inspector stopped in

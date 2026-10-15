@@ -34,7 +34,13 @@ The ladder (first source that resolves to a real directory wins)
    doctrine, that workspace is where the turn belongs.
 3. The persona's own ``repo_scope`` — the same declared repo the worker lane
    grounds in, when it names a real directory on this machine.
-4. Nothing: the turn keeps today's behavior and runs in the process cwd.
+4. The operator's home directory (``Path.home()``), handed in by the live
+   wrapper — the same placeholder fallback upstream's gateway uses for an
+   ungrounded local terminal (``gateway/cwd_placeholder.py``). A serve's own
+   cwd is whatever its spawner held (a QA serve was measured running file tools
+   in ``C:/windows/system32/spool/drivers/x64/3``, 2026-10-15), which nobody
+   chose; it is never a turn's working directory when a home exists.
+5. Nothing: the pure resolver called without a home keeps the process cwd.
 
 Failing to safe cwd, loudly
 ---------------------------
@@ -68,6 +74,7 @@ WORKDIR_SOURCE_PERSONA_CONFIG = "persona_config"
 WORKDIR_SOURCE_PRIMARY_SLOT = "primary_slot"
 WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
 WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
+WORKDIR_SOURCE_USER_HOME = "user_home"
 WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
 
 #: Why a requested path was refused. Typed rather than free text so the
@@ -210,6 +217,7 @@ def resolve_mission_chat_workdir(
     workspace_agents_path: str | None = None,
     repo_scope: str | None = None,
     primary_slot_path: str | None = None,
+    home_fallback: str | None = None,
 ) -> MissionChatWorkdir:
     """Walk the grounding ladder; return the first real directory, typed.
 
@@ -244,6 +252,7 @@ def resolve_mission_chat_workdir(
         (WORKDIR_SOURCE_PRIMARY_SLOT, str(primary_slot_path or "").strip() or None),
         (WORKDIR_SOURCE_WORKSPACE_AGENTS, _workspace_root(workspace_agents_path)),
         (WORKDIR_SOURCE_PERSONA_REPO_SCOPE, str(repo_scope or "").strip() or None),
+        (WORKDIR_SOURCE_USER_HOME, str(home_fallback or "").strip() or None),
     ):
         # A pointer that does not resolve is NOT re-typed here (see module
         # docstring): the operator's explicit `workdir` key owns the issue lane,
@@ -302,4 +311,12 @@ def mission_chat_workdir_for_persona(
         workspace_agents_path=workspace_agents_path,
         repo_scope=getattr(persona, "repo_scope", None),
         primary_slot_path=primary_slot_path,
+        home_fallback=_home_or_none(),
     )
+
+
+def _home_or_none() -> str | None:
+    try:
+        return str(Path.home())
+    except (RuntimeError, KeyError):  # no resolvable home: keep the process cwd
+        return None
