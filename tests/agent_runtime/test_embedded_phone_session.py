@@ -606,16 +606,19 @@ def test_the_spawn_stand_ins_are_installed_before_the_serve_thread(app, monkeypa
     before any request can import the code that calls them — the same moment as the placeholders."""
     from agent_runtime import spawn_stand_ins
 
+    # Thread identity, not ``threading.active_count()``: a daemon thread leaked by an earlier test
+    # file can exit between two counts (``[6] == [7]`` after tests/test_harness_usage.py, 2026-10-15).
     seen: list = []
     monkeypatch.setattr(spawn_stand_ins, "ensure_spawn_stand_ins",
-                        lambda: seen.append(threading.active_count()) or ())
+                        lambda: seen.append(frozenset(threading.enumerate())) or ())
     FakeHostSecureStore().bind(profile="phone", store_root=app)
-    threads_before = threading.active_count()
     serve = EmbeddedServe(lambda _line: None)
     serve.start()
+    serve_thread = serve._thread
     serve.close()
     assert serve.wait(60) is not None
-    assert seen == [threads_before]
+    assert serve_thread is not None and len(seen) == 1
+    assert serve_thread not in seen[0]
 
 
 def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
