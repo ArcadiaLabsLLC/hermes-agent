@@ -6,7 +6,7 @@ from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.hermes_cli.test_backup import _no_real_gateway_service  # noqa: F401  (autouse fixture)
+from tests.hermes_cli.test_backup import _no_real_gateway_service  # autouse fixture
 
 
 # ---------------------------------------------------------------------------

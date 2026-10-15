@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from tools.process_registry import ProcessRegistry
-from tests.tools.test_process_registry import _make_session, _reset_systemd_scope_cache  # noqa: F401  (autouse fixture)
+from tests.tools.test_process_registry import _make_session, _reset_systemd_scope_cache  # autouse fixture
 
 
 @pytest.fixture()
