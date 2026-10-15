@@ -617,6 +617,9 @@ def duplicate_census(root: Path = ROOT) -> tuple[set[tuple[str, ...]], dict[str,
 
 # ── W0-G6: import layers ────────────────────────────────────────────────────
 
+#: the W0-G6 populations a census holds and the fixture grandfathers
+LAYER_ARMS = ("undeclared", "harness_imports", "private_upstream_imports", "private_upstream_attributes")
+
 
 module_name = _scope.module_name
 _resolve_from = _scope.resolve_from
@@ -717,6 +720,69 @@ def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str
     return not _upstream_module_path(f"{module}.{name}", upstream)
 
 
+def _import_bindings(path: str, tree: ast.Module) -> dict[str, str]:
+    """Local name -> the dotted module or ``module.Name`` an import binds it to (any scope)."""
+    out: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    out[alias.asname] = alias.name
+                else:
+                    head = alias.name.split(".")[0]
+                    out[head] = head
+        elif isinstance(node, ast.ImportFrom):
+            base = _resolve_from(path, node)
+            for alias in node.names:
+                if alias.name != "*":
+                    out[alias.asname or alias.name] = f"{base}.{alias.name}" if base else alias.name
+    return out
+
+
+def _dotted(node: ast.expr) -> str | None:
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return ".".join([node.id, *reversed(parts)])
+
+
+def private_upstream_attributes(root: Path, upstream: frozenset[str], path: str, tree: ast.Module) -> set[str]:
+    """``path|target|_name`` for every ``<alias>._private`` reaching into an upstream module.
+
+    The W0-G6 second-door arm for ATTRIBUTE spellings (fork-hygiene row M1.05/M1.07):
+    ``import agent.skill_utils as su; su._RAW_CONFIG_CACHE = …`` or
+    ``from hermes_state import SessionDB; SessionDB._read_all`` never appear as a
+    ``from … import _name``. ``target`` is the upstream module, or ``module.Name``
+    for a name it defines. A NEGATIVE guarantee (no new site), so a source walk is
+    the instrument; an instance (``db._read_all``) is not spellable and not counted.
+    """
+    bindings = _import_bindings(path, tree)
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Attribute) and node.attr.startswith("_") and not node.attr.startswith("__")):
+            continue
+        dotted = _dotted(node.value)
+        if dotted is None:
+            continue
+        head, _, rest = dotted.partition(".")
+        bound = bindings.get(head)
+        if bound is None:
+            continue
+        target = f"{bound}.{rest}" if rest else bound
+        parts = target.split(".")
+        owner = next((".".join(parts[:n]) for n in range(len(parts), 0, -1)
+                      if _scope.module_path(root, ".".join(parts[:n]))), None)
+        if owner is None or not _upstream_module_path(owner, upstream):
+            continue  # the longest prefix that is a repo module must be an upstream one
+        if _scope.module_path(root, f"{target}.{node.attr}"):
+            continue  # a submodule, not a private name
+        found.add(f"{path}|{target}|{node.attr}")
+    return found
+
+
 def fork_only_tree(path: str, upstream: frozenset[str]) -> str | None:
     """The top-most directory above ``path`` (below its top-level parent) holding no upstream file."""
     parts = path.split("/")
@@ -761,9 +827,10 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
     ``harness_imports``: ``path -> hermes_cli.harness`` imports from a part.
     ``private_upstream_imports``: ``path|module|name`` for a ``_private`` name
     imported from an upstream module.
+    ``private_upstream_attributes``: ``path|target|name`` for ``alias._private`` into one.
     """
     upstream = upstream_paths(manifest)
-    undeclared, harness_imports, private = set(), set(), set()
+    undeclared, harness_imports, private, attributes = set(), set(), set(), set()
     for path in fork_production_files(root, manifest):
         tree = _tree(root, path)
         if tree is None:
@@ -778,10 +845,12 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
                 harness_imports.add(f"{path}|{full}")
             if is_private_upstream_import(root, upstream, module, name):
                 private.add(f"{path}|{module}|{name}")
+        attributes |= private_upstream_attributes(root, upstream, path, tree)
     return {
         "undeclared": sorted(undeclared),
         "harness_imports": sorted(harness_imports),
         "private_upstream_imports": sorted(private),
+        "private_upstream_attributes": sorted(attributes),
     }
 
 
@@ -941,7 +1010,7 @@ def all_drift(root: Path = ROOT) -> list[Drift]:
     out.append(compare_name_groups("W0-G3 helper names", names, fixture_names))
     layers = layer_census(root)
     fixture_layers = layer_fixture()
-    for key in ("undeclared", "harness_imports", "private_upstream_imports"):
+    for key in LAYER_ARMS:
         out.append(compare_sets(f"W0-G6 {key}", set(layers[key]), fixture_layers.get(key, set())))
     return out
 

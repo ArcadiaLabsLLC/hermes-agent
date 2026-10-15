@@ -7,6 +7,26 @@
   "lanes",
   "wiring"
  ],
+ "private_upstream_attributes": [
+  "agent_runtime/_upstream_doors.py|hermes_state_sessions.SessionSessionsMixin|_NON_CONTINUATION_CHILD_FILTER_SQL",
+  "agent_runtime/_upstream_doors.py|tools.process_registry.ProcessRegistry|_terminate_host_pid",
+  "agent_runtime/_upstream_doors.py|tui_gateway.server|_compute_host_supervisor",
+  "agent_runtime/auth_extensions.py|hermes_cli.auth|_auth_file_path",
+  "agent_runtime/auth_extensions.py|hermes_cli.auth|_auth_store_lock",
+  "agent_runtime/auth_extensions.py|hermes_cli.auth|_read_codex_tokens",
+  "agent_runtime/host_store/secret_files.py|gateway.config.Platform|_scan_bundled_plugin_platforms",
+  "agent_runtime/skill_search.py|tools.skills_tool|_find_all_skills",
+  "agent_runtime/skill_search.py|tools.skills_tool|_sort_skills",
+  "hermes_cli/harness_parts/pets_commands.py|agent.pet.render|_frame_is_blank",
+  "hermes_cli/kanban_crash_evidence.py|hermes_cli.kanban_db|_pid_alive",
+  "scripts/bundle_profile_closure.py|pm|_HOME",
+  "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_persist_dispatch",
+  "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_transaction",
+  "tests/_downstream/hermes_cli_conftest/isolation.py|hermes_constants|_get_platform_default_hermes_home",
+  "tools/tool_defs_observability.py|tools.registry.registry|_generation",
+  "tui_gateway/session_execution.py|tui_gateway.server|_interrupt_session_turn",
+  "tui_gateway/session_execution.py|tui_gateway.server|_session_db"
+ ],
  "private_upstream_imports": [
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_clear_transparent_rgb",
   "agent/charsheet/_upstream_doors.py|agent.pet.generate.atlas|_erase_long_axis_lines",
