@@ -149,3 +149,57 @@ def test_a_spawn_event_names_its_program_for_every_event_shape():
     assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
     assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
     assert trail.spawned_program("os.system", ("echo hi",)) == ""
+
+
+_FX_CONFTEST = '''
+import pytest
+
+@pytest.fixture(autouse=True)
+def auto():
+    return 0
+
+@pytest.fixture
+def used():
+    return 1
+
+@pytest.fixture
+def dyn():
+    return 2
+
+@pytest.fixture
+def unused():
+    return 3
+'''
+
+_FILE_FX = '''
+import os
+
+def test_uses(used, request):
+    assert request.getfixturevalue("dyn") == 2
+
+def test_reads_conftest_as_data():
+    with open(os.path.join(os.path.dirname(__file__), "conftest.py"), encoding="utf-8") as fh:
+        assert "unused" in fh.read()
+'''
+
+
+@pytest.mark.timeout(150)
+def test_a_record_names_the_fixtures_set_up_and_the_paths_the_file_opened_itself(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "conftest.py").write_text(_FX_CONFTEST, encoding="utf-8")
+    (root / "test_fx.py").write_text(_FILE_FX, encoding="utf-8")
+    deps_dir = tmp_path / "deps"
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={deps_dir}", "test_fx.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    deps = cache.DepsCollector(deps_dir).poll()["test_fx.py"]
+    assert deps.fx is not None
+    assert {"auto", "used", "dyn", "request"} <= set(deps.fx), "autouse, requested and getfixturevalue all count"
+    assert "unused" not in deps.fx
+    assert "conftest.py" in deps.own, "a data read of the conftest must keep its whole-blob key"
