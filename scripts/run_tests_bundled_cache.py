@@ -59,7 +59,7 @@ MODSETS_COMPACT_BYTES = 32 << 20
 DEFAULT_MAX_AGE_DAYS = 14.0
 #: a file that was flaky, leaked or went unreached is cached again only after this many greens in a row
 PROBATION_GREENS = 2
-PROBATION_DROPS = frozenset({"flaky", "leak", "unreached"})
+PROBATION_DROPS = frozenset({"flaky", "leak", "unreached", "abnormal-exit"})
 
 
 def gate_store_dir(repo_root: Path, primary: Optional[Path], override: Optional[str] = None) -> Path:
