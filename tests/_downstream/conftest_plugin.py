@@ -760,31 +760,16 @@ def _home_io_guard_covers_recorded_root() -> None:
 _home_io_guard_covers_recorded_root()
 
 
-def _deny_recorded_root_on_state_db_guard(hs, recorded_root: str, monkeypatch) -> bool:
-    """Add ``recorded_root`` to ``hs``'s state.db deny roots; True when it now denies it.
-
-    Runs only where upstream's ``_state_db_write_guard`` ran: a ``hermes_state``
-    still executing its body (seen in ``sys.modules`` before line 209 binds the
-    deny roots) has no guard to extend, and ``monkeypatch.setattr`` on the missing
-    name raised a setup error instead (office-subscribe fixture, ``c5acdd0f7e``).
-    """
-    if not recorded_root or hs is None or getattr(hs, "_STATE_DB_GUARD_BYPASS", False):
-        return False
-    if not hasattr(hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS"):
-        return False
-    extra = tuple(hs._STATE_DB_GUARD_EXTRA_DENY_ROOTS)
-    root = Path(recorded_root).expanduser().resolve()
-    if root not in extra:
-        monkeypatch.setattr(hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", extra + (root,))
-    return True
-
-
 @pytest.fixture(autouse=True)
 def _state_db_guard_denies_recorded_root(_state_db_write_guard, monkeypatch):
     """Extend the state.db guard's deny roots with the recorded real root, after upstream sets them."""
-    _deny_recorded_root_on_state_db_guard(
-        sys.modules.get("hermes_state"), _RECORDED_REAL_ROOT, monkeypatch
-    )
+    _hs = sys.modules.get("hermes_state")
+    if not _RECORDED_REAL_ROOT or _hs is None or getattr(_hs, "_STATE_DB_GUARD_BYPASS", False):
+        return
+    extra = tuple(getattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", ()))
+    root = Path(_RECORDED_REAL_ROOT).expanduser().resolve()
+    if root not in extra:
+        monkeypatch.setattr(_hs, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS", extra + (root,))
 
 
 @pytest.fixture(autouse=True)

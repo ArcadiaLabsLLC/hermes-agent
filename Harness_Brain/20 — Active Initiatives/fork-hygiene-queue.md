@@ -373,6 +373,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 
 
+- [ ] **The downstream state-DB guard can observe a partially imported `hermes_state` module during office-subscribe fixture setup.** In a fresh detached history-repair checkout `c5acdd0f7e`, `test_serve_rpc_office_subscribe.py::test_the_reclaim_pair_joins_the_manifest_without_moving_the_contract_version` errored in `_state_db_guard_denies_recorded_root`: `_STATE_DB_GUARD_EXTRA_DENY_ROOTS` did not exist. First attempt: 81 passed / 1 setup error; automatic retry: 82 passed. Qualify the fixture's import boundary without weakening the real-root write guard. Evidence: `console-history-evidence/runtime/repair-clean-final.log`; staged report in PR #7's `docs/agent-runtime-harness/planned/console-history-controls.md`. Not reproduced on the baseline run; retain as intermittent, not baseline-proven. · fork / suite · UNCLAIMED **TAKEN 2026-10-15 w1015b-fh-b** · HELD 2026-10-15: fix on wave/w1015b-fh-b @ 1fb678fc004; lands with the next release-merge landing (fast-gate Q3 ruling) — it makes the gate whole-tree
 
 ## Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 

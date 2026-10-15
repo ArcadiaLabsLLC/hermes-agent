@@ -27,22 +27,3 @@ def test_a_recorded_root_joins_the_live_guard_list(monkeypatch, tmp_path):
 
     assert conftest.real_hermes_root_candidates() == [recorded]
     assert conftest_plugin._real_hermes_roots() == [os.path.normcase(str(recorded))]
-
-
-def test_a_half_imported_hermes_state_is_left_alone_not_a_setup_error(monkeypatch, tmp_path):
-    """``hermes_state`` seen in ``sys.modules`` before its body binds the deny roots."""
-    import types
-
-    recorded = str(tmp_path / "recorded-real-root")
-    half = types.ModuleType("hermes_state")
-
-    assert conftest_plugin._deny_recorded_root_on_state_db_guard(half, recorded, monkeypatch) is False
-    assert not hasattr(half, "_STATE_DB_GUARD_EXTRA_DENY_ROOTS")
-
-    # Positive control: the same module once its body has bound the guard's names.
-    half._STATE_DB_GUARD_BYPASS = False
-    half._STATE_DB_GUARD_EXTRA_DENY_ROOTS = ()
-    assert conftest_plugin._deny_recorded_root_on_state_db_guard(half, recorded, monkeypatch) is True
-    assert half._STATE_DB_GUARD_EXTRA_DENY_ROOTS == (
-        (tmp_path / "recorded-real-root").expanduser().resolve(),
-    )
