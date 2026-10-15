@@ -77,6 +77,18 @@ def _parse_issued_at_arg(raw_value) -> datetime | None:
         raise _SetModelRequestError("invalid_value", f"--issued-at is not an ISO-8601 timestamp: {raw_issued}") from exc
 
 
+def _model_api_mode(provider: str | None, model: str | None, profile_api_mode: str | None) -> str | None:
+    """The ``api_mode`` persisted beside *model*. An OpenCode family routes PER MODEL
+    (``opencode_model_api_mode``: Claude on ``anthropic_messages``, GPT on ``codex_responses``), so
+    its provider profile's single ``api_mode`` is right for one model at most; every other
+    provider keeps the profile's."""
+    from hermes_cli.models import opencode_model_api_mode, opencode_provider_family
+
+    if provider and model and opencode_provider_family(provider):
+        return opencode_model_api_mode(provider, model)
+    return profile_api_mode
+
+
 def _validated_set_model_request(args) -> dict:
     """Shared validation for `persona set-model` / `persona-instance set-model`.
 
@@ -133,7 +145,7 @@ def _validated_set_model_request(args) -> dict:
                 extra={"known_providers": known},
             )
         provider = str(profile.name)
-        api_mode = str(getattr(profile, "api_mode", "") or "") or None
+        api_mode = _model_api_mode(provider, model, str(getattr(profile, "api_mode", "") or "") or None)
         import os as _os
 
         env_vars = tuple(getattr(profile, "env_vars", ()) or ())
@@ -191,7 +203,7 @@ def _cmd_persona_instance_set_model(args) -> int:
             persona_instance_id,
             provider=request["provider"],
             model=request["model"],
-            api_mode=request["api_mode"],
+            api_mode=request["api_mode"] or _model_api_mode(target.provider, request["model"], None),
             reasoning_effort=request["reasoning_effort"],
             clear_model_override=request["use_default"],
             model_issued_at=request["issued_at"],
@@ -352,8 +364,9 @@ def _cmd_persona_set_model(args) -> int:
                 target.api_mode = None
                 changed = True
         else:
+            derived = {"api_mode": request["api_mode"] or _model_api_mode(target.provider, request["model"], None)}
             for field_name in ("provider", "model", "api_mode"):
-                value = request[field_name]
+                value = derived.get(field_name, request[field_name])
                 if value is not None and getattr(target, field_name) != value:
                     setattr(target, field_name, value)
                     changed = True

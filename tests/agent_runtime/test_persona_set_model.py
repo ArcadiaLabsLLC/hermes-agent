@@ -848,3 +848,36 @@ def test_selection_profile_fallback_and_effort_are_one_authority(tmp_path, monke
     result = selection._chat_effective_model_payload(persona=persona, config=cfg,
         instance=instance, override={"model":"session-model"})
     assert result["effective_model"] == "session-model"
+
+
+def test_cli_instance_set_model_opencode_api_mode_follows_the_model_not_the_provider(monkeypatch, capsys):
+    """opencode-zen's profile says ``chat_completions``; a Claude pick on it routes
+    ``anthropic_messages`` and a later model-only GPT pick ``codex_responses``
+    (``hermes_cli.models.opencode_model_api_mode``), so neither may persist the profile's."""
+    _patched_harness(monkeypatch)
+    store = PersonaInstanceStore()
+    _, b = _two_instances(store, _persona())
+
+    code = model_and_skills_commands._cmd_persona_instance_set_model(
+        _instance_args(b.id, provider="opencode-zen", model="claude-opus-5-5"))
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["api_mode"] == "anthropic_messages"
+    assert store.get(b.id).api_mode == "anthropic_messages"
+
+    code = model_and_skills_commands._cmd_persona_instance_set_model(_instance_args(b.id, model="gpt-5.6"))
+    assert code == 0
+    capsys.readouterr()
+    assert store.get(b.id).api_mode == "codex_responses"
+
+
+def test_cli_instance_set_model_non_opencode_keeps_the_profile_api_mode(monkeypatch, capsys):
+    """Positive control for the derivation's scope: anthropic keeps its profile's mode."""
+    from providers import get_provider_profile
+
+    _patched_harness(monkeypatch)
+    store = PersonaInstanceStore()
+    _, b = _two_instances(store, _persona())
+    code = model_and_skills_commands._cmd_persona_instance_set_model(
+        _instance_args(b.id, provider="anthropic", model="claude-opus-5-5"))
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["api_mode"] == get_provider_profile("anthropic").api_mode
