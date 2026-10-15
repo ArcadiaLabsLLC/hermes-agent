@@ -519,7 +519,7 @@ def test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips(tmp_path: Pat
         [sys.executable, str(repo_root / "scripts" / "run_tests_parallel.py"),
          "--files", str(probe), "--file-timeout", "2", "--file-retries", "0", "-j", "1"],
         cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        encoding="utf-8", errors="replace", timeout=170,
+        encoding="utf-8", errors="replace", timeout=170, check=False,
     )
     assert marker.exists(), proc.stdout  # the pool attempt really ran first
     assert "RETRY PASS" in proc.stdout, proc.stdout
@@ -538,7 +538,7 @@ def test_node_id_selector_runs_the_named_test(tmp_path: Path) -> None:
         cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         # Decode as UTF-8 like the runner emits (see _run_runner's note);
         # text=True alone uses the locale codec and blows up on cp1252.
-        encoding="utf-8", errors="replace", timeout=60,
+        encoding="utf-8", errors="replace", timeout=60, check=False,
     )
     assert proc.returncode == 0, proc.stdout
     assert "No test files to run" not in proc.stdout
@@ -559,7 +559,7 @@ def test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:
         cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         # Decode as UTF-8 like the runner emits (see _run_runner's note);
         # text=True alone uses the locale codec and blows up on cp1252.
-        encoding="utf-8", errors="replace", timeout=60,
+        encoding="utf-8", errors="replace", timeout=60, check=False,
     )
     # -k test_beta wins: one test ran, and it wasn't filtered to nothing.
     assert proc.returncode == 0, proc.stdout
