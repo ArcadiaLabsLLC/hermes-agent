@@ -757,3 +757,5 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (launcher lane w1015e-mc-l)
 
+## Filed on arrival — 2026-10-15 (lane w1015i-packs)
+- [ ] **The `provider-mistral` and `provider-azure-identity` packs are built but nothing reports them: `runtime.provider.list` `dependencies` walks `hermes_cli/runtime_environment.py` `_PROVIDER_PACKAGE_REQUIREMENTS`, which names bedrock and vertex only — Mistral is a speech provider (`tools/tts_tool.py`, `tools/transcription_cloud.py`) and azure-identity is the optional Entra mode of `azure-foundry` (`agent/azure_identity_adapter.py`), so neither can be a hard provider requirement.** Needs a "needed only when" dependency entry (speech provider = mistral; azure-foundry `auth_mode = entra_id`) so the report can name `pack_available` for them; until then the Launcher can offer those two packs only from its own catalog. Evidence: `agent_runtime/provider_packs.py`, `agent_runtime/provider_dependencies.py` (`wave/w1015i-packs`). · fork / bundle packaging · filed by w1015i-packs
