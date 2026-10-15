@@ -46,18 +46,35 @@ def provider_extras_for(package: Any, selection: list[str], *, shipped: list[str
                         repair: bool) -> list[str]:
     """The provider extras a sync of ``selection`` adds — empty when the selection is not widened.
 
-    Only extras the tree still declares (``pm.install._still_declared``): an undeclared one would
-    fail the ``uv sync`` with "Extra is not defined"."""
+    Only extras the tree still declares (:func:`_declared_only`): an undeclared one would fail the
+    ``uv sync`` with "Extra is not defined"."""
     if repair or shipped is not None or "all" not in selection:
         return []
     if _lazy_installs_disabled_by_environment():
         return []
     from pm.extras import extra_supported
-    from pm.install import _still_declared
 
     wanted = [extra for extra in PROVIDER_SDK_EXTRAS
               if extra not in selection and extra_supported(extra, importable=lambda _anchor: False)]
-    return _still_declared(package, wanted) if wanted else []
+    return _declared_only(package, wanted) if wanted else []
+
+
+def _declared_only(package: Any, wanted: list[str]) -> list[str]:
+    """``wanted`` less every extra the tree's ``pyproject.toml`` no longer declares.
+
+    Built on pm's PUBLIC ``pm.features.declared_extras``, never ``pm.install._still_declared``
+    (W0-G6: no fork module imports a ``_private`` upstream name). Names compare as uv matches
+    them, PEP 685-normalized (``packaging.utils.canonicalize_name``); a tree without a
+    ``pyproject.toml`` (a bundled payload) keeps ``wanted`` whole, as pm's own prune does."""
+    from packaging.utils import canonicalize_name
+
+    from pm.features import declared_extras
+
+    root = package.project_root()
+    if not (root / "pyproject.toml").is_file():
+        return list(wanted)
+    declared = {canonicalize_name(extra) for extra in declared_extras(root)}
+    return [extra for extra in wanted if canonicalize_name(extra) in declared]
 
 
 def widen_target_selection(select: Callable[..., tuple[list[str], str, dict]]) -> Callable[..., tuple[list[str], str, dict]]:
