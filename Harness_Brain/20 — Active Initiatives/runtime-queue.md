@@ -238,7 +238,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-pidx, filed by the orchestrator)
 
-- [ ] **hermes children are invisible to the launcher's machine-wide process index: every process hermes spawns that can outlive its parent (serve's tool/MCP hosts, the gateway, workers) should write `<pid>.json` {pid, started_at_ticks, store_root, purpose: "hermes_child"|"serve_runtime", recorded_by_pid} into the launcher's `process_index` directory under `%LOCALAPPDATA%\EterniaLauncher` at start and delete it on exit, so a launcher sweep spares it by identity rather than by ancestry** · seam · launcher side: eternia-launcher `c622f0992` (`MissionProcessIndexEntry` in `lib/core/services/hermes/runtime/hygiene/mission_process_index.dart`) · cross-repo; the launcher reader is in place · released 2026-10-10 (lane-1010 returned L2.20, too big; reason in `queue-sweep-2026-10-10/L2-outcomes.md`) · designed in `docs/agent-runtime-harness/planned/design-sweep-d1-2026-10-10.md` § D1.09 · built by build-1011-B2 (D1.09: 8ac3468730 10396deaa3 48ed69a21f); remaining: S1 (process_index chokepoint + dispatch child + sign-in child) and S2 (native conversation worker tree) built; bundled_app site not built (upstream file; launches the desktop app, not a serve child); S3 DROPPED by… · reason in `queue-sweep-2026-10-10/B2-outcomes.md` · released 2026-10-10 **TAKEN 2026-10-15 w1015-prov-h**
 
 ### Filed on arrival — 2026-10-02 (launcher lane w12-qa, filed by the orchestrator)
 
