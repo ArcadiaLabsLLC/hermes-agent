@@ -45,6 +45,10 @@ from .permission_modes import (
     normalize_permission_mode,
     permission_mode_is_restriction,
     permission_mode_is_unbounded,
+    profile_permission_subject,
+    profile_subject_name,
+    is_profile_subject,
+    PROFILE_SUBJECT_PREFIX,
 )
 from .tool_visibility import ToolVisibilityOptions, permission_state_for_persona
 
@@ -287,22 +291,6 @@ def _record_expresses_opinion(record: ChatToolPermission | None) -> bool:
 #: The subject spelling of a PROFILE conversation's permission record (design D2.07
 #: decision 2): the store key's first half is ``profile:<name>`` where a persona chat's
 #: is the persona id. One spelling, read through the helpers below.
-PROFILE_SUBJECT_PREFIX = "profile:"
-
-
-def profile_permission_subject(name: str) -> str:
-    return PROFILE_SUBJECT_PREFIX + name
-
-
-def is_profile_subject(subject: str | None) -> bool:
-    return isinstance(subject, str) and subject.startswith(PROFILE_SUBJECT_PREFIX) and bool(
-        subject[len(PROFILE_SUBJECT_PREFIX):].strip())
-
-
-def profile_subject_name(subject: str) -> str:
-    return subject[len(PROFILE_SUBJECT_PREFIX):].strip()
-
-
 def permission_options_for_chat(
     persona: AgentPersona,
     *,
