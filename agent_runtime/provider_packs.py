@@ -121,18 +121,18 @@ def activate_pack(site_packages: str, app_dir: Path | None = None) -> dict:
     if commit is None or record.get("commit") != commit:
         raise _refused("pack_mismatch", pack=name)
     resolved = str(directory.resolve())
-    already = any(_same_path(resolved, entry) for entry in sys.path)
+    already = any(_same_site_path(resolved, entry) for entry in sys.path)
     if not already:
         site.addsitedir(resolved)
         importlib.invalidate_caches()
         # A child this runtime starts inherits the pack, as one started after a restart would.
         listed = [p for p in os.environ.get(ENGINE_PACKS_ENV, "").split(os.pathsep) if p]
-        if not any(_same_path(resolved, p) for p in listed):
+        if not any(_same_site_path(resolved, p) for p in listed):
             os.environ[ENGINE_PACKS_ENV] = os.pathsep.join([*listed, resolved])
     return {"pack": name, "site_packages": resolved, "activated": not already}
 
 
-def _same_path(a: str, b: str) -> bool:
+def _same_site_path(a: str, b: str) -> bool:
     try:
         return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
     except (TypeError, ValueError):

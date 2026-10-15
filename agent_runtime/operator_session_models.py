@@ -207,7 +207,10 @@ def _select_chat_effort(params: dict, effort: str) -> dict:
     try:
         with persona_chat_root_lease(params["session_id"], observer_kind="model_selection"):
             _require_idle(params["session_id"])
-            with _owned_session_db(params) as db:
+            # The owner-checked session-db writer has ONE authority (rule 15).
+            from .operator_undo import _undo_store_writer
+
+            with _undo_store_writer(params) as db:
                 _persist_chat_model_override(session_db=db, session_id=params["session_id"],
                                              override=_with_chat_effort(db, params["session_id"], effort or None))
     except PersonaChatBusyError as exc:
@@ -225,18 +228,6 @@ def _with_chat_effort(db, session_id: str, effort: str | None, base: dict | None
     return {"schema_version": 1, "provider": base.get("provider"), "model": base.get("model"),
             "reasoning_effort": effort, "source": "operator", "scope": "mission_control_chat_session",
             "updated_at": datetime.now(UTC).isoformat()}
-
-
-@contextmanager
-def _owned_session_db(params: dict):
-    with operator_session_read(params) as (_, session):
-        scope = session.scope
-    db = chat_session_scope.open_chat_session_db(scope, access=chat_session_scope.SessionDbAccess.WRITE)
-    if db is None:
-        raise OperatorConversationRefused("session_db_unavailable")
-    with closing(db):
-        require_session_owner(db.get_session(params["session_id"]), params.get("client_scope"))
-        yield db
 
 
 def _write_model(params: dict, selection: tuple[str, str, str] | None, *, save_default: bool,
