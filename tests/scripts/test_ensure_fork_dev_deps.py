@@ -28,3 +28,25 @@ def test_a_satisfied_file_installs_nothing(tmp_path):
     req.write_text(f"pytest=={version('pytest')}\n", encoding="utf-8")
     assert main(req) == 0
     assert main(tmp_path / "absent.txt") == 0
+
+
+def test_a_held_install_lock_makes_a_second_installer_wait_then_admits_it(tmp_path):
+    """Owner ruling 2026-10-15 (install lock first). Killing mutation: ``install_lock``
+    yields without ``try_lock_exclusive`` -> the held-lock arm admits the second
+    installer and the TimeoutError control reds."""
+    import pytest
+
+    from agent_runtime.file_locks import try_lock_exclusive, unlock
+    from scripts.ensure_fork_dev_deps import install_lock
+
+    lock = tmp_path / ".fork-dev-deps.lock"
+    with open(lock, "a+b") as holder:
+        try_lock_exclusive(holder)
+        with pytest.raises(TimeoutError, match="another install held"):
+            with install_lock(lock, wait=0.6):
+                pass
+        unlock(holder)
+    # Positive control: the same lock, released, admits the installer.
+    with install_lock(lock, wait=0.6):
+        entered = True
+    assert entered
