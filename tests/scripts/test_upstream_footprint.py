@@ -41,6 +41,40 @@ def test_the_upstream_footprint_never_rises_and_the_fixture_follows_it_down():
     )
 
 
+RAISE_REFUSAL = (
+    "a `reasons` row raises the upstream footprint without an `owner_ruling` (owner, 2026-10-15). "
+    "Extract the edit into a fork module instead (a plugin hook, a fork-owned module the upstream "
+    "file calls once), or get the owner's ruling and cite it on the row as "
+    '"owner_ruling": "<YYYY-MM-DD> · <where it is recorded>"'
+)
+
+
+def test_every_raise_cites_an_owner_ruling():
+    """Owner ruling 2026-10-15: a raise carries the ruling that allowed it. The rows already on
+    main when the rule landed are marked ``grandfathered``; their number only falls."""
+    from scripts.upstream_footprint import GRANDFATHERED_REASONS, grandfathered_count, unruled_reasons
+
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    assert grandfathered_count(fixture) <= GRANDFATHERED_REASONS, (
+        f"{grandfathered_count(fixture)} rows are marked grandfathered, more than the "
+        f"{GRANDFATHERED_REASONS} on main when the rule landed: a new row cannot borrow the marker. "
+        + RAISE_REFUSAL
+    )
+    unruled = unruled_reasons(fixture)
+    assert not unruled, f"{unruled}: " + RAISE_REFUSAL
+
+    # Positive controls: a new row without the field, with a bare date, or borrowing the
+    # grandfathered marker IS caught; one citing a ruling is not.
+    row = {"change": "planted", "before": {}, "after": {}, "reason": "why"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], row]}) == ["planted"]
+    bare = {**row, "owner_ruling": "2026-10-15"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], bare]}) == ["planted"]
+    ruled = {**row, "owner_ruling": "2026-10-15 · Harness_Brain/30 — Decisions/0099"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], ruled]}) == []
+    borrowed = {"reasons": [*fixture["reasons"], {**row, "grandfathered": True}]}
+    assert grandfathered_count(borrowed) == grandfathered_count(fixture) + 1
+
+
 NUMSTAT_Z = (
     "3\t0\thermes_cli/main.py\0"  # upstream, light, additive
     "150\t60\ttools/registry.py\0"  # upstream, heavy (210 > 200)

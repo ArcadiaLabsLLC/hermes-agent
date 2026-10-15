@@ -15,6 +15,7 @@ from that base to the working tree, restricted to the manifest:
   python scripts/upstream_footprint.py --ledger <md>    # write / merge the ledger
   python scripts/upstream_footprint.py --refresh-manifest   # needs the upstream remote
   python scripts/upstream_footprint.py --add-row <path> --reason "<why>" --change "<row/lane>"
+                                        --owner-ruling "<date> · <where recorded>"
                                         # one new upstream edit: its ledger row and the fixture
 
 CI has no ``upstream`` remote, which is why the manifest is committed and read
@@ -286,17 +287,45 @@ def ledger_add_row(text: str, row: FileDelta, *, disposition: str, reason: str, 
     return "".join(lines[: start + 2] + body + lines[end:])
 
 
-def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str) -> dict:
+# A reason row that raises the fixture cites the owner's ruling (owner, 2026-10-15): the date and
+# where it is recorded, e.g. "2026-10-15 · Harness_Brain/30 — Decisions/0015". The rows already on
+# main when the rule landed carry ``"grandfathered": true`` instead; there are exactly
+# GRANDFATHERED_REASONS of them and the number only falls, so a new row cannot borrow the marker.
+OWNER_RULING_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\b\W*\w.*")
+GRANDFATHERED_REASONS = 121
+
+
+def unruled_reasons(fixture: dict) -> list[str]:
+    """``change`` of every non-grandfathered reason row whose ``owner_ruling`` is missing or
+    does not name a date followed by where the ruling is recorded."""
+    return [
+        str(row.get("change", "?"))
+        for row in fixture.get("reasons", [])
+        if row.get("grandfathered") is not True
+        and not OWNER_RULING_RE.match(str(row.get("owner_ruling", "")).strip())
+    ]
+
+
+def grandfathered_count(fixture: dict) -> int:
+    return sum(1 for row in fixture.get("reasons", []) if row.get("grandfathered") is True)
+
+
+def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str,
+                       owner_ruling: str | None = None) -> dict:
     """The fixture at the tree's numbers, with a ``reasons`` row saying why they moved."""
     before = {n: fixture[n] for n in ("files", "deleted_lines", "heavy")}
     after = {"files": tree.files, "deleted_lines": tree.deleted_lines, "heavy": tree.heavy}
     out = {**fixture, **after, "measured_at": today}
-    out["reasons"] = [*fixture.get("reasons", []), {"change": change, "before": before, "after": after, "reason": reason}]
+    row = {"change": change, "before": before, "after": after, "reason": reason}
+    if owner_ruling is not None:
+        row["owner_ruling"] = owner_ruling
+    out["reasons"] = [*fixture.get("reasons", []), row]
     return out
 
 
 def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", stage: str = "-",
-            ledger: Path = DEFAULT_LEDGER, fixture_path: Path = FIXTURE, base: str | None = None) -> str:
+            ledger: Path = DEFAULT_LEDGER, fixture_path: Path = FIXTURE, base: str | None = None,
+            owner_ruling: str | None = None) -> str:
     """``--add-row``: ``path``'s ledger row and the fixture's numbers + reason, in one step.
 
     Refuses when the fork does not edit ``path`` or when, after the add, some
@@ -312,7 +341,8 @@ def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", 
     import datetime
 
     fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-    updated = fixture_add_reason(fixture, tree, change=change, reason=reason, today=datetime.date.today().isoformat())
+    updated = fixture_add_reason(fixture, tree, change=change, reason=reason, today=datetime.date.today().isoformat(),
+                                 owner_ruling=owner_ruling)
     ledger.write_text(text, encoding="utf-8", newline="\n")
     fixture_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8", newline="\n")
     return f"{tree.line()} (was files={fixture['files']} deleted_lines={fixture['deleted_lines']} heavy={fixture['heavy']})"
@@ -395,15 +425,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--add-row", metavar="PATH", help="ledger row + fixture numbers for ONE upstream edit")
     parser.add_argument("--reason", help="--add-row: why the edit is carried (ledger reason and fixture reason)")
     parser.add_argument("--change", help="--add-row: the row or lane the edit belongs to (fixture `change`)")
+    parser.add_argument("--owner-ruling", help="--add-row: the owner ruling that allows the raise "
+                        "(date + where it is recorded; fixture `owner_ruling`)")
     parser.add_argument("--disposition", default="carry", choices=DISPOSITIONS)
     parser.add_argument("--stage", default="-")
     args = parser.parse_args(argv)
 
     if args.add_row:
-        if not (args.reason and args.change):
-            parser.error("--add-row needs --reason and --change")
+        if not (args.reason and args.change and args.owner_ruling):
+            parser.error("--add-row needs --reason, --change and --owner-ruling (no ruling: extract the "
+                         "edit into a fork module instead)")
         print(add_row(args.add_row, reason=args.reason, change=args.change, disposition=args.disposition,
-                      stage=args.stage, base=args.base))
+                      stage=args.stage, base=args.base, owner_ruling=args.owner_ruling))
         return 0
 
     if args.refresh_manifest:

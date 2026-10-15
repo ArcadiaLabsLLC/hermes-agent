@@ -18,8 +18,15 @@ def declare_contracts():
         expected_generation: str | None = None
         child_ref: str | None = None
 
+    class SubagentCommandParams(SubagentReadParams):
+        request_id: str
+
+    class SubagentSteerParams(SubagentCommandParams):
+        text: str
+
     class OwnedSubagentSnapshot(SubagentSnapshot):
         child_ref: str | None
+        controllable: bool
 
     class ChildObservation(Result):
         version: int
@@ -50,12 +57,27 @@ def declare_contracts():
     class ChildTailResult(Result):
         data: ChildTail
 
-    results = {"capabilities": ChildCapabilitiesResult, "list": ChildRosterResult, "tail": ChildTailResult}
+    class ChildCommand(ChildObservation):
+        child_ref: str
+        subagent_id: str | None
+        request_id: str
+        operation: str | None
+        status: str
+        missed_steer: bool | None
+
+    class ChildCommandResult(Result):
+        data: ChildCommand
+
+    results = {"capabilities": ChildCapabilitiesResult, "list": ChildRosterResult, "tail": ChildTailResult,
+               "steer": ChildCommandResult, "stop": ChildCommandResult, "receipt": ChildCommandResult}
 
     for operation in OPERATIONS:
         name = "eternia.subagents." + operation
         if name not in registry.METHODS:
-            registry.method(name, params=SubagentReadParams, result=results[operation])
+            params = SubagentCommandParams if operation in ("steer", "stop", "receipt") else SubagentReadParams
+            if operation == "steer":
+                params = SubagentSteerParams
+            registry.method(name, params=params, result=results[operation])
 
 
 def inspect(operation, rid, params):

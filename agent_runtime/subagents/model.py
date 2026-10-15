@@ -5,7 +5,13 @@ __layer__ = "models"
 
 VERSION = 1
 TAIL_BYTES = 16384
-OPERATIONS = ("capabilities", "list", "tail")
+MUTATIONS = ("steer", "stop")
+COMMAND_PARAMS = ("expected_generation", "child_ref", "request_id")
+REQUIRED_PARAMS = {
+    "capabilities": (), "list": (), "tail": COMMAND_PARAMS[:2],
+    "steer": (*COMMAND_PARAMS, "text"), "stop": COMMAND_PARAMS, "receipt": COMMAND_PARAMS,
+}
+OPERATIONS = tuple(REQUIRED_PARAMS)
 
 
 class Refusal(StrEnum):
@@ -13,6 +19,7 @@ class Refusal(StrEnum):
     STALE = "subagent_reference_stale"
     INVALID = "subagent_request_invalid"
     UNAVAILABLE = "subagent_unavailable"
+    UNKNOWN = "subagent_outcome_unknown"
 
 
 class SubagentError(ValueError):
@@ -27,9 +34,16 @@ ERROR_CODES = {reason: 4601 + index for index, reason in enumerate(Refusal)}
 def validate_request(operation: str, params: dict) -> None:
     if operation not in OPERATIONS:
         raise SubagentError(Refusal.INVALID)
-    for key in ("expected_generation", "child_ref"):
+    required = REQUIRED_PARAMS[operation]
+    for key, limit in (("expected_generation", 512), ("child_ref", 512), ("request_id", 128)):
         value = params.get(key)
-        if value is not None and (not isinstance(value, str) or not value or len(value) > 512):
+        if value is None and key not in required:
+            continue
+        if not isinstance(value, str) or not value or len(value) > limit:
             raise SubagentError(Refusal.INVALID)
-    if operation == "tail" and (not params.get("child_ref") or not params.get("expected_generation")):
+    if "text" in required:
+        text = params.get("text")
+        if not isinstance(text, str) or not text.strip() or len(text.encode("utf-8")) > 8192:
+            raise SubagentError(Refusal.INVALID)
+    elif params.get("text") is not None:
         raise SubagentError(Refusal.INVALID)

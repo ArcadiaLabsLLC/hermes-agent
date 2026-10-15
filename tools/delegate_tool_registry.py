@@ -89,12 +89,14 @@ def _close_subagent_steering(subagent_id: str, agent: Any) -> Optional[str]:
             return None
         return pending if isinstance(pending, str) and pending.strip() else None
 
-def interrupt_subagent(subagent_id: str) -> bool:
+def interrupt_subagent(subagent_id: str, *, authorize_record=None) -> bool:
     """Request that one running subagent stop at its next iteration boundary
     (cooperative: the flag propagates to in-flight tools and recurses into
     grandchildren via AIAgent.interrupt()). True iff a matching subagent was found."""
     with _active_subagents_lock:
         record = _active_subagents.get(subagent_id)
+        if authorize_record is not None and (not record or not authorize_record(record)):
+            return False
     agent = record.get("agent") if record else None
     if agent is None:
         return False
@@ -123,7 +125,7 @@ def _subagent_transport_matches(record, transport) -> bool:
 
 def steer_subagent(
     subagent_id: str, text: str, *, owner_session_id: Optional[str] = None, owner_transport: Any = None,
-    owner_session_record: Any = None,
+    owner_session_record: Any = None, authorize_record=None,
 ) -> bool:
     """Queue steering text into a running subagent without stopping it.
 
@@ -138,6 +140,8 @@ def steer_subagent(
     with _active_subagents_lock:
         record = _active_subagents.get(subagent_id)
         if not record or not record.get("accepting_steer", False):
+            return False
+        if authorize_record is not None and not authorize_record(record):
             return False
         if owner_session_id is not None and (
             record.get("owner_session_id") != owner_session_id

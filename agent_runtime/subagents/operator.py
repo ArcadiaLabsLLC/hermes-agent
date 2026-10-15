@@ -56,6 +56,10 @@ class _Owner:
         parents = conversation_agents(self.params["session_id"], self.instance_id)
         return self.visible(record) and has_live_ancestor(record, parents)
 
+    def controllable(self, record):
+        parents = conversation_agents(self.params["session_id"], self.instance_id)
+        return bool(parents) and self.visible(record) and has_live_ancestor(record, parents)
+
     def revalidate(self):
         with operator_session_read(self.params) as (instance, session):
             binding = _subagent_profile_binding(instance)
@@ -77,5 +81,5 @@ def inspect_operator(operation: str, params: dict) -> dict:
         with persona_profile_scope(binding, runtime_root=paths.store_root()):
             records = [record for record in registry_snapshot() if checked.visible(record)]
             data = inspect_records(operation, params, owner=owner, visible=records,
-                                   exact=checked.exact, revalidate=checked.revalidate)
+                                   exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)
         return {**identity, **data}

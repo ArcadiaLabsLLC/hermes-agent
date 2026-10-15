@@ -10,7 +10,8 @@ pytestmark = pytest.mark.timeout(120)
 
 
 @pytest.mark.parametrize("mode", ["native-worker", "isolated-compute", "in-process"])
-def test_owned_child_reads_across_execution_hosts(tmp_path, mode):
+@pytest.mark.parametrize("action", ["steer", "stop"])
+def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
     from hermes_cli.profiles import get_profile_dir
     from agent_runtime.conversations.in_process_peer import start_in_process_worker
 
@@ -35,7 +36,7 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode):
                      lambda r: "Child public progress." in r["text"])
         assert len(tail["text"].encode()) <= 16384 and "PRIVATE_KICKOFF_CONTEXT" not in tail["text"]
         assert tail["subagent_id"] == child["subagent_id"]
-        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail"]
+        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt"]
         if mode != "isolated-compute":
             assert service.subagents(scope, sibling, "list", {})["children"] == []
         else:
@@ -43,8 +44,18 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode):
             from agent_runtime.subagents.model import SubagentError
             with pytest.raises(SubagentError):
                 service.subagents(scope, sibling, "tail", guard)
+        command = {**guard, "request_id": "real-command", **({"text": "Check the boundary."} if action == "steer" else {})}
+        receipt = service.subagents(scope, sid, action, command)
+        assert receipt["status"] == ("queued" if action == "steer" else "interrupt_requested")
+        assert service.subagents(scope, sid, action, command)["status"] == receipt["status"]
         provider.release.set()
         until(lambda: service.subagents(scope, sid, "list", {}), lambda r: not r["children"])
+        settled = service.subagents(scope, sid, "receipt", {**guard, "request_id": "real-command"})
+        assert settled["status"] == receipt["status"]
+        if action == "steer":
+            settled = until(lambda: service.subagents(scope, sid, "receipt", {**guard, "request_id": "real-command"}),
+                            lambda r: r["missed_steer"] is not None)
+            assert settled["missed_steer"] is True
         from agent_runtime.subagents.model import Refusal, SubagentError
         with pytest.raises(SubagentError) as stale:
             service.subagents(scope, sid, "tail", guard)

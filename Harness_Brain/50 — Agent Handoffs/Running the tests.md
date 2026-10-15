@@ -224,6 +224,10 @@ five habits cost about 390 minutes a day.
   lives in a fork-owned `tests/**/*_downstream.py` that imports upstream's fixtures. Appending to an
   upstream test file adds a file to the fork's upstream footprint (`tests/scripts/test_upstream_footprint.py`);
   landing h-turn1 had to move one (`92be2b3a10`).
+- **A raise of the upstream footprint cites an owner ruling.** A new `reasons` row in
+  `tests/fixtures/upstream_footprint.json` carries `owner_ruling` (date + where recorded), or the
+  edit moves into a fork module; `test_every_raise_cites_an_owner_ruling` reds otherwise (owner,
+  2026-10-15; the field is described in `upstream-footprint-ledger.md`).
 - **A CHANGE commit carries its positive control:** the defect planted on a throwaway copy, the red
   pasted into the commit body, reverted. A new gate lands with its killing mutation recorded. A
   control that has not been run is a belief.
