@@ -123,7 +123,8 @@ class SettlePush:
         # Owner ruling 2026-10-10 (L5.10): one writer. Two serves over one store
         # both run this loop; only the socket owner pushes records it did not
         # write, so a non-owner pushes its own and the retry budget is not halved.
-        mine_only = self._another_serve_owns_this_root()
+        owner_check = getattr(self, "_another_serve_owns_this_root", None)
+        mine_only = bool(owner_check()) if callable(owner_check) else False
         with self._settle_store_scope():
             for record in due_settles():
                 if mine_only and record.recorded_by != self.boot_id:
