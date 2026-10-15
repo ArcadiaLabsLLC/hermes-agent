@@ -1577,3 +1577,27 @@ def test_the_pre_connect_carries_identity_and_never_a_credential():
         assert sent["user-agent"] == "HermesAgent/test" and sent["originator"] == "hermes-agent"
         assert "authorization" not in sent and "chatgpt-account-id" not in sent
         assert "secret" not in str(sent)
+
+
+def test_one_prepare_resolves_the_turn_workspace_once(
+    persisted_persona_samples, bundled_persona_profiles, monkeypatch
+):
+    """build-1011-C2: ``_prepare`` loaded the slot context three times (receipt,
+    system-message content, primary path) and resolved the workdir separately. One
+    ``_turn_workspace`` per prepare now feeds all four."""
+
+    import dataclasses
+
+    from agent_runtime import mission_chat_turn_context as turn_context
+
+    loads: list[object] = []
+    real = turn_context.DEFAULT_RESOLVERS.load_slot_context
+    monkeypatch.setattr(turn_context, "DEFAULT_RESOLVERS", dataclasses.replace(
+        turn_context.DEFAULT_RESOLVERS,
+        load_slot_context=lambda instance: loads.append(instance) or real(instance),
+    ))
+    root, _instance, _session_db = _live_chat_root()
+
+    prewarm_module._prepare(root, None)
+
+    assert len(loads) == 1, f"the slot context was loaded {len(loads)} times in one prepare"

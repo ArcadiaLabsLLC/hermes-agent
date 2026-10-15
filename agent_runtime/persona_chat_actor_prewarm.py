@@ -148,7 +148,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 from .chat_session_writer import with_chat_session_writer_owner
 from .launcher_link_prewarm import LauncherLinkPreparation, launcher_link_prewarm_scope
@@ -541,7 +541,6 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         mission_chat_runtime_signature_digests,
         mission_chat_runtime_signature_from_components,
     )
-    from .mission_chat_workdir import mission_chat_workdir_for_persona
     from .models import apply_instance_model_overrides
     from .persona_chat_durability import default_persona_session_db
     from .persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
@@ -595,6 +594,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         # cannot use is work for nobody. Reported, not raised.
         raise _PrewarmRefused(OUTCOME_SKIPPED_PROFILE_UNREADY)
 
+    workspace = _first_turn_workspace(persona, instance)  # ONE slot/workdir resolve (C2)
     # Composed, then folded exactly as the turn folds it: the composite is the
     # reuse key, the per-component digests ride along so the first real turn's
     # refusal (if any) names the component that moved. Seeding them HERE is
@@ -611,7 +611,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         # A chat with no workspace selection matches exactly; a workspace-bound
         # one rebuilds on its first turn and costs what it costs today — and now
         # says so, as ``resident_rebuild_component_workspace_agents``.
-        workspace_agents_receipt=_slot_receipt(persona, instance),
+        workspace_agents_receipt=workspace.receipt,
         surface_prompt="",
     )
     signature = mission_chat_runtime_signature_from_components(signature_components)
@@ -623,7 +623,6 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     native_revision = _persona_chat_native_revision(session_db, root)
 
     lane_bundle = chat_lane_bundle(persona, session_id=root)
-    workdir = mission_chat_workdir_for_persona(persona, workspace_agents_path=None, primary_slot_path=_slot_primary(instance))
     envelope_scope = terminal_envelope_scope_for_persona(
         persona,
         lane=LANE_MISSION_CHAT,
@@ -647,7 +646,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         skip_context_files=not bool(getattr(persona, "include_core_context_files", False)),
         skip_memory=not bool(getattr(persona, "include_profile_memory", False)),
         platform=PERSONA_CHAT_SCRATCH_SOURCE,
-        system_message=_first_turn_system_message(persona, instance),
+        system_message=_first_turn_system_message(persona, instance, workspace=workspace),
         skill_surface="mission_chat",
         skill_root_node_mode=False,
         session_id=active_session_id,
@@ -661,7 +660,7 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         ),
         persona_chat_native_revision=native_revision,
         runtime_root=paths.store_root(),
-        workdir=Path(workdir.path) if workdir.grounded else None,
+        workdir=Path(workspace.workdir.path) if workspace.workdir.grounded else None,
         # Every callback stays None. A prewarm has no operator watching it, no
         # stream to feed and no turn record to decorate; the resident actor's
         # per-turn handles are (re)bound by
@@ -1037,15 +1036,34 @@ __all__ = [
 ]
 
 
-def _slot_receipt(persona: Any, instance: Any) -> dict[str, Any] | None:
-    """An assigned instance's repo-slot receipt (build plan §3.3): the SAME receipt the turn
-    folds, from the turn's own workspace resolve (its slot dedup included, D1.12), so an
-    assigned chat matches its first turn instead of rebuilding on it. None without an
-    assignment — exactly what an unassigned turn with no ``--agents-file`` folds."""
+class _FirstTurnWorkspace(NamedTuple):
+    """The first turn's workspace facts, from ONE ``_turn_workspace`` resolve."""
+
+    content: str | None
+    receipt: dict[str, Any] | None
+    workdir: Any
+
+
+def _first_turn_workspace(persona: Any, instance: Any) -> _FirstTurnWorkspace:
+    """The turn's own workspace resolve (slot dedup included, D1.12), once per prepare.
+
+    ``content`` is what the turn folds into its system message under an assignment (None
+    without one: the launcher's per-turn ``--agents-file`` is never guessed, module
+    docstring); ``receipt`` the repo-slot receipt the signature folds (build plan §3.3);
+    ``workdir`` the grounding the turn resolves from the same inputs (D1.12 S1)."""
 
     from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace
 
-    return _turn_workspace(DEFAULT_RESOLVERS, persona, instance, None)[2]
+    slot_context, _agents, receipt, workdir = _turn_workspace(DEFAULT_RESOLVERS, persona, instance, None)
+    content = None if slot_context is None else (slot_context.content or None)
+    return _FirstTurnWorkspace(content, receipt, workdir)
+
+
+def _slot_receipt(persona: Any, instance: Any) -> dict[str, Any] | None:
+    """An assigned instance's repo-slot receipt: the SAME receipt the turn folds, so an
+    assigned chat matches its first turn instead of rebuilding on it."""
+
+    return _first_turn_workspace(persona, instance).receipt
 
 
 def _prompt_surface_kwargs(persona: Any, instance: Any, root: str, lane_bundle: Any) -> dict[str, Any]:
@@ -1065,7 +1083,9 @@ def _prompt_surface_kwargs(persona: Any, instance: Any, root: str, lane_bundle: 
     }
 
 
-def _first_turn_system_message(persona: Any, instance: Any) -> str:
+def _first_turn_system_message(
+    persona: Any, instance: Any, *, workspace: _FirstTurnWorkspace | None = None
+) -> str:
     """The system message the first turn will pass, through the turn's own builder (h-turn1 A3).
 
     The prompt the prewarm builds from it is the one that turn adopts, and it adopts
@@ -1073,29 +1093,13 @@ def _first_turn_system_message(persona: Any, instance: Any) -> str:
 
     from .persona_runtime import _mission_chat_surface_message
 
-    return _mission_chat_surface_message(
-        persona, "", workspace_agents_content=_workspace_agents_content(persona, instance)
-    )
+    content = (workspace or _first_turn_workspace(persona, instance)).content
+    return _mission_chat_surface_message(persona, "", workspace_agents_content=content)
 
 
 def _workspace_agents_content(persona: Any, instance: Any) -> str | None:
-    """The workspace content the turn folds into its system message, as the turn reads it.
+    """The workspace content the turn folds into its system message, as the turn reads it."""
 
-    ``MissionChatTurnContext.workspace_agents_content`` under an assignment: the slot
-    context's content after the turn's own dedup against the cwd chain (D1.12). Without one
-    the turn reads the launcher's per-turn ``--agents-file``, which this module never
-    guesses (module docstring) -- None."""
-
-    from .mission_chat_turn_context import DEFAULT_RESOLVERS, _turn_workspace
-
-    slot_context = _turn_workspace(DEFAULT_RESOLVERS, persona, instance, None)[0]
-    return None if slot_context is None else (slot_context.content or None)
+    return _first_turn_workspace(persona, instance).content
 
 
-def _slot_primary(instance: Any) -> str | None:
-    """The primary slot's bound path — workdir rung 2 under an assignment, as the turn resolves it."""
-
-    from .mission_chat_turn_context import DEFAULT_RESOLVERS
-
-    slot_context = DEFAULT_RESOLVERS.load_slot_context(instance)
-    return None if slot_context is None else slot_context.primary_path
