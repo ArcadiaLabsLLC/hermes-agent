@@ -565,6 +565,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
 _fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys of fixture modules
+_leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 
 _OUR_FLAGS = {
@@ -814,7 +815,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
 
     gate.emit_cached(FileOutcome, _progress)  # skipped as cached green: no process
-    started = time.monotonic()
+    started, run_wall = time.monotonic(), time.time()
     result = run(
         gate.to_run,
         pytest_args + gate.plugin_args,
@@ -838,6 +839,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         extra=policy.shards.record(_ran(result.outcomes, repo_root)),
     )
     for line in policy.closing_lines():  # unsharded-list candidates (fast-gate §3)
+        print(line)
+    for line in _leftovers.lines(_leftovers.scan(run_wall)):  # a detached hermes update, named
         print(line)
     return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
 
