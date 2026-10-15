@@ -16,7 +16,7 @@ whose own scope has none.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Optional
 
 from tools.mcp_tool_common import _core
 
@@ -63,7 +63,7 @@ def _resolve_server_key(name: str, scope: Optional[str] = None, *, current: bool
     return own
 
 
-def current_mcp_servers() -> Dict[str, Any]:
+def current_mcp_servers() -> dict[str, Any]:
     """Live connections visible to the current registry scope — its own, or a shared one it
     adopted — keyed by server name. Read under ``_lock``; returns a new dict. Outside a
     profile multiplexer this is every connection. A pending own-scope lazy registration wins
@@ -71,7 +71,7 @@ def current_mcp_servers() -> Dict[str, Any]:
     with _core._lock:
         servers = _core._servers
         scope = _core._mcp_registry_scope()
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for name in {_key_name(key) for key in servers}:
             key = _resolve_server_key(name, scope, current=False)
             if key not in servers:
