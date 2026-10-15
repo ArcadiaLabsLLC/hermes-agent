@@ -729,6 +729,5 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (owner rulings: hermes builds first for the Agent Console)
 
-- [ ] **Give every streamed console frame an id so a replayed delta cannot double up** — the launcher row "stream seq not per-frame" (launcher mission-control-queue) waits on it. OWNER RULING 2026-10-15: on hermes' next wave · seam / serve stream **TAKEN 2026-10-15 w1015b-con-x**
 - [ ] **Add `permission.set` for subject `profile:<name>` (profile-level conversation permission)** — checked absent on main 2026-10-15; the launcher row "PROFILE conversation permission" waits on it. OWNER RULING 2026-10-15: on hermes' next wave · fork / serve_rpc permissions **TAKEN 2026-10-15 w1015b-con-x**
 - [ ] **Emit running_work and chat mints on the patch lane** — the launcher row "running_work and chat mints on the patch lane" waits on the hermes emitter. OWNER RULING 2026-10-15: on hermes' next wave · fork / serve patch lane **TAKEN 2026-10-15 w1015b-con-x**
