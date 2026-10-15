@@ -69,6 +69,13 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-15 (lane w1015h-rt-h)
 - [ ] **A serve with resident chats off (`persona_chat.hot_sessions_enabled`, default False — the QA home) never pre-connects or keeps a socket warm, so every turn's api:1 handshakes after the pool's 20 s `keepalive_expiry`: 6/6 turns `conn=new` (connect 6.5–15.5 ms + TLS 12.0–15.7 ms) and a mid-turn tool gap over 20 s reconnects too (api:5 `conn=new`)** · runtime / turn latency · `agent_runtime/idle_turn_keeper.py` (armed only where resident chats are kept), `agent_runtime/provider_preconnect.py` · evidence: QA home `profiles/base/logs/agent.log` 2026-10-15 07:17–07:29 (serve 7e24ded80e): no `idle_turn_keeper`/preconnect receipts, `agent_init` client built every turn · lane: decide whether the keeper should arm without the resident registry (~25 ms/turn) or this stays the documented cost of hot sessions off
 
+### Filed on arrival — 2026-10-15 (audit lane a1015-hrt)
+
+- [ ] **A native conversation turn with no execution id on an eternia session runs with NO permission block** — `agent_runtime/conversations/worker_permissions.py::bind` returns `None` when `turn_permission` finds no `native_execution.id`, so a worker follow-up turn keeps every app function (fail-open), against the owner's "read-only unless allowed" ruling; `54994f378bf` deleted the row naming this gap as "scope left" without filing it. Bind `read_only` (log `permission_bind_missing`) for any `enabled(session)` turn the serve did not admit, or refuse it.
+- [ ] **WEAKNESS: the standing-stream lane's 33rd `harness stream` queues silently** — `hermes_cli/harness_parts/serve/request_pool.py::RequestPool.submit_stream` (`c0962bfb48e`, `STREAM_LANE_WORKERS = 32`) hands work to a `ThreadPoolExecutor` that queues past its ceiling with no log or refusal, and orphaned argv readers (`b931a2de996`) can fill it; target shape: a counted lane that answers a typed `stream_lane_full` refusal and logs occupancy.
+- [ ] **WEAKNESS: `SettlePush._push_due_settles` reads its owner check through `getattr` so a test fixture lacking it still runs** — `hermes_cli/harness_parts/serve/settle_push.py` (`e5ebdc7326c`): a production host that loses `_another_serve_owns_this_root` silently falls back to pushing every record (the L5.10 double-push); declare the method on the mixin (abstract/Protocol) and give the busy-root `_Session` fixture its own answer.
+- [ ] **nit: `runtime.provider.list` (a read) now mutates pool state and may run a Codex quota probe, and swallows its failure unlogged** — `hermes_cli/harness_parts/provider_visibility.py::_lift_reopened_cooldowns` (`0e943dfb0e0`, `except Exception: return entries`); log the failure with the provider id.
+
 ### Filed on arrival — 2026-10-15 (lane w1015b-rt-h)
 
 
@@ -489,6 +496,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams
+
+- [ ] **WEAKNESS: `_codex_pool_row_refused` is a 20-line fork helper living inside upstream `hermes_cli/auth_codex.py`, with a silent `except Exception: return False`** (`8059b23fa3c`, runtime R596) — a seam is one import and one call; move the helper to a fork-owned module (e.g. `agent_runtime/auth_extensions.py`), keep one call in the upstream loop, and log an unparsable pool row instead of serving it unrefused.
 
 
 
