@@ -55,6 +55,9 @@ MISSING = "MISSING"
 #: compact green.jsonl / deps.jsonl to their newest line per file past this; modsets.jsonl past the second
 COMPACT_BYTES = 4 << 20
 MODSETS_COMPACT_BYTES = 32 << 20
+#: archive ``runs.jsonl`` past this, keeping its newest RUNS_KEEP lines live
+RUNS_COMPACT_BYTES = 8 << 20
+RUNS_KEEP = 50
 #: owner ruling Q2: a green older than this misses
 DEFAULT_MAX_AGE_DAYS = 14.0
 #: a file that was flaky, leaked or went unreached is cached again only after this many greens in a row
@@ -217,7 +220,9 @@ class GateStore:
     """``<store>/``: ``deps.jsonl`` + ``modsets.jsonl`` (what each file
     depends on), ``green.jsonl`` (its last green and the key it ran under),
     ``runs.jsonl`` (the run record, ex ``.pytest_cache/hermes_bundled_runs.jsonl``),
-    ``durations.json`` (clean-pass seconds, rel-keyed) and ``generation``."""
+    ``durations.json`` (clean-pass seconds, rel-keyed) and ``generation``.
+    ``runs.archive.jsonl`` holds the run lines compaction moved out of ``runs.jsonl``,
+    verbatim: an investigation receipt is moved, never discarded."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
@@ -225,6 +230,7 @@ class GateStore:
         self.modsets = self.root / "modsets.jsonl"
         self.green = self.root / "green.jsonl"
         self.runs = self.root / "runs.jsonl"
+        self.runs_archive = self.root / "runs.archive.jsonl"
         self.durations = self.root / "durations.json"
         self.generation_file = self.root / "generation"
         self._known_modsets: Optional[set] = None
@@ -338,11 +344,20 @@ class GateStore:
 
     # ── compaction ──
 
-    def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES) -> List[str]:
+    def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES,
+                runs_limit: int = RUNS_COMPACT_BYTES, runs_keep: int = RUNS_KEEP) -> List[str]:
         """Rewrite ``green.jsonl`` and ``deps.jsonl`` to the NEWEST line per file
         once one passes ``limit`` bytes, and ``modsets.jsonl`` to the sets the
         kept deps lines name once it passes ``modsets_limit``. A line another
-        run appends mid-rewrite can be lost: that is a miss, never a false hit."""
+        run appends mid-rewrite can be lost: that is a miss, never a false hit.
+
+        ``runs.jsonl`` past ``runs_limit`` keeps its newest ``runs_keep`` lines and
+        APPENDS the rest, byte for byte, to ``runs.archive.jsonl``. Every run line
+        carries the whole carried-forward red map, so the newest line alone is the
+        final-red state ``last_record`` reads; the older lines' bundle diagnostics
+        and first-attempt evidence move to the archive, which the runner never
+        reads. ``skip_runs`` then counts only the live lines: fewer counted skip
+        runs can only select the larger early audit fraction (the safe direction)."""
 
         done = []
         for path in (self.green, self.deps):
@@ -356,6 +371,18 @@ class GateStore:
             _rewrite(self.modsets, kept.values())
             self._known_modsets = None
             done.append(self.modsets.name)
+        if _size(self.runs) > runs_limit:
+            lines = self.runs.read_bytes().splitlines(keepends=True)
+            if len(lines) > runs_keep:
+                old, kept = lines[: len(lines) - runs_keep], lines[len(lines) - runs_keep:]
+                if old and not old[-1].endswith(b"\n"):
+                    old[-1] += b"\n"
+                with self.runs_archive.open("ab") as handle:
+                    handle.writelines(old)
+                tmp = self.runs.with_name(f"{self.runs.name}.{os.getpid()}.tmp")
+                tmp.write_bytes(b"".join(kept))
+                os.replace(tmp, self.runs)
+                done.append(self.runs.name)
         return done
 
 
