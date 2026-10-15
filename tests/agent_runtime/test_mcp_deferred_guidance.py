@@ -3,10 +3,11 @@ from agent_runtime.mcp_admission.outcomes import _admitted_clause
 from tools.downstream_schema import promoted_brief
 
 
-def test_admission_guides_deferred_calls_without_claiming_eager_membership():
+def test_admission_states_the_admitted_servers_without_claiming_eager_membership():
+    """Facts only (owner ruling L2.12): the deferred route rides the capability block's
+    deferred line, so the admitted clause names the servers and nothing else."""
     line = _admitted_clause(SimpleNamespace(server_names=("launcher_qa", "dart")), denied_servers=set())
-    assert "launcher_qa" in line and "dart" in line
-    assert "tool_search" in line and "tool_call" in line
+    assert line == " Admitted on this turn: launcher_qa, dart."
     assert "ARE in your tool list" not in line
 
 
