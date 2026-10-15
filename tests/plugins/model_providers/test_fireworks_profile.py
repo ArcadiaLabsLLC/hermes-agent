@@ -46,6 +46,26 @@ class TestFireworksHeaders:
 
 
 
+    def test_importing_the_profile_does_not_resolve_the_version(self, monkeypatch):
+        """Plugin discovery imports every provider; the User-Agent's version lookup
+        (git subprocesses on a source install) waits for the first header read."""
+        import importlib.util
+        from pathlib import Path
+
+        import hermes_cli.version_info as version_info
+
+        calls = []
+        real = version_info.get_version_info
+        monkeypatch.setattr(version_info, "get_version_info", lambda: calls.append(1) or real())
+        path = Path(__file__).resolve().parents[3] / "plugins" / "model-providers" / "fireworks" / "__init__.py"
+        spec = importlib.util.spec_from_file_location("_fireworks_lazy_ua_probe", path)
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setattr("providers.register_provider", lambda profile: None)
+        spec.loader.exec_module(module)
+        assert calls == []
+        assert dict(module.fireworks.default_headers)["User-Agent"].startswith("HermesAgent/")
+        assert calls == [1]
+
 
 class TestFireworksModelDefaults:
     """Defaults must be usable with a standard pay-as-you-go key.

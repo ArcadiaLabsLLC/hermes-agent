@@ -1,11 +1,36 @@
 """Fireworks AI provider profile. Models are addressed by full catalog ID
 (``accounts/fireworks/models/<slug>``), tracking fw-ai/fireconnect ``setup-cli``."""
 
+from collections.abc import Iterator, Mapping
 from typing import Any
 
-from hermes_cli.version_info import get_version_info
 from providers import register_provider
 from providers.base import ProviderProfile
+
+
+class _AttributionHeaders(Mapping[str, str]):
+    """The canonical Hermes attribution headers, with the User-Agent built on first read.
+
+    ``get_version_info()`` resolves provenance (on a source install, several ``git``
+    subprocesses); calling it at import made every ``hermes`` process pay it during
+    plugin discovery, whether or not it ever talks to Fireworks.
+    """
+
+    _STATIC = {"HTTP-Referer": "https://hermes-agent.nousresearch.com", "X-Title": "Hermes Agent"}
+
+    def __getitem__(self, key: str) -> str:
+        if key == "User-Agent":
+            from hermes_cli.version_info import get_version_info
+
+            return f"HermesAgent/{get_version_info().base_version}"
+        return self._STATIC[key]
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self._STATIC
+        yield "User-Agent"
+
+    def __len__(self) -> int:
+        return len(self._STATIC) + 1
 
 
 class FireworksProfile(ProviderProfile):
@@ -33,11 +58,7 @@ fireworks = FireworksProfile(
     base_url="https://api.fireworks.ai/inference/v1", auth_type="api_key",
     # Attribution headers (canonical Hermes set); via default_headers so they
     # survive switch_model and credential rotation.
-    default_headers={
-        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-        "X-Title": "Hermes Agent",
-        "User-Agent": f"HermesAgent/{get_version_info().base_version}",
-    },
+    default_headers=_AttributionHeaders(),
     default_aux_model="accounts/fireworks/models/glm-5p2",
     # Picker safety net when the live catalog fetch fails.
     fallback_models=(
