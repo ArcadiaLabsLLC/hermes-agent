@@ -251,7 +251,7 @@ def _cmd_persona_instance_set_model(args) -> int:
     }
     log_model_selection(verb="persona.instance.set_model", target=updated.id, scope="agent_instance",
                         chosen="default" if request["use_default"] else
-                        f"model={request['model'] or '-'},effort={request['reasoning_effort'] or '-'}",
+                        f"provider={request['provider'] or '-'},model={request['model'] or '-'},effort={request['reasoning_effort'] or '-'}",
                         outcome=status, saved="persona_instance_store")
     emit_operation_result(args, data, f"{status}: {updated.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0
@@ -401,7 +401,8 @@ def _cmd_persona_set_model(args) -> int:
         ),
     }
     log_model_selection(verb="persona.set_model", target=str(target.id), scope="agent_default",
-                        chosen="default" if request["use_default"] else request["model"],
+                        chosen="default" if request["use_default"] else
+                        f"provider={request['provider'] or '-'},model={request['model'] or '-'}",
                         outcome=status if changed or status != "applied" else "unchanged", saved="agent_store")
     emit_operation_result(args, data, f"{status}: {target.id} model={data['effective_model']} provider={data['effective_provider']}")
     return 0

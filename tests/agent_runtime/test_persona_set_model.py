@@ -881,3 +881,21 @@ def test_cli_instance_set_model_non_opencode_keeps_the_profile_api_mode(monkeypa
         _instance_args(b.id, provider="anthropic", model="claude-opus-5-5"))
     assert code == 0
     assert json.loads(capsys.readouterr().out)["api_mode"] == get_provider_profile("anthropic").api_mode
+
+
+def test_model_selection_receipt_names_the_provider(monkeypatch, capsys, caplog):
+    """A Claude pick on opencode-zen and one on anthropic must read differently in the log."""
+    import logging
+
+    caplog.set_level(logging.INFO, logger="agent_runtime.persona_chat_session")
+    _patched_harness(monkeypatch)
+    store = PersonaInstanceStore()
+    _, b = _two_instances(store, _persona())
+    model_and_skills_commands._cmd_persona_instance_set_model(
+        _instance_args(b.id, provider="opencode-zen", model="claude-opus-5-5"))
+    ensure_persisted_personas(_cfg())
+    model_and_skills_commands._cmd_persona_set_model(_persona_args("base", provider="anthropic", model="claude-opus-5-5"))
+    capsys.readouterr()
+    receipts = [r.getMessage() for r in caplog.records if r.getMessage().startswith("model_selection ")]
+    assert any("scope=agent_instance chosen=provider=opencode-zen,model=claude-opus-5-5,effort=-" in r for r in receipts), receipts
+    assert any("scope=agent_default chosen=provider=anthropic,model=claude-opus-5-5 " in r for r in receipts), receipts
