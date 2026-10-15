@@ -265,6 +265,16 @@ store's `runs.jsonl`, and the known-red read skips an idle line either way): quo
 landing report. An idle run that still reds is a new row carrying its receipt line
 (`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
 
+## The Launcher QA MCP from a session in this repo
+
+`scripts/launcher_qa_mcp.py` starts the EterniaLauncher's `launcher_qa` MCP server with
+everything machine-specific read from the environment: `STAGEC_QA_REPO_ROOT` (or
+`ETERNIA_LAUNCHER_ROOT`) names the launcher checkout; `STAGEC_LAUNCH_HELPER` defaults to that
+checkout's direct-EXE helper; the prebuilt server is used when present, else `dart run`. Register
+it once with `claude mcp add launcher_qa -- python scripts/launcher_qa_mcp.py`; `--print` shows
+what it resolved. A missing variable is a refusal naming it, never a half-configured server
+(owner ruling 2026-10-15).
+
 ## After a landing that touches the chat path: the live latency check
 
 Offline guards pass on small fixtures while live chat regresses on real-sized stores and a real
