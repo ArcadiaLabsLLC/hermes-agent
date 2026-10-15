@@ -106,7 +106,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 
-- [ ] **No CLI-to-serve RPC client: an argv write verb that should be RPC-first can only read the store directly in its own process (`harness serve settles rearm`)** · fork / RPC lane · build-1011-B3 D2.05 S3 (`settle_commands.py`) · lane: argv→RPC client door **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: a CLI-to-serve RPC client is a new transport surface (auth, socket discovery, fallback when no serve); design first (D2.05 S3). · CHECKED 2026-10-15: blocked on the D2.05 S3 design (auth, socket discovery, no-serve fallback) **TAKEN 2026-10-15 w1015j-plan**
+- [ ] **No CLI-to-serve RPC client: an argv write verb that should be RPC-first can only read the store directly in its own process (`harness serve settles rearm`)** · fork / RPC lane · build-1011-B3 D2.05 S3 (`settle_commands.py`) · lane: argv→RPC client door **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: a CLI-to-serve RPC client is a new transport surface (auth, socket discovery, fallback when no serve); design first (D2.05 S3). · CHECKED 2026-10-15: blocked on the D2.05 S3 design (auth, socket discovery, no-serve fallback) **TAKEN 2026-10-15 w1015j-plan** · DESIGN 2026-10-15: plan `docs/agent-runtime-harness/planned/cli-serve-route-2026-10-15.md` — owner approval owed
 
 ### Filed on arrival — 2026-10-10 (Fable design sweep D1–D3, filed by the orchestrator)
 
