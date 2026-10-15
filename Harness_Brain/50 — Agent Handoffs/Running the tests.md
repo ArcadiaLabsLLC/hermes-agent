@@ -172,6 +172,12 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   `known-red` line ran alone once, capped, never in a bundle this time; it is not evidence of a leak
   either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+- **A bare `bash` spawned from Python on Windows is WSL, not Git Bash.** `CreateProcess` searches
+  `C:\Windows\System32` before `PATH`, so `subprocess.run(["bash", …])` reaches
+  `C:\Windows\System32\bash.exe` even from a Git Bash shell whose own `bash` is Git's (build-1011-B1
+  built a 558 MB test env under the WSL home that way). A helper or lane that needs bash from Python
+  names Git Bash by its absolute path, `C:\Program Files\Git\bin\bash.exe`; the upstream tests that
+  spawn a bare `bash` are judged by the shell they reach (env-gap rows `782e29b1e28`, `bd9ed2faf98`).
 - A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
   log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test
   process, and the bundled runner passes it to its own git, so git's opportunistic index refresh no

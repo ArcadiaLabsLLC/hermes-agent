@@ -204,7 +204,7 @@ def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
 # ── what a file sees ────────────────────────────────────────────────────────
 
 
-def _dotted(node: ast.AST) -> str | None:
+def _spelled_dotted_name(node: ast.AST) -> str | None:
     return ast.unparse(node) if isinstance(node, (ast.Name, ast.Attribute)) else None
 
 
@@ -226,7 +226,7 @@ class FileScope:
         """A literal, a collection holding one, a NAME bound to a string, or an Enum member."""
         if isinstance(node, _COLLECTIONS):
             return any(self.strlike(e) for e in node.elts)
-        spelled = _dotted(_unwrap_value(node))
+        spelled = _spelled_dotted_name(_unwrap_value(node))
         return is_str(node) or spelled in self.str_names or (spelled or "").rpartition(".")[0] in self.enum_names
 
     def local_alias(self, node: ast.AST) -> tuple[str, str] | None:
@@ -296,6 +296,97 @@ def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, i
             base = resolve_from(path, node)
             for alias in node.names:
                 yield base, alias.name, node.lineno
+
+
+def upstream_module_path(module: str, upstream: frozenset[str]) -> str | None:
+    stem = module.replace(".", "/")
+    for candidate in (f"{stem}.py", f"{stem}/__init__.py"):
+        if candidate in upstream:
+            return candidate
+    return None
+
+
+def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str, name: str | None) -> bool:
+    """``from <module> import <name>`` reaches a ``_private`` NAME of an upstream module.
+
+    Not when ``<module>.<name>`` is itself a module — upstream's or the fork's
+    (``from hermes_cli import _boot_clock`` imports the fork file
+    ``hermes_cli/_boot_clock.py``; the underscore is its filename, not a private
+    upstream name).
+    """
+    if not (name and name.startswith("_") and not name.startswith("__")):
+        return False
+    if not upstream_module_path(module, upstream):
+        return False
+    submodule = root / module.replace(".", "/") / name
+    if submodule.with_suffix(".py").is_file() or (submodule / "__init__.py").is_file():
+        return False
+    return not upstream_module_path(f"{module}.{name}", upstream)
+
+
+def _import_aliases(path: str, tree: ast.Module) -> dict[str, str]:
+    """Local name -> the dotted module or ``module.Name`` an import binds it to (any scope)."""
+    out: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    out[alias.asname] = alias.name
+                else:
+                    head = alias.name.split(".")[0]
+                    out[head] = head
+        elif isinstance(node, ast.ImportFrom):
+            base = resolve_from(path, node)
+            for alias in node.names:
+                if alias.name != "*":
+                    out[alias.asname or alias.name] = f"{base}.{alias.name}" if base else alias.name
+    return out
+
+
+def _spelled_dotted_name(node: ast.expr) -> str | None:
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return ".".join([node.id, *reversed(parts)])
+
+
+def private_upstream_attributes(
+    root: Path, is_upstream: Callable[[str], bool], path: str, tree: ast.Module
+) -> set[str]:
+    """``path|target|_name`` for every ``<alias>._private`` reaching into an upstream module.
+
+    The W0-G6 second-door arm for ATTRIBUTE spellings (fork-hygiene row M1.05/M1.07):
+    ``import agent.skill_utils as su; su._RAW_CONFIG_CACHE = …`` or
+    ``from hermes_state import SessionDB; SessionDB._read_all`` never appear as a
+    ``from … import _name``. ``target`` is the upstream module, or ``module.Name``
+    for a name it defines. A NEGATIVE guarantee (no new site), so a source walk is
+    the instrument; an instance (``db._read_all``) is not spellable and not counted.
+    """
+    bindings = _import_aliases(path, tree)
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Attribute) and node.attr.startswith("_") and not node.attr.startswith("__")):
+            continue
+        dotted = _spelled_dotted_name(node.value)
+        if dotted is None:
+            continue
+        head, _, rest = dotted.partition(".")
+        bound = bindings.get(head)
+        if bound is None:
+            continue
+        target = f"{bound}.{rest}" if rest else bound
+        parts = target.split(".")
+        owner = next((".".join(parts[:n]) for n in range(len(parts), 0, -1)
+                      if module_path(root, ".".join(parts[:n]))), None)
+        if owner is None or not is_upstream(owner):
+            continue  # the longest prefix that is a repo module must be an upstream one
+        if module_path(root, f"{target}.{node.attr}"):
+            continue  # a submodule, not a private name
+        found.add(f"{path}|{target}|{node.attr}")
+    return found
 
 
 def visible_vocabularies(root: Path, files: Iterable[str]) -> dict[str, frozenset[str]]:

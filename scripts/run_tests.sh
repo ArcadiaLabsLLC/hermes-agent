@@ -220,6 +220,11 @@ for _test_var in HERMES_TEST_IMAGE HERMES_TEST_WORKERS HERMES_TEST_PATHS \
     TEST_ENV+=("$_test_var=${!_test_var}")
   fi
 done
+# Fork: the fork's own test variables come through ONE door, a tracked name list
+# (scripts/_fork_test_env.sh, scripts/fork_test_env.txt), not a hunk here per name.
+# shellcheck source=scripts/_fork_test_env.sh
+. "$SCRIPT_DIR/_fork_test_env.sh"
+fork_test_env_extend "$SCRIPT_DIR/fork_test_env.txt" || exit 2
 
 # ── Run in hermetic env ──────────────────────────────────────────────────────
 # env -i: start with empty environment, opt-in only what we need.
@@ -291,6 +296,19 @@ REAL_HERMES_ROOT="$(
 )"
 if [ -n "$REAL_HERMES_ROOT" ]; then
   echo "▶ real store root handed to the gateway fence: $REAL_HERMES_ROOT"
+fi
+# Fork (row 2026-10-15): say which interpreter runs the tests, and warn when it is
+# the PM test environment inside the operator's live store root — a lane must
+# never sync or run there; it sets HERMES_PYTHON (Running the tests.md).
+_TEST_INTERP="$(
+  "$PYTHON" -c 'import os, sys
+e = os.path.normcase(os.path.realpath(sys.executable)); r = sys.argv[1]
+r = os.path.normcase(os.path.realpath(r)).rstrip(os.sep) + os.sep if r else ""
+print(("INSIDE " if r and e.startswith(r) else "") + sys.executable)' "${REAL_HERMES_ROOT:-}" 2>/dev/null || true
+)"
+echo "▶ test interpreter: ${_TEST_INTERP#INSIDE }"
+if [ "${_TEST_INTERP#INSIDE }" != "$_TEST_INTERP" ]; then
+  echo "⚠ that interpreter lives inside the live store root ($REAL_HERMES_ROOT); a lane run sets HERMES_PYTHON to the shared test venv instead" >&2
 fi
 
 # Fork (Git Bash / MSYS / WSL): a native-Windows "$PYTHON" (…/Scripts/python.exe)

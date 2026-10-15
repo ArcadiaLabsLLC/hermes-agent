@@ -74,12 +74,15 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from tests._downstream.live_guard_classify import (
+    _without_python_c_argv,
+    backend_spawn_subcommand,
+)
+
 #: Marker letting a test drive the real Windows gateway pause/resume path.
 REAL_PAUSE_MARK = "real_windows_gateway_pause"
 
 #: Subcommands that BOOT a backend when they follow a hermes entry point.
-_BACKEND_SUBCOMMANDS = ("gateway", "serve", "dashboard")
-_HERMES_ENTRYPOINT_BASENAMES = ("hermes", "hermes.exe")
 
 #: The persistence artifacts a Windows install launches the gateway through.
 _LAUNCHER_BASENAMES = ("gateway.vbs", "gateway.cmd")
@@ -149,46 +152,12 @@ def _real_hermes_root() -> Path | None:
 _REAL_ROOT = _real_hermes_root()
 
 
-_PYTHON_BASENAME_RE = re.compile(r"^pythonw?(\d+(\.\d+)*)?(\.exe)?$")
 _INTERPRETER_BASENAME_RE = re.compile(r"^(pythonw?(\d+(\.\d+)*)?|node)(\.exe)?$")
 
 
 def _is_interpreter_token(token: str) -> bool:
     """True when *token* (shell quotes stripped) names a Python or Node interpreter."""
     return bool(_INTERPRETER_BASENAME_RE.match(_basename(str(token).strip("'\""))))
-
-
-def _without_python_c_argv(raw: list[str]) -> list[str]:
-    """*raw* cut after CODE / SCRIPT when it is ``python [opts] -c CODE ARGS...`` or
-    ``python [opts] SCRIPT ARGS...``.
-
-    ARGS are only the program's ``sys.argv``, so a ``-m hermes_cli.main serve`` tail
-    there is inert data (the live venv-holder / desktop-lifecycle E2Es spawn exactly
-    that sleeper, as ``-c`` or as a script, for psutil to classify) and never an entry
-    point. A SCRIPT that IS ``hermes_cli/main.py`` or a ``hermes`` launcher keeps its
-    ARGS; ``-m MODULE ARGS`` is never cut. Mirrors
-    ``tests/_fixtures/live_system_guard.py``'s helper of the same name.
-    """
-    if not raw or not _PYTHON_BASENAME_RE.match(_basename(raw[0])):
-        return raw
-    index = 1
-    while index < len(raw):
-        token = str(raw[index])
-        if token == "-c":
-            return raw[: index + 2]
-        if token in ("-X", "-W"):
-            index += 2
-            continue
-        if token == "-m":
-            return raw
-        if not token.startswith("-"):
-            # SCRIPT: cut its ARGS unless the script itself is a hermes entry point.
-            script = _basename(token)
-            if script in ("hermes", "hermes.exe") or token.replace("\\", "/").lower().endswith("hermes_cli/main.py"):
-                return raw
-            return raw[: index + 1]
-        index += 1
-    return raw
 
 
 def _tokens(cmd) -> list[str]:
@@ -218,32 +187,6 @@ def _basename(token: str) -> str:
     return str(token).replace("\\", "/").rsplit("/", 1)[-1].lower()
 
 
-def _hermes_entry_index(tokens: list[str]) -> int | None:
-    """Position of the hermes entry point in this argv, or ``None``."""
-    for index, token in enumerate(tokens):
-        normalized = str(token).replace("\\", "/").lower()
-        if normalized.rsplit("/", 1)[-1] in _HERMES_ENTRYPOINT_BASENAMES:
-            return index
-        if normalized == "hermes_cli.main" or normalized.endswith("hermes_cli/main.py"):
-            return index
-    return None
-
-
-def _backend_subcommand(tokens: list[str]) -> str | None:
-    """Which backend this argv would START, or ``None``."""
-    entry = _hermes_entry_index(tokens)
-    if entry is None:
-        return None
-    # Scan every non-flag token after the entry point: flag arity is unknowable
-    # here and ``hermes --profile x gateway run`` puts the subcommand at 3.
-    for token in tokens[entry + 1:]:
-        if str(token).startswith("-"):
-            continue
-        if str(token).lower() in _BACKEND_SUBCOMMANDS:
-            return str(token).lower()
-    return None
-
-
 def _names_real_root(text: str, env) -> bool:
     if _REAL_ROOT is None:
         return False
@@ -269,7 +212,10 @@ def classify(cmd, env=None) -> str | None:
         return None
     text = " ".join(tokens)
 
-    backend = _backend_subcommand(tokens)
+    # The backend arm is the live guard's own classifier (one owner: the inert
+    # ``python -c`` rule and the code-word split live there, nowhere else).
+    spawned = bytes(cmd).decode(errors="replace") if isinstance(cmd, (bytes, bytearray)) else cmd
+    backend = backend_spawn_subcommand(spawned, lambda c: "" if c is None else str(c))
     if backend is not None:
         return (
             f"it would START a live hermes backend (`{backend}`). A real boot "

@@ -617,6 +617,9 @@ def duplicate_census(root: Path = ROOT) -> tuple[set[tuple[str, ...]], dict[str,
 
 # ── W0-G6: import layers ────────────────────────────────────────────────────
 
+#: the W0-G6 populations a census holds and the fixture grandfathers
+LAYER_ARMS = ("undeclared", "harness_imports", "private_upstream_imports", "private_upstream_attributes")
+
 
 module_name = _scope.module_name
 _resolve_from = _scope.resolve_from
@@ -691,30 +694,15 @@ def runtime_layer(root: Path, path: str) -> str | None:
     return None
 
 
-def _upstream_module_path(module: str, upstream: frozenset[str]) -> str | None:
-    stem = module.replace(".", "/")
-    for candidate in (f"{stem}.py", f"{stem}/__init__.py"):
-        if candidate in upstream:
-            return candidate
-    return None
+_upstream_module_path = _scope.upstream_module_path
+is_private_upstream_import = _scope.is_private_upstream_import
 
 
-def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str, name: str | None) -> bool:
-    """``from <module> import <name>`` reaches a ``_private`` NAME of an upstream module.
-
-    Not when ``<module>.<name>`` is itself a module — upstream's or the fork's
-    (``from hermes_cli import _boot_clock`` imports the fork file
-    ``hermes_cli/_boot_clock.py``; the underscore is its filename, not a private
-    upstream name).
-    """
-    if not (name and name.startswith("_") and not name.startswith("__")):
-        return False
-    if not _upstream_module_path(module, upstream):
-        return False
-    submodule = root / module.replace(".", "/") / name
-    if submodule.with_suffix(".py").is_file() or (submodule / "__init__.py").is_file():
-        return False
-    return not _upstream_module_path(f"{module}.{name}", upstream)
+def private_upstream_attributes(root: Path, upstream: frozenset[str], path: str, tree: ast.Module) -> set[str]:
+    """``path|target|_name`` for ``alias._private`` into an upstream module (``god_file_scope``)."""
+    return _scope.private_upstream_attributes(
+        root, lambda module: _upstream_module_path(module, upstream) is not None, path, tree
+    )
 
 
 def fork_only_tree(path: str, upstream: frozenset[str]) -> str | None:
@@ -761,9 +749,10 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
     ``harness_imports``: ``path -> hermes_cli.harness`` imports from a part.
     ``private_upstream_imports``: ``path|module|name`` for a ``_private`` name
     imported from an upstream module.
+    ``private_upstream_attributes``: ``path|target|name`` for ``alias._private`` into one.
     """
     upstream = upstream_paths(manifest)
-    undeclared, harness_imports, private = set(), set(), set()
+    undeclared, harness_imports, private, attributes = set(), set(), set(), set()
     for path in fork_production_files(root, manifest):
         tree = _tree(root, path)
         if tree is None:
@@ -778,10 +767,12 @@ def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list
                 harness_imports.add(f"{path}|{full}")
             if is_private_upstream_import(root, upstream, module, name):
                 private.add(f"{path}|{module}|{name}")
+        attributes |= private_upstream_attributes(root, upstream, path, tree)
     return {
         "undeclared": sorted(undeclared),
         "harness_imports": sorted(harness_imports),
         "private_upstream_imports": sorted(private),
+        "private_upstream_attributes": sorted(attributes),
     }
 
 
@@ -941,7 +932,7 @@ def all_drift(root: Path = ROOT) -> list[Drift]:
     out.append(compare_name_groups("W0-G3 helper names", names, fixture_names))
     layers = layer_census(root)
     fixture_layers = layer_fixture()
-    for key in ("undeclared", "harness_imports", "private_upstream_imports"):
+    for key in LAYER_ARMS:
         out.append(compare_sets(f"W0-G6 {key}", set(layers[key]), fixture_layers.get(key, set())))
     return out
 

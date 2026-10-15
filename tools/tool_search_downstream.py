@@ -95,7 +95,6 @@ _MCP_NEVER_DEFER = {
     server: frozenset(mcp_prefixed_tool_name(server, verb) for verb in verbs)
     for server, verbs in _MCP_NEVER_DEFER_VERBS.items()
 }
-_LAUNCHER_QA_CORE_TOOLS = _MCP_NEVER_DEFER["launcher_qa"]
 #: Every promoted MCP tool under its registered name: the set whose wire text is briefed
 #: (``tools.downstream_schema.promoted_brief``), since the server's own manual rides eagerly.
 PROMOTED_MCP_TOOLS: frozenset[str] = frozenset().union(*_MCP_NEVER_DEFER.values())

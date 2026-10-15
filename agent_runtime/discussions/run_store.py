@@ -32,7 +32,6 @@ __layer__ = "stores"
 MAX_CATALOG_MEMBERS = 128
 MAX_PENDING_COMMANDS = 64
 COMMANDS = frozenset({"send", "stop", "end", "invite", "remove", "answer", "retry", "abandon"})
-LIVE_PHASES = ("initializing", "open", "stopping", "paused", "ending")
 
 
 class RunStore:

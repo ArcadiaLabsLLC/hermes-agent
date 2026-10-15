@@ -34,16 +34,39 @@ def _arm(key: str) -> probe.Drift:
     return probe.compare_sets(f"W0-G6 {key}", live, probe.layer_fixture().get(key, set()))
 
 
-@pytest.mark.parametrize("key", ["undeclared", "harness_imports", "private_upstream_imports"])
+@pytest.mark.parametrize("key", probe.LAYER_ARMS)
 def test_no_new_site(key):
     drift = _arm(key)
     assert not drift.new, f"new {key} sites — declare the layer / use the public door:\n" + drift.render()
 
 
-@pytest.mark.parametrize("key", ["undeclared", "harness_imports", "private_upstream_imports"])
+@pytest.mark.parametrize("key", probe.LAYER_ARMS)
 def test_a_fixed_site_loses_its_row(key):
     drift = _arm(key)
     assert not drift.stale, "delete these rows — the site is gone:\n" + drift.render()
+
+
+def test_the_attribute_arm_sees_an_alias_a_package_member_and_a_class_but_not_a_fork_module():
+    """Positive control for ``private_upstream_attributes`` (fork-hygiene M1.05/M1.07)."""
+    import ast
+
+    source = (
+        "import tools.skills_tool as st\n"
+        "from hermes_cli import auth\n"
+        "from hermes_state import SessionDB\n"
+        "import agent_runtime.persona_assignments as fork_mod\n"
+        "st._find_all_skills\n"
+        "auth._auth_file_path()\n"
+        "SessionDB._read_all = None\n"
+        "st.__name__\n"
+        "fork_mod._private\n"
+    )
+    rows = probe.private_upstream_attributes(probe.ROOT, probe.upstream_paths(), "x/fork.py", ast.parse(source))
+    assert rows == {
+        "x/fork.py|tools.skills_tool|_find_all_skills",
+        "x/fork.py|hermes_cli.auth|_auth_file_path",
+        "x/fork.py|hermes_state.SessionDB|_read_all",
+    }
 
 
 def _missing_dependency(missing: dict[str, str]) -> str:

@@ -14,6 +14,8 @@ from that base to the working tree, restricted to the manifest:
   python scripts/upstream_footprint.py --json           # per-file rows
   python scripts/upstream_footprint.py --ledger <md>    # write / merge the ledger
   python scripts/upstream_footprint.py --refresh-manifest   # needs the upstream remote
+  python scripts/upstream_footprint.py --add-row <path> --reason "<why>" --change "<row/lane>"
+                                        # one new upstream edit: its ledger row and the fixture
 
 CI has no ``upstream`` remote, which is why the manifest is committed and read
 from disk. ``tests/scripts/test_upstream_footprint.py`` holds the three numbers
@@ -36,6 +38,7 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "tests" / "fixtures" / "upstream_manifest.txt"
+FIXTURE = ROOT / "tests" / "fixtures" / "upstream_footprint.json"
 DEFAULT_LEDGER = ROOT / "docs" / "agent-runtime-harness" / "planned" / "upstream-footprint-ledger.md"
 HEAVY_THRESHOLD = 200
 UPSTREAM_REF = "upstream/main"
@@ -257,6 +260,64 @@ def merge_ledger(existing: str | None, footprint: Footprint) -> str:
     return head + "".join(body) + tail
 
 
+def ledger_add_row(text: str, row: FileDelta, *, disposition: str, reason: str, stage: str = "-") -> str:
+    """Insert (or replace) ``row.path``'s ledger row and touch no other line.
+
+    ``--ledger`` rewrites every row's counts from the tree; a lane adding ONE
+    additive hunk wants its own row and nothing else (fork-hygiene row
+    2026-10-15: hand merges per lane, and a heredoc that wrote a backslash as
+    a ``\\x08``). Rows stay sorted by path, as ``merge_ledger`` writes them.
+    """
+    if disposition not in DISPOSITIONS:
+        raise ValueError(f"disposition {disposition!r} is not one of {DISPOSITIONS}")
+    if not reason.strip() or reason.strip().startswith(UNREVIEWED_PREFIX):
+        raise ValueError("a row added by hand carries its reason")
+    lines = text.splitlines(keepends=True)
+    start = next(i for i, line in enumerate(lines) if line.lstrip().startswith("|") and _split_row(line)[:1] == ["path"])
+    end = start + 2
+    while end < len(lines) and lines[end].lstrip().startswith("|"):
+        end += 1
+    new = "| " + " | ".join(
+        [f"`{_cell(row.path)}`", str(row.added), str(row.deleted), _cell(disposition), _cell(reason), _cell(stage)]
+    ) + " |\n"
+    body = [line for line in lines[start + 2 : end] if _split_row(line)[0].strip("`") != row.path]
+    at = next((i for i, line in enumerate(body) if _split_row(line)[0].strip("`") > row.path), len(body))
+    body.insert(at, new)
+    return "".join(lines[: start + 2] + body + lines[end:])
+
+
+def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str) -> dict:
+    """The fixture at the tree's numbers, with a ``reasons`` row saying why they moved."""
+    before = {n: fixture[n] for n in ("files", "deleted_lines", "heavy")}
+    after = {"files": tree.files, "deleted_lines": tree.deleted_lines, "heavy": tree.heavy}
+    out = {**fixture, **after, "measured_at": today}
+    out["reasons"] = [*fixture.get("reasons", []), {"change": change, "before": before, "after": after, "reason": reason}]
+    return out
+
+
+def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", stage: str = "-",
+            ledger: Path = DEFAULT_LEDGER, fixture_path: Path = FIXTURE, base: str | None = None) -> str:
+    """``--add-row``: ``path``'s ledger row and the fixture's numbers + reason, in one step.
+
+    Refuses when the fork does not edit ``path`` or when, after the add, some
+    measured upstream edit still has no ledger row (a rise this call cannot explain)."""
+    _, tree = measure(base)
+    row = next((r for r in tree.rows if r.path == path), None)
+    if row is None:
+        raise SystemExit(f"--add-row: the fork does not edit upstream file {path} ({tree.line()})")
+    text = ledger_add_row(ledger.read_text(encoding="utf-8"), row, disposition=disposition, reason=reason, stage=stage)
+    missing = sorted({r.path for r in tree.rows} - set(ledger_rows(text)))
+    if missing:
+        raise SystemExit(f"--add-row: upstream edits with no ledger row: {', '.join(missing)} — add each one")
+    import datetime
+
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    updated = fixture_add_reason(fixture, tree, change=change, reason=reason, today=datetime.date.today().isoformat())
+    ledger.write_text(text, encoding="utf-8", newline="\n")
+    fixture_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return f"{tree.line()} (was files={fixture['files']} deleted_lines={fixture['deleted_lines']} heavy={fixture['heavy']})"
+
+
 # --------------------------------------------------------------------------- git
 
 
@@ -331,7 +392,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit per-file rows {path, added, deleted, heavy}")
     parser.add_argument("--ledger", nargs="?", const=str(DEFAULT_LEDGER), help="write/merge the ledger markdown")
     parser.add_argument("--refresh-manifest", action="store_true", help=f"regenerate the manifest from {UPSTREAM_REF}")
+    parser.add_argument("--add-row", metavar="PATH", help="ledger row + fixture numbers for ONE upstream edit")
+    parser.add_argument("--reason", help="--add-row: why the edit is carried (ledger reason and fixture reason)")
+    parser.add_argument("--change", help="--add-row: the row or lane the edit belongs to (fixture `change`)")
+    parser.add_argument("--disposition", default="carry", choices=DISPOSITIONS)
+    parser.add_argument("--stage", default="-")
     args = parser.parse_args(argv)
+
+    if args.add_row:
+        if not (args.reason and args.change):
+            parser.error("--add-row needs --reason and --change")
+        print(add_row(args.add_row, reason=args.reason, change=args.change, disposition=args.disposition,
+                      stage=args.stage, base=args.base))
+        return 0
 
     if args.refresh_manifest:
         print(f"[up-fp] manifest refreshed at base {refresh_manifest(base=args.base)}")

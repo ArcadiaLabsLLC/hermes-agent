@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 218,
+  "files": 219,
   "deleted_lines": 1047,
   "heavy": 4,
   "reasons": [
@@ -756,6 +756,20 @@
         "heavy": 4
       },
       "reason": "Owner ruling 2026-10-15: one fork-owned list (pm/_fork_default_extras.py: all + anthropic, bedrock, vertex, azure-identity) read by setup / pm install and the test environment default; upstream's `all` is not edited. pm/install.py gains three tail lines rebinding _target_selection through the fork wrapper (every caller is upstream pm code resolving the module global, as pm/plugins_state.py's memo); pm/testenv.py gains three tail lines rebinding DEFAULT_TEST_EXTRAS. No fork caller exists to wrap instead. PR candidate: a configurable default extra set."
+    },
+    {
+      "change": "fork-hygiene row 'Include the interpreter ABI dependency in upstream update-CI routing' (w1015e-fh-h)",
+      "before": {
+        "files": 218,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "after": {
+        "files": 219,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "One additive route line: hermes_cli/interpreter_abi.py (fork; imported by the fork's venv_sync.py hunk, 8441eb6bff2) joins _UPDATE_DEPENDENCIES so the e2e_upgrade lane runs when it changes; tests/ci/test_update_ci_routing.py named it. Retire when upstream owns the ABI re-entry or the fork hunk leaves venv_sync.py."
     }
   ]
 }

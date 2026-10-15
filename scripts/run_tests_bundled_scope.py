@@ -276,6 +276,7 @@ class ScopeSelection:
     excluded: List[Path] = field(default_factory=list)
     skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
     idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
+    chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
 
     @property
     def selected(self) -> List[Path]:
@@ -316,7 +317,7 @@ def select_scope(
     changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
     chain_hit = bool(chain.chain_changed(changed))
     skipped, idle_box = set(skipped), set(idle_box)
-    sel = ScopeSelection()
+    sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
     for path in files:
         rel = _rel_posix(path, repo_root)
         if rel in skipped and path.resolve() not in named_real:
