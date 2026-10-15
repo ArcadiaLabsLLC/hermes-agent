@@ -75,6 +75,7 @@ from .build_policy import (
     _log_snapshot_build,
     log_stream_attach,
     log_stream_denied,
+    log_stream_detach,
 )
 from .fingerprint import (
     _scope_fingerprint,

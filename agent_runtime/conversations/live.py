@@ -56,6 +56,13 @@ class LiveConversation:
         if answer.get("status") == "interrupted":
             self._cancel_ack = receipt.execution_id
 
+    def bind_permission(self, execution_id, mode):
+        """Hand the worker this turn's permission mode before ``prompt.submit`` (D2.07)."""
+        from .worker_permissions import METHOD as PERMISSION_METHOD
+
+        self.peer.call(PERMISSION_METHOD, {"session_id": self.native_id,
+            "execution_id": execution_id, "permission_mode": mode})
+
     def dispatched(self, turn_id):
         if self.store.turn(self.route, turn_id).cancel_requested:
             self.stop(turn_id)

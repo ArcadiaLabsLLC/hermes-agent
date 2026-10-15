@@ -51,6 +51,18 @@ def test_harness_personas_expose_mission_dev_and_qa_skills():
 
 
 
+@pytest.mark.parametrize("skill_id", ["harness-dev-delivery", "harness-runtime-model"])
+def test_the_two_ruled_preloads_declare_required_preload(skill_id):
+    """Owner ruling 2026-10-15: Launcher Dev and Backend Dev preload the delivery
+    contract, Neko and Base the runtime model; WHICH persona preloads is its skill
+    assignment, and the skill's own policy is what makes an assignment a preload."""
+
+    root = Path(__file__).resolve().parents[2] / "docs" / "agent-runtime-harness" / "harness-skills"
+    text = (root / skill_id / "SKILL.md").read_text(encoding="utf-8")
+    frontmatter = text.split("\n---", 1)[0]
+    assert "    load_policy: required_preload" in frontmatter.splitlines()
+
+
 def test_harness_install_uses_persona_declared_skills_not_role_map():
     from agent_runtime.skill_install import harness_required_skills_for_persona
 

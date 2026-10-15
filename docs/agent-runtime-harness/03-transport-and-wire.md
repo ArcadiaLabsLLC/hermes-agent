@@ -30,6 +30,16 @@ operation changes only the session unless `save_default: true` is explicit;
 both identities must be confirmed before success. Existing config/model and
 compute owners perform the write. [Shared-provider evidence](../downstream/shared-provider-authority-2026-09-29.md).
 
+Each admitted send carries its permission: the service resolves
+`permission_options_for_subject("profile:<name>", session_id=<route id>)` — the
+operator lane's resolver — and calls the worker method `eternia.permission.bind`
+(`conversations/worker_permissions.py`) with the turn's execution id and MODE
+before `prompt.submit`; the worker derives the block from its own Launcher
+catalog and binds it for that turn through `worker_app_functions.bind`. A turn
+whose mode never arrived binds `read_only` and logs `permission_bind_missing`
+(owner ruling 2026-10-15: read-only unless allowed); a turns-bounded grant is
+spent only by a turn that reached `streaming`.
+
 `agent_runtime/discussions/rpc.py` exposes the same discussion service to both
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.

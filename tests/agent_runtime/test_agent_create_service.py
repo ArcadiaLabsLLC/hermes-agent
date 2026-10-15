@@ -1837,3 +1837,42 @@ def test_a_rolled_back_key_replays_its_recorded_refusal_and_writes_nothing(
     assert replayed.refusal.data["reason"] == first.refusal.data["reason"]
     assert _reservation_record("service-rolled") == receipt, "a replay rewrote the receipt"
     assert _actors() == {}
+
+
+# ── a copy is named distinctly by the server (runtime row, launcher MC ruling 2026-10-15) ──
+
+
+def test_a_second_placement_with_no_name_is_numbered_by_the_server(qa_persona):
+    """The launcher stops predicting "QA Agent (2)": an omitted ``display_name`` is
+    numbered against the agents already PLACED in the workspace. The first create is
+    the positive control: the same call into an empty office keeps the plain name."""
+
+    _seed_workspace()
+    first = perform_agent_create(_params(placement_id="qa_service_agent_11", idempotency_key="copy-1"))
+    second = perform_agent_create(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2",
+                                          position=[6.0, 1.0]))
+    third = perform_agent_create(_params(placement_id="qa_service_agent_13", idempotency_key="copy-3",
+                                         position=[9.0, 1.0]))
+
+    assert first.result["display_name"] == "QA Agent"
+    assert second.result["display_name"] == "QA Agent (2)"
+    assert third.result["display_name"] == "QA Agent (3)"
+    names = {actor.items[0].display_name for actor in _actors().values()}
+    assert names == {"QA Agent", "QA Agent (2)", "QA Agent (3)"}
+
+
+def test_a_sent_display_name_still_wins(qa_persona):
+    _seed_workspace()
+    perform_agent_create(_params(placement_id="qa_service_agent_11", idempotency_key="named-1"))
+    named = perform_agent_create(_params(placement_id="qa_service_agent_12", idempotency_key="named-2",
+                                         position=[6.0, 1.0], display_name="QA Agent"))
+    assert named.result["display_name"] == "QA Agent"
+
+
+def test_the_numbering_rule_matches_the_launchers():
+    from agent_runtime.agent_create.request import next_distinct_display_name
+
+    assert next_distinct_display_name("QA Agent", []) == "QA Agent"
+    assert next_distinct_display_name("QA Agent", ["qa agent"]) == "QA Agent (2)"
+    assert next_distinct_display_name("QA Agent", ["QA Agent", "QA Agent (2)"]) == "QA Agent (3)"
+    assert next_distinct_display_name("QA Agent (2)", ["QA Agent (2)"]) == "QA Agent (3)"

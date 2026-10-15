@@ -233,3 +233,58 @@ def test_a_refused_attach_never_submits_and_settles_unknown(runtime):
         service.send(scope, sid, "turn", {**PROMPT, "files": [_reviewed("a.txt", "text/plain", b"a")]})
     assert not any(method == "prompt.submit" for method, _ in worker.calls)
     assert service.store.turn(service.store.get(sid, scope), "turn").state == TurnState.UNKNOWN
+
+
+# ── D2.07: the serve resolves the turn's permission and binds it before submit ──
+
+def _binds(worker):
+    return [(method, params) for method, params in worker.calls
+            if method in {"eternia.permission.bind", "prompt.submit"}]
+
+
+def _restrict(sid, mode, *, turns=None):
+    from agent_runtime.permission_modes import profile_permission_subject
+    from agent_runtime.tool_permissions import ChatToolPermissionStore
+
+    ChatToolPermissionStore().set(persona_id=profile_permission_subject("a"), session_id=sid,
+                                  mode=mode, reason="test", turns_remaining=turns)
+
+
+def test_the_turns_permission_is_bound_before_submit_with_its_execution(runtime):
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    _restrict(sid, "read_only")
+    service.send(scope, sid, "turn", PROMPT)
+    (bind_method, bind), (submit_method, submit) = _binds(factory.workers[0])
+    assert (bind_method, submit_method) == ("eternia.permission.bind", "prompt.submit")
+    assert bind["permission_mode"] == "read_only"
+    assert bind["execution_id"] == submit["execution_id"]
+    assert bind["session_id"] == submit["session_id"]
+
+
+def test_no_record_binds_the_runtime_default_and_a_change_reaches_the_next_turn(runtime):
+    from agent_runtime.tool_permissions import default_permission_mode
+
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    worker = factory.workers[0]
+    service.send(scope, sid, "turn", PROMPT)
+    worker.event("native-0", "message.complete", text="done", status="complete")
+    _restrict(sid, "read_only")
+    service.send(scope, sid, "next", PROMPT)
+    modes = [params["permission_mode"] for method, params in _binds(worker) if method == "eternia.permission.bind"]
+    assert modes == [default_permission_mode(), "read_only"]
+
+
+def test_a_turns_bounded_grant_is_spent_by_dispatched_turns_only(runtime):
+    service, factory, _ = runtime
+    scope, sid = opened(runtime)
+    worker = factory.workers[0]
+    _restrict(sid, "read_only", turns=2)
+    service.send(scope, sid, "turn", PROMPT)
+    with pytest.raises(ConversationError, match="conversation_busy"):
+        service.send(scope, sid, "refused", PROMPT)
+    assert service.facts(scope, sid)["permission"]["turns_remaining"] == 1
+    worker.event("native-0", "message.complete", text="done", status="complete")
+    service.send(scope, sid, "next", PROMPT)
+    assert service.facts(scope, sid)["permission"]["mode"] != "read_only"

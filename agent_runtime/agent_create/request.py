@@ -6,6 +6,7 @@ roster and its accepted spellings, and the honest default display name.
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -95,6 +96,62 @@ def honest_default_display_name(persona_id: str, persona: Any | None = None) -> 
     if configured:
         return configured
     return _display_name_for_template(str(persona_id or ""))
+
+
+#: A trailing copy number, ``" (2)"``: stripped before counting so a re-run never
+#: yields ``"QA Agent (2) (2)"``.
+_COPY_NUMBER_TAIL = re.compile(r"\s*\(\d+\)$")
+
+
+def next_distinct_display_name(base: str, existing: Sequence[str]) -> str:
+    """``base`` when free, else the first unused ``base (2)``, ``base (3)``, ….
+
+    Case-insensitive against ``existing``. The launcher's own
+    ``missionOfficeNextDistinctName`` rule, so a server-named copy reads exactly
+    as a client-named one did.
+    """
+
+    trimmed = (base or "").strip()
+    if not trimmed:
+        return ""
+    taken = {str(name).strip().lower() for name in existing if name and str(name).strip()}
+    if trimmed.lower() not in taken:
+        return trimmed
+    root = _COPY_NUMBER_TAIL.sub("", trimmed).strip() or trimmed
+    number = 2
+    while f"{root} ({number})".lower() in taken:
+        number += 1
+    return f"{root} ({number})"
+
+
+def placed_agent_display_names(workspace_id: str) -> list[str]:
+    """The names of the agents already placed in ``workspace_id``'s office.
+
+    The counter is per workspace and counts PLACED agents, as the launcher's did:
+    the first placement in a fresh workspace keeps the plain name. An unreadable
+    or missing surface counts nothing (the workspace gate refuses the create).
+    """
+
+    from ..office_store import OfficeStore
+
+    try:
+        actors = OfficeStore().scan_actors(workspace_id).actors
+    except Exception:
+        return []
+    return [
+        item.display_name
+        for actor in actors
+        for item in (actor.items or [])
+        if getattr(item, "kind", "agent") == "agent" and item.display_name
+    ]
+
+
+def distinct_default_display_name(persona_id: str, persona: Any | None, workspace_id: str) -> str:
+    """The name a create with no ``display_name`` gets: the honest default, numbered
+    when an agent of that name is already placed in the workspace ("QA Agent (2)")."""
+
+    base = honest_default_display_name(persona_id, persona)
+    return next_distinct_display_name(base, placed_agent_display_names(workspace_id)) or base
 
 
 def persona_roster() -> list[Any]:
@@ -564,7 +621,7 @@ def normalize_agent_create(
         idempotency_key=idempotency_key,
         placement_id=placement_id,
         display_name=display_name,
-        default_display_name=honest_default_display_name(persona_id, persona),
+        default_display_name=distinct_default_display_name(persona_id, persona, workspace_id),
         realm_id=realm_id,
         folder=folder,
         correlation_id=correlation_id,

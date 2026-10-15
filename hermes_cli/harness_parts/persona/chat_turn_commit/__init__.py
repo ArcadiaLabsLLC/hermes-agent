@@ -129,6 +129,20 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
             ]
         return data
 
+    def _queue_leftover_steer(self) -> None:
+        """Input the turn finished before absorbing becomes the root's next turn (never dropped)."""
+
+        from .leftover_steer import queue_leftover_steer
+
+        raw = getattr(getattr(self, "chat_result", None), "raw", None)
+        try:
+            queue_leftover_steer(
+                self.args, session_id=self.session_id,
+                client_message_id=self.client_message_id, raw=raw,
+            )
+        except Exception as exc:
+            self._warn(FinalizationWarningKind.LEFTOVER_STEER_NOT_QUEUED, type(exc).__name__)
+
     def commit(self) -> int:
         """Run the phases in ledger order; the first exit code a phase returns ends the turn."""
 
@@ -150,6 +164,7 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
         except Exception as exc:
             return self._settle_failure(exc)
         self._commit_native()
+        self._queue_leftover_steer()
         # The native reply is durable. Projection/bookkeeping failures deliberately
         # leave `native_committed` intact so an idempotent retry can repair the
         # projection without ever invoking the provider again.

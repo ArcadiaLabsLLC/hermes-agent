@@ -545,7 +545,7 @@ def parse_snapshot_sections(raw: str) -> tuple[str, ...]:
 
 def _cmd_stream(args) -> int:
     from agent_runtime.patch_coverage import parse_fold_entities_option
-    from agent_runtime.stream import log_stream_attach, stream_frames
+    from agent_runtime.stream import log_stream_attach, log_stream_detach, stream_frames
     from agent_runtime.serde import to_jsonable
 
     from hermes_cli.harness_parts.serve.frames import current_serve_request_id
@@ -564,11 +564,25 @@ def _cmd_stream(args) -> int:
     # tailing the stream is a full subscriber of the same producer, and it paid
     # for builds nobody could attribute to it: the serve child's log showed the
     # builds and never the attachments.
+    # Which serve request and connection the reader belongs to, on the attach AND
+    # the detach line: a reader that outlived its client (runtime row 2026-10-15,
+    # four attaches beside the hub, two still framing turns minutes later) is
+    # otherwise unattributable from the log.
+    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
+    reader = {
+        "request": current_serve_request_id(),
+        "connection": send_origin().get("owner"),
+        "max_frames": getattr(args, "max_frames", None),
+    }
     log_stream_attach(
         op="harness_stream",
         purpose="cli_stream",
         resync=bool(getattr(args, "resync", False)),
+        **reader,
     )
+    frames_written = 0
+    end = "returned"
     try:
         for frame in stream_frames(
             poll_interval_seconds=float(getattr(args, "poll_interval", 0.25) or 0.25),
@@ -605,8 +619,20 @@ def _cmd_stream(args) -> int:
         ):
             sys.stdout.write(json.dumps(to_jsonable(frame), ensure_ascii=False, separators=(",", ":")) + "\n")
             sys.stdout.flush()
+            frames_written += 1
     except KeyboardInterrupt:
+        end = "interrupted"
         return 0
+    except BaseException as exc:
+        end = f"raised:{type(exc).__name__}"
+        raise
+    finally:
+        from agent_runtime.request_control import request_cancelled
+
+        if end == "returned" and request_cancelled():
+            end = "cancelled"
+        log_stream_detach(op="harness_stream", purpose="cli_stream", end=end,
+                          frames=frames_written, **reader)
     return 0
 
 
