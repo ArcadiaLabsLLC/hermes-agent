@@ -113,7 +113,7 @@ def _runtime_dirty_state(*, runs, incidents, runtime_instances=None) -> dict[str
 def _git_dirty_state(*, label: str, root: Path) -> dict[str, Any]:
     try:
         completed = subprocess.run(
-            ["git", "-C", str(root), "status", "--short", "--untracked-files=all"],
+            ["git", "--no-optional-locks", "-C", str(root), "status", "--short", "--untracked-files=all"],
             capture_output=True,
             text=True,
             timeout=10,
