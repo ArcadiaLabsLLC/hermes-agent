@@ -353,7 +353,7 @@ def _sprite_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tupl
     }
     return {
         "argv": "harness characters sprite <slug> --json [--no-sheet]",
-        "producer": "agent/charsheet/draft.py::sprite_payload",
+        "producer": "agent/charsheet/draft/installed.py::sprite_payload",
         "object_path": "character",
     }, documents
 
@@ -400,7 +400,7 @@ def _thumb_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple
     return {
         "argv": "harness characters thumb --draft <id> (--row <key> | --direction <dir>) --json",
         "producer": (
-            "agent/charsheet/draft.py::CharacterDraft.row_thumb / "
+            "agent/charsheet/draft/draft.py::CharacterDraft.row_thumb / "
             "CharacterDraft.direction_thumb"
         ),
         "object_path": "",
@@ -469,7 +469,7 @@ def _status_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tupl
         documents["palette"] = emit()
     return {
         "argv": "harness characters status --draft <id> --json",
-        "producer": "agent/charsheet/draft.py::CharacterDraft.status_payload",
+        "producer": "agent/charsheet/draft/draft.py::CharacterDraft.status_payload",
         "object_path": "status",
     }, documents
 
@@ -504,8 +504,8 @@ def _list_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple[
     return {
         "argv": "harness characters list --json",
         "producer": (
-            "hermes_cli/harness.py::_characters_draft_summary / "
-            "_characters_installed_rows"
+            "agent/charsheet/draft/payloads.py::draft_summary / "
+            "installed_rows"
         ),
         "object_path": "",
     }, documents
