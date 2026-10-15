@@ -352,7 +352,6 @@ Moved verbatim from `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mi
 
 ## Found fixing main's reds — 2026-10-07 (lanes h-red-cli/-runtime/-gates/-inherited)
 
-- [ ] **Contract-moving lanes left pinned tests red (H4 envelope fixture + snapshot set, H7 event count, d97ad57e96 argv, 5167db9ce9 producer walk): a contract change must run the tests that pin it** · fork hygiene (suite) · evidence: d677799521 body · lane: name the pinning tests in the producer's docstring or a gate · released 2026-10-10 (lane-1010 returned L8.27, owner decision; reason in `queue-sweep-2026-10-10/L8-outcomes.md`) · **RULED 2026-10-10 owner:** convention: name the pinning tests in the producer's docstring; no gate **TAKEN 2026-10-15 w1015b-fh-b**
 
 ## Filed by isolated lifecycle fixture — 2026-10-07
 

@@ -27,8 +27,7 @@ python scripts/changed_line_mutation_check.py --list --base origin/main         
 
 **A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
 `python` on this box is the system Python 3.12 without the test venv, so its import errors are
-false reds; use the shared venv (`HERMES_PYTHON`, `C:/Users/beast/.venvs/hermes-test/Scripts/python.exe`
-here) or `scripts/run_tests.sh <file>`. `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
+false reds; use the shared venv (`HERMES_PYTHON`, the venv under `~/.venvs/hermes-test`) or `scripts/run_tests.sh <file>`. `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
 `write_text`/`open` with no `encoding=`: a file red under the venv's bare pytest and green under
 `run_tests.sh` is that difference, not a product bug — check it before filing a row (L6.19, L6.25,
 L4.01 in `queue-sweep-2026-10-10/`).
@@ -198,7 +197,11 @@ five habits cost about 390 minutes a day.
   the first costs both a re-merge and a second gate run.
 
 ## What a lane runs, and what it never runs
-
+- **A contract change runs the tests that pin it, and the producer names them** (owner ruling
+  2026-10-10, convention, no gate). A producer of a pinned contract — an envelope, a snapshot set,
+  an event count, an argv, a producer walk — carries the pinning test files in its docstring, and a
+  lane that changes the producer runs those files with its touched tests. Four contract-moving lanes
+  left their pins red before this (`d677799521`).
 - **While implementing:** `ruff` (or `pyflakes`) on the touched modules, foreground, explicit
   timeout. Nothing heavier.
 - **At the end of the lane, before the report:** ONLY the test files that import a module you
