@@ -43,11 +43,21 @@ _FIELD_SEP = " · "
 
 @dataclass(frozen=True)
 class SkipRow:
-    """One listed upstream test file: ``path · why · upstream SHA``."""
+    """One listed upstream test file or node: ``path[::node] · why · upstream SHA``."""
 
     path: str
     why: str
     sha: str
+
+    @property
+    def file(self) -> str:
+        """The test file; ``path`` itself for a file row."""
+        return self.path.split("::", 1)[0]
+
+    @property
+    def node(self) -> str:
+        """The node a NODE row deselects (``path::Class::test``); empty for a file row."""
+        return self.path.split("::", 1)[1] if "::" in self.path else ""
 
     @property
     def klass(self) -> str:
@@ -65,7 +75,8 @@ def parse_skip_line(line: str) -> Optional[SkipRow]:
     fields = [part.strip() for part in text.split(_FIELD_SEP)]
     if len(fields) != 3 or not all(fields):
         raise ValueError(f"skip-list row is not `path · why · upstream SHA`: {text!r}")
-    return SkipRow(Path(fields[0]).as_posix(), fields[1], fields[2])
+    head, sep, node = fields[0].partition("::")
+    return SkipRow(Path(head).as_posix() + sep + node, fields[1], fields[2])
 
 
 def load_skip_list(path: Path) -> Dict[str, SkipRow]:
@@ -78,6 +89,15 @@ def load_skip_list(path: Path) -> Dict[str, SkipRow]:
         if row is not None:
             rows[row.path] = row
     return rows
+
+
+def deselect_args(rows: Mapping[str, SkipRow], named: Iterable[str] = ()) -> list[str]:
+    """``--deselect path::node`` for every NODE row whose file is not named: the file
+    still runs in the gate and only the one nondeterministic node is left out. A file
+    row keeps a whole file out (``select_scope``), for a file that hangs or cannot collect."""
+
+    named = set(named)
+    return [arg for row in rows.values() if row.node and row.file not in named for arg in ("--deselect", row.path)]
 
 
 # ── Stage 3: duration-budget bundles ────────────────────────────────────────
