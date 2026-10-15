@@ -203,3 +203,49 @@ def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     fake = ("+++ b/tools/x.py\n+    from hermes_cli.config import cfg_get, load_config_readonly\n"
             "+++ b/tools/y.py\n-    from hermes_cli.config import load_config_readonly\n")
     assert readonly_reader_moves(fake) == {"tools/x.py"}
+
+
+def _planted_merge(tmp_path):
+    """A clone mid release merge: main and the tag both grew from ``old``; ``upstream/main`` is the tag."""
+    import subprocess
+
+    repo = tmp_path / "clone"
+    repo.mkdir()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],
+            cwd=repo, capture_output=True, text=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    (repo / "a.py").write_text("a\n", encoding="utf-8")
+    git("add", "a.py")
+    git("commit", "-q", "-m", "old base")
+    old = git("rev-parse", "HEAD")
+    git("checkout", "-q", "-b", "tag")
+    (repo / "u.py").write_text("u\n", encoding="utf-8")
+    git("add", "u.py")
+    git("commit", "-q", "-m", "upstream tag")
+    tag = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/upstream/main", tag)
+    git("checkout", "-q", "main")
+    (repo / "f.py").write_text("f\n", encoding="utf-8")
+    git("add", "f.py")
+    git("commit", "-q", "-m", "fork work")
+    return repo, git, old, tag
+
+
+def test_a_manifest_refreshed_inside_a_release_merge_takes_the_incoming_base(tmp_path, monkeypatch):
+    from scripts import upstream_footprint as fp
+
+    repo, git, old, tag = _planted_merge(tmp_path)
+    monkeypatch.setattr(fp, "ROOT", repo)
+    # Positive control: before the merge starts, HEAD's merge base is the OLD base.
+    assert fp.refresh_base() == old[:10]
+    git("merge", "--no-commit", "--no-ff", "tag")
+    manifest = tmp_path / "manifest.txt"
+    assert fp.refresh_manifest(manifest) == tag[:10]
+    assert manifest.read_text(encoding="utf-8").splitlines()[0] == f"# base {tag[:10]}"
+    # --base wins over both, and is resolved to a commit.
+    assert fp.refresh_base("HEAD") == git("rev-parse", "HEAD")[:10]
