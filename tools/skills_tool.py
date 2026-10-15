@@ -28,7 +28,7 @@ from tools.skills_tool_plugin import (
 from tools.skills_tool_dedup import (
     _check_skill_view_dedup, _record_skill_view, reset_skill_view_dedup)
 from tools.skill_provenance import is_background_review
-from tools.skills_tool_search import SKILL_SEARCH_SCHEMA, skill_search  # noqa: F401
+from tools.skills_tool_search import SKILL_SEARCH_SCHEMA, skill_search  # re-exported
 
 logger = logging.getLogger(__name__)
 

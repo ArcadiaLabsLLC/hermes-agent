@@ -8,7 +8,7 @@ stays ``hermes skills install``.
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from tools.registry import tool_error
 from tools.skills_tool_plugin import MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH
@@ -58,17 +58,17 @@ def _clip(value: Any, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
-def _clip_tags(value: Any, *, max_tags: int = 20, max_len: int = 64) -> List[str]:
+def _clip_tags(value: Any, *, max_tags: int = 20, max_len: int = 64) -> list[str]:
     return [_clip(tag, max_len) for tag in value[:max_tags]] if isinstance(value, list) else []
 
 
-def _installed_matches(skill: Dict[str, Any], query: str) -> bool:
+def _installed_matches(skill: dict[str, Any], query: str) -> bool:
     fields = (skill.get("name"), skill.get("description"), skill.get("category"),
               " ".join(skill.get("tags") or []))
     return query.lower() in " ".join(str(f or "") for f in fields).lower()
 
 
-def _installed_row(skill: Dict[str, Any]) -> Dict[str, Any]:
+def _installed_row(skill: dict[str, Any]) -> dict[str, Any]:
     name = _clip(skill.get("name"), MAX_NAME_LENGTH)
     # The bare name is the handle skills_list already tells the model to pass to skill_view.
     return {"name": name, "identifier": name, "source": "installed",
@@ -77,7 +77,7 @@ def _installed_row(skill: Dict[str, Any]) -> Dict[str, Any]:
             "tags": _clip_tags(skill.get("tags") or [])}
 
 
-def _hub_row(meta: Any) -> Dict[str, Any]:
+def _hub_row(meta: Any) -> dict[str, Any]:
     row = {"name": _clip(getattr(meta, "name", ""), MAX_NAME_LENGTH),
            "identifier": _clip(getattr(meta, "identifier", ""), 256),
            "source": _clip(getattr(meta, "source", ""), 64),
@@ -92,7 +92,7 @@ def _hub_row(meta: Any) -> Dict[str, Any]:
 
 
 def skill_search(query: str, source: str = "all", limit: int = 10,
-                 include_installed: bool = True, task_id: str = None) -> str:
+                 include_installed: bool = True, task_id: str | None = None) -> str:
     """Installed matches first (``skills_list`` order), then hub matches, deduped by identifier
     and capped at ``limit`` (max ``MAX_RESULTS``). ``task_id`` is handler parity."""
     try:
@@ -104,10 +104,10 @@ def skill_search(query: str, source: str = "all", limit: int = 10,
             return tool_error(f"Unsupported skill search source '{source}'. "
                               f"Use one of: {', '.join(SEARCH_SOURCES)}", success=False)
         capped = max(1, min(int(limit or 10), MAX_RESULTS))
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         seen: set = set()
 
-        def _add(row: Dict[str, Any]) -> bool:
+        def _add(row: dict[str, Any]) -> bool:
             key = row.get("identifier") or row.get("name")
             if key and key not in seen:
                 seen.add(key)
