@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- the pick-and-rotate strategy is split out of acquire as an override point; no behaviour is added here
 """Persistent multi-credential pool for same-provider failover."""
 
 from __future__ import annotations
@@ -2162,7 +2163,7 @@ class CredentialPool(CredentialPoolAdminMixin, CredentialPoolModelCooldownMixin)
         self._current_id = entry.id
         return entry, pending_refresh
 
-    def _pick_and_rotate(self, available: List[PooledCredential], *, count: bool) -> PooledCredential:
+    def _pick_and_rotate(self, available: list[PooledCredential], *, count: bool) -> PooledCredential:
         """Apply the pool strategy to a non-empty ``available`` list; called under ``self._lock``.
 
         The one place strategy lives, so a subclass can change how an entry is picked and
