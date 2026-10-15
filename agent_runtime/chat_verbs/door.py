@@ -29,9 +29,9 @@ COORDINATOR_ARGS_CLOSED = {
 def caller_requester(params: dict, caller: Any | None) -> str:
     """``requested_by``: the param, else the device the transport proved, else
     the argparse default ``"cli"`` (the ``persona_open_chat`` rule)."""
-    from ..persona_open_chat import _caller_device_id, _text
+    from ..persona_open_chat import _caller_device_id, _first_text
 
-    return _text(params, "requested_by") or _caller_device_id(caller) or "cli"
+    return _first_text(params, "requested_by") or _caller_device_id(caller) or "cli"
 
 
 def run_cli_chat_verb(verb: str, **fields: Any) -> dict:
