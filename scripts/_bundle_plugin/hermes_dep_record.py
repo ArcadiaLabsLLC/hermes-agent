@@ -7,7 +7,7 @@ collected or run when it fired. When the run moves off a file, and at session
 finish, one JSON line per file goes to ``<dir>/deps-<pid>-<ns>.jsonl``::
 
     {"k": "deps", "f": <rel>, "paths": [...], "dirs": [...],
-     "spawn_py": <n>, "spawn_other": <n>, "mods_add": [...], "own": [...], "fx": [...]}
+     "spawn_py": <n>, "spawn_other": <n>, "mods_add": [...]}
 
 * ``paths`` — repo-relative files the file opened (``open`` / ``io.open_code``);
 * ``dirs`` — repo-relative directories it listed (``os.listdir``, ``os.scandir``:
@@ -17,12 +17,6 @@ finish, one JSON line per file goes to ``<dir>/deps-<pid>-<ns>.jsonl``::
   is a Python interpreter (a Python child that inherits the environment records
   itself through ``sitecustomize``; anything else is a hole the cache closes by
   depending on the whole tree);
-* ``own`` — the part of ``paths`` the file opened itself (its collection and its
-  tests), as opposed to the session's imports: the cache keys these by blob;
-* ``fx`` — every fixture the file's tests set up (``request.fixturenames`` at
-  teardown: the static closure, autouse included, plus ``getfixturevalue``);
-  absent when an item had no fixture request (a non-Python item), so the cache
-  keys every fixture module by blob for that file;
 * ``mods_add`` — repo-rooted modules in ``sys.modules`` at the write that were
   not in an earlier line of this process file. CPython raises ``import`` only on
   first load, so a module an earlier member loaded is invisible to a later one;
@@ -61,8 +55,6 @@ class _DepRecorder:
         self._written_mods: set[str] = set()
         self._flushed: set[str] = set()
         self._running: str | None = None
-        self._fixtures: dict[str, set[str]] = {}
-        self._fx_unknown: set[str] = set()
         sys.addaudithook(self._trail.hook)
         # a Python child inherits these and records itself (sitecustomize, stage 1b)
         os.environ[CHILD_DIR_ENV] = directory
@@ -92,10 +84,7 @@ class _DepRecorder:
             "spawn_py": bucket.spawn_py + session.spawn_py,
             "spawn_other": bucket.spawn_other + session.spawn_other,
             "mods_add": added,
-            "own": sorted(bucket.paths),
         }
-        if rel not in self._fx_unknown:
-            record["fx"] = sorted(self._fixtures.pop(rel, ()))
         self._handle.write(json.dumps(record) + "\n")
         self._handle.flush()
         self._flushed.add(rel)
@@ -122,18 +111,6 @@ class _DepRecorder:
         self._running = rel
         self._point(rel)
         yield
-
-    @pytest.hookimpl(tryfirst=True)
-    def pytest_runtest_teardown(self, item, nextitem):
-        """The fixtures this item set up, read while its request is still alive."""
-
-        rel = self._rel_of(item)
-        request = getattr(item, "_request", None)
-        names = getattr(request, "fixturenames", None) if request else None
-        if names is None:
-            self._fx_unknown.add(rel)
-        else:
-            self._fixtures.setdefault(rel, set()).update(names)
 
     def pytest_sessionfinish(self, session, exitstatus):
         self._trail.active = False
