@@ -694,30 +694,8 @@ def runtime_layer(root: Path, path: str) -> str | None:
     return None
 
 
-def _upstream_module_path(module: str, upstream: frozenset[str]) -> str | None:
-    stem = module.replace(".", "/")
-    for candidate in (f"{stem}.py", f"{stem}/__init__.py"):
-        if candidate in upstream:
-            return candidate
-    return None
-
-
-def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str, name: str | None) -> bool:
-    """``from <module> import <name>`` reaches a ``_private`` NAME of an upstream module.
-
-    Not when ``<module>.<name>`` is itself a module — upstream's or the fork's
-    (``from hermes_cli import _boot_clock`` imports the fork file
-    ``hermes_cli/_boot_clock.py``; the underscore is its filename, not a private
-    upstream name).
-    """
-    if not (name and name.startswith("_") and not name.startswith("__")):
-        return False
-    if not _upstream_module_path(module, upstream):
-        return False
-    submodule = root / module.replace(".", "/") / name
-    if submodule.with_suffix(".py").is_file() or (submodule / "__init__.py").is_file():
-        return False
-    return not _upstream_module_path(f"{module}.{name}", upstream)
+_upstream_module_path = _scope.upstream_module_path
+is_private_upstream_import = _scope.is_private_upstream_import
 
 
 def private_upstream_attributes(root: Path, upstream: frozenset[str], path: str, tree: ast.Module) -> set[str]:
