@@ -74,6 +74,30 @@ def classify_uv_failure(stage: str, returncode: int, output: str) -> InstallErro
     return InstallError("venv", cause)
 
 
+#: Fork: Windows "file in use" while uv unpacks a wheel into a fresh environment
+#: (``failed to remove directory ...pillow_heif-1.6.0.data ... os error 32``, twice on
+#: 2026-10-15). An on-access scanner holding the just-written tree is the leading
+#: suspect; the sync is idempotent, so a short wait and a re-run finishes it.
+_SHARING_VIOLATION_MARKERS = ("os error 32",)
+_SHARING_VIOLATION_RETRY_DELAYS = (2.0, 5.0)
+
+
+def _retry_sync_on_sharing_violation(run, command: list[str], source: Path, timeout: int,
+                                     result: subprocess.CompletedProcess,
+                                     *, sleep=None) -> subprocess.CompletedProcess:
+    """Re-run a ``uv sync`` that failed only on a Windows sharing violation; else ``result``."""
+    import time
+
+    pause = time.sleep if sleep is None else sleep
+    for delay in _SHARING_VIOLATION_RETRY_DELAYS:
+        output = " ".join((result.stderr or "", result.stdout or "")).lower()
+        if not result.returncode or not any(marker in output for marker in _SHARING_VIOLATION_MARKERS):
+            return result
+        pause(delay)
+        result = run(command, cwd=source, timeout=timeout)
+    return result
+
+
 def _project_name(source: Path) -> str:
     """``[project].name`` of *source*'s pyproject, on any Python that can run the bootstrap.
 
@@ -385,6 +409,7 @@ class PythonEnvironment:
         for group in sorted(set(groups)):
             command += ["--group", group]
         result = self._run(command, cwd=source, timeout=timeout)
+        result = _retry_sync_on_sharing_violation(self._run, command, source, timeout, result)
         if result.returncode:
             raise classify_uv_failure("sync", result.returncode, result.stderr or result.stdout)
 

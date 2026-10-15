@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 214,
+  "files": 215,
   "deleted_lines": 1079,
   "heavy": 5,
   "reasons": [
@@ -694,6 +694,20 @@
         "heavy": 5
       },
       "reason": "pm/environments.py: additive UTF-8 stdout reconfigure so a cp1252 console can print the activation exports (0 deletions). hermes_cli/auth_codex.py: the pool fallback loop reads its rows once and asks a fork helper whether the pool selection would refuse the row (+1 deletion). hermes_cli/local_runtime/devices.py and hermes_cli/sqlite_runtime.py: their -I child argv is built by the fork door hermes_cli/child_interpreter.py so the bundled runtime's pycache prefix reaches the child (1 deletion each). Each is a one-line seam into fork code; all three defects are upstream-shaped and stay upstream candidates."
+    },
+    {
+      "change": "Wave w1015-prov-h runtime R749: retry a uv sync that failed only on a Windows sharing violation (os error 32)",
+      "before": {
+        "files": 214,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "after": {
+        "files": 215,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "reason": "pm/environment.py PythonEnvironment.sync: one added line hands a failed result to an additive helper that re-runs the idempotent sync twice (2 s, 5 s) when the output names os error 32; 0 deletions. No fork door exists inside pm for the uv invocation; upstream candidate."
     }
   ]
 }
