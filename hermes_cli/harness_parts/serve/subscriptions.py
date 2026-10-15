@@ -162,6 +162,21 @@ class SubscriptionLanes:
 
         return accepted_fold_entities(self._room_fold_declarations())
 
+    def _room_folds_turn_overlay(self) -> bool:
+        """True when the room is non-empty and EVERY attached subscriber folds
+        the ``persona_chat_turn`` overlay — then a core build may stand aside for
+        a whole admitted turn (``agent_runtime.snapshot_turn_yield``, D2.06)."""
+
+        from agent_runtime.patch_coverage import (
+            PERSONA_CHAT_TURN_CAPABILITY,
+            accepted_fold_entities,
+        )
+
+        declarations = self._room_fold_declarations()
+        return bool(declarations) and (
+            PERSONA_CHAT_TURN_CAPABILITY in accepted_fold_entities(declarations)
+        )
+
     def _room_fold_declarations(self) -> list[Any]:
         """Every attached subscriber's declaration, both lanes, once.
 

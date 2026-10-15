@@ -805,6 +805,11 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
             log=self._service_log,
             accepted_fold_entities=self._accepted_fold_entities,
         )
+        # D2.06: the same room answers whether a core build may stand aside for
+        # a whole admitted turn (every subscriber folds `persona_chat_turn`).
+        from agent_runtime.snapshot_turn_yield import bind_turn_overlay_room
+
+        bind_turn_overlay_room(self._room_folds_turn_overlay)
 
     def _start_pool_and_accepting(self) -> None:
 

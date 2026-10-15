@@ -15,10 +15,16 @@ bug, not a trade-off.
 
 * Before a build LEADS, it waits while a chat turn is inside a latency-critical
   window (``turn_activity.hot_turn_windows``): its pre-admit assembly up to the
-  published start row, and each provider call from dispatch to its return. Not the whole admitted turn:
-  between those windows the stream lane's builds are what carry the turn's own
-  start row and running-work state to the board (the serve's "a running turn
-  publishes its own start" contract), so they must still happen during a turn.
+  published start row, and each provider call from dispatch to its return. Not the whole admitted turn
+  by default: between those windows the stream lane's builds carry the turn's own
+  start row and running-work state to a subscriber that does not fold the
+  ``persona_chat_turn`` overlay (the serve's "a running turn publishes its own
+  start" contract), so for that room they must still happen during a turn.
+* When EVERY attached subscriber folds ``persona_chat_turn`` (the serve lends
+  that answer through :func:`bind_turn_overlay_room`), the overlay carries the
+  start row and ``running_work`` and the turn-end ``running_work_frame`` ships
+  before any core (design-sweep-d2 § D2.06), so a build stands aside for the
+  WHOLE admitted turn, within the same budget.
 * While it runs, it pauses at its yield points -- every section boundary of the
   frame build and every persona in its two per-persona walks -- whenever a hot
   window is open, and resumes when it closes.
@@ -70,14 +76,42 @@ SNAPSHOT_BUILD_YIELDED_RECEIPT = (
 )
 
 
+#: The serve's answer to "does every attached subscriber fold the
+#: ``persona_chat_turn`` overlay" (``None`` outside a serve: hot windows only).
+_TURN_OVERLAY_ROOM: Callable[[], bool] | None = None
+
+
+def bind_turn_overlay_room(predicate: Callable[[], bool] | None) -> None:
+    """Lend (or, with ``None``, withdraw) the room predicate; read live per yield."""
+
+    global _TURN_OVERLAY_ROOM
+    _TURN_OVERLAY_ROOM = predicate
+
+
+def _room_folds_turn_overlay() -> bool:
+    predicate = _TURN_OVERLAY_ROOM
+    if predicate is None:
+        return False
+    try:
+        return predicate() is True
+    except Exception:  # an unreadable room is the conservative hot-window rule
+        return False
+
+
 def _turns_admitted() -> int:
-    """Turns inside a latency-critical window, unless this context IS a turn."""
+    """Turns a build must stand aside for, unless this context IS a turn.
+
+    Every admitted turn when the whole room folds the turn overlay; otherwise
+    only turns inside a latency-critical window.
+    """
 
     try:
-        from .turn_activity import hot_turn_windows, inside_admitted_turn
+        from .turn_activity import chat_turns_admitted, hot_turn_windows, inside_admitted_turn
 
         if inside_admitted_turn():
             return 0
+        if _room_folds_turn_overlay():
+            return int(chat_turns_admitted())
         return int(hot_turn_windows())
     except Exception:  # pragma: no cover - the counter is this package's own
         return 0
@@ -178,6 +212,7 @@ def log_build_yield(state: BuildYield | None, *, caller: str, generation: object
 __all__ = [
     "BuildYield",
     "SNAPSHOT_TURN_YIELD_MAX_MS",
+    "bind_turn_overlay_room",
     "build_yield_scope",
     "log_build_yield",
     "snapshot_yield_point",
