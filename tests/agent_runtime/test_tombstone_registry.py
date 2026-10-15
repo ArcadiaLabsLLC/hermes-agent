@@ -4024,7 +4024,7 @@ def _save_render_cache() -> None:
 _IDENT_CHAR = "A-Za-z0-9_"
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _identifier_pattern(text: str) -> re.Pattern[str]:
     """``text`` as a whole token: no identifier character may extend either end.
 

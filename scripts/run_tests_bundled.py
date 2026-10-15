@@ -451,7 +451,7 @@ def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> dict[str, tuple[fl
     return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
 
 
-def _rerun_kind(stopped_in: Optional[str], tally: "FileTally", bundle_rc: int) -> str:
+def _rerun_kind(stopped_in: Optional[str], tally: FileTally, bundle_rc: int) -> str:
     """``unreached`` behind a death; ``abnormal-exit`` for a member that recorded no failure
     in an abnormally ended bundle; otherwise a real ``leak`` (red in a bundle that ran it)."""
 
