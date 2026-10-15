@@ -299,8 +299,25 @@ def manifest_paths(base_listing: str, tip_listing: str) -> list[str]:
     return sorted({path for listing in (base_listing, tip_listing) for path in listing.split("\0") if path})
 
 
-def refresh_manifest(manifest_path: Path = MANIFEST) -> str:
-    base = _git("merge-base", "HEAD", UPSTREAM_REF).strip()[:10]
+def refresh_base(explicit: str | None = None) -> str:
+    """The base a refreshed manifest is headed with.
+
+    ``explicit`` (``--base``) wins. Otherwise the merge base with upstream of
+    ``MERGE_HEAD`` when a merge is in progress, else of ``HEAD``: D3.03 re-bases the
+    manifest INSIDE the release merge commit, before that commit exists, so ``HEAD``
+    alone still answers the OLD base (v0.21.7 lane, which had to bypass the flag).
+    """
+    if explicit:
+        return _git("rev-parse", "--verify", f"{explicit}^{{commit}}").strip()[:10]
+    merging = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    ).returncode == 0
+    return _git("merge-base", "MERGE_HEAD" if merging else "HEAD", UPSTREAM_REF).strip()[:10]
+
+
+def refresh_manifest(manifest_path: Path = MANIFEST, base: str | None = None) -> str:
+    base = refresh_base(base)
     ls_tree = ("-c", "core.quotepath=off", "ls-tree", "-r", "-z", "--name-only")
     paths = manifest_paths(_git(*ls_tree, base), _git(*ls_tree, UPSTREAM_REF))
     manifest_path.write_text(f"# base {base}\n" + "\n".join(paths) + "\n", encoding="utf-8", newline="\n")
@@ -309,14 +326,15 @@ def refresh_manifest(manifest_path: Path = MANIFEST) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--base", help="merge base to diff from (default: the manifest header's base)")
+    parser.add_argument("--base", help="merge base to diff from (default: the manifest header's base); "
+                        "with --refresh-manifest, the base the manifest is refreshed at")
     parser.add_argument("--json", action="store_true", help="emit per-file rows {path, added, deleted, heavy}")
     parser.add_argument("--ledger", nargs="?", const=str(DEFAULT_LEDGER), help="write/merge the ledger markdown")
     parser.add_argument("--refresh-manifest", action="store_true", help=f"regenerate the manifest from {UPSTREAM_REF}")
     args = parser.parse_args(argv)
 
     if args.refresh_manifest:
-        print(f"[up-fp] manifest refreshed at base {refresh_manifest()}")
+        print(f"[up-fp] manifest refreshed at base {refresh_manifest(base=args.base)}")
     _, footprint = measure(args.base)
     if args.json:
         print(json.dumps([asdict(row) for row in footprint.rows], indent=2))

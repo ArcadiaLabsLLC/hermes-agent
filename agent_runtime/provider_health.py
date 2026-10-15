@@ -9,6 +9,7 @@ from hermes_cli.runtime_environment import required_packages_for, runtime_enviro
 from . import paths
 from .models import AgentPersona
 from .profile_context import active_profile_name
+from .provider_dependency_error import ProviderDependencyError
 
 __layer__ = "stores"
 
@@ -62,18 +63,6 @@ def runtime_health() -> dict[str, Any]:
 
 def provider_health_for_persona(persona: AgentPersona) -> dict[str, Any]:
     return provider_health_for_personas([persona])
-
-
-class ProviderDependencyError(ImportError):
-    """A pre-token dependency refusal with structured operator remediation."""
-
-    def __init__(self, message: str, *, persona: AgentPersona, issues: list[dict[str, str]]):
-        super().__init__(message)
-        self.reason = issues[0]["kind"]
-        self.provider = getattr(persona, "provider", None)
-        self.model = getattr(persona, "model", None)
-        self.missing_packages = tuple(dict.fromkeys(issue["package"] for issue in issues))
-        self.repair_hint = "\n".join(issue["summary"] for issue in issues)
 
 
 def assert_provider_health_for_persona(persona: AgentPersona) -> None:

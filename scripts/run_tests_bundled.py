@@ -217,7 +217,12 @@ class Leak:
     bundle process died first (pytest-timeout's thread method, a crash, the
     bundle timeout): nothing is known about the member except that it never
     finished, and ``stopped_in`` names the member the process died in — the
-    file that belongs in the unbundled list, not this one."""
+    file that belongs in the unbundled list, not this one. It is ``"abnormal-exit"``
+    when the bundle ended abnormally with its session closed (a guard's
+    ``pytest.exit``, an internal error) and the member recorded NO failure there —
+    usually no outcome at all: it was re-run only because the process exit was
+    abnormal, so green alone proves nothing about contamination (bundle 85,
+    2026-10-12: 21 such members were printed as isolation leaks)."""
 
     file: Path
     bundle_index: int
@@ -373,7 +378,7 @@ def run(
                 rels[:position],
                 tally.summary(),
                 list(tally.failed_nodeids),
-                "unreached" if stopped_in is not None else "leak",
+                _rerun_kind(stopped_in, tally, effective_bundle_rc(events, rc)),
                 stopped_in,
             )
             with lock:
@@ -444,6 +449,17 @@ def _ran(outcomes: Sequence[FileOutcome], repo_root: Path) -> dict[str, tuple[fl
     """rel → (seconds, tests) of each file's final outcome, for the record's test counts."""
 
     return {_rel(o.file, repo_root): (o.seconds, sum(o.summary.get(k, 0) for k in _CATEGORIES)) for o in outcomes}
+
+
+def _rerun_kind(stopped_in: Optional[str], tally: "FileTally", bundle_rc: int) -> str:
+    """``unreached`` behind a death; ``abnormal-exit`` for a member that recorded no failure
+    in an abnormally ended bundle; otherwise a real ``leak`` (red in a bundle that ran it)."""
+
+    if stopped_in is not None:
+        return "unreached"
+    if bundle_rc != 0 and tally.clean:
+        return "abnormal-exit"
+    return "leak"
 
 
 def _where_it_died(
@@ -613,6 +629,15 @@ def _print_summary(
             print(line)
     leaks = [leak for leak in result.leaks if leak.kind == "leak"]
     unreached = [leak for leak in result.leaks if leak.kind == "unreached"]
+    abnormal = [leak for leak in result.leaks if leak.kind == "abnormal-exit"]
+    if abnormal:
+        print()
+        print(
+            f"=== {len(abnormal)} member(s) of an abnormally ended bundle recorded no failure there and passed alone "
+            "— NOT isolation leaks; the bundle diagnostics above carry the abnormal exit ==="
+        )
+        for leak in abnormal:
+            print(f"  {_rel(leak.file, repo_root)}  # observed: bundle #{leak.bundle_index} {leak.in_bundle}; passed alone")
     if leaks:
         print()
         print(

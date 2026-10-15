@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from test_run_tests_parallel import (  # noqa: F401 — upstream names the moved tests use
     _make_probe_dir,
 )
@@ -127,62 +129,35 @@ def test_adaptive_default_jobs_is_capped() -> None:
     assert mod._adaptive_default_jobs(None) == 4
 
 
-def test_file_list_split_keeps_windows_drive_letters(tmp_path: Path) -> None:
+@pytest.mark.skipif(sys.platform != "win32", reason="the drive-letter re-glue is the win32 branch of upstream's split")
+def test_file_list_split_keeps_windows_drive_letters() -> None:
     """``--files`` is colon-joined; a bare split() shreds ``C:\\repo\\t.py``.
 
-    Regression: the runner opened a file literally named ``C`` under the repo
-    root, so every Windows caller of ``--files`` (CI matrix jobs, the flake
-    tests below) died before running anything.
+    Regression: the runner opened a file literally named ``C`` under the repo root. Upstream's
+    ``_split_pathspec`` re-glues drive letters itself since v0.21.7, so the fork's
+    ``_split_path_list`` carry retired; this pins the behaviour where it lives (Windows).
     """
     mod = _load_runner_module()
 
-    assert mod._split_path_list(r"C:\repo\tests\test_a.py") == [
-        r"C:\repo\tests\test_a.py"
-    ]
-    assert mod._split_path_list(r"C:\repo\test_a.py:D:/repo/test_b.py") == [
-        r"C:\repo\test_a.py",
-        "D:/repo/test_b.py",
-    ]
-    # POSIX lists are untouched.
-    assert mod._split_path_list("tests/a.py:tests/b.py") == [
-        "tests/a.py",
-        "tests/b.py",
-    ]
+    assert mod._split_pathspec(r"C:\repo\tests\test_a.py") == [r"C:\repo\tests\test_a.py"]
+    assert mod._split_pathspec(r"C:\repo\test_a.py:D:/repo/test_b.py") == [r"C:\repo\test_a.py", "D:/repo/test_b.py"]
+    assert mod._split_pathspec("tests/a.py;tests/b.py") == ["tests/a.py", "tests/b.py"]
 
 
-def test_a_file_list_longer_than_the_os_will_stat_still_splits(monkeypatch) -> None:
-    """The list CI actually passes, and the reason nobody saw it break.
+def test_a_file_list_longer_than_the_os_will_stat_still_splits() -> None:
+    """The list CI passes (8 slices over ~3,040 files, ~30 KB) splits on every host.
 
-    ``--files`` carries one colon-joined slice — 8 slices over ~3,040 files is
-    roughly 30 KB of argument — and the split began with an ``exists()`` probe
-    for the "the argument IS one path with a colon in it" case. A joined list is
-    not a path, and the two hosts disagree about how to say so: Linux's
-    ``stat()`` answers ``ENAMETOOLONG`` for anything past ``PATH_MAX`` and
-    ``pathlib`` does not ignore that errno, so the probe RAISED; Windows folds
-    the same overflow into its ignored winerror set and answers ``False``.
-
-    So every CI matrix slice died in ``_split_path_list`` before collecting a
-    test — measured on nekwo/hermes-agent, all 8 slices red with
-    ``OSError: [Errno 36] File name too long`` on every main push from
-    2026-08-04 (the first run after the probe landed) through 2026-09-05 — while
-    the identical call was green on every developer's Windows box.
-
-    Both halves are asserted because either alone is a half-test: the real
-    over-long list is what CI passes and is enough on POSIX, and the forced
-    ``OSError`` is what makes a Windows author trip here too rather than
-    shipping the same asymmetry again.
+    The retired fork carry probed ``Path(raw).exists()`` first and Linux's ``ENAMETOOLONG``
+    raised through it (every CI slice red 2026-08-04 .. 09-05). Upstream's split never asks
+    the OS; this keeps it that way, POSIX lists included.
     """
     mod = _load_runner_module()
 
     joined = ":".join(f"tests/dir{index}/test_module_{index}.py" for index in range(600))
     assert len(joined) > 4096, "the case needs a list past PATH_MAX"
-    assert mod._split_path_list(joined) == joined.split(":")
-
-    def _too_long(self) -> bool:
-        raise OSError(36, "File name too long")
-
-    monkeypatch.setattr(mod.Path, "exists", _too_long)
-    assert mod._split_path_list("tests/a.py:tests/b.py") == ["tests/a.py", "tests/b.py"]
+    assert mod._split_pathspec(joined) == joined.split(":")
+    assert mod._split_pathspec("tests/a.py:tests/b.py") == ["tests/a.py", "tests/b.py"]
+    assert not hasattr(mod, "_split_path_list"), "the retired fork carry is back beside upstream's split"
 
 
 def _drive_main_over_one_file(

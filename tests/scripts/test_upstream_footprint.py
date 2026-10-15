@@ -172,6 +172,32 @@ def test_no_ledger_row_is_unreviewed_or_unledgered():
     assert unreviewed_rows(marked) == [path]
 
 
+def unledgered_paths(ledger_text: str, footprint) -> list[str]:
+    rows = ledger_rows(ledger_text)
+    return sorted(row.path for row in footprint.rows if row.path not in rows)
+
+
+def test_every_measured_upstream_edit_has_a_ledger_row():
+    """D3.03 as a POSITIVE guarantee: the measured footprint is the enumeration, and every
+    path in it has a row. The marker check above only reds on a row that SAYS unreviewed;
+    ``7bd2769236`` / ``e8c572f47b`` landed eight upstream edits with no row at all and it
+    stayed green."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    _, footprint = measure()
+    assert footprint.rows, "the footprint measured no rows; this gate would prove nothing"
+    assert unledgered_paths(text, footprint) == [], (
+        "these upstream files carry a fork edit and no ledger row: write the row (disposition "
+        "and reason) in the commit that lands the edit"
+    )
+
+    # Positive control: deleting one live row is caught, by name.
+    path = footprint.rows[0].path
+    kept = "\n".join(line for line in text.splitlines() if not line.startswith(f"| `{path}` |"))
+    assert unledgered_paths(kept, footprint) == [path]
+
+
 def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     """D3.06: the read-through derives its reader set from rows carrying ``READER_MOVED``, so a
     fork edit that ADDS a ``hermes_cli.config.load_config_readonly`` import to an upstream file
@@ -203,3 +229,49 @@ def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     fake = ("+++ b/tools/x.py\n+    from hermes_cli.config import cfg_get, load_config_readonly\n"
             "+++ b/tools/y.py\n-    from hermes_cli.config import load_config_readonly\n")
     assert readonly_reader_moves(fake) == {"tools/x.py"}
+
+
+def _planted_merge(tmp_path):
+    """A clone mid release merge: main and the tag both grew from ``old``; ``upstream/main`` is the tag."""
+    import subprocess
+
+    repo = tmp_path / "clone"
+    repo.mkdir()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],
+            cwd=repo, capture_output=True, text=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    (repo / "a.py").write_text("a\n", encoding="utf-8")
+    git("add", "a.py")
+    git("commit", "-q", "-m", "old base")
+    old = git("rev-parse", "HEAD")
+    git("checkout", "-q", "-b", "tag")
+    (repo / "u.py").write_text("u\n", encoding="utf-8")
+    git("add", "u.py")
+    git("commit", "-q", "-m", "upstream tag")
+    tag = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/upstream/main", tag)
+    git("checkout", "-q", "main")
+    (repo / "f.py").write_text("f\n", encoding="utf-8")
+    git("add", "f.py")
+    git("commit", "-q", "-m", "fork work")
+    return repo, git, old, tag
+
+
+def test_a_manifest_refreshed_inside_a_release_merge_takes_the_incoming_base(tmp_path, monkeypatch):
+    from scripts import upstream_footprint as fp
+
+    repo, git, old, tag = _planted_merge(tmp_path)
+    monkeypatch.setattr(fp, "ROOT", repo)
+    # Positive control: before the merge starts, HEAD's merge base is the OLD base.
+    assert fp.refresh_base() == old[:10]
+    git("merge", "--no-commit", "--no-ff", "tag")
+    manifest = tmp_path / "manifest.txt"
+    assert fp.refresh_manifest(manifest) == tag[:10]
+    assert manifest.read_text(encoding="utf-8").splitlines()[0] == f"# base {tag[:10]}"
+    # --base wins over both, and is resolved to a commit.
+    assert fp.refresh_base("HEAD") == git("rev-parse", "HEAD")[:10]

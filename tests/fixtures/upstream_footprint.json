@@ -1,9 +1,9 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 215,
-  "deleted_lines": 1079,
-  "heavy": 5,
+  "files": 216,
+  "deleted_lines": 1047,
+  "heavy": 4,
   "reasons": [
     {
       "change": "Owner-requested conversation approval and speed controls",
@@ -708,6 +708,40 @@
         "heavy": 5
       },
       "reason": "pm/environment.py PythonEnvironment.sync: one added line hands a failed result to an additive helper that re-runs the idempotent sync twice (2 s, 5 s) when the output names os error 32; 0 deletions. No fork door exists inside pm for the uv invocation; upstream candidate."
+    },
+    {
+      "change": "fork-hygiene row 'one-line deletion drift' (w1015b-fh-a): name the auth_nous.py deletion the w1015-prov-h raise absorbed",
+      "files": "215 unchanged",
+      "deleted_lines": "1079 unchanged: the 1075 -> 1079 raise above credits 3 deletions to auth_codex/devices/sqlite_runtime; the 4th is hermes_cli/auth_nous.py (55/8 -> 59/9 against the base), from 9f61ed63795",
+      "reason": "9f61ed63795 (fix(provider): project sign-in lifetime from provider expiry) rewrote the _nous_device_code_login signature line to add an on_expiry=None kwarg and fires it once with the device code's start/deadline, so the launcher can show the sign-in lifetime. Same shape as the carried PR-1 on_verification kwarg on that line (one-line seam, upstream candidate alongside it). Measured on unchanged main 024e92d2f9 as files=211 deleted=1076 against the 1075 fixture; no other upstream file's deletions moved between 30c0cd3c504 and 024e92d2f9."
+    },
+    {
+      "change": "fork-hygiene row 'scripts/check on a cp1252 console' (w1015b-fh-a)",
+      "before": {
+        "files": 215,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "after": {
+        "files": 216,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "reason": "scripts/check main(): four added lines reconfigure stdout/stderr with errors='backslashreplace' before the results print, so a tool's U+2717 on a Windows cp1252 console no longer raises UnicodeEncodeError and loses the receipt (2026-10-12 reasoning-capability gate). 0 deletions. No caller-side door: the script is the entry point the hooks and operators invoke. Upstream candidate."
+    },
+    {
+      "change": "fork-hygiene row 'ADOPT _split_pathspec' (w1015b-fh-a): retire the fork's _split_path_list carry",
+      "before": {
+        "files": 216,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "after": {
+        "files": 216,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "scripts/run_tests_parallel.py: upstream's v0.21.7 _split_pathspec re-glues Windows drive letters itself; the fork's _split_path_list (PR #125263 carry) and the delegating body are deleted and upstream's body restored byte-for-byte. The downstream test is platform-honest (drive letters asserted on win32 only; the long-list case on every host). The file falls 187/48 -> 145/16 against the base and out of 'heavy'."
     }
   ]
 }

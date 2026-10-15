@@ -509,14 +509,14 @@ An older Launcher ignores the keys; no contract integer moves.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`hermes_cli/harness_parts/persona/chat_session.py::_chat_effective_model_payload`):
+(`agent_runtime/persona_chat_session.py::_chat_effective_model_payload`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:320`) via
+(`agent_runtime/persona_chat_session.py::_resolve_chat_model_override`, key spelled once as `agent_runtime/persona_chat_history/vocabulary.py::_CHAT_MODEL_OVERRIDE_CONFIG_KEY`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against

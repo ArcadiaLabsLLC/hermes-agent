@@ -117,8 +117,9 @@ unpushed commits on 2026-08-01); the landing gate is `scripts/run_tests_bundled.
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
   counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
-- Cut worktrees from a NEUTRAL cwd (`X:/Eternia`, never inside the checkout):
-  `git -C X:/Eternia/hermes-agent worktree add X:/Eternia/worktrees/<lane> -b <branch> origin/main`.
+- Cut worktrees from a NEUTRAL cwd (the directory beside the clone, never inside the checkout):
+  `git -C <clone> worktree add <beside the clone>/worktrees/<lane> -b <branch> origin/main`. The
+  clone's location differs per workstation; read it off `git worktree list`, never from this file.
   A `fetch` + `worktree add` run inside the primary checkout yanked `main` back to its
   pre-merge tip once (2026-08-31) and both usual tells lied.
 - Never `git stash`. The stash stack and the rerere cache are shared by every worktree of

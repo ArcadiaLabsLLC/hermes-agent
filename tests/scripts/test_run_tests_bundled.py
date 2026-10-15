@@ -297,6 +297,36 @@ def test_a_failing_bundle_reruns_its_red_member_alone_and_names_the_leak(tmp_pat
     assert result.leaks[0].failed_nodeids == ["tests/alpha/test_3.py::test_ok"]
 
 
+def test_an_abnormal_exit_names_members_that_never_failed_there_not_isolation_leaks(tmp_path, capsys):
+    """2026-10-12 bundle 85: an idle-turn guard closed the session with rc 2 and 21 members that
+    recorded nothing were printed as ISOLATION LEAKS. Only a member red in the bundle is a leak."""
+    rels = [f"tests/alpha/test_{i}.py" for i in range(4)]
+    files = _tree(tmp_path, rels)
+
+    def _guarded(first, args, repo_root, timeout):
+        events_path = Path(next(a for a in args if a.startswith("--hermes-bundle-events=")).split("=", 1)[1])
+        records = [
+            {"k": "start", "t": 0.0},
+            {"k": "collect", "f": rels[0], "d": 0.0, "err": False},
+            {"k": "test", "f": rels[0], "c": "passed", "d": 0.0},
+            {"k": "collect", "f": rels[1], "d": 0.0, "err": False},
+            {"k": "test", "f": rels[1], "c": "failed", "d": 0.0, "n": f"{rels[1]}::test_ok"},
+            {"k": "end", "t": 1.0, "rc": 2},  # the guard's pytest.exit: session closed, rest never ran
+        ]
+        events_path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+        return first, 2, "guard output", {}, 1.0
+
+    result = bundled.run(
+        files, [], tmp_path, jobs=1, bundle_size=20, flat_timeout=300.0, retries=1, durations={},
+        bundle_runner=_guarded, solo_runner=lambda path, *a: (path, 0, "ok", {"passed": 1}, 0.5),
+    )
+
+    kinds = {leak.file.resolve().relative_to(tmp_path.resolve()).as_posix(): leak.kind for leak in result.leaks}
+    # Positive control: the member that DID fail in the bundle is still a leak.
+    # rels[0] passed in the bundle and is trusted (never re-run).
+    assert kinds == {rels[1]: "leak", rels[2]: "abnormal-exit", rels[3]: "abnormal-exit"}
+
+
 def test_a_member_red_alone_too_is_a_failure_not_a_leak(tmp_path):
     files = _tree(tmp_path, ["tests/alpha/test_a.py", "tests/alpha/test_b.py"])
 

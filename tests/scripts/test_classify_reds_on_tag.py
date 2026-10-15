@@ -105,6 +105,22 @@ def test_the_table_round_trips_to_rows_keyed_by_exactly_the_upstream_reds(tmp_pa
     assert "v9.9.9 0123456789" in module._REASON
 
 
+def test_a_backslash_inside_a_parametrize_id_survives_the_parse_and_the_table(tmp_path):
+    """v0.21.7: ``[...new_tab(\"a\")\\nnew_tab(...)...]`` came back with ``/`` and named no test."""
+    node = 'tests/tools/test_browser_use_cli.py::test_private[mixed-new_tab("a")\\nnew_tab("b")-None]'
+    windows_line = "FAILED " + node.replace("tests/tools/", "tests\\tools\\", 1) + " - AssertionError"
+    run = crt.parse_run_output(windows_line)
+    assert run.red_nodes == {node}
+    assert run.red_files == {"tests/tools/test_browser_use_cli.py"}
+    text = crt.emit_table({node: V.UPSTREAM_RED}, "v9.9.9", "0123456789", "2026-10-10")
+    module_path = tmp_path / "upstream_reds_backslash.py"
+    module_path.write_text(text, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("upstream_reds_backslash", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert list(module._NODES) == [node]
+
+
 def test_skip_rows_name_the_whole_file_and_the_nondeterministic_files():
     verdicts, _ = _verdicts()
     rows = crt.emit_skip_rows(verdicts, "v9.9.9", "0123456789")
@@ -224,3 +240,19 @@ def test_it_refuses_the_primary_checkout_and_a_neutral_dir_inside_a_checkout(clo
     with pytest.raises(SystemExit, match="inside a git checkout"):
         crt.TagWorktree(repo, "v1", repo / "tests")
     assert _git(repo, "worktree", "list").count("\n") == 1
+
+
+def test_the_default_interpreter_is_resolved_per_machine_never_one_users_path(tmp_path):
+    """v0.21.7 Step 5d died with WinError 2: the default named another user's venv."""
+    scripts = "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+    home, clone = tmp_path / "home", tmp_path / "clone"
+    assert crt.default_python({"HERMES_PYTHON": "/x/python"}, home, clone) == Path("/x/python")
+    assert crt.default_python({}, home, clone) == Path(sys.executable)  # nothing on this machine
+    (clone / ".venv" / scripts).parent.mkdir(parents=True)
+    (clone / ".venv" / scripts).write_text("", encoding="utf-8")
+    assert crt.default_python({}, home, clone) == clone / ".venv" / scripts
+    shared = home / ".venvs" / "hermes-test" / scripts
+    shared.parent.mkdir(parents=True)
+    shared.write_text("", encoding="utf-8")
+    assert crt.default_python({}, home, clone) == shared
+    assert "beast" not in Path(crt.__file__).read_text(encoding="utf-8")

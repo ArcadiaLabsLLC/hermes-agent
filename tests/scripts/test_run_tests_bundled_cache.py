@@ -397,6 +397,26 @@ def test_a_spawner_whose_python_children_all_recorded_depends_only_on_its_record
 # ── the store stays bounded ─────────────────────────────────────────────────
 
 
+def test_run_receipts_past_the_limit_move_to_the_archive_and_the_final_red_state_stays_live(repo, store):
+    """Row 'bound or archive accumulated run receipts': runs.jsonl grew forever and every
+    run read all of it. Mutation: skip the archive append -> the moved receipts are gone."""
+    from scripts import run_tests_bundled_plan as plan
+
+    for index in range(10):
+        plan.record_run(repo, {"n": index, "bundle_diagnostics": [{"bundle": index}]}, {}, {},
+                        {"tests/test_red.py": frozenset({f"tests/test_red.py::t{index}"})}, record_path=store.runs)
+    before = store.runs.read_bytes()
+    newest = plan.last_record(repo, store.runs)
+
+    assert store.compact(runs_limit=1, runs_keep=3) == ["runs.jsonl"]
+    assert len(store.runs.read_bytes().splitlines()) == 3
+    assert plan.last_record(repo, store.runs) == newest, "the final-red state is the newest line, kept live"
+    assert store.runs_archive.read_bytes() + store.runs.read_bytes() == before, "every receipt moved, none lost"
+    assert [r["n"] for r in cache._read_jsonl(store.runs_archive)] == list(range(7))
+    # Positive control: under the limit nothing moves.
+    assert store.compact() == [] and len(store.runs.read_bytes().splitlines()) == 3
+
+
 def test_compaction_keeps_the_newest_line_per_file_and_only_the_module_sets_still_named(repo, store):
     _green(repo, store)
     old = cache.FileDeps(paths={T}, mods={"pkg/other.py"})

@@ -614,7 +614,7 @@ def classify_turn_failure(
     Generic failures retain uncertainty; true dispatch evidence always wins.
     """
 
-    from .provider_health import ProviderDependencyError
+    from .provider_dependency_error import ProviderDependencyError
 
     if isinstance(exc, ProviderDependencyError):
         return replace(

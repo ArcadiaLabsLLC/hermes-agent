@@ -160,8 +160,38 @@ _DURATIONS_FILE = "test_durations.json"
 
 
 def _split_pathspec(value: str) -> list[str]:
-    chunks = value.split(";") if sys.platform == "win32" else [value]
-    return [part for chunk in chunks for part in _split_path_list(chunk)]
+    """Split a separator-joined path list (``--paths``/``--files``/
+    ``HERMES_TEST_PATHS``) into individual paths.
+
+    POSIX: ``:``-separated, as documented.
+
+    Windows: ``;`` (``os.pathsep``) and ``:`` are both accepted as
+    separators, but a ``:`` that forms a drive letter (``C:\\...`` or
+    ``C:/...``) stays glued to its path — a naive ``split(":")`` turns
+    ``C:\\repo\\tests`` into ``['C', '\\repo\\tests']``, where the bogus
+    ``C`` becomes a phantom discovery root and the rooted remainder only
+    resolves by accident of ``Path.__truediv__`` re-anchoring it onto
+    ``repo_root``'s drive.
+    """
+    if sys.platform != "win32":
+        return [p for p in value.split(":") if p.strip()]
+    parts: list[str] = []
+    for chunk in value.split(";"):
+        raw = chunk.split(":")
+        i = 0
+        while i < len(raw):
+            part = raw[i]
+            if (
+                len(part) == 1
+                and part.isalpha()
+                and i + 1 < len(raw)
+                and raw[i + 1][:1] in ("\\", "/")
+            ):
+                part = f"{part}:{raw[i + 1]}"
+                i += 1
+            parts.append(part)
+            i += 1
+    return [p for p in parts if p.strip()]
 
 # Host-OS gating (see the ``_OS_MARKS`` block in tests/conftest.py): tests
 # marked for another host are collected and SKIPPED by the conftest hook —
@@ -1061,46 +1091,6 @@ def _is_retryable_timeout_result(
         return False
     lowered = output.lower()
     return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after")
-
-
-def _split_path_list(raw: str) -> list[str]:
-    """Split a colon-joined path list without cutting Windows drive letters.
-
-    ``C:\\repo\\tests\\test_a.py`` naively ``split(":")``-ed becomes
-    ``["C", "\\repo\\tests\\test_a.py"]`` and the runner then tries to open a
-    file literally named ``C`` under the repo root. Re-join any single ASCII
-    letter that is immediately followed by a path separator — that is a drive
-    qualifier, not a list delimiter.
-
-    The ``exists()`` probe is a fast path for "the argument IS one path that
-    happens to contain a colon", and its failure has to be swallowed: a joined
-    LIST is not a path, and asking the OS whether one exists is not a question
-    every OS answers with False. On Linux a list past ``PATH_MAX`` makes
-    ``stat()`` return ``ENAMETOOLONG``, which ``pathlib`` does not ignore, so
-    the probe RAISES — while Windows folds the same overflow into its ignored
-    winerror set and answers False. That asymmetry is the whole bug: every CI
-    ``--files`` slice (8 slices × ~380 files ≈ 30 KB of argument) died here
-    before collecting a single test, on every push from 2026-08-04 on, while
-    the identical call was green on every developer's Windows box.
-    """
-    try:
-        if Path(raw).exists():
-            return [raw]
-    except OSError:
-        pass
-    parts = raw.split(":")
-    out: list[str] = []
-    index = 0
-    while index < len(parts):
-        piece = parts[index]
-        following = parts[index + 1] if index + 1 < len(parts) else ""
-        if len(piece) == 1 and piece.isalpha() and following[:1] in ("\\", "/"):
-            out.append(f"{piece}:{following}")
-            index += 2
-            continue
-        out.append(piece)
-        index += 1
-    return [value for value in out if value.strip()]
 
 
 def _pytest_argv(file: Path, pytest_args: list[str]) -> list[str]:
