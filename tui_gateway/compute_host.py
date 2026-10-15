@@ -237,10 +237,15 @@ class ComputeHost:
                               "eternia.subagents.capabilities", "eternia.subagents.list", "eternia.subagents.tail",
                               "session.events.since", "session.retire"}:
                 raise ValueError("Unsupported observation")
-            response = server.dispatch({"jsonrpc": "2.0", "id": request_id,
-                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}}, self._transport)
+            response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
+                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})
             self._reply("observe.ack", sid, request_id, response=response)
-        self._guarded(frame, "observe.error", body)
+        from tui_gateway.transport import bind_transport, reset_transport
+        token = bind_transport(self._transport)
+        try:
+            self._guarded(frame, "observe.error", body)
+        finally:
+            reset_transport(token)
 
     def _run_real_turn(self, frame: dict[str, Any]) -> None:
         sid = str(frame.get("sid") or "")

@@ -90,3 +90,13 @@ def test_compute_observer_keeps_controls_closed_and_session_id_server_owned(comp
         "session_id": "ui-owner", "owner_scope": "forged", "worker_generation": "forged"})
     assert response["error"]["code"] == 4601
     assert frames[-1]["sid"] == "missing"
+
+
+def test_observation_keeps_recovery_synchronous_and_restores_transport(compute):
+    from tui_gateway.transport import current_transport
+
+    server, _, _, _, _, _ = compute
+    before = current_transport()
+    reply = server._compute_host_supervisor.observe("ui-owner", "session.events.since", {"last_seen": 0})
+    assert reply["result"]["count"] == len(reply["result"]["events"])
+    assert current_transport() is before
