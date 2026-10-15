@@ -39,7 +39,10 @@ from .test_mission_chat_budget_payload import (
 NO_PROVIDER = "No LLM provider configured. Run `hermes model` to select a provider."
 
 
-def _unconfigured_provider(*, request_started: bool, request_dispatched: bool = False, generic_failure: bool = False):
+def _unconfigured_provider(
+    *, request_started: bool, request_dispatched: bool = False, generic_failure: bool = False,
+    replied: bool = False,
+):
     from agent.auxiliary_unavailable import ProviderNotConfiguredError
 
     class _Provider:
@@ -51,6 +54,8 @@ def _unconfigured_provider(*, request_started: bool, request_dispatched: bool = 
                 kwargs["agent_ready_callback"](object())
             if request_dispatched:
                 kwargs["trace_callback"]({"phase": "timing", "step": "conversation_request_sent"})
+            if replied:
+                kwargs["stream_callback"]("first reply byte")
             error = RuntimeError if generic_failure else ProviderNotConfiguredError
             raise error(NO_PROVIDER)
 
@@ -163,3 +168,17 @@ def test_typed_setup_refusal_after_agent_ready_uses_dispatch_evidence(monkeypatc
         assert payload["error_kind"] == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
         assert payload["provider_refusal"]["reason"] == "provider_unavailable"
         assert payload["turn_resolution_required"] is False
+
+
+def test_a_provider_byte_is_dispatch_evidence_without_the_transport_marker(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """The emitter's ``provider_first_byte_seen`` is the second positive dispatch
+    signal: a reply byte with no ``conversation_request_sent`` marker still keeps a
+    typed setup refusal ambiguous rather than ``provider_unavailable``."""
+
+    _seed(monkeypatch, _unconfigured_provider(request_started=True, replied=True))
+    assert chat_turn_message._cmd_mission_chat_message(_args("replied_turn")) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error_kind"] == ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN
+    assert "provider_refusal" not in payload

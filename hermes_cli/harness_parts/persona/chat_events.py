@@ -365,6 +365,13 @@ class _ChatProtocolV2Emitter:
         if self._heartbeat is not None:
             self._heartbeat.ensure_running()
 
+    @property
+    def provider_first_byte_seen(self) -> bool:
+        """True once a provider reply delta reached this emitter: positive evidence
+        that the request was dispatched, read by the settle's dispatch classifier."""
+
+        return self._provider_first_byte_marked
+
     def first_reply_text(self, delta: str | None) -> None:
         """Mark ``provider_first_byte`` on the turn's FIRST reply-text delta; nothing else.
 

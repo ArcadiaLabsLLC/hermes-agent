@@ -149,7 +149,7 @@ class _SettlePhases:
             # typed `provider_unavailable` refusal, never `outcome_unknown`.
             request_started=self.provider_request_started,
             request_dispatched=(
-                self.provider_request_dispatched or stream_emitter._provider_first_byte_marked
+                self.provider_request_dispatched or stream_emitter.provider_first_byte_seen
             ),
         )
         wall_budget_exceeded = (
