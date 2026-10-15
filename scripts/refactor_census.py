@@ -43,11 +43,15 @@ for f in FILES:
     names = []
     for n in tree.body:
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            names.append((n.name, type(n).__name__, n.end_lineno - n.lineno + 1))
+            # A decorated function is reached through its decorator (singledispatch
+            # `.register`, `@method`, routes, `@property`), never by its own name: it is
+            # counted as `decorated`, not offered as a DEAD candidate (L5.17: 46 of 60).
+            top_kind = "decorated" if n.decorator_list and not isinstance(n, ast.ClassDef) else type(n).__name__
+            names.append((n.name, top_kind, n.end_lineno - n.lineno + 1))
             if isinstance(n, ast.ClassDef):
                 for m in n.body:
                     if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and not (m.name.startswith("__") and m.name.endswith("__")):
-                        names.append((n.name + "." + m.name, "method", m.end_lineno - m.lineno + 1))
+                        names.append((n.name + "." + m.name, "decorated" if m.decorator_list else "method", m.end_lineno - m.lineno + 1))
         elif isinstance(n, ast.Assign):
             for t in n.targets:
                 if isinstance(t, ast.Name):
@@ -107,10 +111,11 @@ print()
 print("=== DEAD-CODE CENSUS (per file: candidates with 0 prod refs outside the file) ===")
 tot_dead = tot_testonly = tot_lines = 0
 for f, rows in dead.items():
-    d = [r for r in rows if r["prod_files"] == 0 and r["test_files"] == 0 and r["internal_refs"] == 0]
-    t = [r for r in rows if r["prod_files"] == 0 and r["test_files"] > 0 and r["internal_refs"] == 0]
+    candidates = [r for r in rows if r["kind"] != "decorated"]
+    d = [r for r in candidates if r["prod_files"] == 0 and r["test_files"] == 0 and r["internal_refs"] == 0]
+    t = [r for r in candidates if r["prod_files"] == 0 and r["test_files"] > 0 and r["internal_refs"] == 0]
     tot_dead += len(d); tot_testonly += len(t); tot_lines += sum(r["span"] for r in d)
-    print(f"{f}: unreferenced={len(d)} ({sum(r['span'] for r in d)} lines) test-only={len(t)} ({sum(r['span'] for r in t)} lines)")
+    print(f"{f}: unreferenced={len(d)} ({sum(r['span'] for r in d)} lines) test-only={len(t)} ({sum(r['span'] for r in t)} lines) decorated-not-judged={len(rows) - len(candidates)}")
     for r in d:
         print(f"    DEAD  {r['kind']:8} {r['name']}  [{r['span']}]")
     for r in t:
