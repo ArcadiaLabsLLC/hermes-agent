@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from agent.image_token_cost import calibrate_from_usage
 from agent.usage_anchor import capture_usage_anchor, set_usage_anchor
@@ -71,9 +71,9 @@ def _fold_moa_usage(agent, canonical_usage):
 
 
 def record_api_call_usage(
-    agent: Any, usage: Dict[str, int], *, estimated_cost_usd: Optional[float], cost_status: str,
+    agent: Any, usage: dict[str, int], *, estimated_cost_usd: float | None, cost_status: str,
     cost_source: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """One provider call's usage + cost: set as ``post_api_request``'s ``cost`` and appended to the
     turn's ``api_call_records`` (reset per turn in ``run_conversation``). Returns the record."""
     cost = {"estimated_cost_usd": estimated_cost_usd, "cost_status": cost_status, "cost_source": cost_source}
