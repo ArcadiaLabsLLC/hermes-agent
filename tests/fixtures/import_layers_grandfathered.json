@@ -88,6 +88,7 @@
   "hermes_cli/provider_browser_login.py|hermes_cli.auth_xai|_xai_oauth_device_code_login",
   "hermes_cli/provider_browser_login.py|hermes_cli.auth|_auth_file_path",
   "hermes_cli/provider_browser_login.py|hermes_cli.auth|_persist_provider_state_to_store",
+  "pm/_fork_extend_environment.py|pm.environment|_retry_sync_on_sharing_violation",
   "pm/_fork_extend_environment.py|pm.operations|_require_install_allowed",
   "pm/_fork_extend_environment.py|pm.operations|_requirements",
   "scripts/verify_harness_skill_install.py|hermes_constants|_get_platform_default_hermes_home",
