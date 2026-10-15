@@ -74,6 +74,7 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
+from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
 TARGETS: dict[str, tuple[str, dict[str, str]]] = {
@@ -173,18 +174,24 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
 
 def install_pool(requirements: str, stage: Path, target: str, python_version: str,
                  uv: str = "uv", offline: bool = False) -> None:
-    """Install the exported pins into ``stage`` for ``target`` — hashes required, wheels only."""
-    if stage.exists():
-        shutil.rmtree(stage)
-    stage.mkdir(parents=True)
+    """Install the exported pins into ``stage`` for ``target`` — hashes required, wheels only.
+
+    uv runs into a scratch folder outside the work tree and the pool is moved into
+    ``stage`` whole, with a bounded retry on a Windows sharing violation
+    (``scripts/bundles/pool_install.py`` says why).
+    """
+    remove_tree(stage)
+    stage.parent.mkdir(parents=True, exist_ok=True)
     req = stage.parent / f"{stage.name}.requirements.txt"
     req.write_text(evaluate_markers(requirements, marker_env(target, python_version)), encoding="utf-8")
-    cmd = [uv, "pip", "install", "--target", str(stage), "--python-platform", TARGETS[target][0],
-           "--python-version", python_version, "--no-config", "--no-deps", "--require-hashes",
-           "--only-binary", ":all:", "--link-mode", "copy", "--no-compile", "-r", str(req)]
-    if offline:
-        cmd.append("--offline")
-    subprocess.run(cmd, cwd=ROOT, check=True, timeout=1800, stdin=subprocess.DEVNULL)
+
+    def command(into: Path) -> list[str]:
+        cmd = [uv, "pip", "install", "--target", str(into), "--python-platform", TARGETS[target][0],
+               "--python-version", python_version, "--no-config", "--no-deps", "--require-hashes",
+               "--only-binary", ":all:", "--link-mode", "copy", "--no-compile", "-r", str(req)]
+        return [*cmd, "--offline"] if offline else cmd
+
+    install_pool_into(command, stage, cwd=ROOT)
 
 
 # -- distribution facts from a site directory ------------------------------------------------
