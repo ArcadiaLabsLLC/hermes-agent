@@ -298,6 +298,71 @@ def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, i
                 yield base, alias.name, node.lineno
 
 
+def _import_bindings(path: str, tree: ast.Module) -> dict[str, str]:
+    """Local name -> the dotted module or ``module.Name`` an import binds it to (any scope)."""
+    out: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    out[alias.asname] = alias.name
+                else:
+                    head = alias.name.split(".")[0]
+                    out[head] = head
+        elif isinstance(node, ast.ImportFrom):
+            base = resolve_from(path, node)
+            for alias in node.names:
+                if alias.name != "*":
+                    out[alias.asname or alias.name] = f"{base}.{alias.name}" if base else alias.name
+    return out
+
+
+def _dotted(node: ast.expr) -> str | None:
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return ".".join([node.id, *reversed(parts)])
+
+
+def private_upstream_attributes(
+    root: Path, is_upstream: Callable[[str], bool], path: str, tree: ast.Module
+) -> set[str]:
+    """``path|target|_name`` for every ``<alias>._private`` reaching into an upstream module.
+
+    The W0-G6 second-door arm for ATTRIBUTE spellings (fork-hygiene row M1.05/M1.07):
+    ``import agent.skill_utils as su; su._RAW_CONFIG_CACHE = …`` or
+    ``from hermes_state import SessionDB; SessionDB._read_all`` never appear as a
+    ``from … import _name``. ``target`` is the upstream module, or ``module.Name``
+    for a name it defines. A NEGATIVE guarantee (no new site), so a source walk is
+    the instrument; an instance (``db._read_all``) is not spellable and not counted.
+    """
+    bindings = _import_bindings(path, tree)
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Attribute) and node.attr.startswith("_") and not node.attr.startswith("__")):
+            continue
+        dotted = _dotted(node.value)
+        if dotted is None:
+            continue
+        head, _, rest = dotted.partition(".")
+        bound = bindings.get(head)
+        if bound is None:
+            continue
+        target = f"{bound}.{rest}" if rest else bound
+        parts = target.split(".")
+        owner = next((".".join(parts[:n]) for n in range(len(parts), 0, -1)
+                      if module_path(root, ".".join(parts[:n]))), None)
+        if owner is None or not is_upstream(owner):
+            continue  # the longest prefix that is a repo module must be an upstream one
+        if module_path(root, f"{target}.{node.attr}"):
+            continue  # a submodule, not a private name
+        found.add(f"{path}|{target}|{node.attr}")
+    return found
+
+
 def visible_vocabularies(root: Path, files: Iterable[str]) -> dict[str, frozenset[str]]:
     """``{path: words}`` — the vocabulary each module can SEE: its own declarations
     plus those of every fork module it imports (resolved, module-level or deferred),
