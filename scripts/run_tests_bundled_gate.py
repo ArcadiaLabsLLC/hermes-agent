@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
 import run_tests_bundled_cache as cache  # noqa: E402 — registered by run_tests_bundled._load_sibling
+import run_tests_bundled_fixtures as fixtures
 import run_tests_bundled_plan as plan  # noqa: E402
 import run_tests_bundled_scope as scope  # noqa: E402
 import run_tests_parallel as rtp  # noqa: E402
@@ -138,7 +139,8 @@ class GateRun:
             self.disabled = fixed.disabled
             deps = self.store.load_deps()
             modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.mods})
-            self.keyer = cache.Keyer(snapshot, fixed, modsets)
+            shapes = fixtures.Fingerprints(self.repo_root, snapshot.blob, cache.git_blob_id)
+            self.keyer = cache.Keyer(snapshot, fixed, modsets, shapes)
             self.generation = self.store.generation()
             self.greens = self.store.load_green()
         else:

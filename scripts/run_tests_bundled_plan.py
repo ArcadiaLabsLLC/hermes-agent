@@ -108,6 +108,41 @@ def cut_by_budget(members: Sequence[Tuple[Path, float]], budget: float, cap: int
     return bundles
 
 
+#: a run expected to take longer than this, from a session-chain edit, says how to avoid paying it
+CHAIN_SPLIT_HINT_SECONDS = 20 * 60.0
+
+
+def expected_wall(estimates: Mapping[str, Optional[float]], jobs: int, default: float) -> tuple[float, str]:
+    """The run's expected wall seconds before it starts, and the plan line that says so.
+
+    The floor of any packing: ``max(Σ estimates / jobs, longest estimate)``. A file
+    without a recorded time counts at ``default``. Owner, 2026-10-15: a landing
+    learns it is a 2.5-hour run from this line, not 66 minutes in."""
+
+    known = {rel: float(s) for rel, s in estimates.items() if s}
+    unknown = len(estimates) - len(known)
+    total = sum(known.values()) + unknown * default
+    longest_rel, longest = max(known.items(), key=lambda kv: kv[1], default=("", default if unknown else 0.0))
+    wall = max(total / max(1, jobs), longest)
+    line = (
+        f"Expected wall: ~{wall / 60:.0f} min at -j {jobs} (Σ {total / 60:.0f} worker-min over {len(estimates)} "
+        f"file(s); longest {longest:.0f}s{' ' + longest_rel if longest_rel else ''}; {unknown} without a "
+        f"recorded time counted at {default:.0f}s)"
+    )
+    return wall, line
+
+
+def chain_split_hint(wall: float, chain_paths: Sequence[str]) -> Optional[str]:
+    """The advice a long run caused by a session-chain edit prints up front."""
+
+    if not chain_paths or wall < CHAIN_SPLIT_HINT_SECONDS:
+        return None
+    return (
+        f"  this is a whole-tree run because {', '.join(chain_paths)} changed (session chain): land that change "
+        "alone, or with the release merge, instead of inside a batch"
+    )
+
+
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
 #: the process kinds the ledger counts, by a kind's first word (fast-gate §2 adds

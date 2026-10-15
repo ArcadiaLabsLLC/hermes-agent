@@ -564,6 +564,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
+_fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys of fixture modules
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 
 _OUR_FLAGS = {
@@ -787,6 +788,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
+    wall, line = plan.expected_wall(
+        {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in gate.to_run},
+        args.jobs, _UNCACHED_ESTIMATE_SECONDS,
+    )
+    print(line, flush=True)
+    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain else None
+    if hint:
+        print(hint, flush=True)
 
     done = 0
     counter_lock = threading.Lock()
