@@ -100,3 +100,18 @@ def test_a_direct_tui_session_is_never_touched(handler):
         assert blocked_tools_for("key-1") == frozenset()
     finally:
         worker_app_functions.reset(token)
+
+
+def test_a_turn_the_serve_did_not_admit_binds_read_only(handler, caplog):
+    """No execution id on an eternia session (a worker follow-up turn) is read-only, not open."""
+    session = _session()
+    session.pop("native_execution")
+    with caplog.at_level(logging.WARNING, logger=worker_permissions.__name__):
+        token = worker_app_functions.bind("sid-1", session)
+    try:
+        assert blocked_tools_for("key-1") == frozenset(extra_blocked_tools_for_permission_mode("read_only"))
+        assert any("permission_bind_missing" in r.getMessage() and "not_admitted" in r.getMessage()
+                   for r in caplog.records)
+    finally:
+        worker_app_functions.reset(token)
+    assert blocked_tools_for("key-1") == frozenset()
