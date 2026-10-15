@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 220,
+  "files": 221,
   "deleted_lines": 1047,
   "heavy": 4,
   "reasons": [
@@ -784,6 +784,20 @@
         "heavy": 4
       },
       "reason": "One additive fixture line: pm/environments.py's fork tail (w1015c-dev 5d93d4f0064) imports pm/_fork_dependency_borrow.py, so the minted repo this upstream test builds copies that module beside environments.py and filesystem.py. Retire when the borrow leaves environments.py's tail."
+    },
+    {
+      "change": "fork-hygiene row test_powershell_stage_publishes_without_a_checkout_venv (lane w1015h-fh-h)",
+      "before": {
+        "files": 220,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "after": {
+        "files": 221,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "One additive BOOT_FILES entry: pm/environments.py's fork tail (w1015c-dev 5d93d4f0064) imports pm/_fork_dependency_borrow.py, so the boot tree this upstream fixture mints (shared by tests/pm/test_source_launcher_stages.py and test_source_update_launch.py) copies it. Retire when the borrow leaves environments.py's tail."
     }
   ]
 }
