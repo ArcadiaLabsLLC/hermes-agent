@@ -58,7 +58,7 @@ from hermes_cli.plugins_dispatch import (
     RenderedPluginSystemPromptSection, _EventSubscription, format_system_prompt_sections,
     is_valid_system_prompt_section_id, resolve_plugin_command_result,
 )
-from hermes_cli.plugins_declared_cli import cli_command_key, discover_declared_cli_commands  # noqa: F401
+from hermes_cli.plugins_declared_cli import cli_command_key, discover_declared_cli_commands
 from hermes_cli.plugins_ledger import PluginLedgerMixin, PluginRegistration
 from hermes_cli.plugins_state import (
     PluginState, _locked_plugin_state, _nested_plugin_mapping, _nested_plugin_value,
