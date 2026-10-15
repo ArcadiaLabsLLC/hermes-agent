@@ -23,9 +23,15 @@ from agent.turn_failure_copy import site_copy, stamp_failure
 logger = logging.getLogger("agent.conversation_loop")
 
 __all__ = [
-    "stop_thinking_spinner", "ApiCallVerdict", "should_stream", "_should_stream",
-    "perform_api_call", "ApiInterruptVerdict", "handle_api_interrupt",
-    "NousRateGuardVerdict", "nous_rate_limit_guard",
+    "ApiCallVerdict",
+    "ApiInterruptVerdict",
+    "NousRateGuardVerdict",
+    "_should_stream",
+    "handle_api_interrupt",
+    "nous_rate_limit_guard",
+    "perform_api_call",
+    "should_stream",
+    "stop_thinking_spinner",
 ]
 
 
