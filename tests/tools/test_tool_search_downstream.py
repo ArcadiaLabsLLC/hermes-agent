@@ -311,29 +311,15 @@ class TestBridgeDispatch:
         described = json.loads(dispatch_tool_describe({"names": ["terminal"]}, current_tool_defs=defs))
         assert "terminal" in described["tools"]
 
-    def test_tool_describe_restates_the_one_entry_rule_for_local_tools(self):
-        """Runtime-queue row (w5-rt): describe handed an agent three local names and it sent
-        all three in one tool_call. The result now carries the rule at that moment."""
+    def test_tool_describe_no_longer_stamps_a_one_entry_rule(self):
+        """Upstream PR #131249 runs a batch of local deferred tools through the per-tool
+        pipeline, so the fork's one-entry restatement (``attach_local_call_rule``) was
+        deleted: a describe of local tools carries no ``call_rule``."""
         from tools.tool_search import dispatch_tool_describe
-        from tools.tool_search_downstream import LOCAL_CALL_RULE
         defs = [_td(n, "Read", {"x": {"type": "string"}}) for n in ("qa_a", "qa_b", "qa_c")]
         result = json.loads(dispatch_tool_describe({"names": ["qa_a", "qa_b", "qa_c"]}, current_tool_defs=defs))
         assert set(result["tools"]) == {"qa_a", "qa_b", "qa_c"}
-        assert result["call_rule"] == LOCAL_CALL_RULE
-        assert "ONE entry" in LOCAL_CALL_RULE and "connectors__" in LOCAL_CALL_RULE
-
-    def test_the_call_rule_is_not_stamped_when_nothing_local_was_described(self):
-        """Positive control's twin: a connector-only result may batch, and a miss names no tool."""
-        from tools.tool_search_downstream import attach_local_call_rule
-        connectors_only = {"tools": {"connectors__gmail__send": {}, "connectors__slack__post": {}}}
-        attach_local_call_rule(connectors_only)
-        assert "call_rule" not in connectors_only
-        missed = {"tools": {}, "not_found": ["zzz"]}
-        attach_local_call_rule(missed)
-        assert "call_rule" not in missed
-        mixed = {"tools": {"connectors__gmail__send": {}, "terminal": {}}}
-        attach_local_call_rule(mixed)
-        assert "call_rule" in mixed
+        assert "call_rule" not in result
 
     def test_tool_describe_schema_is_fixed_and_tiny(self):
         from tools.tool_search import tool_describe_schema, TOOL_DESCRIBE_NAME
@@ -654,4 +640,5 @@ class TestOneDoorForAnEagerName:
         from tools.tool_search_downstream import LOCAL_CALL_RULE
 
         assert "called by name" in LOCAL_CALL_RULE
-        assert "ONE entry" in LOCAL_CALL_RULE and "connectors__" in LOCAL_CALL_RULE
+        # Upstream batches local deferred tools now; the rule must not forbid it.
+        assert "ONE entry" not in LOCAL_CALL_RULE and "connectors__" not in LOCAL_CALL_RULE

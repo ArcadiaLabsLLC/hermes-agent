@@ -223,11 +223,7 @@ def warn_unmatched_never_defer(registry=None, config=None) -> Tuple[UnmatchedNev
 #: ``tool_describe`` result. The bridge's own ``tool_call`` schema says it too, but an
 #: agent handed three names by describe still sent all three in one call (owner
 #: screenshot 2026-10-01, ``events.81417412.jsonl`` line 17549) and lost a round trip.
-LOCAL_CALL_RULE = (
-    "Invoke a deferred local tool with its own tool_call (calls: an array of ONE entry); "
-    "a tool already in your tool list is called by name. Only connectors__ names may be "
-    "batched in one tool_call."
-)
+LOCAL_CALL_RULE = "A tool already in your tool list is called by name, not through tool_call."
 
 #: Stamped on a search result that found an eager tool for a query.
 DIRECT_CALL_RULE = (
@@ -357,14 +353,6 @@ def mark_direct_hits(upstream):
 
     dispatch_tool_search.__doc__ = (upstream.__doc__ or "") + "\n\nFork: eager hits are reported as directly_available (tool_search_downstream)."
     return dispatch_tool_search
-
-
-def attach_local_call_rule(result: Dict[str, Any]) -> None:
-    """Stamp :data:`LOCAL_CALL_RULE` on a describe result that described a local tool."""
-    from tools.connectors import is_connector_name
-
-    if any(not is_connector_name(name) for name in result.get("tools") or {}):
-        result["call_rule"] = LOCAL_CALL_RULE
 
 
 def tool_describe_schema() -> Dict[str, Any]:

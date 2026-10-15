@@ -245,7 +245,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (owner screenshot: QA turn ended silent; filed by the orchestrator)
 
-- [ ] **Upstream already fixed local `tool_call` batches: NousResearch/hermes-agent PR #131249 (merge `95db0e2ada`, 2026-10-02 06:50Z, closes #119891) runs a batch of local deferred tools through the per-tool pipeline instead of refusing it. Take it at the next upstream sync, and in the same change delete the fork's now-contradicting carry: `attach_local_call_rule` in `tools/tool_search_downstream.py` (added `708dee88d6`, restates the one-entry rule) and its call in `tools/tool_search.py`. No feature request: owner 2026-10-02 asked for one, the guideline duplicate search found it already shipped** · `tools/tool_search_downstream.py` · `tools/tool_search.py` · released 2026-10-10 (lane-1010 returned L2.22, seam; reason in `queue-sweep-2026-10-10/L2-outcomes.md`) **TAKEN 2026-10-15 w1015-rt-h**
 
 ### Filed on arrival — 2026-10-02 (launcher lane w10-pkg, bundled Hermes on macOS/Linux; moved here by the orchestrator)
 
