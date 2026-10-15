@@ -994,3 +994,6 @@ def store_first_path(path: str) -> str:
 # Fork (ledger row `pm/install.py`): the Developer Edition's selection carries the provider SDKs.
 from pm._fork_default_extras import widen_target_selection
 _target_selection = widen_target_selection(_target_selection)
+# Fork (ledger row `pm/install.py`): a process borrowing another root's environment never syncs it.
+from pm._fork_dependency_borrow import refuse_sync_while_borrowing
+sync_venv = refuse_sync_while_borrowing(sync_venv)
