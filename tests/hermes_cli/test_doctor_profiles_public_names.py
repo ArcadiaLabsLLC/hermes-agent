@@ -40,7 +40,7 @@ def test_overriding_section_reaches_the_live_doctor_checks(monkeypatch):
     from hermes_cli import doctor_live
 
     titles = []
-    monkeypatch.setattr("hermes_cli.config.load_config_readonly", lambda: {})
+    monkeypatch.setattr("hermes_cli.config.load_config_readonly", dict)
     monkeypatch.setattr(doctor_live, "_KEYED_PROBES", {})
     monkeypatch.setattr(doctor_live, "_probe_browser",
                         lambda timeout: doctor_live.ProbeResult("Browser", "skip", ""))
