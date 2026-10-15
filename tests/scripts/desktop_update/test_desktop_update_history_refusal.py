@@ -67,7 +67,7 @@ def test_windows_handoff_names_a_history_refusal(tmp_path: Path, refused: bool) 
         env={**os.environ, "HERMES_HOME": str(home),
              "HERMES_RUNTIME_DIR": str(tmp_path / "empty-store"),
              "HANDOFF_CALLS": str(calls), "HANDOFF_BANNER": MARKER if refused else ""},
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=120, check=False,
     )
     assert result.returncode == 2, result.stdout + result.stderr
     assert len(calls.read_text().splitlines()) == 1, "a refusal must not be retried"

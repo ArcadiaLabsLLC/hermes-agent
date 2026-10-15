@@ -43,7 +43,7 @@ def _git(git_cmd, cwd, *args, input=None):
     result = subprocess.run(
         [*git_cmd, *args], cwd=cwd,
         input=input.encode("utf-8") if input is not None else None,
-        capture_output=True, timeout=30,
+        capture_output=True, timeout=30, check=False,
     )
     return subprocess.CompletedProcess(result.args, result.returncode,
                                        result.stdout.decode("utf-8", "replace"),
