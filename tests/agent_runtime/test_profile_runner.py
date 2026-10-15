@@ -2150,3 +2150,45 @@ def test_a_failing_agent_ready_callback_is_a_typed_warning_not_a_failed_run():
         ("agent_ready_callback", "start", "warning", "Agent ready callback start failed: RuntimeError"),
         ("agent_ready_callback", "cleanup", "warning", "Agent ready callback cleanup failed: KeyError"),
     ]
+
+
+def test_runner_opencode_persisted_api_mode_does_not_split_url_from_transport(monkeypatch):
+    # An instance override persists the PROVIDER's api_mode (opencode-zen: chat_completions) while
+    # the runtime resolves the Claude model to anthropic_messages and strips /v1 for it. The run
+    # must build the Anthropic client against /zen, not a chat/completions client against /zen
+    # (POST /zen/chat/completions -> 404, owner serve 2026-10-15).
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        lambda requested, target_model: {
+            "provider": requested,
+            "model": target_model,
+            "api_mode": "anthropic_messages",
+            "api_key": "zen-key",
+            "base_url": "https://opencode.ai/zen",
+        },
+    )
+    runner = ProfileAgentRunner(agent_factory=FakeAgent)
+
+    runner.run(AgentRunRequest(profile=None, provider="opencode-zen", model="claude-opus-5-5",
+                               api_mode="chat_completions", user_message="hello"))
+
+    assert FakeAgent.last_kwargs["api_mode"] == "anthropic_messages"
+    assert FakeAgent.last_kwargs["base_url"] == "https://opencode.ai/zen"
+
+
+def test_runner_opencode_chat_model_keeps_v1_for_chat_completions(monkeypatch):
+    # Positive control: a chat/completions Zen model under the same persisted mode keeps /v1.
+    monkeypatch.setattr(
+        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        lambda requested, target_model: {
+            "provider": requested, "model": target_model, "api_mode": "chat_completions",
+            "api_key": "zen-key", "base_url": "https://opencode.ai/zen/v1",
+        },
+    )
+    runner = ProfileAgentRunner(agent_factory=FakeAgent)
+
+    runner.run(AgentRunRequest(profile=None, provider="opencode-zen", model="glm-4.7-free",
+                               api_mode="chat_completions", user_message="hello"))
+
+    assert FakeAgent.last_kwargs["api_mode"] == "chat_completions"
+    assert FakeAgent.last_kwargs["base_url"] == "https://opencode.ai/zen/v1"

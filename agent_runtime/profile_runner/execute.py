@@ -218,6 +218,21 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
     )
 
 
+def _run_transport(request: AgentRunRequest, runtime: dict) -> dict:
+    """``api_mode`` + ``base_url`` for the run, decided as ONE pair. An OpenCode relay serves
+    Anthropic-wire, Responses and chat/completions models behind one provider, so a persisted
+    instance/persona ``api_mode`` (the provider default) is wrong for every model but one; the relay's
+    per-model authority, ``opencode_transport``, decides both halves so the URL and the client agree."""
+    from agent.opencode_affinity import opencode_transport
+
+    base_url = runtime.get("base_url")
+    api_mode, url = opencode_transport(runtime.get("provider") or request.provider,
+                                       runtime.get("model") or request.model, base_url)
+    if api_mode is not None:
+        return {"api_mode": api_mode, "base_url": url or base_url}
+    return {"api_mode": request.api_mode or runtime.get("api_mode"), "base_url": base_url}
+
+
 def _resolve_request_runtime(
     request: AgentRunRequest, timing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -686,8 +701,7 @@ class AgentRunExecution:
         built = runner._agent_factory(
             provider=runtime.get("provider") or request.provider,
             model=runtime.get("model") or request.model or "",
-            api_mode=request.api_mode or runtime.get("api_mode"),
-            base_url=runtime.get("base_url"),
+            **_run_transport(request, runtime),
             api_key=runtime.get("api_key"),
             **construction_kwargs(runtime),
             **self.reasoning_kwargs,
@@ -723,7 +737,7 @@ class AgentRunExecution:
         controls = resolved_session_controls(self.request.root_chat_session_id,
             provider=self.runtime.get("provider") or self.request.provider,
             model=self.runtime.get("model") or self.request.model,
-            base_url=self.runtime.get("base_url"), api_mode=self.request.api_mode or self.runtime.get("api_mode"))
+            **_run_transport(self.request, self.runtime))
         apply_session_speed(agent, controls)
 
     def acquire_agent(self) -> None:
