@@ -52,7 +52,7 @@ def test_paste_code_sign_in_runs_on_a_thread_in_the_callers_home(monkeypatch, ca
 
     ran: dict = {}
 
-    def driver(verify, flow):
+    def driver(verify, flow, expiry=None):
         ran["home"] = str(get_hermes_home())
         verify("https://provider.example/authorize?state=s", "")
         print("SENTINEL printed access token")
@@ -77,7 +77,7 @@ def test_paste_code_sign_in_runs_on_a_thread_in_the_callers_home(monkeypatch, ca
 def test_cancel_ends_the_session_and_fails_the_pending_paste(monkeypatch, no_subprocess):
     finished = threading.Event()
 
-    def driver(verify, flow):
+    def driver(verify, flow, expiry=None):
         verify("https://provider.example/authorize", "")
         try:
             if not wire._read_pasted_line():

@@ -151,7 +151,7 @@ def _phone_config(home: Path, port: int) -> None:
     (home / "config.yaml").write_text(safe_dump(config), encoding="utf-8")
 
 
-def _sign_in_driver(verify, flow):
+def _sign_in_driver(verify, flow, expiry=None):
     """The fake provider's grant: show a device code, then save the key the way Hermes saves one."""
     from hermes_cli import config
 

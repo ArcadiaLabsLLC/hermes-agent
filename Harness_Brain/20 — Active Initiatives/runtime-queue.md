@@ -735,3 +735,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - [ ] **`tests/agent_runtime/test_process_index.py` pins only the two QA purposes: add a byte copy of the launcher's `test/fixtures/process_index_hermes_child/6161.json` (pid 6161, started_at_ticks 179099112233, purpose hermes_child, recorded_by_pid 4321) and compare `record_child`'s bytes to it, so the hermes_child pin runs both ways** · launcher lane q-mc2 2026-10-12
 
 
+
+## Filed on arrival — 2026-10-15 (Claude sol-prov landing)
+
+- [ ] **`settle.py` reads the stream emitter's private `_provider_first_byte_marked` to build `request_dispatched`.** `hermes_cli/harness_parts/persona/chat_turn_commit/settle.py` reaches into `chat_events.py`'s private flag; give the emitter a public `provider_first_byte_seen` property (or record dispatch on `TurnCommit` at first byte) so the dispatch-evidence contract has one owner · `hermes` · UNCLAIMED
+- [ ] **`test_embedded_phone_session.py::test_the_spawn_stand_ins_are_installed_before_the_serve_thread` is order-dependent: `assert [6] == [7]` when run after `tests/test_harness_usage.py` + the provider-account files, green alone (twice) and green as a pair with `test_provider_signin_in_process.py`.** Find the leaked process-global state and isolate it · `hermes` · observed 2026-10-15 on sol-prov landing · UNCLAIMED
+- [ ] **The sol-prov landing compared base vs branch only on the 3 files that turned up suspects; the 92-file import-closure run (1459 passed / 21 failed on the branch, mostly missing `fastapi` in an ad-hoc venv) has no completed base run.** Re-run `tests/` that import `agent_runtime.provider_account*`, `provider_signin`, `mission_chat_outcome`, `persona_chat_history`, `chat_turn_commit`, `harness_parts.usage`, `provider_browser_login` in the managed environment and confirm no new reds · `hermes` · UNCLAIMED

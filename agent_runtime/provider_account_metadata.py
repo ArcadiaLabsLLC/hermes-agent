@@ -35,8 +35,8 @@ def nous_usage_snapshot():
     from hermes_cli.nous_account import get_nous_portal_account_info
 
     account = get_nous_portal_account_info(force_fresh=True)
-    if account is None or not getattr(account, "logged_in", False):
-        return None
+    # The builder owns the logged-out answer (None); a second gate here would
+    # diverge from it.
     snapshot = build_nous_credits_snapshot(account)
     if snapshot is None:
         return None
