@@ -798,6 +798,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not files:
         print("No test files in scope", file=sys.stderr)
         return 1
+    deselect = plan.deselect_args(skip_rows, {_rel(r, repo_root) for r in roots if r.is_file()})
+    for node in deselect[1::2]:  # a run says what it did not run, and why
+        print(f"  deselected (upstream skip list node; name the file to run it): {node}  # {skip_rows[node].why}")
+    pytest_args = pytest_args + deselect
 
     # Constant for the whole run, so setting it before any worker starts is
     # race-free: every bundle child can then load the plugin by name.
