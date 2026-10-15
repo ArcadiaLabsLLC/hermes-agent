@@ -50,6 +50,8 @@ import time
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
+from .serde import stripped_str
+
 __layer__ = "models"
 
 __all__ = [
@@ -480,7 +482,7 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
         status_code = int(block.get("status_code"))
     except (TypeError, ValueError):
         return None
-    failure_reason = _text(block.get("failure_reason"))
+    failure_reason = stripped_str(block.get("failure_reason"))
     if status_code not in PROVIDER_REFUSAL_STATUS_CODES:
         if status_code != 400:
             return None
@@ -488,11 +490,11 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
             return None
     return ProviderRefusal(
         status_code=status_code,
-        reason=_text(block.get("reason")),
-        message=_text(block.get("message")),
+        reason=stripped_str(block.get("reason")),
+        message=stripped_str(block.get("message")),
         reset_at=block.get("reset_at"),
-        provider=_text(block.get("provider")),
-        model=_text(block.get("model")),
+        provider=stripped_str(block.get("provider")),
+        model=stripped_str(block.get("model")),
         failure_reason=failure_reason,
     )
 
@@ -507,13 +509,6 @@ def _humanize_seconds(seconds: int) -> str:
     if seconds < 5400:
         return f"{round(seconds / 60)} min"
     return f"{round(seconds / 3600)} h"
-
-
-def _text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    text = value.strip()
-    return text or None
 
 
 @dataclass(frozen=True, slots=True)
@@ -626,7 +621,7 @@ def classify_turn_failure(
             PROVIDER_UNAVAILABLE_OUTCOME,
             provider_refusal=ProviderRefusal(
                 status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
-                reason=exc.reason, message=_text(str(exc)), provider=exc.provider,
+                reason=exc.reason, message=stripped_str(str(exc)), provider=exc.provider,
                 model=exc.model, missing_packages=exc.missing_packages,
                 repair_hint=exc.repair_hint,
             ),
@@ -651,7 +646,7 @@ def classify_turn_failure(
                 provider_refusal=ProviderRefusal(
                     status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
                     reason=PROVIDER_UNAVAILABLE_REASON,
-                    message=_text(str(exc)),
+                    message=stripped_str(str(exc)),
                 ),
             )
     return _FAILURE_TABLE[(budget_tripped, provider_submitted)]

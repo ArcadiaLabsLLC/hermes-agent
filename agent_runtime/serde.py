@@ -136,6 +136,20 @@ def section_rows(value: Any) -> list:
     return []
 
 
+def stripped_str(value: Any) -> str | None:
+    """A ``str`` stripped, or ``None`` when not a string or blank after strip.
+
+    The strict sibling of :func:`optional_text`: a non-string wire value is
+    absent here, never stringified. One owner for the lenient read that
+    ``serve_rpc.params._text_param``, ``mission_chat_outcome`` and
+    ``persona_open_chat`` each used to spell for themselves.
+    """
+
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
 def optional_text(value: Any) -> str | None:
     """``None`` in, ``None`` out; blank-after-strip is also ``None``.
 

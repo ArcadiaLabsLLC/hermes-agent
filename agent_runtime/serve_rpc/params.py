@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent_runtime.serde import stripped_str
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_NOT_FOUND, err
 from agent_runtime.serve_rpc.reasons import RpcRefusal
 
@@ -39,10 +40,7 @@ __all__ = [
 def _text_param(params: dict, key: str) -> str | None:
     """``params[key]`` stripped, or ``None`` when absent, blank or not a string."""
 
-    raw = params.get(key)
-    if not isinstance(raw, str):
-        return None
-    return raw.strip() or None
+    return stripped_str(params.get(key))
 
 
 def _workspace_id_param(params: dict) -> str | None:
