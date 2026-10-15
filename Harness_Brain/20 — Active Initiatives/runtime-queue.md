@@ -256,7 +256,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-02 (launcher lane w10-pkg, bundled Hermes on macOS/Linux; moved here by the orchestrator)
 
-- [ ] **bundled Hermes's own child interpreters must inherit the bytecode cache prefix: the Launcher starts the runtime with `-X pycache_prefix=<per-user dir>` and sets `PYTHONPYCACHEPREFIX`, but a child hermes spawns with `sys.executable -I …` ignores `PYTHON*` and would write `__pycache__` beside the source — into the sealed `.app` (breaking the resource seal) or failing silently on a read-only AppImage. Hermes should propagate `sys.pycache_prefix` (`-X pycache_prefix=`) to every interpreter it spawns.** · `installer/hermes/targets.json` (`bytecode.runtime-prefix`), `lib/core/services/hermes/hermes_bundled_placement.dart`; fix is in hermes. · filed launcher-side by lane w10-pkg 2026-10-02 and moved here by the orchestrator (a row lives where its fix lives); its evidence stays in the launcher's `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/companion-queue.md` history at `237082d23` · released 2026-10-10 (lane-1010 returned L1.24, seam; reason in `queue-sweep-2026-10-10/L1-outcomes.md`) **TAKEN 2026-10-15 w1015-prov-h**
 
 ### Filed on arrival — 2026-10-02 (lane w10-s7h, Stage 7 hermes half)
 
@@ -493,7 +492,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 
 - [ ] **Each per-turn MCP admission (register, then teardown) moves `registry._generation`, so the `model_tools.get_tool_definitions` memo misses: ~200 ms rebuild vs 0.1–0.5 ms warm, on actor construction and tool_search** · seam / tool registry · `queue-sweep-2026-10-10/L3-outcomes.md` L3.14 and draft I · lane: memo key vs generation scope **TAKEN 2026-10-15 w1015-rt-h**
-- [ ] **A `-I` child interpreter does not inherit `PYTHONPYCACHEPREFIX`, and the fork has no one helper that builds child-interpreter argv (six spawn sites, all in upstream files)** · seam / process spawn · `queue-sweep-2026-10-10/L1-outcomes.md` L1.24 · lane: child argv door **TAKEN 2026-10-15 w1015-prov-h**
 - [ ] **The tool registry's `scope` is keyed by profile home, so per-connection state (launcher app functions) has no scope: each Launcher overwrites the shared registry and moves `registry_epoch` on every switch; a queued turn bound to its sender's link (L5.13) still reads that shared set** · seam / tool registry · `agent_runtime/launcher_app_functions.py::_sync_registry`; `queue-sweep-2026-10-10/L2-outcomes.md` L2.24 · lane: per-connection tool scope **TAKEN 2026-10-15 w1015-rt-h**
 
 ### Filed on arrival — 2026-10-10 (release merge v0.21.6 reds)

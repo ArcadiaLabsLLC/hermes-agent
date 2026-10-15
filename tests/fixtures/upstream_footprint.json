@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-10-14",
+  "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 211,
-  "deleted_lines": 1075,
+  "files": 214,
+  "deleted_lines": 1079,
   "heavy": 5,
   "reasons": [
     {
@@ -680,6 +680,20 @@
       "files": "209 -> 211: agent/interrupt_control.py and agent/turn_iteration_prep.py",
       "deleted_lines": "1063 -> 1075; heavy unchanged at 5",
       "reason": "Owner-authorized transcript provenance and ordering repairs. Existing TimelineNotification identity was erased and machine text acquired user authority. Preserve typed inputs through the same queue, lock, drains and native persistence. No caller-side hook retains metadata through the string concatenation. Generic seam held for upstream value evaluation; tests and baseline reds recorded in the repair commit."
+    },
+    {
+      "change": "Wave w1015-prov-h: provider/runtime environment fixes (fork-hygiene F34, runtime R596, R259/R497)",
+      "before": {
+        "files": 211,
+        "deleted_lines": 1075,
+        "heavy": 5
+      },
+      "after": {
+        "files": 214,
+        "deleted_lines": 1079,
+        "heavy": 5
+      },
+      "reason": "pm/environments.py: additive UTF-8 stdout reconfigure so a cp1252 console can print the activation exports (0 deletions). hermes_cli/auth_codex.py: the pool fallback loop reads its rows once and asks a fork helper whether the pool selection would refuse the row (+1 deletion). hermes_cli/local_runtime/devices.py and hermes_cli/sqlite_runtime.py: their -I child argv is built by the fork door hermes_cli/child_interpreter.py so the bundled runtime's pycache prefix reaches the child (1 deletion each). Each is a one-line seam into fork code; all three defects are upstream-shaped and stay upstream candidates."
     }
   ]
 }
