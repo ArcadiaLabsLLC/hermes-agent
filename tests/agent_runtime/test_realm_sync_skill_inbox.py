@@ -1183,3 +1183,70 @@ def test_a_pre_baseline_install_fast_forwards_a_realm_change_on_pull(tmp_path):
     result = pull_realm_sync(realm.id)
     assert result["skill_sync"]["held"] == ["foo"]
     assert result["skill_sync"]["updated"] == []
+
+
+# ── the CLI envelope the launcher's held-skill buttons call ──────────────────
+
+
+def _run_resolve_cli(capsys, *argv: str) -> tuple[int, dict]:
+    """``harness realm sync resolve`` through the real parser and handler."""
+    import argparse
+    import json
+
+    from hermes_cli import harness
+
+    root = argparse.ArgumentParser(prog="hermes")
+    harness.build_parser(root.add_subparsers(dest="command"))
+    args = root.parse_args(["harness", "realm", "sync", "resolve", *argv])
+    code = args.func(args)
+    return code, json.loads(capsys.readouterr().out)
+
+
+def test_the_cli_resolve_envelope_for_a_held_skill(tmp_path, capsys):
+    """The launcher's held-skill buttons call ``realm sync resolve --key skill::<slug>
+    --take local|remote --yes --json`` (held-skill-publish-direction §4.6). The
+    envelope is ``skill_hold`` with the row's id, take and hashes, plus the root
+    block every --json verb carries."""
+
+    realm, _repo = _held_realm(tmp_path)
+    code, payload = _run_resolve_cli(
+        capsys, realm.id, "--key", "skill::foo", "--take", "local", "--yes", "--json"
+    )
+
+    assert code == 0, payload
+    assert payload["kind"] == "skill_hold"
+    assert payload["id"] == "skill::foo"
+    assert payload["take"] == "local"
+    assert payload["local_hash"] != payload["remote_hash"]
+    assert "resolution" in payload
+    assert "dry_run" not in payload
+
+
+def test_the_cli_resolve_dry_run_says_so_and_writes_nothing(tmp_path, capsys):
+    realm, _repo = _held_realm(tmp_path)
+    mine = _snapshot(_canonical("foo"))
+    code, payload = _run_resolve_cli(
+        capsys, realm.id, "--key", "skill::foo", "--take", "remote", "--dry-run", "--yes", "--json"
+    )
+
+    assert code == 0, payload
+    assert payload["kind"] == "skill_hold" and payload["dry_run"] is True
+    assert _snapshot(_canonical("foo")) == mine
+
+
+def test_the_cli_resolve_refuses_without_yes(tmp_path, capsys):
+    """Positive control on the gate: the same call without ``--yes`` writes nothing."""
+
+    realm, _repo = _held_realm(tmp_path)
+    mine = _snapshot(_canonical("foo"))
+    import argparse
+
+    from hermes_cli import harness
+
+    root = argparse.ArgumentParser(prog="hermes")
+    harness.build_parser(root.add_subparsers(dest="command"))
+    args = root.parse_args(["harness", "realm", "sync", "resolve", realm.id,
+                            "--key", "skill::foo", "--take", "remote", "--json"])
+    assert args.func(args) == 8
+    capsys.readouterr()
+    assert _snapshot(_canonical("foo")) == mine
