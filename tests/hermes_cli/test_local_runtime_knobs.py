@@ -20,7 +20,7 @@ def _stage(mdir, name):
 
 
 def _tiny_presets(monkeypatch):
-    import hermes_cli.local_runtime.presets as presets
+    from hermes_cli.local_runtime import presets
     from hermes_cli.local_runtime.estimator import HardwareBudget, LayerKind, ModelProfile
 
     gib = 1 << 30

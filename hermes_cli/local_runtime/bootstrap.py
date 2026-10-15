@@ -270,7 +270,7 @@ def refresh_local_runtime() -> bool:
         return False
 
 
-def _admitted_models_max(mdir: Path, configured: int, extra_dirs: "tuple[Path, ...] | list[Path]" = ()) -> int:
+def _admitted_models_max(mdir: Path, configured: int, extra_dirs: tuple[Path, ...] | list[Path] = ()) -> int:
     """Residency cap to hand the router: derived from the hardware budget, ``models_max`` as a ceiling.
 
     A cap of "four" on a card that holds one model is how a second child ends up paged (WDDM) and
