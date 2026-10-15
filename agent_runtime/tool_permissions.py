@@ -284,6 +284,25 @@ def _record_expresses_opinion(record: ChatToolPermission | None) -> bool:
     return normalize_permission_mode(record.mode) != PERMISSION_MODE_PROFILE_DEFAULT
 
 
+#: The subject spelling of a PROFILE conversation's permission record (design D2.07
+#: decision 2): the store key's first half is ``profile:<name>`` where a persona chat's
+#: is the persona id. One spelling, read through the helpers below.
+PROFILE_SUBJECT_PREFIX = "profile:"
+
+
+def profile_permission_subject(name: str) -> str:
+    return PROFILE_SUBJECT_PREFIX + name
+
+
+def is_profile_subject(subject: str | None) -> bool:
+    return isinstance(subject, str) and subject.startswith(PROFILE_SUBJECT_PREFIX) and bool(
+        subject[len(PROFILE_SUBJECT_PREFIX):].strip())
+
+
+def profile_subject_name(subject: str) -> str:
+    return subject[len(PROFILE_SUBJECT_PREFIX):].strip()
+
+
 def permission_options_for_chat(
     persona: AgentPersona,
     *,
@@ -293,7 +312,43 @@ def permission_options_for_chat(
     runtime_root: str | None = None,
     store: ChatToolPermissionStore | None = None,
 ) -> ToolVisibilityOptions:
-    """The ONE resolution of "what may this chat turn do".
+    """A persona chat's permission: :func:`permission_options_for_subject` keyed by its id."""
+
+    return permission_options_for_subject(persona.id, session_id=session_id, task_id=task_id,
+                                          goal_id=goal_id, runtime_root=runtime_root, store=store)
+
+
+def permission_state_for_subject(subject: str, *, session_id: str | None) -> dict[str, Any]:
+    """``{subject, session_id, mode, source, expired, blocked_tools, expires_at, turns_remaining}``.
+
+    The read a PROFILE conversation's permission control binds to (D2.07 decisions 7/8):
+    the same resolver as a persona chat, without a persona toolset to diff, and it never
+    consumes a turns-bounded grant.
+    """
+
+    options = permission_options_for_subject(subject, session_id=session_id)
+    return {
+        "subject": subject,
+        "session_id": session_id,
+        "mode": options.permission_mode,
+        "source": options.permission_source,
+        "expired": bool(options.permission_expired),
+        "blocked_tools": list(options.blocked_tool_names or ()),
+        "expires_at": options.expires_at,
+        "turns_remaining": options.turns_remaining,
+    }
+
+
+def permission_options_for_subject(
+    subject: str,
+    *,
+    session_id: str | None,
+    task_id: str | None = None,
+    goal_id: str | None = None,
+    runtime_root: str | None = None,
+    store: ChatToolPermissionStore | None = None,
+) -> ToolVisibilityOptions:
+    """The ONE resolution of "what may this chat turn do", for a persona id or a profile subject.
 
     Record wins when it expresses an opinion; otherwise the configured runtime
     default answers with ``permission_source="runtime_default"``. Everything
@@ -302,7 +357,7 @@ def permission_options_for_chat(
     one answer.
     """
 
-    record = (store or ChatToolPermissionStore()).get(persona_id=persona.id, session_id=session_id)
+    record = (store or ChatToolPermissionStore()).get(persona_id=subject, session_id=session_id)
     if _record_expresses_opinion(record):
         mode = effective_permission_mode(record.mode)
         source = record.source
