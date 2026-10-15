@@ -46,8 +46,10 @@ import importlib.util
 import os
 import re
 import sysconfig
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Iterator, Optional
 
 # Distribution name -> the module name you actually import. Identical for most
 # packages; the exceptions are the ones that would otherwise make us probe a
@@ -146,6 +148,40 @@ def _metadata_dirs_by_distribution(directory: Path) -> dict[str, list[Path]]:
     return grouped
 
 
+#: One site-packages listing per directory for the width of a scope. The listing
+#: answers a question about the INTERPRETER (``site_package_dirs`` reads
+#: process-global ``sysconfig``), so every persona of one snapshot build reads
+#: the same tree; without the scope each distinct package list re-listed it.
+_LISTING_SCOPE: ContextVar[dict[Path, dict[str, list[Path]]] | None] = ContextVar(
+    "hermes_venv_metadata_listing_scope", default=None
+)
+
+
+@contextmanager
+def metadata_listing_scope() -> Iterator[None]:
+    """List each site-packages directory once inside this scope.
+
+    For a bounded read that treats the interpreter as fixed (one snapshot
+    build). Never wrap a span that installs packages; outside a scope every
+    call re-lists, which is the module's no-process-memo rule.
+    """
+    token = _LISTING_SCOPE.set({})
+    try:
+        yield
+    finally:
+        _LISTING_SCOPE.reset(token)
+
+
+def _scoped_metadata_dirs(directory: Path) -> dict[str, list[Path]]:
+    memo = _LISTING_SCOPE.get()
+    if memo is None:
+        return _metadata_dirs_by_distribution(directory)
+    grouped = memo.get(directory)
+    if grouped is None:
+        grouped = memo[directory] = _metadata_dirs_by_distribution(directory)
+    return grouped
+
+
 def _declared_name(metadata_dir: Path) -> tuple[Optional[str], Optional[str]]:
     """Read the distribution name a metadata dir declares.
 
@@ -204,7 +240,7 @@ def metadata_issues(
     reported_unreadable: set[str] = set()
 
     for directory in dirs:
-        grouped = _metadata_dirs_by_distribution(Path(directory))
+        grouped = _scoped_metadata_dirs(Path(directory))
         for canonical, metadata_dirs in sorted(grouped.items()):
             if canonical not in wanted:
                 continue

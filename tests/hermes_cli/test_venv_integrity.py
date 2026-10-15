@@ -337,3 +337,41 @@ def test_import_name_and_canonical_form():
     assert import_name_for("google-auth") == "google.auth"
     assert import_name_for("anthropic") == "anthropic"
     assert canonical_distribution("Pydantic_Core") == "pydantic-core"
+
+
+def _count_listings(monkeypatch) -> list[Path]:
+    listed: list[Path] = []
+    real = venv_integrity._metadata_dirs_by_distribution
+
+    def counting(directory: Path):
+        listed.append(directory)
+        return real(directory)
+
+    monkeypatch.setattr(venv_integrity, "_metadata_dirs_by_distribution", counting)
+    return listed
+
+
+def test_a_status_scope_lists_each_site_packages_tree_once_across_package_lists(tmp_path, monkeypatch):
+    """R446: the listing is a fact about the interpreter, not the persona. Inside one
+    snapshot-build scope, two different package lists (two providers) list the tree once.
+    Killing mutation: ``runtime_environment_status_scope`` stops entering
+    ``metadata_listing_scope`` -> two listings."""
+    from hermes_cli.runtime_environment import runtime_environment_status_scope
+
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    _dist_info(tmp_path, "jiter", "0.15.0")
+    listed = _count_listings(monkeypatch)
+    with runtime_environment_status_scope():
+        first = metadata_issues(["jiter"], directories=[tmp_path])
+        second = metadata_issues(["jiter", "anthropic"], directories=[tmp_path])
+    assert listed == [tmp_path]
+    assert [i["kind"] for i in first] == [i["kind"] for i in second] == ["runtime_dependency_metadata_conflict"]
+
+
+def test_outside_a_scope_every_call_lists_again(tmp_path, monkeypatch):
+    # Positive control: the no-process-memo rule still holds outside a scope.
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    listed = _count_listings(monkeypatch)
+    metadata_issues(["jiter"], directories=[tmp_path])
+    metadata_issues(["openai"], directories=[tmp_path])
+    assert listed == [tmp_path, tmp_path]
