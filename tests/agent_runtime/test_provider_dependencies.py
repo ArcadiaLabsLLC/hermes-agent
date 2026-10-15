@@ -33,9 +33,11 @@ def test_the_report_names_each_provider_missing_its_sdk_and_the_extra_that_fixes
     report = deps.provider_dependency_report()
     assert report["sdk_free"] is False
     assert report["providers"] == [
-        {"provider": "anthropic", "missing": ["anthropic"], "extra": "anthropic", "installable": True},
+        {"provider": "anthropic", "missing": ["anthropic"], "extra": "anthropic", "installable": True,
+         "pack_available": False, "pack": None},
         # openai is a core dependency: no extra installs it, so no install is offered.
-        {"provider": "openai", "missing": ["openai"], "extra": None, "installable": False},
+        {"provider": "openai", "missing": ["openai"], "extra": None, "installable": False,
+         "pack_available": False, "pack": None},
     ]
 
 

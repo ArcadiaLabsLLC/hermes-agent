@@ -573,6 +573,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
         "third_party_files": third_party,
         "excluded_data": dict(manifest.excluded_data),
     }
+    if manifest.packaging_packs:  # the runtime reads which pack carries which extra here
+        record["packs"] = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
     if plan.sibling:  # only a profile with a sibling tree records one: the desktop record is unchanged
         record["forced_tree"] = {"dir": FORCED_TREE_DIR, "modules": sorted(plan.sibling), "files": len(tree_rels)}
     (out / BUNDLE_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -783,6 +785,9 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     problems += licence_problems(out, plan.distributions)
     problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
                                   manifest.excluded_data, manifest.packaging_skill_platforms)
+    packs = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
+    if record.get("packs", {}) != packs:
+        problems.append(f"bundle-manifest.json packs {record.get('packs', {})} != the profile's {packs}")
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     index = index if index is not None else module_index(plugins=manifest.packaging_plugins)
