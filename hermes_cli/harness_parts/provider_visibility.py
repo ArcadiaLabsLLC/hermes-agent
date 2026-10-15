@@ -240,6 +240,12 @@ def build_provider_visibility() -> dict:
     # one the plan names as preferred when a consumer pins the string — is
     # taken. `catalog` present ⇒ this hermes can name connectable providers.
     _record_visibility_block(payload, "catalog", _provider_visibility_catalog)
+    # The `dependencies` block (owner ruling 2026-10-15): which providers this
+    # interpreter cannot run for lack of their SDK, and the one extra that fixes
+    # each — a Connections row's warning and its install action. Additive and
+    # failure-isolated like the blocks above.
+    from agent_runtime.provider_dependencies import provider_dependency_report
+    _record_visibility_block(payload, "dependencies", provider_dependency_report)
     return payload
 
 

@@ -329,6 +329,7 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.signin.begin": "console", "runtime.provider.signin.poll": "console",
         "runtime.provider.signin.complete": "console", "runtime.provider.signin.cancel": "console",
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",
+        "runtime.provider.dependency.install": "console",
     }
 
 
