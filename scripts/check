@@ -267,6 +267,10 @@ def main(argv: list[str] | None = None) -> int:
         return install_hook(args.install_hook)
     if args.uninstall_hook:
         return uninstall_hooks()
+    # fork seam: a cp1252 console cannot encode a tool's U+2717; keep the receipt readable.
+    for stream in (sys.stdout, sys.stderr):
+        if callable(getattr(stream, "reconfigure", None)):
+            stream.reconfigure(errors="backslashreplace")
     try:
         results = _run_all(args)
     except RuntimeError as exc:
