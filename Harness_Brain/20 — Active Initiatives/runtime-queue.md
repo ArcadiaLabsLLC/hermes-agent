@@ -27,6 +27,8 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+- [ ] **Console subagents Step 4: owned Steer/Stop and command receipts** — extend the existing `agent_runtime/subagents/` conversation service, shared worker registration and operator RPC; preserve exact child generation, no-start borrowing and native descendant interruption; account for the approved compute-host control seam in the footprint ledger. Owner approved 2026-10-15; Launcher consumer is paired with this lane. **TAKEN 2026-10-15 codex-subagent-controls**
+
 ### Filed on arrival — 2026-10-15 (launcher lane w1015i-mc)
 
 - [ ] **The serve's chat_turn_provider_refused block carries the provider's raw response body as `message`** — a 404 web page reached the launcher as "<!DOCTYPE html>…"; send the typed summary the serve already logs (`summary=HTTP 404 — Not Found`) as `message` and keep the body in the log · launcher side fixed in 79bdf72fb1 (wave/w1015i-mc).
