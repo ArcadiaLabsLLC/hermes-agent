@@ -38,7 +38,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (lane w1015b-rt-h)
 
-- [ ] **A rename of a private helper left three function-local imports naming the old name, and nothing caught it: `fb3fb9d749f` renamed `persona_open_chat._text` → `_first_text` and `runtime.persona.chat.delete` / `runtime.persona.instance.create` answered ERR_HANDLER_FAILED (ImportError) on every call until `wave/w1015b-rt-h` `f87546f0783`; a deferred `from <fork module> import <name>` is invisible to ruff and to import-time loading. Add a runtime gate: walk every function-local `ImportFrom` in fork-owned modules, import the target module and assert `hasattr` (the positive guarantee asked of the runtime, not a spelling)** · fork / module hygiene · evidence: `tests/agent_runtime/test_chat_verbs_rpc.py` 5 reds on `abd0f34c39c` (commit body of `f87546f0783`) · UNCLAIMED **TAKEN 2026-10-15 w1015e-rt-h**
 
 ### Filed on arrival — 2026-10-14 (Console execution controls)
 
