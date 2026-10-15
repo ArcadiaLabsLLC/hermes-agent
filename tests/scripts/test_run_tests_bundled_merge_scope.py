@@ -40,7 +40,7 @@ def _commit(repo: Path, message: str) -> None:
     _git(repo, "commit", "-q", "-m", message)
 
 
-def _released_fork(repo: Path, *, rewrite_fork_hunk_in_merge: bool = False) -> str:
+def _released_fork(repo: Path, *, rewrite_fork_hunk_in_merge: bool = False, rewrite_module_hunk_in_merge: bool = False) -> str:
     """The scratch history; returns the merge's sha."""
 
     repo.mkdir()
@@ -72,6 +72,9 @@ def _released_fork(repo: Path, *, rewrite_fork_hunk_in_merge: bool = False) -> s
     if rewrite_fork_hunk_in_merge:
         text = (repo / "tests/conftest.py").read_text(encoding="utf-8").replace("FORK = True", "FORK = 'merged'")
         (repo / "tests/conftest.py").write_text(text, encoding="utf-8", newline="\n")
+    if rewrite_module_hunk_in_merge:
+        text = (repo / "pkg/both.py").read_text(encoding="utf-8").replace("b3 = 'fork'", "b3 = 'merged'")
+        (repo / "pkg/both.py").write_text(text, encoding="utf-8", newline="\n")
     _commit(repo, "merge: upstream v2")
     merge = _git(repo, "rev-parse", "HEAD")
 
@@ -121,10 +124,13 @@ def test_a_conftest_whose_fork_hunk_the_merge_left_unchanged_does_not_reach(tmp_
     change = scope.merge_change(repo, merge)
 
     assert _reach(repo, change.paths) == {"conftest": [], "excluded": ["tests/pkg/test_a.py"]}
-    assert change.standing == ["tests/conftest.py"]
-    assert change.paths == {"pkg/both.py", "pkg/fix.py", "fork/f.py"}
+    # A fork-edited upstream MODULE whose hunk the merge left unchanged stands too
+    # (owner ruling 2026-10-15): pkg/both.py's `b3 = 'fork'` is byte-identical across it.
+    assert change.standing == ["pkg/both.py", "tests/conftest.py"]
+    assert change.paths == {"pkg/fix.py", "fork/f.py"}
     assert scope.conftest_hunk_unchanged(repo, "tests/conftest.py", merge)
-    assert "not reaching: tests/conftest.py" in change.account()
+    assert scope.conftest_hunk_unchanged(repo, "pkg/both.py", merge)
+    assert "not reaching: pkg/both.py, tests/conftest.py" in change.account()
     assert "2 path(s) in its combined diff (against its first parent: 4) + 2 after it" in change.account()
 
 
@@ -135,7 +141,7 @@ def test_a_conftest_whose_fork_hunk_the_merge_rewrote_still_reaches(tmp_path):
     assert not scope.conftest_hunk_unchanged(repo, "tests/conftest.py", merge)
     change = scope.merge_change(repo, merge)
 
-    assert change.standing == []
+    assert change.standing == ["pkg/both.py"]
     assert "tests/conftest.py" in change.paths
     assert _reach(repo, change.paths) == {"conftest": ["tests/pkg/test_a.py"], "excluded": []}
 
@@ -148,5 +154,19 @@ def test_a_conftest_edited_after_the_merge_still_reaches(tmp_path):
 
     change = scope.merge_change(repo, merge)
 
-    assert change.standing == []
+    assert change.standing == ["pkg/both.py"]
     assert _reach(repo, change.paths)["conftest"] == ["tests/pkg/test_a.py"]
+
+
+def test_a_module_whose_fork_hunk_the_merge_rewrote_still_reaches(tmp_path):
+    """Positive control for the module arm: the same history with the module's fork
+    hunk rewritten in the merge, and the module MUST stay in the change."""
+
+    repo = tmp_path / "repo"
+    merge = _released_fork(repo, rewrite_module_hunk_in_merge=True)
+
+    assert not scope.conftest_hunk_unchanged(repo, "pkg/both.py", merge)
+    change = scope.merge_change(repo, merge)
+
+    assert change.standing == ["tests/conftest.py"]
+    assert "pkg/both.py" in change.paths
