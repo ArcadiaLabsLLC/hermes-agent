@@ -69,7 +69,7 @@ def test_backslash_inside_a_windows_path_is_a_separator_not_a_terminator():
 
 
 def test_dropped_nul_tag_is_still_removed_from_the_caption():
-    media, _cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
+    media, cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
     assert media == []
     assert "MEDIA:" not in cleaned
     assert chr(0) not in cleaned
