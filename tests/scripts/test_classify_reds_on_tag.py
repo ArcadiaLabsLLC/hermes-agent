@@ -240,3 +240,19 @@ def test_it_refuses_the_primary_checkout_and_a_neutral_dir_inside_a_checkout(clo
     with pytest.raises(SystemExit, match="inside a git checkout"):
         crt.TagWorktree(repo, "v1", repo / "tests")
     assert _git(repo, "worktree", "list").count("\n") == 1
+
+
+def test_the_default_interpreter_is_resolved_per_machine_never_one_users_path(tmp_path):
+    """v0.21.7 Step 5d died with WinError 2: the default named another user's venv."""
+    scripts = "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+    home, clone = tmp_path / "home", tmp_path / "clone"
+    assert crt.default_python({"HERMES_PYTHON": "/x/python"}, home, clone) == Path("/x/python")
+    assert crt.default_python({}, home, clone) == Path(sys.executable)  # nothing on this machine
+    (clone / ".venv" / scripts).parent.mkdir(parents=True)
+    (clone / ".venv" / scripts).write_text("", encoding="utf-8")
+    assert crt.default_python({}, home, clone) == clone / ".venv" / scripts
+    shared = home / ".venvs" / "hermes-test" / scripts
+    shared.parent.mkdir(parents=True)
+    shared.write_text("", encoding="utf-8")
+    assert crt.default_python({}, home, clone) == shared
+    assert "beast" not in Path(crt.__file__).read_text(encoding="utf-8")

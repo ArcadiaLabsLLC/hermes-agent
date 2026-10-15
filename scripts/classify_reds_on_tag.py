@@ -231,7 +231,24 @@ def emit_report(verdicts: Mapping[str, Verdict], runs: Sequence[TagRun]) -> List
 # ── Stage 2: the tag worktree, the tag's runner, the CLI ─────────────────────
 
 GIT_BASH = Path("C:/Program Files/Git/bin/bash.exe")  # a bare ``bash`` from Python on Windows is WSL
-DEFAULT_PYTHON = Path("C:/Users/beast/.venvs/hermes-test/Scripts/python.exe")
+def default_python(env: Optional[Mapping[str, str]] = None, home: Optional[Path] = None,
+                   clone: Optional[Path] = None) -> Path:
+    """The tag run's interpreter, never one machine's absolute path.
+
+    ``HERMES_PYTHON`` (the runner's own door), else the shared test venv under the
+    user's home, else the clone's ``.venv``, else this interpreter. A hard-coded
+    ``C:/Users/<one user>/...`` died with WinError 2 on another workstation (v0.21.7).
+    """
+    env = os.environ if env is None else env
+    if env.get("HERMES_PYTHON"):
+        return Path(env["HERMES_PYTHON"])
+    scripts = "Scripts/python.exe" if os.name == "nt" else "bin/python"
+    for venv in ((home or Path.home()) / ".venvs" / "hermes-test", (clone or Path(__file__).resolve().parent.parent) / ".venv"):
+        if (venv / scripts).is_file():
+            return venv / scripts
+    return Path(sys.executable)
+
+
 _SCRUB = re.compile(r"^(HERMES_|__HERMES|PYTEST_)|KEY|TOKEN|SECRET|PASSWORD", re.I)
 
 
@@ -357,7 +374,7 @@ def _classify_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repeat", type=int, default=2, help="tag runs (nondeterminism needs two)")
     parser.add_argument("--repo", type=Path, help="the clone (default: this script's primary checkout)")
     parser.add_argument("--worktrees", type=Path, help="a neutral directory (default: <clone parent>/worktrees)")
-    parser.add_argument("--python", type=Path, default=DEFAULT_PYTHON, help="a venv python with pytest")
+    parser.add_argument("--python", type=Path, default=None, help="a venv python with pytest (default: default_python())")
     parser.add_argument("--bash", type=Path, default=GIT_BASH if sys.platform == "win32" else Path("bash"))
     parser.add_argument("--emit", choices=("report", "table", "skip-rows"), action="append")
     parser.add_argument("--write", action="store_true", help="write the table as a NEW module, never an existing one")
@@ -376,6 +393,7 @@ def _red_nodes(args: argparse.Namespace, repo: Path) -> List[str]:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _classify_parser().parse_args(argv)
+    args.python = args.python or default_python()
     repo = (args.repo or primary_of(Path(__file__).parent) or Path.cwd()).resolve()
     if _within(Path.cwd(), repo):
         print(f"error: refusing to run inside the primary checkout {repo}; run from a neutral cwd",

@@ -47,9 +47,10 @@
 # The fork's shared-venv probe (``$HERMES_TEST_VENV``, ``~/.venvs/hermes-test``)
 # retired at the 2026-09-25 upstream merge in favour of upstream's door: an
 # explicit ``HERMES_PYTHON`` that has pytest wins when nothing is activated.
-# On the workstation that is the shared canonical test venv:
+# On a workstation that is the shared canonical test venv when one exists
+# (~/.venvs/hermes-test), else the clone's own .venv:
 #
-#   HERMES_PYTHON=C:/Users/beast/.venvs/hermes-test/Scripts/python.exe #     scripts/run_tests.sh tests/hermes_cli
+#   HERMES_PYTHON=~/.venvs/hermes-test/Scripts/python.exe scripts/run_tests.sh tests/hermes_cli
 #
 # Without it the runner activates the checkout (upstream's supported path).
 
