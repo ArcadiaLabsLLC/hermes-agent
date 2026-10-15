@@ -121,7 +121,6 @@ _NODES = (
         'tests/hermes_cli/test_shared_metrics_install_run.py::test_receipt_is_recorded_only_on_a_day_the_sender_can_ever_send',
         'tests/hermes_cli/test_update_eol_churn.py::test_churn_across_more_files_than_fit_in_one_argv',
         'tests/hermes_cli/test_update_interrupted_pull.py::test_concurrent_launches_take_turns_and_all_rerun_from_the_restored_tree',
-        'tests/pm/test_source_launcher_stages.py::test_powershell_stage_publishes_without_a_checkout_venv[pwsh]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-node-compatibility.ps1-pwsh]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-utf8.ps1-powershell]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-utf8.ps1-pwsh]',
