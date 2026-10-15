@@ -477,7 +477,9 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
 
 
-## Seams — fork edits inside upstream files (additive only)
+## Seams
+
+- [ ] **Subagent Step 1: connect optional isolated compute host through the existing non-starting observer.** `tui_gateway/compute_host.py::ComputeHost._handle_observe` currently excludes child reads; `HostSupervisor.observe` already owns the safe transport. One additive upstream allowlist line plus fork registration/forwarding and canonical ledger update is proposed; no upstream change approved or applied. Evidence: [foundation and seam register](../../docs/downstream/agent-console-subagents-foundation-2026-10-14.md#outstanding-step-1-connection-isolated-compute-host). **OWNER DECISION — additional footprint approval required; codex-subagents-step1** — fork edits inside upstream files (additive only)
 
 
 - [ ] **Qualify the held checkpoint upstream candidates against native user value and maintainer demand.** Native write extraction and reviewed consumers are complete in Console history PR #7, with separate behavior-preserving extraction `71ba58a781`. Before any submission, check open issues/discussions and overlapping PRs and apply the evidence/value bar in the footprint ledger; product neutrality alone is insufficient. Busy/wait is a separate candidate. Retention pins accompany qualified resumable restore or remain held. No upstream submission is authorized by this row. · seam / checkpoints · `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md`, `docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md` · UNCLAIMED

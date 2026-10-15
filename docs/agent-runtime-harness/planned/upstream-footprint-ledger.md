@@ -8,6 +8,13 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 `carry-permanent`: a carry the operator has ruled permanent (§1 rule 6), still counted in
 `files=`, settled for the detach read.
 
+**Subagent foundation, Step 1 (2026-10-14):** the service borrow mode, both
+worker-entry registrations, operator RPC family, native method discovery, registry
+bridge and output projection are accounted individually in the
+[subagent seam register](../../downstream/agent-console-subagents-foundation-2026-10-14.md#per-seam-ledger).
+All changed paths are fork-owned; this step adds no upstream-file row or ratchet
+increase. Private upstream callers have explicit replacement conditions there.
+
 | path | added | deleted | disposition | reason | stage |
 |---|---|---|---|---|---|
 | `.gitattributes` | 7 | 0 | carry-permanent | RULED 2026-09-24 (lane META): only the root `* text=auto eol=lf` rule is left (root-only, not movable). Upstream PR #78571 (open, third-party) adds the same root rule; ours (#123874) was closed as its duplicate 2026-09-27 and is not reopened (up-prs 2026-10-02). #78571 merging retires the row. The fixture `-text` pins moved to `tests/fixtures/{office_layout,response_envelopes,stream_frames}/.gitattributes`, the hook rule to `.githooks/.gitattributes` | - |

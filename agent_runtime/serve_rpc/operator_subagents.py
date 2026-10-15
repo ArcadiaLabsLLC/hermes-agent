@@ -1,0 +1,33 @@
+"""Console-private child inspection; no control verbs in this approval."""
+from functools import partial
+
+from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.operator_conversation import OperatorConversationRefused
+from agent_runtime.subagents.model import OPERATIONS, SubagentError
+from agent_runtime.subagents.operator import inspect_operator
+from .protocol import DEFERRED, deferred_reply, err, ok
+from .registry import method
+
+__layer__ = "lanes"
+
+
+def _reply(operation, rid, params):
+    try:
+        return ok(rid, inspect_operator(operation, params))
+    except (OperatorConversationRefused, SubagentError) as exc:
+        return err(rid, 4090, "This conversation's subagents are unavailable.", {"reason": exc.reason})
+    except Exception:
+        return err(rid, 4090, "Subagent ownership could not be verified.", {"reason": "subagent_unavailable"})
+
+
+def _dispatch(operation, rid, params, context=None):
+    name = "runtime.operator.conversation.subagents." + operation
+    build = deferred_reply(rid, name, lambda: _reply(operation, rid, params))
+    if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
+        return DEFERRED
+    return build()
+
+
+for _operation in OPERATIONS:
+    method("runtime.operator.conversation.subagents." + _operation, tier=TIER_CONSOLE)(
+        partial(_dispatch, _operation))

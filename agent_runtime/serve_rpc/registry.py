@@ -20,9 +20,9 @@ __layer__ = "lanes"
 __all__ = [
     "_METHODS",
     "_METHOD_TIERS",
+    "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
-    "_ensure_conversation_methods",
     "_ensure_work_methods",
     "manifest",
     "method",
@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 
-_METHODS: dict[str, Callable[[Any, dict, "RpcContext"], dict]] = {}
+_METHODS: dict[str, Callable[[Any, dict, RpcContext], dict]] = {}
 
 
 #: name → the tier a caller must hold to run it. A PARALLEL registry rather than
@@ -196,6 +196,7 @@ def manifest() -> dict[str, Any]:
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import TWIN_METHOD_PARAMS
+    from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -207,6 +208,7 @@ def manifest() -> dict[str, Any]:
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
+                **SUBAGENT_METHOD_PARAMS,
             }.items())
         },
     }
