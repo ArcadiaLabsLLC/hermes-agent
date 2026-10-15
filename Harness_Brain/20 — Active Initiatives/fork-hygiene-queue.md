@@ -421,7 +421,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-10 (fast-gate design, guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
 - [ ] **Two owners of the "would this argv start a hermes backend" classifier: `tests/_downstream/live_guard_classify.py::backend_spawn_subcommand` and `tests/hermes_cli/_gateway_fence.py::classify` both define `_without_python_c_argv`, entry-index and subcommand helpers; the python -c inert rule lives in only one, and the fence's docstring cites a stale path** · fork / live guard · fix/1011-guard-and-tui-reds report · lane: fold the fence onto the one classifier **TAKEN 2026-10-15 w1015b-fh-b**
-- [ ] **W0-G3's name check treats a helper group that loses an owner as a brand-new group, so `god_file_probe --write-fixtures` refuses to record the smaller group (narrowed by hand in build-1011-C1 `ed5c5d165f`)** · fork / gates · `scripts/god_file_probe.compare_sets` · lane: gates **TAKEN 2026-10-15 w1015b-fh-b**
 - [ ] **Concurrent lanes break each other's test runs through shared installs: "uv trampoline failed to spawn" while another process rewrote the uv Python install (build-1011-C4), plus the earlier `os error 32` uv-cache locks** · fork / suite · build-1011-C4 report · lane: per-lane test-env isolation **TAKEN 2026-10-15 w1015b-fh-b**
 
 ## Filed on arrival — 2026-10-10 (build batch 2 C5–C6, fast gate FG2–FG3, landing 1011-batch2, filed by the orchestrator)
