@@ -22,7 +22,7 @@ def _msys_bash() -> str | None:
     bash = shutil.which("bash")
     if bash is None:
         return None
-    probe = subprocess.run([bash, "-c", "uname -o"], capture_output=True, text=True, timeout=30)
+    probe = subprocess.run([bash, "-c", "uname -o"], capture_output=True, text=True, timeout=30, check=False)
     return bash if probe.returncode == 0 and probe.stdout.strip() == "Msys" else None
 
 
@@ -50,6 +50,7 @@ def test_a_drive_spelled_reexec_reenters_the_bundled_wrapper(tmp_path):
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
 
     assert done.returncode == 0, done.stderr
