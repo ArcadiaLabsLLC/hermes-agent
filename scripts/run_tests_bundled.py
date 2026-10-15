@@ -710,6 +710,18 @@ def _print_summary(
     return 1 if failures else 0
 
 
+def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], jobs: int, sel) -> None:
+    """The plan line that says how long the run will take, and why when a chain edit made it long."""
+    wall, line = plan.expected_wall(
+        {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in to_run},
+        jobs, _UNCACHED_ESTIMATE_SECONDS,
+    )
+    print(line, flush=True)
+    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain else None
+    if hint:
+        print(hint, flush=True)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     rtp._make_stdio_glyph_safe()
     ours, pytest_args = _split_argv(list(sys.argv[1:] if argv is None else argv))
@@ -808,14 +820,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         f"(run once, alone, capped), {policy.shards.line()}, -j {args.jobs}",
         flush=True,
     )
-    wall, line = plan.expected_wall(
-        {_rel(f, repo_root): durations.get(rtp._format_file(f, repo_root)) for f in gate.to_run},
-        args.jobs, _UNCACHED_ESTIMATE_SECONDS,
-    )
-    print(line, flush=True)
-    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain else None
-    if hint:
-        print(hint, flush=True)
+    _print_expected_wall(gate.to_run, repo_root, durations, args.jobs, sel)
 
     done = 0
     counter_lock = threading.Lock()

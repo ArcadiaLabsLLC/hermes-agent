@@ -204,7 +204,7 @@ def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
 # ── what a file sees ────────────────────────────────────────────────────────
 
 
-def _dotted(node: ast.AST) -> str | None:
+def _spelled_dotted_name(node: ast.AST) -> str | None:
     return ast.unparse(node) if isinstance(node, (ast.Name, ast.Attribute)) else None
 
 
@@ -226,7 +226,7 @@ class FileScope:
         """A literal, a collection holding one, a NAME bound to a string, or an Enum member."""
         if isinstance(node, _COLLECTIONS):
             return any(self.strlike(e) for e in node.elts)
-        spelled = _dotted(_unwrap_value(node))
+        spelled = _spelled_dotted_name(_unwrap_value(node))
         return is_str(node) or spelled in self.str_names or (spelled or "").rpartition(".")[0] in self.enum_names
 
     def local_alias(self, node: ast.AST) -> tuple[str, str] | None:
@@ -324,7 +324,7 @@ def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str
     return not upstream_module_path(f"{module}.{name}", upstream)
 
 
-def _import_bindings(path: str, tree: ast.Module) -> dict[str, str]:
+def _import_aliases(path: str, tree: ast.Module) -> dict[str, str]:
     """Local name -> the dotted module or ``module.Name`` an import binds it to (any scope)."""
     out: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -343,7 +343,7 @@ def _import_bindings(path: str, tree: ast.Module) -> dict[str, str]:
     return out
 
 
-def _dotted(node: ast.expr) -> str | None:
+def _spelled_dotted_name(node: ast.expr) -> str | None:
     parts = []
     while isinstance(node, ast.Attribute):
         parts.append(node.attr)
@@ -365,12 +365,12 @@ def private_upstream_attributes(
     for a name it defines. A NEGATIVE guarantee (no new site), so a source walk is
     the instrument; an instance (``db._read_all``) is not spellable and not counted.
     """
-    bindings = _import_bindings(path, tree)
+    bindings = _import_aliases(path, tree)
     found: set[str] = set()
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Attribute) and node.attr.startswith("_") and not node.attr.startswith("__")):
             continue
-        dotted = _dotted(node.value)
+        dotted = _spelled_dotted_name(node.value)
         if dotted is None:
             continue
         head, _, rest = dotted.partition(".")
