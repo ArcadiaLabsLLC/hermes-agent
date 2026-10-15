@@ -755,9 +755,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-15 (owner: provider SDKs on first setup)
 
 
-## Filed on arrival — 2026-10-15 (owner: provider packs for the bundled edition)
-
-- [ ] **Provider packs: build each provider SDK the bundled Eternia Harness does not ship (`mistral`, `bedrock`, `vertex`, `azure-identity`, and any later one) as its own pack per release, the same way the speech pack is built and found (`agent_runtime/bundle_profiles/bundled-desktop.yaml` `packaging.packs`, `HERMES_ENGINE_PACKS` / `hermes-engine-packs.pth`), so the wheel stays lean.** OWNER 2026-10-15: "build each extra provider SDK as a separate pack per release, downloaded by the launcher only when I sign in to that provider, so the wheel stays lean." Hermes moves first: (1) a `packs.providers.<name>` entry per SDK extra with only the distributions the core lacks, built and signed per release beside the speech pack; (2) `runtime.provider.list` `dependencies` (wave w1015b-con-x) reports a pack-backed provider as `pack_available` (not "unavailable") with the pack id/version/size, and picks the pack up without a restart once installed; (3) `security.allow_lazy_installs` stays false — the runtime never downloads, the Launcher does; (4) phones unchanged (SDK-free). Supersedes the 2026-09-28 "bedrock, vertex, azure-identity and mistral stay out" only in that they ship as packs, never in the wheel. Launcher half: launcher `mission-control-queue.md` row "download a provider pack at sign-in". · fork / bundle packaging · lane: w1015d-packs · UNBLOCKED 2026-10-15: nothing ahead — owner ruling 0a37e69c62d; lane w1015d-packs **TAKEN 2026-10-15 w1015i-packs**
 
 ## Filed on arrival — 2026-10-15 (lane e-triage: blockers with no row)
 

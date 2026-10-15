@@ -190,6 +190,33 @@ def test_the_speech_pack_runs_whisper_on_onnx_asr_and_ships_no_ctranslate2():
     assert not {"ctranslate2", "faster-whisper", "av", "tokenizers"} & closure
 
 
+def test_each_provider_sdk_the_wheel_omits_ships_as_its_own_pack():
+    """Owner ruling 2026-10-15: one pack per provider SDK, never in the wheel. Each provider
+    pack carries exactly one extra, its SDK is in the pack's closure and NOT the core's, and
+    each extra the dependency report can name (``_PM_EXTRA_FOR_DISTRIBUTION``) that the core
+    omits has a pack. Mutation: move ``bedrock`` into ``packaging.extras`` -> red (boto3 in the
+    core); positive control: the speech pack is not a provider pack."""
+    from hermes_cli.runtime_environment import _PM_EXTRA_FOR_DISTRIBUTION
+    from scripts.bundle_profile_closure import Graph, _lock, declared
+
+    manifest = load_profile(PROFILE)
+    base, extras = declared()
+    graph = Graph(_lock(), placeholders=manifest.placeholder_distributions)
+    core = graph.closure(set(base) | set().union(*(extras[e] for e in manifest.packaging_extras)))
+    providers = {name: pack for name, pack in manifest.packaging_packs.items() if name.startswith("provider-")}
+    assert "speech" not in providers
+    assert {pack for extras_ in providers.values() for pack in extras_} == {
+        "bedrock", "vertex", "azure-identity", "mistral"}
+    for name, (extra,) in providers.items():
+        assert name == f"provider-{extra}"
+        added = graph.closure(core | set(extras[extra])) - core
+        sdk = {"bedrock": "boto3", "vertex": "google-auth", "azure-identity": "azure-identity",
+               "mistral": "mistralai"}[extra]
+        assert sdk in added, (name, sorted(added))
+    omitted = {extra for extra in _PM_EXTRA_FOR_DISTRIBUTION.values() if extra not in manifest.packaging_extras}
+    assert omitted <= {extra for (extra,) in providers.values()}
+
+
 def test_the_closure_report_walks_enclosing_packages(monkeypatch):
     """The report walks the way the packager does (``parents=True``), so its counts
     include what a kept module's package ``__init__`` imports."""

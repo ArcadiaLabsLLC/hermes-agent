@@ -23,6 +23,7 @@ moving `RPC_CONTRACT_VERSION`.
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
 | `runtime.provider.dependency.install` | console | `provider` | `agent_runtime/provider_dependencies.py`: `uv pip install` of the provider's one extra into this runtime's environment; `pm` sync (new generation) only on a resolver conflict |
+| `runtime.provider.pack.activate` | console | `site_packages` (absolute) | `agent_runtime/provider_packs.py`: `site.addsitedir` of an unpacked provider pack this bundle built (its `engine-pack.json` names a pack in `bundle-manifest.json` `packs`, same commit), so the SDK imports without a restart |
 
 `provider` is lower-cased. Unknown params are ignored.
 
@@ -48,6 +49,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.signin.complete` | one line written to the child's stdin | 10 s |
 | `runtime.provider.signin.cancel` | kills the child | 10 s |
 | `runtime.provider.dependency.install` | one `uv pip install` bounded at 300 s, re-run twice on `os error 32` (2 s, 5 s), or a `pm` sync | 960 s |
+| `runtime.provider.pack.activate` | two small file reads and one `site.addsitedir` | 10 s |
 
 ## Results
 
@@ -62,12 +64,19 @@ missing: [distribution…], extra, installable}]}` — only providers this
 interpreter cannot run for lack of their SDK. `extra: null` means no extra
 installs it (a core dependency: repair, not install). An SDK-free profile
 (`agent.provider_sdks: false`, the phone edition) answers `sdk_free: true` and
-no rows.
+no rows. Each row also carries `pack_available` and `pack`: in a bundle (the Eternia
+Harness) nothing is `installable` — the runtime never installs — and a provider whose
+extra a provider pack carries (`packaging.packs.provider-<extra>`) answers
+`pack_available: true, pack: {name, commit}`; the Launcher downloads that pack. Outside
+a bundle `pack` is null.
 
 **dependency.install** — `{contract, provider, extra, outcome, environment,
 restart_required}`. `outcome` ∈ `installed`, `already_installed`;
 `environment` ∈ `existing` (in place: live for this runtime) or `new` (a new
 environment generation: `restart_required: true`).
+
+**pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
+when the pack was already on the import path.
 
 **usage** —
 `{contract, provider, available, source, title, plan, fetched_at,
@@ -131,6 +140,12 @@ from `get_auth_status` before and after).
 | -32000 | `dependency_not_installable` (+`provider`, `missing`) | `dependency.install`: no single extra installs it, or the platform excludes it |
 | -32000 | `environment_busy` (+`provider`, `extra`) | `dependency.install`: still `os error 32` after the retries |
 | -32000 | `install_failed` (+`provider`, `extra`, `exit_code`) | `dependency.install`: uv failed for another reason |
+| -32000 | `pack_required` (+`provider`, `missing`, `pack`) | `dependency.install` in a bundle: the Launcher downloads `pack` instead |
+| -32602 | `site_packages_required` | `pack.activate` without `site_packages` |
+| -32000 | `not_a_bundle` | `pack.activate` outside a bundle (a checkout installs extras) |
+| -32000 | `pack_not_found` | `pack.activate`: not an absolute directory with an `engine-pack.json` one level up |
+| -32000 | `pack_unknown` (+`pack`) | `pack.activate`: a pack this bundle does not offer |
+| -32000 | `pack_mismatch` (+`pack`) | `pack.activate`: built from another commit than this bundle |
 | -32000 | `handler_failed` (+`method`, `error_class`) | anything else |
 
 ## Credentials
