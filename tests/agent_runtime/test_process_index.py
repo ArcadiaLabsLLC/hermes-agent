@@ -53,6 +53,19 @@ def test_the_bytes_are_the_launchers_fixture_bytes(monkeypatch):
         assert _entry_file(int(name[:4])).read_bytes() == (_FIXTURES / name).read_bytes(), name
 
 
+def test_a_hermes_child_entry_is_the_launchers_hermes_child_fixture_bytes(monkeypatch):
+    """The ``hermes_child`` purpose pinned both ways: a byte copy of the Launcher's
+    ``test/fixtures/process_index_hermes_child/6161.json``, which the Launcher's
+    reader decodes. Killing mutation: ``PURPOSE_HERMES_CHILD`` respelled -> red."""
+    monkeypatch.setattr(process_index.os, "getpid", lambda: 4321)
+    process_index.record_child(
+        6161, started_at_ticks=179099112233,
+        store_root=r"C:\Users\qa\AppData\Local\hermes\agent-runtime",
+    )
+    fixture = _FIXTURES.parent / "process_index_hermes_child" / "6161.json"
+    assert _entry_file(6161).read_bytes() == fixture.read_bytes()
+
+
 @pytest.mark.skipif(sys.platform.startswith("linux"), reason="Linux stamps /proc clock ticks, not centiseconds")
 def test_started_at_ticks_is_centiseconds_since_the_epoch():
     import psutil

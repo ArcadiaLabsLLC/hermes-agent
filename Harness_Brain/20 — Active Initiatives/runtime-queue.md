@@ -734,7 +734,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-12 (launcher lane q-mc)
 
-- [ ] **`tests/agent_runtime/test_process_index.py` pins only the two QA purposes: add a byte copy of the launcher's `test/fixtures/process_index_hermes_child/6161.json` (pid 6161, started_at_ticks 179099112233, purpose hermes_child, recorded_by_pid 4321) and compare `record_child`'s bytes to it, so the hermes_child pin runs both ways** · launcher lane q-mc2 2026-10-12 **TAKEN 2026-10-15 w1015-prov-h**
 
 
 
