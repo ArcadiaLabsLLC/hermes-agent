@@ -30,6 +30,8 @@ def test_the_three_timing_files_of_the_ruling_are_listed():
         "tests/agent_runtime/test_send_window_receipt.py",
         "tests/agent_runtime/test_stream_gap_receipt.py",
         "tests/agent_runtime/test_turn_cost_guard_downstream.py",
+        # L5.07: the after-idle guard is a turn-cost file with an absolute 600 ms bound.
+        "tests/agent_runtime/test_idle_turn_guard_downstream.py",
     } <= idle_box.load_idle_box_files()
 
 

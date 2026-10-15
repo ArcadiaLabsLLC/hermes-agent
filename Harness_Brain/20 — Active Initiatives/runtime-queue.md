@@ -701,7 +701,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-09 (lane h-hud-receipt)
 
-- [ ] **`tests/agent_runtime/test_idle_turn_guard_downstream.py` is timing-flaky on this workstation on `origin/main` `a1d63bc45d` (after-idle anchor->request_sent 713–1408 ms > 600; one base run passed only on retry)** — decide whether the 600 ms bound is a live-box contract or needs a load-aware budget · fork / chat latency · evidence: that test, three runs on base and branch · found by lane h-hud-receipt · released 2026-10-10 (lane-1010 returned L5.07, owner decision; reason in `queue-sweep-2026-10-10/L5-outcomes.md`) · **RULED 2026-10-10 owner:** keep the absolute budgets; the turn-cost files run only on an idle box (serial, never inside a parallel gate) — no load margin **TAKEN 2026-10-15 w1015-rt-h**
 
 ## Filed on arrival — 2026-10-10 (lane h-settle-push)
 
