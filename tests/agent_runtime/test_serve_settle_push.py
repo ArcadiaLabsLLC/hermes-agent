@@ -295,3 +295,49 @@ def test_summary_and_fix_hint_are_redacted_before_they_are_recorded(line):
     assert outcome.summary and outcome.fix_hint
     assert _LEAKED_KEY not in outcome.summary
     assert _LEAKED_KEY not in outcome.fix_hint
+
+
+def _pusher(*, boot_id: str, non_owner: bool):
+    """A SettlePush half over the real store, its delivery captured."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from hermes_cli.harness_parts.serve.settle_push import SettlePush
+
+    pushed: list[str] = []
+    fake = SimpleNamespace(
+        boot_id=boot_id,
+        _settle_store_scope=lambda: nullcontext(),
+        _deliver_settle_frame=lambda frame: pushed.append(frame["request_id"]) or 1,
+        _service_log=lambda _event: None,
+        _another_serve_owns_this_root=lambda: non_owner,
+    )
+    return (lambda: SettlePush._push_due_settles(fake)), pushed
+
+
+def _two_writers():
+    for cmid, rid, writer in (("cm-own", "rid-own", "boot-child"), ("cm-other", "rid-other", "boot-owner")):
+        record_settle(
+            client_message_id=cmid, session_id=SESSION, request_id=rid, exit_code=1,
+            outcome=TurnOutcome(refusal_class="chat_provider_failed"), recorded_by=writer,
+        )
+
+
+def test_a_non_owner_serve_pushes_only_the_settles_it_wrote():
+    """Owner ruling 2026-10-10 (L5.10): one writer. A stdio child beside the socket
+    owner no longer pushes — and counts an attempt for — the owner's records."""
+
+    _two_writers()
+    push, pushed = _pusher(boot_id="boot-child", non_owner=True)
+    push()
+    assert pushed == ["rid-own"]
+    assert read_settle(settle_id_for(SESSION, "cm-other")).attempts == 0
+
+
+def test_the_socket_owner_pushes_every_due_settle():
+    """Positive control: the same two records, the owner's pass takes both."""
+
+    _two_writers()
+    push, pushed = _pusher(boot_id="boot-owner", non_owner=False)
+    push()
+    assert sorted(pushed) == ["rid-other", "rid-own"]

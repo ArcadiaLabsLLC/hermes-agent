@@ -69,6 +69,7 @@ class SettlePush:
                     request_id=request.rid,
                     exit_code=exit_code,
                     outcome=outcome_from_result_lines(list(lines or ())),
+                    recorded_by=self.boot_id,
                 )
         except Exception:
             logger.warning("chat-turn settle could not be recorded", exc_info=True)
@@ -119,8 +120,14 @@ class SettlePush:
         )
 
         pushed = 0
+        # Owner ruling 2026-10-10 (L5.10): one writer. Two serves over one store
+        # both run this loop; only the socket owner pushes records it did not
+        # write, so a non-owner pushes its own and the retry budget is not halved.
+        mine_only = self._another_serve_owns_this_root()
         with self._settle_store_scope():
             for record in due_settles():
+                if mine_only and record.recorded_by != self.boot_id:
+                    continue
                 delivered = self._deliver_settle_frame(record.frame())
                 updated = note_push(record.settle_id, delivered_to=delivered)
                 pushed += 1 if delivered else 0
