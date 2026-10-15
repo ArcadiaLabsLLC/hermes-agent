@@ -106,12 +106,18 @@ class ConversationService:
         self._workers.release(live.route.profile, live.worker)
 
     @contextmanager
-    def _session(self, scope: ConversationScope, session_id: str) -> Iterator[LiveConversation]:
+    def _session(self, scope: ConversationScope, session_id: str, *, existing_only=False) -> Iterator[LiveConversation]:
         route = self.store.get(session_id, scope)
         if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
             raise ConversationError(Refusal.WRONG_OWNER)
-        with self._bindings.borrow(route) as live:
+        with self._bindings.borrow(route, existing_only=existing_only) as live:
             yield live
+
+    def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
+        from .subagents import inspect_children
+
+        with self._session(scope, session_id, existing_only=True) as live:
+            return inspect_children(self.install_id, scope, live, operation, params)
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from .prompt import submit, validate

@@ -70,7 +70,7 @@ write goes through the owning store (``OfficeStore``, ``LevelStore``,
 from __future__ import annotations
 
 from agent_runtime.call_authorization import STDIO_OWNER, authorize_call
-from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the original definition order
+from agent_runtime.serve_rpc import (
     protocol,
     registry,
     dispatch,
@@ -87,6 +87,7 @@ from agent_runtime.serve_rpc import (  # noqa: F401 — every family, in the ori
     operator_conversation,
     operator_history,
     operator_inspection,
+    operator_subagents,
     console_operations,
     instance_history,
     scope,
@@ -159,10 +160,10 @@ __all__ = [
     "PEER_PING_CONTRACT",
     "PEER_THREAD_UNREADABLE_REASON",
     "RPC_CONTRACT_VERSION",
-    "RpcContext",
     "STDIO_OWNER",
     "_METHODS",
     "_METHOD_TIERS",
+    "RpcContext",
     "_runtime_agent_create",
     "_runtime_office_get",
     "_runtime_office_upsert",

@@ -9,6 +9,7 @@ from agent_runtime.serve_rpc.protocol import DEFERRED
 
 from .binding import get_service
 from .model import ConversationError, Refusal, caller_scope, identifier
+from agent_runtime.subagents.model import OPERATIONS as SUBAGENT_OPERATIONS, SubagentError
 
 __layer__ = "lanes"
 PREFIX = "runtime.conversation."
@@ -70,10 +71,15 @@ def _skills(action, service, scope, params):
                           identifier(params["skill_id"]) if action == "detail" else None)
 
 
+def _subagents(action, service, scope, params):
+    return service.subagents(scope, identifier(params["session_id"]), action, params)
+
+
 OPERATIONS = {"open": _open, "send": _send, "read": _read_conversation, "stop": _stop,
               "history": _history, "inflight": _inflight,
               "respond": _respond, "facts": _facts, "model": _model,
-              **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")}}
+              **{"skills." + action: partial(_skills, action) for action in ("list", "detail", "history")},
+              **{"subagents." + action: partial(_subagents, action) for action in SUBAGENT_OPERATIONS}}
 
 
 def execute(operation: str, params: dict, caller, launcher_request=None) -> dict:
@@ -96,6 +102,8 @@ def register(method, ok, err) -> None:
                 except ConversationError as exc:
                     return err(rid, 4090, "This conversation is unavailable.",
                                {"reason": exc.reason, "native_code": exc.native_code})
+                except SubagentError as exc:
+                    return err(rid, 4090, "Subagent inspection refused.", {"reason": exc.reason})
                 except (KeyError, TypeError, ValueError):
                     return err(rid, -32602, "Invalid conversation request.", {"reason": Refusal.INVALID_REQUEST})
                 except Exception:

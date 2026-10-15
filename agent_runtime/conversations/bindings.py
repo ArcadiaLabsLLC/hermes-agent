@@ -7,6 +7,8 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+from .model import ConversationError, Refusal
+
 __layer__ = "lanes"
 _log = logging.getLogger(__name__)
 
@@ -36,10 +38,12 @@ class Bindings:
         return self._gates[hash(route_id) % len(self._gates)]
 
     @contextmanager
-    def borrow(self, route, *, created=False):
+    def borrow(self, route, *, created=False, existing_only=False):
         with self._gate(route.id):
             with self._lock:
                 entry = self._entries.get(route.id)
+            if existing_only and (entry is None or not entry.live.peer.alive or entry.live.retirement_pending):
+                raise ConversationError(Refusal.WORKER_LOST)
             if entry is not None and entry.live.retirement_pending and self._retire(entry):
                 entry = None
             if entry is None or not entry.live.peer.alive:

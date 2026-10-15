@@ -39,6 +39,8 @@ def _registry():
     declare_contracts()
     from agent_runtime.conversations.worker_app_functions import declare_contracts as declare_app_functions
     declare_app_functions()
+    from agent_runtime.conversations.worker_subagents import declare_contracts as declare_subagents
+    declare_subagents()
     return registry
 
 
