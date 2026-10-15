@@ -740,4 +740,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (launcher lane w1015e-mc-l)
 
-- [ ] **runtime.agent.create names a copy distinctly: when a placement is created for a persona that already has one and no display_name is sent, mint the numbered name ("QA Agent (2)") server-side so the launcher can stop predicting names and ids (launcher MC row "busy-chat activation plan", owner ruling 2026-10-15); today decision D-A1 keeps the suffix with the client and honest_default_display_name answers the base name** · agent_runtime/agent_create/request.py (honest_default_display_name, mint_placement_id) · filed 2026-10-15 w1015e-mc-l **TAKEN 2026-10-15 w1015h-rt-h**
