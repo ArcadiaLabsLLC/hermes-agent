@@ -11,6 +11,7 @@ import agent_runtime.persona_lifecycle as lifecycle_mod
 import agent_runtime.profile_context as profile_mod
 import agent_runtime.workspace_scope as scope_mod
 from agent_runtime.discussions.native_context import NativeContext
+from tests._downstream.split_package_source import patch_where_bound
 
 
 def _context() -> NativeContext:
@@ -39,9 +40,9 @@ def _walk(monkeypatch, count: int) -> tuple[list[dict], list[int]]:
             return None
 
     loads: list[int] = []
-    monkeypatch.setattr(assignments_mod, "PersonaInstanceStore", _Store)
-    monkeypatch.setattr(config_mod, "load_agent_runtime_config", lambda: loads.append(1) or object())
-    monkeypatch.setattr(config_mod, "ensure_persisted_personas", lambda _cfg: [SimpleNamespace(id="p")])
+    patch_where_bound(monkeypatch, assignments_mod, "PersonaInstanceStore", _Store)
+    patch_where_bound(monkeypatch, config_mod, "load_agent_runtime_config", lambda: loads.append(1) or object())
+    patch_where_bound(monkeypatch, config_mod, "ensure_persisted_personas", lambda _cfg: [SimpleNamespace(id="p")])
     monkeypatch.setattr(lifecycle_mod, "is_runtime_persona", lambda _p: True)
     monkeypatch.setattr(profile_mod, "resolve_persona_profile",
                         lambda _p: SimpleNamespace(readiness="ready", hermes_profile="default"))

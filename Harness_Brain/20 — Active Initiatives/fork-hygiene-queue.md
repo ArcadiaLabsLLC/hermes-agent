@@ -444,7 +444,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (land-w1015b)
 
-- [ ] **`tests/tooling/test_no_silent_package_patches.py` is red on `origin/main` (579a05a5fbf): 3 NEW silent package patches in `tests/agent_runtime/test_discussion_roster_config_load.py` (`agent_runtime.config:ensure_persisted_personas`, `agent_runtime.config:load_agent_runtime_config`, `agent_runtime.persona_assignments:PersonaInstanceStore`) — patch the modules that look the names up** · fork / suite isolation · seen in the land-w1015b gate and alone on origin/main · found 2026-10-15 land-w1015b **TAKEN 2026-10-15 w1015e-fh-h**
 
 ## Filed on arrival — 2026-10-15 (owner: "testing commands should be optimised")
 
