@@ -59,6 +59,7 @@ def test_gateway_cache_imports_without_the_local_runtime():
         "import sys; sys.modules['hermes_cli.local_runtime'] = None\n"
         "import gateway.run_agent_cache as m; print(sorted(m.LLAMACPP_ALIASES))"
     )
-    out = subprocess.run([sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True, timeout=120)
+    out = subprocess.run(
+        [sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True, timeout=120, check=False)
     assert out.returncode == 0, out.stderr
     assert "llamacpp" in out.stdout
