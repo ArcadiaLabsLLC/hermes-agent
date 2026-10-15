@@ -190,12 +190,32 @@ def _binding(sid, session):
         return held, True
 
 
+@dataclass(frozen=True)
+class TurnScopes:
+    """A native turn's two bindings: the Launcher link and the permission block (D2.07)."""
+    launcher: object
+    permission: object = None
+
+
 def bind(sid, session):
+    from . import worker_permissions
+
     binding, _ = _binding(sid, session)
-    return app.bind_launcher_link(binding.link if binding else None)
+    launcher = app.bind_launcher_link(binding.link if binding else None)
+    try:
+        permission = worker_permissions.bind(sid, session)
+    except BaseException:
+        app.reset_launcher_link(launcher)
+        raise
+    return TurnScopes(launcher, permission)
 
 
 def reset(token):
+    if isinstance(token, TurnScopes):
+        from . import worker_permissions
+
+        worker_permissions.reset(token.permission)
+        token = token.launcher
     app.reset_launcher_link(token)
 
 

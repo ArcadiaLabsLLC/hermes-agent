@@ -120,6 +120,9 @@ class ConversationService:
             return inspect_children(self.install_id, scope, live, operation, params)
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
+        from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_options_for_subject
+
+        from .model import permission_subject
         from .prompt import submit, validate
 
         files = validate(prompt)
@@ -132,8 +135,15 @@ class ConversationService:
             if admitted:
                 live.app_functions.bind(receipt.execution_id, launcher_request,
                                         session_id=session_id, turn_id=turn_id, client_scope=scope.client)
+                subject = permission_subject(live.route)
                 try:
+                    # D2.07: the operator lane's resolver, per turn, keyed by the route id;
+                    # the worker derives the block from the mode where the catalog lives.
+                    permission = permission_options_for_subject(subject, session_id=live.route.id)
+                    live.bind_permission(receipt.execution_id, permission.permission_mode)
                     submit(live.peer, live.native_id, prompt, receipt.execution_id)
+                    # A turn that was never admitted spends nothing of a turns-bounded grant.
+                    ChatToolPermissionStore().consume_turn(persona_id=subject, session_id=live.route.id)
                     live.dispatched(turn_id)
                     self.store.settle(session_id, turn_id, TurnState.RUNNING)
                 except ConversationError as exc:

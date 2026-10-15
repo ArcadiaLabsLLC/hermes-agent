@@ -58,3 +58,5 @@ def register(server) -> None:
     session_retirement.register(server)
     from agent_runtime.conversations import worker_subagents
     worker_subagents.register(server)
+    from agent_runtime.conversations import worker_permissions
+    worker_permissions.register(server)

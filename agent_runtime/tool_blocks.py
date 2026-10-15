@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
+from dataclasses import dataclass
 from typing import Any, Iterable, Iterator
 
 __layer__ = "policy"
@@ -39,6 +40,44 @@ def _names(names: Iterable[Any] | None) -> frozenset[str]:
     return frozenset(str(name) for name in (names or ()) if name)
 
 
+@dataclass(frozen=True)
+class BlockToken:
+    """What :func:`reset_tool_block` needs to undo one :func:`bind_tool_block`."""
+
+    block: frozenset[str]
+    previous: dict[str, frozenset[str] | None]
+    context: Token
+
+
+def bind_tool_block(names: Iterable[Any] | None, *, session_ids: Iterable[Any] = ()) -> BlockToken:
+    """Bind ``names`` as the block for ``session_ids`` and for this context, until reset.
+
+    The one write path: :func:`bound_tool_block` and the native worker's per-turn bind
+    (``conversations.worker_permissions``) both go through it.
+    """
+
+    block = _names(names)
+    ids = tuple(dict.fromkeys(str(sid) for sid in session_ids if sid))
+    context = _RUN_BLOCK.set(block)
+    with _lock:
+        previous = {sid: _by_session.get(sid) for sid in ids}
+        for sid in ids:
+            _by_session[sid] = block
+    return BlockToken(block, previous, context)
+
+
+def reset_tool_block(token: BlockToken) -> None:
+    """Restore each session's previous binding, so an overlapping run's block survives."""
+
+    with _lock:
+        for sid, before in token.previous.items():
+            if before is None:
+                _by_session.pop(sid, None)
+            else:
+                _by_session[sid] = before
+    _RUN_BLOCK.reset(token.context)
+
+
 @contextmanager
 def bound_tool_block(names: Iterable[Any] | None, *, session_ids: Iterable[Any] = ()) -> Iterator[frozenset[str]]:
     """Bind ``names`` as the block for ``session_ids`` and for this context, for the ``with`` body.
@@ -47,23 +86,11 @@ def bound_tool_block(names: Iterable[Any] | None, *, session_ids: Iterable[Any] 
     the same session never leaves the other's block behind.
     """
 
-    block = _names(names)
-    ids = tuple(dict.fromkeys(str(sid) for sid in session_ids if sid))
-    token = _RUN_BLOCK.set(block)
-    with _lock:
-        previous = {sid: _by_session.get(sid) for sid in ids}
-        for sid in ids:
-            _by_session[sid] = block
+    token = bind_tool_block(names, session_ids=session_ids)
     try:
-        yield block
+        yield token.block
     finally:
-        with _lock:
-            for sid, before in previous.items():
-                if before is None:
-                    _by_session.pop(sid, None)
-                else:
-                    _by_session[sid] = before
-        _RUN_BLOCK.reset(token)
+        reset_tool_block(token)
 
 
 def blocked_tools_for(session_id: Any = None) -> frozenset[str]:
@@ -146,11 +173,14 @@ def reprune_turn_agent(session_id: Any = None) -> None:
 
 
 __all__ = [
+    "BlockToken",
+    "bind_tool_block",
     "blocked_call_message",
     "blocked_tools_for",
     "bound_tool_block",
     "drop_blocked_request_tools",
     "prune_agent_tools",
     "reprune_turn_agent",
+    "reset_tool_block",
     "tool_definition_name",
 ]

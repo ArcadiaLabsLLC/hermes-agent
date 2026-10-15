@@ -51,6 +51,8 @@ class NativeWorker:
         if method == "pdf.attach":
             return {"attached": not self.refuse_attach,
                     "text": f"[User attached PDF: {params['filename']} (1 page(s))]"}
+        if method == "eternia.permission.bind":
+            return {"bound": True}
         if method == "prompt.submit":
             assert params["reject_if_busy"] is True
             self.executions[sid] = {"id": params["execution_id"], "status": "running",
