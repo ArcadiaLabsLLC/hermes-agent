@@ -875,7 +875,7 @@ class GatewayBusySessionMixin:
     async def _busy_interrupt_and_ack(self, event, session_key, adapter, _busy_state, running_agent, _steer) -> None:
         """Interrupt-mode abort (voice transcribed) and the busy ack, after the steer/redirect resolution.
         Shared by the in-process busy handler and the session authority's busy preempt."""
-        from gateway.run import _AGENT_PENDING_SENTINEL
+        from gateway.run import AGENT_PENDING_SENTINEL
         effective_mode, redirected = _steer.effective_mode, _steer.redirected
         is_queue_mode = effective_mode == "queue"
         is_steer_mode = effective_mode == "steer"
