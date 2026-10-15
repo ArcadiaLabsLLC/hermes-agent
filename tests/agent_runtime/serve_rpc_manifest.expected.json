@@ -308,6 +308,13 @@
       "turn_request_id",
       "use_agent_default"
     ],
+    "runtime.chat.queue_skill": [
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "skill",
+      "skills"
+    ],
     "runtime.chat.steer": [
       "client_scope",
       "correlation_id",
@@ -316,6 +323,14 @@
       "persona_instance_id",
       "session_id",
       "turn_request_id"
+    ],
+    "runtime.chat.turn.resolve": [
+      "action",
+      "client_message_id",
+      "persona_instance_id",
+      "reason",
+      "session_id",
+      "turn_id"
     ],
     "runtime.conversation.subagents.capabilities": [
       "install_id",
@@ -341,6 +356,7 @@
       "expected_generation",
       "child_ref"
     ],
+    "runtime.health": [],
     "runtime.operator.conversation.subagents.capabilities": [
       "install_id",
       "workspace_id",
@@ -371,6 +387,30 @@
       "expected_generation",
       "child_ref"
     ],
+    "runtime.persona.chat.delete": [
+      "persona_id",
+      "persona_instance_id",
+      "requested_by",
+      "session_id"
+    ],
+    "runtime.persona.chat.history": [
+      "before",
+      "limit",
+      "session_id"
+    ],
+    "runtime.persona.instance.create": [
+      "add_instance",
+      "client_message_id",
+      "display_name",
+      "kill_active",
+      "persona_id",
+      "placement_id",
+      "realm_id",
+      "requested_by",
+      "session_id",
+      "title",
+      "workspace_id"
+    ],
     "runtime.persona.instance.open_chat": [
       "persona_id",
       "persona_instance_id",
@@ -383,6 +423,62 @@
       "correlation_id",
       "install_id",
       "client_scope"
+    ],
+    "runtime.realm.adopt": [
+      "credential",
+      "dry_run",
+      "server_id",
+      "sort"
+    ],
+    "runtime.realm.agents.set": [
+      "agents",
+      "dry_run",
+      "none",
+      "realm_id",
+      "workspace"
+    ],
+    "runtime.realm.agents.show": [
+      "realm_id"
+    ],
+    "runtime.realm.skills.set": [
+      "all",
+      "dry_run",
+      "none",
+      "realm_id",
+      "skills"
+    ],
+    "runtime.realm.skills.show": [
+      "realm_id"
+    ],
+    "runtime.realm.sync.publish": [
+      "credential",
+      "dry_run",
+      "realm_id",
+      "yes"
+    ],
+    "runtime.realm.sync.pull": [
+      "credential",
+      "dry_run",
+      "realm_id"
+    ],
+    "runtime.realm.sync.resolve": [
+      "dry_run",
+      "key",
+      "realm_id",
+      "take",
+      "yes"
+    ],
+    "runtime.realm.sync.revert": [
+      "all",
+      "dry_run",
+      "items",
+      "realm_id",
+      "to",
+      "yes"
+    ],
+    "runtime.realm.sync.status": [
+      "credential",
+      "realm_id"
     ]
   },
   "tiers": {

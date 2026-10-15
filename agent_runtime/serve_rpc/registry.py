@@ -189,7 +189,8 @@ def manifest() -> dict[str, Any]:
     come from ``persona_open_chat``. Scoped opens never fall back to an older,
     account-blind lane. The argv twins publish theirs too (owner ruling L4.22,
     2026-10-10): ``serve_rpc.twin_params.TWIN_METHOD_PARAMS`` and the
-    ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS``.
+    ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS`` (characters, health,
+    the five chat-family verbs and the ten ``runtime.realm.*`` verbs in the first).
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
