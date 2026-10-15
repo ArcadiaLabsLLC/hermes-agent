@@ -2910,11 +2910,7 @@ def legacy_launchd_labels_for_install(exclude=()) -> list[str]:
     from hermes_constants import get_default_hermes_root
 
     try:
-        # ``pwd`` is POSIX-only. The update restart pass reaches this helper on every host, so the
-        # import lives inside the guard: a host without ``pwd`` has no LaunchAgents to read and
-        # answers "no legacy units", the same fail-closed answer an unreadable account home gets.
-        import pwd
-
+        import pwd  # POSIX-only, so inside the guard: a host without it answers "no legacy units"
         home = Path(pwd.getpwuid(os.getuid()).pw_dir)  # windows-footgun: ok — guarded above; POSIX launchd (macOS) helper
         root = get_default_hermes_root().resolve()
     except Exception:
