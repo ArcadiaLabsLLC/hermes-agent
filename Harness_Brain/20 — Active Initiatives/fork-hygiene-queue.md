@@ -391,7 +391,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 
 - [ ] **`--since-merge` still reaches 2,489 upstream files by import through fork-edited upstream modules the merge re-applied hunks to (`hermes_state.py` 453, `hermes_cli/config.py` 278, `tui_gateway/server.py` 256); extending the unchanged-hunk rule from conftests to modules is an owner call** · fork / suite · build-1011-B4 `fddab198fa` body · lane: D3.07 follow-up **TAKEN 2026-10-15 w1015b-fh-b** · VERDICT 2026-10-15: DESIGN — owner call, as filed: extend the unchanged-hunk rule from conftests to fork-edited upstream modules.
-- [ ] **CLASS (third instance): `scripts/run_tests.sh`'s `env -i` allowlist is upstream-owned, so every new fork test variable needs a wrapper (`run_tests_bundled.sh`, `run_tests_idle.sh`, `--git-audit`); answer: one fork-owned env-extension door** · fork / seams · build-1011-B4 `81eb8ed09b`, `b80e56bac8` · lane: runner door **TAKEN 2026-10-15 w1015b-fh-b** · VERDICT 2026-10-15: DESIGN — a fork-owned env-extension door changes upstream `scripts/run_tests.sh`, which fh-a holds this wave; design it after fh-a lands. · UNBLOCKED 2026-10-15: fh-a landed (912825c4b43); scripts/run_tests.sh is free for the env-extension door design **TAKEN 2026-10-15 w1015e-fh-h**
 
 ## Filed on arrival — 2026-10-10 (fast-gate design, guard fix, build batch 2 C1–C4, filed by the orchestrator)
 

@@ -41,6 +41,7 @@ ALL_EXCLUDED_PREFIXES = ("Harness_Brain/", "docs/")
 RUNNER_GLOBS = (
     "scripts/run_tests_bundled*.py", "scripts/_bundle_plugin/*", "scripts/run_tests_bundled.sh",
     "scripts/run_tests.sh", "scripts/run_tests_parallel.py", "scripts/_activation.sh",
+    "scripts/_fork_test_env.sh", "scripts/fork_test_env.txt",
     "scripts/ensure_fork_dev_deps.py", "scripts/test_*.txt",
     "tests/fixtures/upstream_skip_list.txt", "tests/fixtures/upstream_manifest.txt",
 )

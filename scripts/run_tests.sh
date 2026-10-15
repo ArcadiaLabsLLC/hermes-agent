@@ -220,6 +220,11 @@ for _test_var in HERMES_TEST_IMAGE HERMES_TEST_WORKERS HERMES_TEST_PATHS \
     TEST_ENV+=("$_test_var=${!_test_var}")
   fi
 done
+# Fork: the fork's own test variables come through ONE door, a tracked name list
+# (scripts/_fork_test_env.sh, scripts/fork_test_env.txt), not a hunk here per name.
+# shellcheck source=scripts/_fork_test_env.sh
+. "$SCRIPT_DIR/_fork_test_env.sh"
+fork_test_env_extend "$SCRIPT_DIR/fork_test_env.txt" || exit 2
 
 # ── Run in hermetic env ──────────────────────────────────────────────────────
 # env -i: start with empty environment, opt-in only what we need.

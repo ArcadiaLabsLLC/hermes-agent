@@ -1,0 +1,3 @@
+# Fork test variables forwarded through scripts/run_tests.sh's `env -i` (scripts/_fork_test_env.sh).
+# One NAME per line; `#` starts the reason. Names only, never a glob, never a credential.
+HERMES_TEST_IDLE_BOX  # tests/_downstream/idle_box.py: the timing files run only on an idle box
