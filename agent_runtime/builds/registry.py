@@ -51,7 +51,6 @@ from agent_runtime.builds.vocabulary import (
     RECORD_CONTROL_NONE,
     RECORD_STATUS_QUEUED,
     RECORD_STATUS_RUNNING,
-    REGISTRY_DIR_ENV,
     REGISTRY_SCHEMA_VERSION,
     RUNNING_RECORD_TTL_SECONDS,
     STOP_REQUEST_SUFFIX,
@@ -114,13 +113,6 @@ def registry_dir() -> Path:
     from agent_runtime.profile_home import get_hermes_background_work_home
 
     return Path(get_hermes_background_work_home()) / BUILD_REGISTRY_DIRNAME
-
-
-def writer_registry_dir() -> Path | None:
-    """Where a WRITER announces: the exported env value, else None (announce nothing, say so)."""
-
-    value = os.environ.get(REGISTRY_DIR_ENV, "").strip()
-    return Path(value) if value else None
 
 
 def new_record(**fields: Any) -> dict[str, Any]:

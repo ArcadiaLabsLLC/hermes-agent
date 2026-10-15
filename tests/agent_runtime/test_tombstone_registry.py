@@ -3832,6 +3832,102 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "registry_epoch",
         scope=("tools.registry",),
     ),
+    *rows(
+        # Lane w1015e-fh-h (2026-10-15): dead-code row 'the post-v0.21.6 census slice' —
+        # 14 names with no reference outside their definition.
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "writer_registry_dir",
+        scope=("agent_runtime.builds.registry",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "BUILD_TAIL_SOURCES",
+        "RESERVED_TOOLCHAINS",
+        "RECORD_STATUSES",
+        "RECORD_STOP_MODES",
+        "RECORD_RESTART_MODES",
+        scope=("agent_runtime.builds.vocabulary",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "_registry_content_revision",
+        scope=("agent_runtime.chat_lane_bundle",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "LIVE_PHASES",
+        scope=("agent_runtime.discussions.run_store",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "settings_path",
+        scope=("agent_runtime.harness_settings",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "map_token_for_published_path",
+        scope=("agent_runtime.map_sync",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "with_skill_evidence",
+        scope=("agent_runtime.skill_activity",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "drop_slot_fill",
+        scope=("agent_runtime.workspace_slot_env",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "PROMOTED_BRIEF_DESCRIPTION_CHARS",
+        scope=("tools.downstream_schema",),
+    ),
+    *rows(
+        "s-1015e-fh",
+        "HEAD",
+        Form.ATTR,
+        "the post-v0.21.6 census (queue-sweep L5.17): no reference anywhere out"
+        "side its definition, re-verified by git grep -w at deletion (lane w1015e-fh-h)",
+        "_LAUNCHER_QA_CORE_TOOLS",
+        scope=("tools.tool_search_downstream",),
+    ),
 )
 
 

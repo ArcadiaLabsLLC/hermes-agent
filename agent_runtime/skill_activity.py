@@ -45,10 +45,3 @@ def skill_load_history(messages: list[dict]) -> list[dict]:
                 loaded[name] = {"id": name, "count": loaded.get(name, {}).get("count", 0) + 1}
     return list(loaded.values())
 
-
-def with_skill_evidence(update, tool: str, arguments, *, result=None, finished=False):
-    """ACP's metadata envelope carries the same client-neutral load evidence."""
-    evidence = skill_load_evidence(tool, arguments, result=result, finished=finished)
-    if evidence:
-        update.field_meta = {**(update.field_meta or {}), "hermesSkill": evidence}
-    return update

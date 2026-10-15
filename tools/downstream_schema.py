@@ -95,7 +95,6 @@ ONE_LINE_MAX_CHARS = 300
 #: carries the first sentence (at most this many chars) and every parameter description clipped
 #: to the second bound. The registry keeps the server's text: ``tool_describe`` serves the full
 #: description AND the full ``parameters`` from it, one call away.
-PROMOTED_BRIEF_DESCRIPTION_CHARS = ONE_LINE_MAX_CHARS
 PROMOTED_BRIEF_PARAMETER_CHARS = 120
 PROMOTED_BRIEF_SUFFIX = " Full reference: tool_describe."
 

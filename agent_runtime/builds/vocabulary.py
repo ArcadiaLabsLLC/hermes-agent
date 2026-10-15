@@ -56,7 +56,6 @@ BUILD_SOURCES = (SOURCE_AGENT, SOURCE_ANNOUNCED, SOURCE_DETECTED)
 TAIL_SOURCE_TERMINAL = "terminal_buffer"
 TAIL_SOURCE_BUILD_LOG = "build_log"
 TAIL_SOURCE_RECORD = "record_tail"
-BUILD_TAIL_SOURCES = (TAIL_SOURCE_TERMINAL, TAIL_SOURCE_BUILD_LOG, TAIL_SOURCE_RECORD)
 
 # ── liveness and outcome (§1) ───────────────────────────────────────────────
 LIVENESS_LIVE = "live"
@@ -84,8 +83,6 @@ TOOLCHAIN_FLUTTER = "flutter"
 TOOLCHAIN_DART = "dart"
 TOOLCHAIN_UNKNOWN = "unknown"
 BUILD_TOOLCHAINS = (TOOLCHAIN_FLUTTER, TOOLCHAIN_DART, TOOLCHAIN_UNKNOWN)
-#: Reserved words, NOT emitted yet — a consumer may pre-render them, no producer writes one.
-RESERVED_TOOLCHAINS = ("gradle", "msbuild", "cmake", "npm", "cargo", "unreal")
 
 BUILD_MODES = ("debug", "profile", "release", "")
 
@@ -131,14 +128,11 @@ REGISTRY_DIR_ENV = "HERMES_BUILD_REGISTRY_DIR"
 RECORD_STATUS_QUEUED = "queued"
 RECORD_STATUS_RUNNING = "running"
 RECORD_STATUS_FINISHED = "finished"
-RECORD_STATUSES = (RECORD_STATUS_QUEUED, RECORD_STATUS_RUNNING, RECORD_STATUS_FINISHED)
 #: ``controls.stop`` / ``controls.restart`` as a WRITER declares them.
 RECORD_STOP_REQUEST = "request"
 RECORD_STOP_KILL_TREE = "kill_tree"
 RECORD_CONTROL_NONE = "none"
-RECORD_STOP_MODES = (RECORD_STOP_REQUEST, RECORD_STOP_KILL_TREE, RECORD_CONTROL_NONE)
 RECORD_RESTART_COMMAND = "command"
-RECORD_RESTART_MODES = (RECORD_RESTART_COMMAND, RECORD_CONTROL_NONE)
 #: The stop request a ``request``-mode writer watches for, beside its record.
 STOP_REQUEST_SUFFIX = ".stop"
 
