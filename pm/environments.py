@@ -604,9 +604,22 @@ def main(argv: list[str] | None = None) -> None:
 
 
 # Fork (ledger row `pm/environments.py`): HERMES_DEPENDENCY_ROOT borrows a lender's environment, read-only.
-from pm._fork_dependency_borrow import borrow_dependency_home_root, borrow_owning_home_root
-dependency_home_root = borrow_dependency_home_root(dependency_home_root)
-owning_home_root = borrow_owning_home_root(owning_home_root)
+# No module-scope import: a boot tree that copies this file alone (upstream's minted-launcher
+# fixtures) still imports; pm._fork_dependency_borrow loads only once the variable is set.
+def _fork_borrowing(original):
+    def borrowed(*args):
+        if os.environ.get("HERMES_DEPENDENCY_ROOT", "").strip():
+            from pm._fork_dependency_borrow import borrowed_dependency_root
+
+            return borrowed_dependency_root() or original(*args)
+        return original(*args)
+
+    borrowed.__name__, borrowed.__doc__, borrowed.__wrapped__ = original.__name__, original.__doc__, original
+    return borrowed
+
+
+dependency_home_root = _fork_borrowing(dependency_home_root)
+owning_home_root = _fork_borrowing(owning_home_root)
 
 if __name__ == "__main__":
     main()

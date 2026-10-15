@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 220,
+  "files": 219,
   "deleted_lines": 1047,
   "heavy": 4,
   "reasons": [
@@ -770,20 +770,6 @@
         "heavy": 4
       },
       "reason": "One additive route line: hermes_cli/interpreter_abi.py (fork; imported by the fork's venv_sync.py hunk, 8441eb6bff2) joins _UPDATE_DEPENDENCIES so the e2e_upgrade lane runs when it changes; tests/ci/test_update_ci_routing.py named it. Retire when upstream owns the ABI re-entry or the fork hunk leaves venv_sync.py."
-    },
-    {
-      "change": "landing land-w1015e (red: test_minted_launcher_reads_current_selection_and_editable_members, ModuleNotFoundError pm._fork_dependency_borrow)",
-      "before": {
-        "files": 219,
-        "deleted_lines": 1047,
-        "heavy": 4
-      },
-      "after": {
-        "files": 220,
-        "deleted_lines": 1047,
-        "heavy": 4
-      },
-      "reason": "One additive fixture line: pm/environments.py's fork tail (w1015c-dev 5d93d4f0064) imports pm/_fork_dependency_borrow.py, so the minted repo this upstream test builds copies that module beside environments.py and filesystem.py. Retire when the borrow leaves environments.py's tail."
     }
   ]
 }

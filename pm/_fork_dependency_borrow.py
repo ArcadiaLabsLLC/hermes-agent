@@ -28,8 +28,6 @@ from typing import Any, Callable
 __all__ = [
     "ENV",
     "BorrowedEnvironmentReadOnly",
-    "borrow_dependency_home_root",
-    "borrow_owning_home_root",
     "borrowed_dependency_root",
     "refuse_sync_while_borrowing",
 ]
@@ -50,30 +48,6 @@ def borrowed_dependency_root() -> Path | None:
     if not root.is_absolute():
         raise BorrowedEnvironmentReadOnly(f"{ENV} must name an absolute data root, got {value!r}")
     return root
-
-
-def borrow_dependency_home_root(original: Callable[[], Path]) -> Callable[[], Path]:
-    if getattr(original, "__fork_borrow__", False):
-        return original
-
-    def dependency_home_root() -> Path:
-        return borrowed_dependency_root() or original()
-
-    dependency_home_root.__fork_borrow__ = True  # type: ignore[attr-defined]
-    dependency_home_root.__wrapped__ = original  # type: ignore[attr-defined]
-    return dependency_home_root
-
-
-def borrow_owning_home_root(original: Callable[[Path], Path | None]) -> Callable[[Path], Path | None]:
-    if getattr(original, "__fork_borrow__", False):
-        return original
-
-    def owning_home_root(project_root: Path) -> Path | None:
-        return borrowed_dependency_root() or original(project_root)
-
-    owning_home_root.__fork_borrow__ = True  # type: ignore[attr-defined]
-    owning_home_root.__wrapped__ = original  # type: ignore[attr-defined]
-    return owning_home_root
 
 
 def refuse_sync_while_borrowing(original: Callable[..., Any]) -> Callable[..., Any]:
