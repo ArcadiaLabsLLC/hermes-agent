@@ -340,7 +340,7 @@ def get_external_skills_dirs() -> list[Path]:
     return _config_skills_dirs("external_dirs")
 
 
-def _config_skills_dirs(key: str) -> List[Path]:
+def _config_skills_dirs(key: str) -> list[Path]:
     config_path = get_config_path()
     if not config_path.exists():
         return []
