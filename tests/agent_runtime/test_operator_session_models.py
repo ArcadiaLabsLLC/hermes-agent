@@ -302,7 +302,7 @@ def test_effort_select_facts_and_the_next_request_agree(placed_agent, catalog, c
     set_effort(params["persona_instance_id"], reasoning_effort="low")
     agree("low", "instance")
     assert receipts(caplog, "model_selection verb=persona.instance.set_model")[-1].endswith(
-        "scope=agent_instance chosen=model=-,effort=low outcome=applied saved=persona_instance_store")
+        "scope=agent_instance chosen=provider=-,model=-,effort=low outcome=applied saved=persona_instance_store")
     set_effort(params["persona_instance_id"], use_profile_default=True)
     agree("high", "profile")
     capsys.readouterr()

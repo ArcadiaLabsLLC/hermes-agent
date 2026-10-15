@@ -34,7 +34,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (lane w1015h-prov)
 
-- [ ] **The `model_selection` receipt omits the provider** — `log_model_selection` in `_cmd_persona_instance_set_model` writes `chosen=model=…,effort=…`, so a log cannot tell a Claude pick on `anthropic` from one on `opencode-zen` (the 2026-10-15 owner triage had to infer it from `chat_turn_model`). **TAKEN 2026-10-15 w1015i-rt**
 - [ ] **Codex picker policy reports `catalog_mode: unavailable` with no reason when probed with an expiring token, and nothing re-announces it after the runtime refreshes** — `model_picker_policy_for` (`hermes_cli/model_picker_policy.py`) reads the stored access token without an expiry check; at serve boot (owner serve 2026-10-15, base cache written unverified ~12:06, singleton refreshed 12:06:56) it answers `unavailable`, and a client that probed once keeps "0 available". Carry `error` (`credential_expiring`) and/or publish a provider-visibility change after a credential refresh. **TAKEN 2026-10-15 w1015i-rt**
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015h-misc-l)
