@@ -97,6 +97,7 @@ class TestGenerateBash:
             [shutil.which("bash"), "-n"],
             input=out.encode("utf-8"),
             capture_output=True,
+            check=False,
         )
         assert result.returncode == 0, result.stderr.decode()
 
