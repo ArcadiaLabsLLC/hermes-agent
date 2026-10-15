@@ -27,6 +27,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-15 (owner sitting: first real QA bundle build)
+
+- [ ] **Bundle packager: `install_pool` fails on a Windows sharing violation with no retry** — `scripts/bundle_profile_package.py` `install_pool` runs `uv pip install --target <work>/core.pool …`; at the 2026-10-15 sitting it died on os error 32 removing `pillow_heif-1.6.0.data` ("being used by another process"). Retry the install (bounded backoff) on a sharing violation, and start from an emptied pool dir; this side moves first, the launcher qa-tooling row "The QA bundled-harness build has never succeeded" names the other two gaps.
+
 ### Filed on arrival — 2026-10-15 (owner sitting: send-prep live proof)
 
 - [ ] **No `send_prep_receipt` for chat turns on the Anthropic transport** — owner sitting 2026-10-15: three launcher-sent warm Neko turns on `claude-opus-5-5` / provider `anthropic` (14:18, session …65c8ad05c782) logged `chat_turn_accept_to_anchor` (30–162 ms), `tool_form_receipt` and `turn_context_receipt`, but no `send_prep_receipt`; the same day a Base turn on `openai-codex` did log one. The receipt fires only when the turn phase `request_sent` is marked (`agent_runtime/mission_chat_phases.py`), so the Anthropic request path apparently never marks it — the send-prep budget is unmeasurable for every Claude turn. Mark `request_sent` at the Anthropic dispatch (caller-side seam if the dispatch is upstream) and pin it with a test per transport. Live part (a) of the send-prep proof PASSED the same sitting: 8 warm turns `tool_form_receipt source=unchanged publishes=0 pin_written=0`, `mcp_refresh_ms=0`, `turn_context` 25–50 ms.
