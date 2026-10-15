@@ -129,7 +129,6 @@ _NODES = (
         'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[pyproject-dashboard]',
         'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-cli]',
         'tests/hermes_cli/test_web_memory_provider_setup_install.py::test_setup_admits_real_provider_union_and_keeps_selection_on_failure[python_dependencies-dashboard]',
-        'tests/pm/test_source_launcher_stages.py::test_powershell_stage_publishes_without_a_checkout_venv[pwsh]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-node-compatibility.ps1-pwsh]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-utf8.ps1-powershell]',
         'tests/scripts/install/test_install_ps1_script_suites.py::test_suite_passes[test-install-ps1-utf8.ps1-pwsh]',
