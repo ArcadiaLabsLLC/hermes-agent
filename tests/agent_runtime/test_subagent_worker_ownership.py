@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_runtime.conversations.worker_subagents import install
 from tools.delegate_tool_child_run import _register_child
 from tools.delegate_tool_registry import _unregister_subagent
 from tools.delegation_live_log import LiveTranscriptWriter
@@ -31,7 +30,6 @@ def request(call, operation, **params):
 
 def test_native_owner_generation_and_recycled_child(gateway, tmp_path):
     server, owner, transport, call = gateway
-    install()
     child = registered(owner, transport)
     writer = LiveTranscriptWriter("delegation", 0, "task", root=tmp_path)
     child._live_transcript_path = str(writer.path)
@@ -61,7 +59,6 @@ def test_native_owner_generation_and_recycled_child(gateway, tmp_path):
 def test_child_replaced_during_tail_never_returns_new_or_old_output(gateway, monkeypatch):
     from agent_runtime.subagents import native
     _, owner, transport, call = gateway
-    install()
     child = registered(owner, transport)
     roster = request(call, "list")["result"]["data"]
     replacement = []
@@ -94,7 +91,6 @@ def test_service_to_native_dispatch_roundtrip(conversations, gateway, tmp_path, 
     service, factory, _ = conversations
     scope, sid = opened(conversations)
     server, owner, transport, _ = gateway
-    install()
     native_id = "native-0"
     server._sessions[native_id] = owner
     child = Child("native-owned-child")
@@ -125,7 +121,6 @@ def test_service_to_native_dispatch_roundtrip(conversations, gateway, tmp_path, 
 def test_lineage_visibility_does_not_cross_profile_databases(gateway, tmp_path):
     from hermes_constants import get_hermes_home
     _, owner, transport, call = gateway
-    install()
     home = get_hermes_home()
     db = SimpleNamespace(db_path=home / "state.db")
     owner["agent"] = SimpleNamespace(session_id="same-durable-id", _session_db=db)
@@ -141,10 +136,11 @@ def test_lineage_visibility_does_not_cross_profile_databases(gateway, tmp_path):
     assert request(call, "list")["result"]["data"]["children"] == []
 
 
-def test_compute_host_reports_unsupported_instead_of_empty_children(gateway):
-    _, owner, _, call = gateway
-    install()
-    owner["_compute_host_active"] = True
+def test_missing_compute_host_refuses_without_creating_supervisor(gateway, monkeypatch):
+    server, owner, _, call = gateway
+    monkeypatch.setattr(server, "_session_uses_compute_host", lambda session: session is owner)
+    monkeypatch.setattr(server, "_compute_host_supervisor", None)
     for operation in ("capabilities", "list"):
         reply = request(call, operation)
-        assert reply["error"]["data"]["reason"] == "subagent_execution_host_unsupported"
+        assert reply["error"]["data"]["reason"] == "subagent_unavailable"
+        assert server._compute_host_supervisor is None

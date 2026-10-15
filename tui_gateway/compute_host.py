@@ -234,10 +234,11 @@ class ComputeHost:
         def body(server, sid, request_id):
             method = frame.get("method")
             if method not in {"session.recover", "session.recovery.history", "session.recovery.inflight",
+                              "eternia.subagents.capabilities", "eternia.subagents.list", "eternia.subagents.tail",
                               "session.events.since", "session.retire"}:
                 raise ValueError("Unsupported observation")
-            response = server.handle_request({"jsonrpc": "2.0", "id": request_id,
-                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}})
+            response = server.dispatch({"jsonrpc": "2.0", "id": request_id,
+                "method": method, "params": {**(frame.get("params") or {}), "session_id": sid}}, self._transport)
             self._reply("observe.ack", sid, request_id, response=response)
         self._guarded(frame, "observe.error", body)
 

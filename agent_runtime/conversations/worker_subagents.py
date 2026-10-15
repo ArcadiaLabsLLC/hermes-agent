@@ -1,4 +1,4 @@
-"""Fork-owned child readers installed on both native worker shapes."""
+"""Fork-owned child contracts and the single gateway registration point."""
 from functools import partial
 
 from agent_runtime.subagents.model import OPERATIONS, ERROR_CODES, SubagentError
@@ -68,11 +68,10 @@ def inspect(operation, rid, params):
             "code": ERROR_CODES[exc.reason], "message": "Subagent inspection refused.", "data": {"reason": exc.reason}}}
 
 
-def install():
-    from tui_gateway import server
+def register(server):
     from tui_gateway.contract_seam import pydantic_contracts_enabled
 
     if pydantic_contracts_enabled():
         declare_contracts()
     for operation in OPERATIONS:
-        server.register_method("eternia.subagents." + operation, partial(inspect, operation))
+        server.register_method("eternia.subagents." + operation, server._profile_scoped(partial(inspect, operation)))

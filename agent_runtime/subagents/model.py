@@ -13,7 +13,6 @@ class Refusal(StrEnum):
     STALE = "subagent_reference_stale"
     INVALID = "subagent_request_invalid"
     UNAVAILABLE = "subagent_unavailable"
-    UNSUPPORTED_HOST = "subagent_execution_host_unsupported"
 
 
 class SubagentError(ValueError):
