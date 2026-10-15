@@ -183,6 +183,14 @@ def test_two_concurrent_entries_run_exactly_one_sweep(monkeypatch, repo, caplog)
     purge.hold = True
     monkeypatch.setattr(hermes_main, "_clear_bytecode_cache", purge)
     monkeypatch.setattr(sweep, "_BYTECODE_SWEEP_LOCK_WAIT_SECONDS", 5.0)
+    loser_waiting = threading.Event()
+    real_await = sweep._await_bytecode_sweep_winner
+
+    def _await_spy(lock_path):
+        loser_waiting.set()
+        return real_await(lock_path)
+
+    monkeypatch.setattr(sweep, "_await_bytecode_sweep_winner", _await_spy)
 
     def _enter():
         sweep._sweep_stale_bytecode_if_checkout_changed()
@@ -193,8 +201,8 @@ def test_two_concurrent_entries_run_exactly_one_sweep(monkeypatch, repo, caplog)
             thread.start()
         # The winner is now parked inside the purge, still holding the lock.
         assert purge.entered.wait(timeout=8), "no thread reached the purge"
-        # Give the loser time to reach its wait loop while the lock is still held.
-        time.sleep(0.3)
+        # The loser reaches its wait loop while the lock is still held.
+        assert loser_waiting.wait(timeout=8), "the loser never reached its wait loop"
         purge.release.set()
         for thread in threads:
             thread.join(timeout=15)
@@ -370,7 +378,7 @@ def test_a_bare_pid_lock_from_the_old_format_is_still_broken_by_age(tmp_path):
     """A lock written before the payload carried a host falls back to age."""
 
     lock_path = tmp_path / "lock"
-    lock_path.write_bytes(f"{os.getpid()}\n".encode("utf-8"))
+    lock_path.write_bytes(f"{os.getpid()}\n".encode())
     _age_past_stale(lock_path)
 
     assert sweep._break_stale_bytecode_sweep_lock(lock_path) is True
