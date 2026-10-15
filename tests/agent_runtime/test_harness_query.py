@@ -14,6 +14,7 @@ Killing mutations (each applied, red recorded, reverted — see the commit):
   M6 harness_query registered into toolset "harness_query"   -> registration test red
   M7 answer_routed never dials the serve                     -> serve-routing test red
   M8 schema description drops the session_search / chat-root steer -> steer test red
+  M9 _mcp_resolution drops the ``sdk`` read                          -> mcp-client test red
 """
 
 from __future__ import annotations
@@ -104,6 +105,17 @@ def test_instance_resolves_by_instance_id_and_by_persona_id_and_misses_honestly(
     assert by_id["mcp"]["exercised"].startswith("not_answered_here")
     assert by_id["mcp"]["basis"] in {"resolved_now", "unresolved"}
     assert miss["ok"] is False and miss["error"] == "not_found"
+
+
+def test_instance_says_whether_this_process_has_an_mcp_client(monkeypatch):
+    """The launcher's acceptance preflight reads readiness here, before a turn (M9)."""
+    from agent_runtime.mcp_admission import transport
+
+    qa, _dev = _qa_and_dev()
+    monkeypatch.setattr(transport, "mcp_sdk_available_flag", lambda: False)
+    assert harness_query.answer("instance", instance=qa.id)["mcp"]["sdk"] == "mcp_sdk_unavailable"
+    monkeypatch.setattr(transport, "mcp_sdk_available_flag", lambda: True)  # positive control
+    assert harness_query.answer("instance", instance=qa.id)["mcp"]["sdk"] == "available"
 
 
 def test_sessions_returns_only_the_named_instances_sessions(no_resident_registry):
