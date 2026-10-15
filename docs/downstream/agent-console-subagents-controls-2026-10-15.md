@@ -96,5 +96,21 @@ Killing mutations were applied individually and restored before qualification:
 
 These are observed red runs, not proposed mutations.
 
+The fork landing run selected 1092 files: 13049 tests passed, 8 failed, one
+environment setup error and 56 skipped in 549.1 seconds. Its feature findings
+were repaired without exceptions: regenerate the one RPC manifest fixture,
+give the native dispatch helper a specific name, and replace growing operation
+conditionals with a dispatch table and shared required-parameter declarations.
+The final focused run of all subagent files, the three manifest consumers and
+both architecture checks passes **173 tests across 12 files**, including the
+six real native execution round trips.
+
+The remaining full-run error is `test_worker_slow_exit_downstream`: its PM
+fixture requires Python 3.14, while this workstation's explicit test interpreter
+is Python 3.13.15. The same file reproduces the same setup error on detached base
+`0e7531cebe`; no worker assertion executes. The pre-existing shared-environment
+qualification row in the fork-hygiene queue owns it. No fixture or runtime
+requirement was relaxed, and no clean whole-suite result is claimed.
+
 Launcher surface and validation:
 `EterniaLauncher/docs/mission_control/evidence/subagent-controls-2026-10-15.md`.

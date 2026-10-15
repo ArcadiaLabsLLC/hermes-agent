@@ -82,7 +82,7 @@ class CommandReceipts:
         # Reserve before dispatch, without serializing unrelated child commands.
         # An exception can never make this ID runnable again.
         try:
-            status = _apply(operation, params, record, authorize)
+            status = _apply_child_command(operation, params, record, authorize)
         except SubagentError:
             with self._lock:
                 data["status"] = "refused"
@@ -94,7 +94,7 @@ class CommandReceipts:
             return dict(data)
 
 
-def _apply(operation, params, record, authorize):
+def _apply_child_command(operation, params, record, authorize):
     from tools.delegate_tool_registry import interrupt_subagent, steer_subagent
 
     checked = False

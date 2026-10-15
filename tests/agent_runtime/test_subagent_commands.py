@@ -138,6 +138,19 @@ def test_owner_changed_after_native_acceptance_is_unknown_not_rejected(gateway):
     assert str(child._drain_pending_steer()) == "accepted"
 
 
+def test_operator_unclassified_failure_cannot_claim_a_command_did_not_run(monkeypatch):
+    from agent_runtime.serve_rpc import operator_subagents
+
+    def failure(*_):
+        raise RuntimeError("outcome not available")
+
+    monkeypatch.setattr(operator_subagents, "inspect_operator", failure)
+    for operation in ("steer", "stop"):
+        reply = operator_subagents._subagent_reply(operation, 1, {})
+        assert reply["error"]["data"]["reason"] == "subagent_outcome_unknown"
+    assert operator_subagents._subagent_reply("list", 1, {})["error"]["data"]["reason"] == "subagent_unavailable"
+
+
 def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
     from agent_runtime.live_turns import live_turn
     from agent_runtime.persona_chat_durability import default_persona_session_db
@@ -174,5 +187,3 @@ def test_operator_mutations_require_current_live_parent(placed_agent, tmp_path):
             assert child._interrupt_requested and not parent._interrupt_requested
         finally:
             _unregister_subagent("operator-child", agent=child)
-
-
