@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from hermes_cli.plugins import LoadedPlugin
@@ -15,7 +15,7 @@ class PluginToolsetMixin:
     """Toolset verbs of ``PluginContext``; reads ``manifest``, ``_manager`` and ``_track`` from it."""
 
     def register_toolset(
-        self, name: str, description: str, tools: List[str] | None = None, includes: List[str] | None = None,
+        self, name: str, description: str, tools: list[str] | None = None, includes: list[str] | None = None,
     ) -> Optional[PluginRegistration]:
         """Define a toolset: ``tools`` by name plus every tool of the toolsets in ``includes`` (and any
         tool later registered into ``name``). Selectable wherever a built-in toolset is. Scoped to this
@@ -54,7 +54,7 @@ class PluginToolsetMixin:
                            lambda: registry.remove_toolset_member(toolset, member, scope=scope))
 
 
-def get_plugin_toolsets() -> List[tuple]:
+def get_plugin_toolsets() -> list[tuple]:
     """Plugin toolsets as ``(key, label, description)`` tuples for the ``hermes tools`` TUI."""
     from hermes_cli.plugins import get_plugin_manager
 
@@ -67,12 +67,12 @@ def get_plugin_toolsets() -> List[tuple]:
         return []
     # Group plugin tool names by their toolset, then map each toolset back to the plugin that
     # registered it (first owner wins) for the description.
-    toolset_tools: Dict[str, List[str]] = {}
+    toolset_tools: dict[str, list[str]] = {}
     for tool_name in manager._plugin_tool_names:
         entry = registry.get_entry(tool_name)
         if entry:
             toolset_tools.setdefault(entry.toolset, []).append(entry.name)
-    toolset_plugin: Dict[str, "LoadedPlugin"] = {}
+    toolset_plugin: dict[str, LoadedPlugin] = {}
     for loaded in manager._plugins.values():
         for tool_name in loaded.tools_registered:
             entry = registry.get_entry(tool_name)

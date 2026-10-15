@@ -58,7 +58,7 @@ from hermes_cli.plugins_dispatch import (
     is_valid_system_prompt_section_id, resolve_plugin_command_result,
 )
 from hermes_cli.plugins_ledger import PluginLedgerMixin, PluginRegistration
-from hermes_cli.plugins_toolsets import PluginToolsetMixin, get_plugin_toolsets  # noqa: F401 — re-exported
+from hermes_cli.plugins_toolsets import PluginToolsetMixin, get_plugin_toolsets
 from hermes_cli.plugins_state import (
     PluginState, _locked_plugin_state, _nested_plugin_mapping, _nested_plugin_value,
     _plugin_relative_segments, _plugin_settings_entry, save_plugin_setting,
