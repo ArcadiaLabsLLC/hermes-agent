@@ -27,7 +27,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
-- [ ] **Agent Console subagents: Step 1 ownership and typed read foundation.** Owner approved 2026-10-14 in Codex; exact native/operator ownership, generation guards, existing-owner-only borrowing and per-seam accounting. Launcher contract follows in `EterniaLauncher/packages/agents/`; UI, controls, history and defaults remain separately approval-gated. **TAKEN 2026-10-14 codex-subagents-step1**
 
 - [ ] **Audit delivery of a steer arriving after the final tool drain.** Upstream `agent/turn_finalizer.py` returns undrained input as `result["pending_steer"]`; the harness `profile_runner` and `chat_turn_commit` have no consumer of that field. Prove the finalization race with the real inbox, then reuse upstream's next-turn handoff or refuse admission before acknowledging. This is separate from preserving the provenance and transcript position of inputs consumed in the active turn. · found 2026-10-14 transcript repair audit; static missing-consumer evidence, live loss not yet reproduced · UNCLAIMED
 

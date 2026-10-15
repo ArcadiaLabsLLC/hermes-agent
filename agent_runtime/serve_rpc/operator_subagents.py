@@ -11,7 +11,7 @@ from .registry import method
 __layer__ = "lanes"
 
 
-def _reply(operation, rid, params):
+def _subagent_reply(operation, rid, params):
     try:
         return ok(rid, inspect_operator(operation, params))
     except (OperatorConversationRefused, SubagentError) as exc:
@@ -22,7 +22,7 @@ def _reply(operation, rid, params):
 
 def _dispatch(operation, rid, params, context=None):
     name = "runtime.operator.conversation.subagents." + operation
-    build = deferred_reply(rid, name, lambda: _reply(operation, rid, params))
+    build = deferred_reply(rid, name, lambda: _subagent_reply(operation, rid, params))
     if context is not None and context.spawn_reply is not None and context.spawn_reply(build):
         return DEFERRED
     return build()

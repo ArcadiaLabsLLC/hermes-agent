@@ -8,7 +8,7 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 `carry-permanent`: a carry the operator has ruled permanent (§1 rule 6), still counted in
 `files=`, settled for the detach read.
 
-**Subagent foundation, Step 1 (2026-10-14):** the service borrow mode, both
+**Subagent foundation, Step 1 (2026-10-14):** the service borrow mode,
 shared worker registration, operator RPC family, native method discovery, registry
 bridge and output projection are accounted individually in the
 [subagent seam register](../../downstream/agent-console-subagents-foundation-2026-10-14.md#per-seam-ledger).
@@ -287,6 +287,14 @@ without touching the ratchet. Each carries the PR that retires the import.
 
 | upstream file | private names | fork reader | retires with |
 |---|---|---|---|
+| `tools/delegate_tool_registry.py` | `_active_subagents` | `agent_runtime/_upstream_doors.py::subagent_registry`, consumed read-only by `subagents/native.py` (Step 1, 2026-10-14) | HELD widening candidate: public owned-child snapshots retaining exact agent identity. The existing public roster drops that authority; no second registry or upstream PR. |
+| `tools/delegate_tool_registry.py` | `_active_subagents_lock` | `agent_runtime/_upstream_doors.py::subagent_registry`, used for snapshot and final membership checks | HELD widening candidate: the native owned-child reader takes its own registry lock, retiring this lock reach together with `_active_subagents`. |
+| `tools/delegate_tool_registry.py` | `_is_descendant_of` | `agent_runtime/_upstream_doors.py::subagent_is_descendant`, operator active-parent evidence | HELD widening candidate: public native descendant predicate or owned-child reader with the same object-lineage guarantee. |
+| `tools/delegate_tool_registry.py` | `_subagent_transport_matches` | `agent_runtime/_upstream_doors.py::subagent_transport_matches`, exact native child authority | HELD widening candidate: public native owned-child reader preserving exact transport ownership. |
+| `tui_gateway/methods_subagents.py` | `_visible_subagent_records` | `agent_runtime/_upstream_doors.py::subagent_visible_records`, native visibility projection | HELD widening candidate: public native owned-child inspection preserving visibility versus exact output authority. |
+| `tui_gateway/server.py` | `_current_session_steer_authority` | `agent_runtime/_upstream_doors.py::subagent_session_authority`, native attached-session validation before and after IO | HELD widening candidate: public current-transport/session authority reader; caller-supplied session ids cannot replace it. |
+| `tui_gateway/server.py` | `_session_uses_compute_host` | `agent_runtime/_upstream_doors.py::subagent_uses_compute`, existing host selection | HELD widening candidate: public native execution-host observation route; never duplicate host-selection policy. |
+| `tui_gateway/server.py` | `_compute_host_supervisor` (module attribute) | `agent_runtime/_upstream_doors.py::subagent_compute_supervisor`, existing-only observer | HELD widening candidate: public non-creating supervisor lookup or owned-child observer. Never call a supervisor constructor during inspection. |
 | `hermes_state.py` and its native SessionDB mixins | `_read_ctx`, `_execute_write`, `_check_transcript_write_guards`, `_active_transcript_counts`, `_clone_message_rows`, `_resume_lineage_ids` | `hermes_state_history_controls.py::SessionHistoryControlsMixin`: existing transaction, lease, row-copy and lineage primitives for branch/Undo/Redo; no second store or writer | HELD native history API candidate, together with the SessionDB diff row above. Preserve these calls at upstream sync until an accepted public native boundary replaces them; no upstream submission is authorized. |
 | `hermes_cli/local_runtime/gguf.py` | `_read_part` | `agent_runtime/_upstream_doors.py::gguf_file_header`, read by `agent_runtime/local_llama_adapter/engine.py::validate_model` (release merge v0.21.6, 2026-10-09: `read_gguf_header` became a model-level read that answers every split member with the first part's metadata) | NO DOOR YET: publish a per-file header read (`read_gguf_part`). No PR submitted |
 | `gateway/session_context.py` | `_SESSION_ASYNC_DELIVERY`, `_UNSET` | `agent_runtime/_upstream_doors.py::session_async_delivery_var` / `::session_async_delivery_unset` (call-time, lane W3-B), read by `agent_runtime/delivery_capability.py` (`declare_async_delivery_channel`, `async_delivery_declared`; lane MOVE-A) | NO DOOR YET: publish `declare_async_delivery_channel` / `async_delivery_declared` readers. a two-function upstream PR adding those two readers beside `declare_stateless_channel` / `async_delivery_supported` |

@@ -8,6 +8,7 @@ import json
 import time
 from pathlib import Path
 
+from agent_runtime import _upstream_doors as upstream
 from agent_runtime.redaction import scrub_secret_values
 from .model import VERSION, TAIL_BYTES, Refusal, SubagentError, validate_request
 from .output import read_public_tail
@@ -21,9 +22,7 @@ MAX_CHILDREN = 256
 
 
 def has_live_ancestor(record, parents):
-    from tools.delegate_tool_registry import _is_descendant_of
-
-    return not parents or any(_is_descendant_of(record.get("agent"), parent) for parent in parents)
+    return not parents or any(upstream.subagent_is_descendant(record.get("agent"), parent) for parent in parents)
 
 
 def same_native_profile(record, parent, home):
@@ -37,17 +36,15 @@ def same_native_profile(record, parent, home):
 
 
 def registry_snapshot() -> list[dict]:
-    from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
-
-    with _active_subagents_lock:
-        return [dict(record) for record in _active_subagents.values()]
+    records, lock = upstream.subagent_registry()
+    with lock:
+        return [dict(record) for record in records.values()]
 
 
 def still_registered(record: dict) -> bool:
-    from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
-
-    with _active_subagents_lock:
-        current = _active_subagents.get(record["subagent_id"])
+    records, lock = upstream.subagent_registry()
+    with lock:
+        current = records.get(record["subagent_id"])
         return current is not None and current.get("agent") is record.get("agent") and current.get("started_at") == record.get("started_at")
 
 
@@ -86,14 +83,11 @@ def inspect_records(operation, params, *, owner, visible, exact, revalidate):
 
 
 def inspect_native(operation: str, params: dict) -> dict:
-    from tui_gateway.server import _current_session_steer_authority, _session_uses_compute_host
-    from tui_gateway.methods_subagents import _visible_subagent_records
-    from tools.delegate_tool_registry import _subagent_transport_matches
     from hermes_constants import get_hermes_home
 
     validate_request(operation, params)
     session_id = params["session_id"]
-    transport, session = _current_session_steer_authority(session_id)
+    transport, session = upstream.subagent_session_authority(session_id)
     if session is None or transport is None:
         raise SubagentError(Refusal.WRONG_OWNER)
     owner = (params["owner_scope"], params["worker_generation"], str(get_hermes_home().resolve()),
@@ -102,21 +96,21 @@ def inspect_native(operation: str, params: dict) -> dict:
     def exact(record):
         return (record.get("owner_session_id") == session_id and
                 record.get("owner_session_record") is session and
-                _subagent_transport_matches(record, transport))
+                upstream.subagent_transport_matches(record, transport))
 
     def revalidate():
-        current_transport, current_session = _current_session_steer_authority(session_id)
+        current_transport, current_session = upstream.subagent_session_authority(session_id)
         if current_transport is not transport or current_session is not session:
             raise SubagentError(Refusal.WRONG_OWNER)
 
-    if session.get("_compute_host_active") or _session_uses_compute_host(session):
+    if session.get("_compute_host_active") or upstream.subagent_uses_compute(session):
         from .compute import observe
 
         data = observe(operation, params, owner)
         revalidate()
         return data
 
-    visible = [record for record in _visible_subagent_records(session_id, transport, session)
+    visible = [record for record in upstream.subagent_visible_records(session_id, transport, session)
                if exact(record) or same_native_profile(record, session.get("agent"), get_hermes_home().resolve())]
     return inspect_records(operation, params, owner=owner,
         visible=visible, exact=exact, revalidate=revalidate)
