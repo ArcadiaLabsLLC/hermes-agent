@@ -50,8 +50,6 @@ def _install_gateway_methods() -> None:
             install()
             from .worker_app_functions import install as install_app_functions
             install_app_functions()
-            from .worker_subagents import install as install_subagents
-            install_subagents()
             _installed = True
 
 

@@ -91,14 +91,11 @@ def inspect_native(operation: str, params: dict) -> dict:
     from tools.delegate_tool_registry import _subagent_transport_matches
     from hermes_constants import get_hermes_home
 
+    validate_request(operation, params)
     session_id = params["session_id"]
     transport, session = _current_session_steer_authority(session_id)
     if session is None or transport is None:
         raise SubagentError(Refusal.WRONG_OWNER)
-    # The optional compute process owns a different registry. Its supervisor
-    # currently has no owned-child read door; an empty local roster would lie.
-    if session.get("_compute_host_active") or _session_uses_compute_host(session):
-        raise SubagentError(Refusal.UNSUPPORTED_HOST)
     owner = (params["owner_scope"], params["worker_generation"], str(get_hermes_home().resolve()),
              session_id, id(session), id(transport))
 
@@ -111,6 +108,13 @@ def inspect_native(operation: str, params: dict) -> dict:
         current_transport, current_session = _current_session_steer_authority(session_id)
         if current_transport is not transport or current_session is not session:
             raise SubagentError(Refusal.WRONG_OWNER)
+
+    if session.get("_compute_host_active") or _session_uses_compute_host(session):
+        from .compute import observe
+
+        data = observe(operation, params, owner)
+        revalidate()
+        return data
 
     visible = [record for record in _visible_subagent_records(session_id, transport, session)
                if exact(record) or same_native_profile(record, session.get("agent"), get_hermes_home().resolve())]
