@@ -581,7 +581,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
-- [ ] **Qualify the selected TTS provider's requirement check against unselected cloud credentials.** · `tests/tools/test_tts_deepinfra.py::test_unselected_cloud_credentials_do_not_expose_edge_tool` expects false with an empty TTS config, unavailable Edge import and only `OPENAI_API_KEY`; `tools.tts_tool.check_tts_requirements()` returns true. Reproduced in isolation on unchanged main during 2026-10-12 reasoning-capability qualification (2 passed, 1 failed). Determine whether the provider requirement or the test's facade patch is stale before changing behavior. · `tools/tts_tool.py`, `tests/tools/test_tts_deepinfra.py` · UNCLAIMED **TAKEN 2026-10-15 w1015b-rt-h**
 
 ### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 
@@ -666,8 +665,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-03 (lane h-twins)
 
 ### Filed on arrival — 2026-10-03 (launcher lane rpc-census, filed by the orchestrator)
-- [ ] **Add read twins `runtime.characters.list/status/thumb/sprite` (read tier; pixels as a media-style payload, not a stdout envelope)** · `hermes_cli/harness_parts/characters/commands.py` · `EterniaLauncher/docs/mission_control/evidence/argv-census-full-2026-10-03.md` rows 16–19 · released 2026-10-10 (lane-1010 returned L4.25, too big; reason in `queue-sweep-2026-10-10/L4-outcomes.md`) · designed in `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.10 · built by build-1011-C3 (D2.10: f6ddc22c0d 67adcaf393 75da78162d); remaining: MOVE + four TIER_READ twins with media blocks and manifest params built; launcher stage remains (hermes_character_client.dart RPC-first, argv on Unavailable) · reason in `queue-sweep-2026-10-10/C3-outcomes.md` · released 2026-10-10 **TAKEN 2026-10-15 w1015b-rt-h**
-- [ ] **Add `runtime.board.card.add/move/edit/archive/restore` and `runtime.board.resolve_conflict`, console tier** · `hermes_cli/harness_parts/board.py` · `EterniaLauncher/docs/mission_control/evidence/argv-census-full-2026-10-03.md` rows 22–27 · released 2026-10-10 (lane-1010 returned L4.26, too big; reason in `queue-sweep-2026-10-10/L4-outcomes.md`) · designed in `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.11 · built by build-1011-C4 (D2.11: 904edb1105 53b623e684 e2a5bec6bc 3f1d6bee44); remaining: hermes half built (six console-tier runtime.board.* twins, manifest params published); launcher stage (harness_board_capabilities.dart RPC-first, argv on Unavailable) remains · reason in `queue-sweep-2026-10-10/C4-outcomes.md` · released 2026-10-10 **TAKEN 2026-10-15 w1015b-rt-h**
 
 ### Filed on arrival — 2026-10-03 (cold first-chat diagnosis, filed by the launcher orchestrator)
 
