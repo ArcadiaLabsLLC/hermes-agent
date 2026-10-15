@@ -734,7 +734,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-15 (Claude sol-prov landing)
 
 - [ ] **`settle.py` reads the stream emitter's private `_provider_first_byte_marked` to build `request_dispatched`.** `hermes_cli/harness_parts/persona/chat_turn_commit/settle.py` reaches into `chat_events.py`'s private flag; give the emitter a public `provider_first_byte_seen` property (or record dispatch on `TurnCommit` at first byte) so the dispatch-evidence contract has one owner · `hermes` · UNCLAIMED **TAKEN 2026-10-15 w1015-rt-h**
-- [ ] **The sol-prov landing compared base vs branch only on the 3 files that turned up suspects; the 92-file import-closure run (1459 passed / 21 failed on the branch, mostly missing `fastapi` in an ad-hoc venv) has no completed base run.** Re-run `tests/` that import `agent_runtime.provider_account*`, `provider_signin`, `mission_chat_outcome`, `persona_chat_history`, `chat_turn_commit`, `harness_parts.usage`, `provider_browser_login` in the managed environment and confirm no new reds · `hermes` · UNCLAIMED **TAKEN 2026-10-15 w1015-prov-h**
 
 ## Filed on arrival — 2026-10-15 (launcher QA provider check)
 
