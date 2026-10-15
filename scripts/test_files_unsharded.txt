@@ -1,5 +1,0 @@
-# Test files scripts/run_tests_bundled.py never splits by node id (fast-gate §3).
-# A file goes here when the runner printed it red sharded and green whole: its
-# tests depend on each other's order or state. One path per line; after `#`, the
-# observed diff the runner printed (which shards were red, with what). Each entry
-# is also a defect row: tests that need intra-file order are the thing to fix.
