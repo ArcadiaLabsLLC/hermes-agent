@@ -244,6 +244,11 @@ READ_ONLY_EXCLUDED_TOOLS: Mapping[str, tuple[str, ...]] = {
 #: sub-tab, or take the documented sparse-acceptance path) sat in a skill the
 #: persona was ALREADY granted and that was never put in context.
 #:
+#: Since owner ruling L1.13 (2026-10-10) the manual is NOT preloaded: it stays in
+#: the chat lane's skill index (``chat_lane_bundle.operating_skills``) and a turn
+#: reads it with ``skill_view`` on demand. The history below explains why the map
+#: is keyed here; "required-preload set" in it is that retired mechanism.
+#:
 #: Why the map lives here rather than in the skill's frontmatter
 #: -------------------------------------------------------------
 #: ``metadata.hermes.load_policy: required_preload`` is the right mechanism for

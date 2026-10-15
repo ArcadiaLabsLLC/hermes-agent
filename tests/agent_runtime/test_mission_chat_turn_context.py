@@ -134,7 +134,6 @@ def _resolvers(**overrides) -> MissionChatTurnResolvers:
             "turn_budget": _kw["turn_budget"],
             CAPABILITY_HUD_KEY: _kw["capability"],
         },
-        admitted_operating_skills=lambda _persona, **_kw: [],
         admission_line=lambda _persona, **_kw: "- MCP: launcher_qa (not admitted).",
         tool_contract=lambda _persona, **_kw: {"enabled_toolsets": ["search"]},
         permission_state=lambda _persona, **_kw: {"mode": "profile_default"},
@@ -371,65 +370,6 @@ def test_the_skill_preload_is_consumed_once_and_delivered_inside_its_envelope():
     assert context.skill_preload_prompt.endswith("</skill_preload>")
     assert context.skills.delivery == "snapshot"
     assert context.skills.revision.startswith("skills_")
-
-
-def test_an_admitted_mcp_surface_brings_its_operating_manual_into_the_preload():
-    """Live failure, 2026-07-29: a QA turn drove the admitted ``launcher_qa``
-    surface, hit ``helper_low_information_capture``, and burned the turn — with
-    the skill documenting that exact remedy granted to the persona and never in
-    context. An admitted surface's manual is required-preload FOR THAT TURN."""
-
-    context = _build(
-        persona=_persona(
-            id="qa", role="qa", skills=("harness-qa-verdict", "launcher-stagec-mcp-screenshot")
-        ),
-        resolvers=_resolvers(
-            required_preload_skills=lambda _skills: ["harness-runtime-model"],
-            admitted_operating_skills=lambda _persona, **_kw: [
-                "launcher-stagec-mcp-screenshot"
-            ],
-        ),
-    )
-
-    # Standing policy first, the turn's admitted manual after it, both marked
-    # required so the loader renders the stronger runtime-policy activation note.
-    assert context.skills.required == (
-        "harness-runtime-model",
-        "launcher-stagec-mcp-screenshot",
-    )
-    assert "launcher-stagec-mcp-screenshot" in context.skills.loaded
-    assert "launcher-stagec-mcp-screenshot" in context.skill_preload_prompt
-
-
-def test_a_turn_with_nothing_admitted_preloads_exactly_what_it_did_before():
-    """The flag-off / not-admitted / not-granted turn — every turn today — must
-    be byte-identical to the pre-change preload."""
-
-    context = _build(resolvers=_resolvers(admitted_operating_skills=lambda _p, **_kw: []))
-
-    assert context.skills.required == ("harness-dev-delivery",)
-    assert context.skills.loaded == ("harness-dev-delivery", "queued-skill")
-
-
-def test_a_manual_that_is_also_standing_policy_is_loaded_once():
-    context = _build(
-        resolvers=_resolvers(
-            required_preload_skills=lambda _skills: ["launcher-stagec-mcp-screenshot"],
-            admitted_operating_skills=lambda _p, **_kw: ["launcher-stagec-mcp-screenshot"],
-        )
-    )
-
-    assert context.skills.required == ("launcher-stagec-mcp-screenshot",)
-    assert context.skills.loaded == ("launcher-stagec-mcp-screenshot", "queued-skill")
-
-
-def test_an_operating_skill_resolution_fault_degrades_the_turn_but_never_fails_it():
-    def _boom(_persona, **_kw):
-        raise RuntimeError("the admission policy is wedged")
-
-    context = _build(resolvers=_resolvers(admitted_operating_skills=_boom))
-
-    assert context.skills.required == ("harness-dev-delivery",)
 
 
 def test_a_skill_preload_fault_degrades_the_turn_but_never_fails_it():
@@ -755,7 +695,6 @@ def test_the_default_resolvers_bind_the_canonical_authorities():
         "load_workspace_agents": (load_workspace_agents_context.__name__, False),
         "situational_hud": (runtime_hud.situational_hud_for_instance.__name__, False),
         "lane_workspace": (runtime_hud.lane_workspace_for_instance.__name__, False),
-        "admitted_operating_skills": ("mission_chat_operating_skills", True),
         "capability_block": ("capability_block_for_persona", True),
         "admission_line": ("mission_chat_admission_line", True),
         "permission_state": ("permission_state_for_chat", True),

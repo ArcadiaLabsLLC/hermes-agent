@@ -250,7 +250,6 @@ def _parity_resolvers():
         load_workspace_agents=lambda _agents_file: None,
         capability_block=lambda _persona, **_kw: {},
         situational_hud=lambda _instance, **_kw: {},
-        admitted_operating_skills=lambda _persona, **_kw: [],
         admission_line=lambda _persona, **_kw: "",
         tool_contract=lambda _persona, **_kw: {"enabled_toolsets": ["search"]},
         permission_state=lambda _persona, **_kw: {"mode": "unbounded"},
