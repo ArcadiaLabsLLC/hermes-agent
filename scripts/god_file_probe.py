@@ -879,6 +879,18 @@ def compare_sets(gate: str, live: set[str], fixture: set[str]) -> Drift:
     return Drift(gate, sorted(live - fixture), [], sorted(fixture - live))
 
 
+def compare_name_groups(gate: str, live: set[str], fixture: set[str]) -> Drift:
+    """:func:`compare_sets` for ``"name: owner, ..."`` rows, where a group that LOST an owner
+    is a shrink (its old row STALE, the new one not NEW) so ``--write-fixtures`` records it."""
+    def split(row: str) -> tuple[str, frozenset[str]]:
+        name, _, owners = row.partition(": ")
+        return name, frozenset(owners.split(", "))
+    recorded = [split(row) for row in fixture]
+    new = [row for row in live - fixture if not any(
+        name == split(row)[0] and split(row)[1] <= owners for name, owners in recorded)]
+    return Drift(gate, sorted(new), [], sorted(fixture - live))
+
+
 def size_live(root: Path = ROOT) -> dict[str, tuple[int, ...]]:
     return {p: (n,) for p, n in size_census(root).items()}
 
@@ -926,7 +938,7 @@ def all_drift(root: Path = ROOT) -> list[Drift]:
     bodies, names = duplicate_live(root)
     fixture_bodies, fixture_names = duplicate_fixture()
     out.append(compare_sets("W0-G3 duplicate bodies", bodies, fixture_bodies))
-    out.append(compare_sets("W0-G3 helper names", names, fixture_names))
+    out.append(compare_name_groups("W0-G3 helper names", names, fixture_names))
     layers = layer_census(root)
     fixture_layers = layer_fixture()
     for key in ("undeclared", "harness_imports", "private_upstream_imports"):

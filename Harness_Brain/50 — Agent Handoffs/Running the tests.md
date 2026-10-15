@@ -13,7 +13,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 ## The commands
 
 ```bash
-python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
+$HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
@@ -24,6 +24,13 @@ python scripts/dump_payload_contract.py --check                 # after any char
 python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
+
+**A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
+`python` on this box is the system Python 3.12 without the test venv, so its import errors are
+false reds; use the shared venv (`HERMES_PYTHON`, the venv under `~/.venvs/hermes-test`) or `scripts/run_tests.sh <file>`. `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
+`write_text`/`open` with no `encoding=`: a file red under the venv's bare pytest and green under
+`run_tests.sh` is that difference, not a product bug — check it before filing a row (L6.19, L6.25,
+L4.01 in `queue-sweep-2026-10-10/`).
 
 **Upstream-PR and sync lanes pin the base by SHA and own their uv cache.** Run
 `UV_CACHE_DIR=<lane scratch>/uv-cache python scripts/check --base <sha>`, with the SHA read once
@@ -190,7 +197,11 @@ five habits cost about 390 minutes a day.
   the first costs both a re-merge and a second gate run.
 
 ## What a lane runs, and what it never runs
-
+- **A contract change runs the tests that pin it, and the producer names them** (owner ruling
+  2026-10-10, convention, no gate). A producer of a pinned contract — an envelope, a snapshot set,
+  an event count, an argv, a producer walk — carries the pinning test files in its docstring, and a
+  lane that changes the producer runs those files with its touched tests. Four contract-moving lanes
+  left their pins red before this (`d677799521`).
 - **While implementing:** `ruff` (or `pyflakes`) on the touched modules, foreground, explicit
   timeout. Nothing heavier.
 - **At the end of the lane, before the report:** ONLY the test files that import a module you
