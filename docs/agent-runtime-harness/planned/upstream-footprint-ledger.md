@@ -419,6 +419,10 @@ requires a new applicability review; missing refs never count as clean. Fragment
 checks cover reviewed additions only; independent fork substitutions and removals
 remain explicit manual-review boundaries.
 
+Upstream closed seven test-carry PRs unmerged (#121218, #121220, #121221, #121222, #121241,
+#121244, #121246; #121223 merged). Owner ruling 2026-10-15: those fix classes stay the fork's own
+carries; they are not re-filed upstream, and a merge lane keeps their fork lines.
+
 The current #124191 skills redesign requires upstream tiered roots absent here;
 keep the writable shared-root implementation pending integration. Public-name and
 generic hook PRs listed as retirement targets are not imported as new features.
