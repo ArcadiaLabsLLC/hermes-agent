@@ -726,7 +726,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (launcher lane w1015-misc-l)
 
-- [ ] **`history.pending` never answers on the owner install (`7dd9f676fc5`): the Launcher logs `[ConsoleHistory] history_unavailable stage=runtime reason=rpc_timeout` twice per new Base chat (live 2026-10-15, release `89e675ef6a`)** · launcher side done (loads bounded, sends unblocked) · launcher MC queue row 'A brand-new Base chat is refused' **TAKEN 2026-10-15 w1015b-con-x**
 
 ## Filed on arrival — 2026-10-15 (owner rulings: hermes builds first for the Agent Console)
 
