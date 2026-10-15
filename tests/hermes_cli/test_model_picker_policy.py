@@ -104,3 +104,31 @@ def test_picker_cache_follows_the_profile_home_override(tmp_path, monkeypatch):
         )
     finally:
         reset_hermes_home_override(token)
+
+
+def _expiring_token(account: str, exp: float) -> str:
+    claims = {"https://api.openai.com/auth": {"chatgpt_account_id": account}, "exp": exp}
+    encoded = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+    return f"header.{encoded}.signature"
+
+
+def test_unavailable_carries_a_typed_reason(monkeypatch):
+    """An ``unavailable`` answer says WHY: an expiring token is transient (probe again after the
+    runtime refreshes), a missing one is not, a live one whose catalog failed is a third case."""
+    import time
+
+    monkeypatch.setattr(model_picker_policy, "get_verified_codex_model_ids", lambda value: None)
+    monkeypatch.setattr(auth_codex, "_read_codex_tokens",
+                        lambda: {"tokens": {"access_token": _expiring_token("a", time.time() + 30)}})
+    assert model_picker_policy_for("openai-codex")["error"] == "credential_expiring"
+    monkeypatch.setattr(auth_codex, "_read_codex_tokens",
+                        lambda: {"tokens": {"access_token": _expiring_token("a", time.time() + 3600)}})
+    assert model_picker_policy_for("openai-codex")["error"] == "catalog_unverified"
+    monkeypatch.setattr(auth_codex, "_read_codex_tokens", dict)
+    monkeypatch.setattr(auth_codex, "_pool_codex_credential", lambda: ("", ""))
+    policy = model_picker_policy_for("openai-codex")
+    assert (policy["catalog_mode"], policy["error"]) == ("unavailable", "credential_missing")
+    monkeypatch.setattr(model_picker_policy, "get_verified_codex_model_ids", lambda value: ["m"])
+    monkeypatch.setattr(auth_codex, "_read_codex_tokens",
+                        lambda: {"tokens": {"access_token": _expiring_token("a", time.time() + 3600)}})
+    assert "error" not in model_picker_policy_for("openai-codex")
