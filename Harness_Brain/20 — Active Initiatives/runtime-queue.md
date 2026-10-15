@@ -72,7 +72,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-10 (build batch 1, build-1011-B1..B5, filed by the orchestrator)
 
-- [ ] **`idle_turn_keeper` arms only after a serve's first `request_sent`, so idle write-backs (the D1.05 CF-2 frontmatter flush) never run in a serve that takes no turn, or in any CLI child** · fork / boot and idle · design-sweep-d1 § D1.05 build record (build-1011-B2) · lane: one idle-flush owner armed at boot or drain **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: one idle-flush owner armed at boot needs serve boot (`harness_parts/serve/boot.py`, inside w1015-prov-h's fence this wave) plus a story for CLI children; re-claim after prov-h lands. · UNBLOCKED 2026-10-15: w1015-prov-h landed on hermes main (a1bc725068e, 60abe1792cf); serve boot is free to re-claim **TAKEN 2026-10-15 w1015e-rt-h**
 - [ ] **No CLI-to-serve RPC client: an argv write verb that should be RPC-first can only read the store directly in its own process (`harness serve settles rearm`)** · fork / RPC lane · build-1011-B3 D2.05 S3 (`settle_commands.py`) · lane: argv→RPC client door **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: a CLI-to-serve RPC client is a new transport surface (auth, socket discovery, fallback when no serve); design first (D2.05 S3). · CHECKED 2026-10-15: blocked on the D2.05 S3 design (auth, socket discovery, no-serve fallback)
 
 ### Filed on arrival — 2026-10-10 (Fable design sweep D1–D3, filed by the orchestrator)

@@ -18,7 +18,11 @@ the memo, for ONE loader family at a time, persists ``{path: [stamp, value]}``
 to ``<store_root>/derived_cache/<file>``: loaded once per process on the first
 memo miss, validated per entry by the SAME stamp the memo keys on (a stale
 entry misses and re-parses), written back only by :meth:`DiskTier.flush`, which
-the family's owner schedules on an idle path -- never the turn thread. A value
+the family's owner schedules on an idle path -- never the turn thread -- and
+which this module also runs once at interpreter exit for every tier with
+unflushed loads (:func:`flush_disk_tiers`), so a process that never idles (a
+CLI child, a serve that exits before its first tick) still leaves its parses
+for the next one. A value
 that does not survive a JSON round trip unchanged (a YAML date, an int key) is
 served from memory and never persisted, so a disk hit is always the value a
 fresh parse would return.
@@ -26,6 +30,7 @@ fresh parse would return.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
@@ -95,6 +100,28 @@ DISK_TIER_VERSION = 1
 _DISK_TIER_PRUNE_AT = 16384
 
 _DISK_TIERS: list["DiskTier"] = []
+_EXIT_FLUSH = {"armed": False}
+
+
+def flush_disk_tiers() -> list[str]:
+    """Flush every tier's unflushed loads; the filenames that wrote. Never raises."""
+
+    wrote = []
+    for tier in list(_DISK_TIERS):
+        try:
+            if tier.flush():
+                wrote.append(tier.filename)
+        except Exception:
+            continue
+    return wrote
+
+
+def _arm_exit_flush() -> None:
+    """The first fresh load of a process registers the one exit-time flush."""
+
+    if not _EXIT_FLUSH["armed"]:
+        _EXIT_FLUSH["armed"] = True
+        atexit.register(flush_disk_tiers)
 
 
 def _derived_cache_target(filename: str) -> Path | None:
@@ -172,6 +199,7 @@ class DiskTier:
                 row = [list(key[1:]), value]
                 self._entries[key[0]] = row
                 self._delta[key[0]] = row
+            _arm_exit_flush()
             if self._on_dirty is not None:
                 self._on_dirty()
         except Exception:

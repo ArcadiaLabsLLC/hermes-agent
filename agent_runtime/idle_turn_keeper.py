@@ -18,7 +18,8 @@ connection; the next turn, 10 s later, 481 ms on a pooled one. Two causes, both 
 **What this module does.** It knows when a turn is between its anchor and ``request_sent``
 (:func:`note_window_opened` / :func:`note_window_closed`, from
 ``mission_chat_phases.TurnPhaseMarks``), and holds ONE daemon thread, armed by every
-``request_sent`` in a process that keeps resident chats (a serve). Every
+``request_sent`` -- and by a disk tier's unflushed load, so a serve that takes no turn still
+writes back -- in a process that keeps resident chats (a serve). Every
 :data:`KEEPER_INTERVAL_SECONDS`, at most :data:`KEEPER_MAX_TICKS` times after the last send, a tick
 that finds no turn window open runs every registered refresh (each refreshes its own memo only
 when it is old enough to lapse before the next tick) and sends one ``HEAD`` on the most recently
