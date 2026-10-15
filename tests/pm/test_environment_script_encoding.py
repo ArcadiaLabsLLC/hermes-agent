@@ -13,7 +13,7 @@ import sys
 
 import pytest
 
-import pm.environments as environments
+from pm import environments
 
 VALUE = "/home/Łukasz/日本"
 

@@ -16,7 +16,7 @@ import pm.environment as environment_mod
 from pm.environment import PythonEnvironment
 
 LOCKED = ("error: Failed to install: pillow_heif-1.6.0-cp314-cp314-win_amd64.whl\n"
-          "  Caused by: failed to remove directory `env\Lib\site-packages\pillow_heif-1.6.0.data`: "
+          "  Caused by: failed to remove directory `env/Lib/site-packages/pillow_heif-1.6.0.data`: "
           "The process cannot access the file because it is being used by another process. (os error 32)")
 
 
