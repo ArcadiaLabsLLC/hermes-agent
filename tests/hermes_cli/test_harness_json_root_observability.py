@@ -124,6 +124,8 @@ LEDGER: dict[str, str] = {
         "_cmd_office_resolve_conflict",
         # harness_parts/persona/ (lane H3 split persona_commands.py)
         "_cmd_persona_list", "_cmd_persona_show", "_cmd_persona_tool_diff",
+        # the profile:<name> branch of tool_diff (w1015b-con-x, 7c6d1e1fce6)
+        "_cmd_profile_permission_preview",
         "_cmd_persona_permission_set", "_cmd_persona_assignments",
         "_cmd_persona_assignment_task_id_migration",
         "_cmd_persona_instance_create", "_cmd_persona_instance_open_chat",
