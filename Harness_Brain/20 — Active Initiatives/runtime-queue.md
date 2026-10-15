@@ -59,7 +59,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
-- [ ] **Follow-on: support chat-specific reasoning effort through the existing operator model-settings verb and session override, so one chat can be quick and another deep without changing their agent default.** · `agent_runtime/operator_session_models.py::_select_operator_model`, `agent_runtime/persona_chat_session.py::_persist_chat_model_override` · current selection accepts model/scope only; use the existing provider capability projection for valid effort levels, preserve inherited defaults and busy-turn/ownership refusals, return effective scope in existing facts and verify persistence plus other-chat isolation · Launcher consumes after Hermes; separate from the claimed provider-capability projection row · owner recommendation 2026-10-12, nonblocking for model selection · UNCLAIMED **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: blocked on the provider-capability projection row (valid effort levels) and a launcher consumer; build after that row lands. · CHECKED 2026-10-15: blocked on a provider-capability projection of valid effort levels — no open Harness_Brain queue row names that projection · UNBLOCKED 2026-10-15 (w1015e-rt-h): the projection exists — 7bd2769236e publishes `reasoning_capabilities` (levels per provider/model, `agent_runtime/reasoning_capabilities.py`) in the operator model facts **TAKEN 2026-10-15 w1015i-rt**
 
 ### Filed on arrival — 2026-10-12 (composer thinking meter)
 
