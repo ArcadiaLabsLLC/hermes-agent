@@ -221,7 +221,8 @@ def test_v2_consumers_see_an_unchanged_payload_minus_catalog(monkeypatch):
 
     payload = provider_visibility.build_provider_visibility()
     assert payload["schema"] == "hermes.provider_visibility/v2"
-    assert set(payload) - {"catalog", "local_llama"} == {
+    # `dependencies` (w1015b-con-x, 8f2d79a87ba): additive — the missing provider SDKs.
+    assert set(payload) - {"catalog", "local_llama", "dependencies"} == {
         "schema",
         "providers",
         "environment",
