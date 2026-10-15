@@ -27,7 +27,11 @@ from agent_runtime.chat_lane_bundle import chat_lane_capability_drops
 from agent_runtime.tool_permissions import (
     ChatToolPermissionStore,
     default_permission_mode,
+    extra_blocked_tools_for_permission_mode,
+    is_profile_subject,
     permission_state_for_chat,
+    permission_state_for_subject,
+    profile_subject_name,
 )
 from agent_runtime.tool_visibility import ToolVisibilityOptions, resolve_tool_visibility
 from hermes_cli.harness_support import emit_harness_error
@@ -112,7 +116,35 @@ def _cmd_persona_show(args) -> int:
     return 0
 
 
+def _profile_subject_refusal(args) -> bool:
+    """A ``profile:<name>`` subject naming no live profile: refuse it, like an unknown persona."""
+    from hermes_cli.profiles import profile_exists
+
+    if profile_exists(profile_subject_name(str(args.persona_id))):
+        return False
+    data = {"ok": False, "error": f"profile not found: {profile_subject_name(str(args.persona_id))}"}
+    emit_operation_result(args, data, data["error"])
+    return True
+
+
+def _cmd_profile_permission_preview(args) -> int:
+    """A PROFILE conversation's preview (D2.07 decision 7): the mode and its blocked names, no
+    persona toolset to diff. A requested mode previews that mode; none previews the record."""
+    if _profile_subject_refusal(args):
+        return 2
+    subject, session_id = str(args.persona_id), str(args.session_id or "")
+    state = permission_state_for_subject(subject, session_id=session_id)
+    requested = str(args.permission_mode or "").strip()
+    if requested:
+        state = {**state, "mode": requested, "source": "cli_preview",
+                 "blocked_tools": extra_blocked_tools_for_permission_mode(requested)}
+    emit_operation_result(args, {"ok": True, "permission_state": state})
+    return 0
+
+
 def _cmd_persona_tool_diff(args) -> int:
+    if is_profile_subject(str(args.persona_id or "")):
+        return _cmd_profile_permission_preview(args)
     cfg = load_agent_runtime_config()
     persona = _persona_by_id(cfg, str(args.persona_id or ""))
     if persona is None:
@@ -332,18 +364,26 @@ def _surface_lines(surface: dict) -> list[str]:
 
 
 def _cmd_persona_permission_set(args) -> int:
-    cfg = load_agent_runtime_config()
-    persona = _persona_by_id(cfg, str(args.persona_id or ""))
-    if persona is None:
-        data = {"ok": False, "error": f"persona not found: {args.persona_id}"}
-        emit_operation_result(args, data, data["error"])
-        return 2
+    profile = is_profile_subject(str(args.persona_id or ""))
+    if profile:
+        if _profile_subject_refusal(args):
+            return 2
+        persona = None
+        subject = str(args.persona_id)
+    else:
+        cfg = load_agent_runtime_config()
+        persona = _persona_by_id(cfg, str(args.persona_id or ""))
+        if persona is None:
+            data = {"ok": False, "error": f"persona not found: {args.persona_id}"}
+            emit_operation_result(args, data, data["error"])
+            return 2
+        subject = persona.id
     expires_at = str(args.expires_at or "").strip() or None
     ttl_seconds = getattr(args, "ttl_seconds", None)
     if expires_at is None and ttl_seconds is not None and ttl_seconds > 0:
         expires_at = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat().replace("+00:00", "Z")
     record = ChatToolPermissionStore().set(
-        persona_id=persona.id,
+        persona_id=subject,
         session_id=str(args.session_id or ""),
         mode=str(args.mode or "profile_default"),
         reason=str(args.reason or ""),
@@ -363,7 +403,9 @@ def _cmd_persona_permission_set(args) -> int:
             "expires_at": record.expires_at or None,
             "turns_remaining": record.turns_remaining,
         },
-        "permission_state": permission_state_for_chat(persona, session_id=record.session_id),
+        "permission_state": (
+            permission_state_for_subject(subject, session_id=record.session_id) if profile
+            else permission_state_for_chat(persona, session_id=record.session_id)),
     }
     if args.json:
         emit_operation_result(args, data)

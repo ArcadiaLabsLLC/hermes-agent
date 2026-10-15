@@ -193,9 +193,18 @@ class ConversationService:
     def _facts(self, route, snapshot: dict, inventory: dict) -> dict:
         from hermes_cli.config import is_managed
 
+        from agent_runtime.tool_permissions import permission_state_for_subject
+        from .model import permission_subject
+
+        # The permission the Console's control binds to (D2.07 decision 8): the same
+        # resolver as the operator lane, read without consuming a turns-bounded grant;
+        # `runtime.persona.permission.set(persona_id=<subject>, session_id=<route id>)` writes it.
+        permission = permission_state_for_subject(permission_subject(route), session_id=route.id)
         return {**model_facts(route.id, snapshot, inventory),
                 "default_model_id": model_preferences.default_id(Path(route.home), self.auth_home),
-                "can_save_model_default": not is_managed()}
+                "can_save_model_default": not is_managed(),
+                "permission": {key: permission[key] for key in (
+                    "subject", "mode", "source", "expired", "turns_remaining", "expires_at")}}
 
     def select_model(self, scope: ConversationScope, session_id: str, model_id: str,
                      *, save_default: bool = False) -> dict:

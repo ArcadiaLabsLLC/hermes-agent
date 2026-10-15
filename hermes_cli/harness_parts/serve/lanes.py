@@ -75,12 +75,16 @@ def accept_chat_turn(request: _ArgvRequest) -> Any:
 
 def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
     """``run(request)`` on the pool -- a chat turn on its own lane (``RequestPool.submit_turn``,
-    lane h-pool-starve), anything else on the shared one; a submit that raises
+    lane h-pool-starve), a standing ``harness stream`` on its own (``submit_stream``, lane
+    w1015b-con-x: it never returns, so on the shared lane it starved every deferred reply),
+    anything else on the shared one; a submit that raises
     releases the request's hold."""
 
     try:
         if request.is_chat_turn:
             return pool.submit_turn(run, request)
+        if request.is_runtime_stream:
+            return pool.submit_stream(run, request)
         return pool.submit(run, request)
     except BaseException:
         if request.accepted is not None:

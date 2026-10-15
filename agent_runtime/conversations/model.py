@@ -87,6 +87,14 @@ class ConversationRoute:
     worker_created: float = 0
 
 
+def permission_subject(route: ConversationRoute) -> str:
+    """The permission store's subject for this conversation (design D2.07 decision 2): its
+    profile's ``profile:<name>`` today; an instance-owned route returns its persona id later."""
+    from agent_runtime.tool_permissions import profile_permission_subject
+
+    return profile_permission_subject(route.profile)
+
+
 @dataclass(frozen=True, slots=True)
 class TurnReceipt:
     conversation_id: str

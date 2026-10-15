@@ -340,6 +340,13 @@ class _ChatProtocolV2Emitter:
         self._finishing = False
         self._finished = False
         self._seq = 0
+        # The FRAME ordinal, distinct from the element ``seq`` above: every frame
+        # this emitter writes carries the next ``frame_seq`` (1, 2, 3 … per turn,
+        # assigned under the emit lock in write order), so a consumer drops a
+        # replayed frame by ``(turn_id, frame_seq)`` — ``seq`` cannot do that,
+        # because a segment's start, every delta and its end share one ``seq``
+        # (launcher row "stream seq not per-frame", 2320bea5bd).
+        self._frame_seq = 0
         self._started_at = time.monotonic()
         self._current_segment: dict[str, object] | None = None
         self._segment_count = 0
@@ -856,7 +863,8 @@ class _ChatProtocolV2Emitter:
             # escape after finish; segment/end frames must still settle.
             if self._finished and payload.get("type") in {"turn.progress", "tool.progress"}:
                 return
-            self._turn_context.run(_emit_chat_frame, payload)
+            self._frame_seq += 1
+            self._turn_context.run(_emit_chat_frame, {**payload, "frame_seq": self._frame_seq})
 
 
 

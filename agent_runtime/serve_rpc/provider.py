@@ -37,6 +37,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "PROVIDER_CONTRACT",
+    "_runtime_provider_dependency_install",
     "_runtime_provider_list",
     "_runtime_provider_refresh",
     "_runtime_provider_signin_begin",
@@ -128,6 +129,18 @@ def _runtime_provider_usage(rid: Any, params: dict, context: RpcContext | None =
     if refusal is not None:
         return refusal
     return _off_reader(rid, "runtime.provider.usage", context, lambda: provider_account.provider_usage(provider))
+
+
+@method("runtime.provider.dependency.install", tier=TIER_CONSOLE)
+def _runtime_provider_dependency_install(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Install the provider's one missing SDK extra into this runtime's environment. Params: ``provider``."""
+    from agent_runtime import provider_dependencies
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.dependency.install", params)
+    if refusal is not None:
+        return refusal
+    return _off_reader(rid, "runtime.provider.dependency.install", context,
+                       lambda: provider_dependencies.install_provider_dependency(provider))
 
 
 # ── sign-in session ──────────────────────────────────────────────────────────
