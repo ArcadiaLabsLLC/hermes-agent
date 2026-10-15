@@ -84,7 +84,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 
 - [ ] **Word-based redaction, the CLASS (third instance): a secret WORD still blanks whole text in `profile_runner/dispatch_payloads.py` (`_line_has_secret` / `_OPERATOR_SECRET_MARKERS`) and in `progress._looks_sensitive` / `_looks_sensitive_or_pathish` (reasoning, dispatch, skill-name, scalar fields); the answer is one value-redactor (`redaction.scrub_secret_values`) for every lane and the word lists deleted** · fork / redaction · `a325b7c08e` body (L2.21 moved the command, output, target and path lanes) · lane: redaction one owner **TAKEN 2026-10-15 w1015-rt-h**
-- [ ] **The queued-turn peer map (`_queued_turn_settle_peers`) has no expiry: a gateway-origin entry that requeues, or whose settle is never pushed, keeps its sink referenced until the next push for that rid** · fork / chat queue · `hermes_cli/harness_parts/serve/queued_turn_origin.py::queued_turn_peer` (L5.14) · lane: busy-root queue **TAKEN 2026-10-15 w1015-rt-h**
 
 ### Filed on arrival — 2026-10-10 (release merge v0.21.6 reds)
 
