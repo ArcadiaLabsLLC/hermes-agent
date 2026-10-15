@@ -25,7 +25,7 @@ def _extend(tmp_path: Path, listing: str, env: dict) -> subprocess.CompletedProc
     door = (REPO / "scripts" / "_fork_test_env.sh").as_posix()
     script = f'. "{door}"; TEST_ENV=(PRE=1); fork_test_env_extend "{lst.as_posix()}"; rc=$?; ' \
              'printf "%s\\n" "${TEST_ENV[@]}"; exit $rc'
-    return subprocess.run([BASH, "-c", script], env={**os.environ, **env}, capture_output=True, text=True, timeout=60)
+    return subprocess.run([BASH, "-c", script], env={**os.environ, **env}, capture_output=True, text=True, timeout=60, check=False)
 
 
 @pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")

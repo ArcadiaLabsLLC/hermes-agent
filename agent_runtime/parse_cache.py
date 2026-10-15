@@ -107,7 +107,7 @@ def flush_disk_tiers() -> list[str]:
     """Flush every tier's unflushed loads; the filenames that wrote. Never raises."""
 
     wrote = []
-    for tier in list(_DISK_TIERS):
+    for tier in list(_DISK_TIERS):  # noqa: PERF101 — snapshot: the idle flusher runs off-thread while a tier may register
         try:
             if tier.flush():
                 wrote.append(tier.filename)
