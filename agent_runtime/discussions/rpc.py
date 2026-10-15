@@ -5,7 +5,8 @@ import logging
 import sqlite3
 from typing import Any
 
-from gateway.hosted_room_discussion import DiscussionReconstructionError, DiscussionValidationError
+from gateway.hosted_room_discussion import DiscussionPolicyError, DiscussionReconstructionError, DiscussionValidationError
+from gateway.hosted_room_driver import DriverStateError
 from gateway.hosted_rooms import HostedRoomError
 
 from .contract import CONTRACT_VERSION, METHODS, PREFIX, contract_descriptor, validate_params
@@ -73,16 +74,28 @@ def register(method, ok, err) -> None:
             except ConversationError as exc:
                 return err(rid, 4090, "The agent's response could not be confirmed. Check the pending request.",
                            {"reason": str(exc.reason)})
-            except (DiscussionValidationError, DiscussionReconstructionError) as exc:
+            except DiscussionPolicyError as exc:
                 # Room policy raises plain ValueError subclasses that reach reads
                 # (run.get / run.active / run.list) outside any command's own
                 # refusal handling. Without this arm they land on serve_rpc's
                 # generic boundary as ``handler_failed`` carrying the raw
                 # exception text, which is neither branchable nor safe to show.
-                reason = ("discussion_invalid" if isinstance(exc, DiscussionValidationError)
-                          else "discussion_unreconstructable")
+                # Caught at the BASE, so a future subclass is typed too.
+                if isinstance(exc, DiscussionValidationError):
+                    reason = "discussion_invalid"
+                elif isinstance(exc, DiscussionReconstructionError):
+                    reason = "discussion_unreconstructable"
+                else:
+                    reason = "discussion_policy_refused"
                 logger.warning("Discussion policy refused %s: %s", operation, reason)
                 return err(rid, 4090, "This discussion's state could not be read; reload it.", {"reason": reason})
+            except DriverStateError as exc:
+                # The hosted-room driver's typed family (lease, task, room-gone
+                # conflicts). Same boundary rule: a typed reason, never raw text.
+                reason = "room_driver_" + type(exc).__name__.removesuffix("Error").lower()
+                logger.warning("Hosted room driver refused %s: %s", operation, reason)
+                return err(rid, 4090, "This meeting room changed underneath the request; reload it.",
+                           {"reason": reason})
             except HostedRoomError as exc:
                 # Same class of escape from the hosted-room store itself. Typed
                 # subclasses already name themselves; the rest are one reason.

@@ -96,3 +96,39 @@ def test_typed_definition_refusals_are_unchanged_by_the_new_arms(engine, monkeyp
 
     assert missing["error"]["code"] == -32602
     assert missing["error"]["data"]["reason"] == "definition_not_found"
+
+
+@pytest.mark.parametrize(
+    ("raised", "reason"),
+    [
+        ("policy_base", "discussion_policy_refused"),
+        ("lease_held", "room_driver_leaseheld"),
+        ("room_gone", "room_driver_roomunavailable"),
+    ],
+)
+def test_the_policy_base_and_the_driver_family_reach_the_wire_typed(engine, monkeypatch, raised, reason):
+    """D3 typed the policy refusal by SUBCLASS; the base and the hosted-room driver's
+    ``DriverStateError`` family fell through to ``handler_failed`` with raw text."""
+    from gateway.hosted_room_discussion import DiscussionPolicyError
+    from gateway.hosted_room_driver import LeaseHeldError, RoomUnavailableError
+
+    error = {
+        "policy_base": DiscussionPolicyError,
+        "lease_held": LeaseHeldError,
+        "room_gone": RoomUnavailableError,
+    }[raised]
+    service, _ctx = engine
+    run = begin(service)
+    wait_until(lambda: settled(service, run))
+    handler = _handlers(service, monkeypatch)["runtime.discussion.run.get"]
+    params = {"workspace_id": "ws", "run_id": run["run_id"]}
+
+    def refuse(*_args, **_kwargs):
+        raise error("secret internal detail")
+
+    monkeypatch.setattr(service, "view", refuse)
+    refused = handler(1, params, CONTEXT)
+
+    assert refused["error"]["code"] == 4090
+    assert refused["error"]["data"] == {"reason": reason}
+    assert "secret internal detail" not in refused["error"]["message"]
