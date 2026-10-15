@@ -295,70 +295,104 @@ def run(
         files, repo_root, bundle_size, set(unbundled) | policy.alone(),
         durations=durations, bundle_seconds=bundle_seconds, solo_seconds=solo_seconds,
     )
-    ledger = plan.RunLedger()
-    solo_seq = iter(range(1 << 30))
-
-    lock = threading.Lock()
-    outcomes: list[FileOutcome] = []
-    leaks: list[Leak] = []
-    bundle_walls: list[tuple[int, float, int]] = []
-    deaths: list[Death] = []
+    state = _Run(pytest_args, repo_root, policy, bundles, durations, flat_timeout, known_reds or {},
+                 bundle_runner, solo_runner, on_outcome)
     first_pass_bundles = len(bundles)
-    futures: list[Future] = []
-    reruns = 0
-    scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
 
-    def _record(outcome: FileOutcome) -> None:
-        for done in policy.join(outcome, _solo):  # a shard waits for its siblings
-            with lock:
-                outcomes.append(done)
-            if on_outcome is not None:
-                on_outcome(done)
+    solo_order, bundle_order = _first_pass_order(bundles, solos, repo_root, durations)
+    with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+        with state.lock:
+            state.futures.extend(executor.submit(state.solo, path, via, None) for path, via in policy.jobs(solo_order))
+            state.futures.extend(executor.submit(state.bundle, i, bundles[i], executor) for i in bundle_order)
+        _drain_futures(state.futures, state.lock)
 
-    def _solo(path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
+    shutil.rmtree(state.scratch, ignore_errors=True)
+    _retry_timeout_stragglers(state.outcomes, pytest_args, repo_root, flat_timeout, solo_runner, state.ledger, on_outcome)
+    state.ledger.ended = time.time()
+    return RunResult(
+        state.outcomes, state.leaks, state.bundle_walls, bundles, solos, state.reruns, state.deaths,
+        len(bundles) - first_pass_bundles, state.ledger,
+    )
+
+
+class _Run:
+    """One bundled run's shared state and its three jobs: ``record`` an outcome,
+    run one file ``solo``, run one ``bundle`` (and re-submit what it left).
+
+    Moved out of ``run``'s closures (fork-hygiene row, build-fastgate-FG2): they
+    read six enclosing locals, so no run-wide concern (the result cache) could
+    enter ``run`` without a run-state object. Every job runs on the executor;
+    ``lock`` guards the lists and the ledger."""
+
+    def __init__(self, pytest_args, repo_root, policy, bundles, durations, flat_timeout, known_reds,
+                 bundle_runner, solo_runner, on_outcome) -> None:
+        self.pytest_args, self.repo_root, self.policy = pytest_args, repo_root, policy
+        self.bundles, self.durations, self.flat_timeout = bundles, durations, flat_timeout
+        self.known_reds, self.bundle_runner, self.solo_runner = known_reds, bundle_runner, solo_runner
+        self.on_outcome = on_outcome
+        self.ledger = plan.RunLedger()
+        self.solo_seq = iter(range(1 << 30))
+        self.lock = threading.Lock()
+        self.outcomes: list[FileOutcome] = []
+        self.leaks: list[Leak] = []
+        self.bundle_walls: list[tuple[int, float, int]] = []
+        self.deaths: list[Death] = []
+        self.futures: list[Future] = []
+        self.reruns = 0
+        self.scratch = Path(tempfile.mkdtemp(prefix="bundles-", dir=rtp._runner_scratch_root()))
+
+    def record(self, outcome: FileOutcome) -> None:
+        for done in self.policy.join(outcome, self.solo):  # a shard waits for its siblings
+            with self.lock:
+                self.outcomes.append(done)
+            if self.on_outcome is not None:
+                self.on_outcome(done)
+
+    def solo(self, path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
+        policy, repo_root = self.policy, self.repo_root
         timeout, tries, extra = policy.budget(path, via)
-        events_path = scratch / f"solo-{next(solo_seq):05d}.jsonl"
-        args = list(pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
+        events_path = self.scratch / f"solo-{next(self.solo_seq):05d}.jsonl"
+        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}"]
         t0 = time.time()
-        fpath, rc, output, summary, wall = solo_runner(path, args, repo_root, timeout, tries)
+        fpath, rc, output, summary, wall = self.solo_runner(path, args, repo_root, timeout, tries)
         lines, rel = _read_lines(events_path), _rel(path, repo_root)
         first, tally = tally_events(lines), tally_events(plan.last_session(lines)).files.get(rel)
-        with lock:
-            ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
+        with self.lock:
+            self.ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
         output = policy.note(rel, via, rc, output, tally)
         if via == "rerun" and rc == 0 and leak_info is not None:
-            with lock:
-                leaks.append(leak_info)
-        _record(FileOutcome(fpath, rc, output, summary, wall, via, bundle_index))
+            with self.lock:
+                self.leaks.append(leak_info)
+        self.record(FileOutcome(fpath, rc, output, summary, wall, via, bundle_index))
 
-    def _bundle(index: int, members: list[Path], executor: ThreadPoolExecutor) -> None:
-        nonlocal reruns
-        events_path = scratch / f"bundle-{index:04d}.jsonl"
-        args = [str(m) for m in members[1:]] + list(pytest_args) + [
+    def bundle(self, index: int, members: list[Path], executor: ThreadPoolExecutor) -> None:
+        repo_root, ledger, lock = self.repo_root, self.ledger, self.lock
+        events_path = self.scratch / f"bundle-{index:04d}.jsonl"
+        args = [str(m) for m in members[1:]] + list(self.pytest_args) + [
             "-p",
             _PLUGIN_NAME,
             f"--hermes-bundle-events={events_path}",
         ]
-        timeout = bundle_timeout(members, repo_root, flat_timeout, durations)
+        timeout = bundle_timeout(members, repo_root, self.flat_timeout, self.durations)
         started = time.time()
-        _first, rc, output, _summary, wall = bundle_runner(members[0], args, repo_root, timeout)
+        _first, rc, output, _summary, wall = self.bundle_runner(members[0], args, repo_root, timeout)
         events = tally_events(_read_lines(events_path))
         rels = [_rel(m, repo_root) for m in members]
         startup = None if events.session_start is None else max(0.0, events.session_start - started)
         stopped_in, unreached = _where_it_died(members, rels, events, rc)
         with lock:
-            bundle_walls.append((index, wall, rc))
+            self.bundle_walls.append((index, wall, rc))
             ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
             ledger.record_bundle_diagnostic(index, rels, rc, events, output, stopped_in)
         startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
         if stopped_in is not None:
             with lock:
-                deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
+                self.deaths.append(Death(index, stopped_in, [_rel(m, repo_root) for m in unreached]))
         for position, (member, rel) in enumerate(zip(members, rels)):
             tally = events.files.get(rel, FileTally())
             work = tally.collect_seconds + tally.test_seconds
-            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, known_reds or {})
+            known = stopped_in is None and plan.is_known_red(rel, tally.failed_nodeids, self.known_reds)
             if rel not in rerun or known:
                 with lock:
                     ledger.file_seconds[rel], ledger.failed[rel] = work, list(tally.failed_nodeids)
@@ -366,7 +400,7 @@ def run(
                         ledger.known_red.append(rel)
                 note = _known_red_output(index, rel, tally, output) if known else ""
                 via = "known-red" if known else "bundle"
-                _record(FileOutcome(member, 1 if known else 0, note, tally.summary(), startup_share + work, via, index))
+                self.record(FileOutcome(member, 1 if known else 0, note, tally.summary(), startup_share + work, via, index))
                 continue
             if member in unreached:
                 continue  # never started: re-bundled below, not run alone
@@ -382,36 +416,21 @@ def run(
                 stopped_in,
             )
             with lock:
-                reruns += 1
-                futures.append(executor.submit(_solo, member, "rerun", index, leak))
+                self.reruns += 1
+                self.futures.append(executor.submit(self.solo, member, "rerun", index, leak))
         # The process died in ``stopped_in`` (which goes solo above); the members
         # queued behind it never started, so nothing about them needs a process
         # of its own — they go back out as one bundle. Each re-bundle is shorter
         # by at least the file it died in, so this terminates.
         if len(unreached) >= 2:
             with lock:
-                new_index = len(bundles)
-                bundles.append(unreached)
-                futures.append(executor.submit(_bundle, new_index, unreached, executor))
+                new_index = len(self.bundles)
+                self.bundles.append(unreached)
+                self.futures.append(executor.submit(self.bundle, new_index, unreached, executor))
         elif unreached:
             with lock:
-                reruns += 1
-                futures.append(executor.submit(_solo, unreached[0], "rerun", index, None))
-
-    solo_order, bundle_order = _first_pass_order(bundles, solos, repo_root, durations)
-    with ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
-        with lock:
-            futures.extend(executor.submit(_solo, path, via, None) for path, via in policy.jobs(solo_order))
-            futures.extend(executor.submit(_bundle, i, bundles[i], executor) for i in bundle_order)
-        _drain_futures(futures, lock)
-
-    shutil.rmtree(scratch, ignore_errors=True)
-    _retry_timeout_stragglers(outcomes, pytest_args, repo_root, flat_timeout, solo_runner, ledger, on_outcome)
-    ledger.ended = time.time()
-    return RunResult(
-        outcomes, leaks, bundle_walls, bundles, solos, reruns, deaths, len(bundles) - first_pass_bundles, ledger
-    )
-
+                self.reruns += 1
+                self.futures.append(executor.submit(self.solo, unreached[0], "rerun", index, None))
 
 def _solo_policy(
     repo_root: Path,
