@@ -989,3 +989,11 @@ def store_first_path(path: str) -> str:
     store = {d.lower() for d in dirs}
     rest = [p for p in path.split(os.pathsep) if p and p.lower() not in store]
     return os.pathsep.join([*dirs, *rest])
+
+
+# Fork (ledger row `pm/install.py`): the Developer Edition's selection carries the provider SDKs.
+from pm._fork_default_extras import widen_target_selection
+_target_selection = widen_target_selection(_target_selection)
+# Fork (ledger row `pm/install.py`): a process borrowing another root's environment never syncs it.
+from pm._fork_dependency_borrow import refuse_sync_while_borrowing
+sync_venv = refuse_sync_while_borrowing(sync_venv)

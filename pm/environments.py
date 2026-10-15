@@ -603,5 +603,10 @@ def main(argv: list[str] | None = None) -> None:
     print(json.dumps(env) if options.format == "json" else shell_exports(env, options.format))
 
 
+# Fork (ledger row `pm/environments.py`): HERMES_DEPENDENCY_ROOT borrows a lender's environment, read-only.
+from pm._fork_dependency_borrow import borrow_dependency_home_root, borrow_owning_home_root
+dependency_home_root = borrow_dependency_home_root(dependency_home_root)
+owning_home_root = borrow_owning_home_root(owning_home_root)
+
 if __name__ == "__main__":
     main()

@@ -718,7 +718,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (lane w1015-prov-l)
 
-- [ ] **pm cannot lend the owner's Developer Edition environment to a QA HERMES_HOME: `owning_home_root` (`pm/environments.py`) only tries `<checkout>.parent` and the platform default as borrow candidates, never `<checkout>/../.hermes`, so a QA root (`%LOCALAPPDATA%\EterniaLauncher\stagec-smoke-local\<profile>\hermes`) provisions its own env (seen 2026-10-15: QA env without the anthropic/bedrock/vertex extras while the owner's `X:\Eternia\.hermes\installs\daf521d8b1d53713` has all+telegram).** Seam: an explicit dependency-root override (env var naming the data root whose `installs/` to use) or a `.hermes` sibling candidate; the launcher's QA envelope already reports `runtime.environment.shared` (launcher `64eecfa356`) · owner ruling 2026-10-15 (QA defaults to the owner's installed Dev Edition interpreter, QA-owned HERMES_HOME) · launcher qa-tooling row "QA runs only a QA-owned Developer Edition copy" **TAKEN 2026-10-15 w1015-prov-h** · VERDICT 2026-10-15: DESIGN — the .hermes sibling candidate is built on wave/w1015-prov-h (f5ce0dac5a5): a QA root now names X:/Eternia/.hermes as the checkout's owner and borrows (no launcher republish, no tail), but upstream #123238 still syncs a borrowing root's OWN environment, so the extras gap stays; reusing the owner's environment needs the dependency-root override (env var naming the data root whose installs/ to use) — an owner call / upstream PR. **TAKEN 2026-10-15 w1015c-dev**
 
 ## Filed on arrival — 2026-10-15 (launcher lane console-scroll-2)
 
@@ -736,7 +735,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (owner: provider SDKs on first setup)
 
-- [ ] **A first setup of the Developer Edition installs extras `["all"]` (`pm/extras.py` default, `pm/install.py` facts fallback, `pm/cli.py` `sync_venv`), and upstream's `all` does NOT include `anthropic` — it is its own extra, as are `mistral`, `bedrock`, `vertex`, `azure-identity` — so a fresh source install cannot run a Claude agent until someone installs the SDK by hand.** OWNER 2026-10-15: "it should install it on first setup of the repo". Target: the fork's default extra set is `all` plus every provider-SDK extra the Launcher's Connections offers (one fork-owned list, read by setup, `pm install`, the test environment default `pm/testenv.py::DEFAULT_TEST_EXTRAS`), never an edit to upstream's `all`; an existing environment missing one gets it in place at the next sync (the one-extra install from wave w1015b-con-x). · fork / pm install · lane: w1015c (after land-w1015b) **TAKEN 2026-10-15 w1015c-dev**
 
 ## Filed on arrival — 2026-10-15 (owner: provider packs for the bundled edition)
 
