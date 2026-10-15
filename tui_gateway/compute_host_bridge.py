@@ -43,7 +43,8 @@ def _get_compute_host_supervisor(cfg: dict | None = None):
             _compute_host_supervisor = HostSupervisor(
                 rpc_sink=_relay_compute_host_rpc,
                 heartbeat_secs=int(isolation_cfg.get("compute_host_heartbeat_secs") or 15),
-                respawn_max=int(isolation_cfg.get("compute_host_respawn_max") or 3))
+                respawn_max=int(isolation_cfg.get("compute_host_respawn_max") or 3),
+                hello_timeout_secs=int(isolation_cfg.get("compute_host_hello_timeout_secs") or 10))
         return _compute_host_supervisor
 
 

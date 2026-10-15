@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 
+import pytest
 
 from tui_gateway import compute_host, server
 from tui_gateway.compute_host import ComputeHost, _default_workers
@@ -319,3 +320,14 @@ def test_shutdown_drain_sleep_never_overshoots_the_reserve(monkeypatch):
     assert events == ["finalize:idle:compute_host_sigterm"]
     assert slept, "the drain loop should have ticked at least once"
     assert sum(slept) <= drain_budget + 1e-6
+
+
+def test_a_host_that_never_says_hello_is_refused_within_the_configured_budget(tmp_path):
+    # A child that never sends hello: the wait is the configured budget, not a fixed 10 s.
+    supervisor = HostSupervisor(registry_path=tmp_path / "host.json",
+                                argv=[sys.executable, "-c", "import time; time.sleep(30)"],
+                                autostart=False, hello_timeout_secs=1)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="did not send hello"):
+        supervisor.start()
+    assert time.monotonic() - started < 8

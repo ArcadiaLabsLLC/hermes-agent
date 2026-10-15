@@ -1005,6 +1005,9 @@ DEFAULT_CONFIG = {
         "turn_isolation": False,
         "compute_host_heartbeat_secs": 15,
         "compute_host_respawn_max": 3,
+        # Seconds a freshly spawned compute host has to send its hello. The child imports the
+        # gateway first, which can take longer than 10 s on a loaded machine.
+        "compute_host_hello_timeout_secs": 10,
         # Token/cost analytics surfaces are hidden by default: the numbers are a local LOWER-BOUND
         # estimate, not billing — only successful main-agent responses with a response.usage count;
         # auxiliary calls, retries, fallbacks and cache writes are missed, so the total can be

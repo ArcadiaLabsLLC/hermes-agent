@@ -223,6 +223,7 @@ def test_dashboard_process_isolation_config_coerces_raw_values():
             "turn_isolation": "yes",
             "compute_host_heartbeat_secs": "30",
             "compute_host_respawn_max": "0",
+            "compute_host_hello_timeout_secs": "45",
         }
     }
 
@@ -230,6 +231,7 @@ def test_dashboard_process_isolation_config_coerces_raw_values():
         "turn_isolation": True,
         "compute_host_heartbeat_secs": 30,
         "compute_host_respawn_max": 0,
+        "compute_host_hello_timeout_secs": 45,
     }
 
     malformed = {"dashboard": "enabled"}
@@ -237,6 +239,7 @@ def test_dashboard_process_isolation_config_coerces_raw_values():
         "turn_isolation": False,
         "compute_host_heartbeat_secs": 15,
         "compute_host_respawn_max": 3,
+        "compute_host_hello_timeout_secs": 10,
     }
 
 

@@ -1265,6 +1265,7 @@ def _sess_building(params, rid):
 
 _DASHBOARD_TURN_ISOLATION_DEFAULT = False
 _DASHBOARD_COMPUTE_HOST_HEARTBEAT_SECS_DEFAULT = 15
+_DASHBOARD_COMPUTE_HOST_HELLO_TIMEOUT_SECS_DEFAULT = 10
 _DASHBOARD_COMPUTE_HOST_RESPAWN_MAX_DEFAULT = 3
 
 
@@ -1288,6 +1289,9 @@ def _load_dashboard_process_isolation_config(cfg: dict | None = None) -> dict[st
             dash.get("compute_host_heartbeat_secs"), _DASHBOARD_COMPUTE_HOST_HEARTBEAT_SECS_DEFAULT, min_value=1),
         "compute_host_respawn_max": _coerce_int_config_value(
             dash.get("compute_host_respawn_max"), _DASHBOARD_COMPUTE_HOST_RESPAWN_MAX_DEFAULT, min_value=0),
+        "compute_host_hello_timeout_secs": _coerce_int_config_value(
+            dash.get("compute_host_hello_timeout_secs"), _DASHBOARD_COMPUTE_HOST_HELLO_TIMEOUT_SECS_DEFAULT,
+            min_value=1),
     }
 
 

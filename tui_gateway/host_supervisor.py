@@ -144,7 +144,8 @@ class HostSupervisor:
         cwd: str | Path | None = None, env: dict[str, str] | None = None,
         rpc_sink: Callable[[dict], None] | None = None, respawn_max: int = 3,
         heartbeat_secs: int = 15, expected_build_sha: str | None = None,
-        expected_hermes_home: str | None = None, autostart: bool = True) -> None:
+        expected_hermes_home: str | None = None, autostart: bool = True,
+        hello_timeout_secs: float = 10.0) -> None:
         self.registry_path = (
             Path(registry_path) if registry_path is not None
             else get_hermes_home() / "state" / _REGISTRY_NAME)
@@ -154,6 +155,9 @@ class HostSupervisor:
         self.rpc_sink = rpc_sink or (lambda _obj: None)
         self.respawn_max = max(0, int(respawn_max))
         self.heartbeat_secs = max(1, int(heartbeat_secs))
+        # The child imports the gateway before it can say hello; on a loaded machine that
+        # import alone can outlast a fixed 10 s, so the budget is configurable.
+        self.hello_timeout_secs = max(1.0, float(hello_timeout_secs))
         self.expected_build_sha = _build_sha() if expected_build_sha is None else expected_build_sha
         self.expected_hermes_home = (
             str(get_hermes_home()) if expected_hermes_home is None else expected_hermes_home)
@@ -344,7 +348,7 @@ class HostSupervisor:
                              (self._drain_stderr, "compute-host-stderr"),
                              (self._wait_for_exit, "compute-host-wait")):
             threading.Thread(target=target, args=(proc,), name=name, daemon=True).start()
-        if not self._hello_event.wait(timeout=10.0):
+        if not self._hello_event.wait(timeout=self.hello_timeout_secs):
             self._terminate_process(proc)
             raise RuntimeError(f"compute host did not send hello; stderr={self._stderr_tail[-5:]}")
         self._validate_hello()
