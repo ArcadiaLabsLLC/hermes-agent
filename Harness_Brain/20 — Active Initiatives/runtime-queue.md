@@ -43,7 +43,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-14 (Console execution controls)
 
-- [ ] **Retire process-wide run serialization before a human approval wait can be independent of unrelated agent roots.** · fork / Mission Chat · `agent_runtime/profile_runner/execute.py::AgentRunExecution.scopes` holds `profile_runner/workdir.py::_WORKDIR_LOCK` across the entire turn; serve chat workers share that process. Move process-global profile/cwd state into isolated execution ownership, then prove another root can progress while one approval waits without crossing profiles, stores or command environments. · UNCLAIMED **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: program-sized: moving process-global profile/cwd state out of `_WORKDIR_LOCK`, with live approval-wait proof; needs its own plan, not a row lane.
+- [ ] **Retire process-wide run serialization before a human approval wait can be independent of unrelated agent roots.** · fork / Mission Chat · `agent_runtime/profile_runner/execute.py::AgentRunExecution.scopes` holds `profile_runner/workdir.py::_WORKDIR_LOCK` across the entire turn; serve chat workers share that process. Move process-global profile/cwd state into isolated execution ownership, then prove another root can progress while one approval waits without crossing profiles, stores or command environments. · UNCLAIMED **TAKEN 2026-10-15 w1015-rt-h** · VERDICT 2026-10-15: program-sized: moving process-global profile/cwd state out of `_WORKDIR_LOCK`, with live approval-wait proof; needs its own plan, not a row lane. · CHECKED 2026-10-15: blocked on a plan of its own (program-sized)
 
 
 
