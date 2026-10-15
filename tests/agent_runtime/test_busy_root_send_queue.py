@@ -582,3 +582,30 @@ def test_a_drain_waits_for_a_running_queued_turn(monkeypatch, isolate_agent_runt
         release.set()
         pipe.close()
         result["thread"].join(20)
+
+
+@pytest.mark.parametrize("serve_live", [False, True])
+def test_a_one_shot_cli_send_says_it_waits_for_the_runtime(
+    monkeypatch, capsys, isolate_agent_runtime_root, serve_live
+):
+    """Owner ruling 2026-10-10 (L5.11): only a serve runs queued sends, so a CLI send
+    queued with no serve running answers "queued until the runtime starts" — it does
+    not run the send itself. With a live serve on the store the usual answer stands."""
+
+    from hermes_cli.harness_parts.persona import chat_send_queue
+
+    monkeypatch.setattr(chat_send_queue, "_live_serve_on_this_store", lambda: serve_live)
+    handler = _install_chat_lane(monkeypatch)
+    calls = _count_provider_calls(monkeypatch)
+    with persona_chat_root_lease(ROOT, observer_kind="cli"):
+        code, answer = _send(handler, "cm-oneshot", capsys)
+
+    assert code == 0 and answer["queued"] is True and calls == []
+    assert answer["waiting_for_runtime"] is (not serve_live)
+    assert ("until the Hermes runtime starts" in answer["next_expected"]) is (not serve_live)
+
+
+def test_no_registered_serve_reads_as_no_runtime(isolate_agent_runtime_root):
+    from hermes_cli.harness_parts.persona import chat_send_queue
+
+    assert chat_send_queue._live_serve_on_this_store() is False

@@ -85,11 +85,16 @@ def _mission_chat_enqueue_busy(args: Any, *, session_id: str, client_message_id:
 def _enqueue_and_answer(args: Any, *, session_id: str, client_message_id: str) -> int:
     from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
+    origin = send_origin()
     entry, position, replay = chat_root_send_queue.enqueue(
         session_id,
         client_message_id,
-        chat_root_send_queue.persistable_args(args, origin=send_origin()),
+        chat_root_send_queue.persistable_args(args, origin=origin),
     )
+    # Owner ruling 2026-10-10 (L5.11): only a serve runs queued sends. A one-shot
+    # CLI send (no serve request) with no live serve on this store waits on disk,
+    # and the answer says so instead of promising "runs next".
+    waiting_for_runtime = origin.get("owner") is None and not _live_serve_on_this_store()
     data = {
         "ok": True,
         "capability_id": "mission.chat.message",
@@ -102,15 +107,39 @@ def _enqueue_and_answer(args: Any, *, session_id: str, client_message_id: str) -
         "session_id": session_id,
         "queued_at": entry.queued_at,
         "idempotent_replay": replay,
+        "waiting_for_runtime": waiting_for_runtime,
         "next_expected": (
-            "the message is queued behind the turn running on this chat root; it runs "
+            "the message is queued until the Hermes runtime starts: no runtime is running "
+            "for this store, so it waits on disk and runs in arrival order when one boots"
+            if waiting_for_runtime
+            else "the message is queued behind the turn running on this chat root; it runs "
             "next in arrival order and its turn_settled push carries the outcome"
         ),
     }
     if not replay:
         _wake_queued_send_runner()
-    _mission_chat_emit(args, data, "message queued behind the current turn")
+    _mission_chat_emit(
+        args, data,
+        "message queued until the runtime starts" if waiting_for_runtime
+        else "message queued behind the current turn",
+    )
     return 0
+
+
+def _live_serve_on_this_store() -> bool:
+    """A registered serve for this store classifies ``live``. Unreadable counts as live,
+    so the answer only ever says "until the runtime starts" when that is proven."""
+
+    try:
+        from agent_runtime import paths
+        from agent_runtime.serve_registry import CLASSIFICATION_LIVE, list_serve_instances
+
+        return any(
+            row.get("classification") == CLASSIFICATION_LIVE
+            for row in list_serve_instances(paths.store_root())
+        )
+    except Exception:
+        return True
 
 
 def _wake_queued_send_runner() -> None:

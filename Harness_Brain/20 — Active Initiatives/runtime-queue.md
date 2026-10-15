@@ -708,7 +708,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-10 (lane h-busy-queue)
 
-- [ ] **A send queued by a one-shot CLI `mission-chat message` (no serve running) waits on disk until a serve boots: only the serve starts the runner (`hermes_cli/harness_parts/serve/session.py::_start_delivery_drain`), and the "queued" answer does not say so.** Decide whether the CLI waits for the root and runs the send itself, or answers "queued until the runtime starts". fork · found h-busy-queue · released 2026-10-10 (lane-1010 returned L5.11, owner decision; reason in `queue-sweep-2026-10-10/L5-outcomes.md`) · **RULED 2026-10-10 owner:** the CLI answers "queued until the runtime starts"; it does not run the send itself **TAKEN 2026-10-15 w1015-rt-h**
 
 
 ## Filed on arrival — 2026-10-10 (launcher lane q-turn)
