@@ -469,3 +469,8 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 - [ ] **Sync lanes ran `scripts/check` only on conflicted branches, but upstream's ruff selection changed (RUF022/RUF100/UP006/RUF013/PIE807/PLW1510) and 4 clean-merged branches still carried reds only the check catches: every merged branch runs `scripts/check --base <sha>`; say so in `Running the tests.md`** · fork / upstream PR tooling · up-sync-1015-c logs; follow-up lane up-check-1015 · UNCLAIMED
 
+## Filed on arrival — 2026-10-15 (owner: the footprint ratchet only goes up)
+
+- [ ] **The upstream footprint rose 175 → 221 files (10-06 → 10-15), +36 since the v0.21.6 merge, almost all from fork lanes taking the raise-with-a-reason path (120 reason rows); give every file added since 10-06 a drop / extract / upstream verdict and plan the extract MOVE lanes** · fork / upstream footprint · `tests/fixtures/upstream_footprint.json` history on main · **TAKEN 2026-10-15 claude (lane fp-audit, design)**
+- [ ] **A footprint raise must cite an owner ruling: the footprint test refuses a NEW reason row (rows already on main are grandfathered) unless it names the owner ruling that allowed it, so lanes extract by default instead of raising** · fork / gates · same evidence · **TAKEN 2026-10-15 claude (lane fp-gate)**
+
