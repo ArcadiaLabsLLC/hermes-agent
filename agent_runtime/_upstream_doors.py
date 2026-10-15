@@ -29,15 +29,6 @@ __all__ = [
     "codex_content_cache_key",
     "compression_threshold_for_model",
     "cron_pools_present",
-    "mcp_key_name",
-    "mcp_register_server_tools",
-    "mcp_resolve_server_key",
-    "mcp_sdk_available_flag",
-    "mcp_server_map",
-    "mcp_wait_for_session",
-    "non_continuation_child_filter",
-    "piper_engine_importable",
-    "piper_voice_for_config",
     "default_hermes_home",
     "dispatch_streams",
     "doctor_section",
@@ -45,9 +36,18 @@ __all__ = [
     "gguf_file_header",
     "iter_named_profile_dirs",
     "looks_like_help_or_version_command",
+    "mcp_key_name",
+    "mcp_register_server_tools",
+    "mcp_resolve_server_key",
+    "mcp_sdk_available_flag",
+    "mcp_server_map",
+    "mcp_wait_for_session",
+    "non_continuation_child_filter",
     "pid_exists",
-    "sanitize_surrogates",
+    "piper_engine_importable",
+    "piper_voice_for_config",
     "profiles_root",
+    "sanitize_surrogates",
     "session_async_delivery_unset",
     "session_async_delivery_var",
     "skill_utils_raw_config_cache",
@@ -55,6 +55,13 @@ __all__ = [
     "skills_tool_inspection_doors",
     "skills_walker",
     "strip_quotes",
+    "subagent_compute_supervisor",
+    "subagent_is_descendant",
+    "subagent_registry",
+    "subagent_session_authority",
+    "subagent_transport_matches",
+    "subagent_uses_compute",
+    "subagent_visible_records",
     "terminal_foreground_timeouts",
     "terminate_host_pid",
     "whisper_confident_text",
@@ -128,7 +135,7 @@ def skill_utils_raw_config_cache():
     it holds — rebound by ``agent_runtime.skill_config_cache`` (a bounded cache for a process that
     switches profiles; upstream's one-entry cache clears on every new key). Held widening row:
     a bounded multi-entry ``_load_raw_config`` cache upstream (draft H)."""
-    import agent.skill_utils as skill_utils
+    from agent import skill_utils
 
     return skill_utils, "_RAW_CONFIG_CACHE", "_raw_config_cache_clear"
 
@@ -164,8 +171,8 @@ def terminal_foreground_timeouts(terminal: object) -> tuple[int, int]:
     holds (never imported here). Raises when either is missing; the caller
     degrades to "no timeout known".
     Widening candidate: publish ``terminal_tool.effective_foreground_timeout()``."""
-    config = getattr(terminal, "_get_env_config")()
-    return int(config["timeout"]), int(getattr(terminal, "FOREGROUND_MAX_TIMEOUT"))
+    config = terminal._get_env_config()
+    return int(config["timeout"]), int(terminal.FOREGROUND_MAX_TIMEOUT)
 
 
 def cron_pools_present(scheduler: object) -> bool:
@@ -395,3 +402,47 @@ def codex_account_claims(token, identity: str) -> dict:
     if not isinstance(token, str) or _codex_snapshot_identity(token) != identity:
         return {}
     return _decode_jwt_claims(token)
+
+
+# Owned-child inspection: Q7 held widening seams, individually recorded in the
+# upstream footprint ledger. These expose existing authorities, never copies.
+def subagent_registry():
+    from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
+
+    return _active_subagents, _active_subagents_lock
+
+
+def subagent_is_descendant(child, parent):
+    from tools.delegate_tool_registry import _is_descendant_of
+
+    return _is_descendant_of(child, parent)
+
+
+def subagent_transport_matches(record, transport):
+    from tools.delegate_tool_registry import _subagent_transport_matches
+
+    return _subagent_transport_matches(record, transport)
+
+
+def subagent_session_authority(session_id):
+    from tui_gateway.server import _current_session_steer_authority
+
+    return _current_session_steer_authority(session_id)
+
+
+def subagent_visible_records(session_id, transport, session):
+    from tui_gateway.methods_subagents import _visible_subagent_records
+
+    return _visible_subagent_records(session_id, transport, session)
+
+
+def subagent_uses_compute(session):
+    from tui_gateway.server import _session_uses_compute_host
+
+    return _session_uses_compute_host(session)
+
+
+def subagent_compute_supervisor():
+    from tui_gateway import server
+
+    return server._compute_host_supervisor

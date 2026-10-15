@@ -34,7 +34,7 @@ def _belongs(record, db, session_id, home):
     return bool(owned_tip and requested_tip and owned_tip == requested_tip)
 
 
-def _binding(instance):
+def _subagent_profile_binding(instance):
     persona = _inspection_persona(instance, load_agent_runtime_config())
     binding = resolve_persona_profile(persona)
     if binding.readiness != "ready":
@@ -58,7 +58,7 @@ class _Owner:
 
     def revalidate(self):
         with operator_session_read(self.params) as (instance, session):
-            binding = _binding(instance)
+            binding = _subagent_profile_binding(instance)
             if ((binding.profile_home or session.scope.head_home).resolve() != self.home or
                     Path(session.db.db_path).resolve() != Path(self.db.db_path).resolve()):
                 raise SubagentError(Refusal.WRONG_OWNER)
@@ -66,7 +66,7 @@ class _Owner:
 
 def inspect_operator(operation: str, params: dict) -> dict:
     with operator_session_read(params) as (instance, session):
-        binding = _binding(instance)
+        binding = _subagent_profile_binding(instance)
         # An inherited profile is pinned to the conversation's recorded head,
         # not whichever profile a different turn temporarily exports to os.environ.
         home = (binding.profile_home or session.scope.head_home).resolve()

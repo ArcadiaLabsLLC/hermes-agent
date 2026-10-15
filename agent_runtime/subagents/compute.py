@@ -1,4 +1,5 @@
 """Forward an authorized read to the existing compute owner without starting it."""
+from agent_runtime import _upstream_doors as upstream
 from .model import ERROR_CODES, Refusal, SubagentError
 from .references import references
 
@@ -6,9 +7,7 @@ __layer__ = "lanes"
 
 
 def observe(operation: str, params: dict, owner: tuple) -> dict:
-    from tui_gateway import server
-
-    supervisor = server._compute_host_supervisor
+    supervisor = upstream.subagent_compute_supervisor()
     if supervisor is None:
         raise SubagentError(Refusal.UNAVAILABLE)
     # Carry the outer session/transport generation into the child's own authority.

@@ -65,7 +65,7 @@ ledger accounts for that file and links this per-seam register.
 | Compute-host observation | `subagents/native.py::inspect_native` → `subagents/compute.py::observe` → existing `HostSupervisor.observe` → `ComputeHost._handle_observe` → synchronous `server.handle_request` under the host's bound transport → the same child reader | Owner-approved held hook seam in one already-carried upstream file; file +46/-5 → +52/-5. No new supervisor, registry, control path or upstream PR | Retire the allowlist addition when native owned-child observation has a public extension registrar; retain the observer's real transport binding | Actual isolated `delegate_task` child roster/output; forged transport, replaced owner, stale references and no-start refusals; positive controls remove forwarding generation, transport binding and allowlist |
 | Operator RPC family | `serve_rpc/__init__.py` → `serve_rpc/operator_subagents.py`; `subagents/operator.py::inspect_operator` → existing operator/session/profile authorities | Fork-owned; console tier via existing dispatcher; peer grants unchanged | Retain harness target validation while the harness owns operator identities; replace only the underlying bridge when a public owned-child service exists | Real dispatcher/stores: wrong installation/workspace/persona/instance/session/client and read-tier/unknown callers refuse |
 | Native method registration and discovery | `conversations/rpc.py::OPERATIONS` → existing execute/authorization; `subagents/params.py::METHOD_PARAMS` → `serve_rpc/registry.py::manifest` | Fork-owned; one method lane and manifest, zero upstream edits | Retain while native conversation routes remain harness-owned | Manifest tier/parameter coverage; exact service-to-worker routing |
-| Upstream child owner/registry bridge | `subagents/native.py`: reads `_active_subagents` under its lock; calls native `_visible_subagent_records`, `_current_session_steer_authority`, `_subagent_transport_matches`, `_is_descendant_of`; child DB/log-home evidence is read in `subagents/operator.py` | Fork-only caller of private upstream APIs, explicitly held compatibility seam; no upstream edit and no PR claimed | Retire these private reaches together through a public owned-child inspection API with exact object/transport/profile/lineage guarantees. Public plugin lifecycle handles cannot currently inspect arbitrary delegate children | Native authority, cross-profile equal durable ids, recycled id and in-flight replacement tests |
+| Upstream child owner/registry bridge | Existing `agent_runtime/_upstream_doors.py`: registry/lock, visibility, current session, transport, descendant and compute-host access; consumed by `subagents/native.py` and `subagents/compute.py`. Child DB/log-home evidence is read in `subagents/operator.py` | Fork-only compatibility adapter, seven individually allowed private imports and one private module attribute; canonical ledger has a held widening row for every name. No upstream edit or PR claimed | Retire through a public owned-child inspection API with exact object/transport/profile/lineage guarantees. Public roster projections drop the object authority; plugin lifecycle handles cannot inspect arbitrary delegate children | Native authority, cross-profile equal durable ids, recycled id and in-flight replacement tests |
 | Operator active-parent evidence | `live_turns.py::conversation_agents` → `subagents/operator.py::_Owner.exact` | Fork-owned projection of existing live turns, no additional lifetime/state owner | Replace if the existing live-turn API directly offers the same scoped object authority | Owned roster versus exact transcript access |
 | Public output projection | `subagents/output.py::read_public_tail` reads the child's existing native live-log path; `redaction.py::scrub_secret_values` owns secret removal | Fork-owned reader of upstream format; zero upstream edits | Replace with a native public redacted event-tail API if it exposes the same content boundary | Real `LiveTranscriptWriter`; thinking/secret/partial/unknown lines excluded; byte bound |
 
@@ -74,6 +74,12 @@ No changes to upstream `tools/delegate_tool_registry.py`,
 native launch/control engines are part of this step. A future upstream edit
 requires its own measured canonical ledger row, disposition, retirement reason
 and explicit owner approval of the extra footprint.
+
+The Q5/Q7 audit consolidated these private accesses into the package's existing
+compatibility adapter. The import fence explicitly records the seven new feature
+dependencies at that adapter; it does not grant an exception to the subagent
+package or absorb unrelated pre-existing violations. These are carried private
+API dependencies with retirement conditions, not public upstream support.
 
 ## Verification and remaining gates
 
@@ -138,3 +144,40 @@ failed. Removing the compute transport binding or observation allowlist each
 prevented actual child reads and failed two boundary tests. All mutations were
 restored; the final 33-test run passed. Release and live Console acceptance
 remain later work.
+
+## Landing qualification
+
+The complete fork gate selected 1,056 files and completed in 547.2 seconds at
+eight workers: 12,462 passed, 12 failed, one fixture error and 51 skipped. Its
+25 sampled cached results passed re-execution. This is a completed qualification
+run with failures, not a green whole-repository claim.
+
+The feature-owned findings were corrected: the shared expected RPC manifest now
+includes exactly the six new console-tier reads; private calls use the existing
+compatibility adapter with individually recorded dependencies; and generic
+`_binding`/`_reply` helper names now identify their subagent purpose. Focused
+post-correction tests qualify these changes without changing global budgets.
+
+The remaining failure set is reproduced on a detached, unchanged `024e92d2f9`
+checkout with the same runner and interpreter:
+
+| Existing failure | Exact comparison |
+| --- | --- |
+| Import-layer gate, two failing nodes | Two existing private imports (`_codex_snapshot_identity`, `_decode_jwt_claims`); upward `mission_chat_outcome` → `provider_health` and `harness_parts.usage.providers` → `provider_account_metadata` (reported twice). No subagent edge remains. |
+| Upstream footprint, one failing node | Both trees: 211 files / 1,076 deleted lines / 5 heavy files; fixture deletion ceiling is 1,075. This feature's only upstream edit adds six carried lines and deletes none. |
+| Doc-cite adjacency, two failing nodes | Identical two unwaived `persona_chat_history/vocabulary.py` citations in `02-runtime-data-and-shapes.md` and `05-chat-turn-lane.md`; zero foreign cites. |
+| PM slow-exit fixture error | Both trees force Python 3.13 into a staged project requiring 3.14; the worker assertion is not reached. Existing fork-hygiene row retains this environment defect. |
+
+The first three findings are filed separately in the fork-hygiene queue. None
+was suppressed or repaired as unrelated work. The seven new feature private
+imports are explicit compatibility allowances with per-name ledger entries,
+distinct from the two existing unrecorded imports.
+
+Post-correction qualification: all 146 behavior assertions in the native,
+compute, operator, route and three RPC-manifest files passed; the separate final
+audit passed the two operator assertions, nine gateway registration assertions
+and all five duplicate-helper checks. The import-layer gate retained exactly
+the two baseline failures and the same violation lists. The contract/catalog
+tests passed in the broad run. The existing file-footprint totals and budgets
+were not changed. Full-repository green status and Console UI acceptance are
+not claimed.
