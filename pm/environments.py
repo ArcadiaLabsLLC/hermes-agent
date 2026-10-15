@@ -62,6 +62,12 @@ def owning_home_root(project_root: Path) -> Path | None:
     key = install_key(root)
     candidates = [candidate for candidate in dict.fromkeys((root.parent, _get_platform_default_hermes_home()))
                   if (candidate / "installs" / key / "facts.json").is_file()]
+    # Fork: the Launcher's layout keeps the data root BESIDE the checkout (``<parent>/.hermes``),
+    # so without this a sandbox HERMES_HOME found no owner and acted as one -- syncing a full
+    # environment and republishing the checkout's launchers on every launch.
+    sibling = root.parent / ".hermes"
+    if sibling not in candidates and (sibling / "installs" / key / "facts.json").is_file():
+        candidates.insert(1 if root.parent in candidates else 0, sibling)
     if not candidates:
         return None
     owner = _launcher_bound_root(root, candidates) or candidates[0]

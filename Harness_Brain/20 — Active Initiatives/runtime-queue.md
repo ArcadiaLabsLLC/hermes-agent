@@ -615,7 +615,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
-- [ ] **A sandboxed HERMES_HOME republishes the checkout's `.hermes/bin` launcher, so `pm/environments._launcher_bound_root` names a sandbox as the owner** · upstream / pm environments · `_launcher_python(.hermes/bin/hermes.exe)` → a stagec-smoke home's `tools/`; launcher half in mission-control-queue (launcher `a98885456a`); hermes-side publish guard `73178abc0a` (M3.03) · lane: owner-root record (with L3.05, `queue-sweep-2026-10-10/M2-outcomes.md` M2.03) · launcher fix `3774b0b42f` (launcher main `6795c16bcb`): Stage C sessions set `HERMES_DISABLE_LAZY_INSTALLS=1`; `owning_home_root` still never checks `<checkout parent>/.hermes` **TAKEN 2026-10-15 w1015-prov-h**
 - [ ] **`tests/conftest.py` step 3b pins `hermes_state.DEFAULT_DB_PATH` only when `hermes_state` is already imported, so an argless `SessionDB()` is import-order dependent; the fork unpins by node id (`tests/_downstream/state_db_scope.py`)** · upstream / suite · `ddf83ac62a` (M4.06) · lane: upstream issue (order-independent pin)
 
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
