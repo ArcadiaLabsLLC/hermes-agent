@@ -9,7 +9,7 @@ def _config_with_ai_gateway(monkeypatch, *, enabled: bool) -> None:
     monkeypatch.setattr(rp._config_mod, "load_config",
                         lambda: {"providers": {"ai-gateway": {"enabled": enabled}}})
     monkeypatch.setattr(rp, "resolve_provider", lambda *a, **k: "ai-gateway")
-    monkeypatch.setattr(rp, "_get_model_config", lambda: {})
+    monkeypatch.setattr(rp, "_get_model_config", dict)
     monkeypatch.setenv("AI_GATEWAY_API_KEY", "test-ai-gw-key")
 
 
