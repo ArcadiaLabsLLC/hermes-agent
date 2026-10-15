@@ -88,6 +88,13 @@ def _nodeid_of(rest: str) -> str:
     return rest.split(" - ", 1)[0].strip()
 
 
+def _posix_path_part(node: str) -> str:
+    """Normalize the PATH before ``::`` only: a backslash inside a parametrize id is the id."""
+
+    path, sep, rest = node.partition("::")
+    return path.replace("\\", "/") + sep + rest
+
+
 def parse_run_output(text: str) -> TagRun:
     nodes: set = set()
     files: set = set()
@@ -98,7 +105,7 @@ def parse_run_output(text: str) -> TagRun:
             continue
         match = _SUMMARY.match(line)
         if match:
-            node = _nodeid_of(match.group(2)).replace("\\", "/")
+            node = _posix_path_part(_nodeid_of(match.group(2)))
             if node.startswith("tests/"):
                 nodes.add(node)
                 files.add(file_of(node))

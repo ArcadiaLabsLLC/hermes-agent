@@ -105,6 +105,22 @@ def test_the_table_round_trips_to_rows_keyed_by_exactly_the_upstream_reds(tmp_pa
     assert "v9.9.9 0123456789" in module._REASON
 
 
+def test_a_backslash_inside_a_parametrize_id_survives_the_parse_and_the_table(tmp_path):
+    """v0.21.7: ``[...new_tab(\"a\")\\nnew_tab(...)...]`` came back with ``/`` and named no test."""
+    node = 'tests/tools/test_browser_use_cli.py::test_private[mixed-new_tab("a")\\nnew_tab("b")-None]'
+    windows_line = "FAILED " + node.replace("tests/tools/", "tests\\tools\\", 1) + " - AssertionError"
+    run = crt.parse_run_output(windows_line)
+    assert run.red_nodes == {node}
+    assert run.red_files == {"tests/tools/test_browser_use_cli.py"}
+    text = crt.emit_table({node: V.UPSTREAM_RED}, "v9.9.9", "0123456789", "2026-10-10")
+    module_path = tmp_path / "upstream_reds_backslash.py"
+    module_path.write_text(text, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("upstream_reds_backslash", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert list(module._NODES) == [node]
+
+
 def test_skip_rows_name_the_whole_file_and_the_nondeterministic_files():
     verdicts, _ = _verdicts()
     rows = crt.emit_skip_rows(verdicts, "v9.9.9", "0123456789")
