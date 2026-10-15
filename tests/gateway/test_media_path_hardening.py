@@ -36,7 +36,7 @@ def test_backslash_terminates_a_media_tag_path():
 
 
 def test_nul_path_is_dropped():
-    media, cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
+    media, _cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
     assert media == []
 
 
@@ -69,7 +69,7 @@ def test_backslash_inside_a_windows_path_is_a_separator_not_a_terminator():
 
 
 def test_dropped_nul_tag_is_still_removed_from_the_caption():
-    media, cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
+    media, _cleaned = BasePlatformAdapter.extract_media("MEDIA:/tmp/x" + chr(0) + "y.png ok")
     assert media == []
     assert "MEDIA:" not in cleaned
     assert chr(0) not in cleaned
@@ -94,7 +94,7 @@ def _rehomed_profile(tmp_path, monkeypatch, *, strict: bool):
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
     monkeypatch.setenv("HERMES_REAL_HOME", str(real_home))
     _isolate_hermes_root(tmp_path, monkeypatch)
-    monkeypatch.setattr(base, "_media_delivery_allowed_roots", lambda: [])
+    monkeypatch.setattr(base, "_media_delivery_allowed_roots", list)
     monkeypatch.setattr(base, "_translate_docker_container_media_path", lambda *a, **k: None)
     monkeypatch.setattr("gateway.media_policy.media_delivery_strict", lambda: strict)
     monkeypatch.setattr("gateway.media_policy.media_delivery_trust_recent", lambda: True)
