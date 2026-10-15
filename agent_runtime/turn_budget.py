@@ -217,15 +217,13 @@ def render_turn_budget_line(
         if budget.shared
         else "this turn only"
     )
-    line = (
-        f"- Wall budget: ~{remaining:.0f}s left of {budget.total_seconds:.0f}s ({scope}). "
-        "Scope the work you start to what fits."
-    )
+    # Facts only (owner ruling L2.12, 2026-10-10): the clock and what the harness
+    # does at the reserve, never advice on how to spend it.
+    line = f"- Wall budget: ~{remaining:.0f}s left of {budget.total_seconds:.0f}s ({scope})."
     if budget.supports_checkpoint:
         line += (
             f" With under {budget.reserve_seconds:.0f}s left the harness stops new tool "
-            "calls and asks you for a final checkpoint reply, so finish or hand off "
-            "before then."
+            "calls and asks you for a final checkpoint reply."
         )
     return line
 
