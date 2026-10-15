@@ -87,8 +87,7 @@ def _without_python_c_argv(raw: list) -> list:
     that sleeper, as ``-c`` or as a script, for psutil to classify) and never an
     entry point. Keep CODE / SCRIPT (it may itself be the entry point: a SCRIPT that
     IS ``hermes_cli/main.py`` or a ``hermes`` launcher keeps its ARGS), drop ARGS.
-    ``-m MODULE ARGS`` is never cut. Mirrored in
-    ``tests/hermes_cli/_gateway_fence.py::_without_python_c_argv``.
+    ``-m MODULE ARGS`` is never cut.
     """
     if not raw or not _PYTHON_BASENAME_RE.match(
         str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
