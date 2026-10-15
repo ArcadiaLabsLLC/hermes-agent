@@ -95,6 +95,7 @@ def test_install_writes_entry_with_absolute_exec_and_icon(
     assert icon_path == lde.icon_path(root)
 
 
+@pytest.mark.platforms("linux")
 def test_install_prefers_themed_icon_from_hicolor(tmp_path, xdg_home, monkeypatch):
     """When the icon installs into hicolor, the entry uses the themed name.
 
@@ -124,6 +125,7 @@ def test_install_prefers_themed_icon_from_hicolor(tmp_path, xdg_home, monkeypatc
     assert dest.read_bytes() == lde.icon_path(root).read_bytes()
 
 
+@pytest.mark.platforms("linux")
 def test_install_icon_copy_failure_falls_back_to_absolute(
     tmp_path, xdg_home, monkeypatch
 ):
@@ -341,6 +343,7 @@ def test_exec_never_persists_a_bare_interpreter_command(
     assert exec_line == f"{wrapper} desktop"
 
 
+@pytest.mark.platforms("linux")
 def test_exec_keeps_resolver_fallback_when_no_wrapper_on_path(
     tmp_path, xdg_home, monkeypatch
 ):
@@ -582,6 +585,7 @@ def test_exec_finds_known_wrapper_when_resolver_has_no_candidate(
     assert entry2.read_text(encoding="utf-8") == entry.read_text(encoding="utf-8")
 
 
+@pytest.mark.platforms("linux")
 def test_exec_rejects_known_wrapper_from_another_checkout(
     tmp_path, xdg_home, monkeypatch
 ):
@@ -698,6 +702,7 @@ def test_known_wrapper_candidates_cover_installer_layouts(
         assert "/usr/local/bin/hermes" not in candidates
 
 
+@pytest.mark.platforms("linux")
 def test_installed_entry_carries_the_window_app_id(tmp_path, xdg_home, monkeypatch):
     """The window's app_id is what GNOME matches the entry against — not the old "Hermes"."""
     _stub_install(tmp_path, monkeypatch)
@@ -712,6 +717,7 @@ def test_installed_entry_carries_the_window_app_id(tmp_path, xdg_home, monkeypat
     assert values["Name"] == "Hermes"  # the menu label is not part of the identity
 
 
+@pytest.mark.platforms("linux")
 def test_install_keeps_the_legacy_entry_as_a_hidden_alias(tmp_path, xdg_home, monkeypatch):
     """A pin resolves by the entry file name it was pinned against (#124492).
 
@@ -743,6 +749,7 @@ def test_install_keeps_the_legacy_entry_as_a_hidden_alias(tmp_path, xdg_home, mo
     assert alias["Icon"] == entry_values["Icon"]
 
 
+@pytest.mark.platforms("linux")
 def test_unchanged_entry_still_aliases_a_legacy_entry(tmp_path, xdg_home, monkeypatch):
     """An up-to-date app-id entry must not skip converting a legacy file found beside it."""
     _stub_install(tmp_path, monkeypatch)
@@ -756,6 +763,7 @@ def test_unchanged_entry_still_aliases_a_legacy_entry(tmp_path, xdg_home, monkey
     assert _parse(legacy.read_text(encoding="utf-8"))["NoDisplay"] == "true"
 
 
+@pytest.mark.platforms("linux")
 def test_install_keeps_foreign_files_at_the_legacy_path(tmp_path, xdg_home, monkeypatch):
     """Only our own entry is converted to an alias; another app's file is not ours to rewrite."""
     _stub_install(tmp_path, monkeypatch)
@@ -773,6 +781,7 @@ def test_install_keeps_foreign_files_at_the_legacy_path(tmp_path, xdg_home, monk
     assert "Name=Someone else" in foreign.read_text(encoding="utf-8")
 
 
+@pytest.mark.platforms("linux")
 def test_install_opt_out_preserves_the_legacy_entry(tmp_path, xdg_home, monkeypatch):
     """The opt-out protects user edits, so it also stops the legacy alias conversion.
 
