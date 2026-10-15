@@ -53,8 +53,8 @@ control capability is advertised in Step 1.
 Classification uses the pinned upstream manifest and the current upstream tree.
 The owner approved the additional compute-host seam on October 14, 2026. The only
 changed upstream-owned file is `tui_gateway/compute_host.py`: its existing fork
-observation hunk gains one allowlist line and uses the native transport-aware
-dispatcher. Its measured footprint changes from +46/-5 to +47/-5; no upstream
+observation hunk gains one allowlist line and binds the native transport around the existing synchronous
+handler. Its measured footprint changes from +46/-5 to +52/-5; no upstream
 line is newly deleted. All other feature changes are fork-owned. The canonical
 ledger accounts for that file and links this per-seam register.
 
@@ -62,7 +62,7 @@ ledger accounts for that file and links this per-seam register.
 | --- | --- | --- | --- | --- |
 | Service borrow mode | `conversations/service.py::ConversationService.subagents` → `_session(existing_only=True)` → `bindings.py::Bindings.borrow` → `conversations/subagents.py::inspect_children` | Fork-owned; existing route-lifetime authority, zero upstream edits | Fold into a shared explicit existing-owner operation if that authority acquires one; never keep parallel attach policy | `test_subagent_conversation_route.py`: missing/dead/retiring owner never attaches; actor/client/profile cannot cross routes |
 | Worker-entry registration | Existing `gateway_extensions.py::register` → `conversations/worker_subagents.py::register`; `scripts/gen_contract_catalog.py::_registry` → `tui_gateway/contract_catalog_data.py` | Fork-owned; one shared registration through the existing gateway extension, native profile scope and `register_method`. Separate subprocess/in-process installations removed | Use a native public extension registrar when it owns these hosts and generated contracts | Real child reads in subprocess, compute-host and in-process modes; registration and catalog parity |
-| Compute-host observation | `subagents/native.py::inspect_native` → `subagents/compute.py::observe` → existing `HostSupervisor.observe` → `ComputeHost._handle_observe` → `server.dispatch` with the host's transport → the same child reader | Owner-approved held hook seam in one already-carried upstream file; file +46/-5 → +47/-5. No new supervisor, registry, control path or upstream PR | Retire the allowlist addition when native owned-child observation has a public extension registrar; retain the observer's real transport binding | Actual isolated `delegate_task` child roster/output; forged transport, replaced owner, stale references and no-start refusals; positive controls remove forwarding generation, transport binding and allowlist |
+| Compute-host observation | `subagents/native.py::inspect_native` → `subagents/compute.py::observe` → existing `HostSupervisor.observe` → `ComputeHost._handle_observe` → synchronous `server.handle_request` under the host's bound transport → the same child reader | Owner-approved held hook seam in one already-carried upstream file; file +46/-5 → +52/-5. No new supervisor, registry, control path or upstream PR | Retire the allowlist addition when native owned-child observation has a public extension registrar; retain the observer's real transport binding | Actual isolated `delegate_task` child roster/output; forged transport, replaced owner, stale references and no-start refusals; positive controls remove forwarding generation, transport binding and allowlist |
 | Operator RPC family | `serve_rpc/__init__.py` → `serve_rpc/operator_subagents.py`; `subagents/operator.py::inspect_operator` → existing operator/session/profile authorities | Fork-owned; console tier via existing dispatcher; peer grants unchanged | Retain harness target validation while the harness owns operator identities; replace only the underlying bridge when a public owned-child service exists | Real dispatcher/stores: wrong installation/workspace/persona/instance/session/client and read-tier/unknown callers refuse |
 | Native method registration and discovery | `conversations/rpc.py::OPERATIONS` → existing execute/authorization; `subagents/params.py::METHOD_PARAMS` → `serve_rpc/registry.py::manifest` | Fork-owned; one method lane and manifest, zero upstream edits | Retain while native conversation routes remain harness-owned | Manifest tier/parameter coverage; exact service-to-worker routing |
 | Upstream child owner/registry bridge | `subagents/native.py`: reads `_active_subagents` under its lock; calls native `_visible_subagent_records`, `_current_session_steer_authority`, `_subagent_transport_matches`, `_is_descendant_of`; child DB/log-home evidence is read in `subagents/operator.py` | Fork-only caller of private upstream APIs, explicitly held compatibility seam; no upstream edit and no PR claimed | Retire these private reaches together through a public owned-child inspection API with exact object/transport/profile/lineage guarantees. Public plugin lifecycle handles cannot currently inspect arbitrary delegate children | Native authority, cross-profile equal durable ids, recycled id and in-flight replacement tests |
@@ -77,18 +77,27 @@ and explicit owner approval of the extra footprint.
 
 ## Verification and remaining gates
 
-Final focused runner: eight files / 33 tests passed, including actual
+Focused runner: eight files / 33 tests passed, including actual
 `delegate_task` child reads through native-worker, isolated-compute and in-process
 execution, all using a deterministic loopback provider and disposable homes.
 Dart adapter tests use replies captured from the real harness/native child
 readers; their fixture capture doubles the process boundary. No paid model call
 or running-user conversation is used.
 
+The broader regression run caught an observer regression: `server.dispatch`
+queues recovery/event methods and therefore cannot supply the observer's
+synchronous acknowledgement. The final implementation preserves `handle_request`
+and binds/resets the existing transport around it. The three-file native/recovery
+regression run then passed 11 tests; the four compute-boundary tests passed after
+adding a synchronous-recovery regression with a demonstrated failing mutation.
+The corrected seam adds six carried lines in total, not the original one-line
+allowlist-only estimate. No new dispatcher or owner was introduced.
+
 The changed upstream-manifest path set is exactly `tui_gateway/compute_host.py`;
 the existing ledger gate alone is insufficient because its missing-row gap is
 already filed. The measured whole-fork footprint before and after is
 `[up-fp] files=211 deleted_lines=1076 heavy=5`. The file's added-line count increases
-by one; no ratchet changes are needed.
+by six; no ratchet changes are needed.
 
 Launcher consumer and scope: `EterniaLauncher/docs/mission_control/evidence/subagent-foundation-2026-10-14.md`.
 The already-claimed Launcher C019 row owns the existing native client capability-v3
