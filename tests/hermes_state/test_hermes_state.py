@@ -2046,9 +2046,7 @@ class TestAsyncDelegationsSchemaAgreement:
 
         legacy_sql = SCHEMA_SQL.replace(
             "    origin_session_id TEXT NOT NULL DEFAULT '',\n", ""
-        ).replace(
-            "    owner_home TEXT NOT NULL DEFAULT ''\n", ""
-        ).replace(
+        ).replace("    owner_home TEXT NOT NULL DEFAULT ''\n", "").replace(
             "    delivery_claimed_at REAL,\n",
             "    delivery_claimed_at REAL\n",
         )
