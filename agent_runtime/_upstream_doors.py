@@ -395,7 +395,11 @@ def gguf_file_header(path: Path):
 
 
 def codex_account_claims(token, identity: str) -> dict:
-    """Existing JWT decoder, only for the credential whose usage was reported."""
+    """Existing JWT decoder, only for the credential whose usage was reported.
+
+    Two named private-import exceptions (owner ruling 2026-10-15). Door wanted:
+    the "Public Codex credential claims door" request in the upstream footprint
+    ledger."""
     from agent.account_usage import _codex_snapshot_identity
     from hermes_cli.auth_constants import _decode_jwt_claims
 
