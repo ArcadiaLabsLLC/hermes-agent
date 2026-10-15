@@ -843,10 +843,14 @@ def test_concurrent_admission_is_refused_not_interleaved(qa_profile):
     worker.start()
     try:
         assert in_flight.wait(5)
+        waited_from = time.perf_counter()
         second = admit_mcp_servers(
-            _admission(qa_profile), register=lambda _servers: ["should not run"]
+            _admission(qa_profile), register=lambda _servers: ["should not run"],
+            timeout_seconds=0.4,
         )
 
+        # Owner ruling 2026-10-10 (L1.11): it WAITED its budget before refusing.
+        assert time.perf_counter() - waited_from >= 0.35
         assert second.admitted == ()
         assert [row["code"] for row in second.denial_rows()] == [MCP_ADMISSION_LANE_BUSY]
         # Same fence as the timeout row: retrying is a real route, the deleted
@@ -858,6 +862,39 @@ def test_concurrent_admission_is_refused_not_interleaved(qa_profile):
     finally:
         release.set()
         worker.join(30)
+
+
+def test_a_second_admission_waits_for_the_mutex_instead_of_refusing(qa_profile):
+    """Owner ruling 2026-10-10 (L1.11): an admission behind an in-flight one waits
+    within its own budget, and registers once the mutex frees."""
+
+    in_flight = threading.Event()
+    release = threading.Event()
+    registered: list[str] = []
+
+    def _hold(_servers):
+        in_flight.set()
+        release.wait(30)
+        return []
+
+    worker = threading.Thread(
+        target=lambda: admit_mcp_servers(_admission(qa_profile), register=_hold), daemon=True
+    )
+    worker.start()
+    try:
+        assert in_flight.wait(5)
+        threading.Timer(0.2, release.set).start()
+        second = admit_mcp_servers(
+            _admission(qa_profile),
+            register=lambda servers: registered.extend(servers) or [],
+            timeout_seconds=5,
+        )
+    finally:
+        release.set()
+        worker.join(30)
+
+    assert registered, "the second admission ran its registrar after waiting"
+    assert MCP_ADMISSION_LANE_BUSY not in [row["code"] for row in second.denial_rows()]
 
 
 def test_the_single_flight_mutex_is_released_after_a_completed_admission(qa_profile):
