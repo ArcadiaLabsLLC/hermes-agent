@@ -74,7 +74,6 @@ def test_hung_guard_fails_closed_instead_of_wedging_the_command(monkeypatch):
 
     def _hung(command, **_):
         release.wait(timeout=10.0)
-        return None
 
     PluginContext(PluginManifest(name="hung", source="user"), mgr).register_hook("command_guard", _hung)
     try:
