@@ -880,25 +880,14 @@ def compare_sets(gate: str, live: set[str], fixture: set[str]) -> Drift:
 
 
 def compare_name_groups(gate: str, live: set[str], fixture: set[str]) -> Drift:
-    """Like :func:`compare_sets` for ``"name: owner, owner, ..."`` rows, but a group that
-    LOST an owner is a shrink, not a new group: it is not NEW (so ``--write-fixtures``
-    records it) and its old row reads STALE until it is rewritten. A group is NEW
-    only when its name is new or it gained an owner the fixture's group lacks.
-    """
-
+    """:func:`compare_sets` for ``"name: owner, ..."`` rows, where a group that LOST an owner
+    is a shrink (its old row STALE, the new one not NEW) so ``--write-fixtures`` records it."""
     def split(row: str) -> tuple[str, frozenset[str]]:
         name, _, owners = row.partition(": ")
-        return name, frozenset(o for o in owners.split(", ") if o)
-
-    recorded: dict[str, list[frozenset[str]]] = defaultdict(list)
-    for row in fixture:
-        name, owners = split(row)
-        recorded[name].append(owners)
-    new = []
-    for row in live - fixture:
-        name, owners = split(row)
-        if not any(owners <= prior for prior in recorded.get(name, ())):
-            new.append(row)
+        return name, frozenset(owners.split(", "))
+    recorded = [split(row) for row in fixture]
+    new = [row for row in live - fixture if not any(
+        name == split(row)[0] and split(row)[1] <= owners for name, owners in recorded)]
     return Drift(gate, sorted(new), [], sorted(fixture - live))
 
 
