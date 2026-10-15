@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-__layer__ = "stores"
+__layer__ = "policy"
 
 
 from .provider_account_view import account_text
