@@ -520,10 +520,16 @@ class TestPromotedMcpBrief:
         assert described["tools"][name]["description"] == self._MANUAL
         assert described["tools"][name]["parameters"] == full["function"]["parameters"]
 
-    def test_the_brief_is_idempotent_and_an_unpromoted_tool_keeps_its_parameter_prose(self):
+    def test_the_brief_is_idempotent_and_an_unpromoted_tool_gets_the_generic_collapse(self):
         """An unpromoted MCP tool gets the generic one-line collapse (lane h-prompt-brief), not the
-        promoted brief: no suffix, and its parameter descriptions ride unclipped."""
-        from tools.downstream_schema import PROMOTED_BRIEF_SUFFIX, brief_request_tools
+        promoted brief: no suffix, and its parameter prose cut to a first sentence (owner ruling
+        L2.17) — the generic rule, not the promoted clip."""
+        from tools.downstream_schema import (
+            PROMOTED_BRIEF_PARAMETER_CHARS,
+            PROMOTED_BRIEF_SUFFIX,
+            _first_sentence,
+            brief_request_tools,
+        )
 
         _name, full = self._open_app_tab()
         once = brief_request_tools({"tools": [full]})
@@ -533,7 +539,9 @@ class TestPromotedMcpBrief:
         wired = brief_request_tools({"tools": [other]})["tools"][0]["function"]
         assert not wired["description"].endswith(PROMOTED_BRIEF_SUFFIX)
         assert "\n" not in wired["description"] and len(wired["description"]) < len(self._MANUAL)
-        assert wired["parameters"] is other["function"]["parameters"]
+        assert wired["parameters"]["properties"]["tab"]["description"] == _first_sentence(
+            "y" * 400, PROMOTED_BRIEF_PARAMETER_CHARS)
+        assert other["function"]["parameters"]["properties"]["tab"]["description"] == "y" * 400, "registry copy mutated"
         assert brief_request_tools({"tools": [{"type": "function", "function": wired}]}) is None
 
     def test_the_responses_shape_is_briefed_too(self):

@@ -1,8 +1,10 @@
 """Fork-owned one-line wire descriptions; the full documentation stays in the registry.
 
 Every tool on the wire is COLLAPSED (lane h-prompt-brief, owner ask 2026-10-05): its
-``description`` becomes one sentence and its parameter schema rides whole, so the tool
-stays directly callable while its manual is one ``tool_describe`` away. The rewrite is
+``description`` becomes one sentence and its parameter schema keeps its whole structure
+(types, required, enums) while each parameter's prose rides as its first sentence (owner
+ruling L2.17, 2026-10-10), so the tool stays directly callable while its manual is one
+``tool_describe`` away. The rewrite is
 :func:`brief_request_tools`, which the eternia-harness plugin registers as ``llm_request``
 middleware; the registry and upstream's tool files keep their text, and ``tool_describe``
 serves it (``tools.tool_full_descriptions`` for the fork's mirrored registrations).
@@ -105,15 +107,30 @@ def _clip(text: str, cap: int) -> str:
 _ABBREVIATIONS = ("e.g.", "i.e.", "etc.", "vs.")
 
 
-def _first_sentence(text: str) -> str:
+def _first_sentence(text: str, cap: int = ONE_LINE_MAX_CHARS) -> str:
     """The text up to its first sentence end (a "." then a space, past 40 chars, not an
-    abbreviation), on one line, clipped to :data:`ONE_LINE_MAX_CHARS`."""
+    abbreviation), on one line, clipped to ``cap`` (:data:`ONE_LINE_MAX_CHARS`)."""
     text = " ".join(str(text or "").split())
     for index in range(40, len(text)):
         if (text[index] == "." and (index + 1 == len(text) or text[index + 1] == " ")
                 and not text[: index + 1].endswith(_ABBREVIATIONS)):
-            return _clip(text[: index + 1], ONE_LINE_MAX_CHARS)
-    return _clip(text, ONE_LINE_MAX_CHARS)
+            return _clip(text[: index + 1], cap)
+    return _clip(text, cap)
+
+
+def _sentence_schema(node: Any) -> Any:
+    """A JSON schema with every nested ``description`` cut to its first sentence (at most
+    :data:`PROMOTED_BRIEF_PARAMETER_CHARS`); structure, types, required and enums kept whole.
+    The rest of each parameter's prose is behind ``tool_describe`` (owner ruling L2.17)."""
+    if isinstance(node, dict):
+        return {
+            key: (_first_sentence(value, PROMOTED_BRIEF_PARAMETER_CHARS)
+                  if key == "description" and isinstance(value, str) else _sentence_schema(value))
+            for key, value in node.items()
+        }
+    if isinstance(node, list):
+        return [_sentence_schema(item) for item in node]
+    return node
 
 
 def _clipped_schema(node: Any) -> Any:
@@ -144,7 +161,9 @@ def promoted_brief(target: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
-    """``entry`` with its brief description, or None when it needs no rewrite.
+    """``entry`` with its brief description and first-sentence parameter prose, or None
+    when it needs no rewrite. A :data:`KEEP_FULL_WIRE_DESCRIPTIONS` tool keeps its whole
+    parameter prose; a promoted MCP tool keeps its own clip (:func:`promoted_brief`).
 
     Three payload shapes: chat completions (``{"type": "function", "function": {...}}``),
     Responses (``{"type": "function", "name", "description", ...}``) and Anthropic
@@ -154,6 +173,26 @@ def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
         return None
     inner = entry.get("function")
     target = inner if isinstance(inner, dict) else entry
+    rewritten = _briefed_target(target)
+    from tools.tool_search_downstream import PROMOTED_MCP_TOOLS
+
+    name = target.get("name")
+    if name not in KEEP_FULL_WIRE_DESCRIPTIONS and name not in PROMOTED_MCP_TOOLS:
+        base = rewritten if rewritten is not None else target
+        for key in ("parameters", "input_schema"):
+            if isinstance(base.get(key), dict):
+                schema = _sentence_schema(base[key])
+                if schema != base[key]:
+                    base = {**base, key: schema}
+        if base is not target:
+            rewritten = base
+    if rewritten is None:
+        return None
+    return {**entry, "function": rewritten} if target is inner else rewritten
+
+
+def _briefed_target(target: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """The function body with its brief description, or None when the description stays."""
     name = target.get("name")
     brief = BRIEF_DESCRIPTIONS.get(name)
     if brief is None:
@@ -175,7 +214,7 @@ def _briefed(entry: Any) -> Optional[Dict[str, Any]]:
         return None
     else:
         rewritten = {**target, "description": brief}
-    return {**entry, "function": rewritten} if target is inner else rewritten
+    return rewritten
 
 
 def brief_request_tools(request: Any) -> Optional[Dict[str, Any]]:
