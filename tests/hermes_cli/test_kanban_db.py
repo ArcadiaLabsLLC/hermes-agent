@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- the two in-file Popen fakes gain poll() because the Windows reaper polls every live worker; no test is added here
 """Tests for the Kanban DB layer (hermes_cli.kanban_db)."""
 
 from __future__ import annotations
