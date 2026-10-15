@@ -130,6 +130,7 @@ import importlib
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -4020,12 +4021,34 @@ def _save_render_cache() -> None:
         tmp.unlink(missing_ok=True)
 
 
+_IDENT_CHAR = "A-Za-z0-9_"
+
+
+@functools.lru_cache(maxsize=None)
+def _identifier_pattern(text: str) -> re.Pattern[str]:
+    """``text`` as a whole token: no identifier character may extend either end.
+
+    A row whose spelling starts (or ends) in an identifier character is a NAME,
+    so ``re_prompt`` must not match inside ``before_prompt``. A prefix-shaped row
+    (``task.``, ``daemon.``) ends in punctuation and keeps matching every
+    ``task.<kind>``; only the identifier ends are bounded.
+    """
+
+    head = f"(?<![{_IDENT_CHAR}])" if re.match(f"[{_IDENT_CHAR}]", text[:1]) else ""
+    tail = f"(?![{_IDENT_CHAR}])" if re.match(f"[{_IDENT_CHAR}]", text[-1:]) else ""
+    return re.compile(head + re.escape(text) + tail)
+
+
+def _code_names(text: str, rendered: str) -> bool:
+    return text in rendered and _identifier_pattern(text).search(rendered) is not None
+
+
 def code_offenders(row: Tombstone) -> list[str]:
     """Every production file whose comment-stripped code still names the row."""
 
     offenders: list[str] = []
     for path in _scan_paths(row.scope):
-        if row.text in _rendered(path):
+        if _code_names(row.text, _rendered(path)):
             offenders.append(str(path.relative_to(HERMES_ROOT)).replace("\\", "/"))
     return offenders
 
@@ -4267,6 +4290,24 @@ def test_the_scanner_is_comment_and_docstring_immune():
         assert ghost not in rendered, ghost
     # …and the real code, including the DOTTED form S46's helper destroyed.
     assert "card.title" in rendered
+
+
+def test_the_code_scan_matches_identifiers_not_substrings():
+    """A retired NAME is resurrected by the name, never by a longer identifier.
+
+    ``before_prompt`` (a live history-boundary value) contains the retired
+    ``re_prompt`` as a substring; the positive controls are the same bytes with
+    the name standing alone, as an attribute, and as a string value.
+    """
+
+    assert not _code_names("re_prompt", 'boundary = "before_prompt"')
+    assert not _code_names("re_prompt", "x = re_prompt_count")
+    assert _code_names("re_prompt", 'action = "re_prompt"')
+    assert _code_names("re_prompt", "coordinator.re_prompt(card)")
+    assert _code_names("re_prompt", "re_prompt = 1")
+    # A prefix-shaped row still matches every kind under its namespace.
+    assert _code_names("task.", 'emit("task.created")')
+    assert not _code_names("task.", 'emit("subtask.created")')
 
 
 def test_the_scanner_keeps_string_literals():
