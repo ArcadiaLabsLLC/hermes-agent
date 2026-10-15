@@ -75,9 +75,35 @@ def _https_context() -> ssl.SSLContext:
     return context
 
 
-_OPENER = urllib.request.build_opener(
-    _HttpsRedirectHandler(), urllib.request.HTTPSHandler(context=_https_context())
-)
+class _LazyOpener:
+    """The module's opener, built on the first request instead of at import.
+
+    ``ssl.create_default_context()`` opens ``SSLKEYLOGFILE`` when that variable is
+    set. Built at import, a key-log target that is missing, a pipe nobody reads or
+    a device (``NUL`` aborts in OpenSSL's applink) failed or hung every CLI start
+    that imports this module, including commands that never download. Built here,
+    the same target fails the download that asked for TLS; certificate checks and
+    key logging are unchanged.
+    """
+
+    def __init__(self) -> None:
+        self._opener: urllib.request.OpenerDirector | None = None
+        self._lock = threading.Lock()
+
+    def _get(self) -> urllib.request.OpenerDirector:
+        if self._opener is None:
+            with self._lock:
+                if self._opener is None:
+                    self._opener = urllib.request.build_opener(
+                        _HttpsRedirectHandler(), urllib.request.HTTPSHandler(context=_https_context())
+                    )
+        return self._opener
+
+    def open(self, *args, **kwargs):
+        return self._get().open(*args, **kwargs)
+
+
+_OPENER = _LazyOpener()
 
 
 class DownloadError(RuntimeError):
