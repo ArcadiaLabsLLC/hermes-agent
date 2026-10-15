@@ -29,7 +29,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (owner sitting: first real QA bundle build)
 
-- [ ] **Bundle packager: `install_pool` fails on a Windows sharing violation with no retry** — `scripts/bundle_profile_package.py` `install_pool` runs `uv pip install --target <work>/core.pool …`; at the 2026-10-15 sitting it died on os error 32 removing `pillow_heif-1.6.0.data` ("being used by another process"). Retry the install (bounded backoff) on a sharing violation, and start from an emptied pool dir; this side moves first, the launcher qa-tooling row "The QA bundled-harness build has never succeeded" names the other two gaps. **TAKEN 2026-10-15 w1015i-bundle**
 
 ### Filed on arrival — 2026-10-15 (owner sitting: send-prep live proof)
 
