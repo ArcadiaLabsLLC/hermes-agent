@@ -76,6 +76,22 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 _has_pytest() { [ -n "$1" ] && [ -x "$1" ] && "$1" -c 'import pytest' 2>/dev/null; }
 # shellcheck source=scripts/_activation.sh
 . "$SCRIPT_DIR/_activation.sh"
+# Fork (owner ruling 2026-10-15): on a workstation, no HERMES_PYTHON means the
+# shared test venv (HERMES_TEST_VENV, default ~/.venvs/hermes-test), never the
+# PM test environment activation would sync inside the operator's live Hermes
+# home. Missing shared venv = refuse. CI keeps upstream's activation path.
+if [ -z "${__HERMES_ACTIVATED:-}" ] && ! _has_pytest "${HERMES_PYTHON:-}" && [ -z "${CI:-}" ]; then
+  _SHARED_VENV="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}"
+  for _candidate in "$_SHARED_VENV/Scripts/python.exe" "$_SHARED_VENV/bin/python"; do
+    if _has_pytest "$_candidate"; then HERMES_PYTHON="$_candidate"; break; fi
+  done
+  if ! _has_pytest "${HERMES_PYTHON:-}"; then
+    echo "error: no HERMES_PYTHON and no shared test venv with pytest at $_SHARED_VENV" >&2
+    echo "       create it, or set HERMES_PYTHON / HERMES_TEST_VENV (Running the tests.md)" >&2
+    exit 1
+  fi
+  echo "▶ no HERMES_PYTHON — using the shared test venv: $HERMES_PYTHON"
+fi
 if [ -z "${__HERMES_ACTIVATED:-}" ] && _has_pytest "${HERMES_PYTHON:-}"; then
   PYTHON="$HERMES_PYTHON"
   echo "▶ not activated — using HERMES_PYTHON: $PYTHON"
@@ -297,9 +313,9 @@ REAL_HERMES_ROOT="$(
 if [ -n "$REAL_HERMES_ROOT" ]; then
   echo "▶ real store root handed to the gateway fence: $REAL_HERMES_ROOT"
 fi
-# Fork (row 2026-10-15): say which interpreter runs the tests, and warn when it is
-# the PM test environment inside the operator's live store root — a lane must
-# never sync or run there; it sets HERMES_PYTHON (Running the tests.md).
+# Fork (rows 2026-10-15): say which interpreter runs the tests, and refuse one
+# inside the operator's live store root (warn only under CI, whose store root
+# is the runner's throwaway home) — owner ruling 2026-10-15.
 _TEST_INTERP="$(
   "$PYTHON" -c 'import os, sys
 e = os.path.normcase(os.path.realpath(sys.executable)); r = sys.argv[1]
@@ -308,7 +324,12 @@ print(("INSIDE " if r and e.startswith(r) else "") + sys.executable)' "${REAL_HE
 )"
 echo "▶ test interpreter: ${_TEST_INTERP#INSIDE }"
 if [ "${_TEST_INTERP#INSIDE }" != "$_TEST_INTERP" ]; then
-  echo "⚠ that interpreter lives inside the live store root ($REAL_HERMES_ROOT); a lane run sets HERMES_PYTHON to the shared test venv instead" >&2
+  if [ -n "${CI:-}" ]; then
+    echo "⚠ that interpreter lives inside the store root ($REAL_HERMES_ROOT)" >&2
+  else
+    echo "error: that interpreter lives inside the live Hermes home ($REAL_HERMES_ROOT); tests never run there — set HERMES_PYTHON to the shared test venv" >&2
+    exit 1
+  fi
 fi
 
 # Fork (Git Bash / MSYS / WSL): a native-Windows "$PYTHON" (…/Scripts/python.exe)

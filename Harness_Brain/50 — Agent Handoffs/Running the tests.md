@@ -27,7 +27,9 @@ python scripts/changed_line_mutation_check.py --list --base origin/main         
 
 **A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
 `python` on this box is the system Python 3.12 without the test venv, so its import errors are
-false reds; use the shared venv (`HERMES_PYTHON`, the venv under `~/.venvs/hermes-test`) or `scripts/run_tests.sh <file>`. `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
+false reds; use the shared venv (`HERMES_PYTHON`, the venv under `~/.venvs/hermes-test`) or `scripts/run_tests.sh <file>`. With no `HERMES_PYTHON`, `scripts/run_tests.sh` uses the shared venv (`HERMES_TEST_VENV`, default
+`~/.venvs/hermes-test`) and refuses when it is missing; it refuses any interpreter inside the live Hermes
+home (owner ruling 2026-10-15; CI keeps upstream's activation path). `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
 `write_text`/`open` with no `encoding=`: a file red under the venv's bare pytest and green under
 `run_tests.sh` is that difference, not a product bug — check it before filing a row (L6.19, L6.25,
 L4.01 in `queue-sweep-2026-10-10/`).
