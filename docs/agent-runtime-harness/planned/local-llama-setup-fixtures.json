@@ -1,0 +1,173 @@
+{
+  "schema": "hermes.local_llama.setup-fixtures/v1",
+  "source": "isolated official b10964 CPU installation and activation; values sanitized",
+  "examples": {
+    "capabilities": {
+      "schema": "hermes.local_llama.setup/v1",
+      "install_id": "isolated-setup-proof",
+      "epoch": "102988b2-c4cf-4a62-8ef1-7b8b34d48d49",
+      "features": {
+        "detect": true,
+        "path_validate": true,
+        "hardware": true,
+        "releases": true,
+        "install": true,
+        "cancel": true,
+        "activate": true,
+        "offline_import": false,
+        "host_browser": false
+      },
+      "automatic_platforms": [
+        "win-x64"
+      ],
+      "unsupported_reason": null
+    },
+    "status": {
+      "schema": "hermes.local_llama.setup/v1",
+      "install_id": "isolated-setup-proof",
+      "epoch": "102988b2-c4cf-4a62-8ef1-7b8b34d48d49",
+      "inventory": [
+        {
+          "executable_path": "<host-proof>\\llama-b10964-cpu-9a4dcce3\\llama-server.exe",
+          "version": "version: 0.4.1-dev (build 10964, commit b29c606e2)\r\nbuilt with Clang 20.1.8 for Windows x86_64",
+          "sha256": "aa2e1f5c67be55f11be26ae58d643a545ca07c6de498f6f870330ac2f4dfec73",
+          "compatibility": "compatible",
+          "capabilities": [
+            "--models-dir",
+            "--models-preset",
+            "--models-max",
+            "--no-models-autoload"
+          ],
+          "installation_id": "787340c6-42fd-47b3-9a79-869d1f443a58",
+          "tag": "b10964",
+          "variant_id": "win-x64-cpu",
+          "directory": "<host-proof>\\llama-b10964-cpu-9a4dcce3"
+        }
+      ],
+      "inventory_revision": 1,
+      "active_installation_id": "787340c6-42fd-47b3-9a79-869d1f443a58",
+      "active_operation": null,
+      "requested_operation": null,
+      "lookup_state": "not_requested"
+    },
+    "lifecycle_status": {
+      "schema": "hermes.local_llama/v1",
+      "install_id": "isolated-setup-proof",
+      "epoch": "102988b2-c4cf-4a62-8ef1-7b8b34d48d49",
+      "revision": 0,
+      "config_revision": 1,
+      "configured": true,
+      "capabilities": {
+        "supported": true,
+        "reason": null,
+        "router_load_unload": true,
+        "parameter_schema_version": 1,
+        "supported_values": {
+          "thinking": [
+            "auto"
+          ],
+          "flash_attention": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "cache_type_k": [
+            "f16",
+            "q8_0",
+            "q4_0"
+          ],
+          "cache_type_v": [
+            "f16",
+            "q8_0",
+            "q4_0"
+          ]
+        }
+      },
+      "server": {
+        "state": "off",
+        "error": null
+      },
+      "models": [],
+      "active_turns": [],
+      "operation": null,
+      "active_operation": null
+    },
+    "installation_plan": {
+      "schema": "hermes.local_llama.setup/v1",
+      "install_id": "isolated-setup-proof",
+      "epoch": "102988b2-c4cf-4a62-8ef1-7b8b34d48d49",
+      "plan": {
+        "plan_id": "9a4dcce3-1540-4865-99b7-fe2fc3151b1c",
+        "plan_revision": 1,
+        "expires": 1789521315.246104,
+        "release_id": "388506854",
+        "tag": "b10964",
+        "variant_id": "win-x64-cpu",
+        "destination_parent": "<host-proof>",
+        "parent_identity": [
+          6379373673594645296,
+          153966812260764905
+        ],
+        "directory": "<host-proof>\\llama-b10964-cpu-9a4dcce3",
+        "variant": {
+          "variant_id": "win-x64-cpu",
+          "backend": "cpu",
+          "artifacts": [
+            {
+              "asset_id": "563672535",
+              "name": "llama-b10964-bin-win-cpu-x64.zip",
+              "size_bytes": 18427629,
+              "sha256": "917f39c076402c421224824607397af20f53625a60defc20e8dd22446bf4c5d7"
+            }
+          ],
+          "download_bytes": 18427629
+        },
+        "required_free_bytes": 9145233133,
+        "free_bytes": 101598793728,
+        "config_revision": 0,
+        "inventory_revision": 0,
+        "warning_ids": []
+      }
+    },
+    "install_operation": {
+      "operation_id": "e30d6837-92ca-42cd-8ac7-d111454dd6b2",
+      "request_id": "3f4a3f4b-baee-475e-b21a-e6e0f28e3744",
+      "kind": "install",
+      "state": "succeeded",
+      "phase": "finished",
+      "sequence": 285,
+      "bytes_done": null,
+      "bytes_total": null,
+      "can_cancel": false,
+      "accepted_at": "2026-09-16T01:00:15.247102+00:00",
+      "finished_at": "2026-09-16T01:00:21.515109+00:00",
+      "error": null,
+      "result": {
+        "installation_id": "787340c6-42fd-47b3-9a79-869d1f443a58",
+        "activated": false,
+        "cleanup": "complete",
+        "retained_paths": []
+      }
+    },
+    "activation_operation": {
+      "operation_id": "7b4f9f7c-64b3-47bd-8c14-daf05cb3ae62",
+      "request_id": "e224b40f-57c2-4993-8142-bcbf0508560d",
+      "kind": "activate",
+      "state": "succeeded",
+      "phase": "finished",
+      "sequence": 2,
+      "bytes_done": null,
+      "bytes_total": null,
+      "can_cancel": false,
+      "accepted_at": "2026-09-16T01:00:21.702762+00:00",
+      "finished_at": "2026-09-16T01:00:22.824066+00:00",
+      "error": null,
+      "result": {
+        "installation_id": "787340c6-42fd-47b3-9a79-869d1f443a58",
+        "activated": true,
+        "cleanup": "not_needed",
+        "retained_paths": []
+      }
+    }
+  }
+}

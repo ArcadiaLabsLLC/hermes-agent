@@ -1,0 +1,7 @@
+# Dated reports from scripts/unattended_suite_run.ps1 (the unattended
+# validated-suite + mutation-inventory lane; see AGENTS.md §Testing). Machine-
+# and run-local, never source. Kept here rather than in the root .gitignore so
+# the fork does not edit upstream's file for a fork-only directory.
+*
+!.gitignore
+!.gitkeep

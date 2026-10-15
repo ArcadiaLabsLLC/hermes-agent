@@ -1,0 +1,73 @@
+---
+type: program
+program: mission-control
+status: active
+cursor: "2026-10-12 — Console thinking capability recognises canonical GPT-6 tiers in native summaries and model patches; 85 runtime and 77 Launcher tests passed; docs/downstream/thinking-meter-capability-2026-10-12.md. Live serve reload remains required. Previous: 2026-10-12 — reviewed-file and retry-lineage producer queue residue closed; Launcher consumers remain queued. Previous: 2026-10-10 — native readable reasoning is redacted under a reviewed metadata inventory; curated preview fidelity, final sidecar deduplication and continuation diagnostics share their existing owners. 2026-10-10 — admitted operator text and recorded replies remain whole; scoped content windows expose explicit transcript previews, and native SQLite sidecars redact before write. 2026-10-10 — native projection preserves typed content, upstream metadata and all valid tool pairs; cold reads use upstream replay repair. 2026-10-10 — native result/argument clipping retired; upstream owns result policy, qualified through SQLite flush and replay. 2026-10-07 — inline agent-chat admission and thread roster reads use the runtime head, not the sender profile; real inline-handler regression covers two sender homes and sibling targets. Live relay/thread-opening acceptance remains in the Launcher console audit. Earlier Discussion qualification is unchanged; broad suite and host-safety investigations remain in fork-hygiene."
+tags: [program/mission-control, program]
+---
+
+# Mission Control (runtime side)
+
+`history_review_cursor::` 2026-10-14 — Old Console history review reconciled
+against the landed owners; missing safety coverage and private-API seam record
+added. Dispatch cancellation preserves the owning lane's verdict through RPC.
+[Evidence](../../docs/agent-runtime-harness/planned/console-history-controls-review-2026-10-10.md#reconciliation--october-14).
+`execution_controls_cursor::` 2026-10-14 — Native conversation approval/speed
+settings validate route and owner, bind the existing approval queue, and apply
+speed to cold/reused actors. [Contract and verification](../../docs/downstream/session-controls-2026-10-14.md).
+
+`chat_model_reset_cursor::` 2026-10-12 — The existing operator model selector
+can clear only a chat pin and return to agent defaults; no default write or
+permission change. [Contract](../../docs/agent-runtime-harness/03-transport-and-wire.md#operator-model-selection).
+
+Reset qualification: 27 model-control cases and 19 permission-visibility cases
+pass on Python 3.14. The fork landing gate records 12,605 passed / one failed;
+the environment-registry failure reproduces on unchanged main `d72f08870c`
+with an in-checkout venv and is filed in fork hygiene. The shared external-venv
+baseline passes that registry. An applied mutation that ignored the inheritance
+flag failed the persisted reset/other-chat/default/permission regression and
+was restored. No gate or fence was weakened. The initial full run used the old
+3.13 primary venv and was stopped after interpreter-requirement errors; the
+qualified run uses isolated Python 3.14.7. Live Launcher control acceptance and
+the claimed picker/permission bindings remain with the Launcher lane.
+
+`reasoning_capability_cursor::` 2026-10-12 — First-class provider/model capability
+facts cross operator reads, snapshots and provider-only patches. The Launcher
+renders native choices automatically. [Contract and verification](../../docs/downstream/reasoning-capabilities-2026-10-12.md).
+
+`history_red_triage_cursor::` 2026-10-12 — [Remaining qualification reds](../../docs/downstream/history-red-triage-2026-10-12.md) classified with current-main controls; repair ownership stays in the domain queues and the completed history scope stays closed.
+
+Mission Control is the launcher's command deck for this runtime: the spatial office, per-agent chat, the board, the read model. **The program note and the canon live in the launcher's brain; the queue is split by repository — the hermes half is [[runtime-queue]] here.** This note exists so a hermes session knows where to go and what the runtime owes the surface.
+
+`history_controls_cursor::` 2026-10-12 — Native selected-turn Branch/Edit/Undo,
+turn-attributed files and reviewed recovery qualify through the paired Launcher.
+SessionDB and CheckpointManager remain the owners. [Evidence and repository
+limits](../../docs/agent-runtime-harness/planned/console-history-followup-verification-2026-10-11.md).
+Compressed-ancestry branching and held upstream candidates remain queued.
+
+## Where the truth lives
+
+- Program note: `EterniaLauncher/Launcher_Brain/10 — Programs/Mission Control.md`.
+- Canon: `EterniaLauncher/docs/mission_control/00-index.md` (surface) ↔ [`docs/agent-runtime-harness/00-index.md`](../../docs/agent-runtime-harness/00-index.md) (runtime). Cross-linked, never duplicated.
+- Queue: [[runtime-queue]] for rows whose fix lives in this repository (split fork-owned / seams / upstream-owned); `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` for the launcher half. A finding is filed on the side that must move first, on arrival, and claimed with `TAKEN` before work starts ([[0012 — The hermes half of Mission Control is queued here, split by ownership]]).
+- Stage C QA (driving the launcher through the `launcher_qa` MCP surface): `EterniaLauncher/docs/stages/qa-reboot/`; the hermes-side skill is `launcher-mcp-operations`.
+
+## What the runtime owes the surface (the contracts)
+
+| contract | hermes side | launcher side | gate |
+|---|---|---|---|
+| CLI argv surface | `scripts/dump_cli_contract.py` → `tests/fixtures/hermes_cli_contract.json` | `tool/hermes_cli_contract/` (vendored copy) | the repo that MOVED goes red; re-vendor in the same wave |
+| character payload keys | `scripts/dump_payload_contract.py` → `tests/fixtures/charsheet_payload_contract.json` | `tool/charsheet_payload_contract/` | same; a REMOVED key is the dangerous half |
+| parity envelope (wire) | byte-pinned goldens (canon 03/07) | byte-pinned goldens | additive-only; observability = receipts |
+| stream/response fixtures | `scripts/generate_agent_runtime_*_fixtures.py` | the launcher's `ready.json` recapture (code_tree hashes `agent_runtime`, so any hermes source change moves that fixture) | |
+| RPC method manifest | `serve_rpc._METHODS` + `params` blocks (R-C8: the 18-key message) | the method-lane lowering; `args_not_carried:*` = an argv wall | [[0003 — RPC route first]] |
+
+## Cross-repo rulings that bind both sides
+
+- [[0003 — RPC route first]] — every touched write lane moves to the method lane; argv marked for delete.
+- The multi-device canon: launcher doc 10 + hermes doc 09 (2026-09-06) retired stale claims in 01/03/05/06.
+- The launcher's refactor program (`EterniaLauncher/docs/archive/mission_control/refactor-program-2026-09/mission-control-refactor-program.md`) and its playbook are the method this repo's [[Downstream Refactor]] adopts.
+
+## Open questions the runtime is waiting on
+
+See [[Open Questions for Launcher]] — the Mac CP-9 read, the C5 re-run, and which verbs the launcher still lowers to argv (the refactor plan's §4.2 rows wait on that).

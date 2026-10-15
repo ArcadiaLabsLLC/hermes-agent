@@ -1,0 +1,254 @@
+# Bundled desktop profile — the Hermes that ships inside the Launcher.
+#
+# Source: the "Bundled desktop" column of the launcher's profile matrix
+# (`EterniaLauncher/docs/embedded_hermes/subsystems/PROFILE_MATRIX_2026-09-28.md`).
+# Standing rules: enable, never reimplement; bundle only what is needed.
+#
+# Every switch below is an EXISTING Hermes switch. Nothing here adds a flag:
+#   toolsets.disabled  -> config `agent.disabled_toolsets` (the end-of-pipeline
+#                         subtraction in model_tools._select_tool_names)
+#   config             -> existing keys of hermes_cli.config_defaults.DEFAULT_CONFIG
+#   environment        -> variables an existing dependency already honours
+#   refused_routes     -> upstream dashboard routes, refused caller-side by
+#                         agent_runtime.bundle_profiles.route_gate
+# "Present but off" (shell family) means the code ships and a single agent's
+# profile may drop the toolset from its own `agent.disabled_toolsets`, with
+# approvals, when a feature needs it.
+schema_version: 1
+profile: bundled-desktop
+
+toolsets:
+  disabled:
+    # Shell family — present, off by default.
+    - terminal          # terminal + process_manage
+    - code_execution    # execute_code
+    - browser
+    - browser-cdp
+    - browser-use
+    - computer_use
+    # Messaging platform tools — off in bundled.
+    - discord
+    - discord_admin
+    - yuanbao
+    - feishu_doc
+    - feishu_drive
+
+config:
+  # Sub-agent git worktrees: off (needs a checkout and git).
+  delegation.worktree_isolation: false
+  # Execution backends: pinned to the local backend (terminal itself is off).
+  terminal.backend: local
+  # Hermes's own wake word (Python audio capture): the Launcher owns the mic.
+  wake_word.enabled: false
+  # Checkout-bound passive update checks: bundled updates with the Launcher.
+  updates.check: false
+  # No PyPI installs at runtime — bundle only what is needed.
+  security.allow_lazy_installs: false
+  # Local LLM engine supervision: on.
+  local_runtime.enabled: true
+  # MCP stdio servers (local processes): present, off; an agent's profile may
+  # turn them on, with approvals. HTTP servers are unaffected.
+  mcp.stdio_servers: false
+  # Piper: never fetch a voice by name; the Launcher downloads voice files.
+  tts.piper.download_voices: false
+  # The Launcher is the one model downloader: the dashboard's model download routes refuse and the
+  # serve loop sets HF_HUB_OFFLINE (agent_runtime/bundle_profiles/model_downloads.py).
+  local_models.downloads: false
+  # Execution backends: only `local` may be created (Docker, SSH, Modal,
+  # Daytona, Singularity, Vercel and plugin backends are refused).
+  terminal.external_backends: false
+  # Messaging platforms: the messaging gateway starts no platform adapter.
+  gateway.platform_adapters: false
+  # Checkout-bound: no git build stamp or repo dirty-state probes; identity is
+  # the baked build stamp (.hermes_build_sha beside the installed package).
+  updates.checkout_bound: false
+  # Hermes's own voice mode and wake word: the Launcher owns mic and speaker.
+  voice.mode_enabled: false
+  # Never borrow Claude Code / Codex CLI logins: a borrowed OAuth refresh token
+  # is single-use, so bundled and full Hermes (or the CLI) would share one token
+  # family and log each other out (credential census §4). Qwen OAuth is NOT
+  # covered by this key: its only store is the Qwen CLI's own file.
+  auth.adopt_external_logins: false
+  # Qwen OAuth is out (owner ruling 2026-09-28): its only token store is the
+  # Qwen CLI's own file, which bundled and full Hermes would share. Refused in
+  # the runtime resolver, sign-in and the provider catalog. Qwen models stay
+  # reachable through OpenRouter or an API-key provider.
+  providers.qwen-oauth.enabled: false
+  # No shared metrics (nemo-relay is omitted; bundled runs NoopRelayRuntime).
+  telemetry.shared_metrics.enabled: false
+  # Sign-ins live in the OS secure store (owner ruling 2026-09-28 item 4): DPAPI
+  # on Windows, Keychain / Secret Service where the bundle has them, else the
+  # process refuses to start. Bound at every entry through the phones' host-store
+  # seam; an older install's plaintext auth.json / .env / tokens move in at first
+  # start. Chat history stays a SQLite file (the worker is a second process).
+  auth.os_secure_store: true
+
+environment:
+  # Speech loaders' download-if-missing fallbacks (onnx-asr, faster-whisper,
+  # KittenTTS, NeuTTS all fetch through huggingface_hub; Piper's voice download honours it
+  # through the fork seam in tools/tts_tool_local.py): offline, so a missing
+  # model is an error, never a download. The Launcher downloads every model file.
+  HF_HUB_OFFLINE: "1"
+
+refused_routes:
+  # Upstream's local-model download surface (hermes_cli/web_routers/local_models.py).
+  # The engine install (/runtime/install) and server control stay: Local LLM is On.
+  feature: model_downloads
+  paths:
+    - /api/local-models/catalog
+    - /api/local-models/download
+    - /api/local-models/download/pause
+    - /api/local-models/download/resume
+    - /api/local-models/quickstart
+    - /api/local-models/search
+    - /api/local-models/search/files
+    - /api/local-models/download-browsed
+
+# Matrix rows with NO switch. Reported, not invented. (Stdio MCP, Piper voice
+# download, execution backends, messaging adapters, git build stamp / dirty
+# state and voice mode gained their switches in lane w2-hslim, above.)
+unswitched:
+  - area: Checkout-bound repo context
+    gap: agent_runtime.repo_context (affected-repo resolution for delivery directives, harness worktree inventory) still consults git; harness worktrees are only created with worktree isolation, which is off
+
+# Packaging: the import-closure walk (scripts/bundle_profile_closure.py).
+packaging:
+  roots:
+    - hermes_cli.main           # the serve entry: python -m hermes_cli.main harness serve --ndjson
+    - hermes_cli.harness
+    - run_agent
+    - model_tools
+    - agent_runtime
+    - cron.scheduler
+    - hermes_cli.local_runtime
+    - tools.tts_tool_local
+    - tools.transcription_local
+  # Optional extras (pyproject [project.optional-dependencies]) the bundle ships.
+  # Every other extra is absent: full Hermes installs extras lazily and their
+  # import sites tolerate absence; this profile turns lazy installs off, so an
+  # unshipped extra is an unavailable feature, never a download.
+  extras:
+    # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out.
+    - anthropic     # Anthropic provider (core agent: providers On)
+    - mcp           # MCP over HTTP (On); stdio servers are switched off by config
+    - fal           # image generation (On)
+  # Base dependencies the bundle omits. Refused by the closure script unless
+  # every import site in the kept modules is guarded (try/suppress ImportError).
+  omitted_distributions:
+    - distribution: nemo-relay
+      imports: [nemo_relay]
+      degrades: bundled runs NoopRelayRuntime (owner ruling 2026-09-28) — no managed execution, no Relay plugins, no shared metrics
+    - distribution: pillow-heif
+      imports: [pillow_heif]
+      degrades: (owner-confirmed 2026-09-28; the Launcher handles image formats) HEIC/HEIF images (iPhone photos) cannot be decoded — vision_analyze returns its no-decoder message and image routing skips the image; AVIF still decodes (native in Pillow 12)
+  # Base dependencies no static import reaches, shipped by name (the walk sees only
+  # imports). A requested extra of a base declaration (httpx[socks] -> socksio) is
+  # followed by the closure itself and needs no entry here.
+  dynamic_distributions:
+    tzdata: "stdlib zoneinfo loads it: Windows has no system timezone database, so hermes_time and cron named timezones need it"
+  # Requirements of a shipped distribution that a placeholder module stands in for:
+  # the closure never follows into them. Refused when kept first-party code imports
+  # one or when it is a base dependency.
+  # (None since Whisper moved onto onnx-asr, 2026-09-29: PyAV's placeholder went with faster-whisper.)
+  placeholder_distributions: {}
+  # First-party modules of switched-off / not-packaged features. The walk does
+  # not follow an import into these; a third-party distribution reached only
+  # through them is "excludable".
+  switched_off_modules:
+    - tools.terminal_tool
+    - tools.terminal_tool_backends
+    - tools.terminal_tool_lifecycle
+    - tools.code_execution_tool
+    - tools.browser_tool
+    - tools.browser_cdp_tool
+    - tools.browser_dialog_tool
+    - tools.browser_use_cli
+    - tools.browser_vault_tool
+    - tools.computer_use_tool
+    - tools.computer_use
+    - tools.environments
+    - tools.subagent_worktree
+    - tools.discord_tool
+    - tools.feishu_doc_tool
+    - tools.feishu_drive_tool
+    - tools.yuanbao_tools
+    # Hermes's own mic/speaker features (matrix: "—" on bundled desktop).
+    - tools.voice_mode
+    - tools.voice_live
+    - tools.wake_word
+    - tools.wake_word_engines
+    - hermes_cli.voice
+    - gateway.platforms
+    - plugins.platforms
+    # Checkout-bound (matrix: "—"): git revision skew, git update/repair, the
+    # `hermes worktree` command, and the `hermes migrate` relay cut-over.
+    # (hermes_cli.worktree_ops stays: kanban's worktree workspaces import it.)
+    - gateway.code_skew
+    - hermes_cli.update_cmd
+    - hermes_cli.update_cmd_fleet
+    - hermes_cli.update_cmd_maint
+    - hermes_cli.update_cmd_windows
+    - hermes_cli.update_completion
+    - hermes_cli.update_inventory
+    - hermes_cli.worktree_cmd
+    - hermes_cli.relay_plugin_migrate
+    # Dev and QA tooling (matrix: "—").
+    # (agent_runtime.harness_doctor stays: the harness parser registers
+    # `harness doctor` at import.)
+    - agent_runtime.doctor_extensions
+    - tests
+    - scripts
+    - evals
+  # --- the packaging step (scripts/bundle_profile_package.py) ---
+  # Engine packs: extras the core bundle does NOT carry. Each is built as its
+  # own output (only the distributions the core lacks) and downloaded on first
+  # use (owner, 2026-09-28); bundled Hermes finds an installed pack through
+  # HERMES_ENGINE_PACKS (site-packages/hermes-engine-packs.pth). No pack = the
+  # engine's imports fail = that speech provider reports unavailable.
+  packs:
+    speech:
+      extras:
+        - speech-tts    # speech service: TTS (On) — our onnxruntime runner, no piper-tts / espeak-ng (GPL)
+        - stt-onnx      # speech service: STT, Whisper and Parakeet TDT tiers, both on onnx-asr / onnxruntime (On)
+        # (stt-whisper is upstream's faster-whisper extra: ctranslate2 + Intel OpenMP. Not shipped
+        # since owner ruling 2026-09-29; full Hermes keeps it for its own local STT.)
+  # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
+  resources:
+    - skills
+    - locales
+    # The harness skills agent_runtime.skill_install copies into the shared skills
+    # root at serve start (it reads them from app/docs/..., beside agent_runtime/).
+    - docs/agent-runtime-harness/harness-skills
+  # Bundled plugin directories (plugins/<dir>) that ship; the loader finds
+  # plugins by directory, so an unlisted one is simply not packaged. Left out:
+  # platforms (messaging, off), browser (shell family, switched off),
+  # google_meet (meeting bot, needs playwright), teams_pipeline (Teams messaging, off).
+  plugins:
+    - eternia-harness     # `harness serve` — the Launcher's wire
+    - model-providers
+    - memory
+    - context_engine
+    - web
+    - image_gen
+    - video_gen
+    - kanban
+    - cron_providers
+    - observability
+    - dashboard_auth
+    - security-guidance
+    - disk-cleanup
+    - hermes-achievements
+  # Left out of the bundle, each with its reason (bundle-root-relative:
+  # app/... or site-packages/...; a trailing path or an fnmatch glob).
+  excluded_data:
+    site-packages/onnx_asr/preprocessors/data/*_conv.onnx: "onnx-asr's Conv-STFT graphs for GPU providers: the CPU path uses its numpy preprocessors"
+    site-packages/onnx_asr/preprocessors/data/gigaam*: "GigaAM (Russian) preprocessors: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/kaldi*: "Kaldi/Vosk preprocessors: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/whisper*: "Whisper-ONNX preprocessor graphs: the CPU path uses the numpy one (preprocessors/data/fbanks.npz)"
+    site-packages/onnx_asr/preprocessors/data/wespeaker.onnx: "speaker-embedding preprocessor: not a bundled model"
+    site-packages/onnx_asr/preprocessors/data/nemo*.onnx: "NeMo ONNX preprocessors: the CPU path uses the numpy one (preprocessors/data/fbanks.npz)"
+    site-packages/onnx_asr/preprocessors/data/resample_*_8.onnx: "resamplers to 8 kHz: Parakeet takes 16 kHz (the 16 kHz ones load at model start)"
+    app/tools/neutts_samples: "NeuTTS reference clips: NeuTTS is not in the bundled speech set"
+    app/tools/wakewords: "Hermes wake-word models: wake_word.enabled is false, the Launcher owns the mic"
+    app/agent_runtime/bundle_profiles/licence-texts: "vetted licence texts: the packager copies the ones a wheel lacks to the output's licence-texts/, which licenses.json cites; the runtime never reads them"
+    app/plugins/*/docs/*: "plugin documentation and screenshots"

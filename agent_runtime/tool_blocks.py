@@ -1,0 +1,186 @@
+"""A run's blocked tools, enforced through upstream's plugin surface instead of core edits.
+
+The runtime blocks tools per run (the persona blocklist, the chat lane's cost cuts,
+the registry hygiene set, an MCP admission's denied mutators). Upstream has no
+per-agent tool block, so the block reaches upstream's code through three doors:
+
+* **construction** — :func:`prune_agent_tools` drops the names from the constructed
+  agent's ``tools`` / ``valid_tool_names`` once, so upstream's tool-conditional prompt
+  guidance, memory/skill review nudges and invalid-tool-name handling see the same
+  set the model does (``profile_runner.runner._default_agent_factory``);
+* **the wire** — the eternia-harness ``llm_request`` middleware drops a blocked
+  definition from the provider payload (a tool set refreshed after construction
+  cannot bring one back);
+* **the call** — the eternia-harness ``pre_tool_call`` hook refuses a blocked name,
+  including one unwrapped from the ``tool_call`` bridge, whose deferred catalog is
+  not filtered (plugin-fit §4 Q2).
+
+The hooks see a ``session_id``, so the run binds its block to its agent's session id
+(:func:`bound_tool_block`). The run's own context carries the same block as the
+fallback for a session id the run did not know when it bound — compression rotates
+the agent onto a child session mid-turn.
+"""
+
+from __future__ import annotations
+
+import threading
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
+from dataclasses import dataclass
+from typing import Any, Iterable, Iterator
+
+__layer__ = "policy"
+
+_lock = threading.Lock()
+_by_session: dict[str, frozenset[str]] = {}
+_RUN_BLOCK: ContextVar[frozenset[str]] = ContextVar("eternia_run_tool_block", default=frozenset())
+
+
+def _names(names: Iterable[Any] | None) -> frozenset[str]:
+    return frozenset(str(name) for name in (names or ()) if name)
+
+
+@dataclass(frozen=True)
+class BlockToken:
+    """What :func:`reset_tool_block` needs to undo one :func:`bind_tool_block`."""
+
+    block: frozenset[str]
+    previous: dict[str, frozenset[str] | None]
+    context: Token
+
+
+def bind_tool_block(names: Iterable[Any] | None, *, session_ids: Iterable[Any] = ()) -> BlockToken:
+    """Bind ``names`` as the block for ``session_ids`` and for this context, until reset.
+
+    The one write path: :func:`bound_tool_block` and the native worker's per-turn bind
+    (``conversations.worker_permissions``) both go through it.
+    """
+
+    block = _names(names)
+    ids = tuple(dict.fromkeys(str(sid) for sid in session_ids if sid))
+    context = _RUN_BLOCK.set(block)
+    with _lock:
+        previous = {sid: _by_session.get(sid) for sid in ids}
+        for sid in ids:
+            _by_session[sid] = block
+    return BlockToken(block, previous, context)
+
+
+def reset_tool_block(token: BlockToken) -> None:
+    """Restore each session's previous binding, so an overlapping run's block survives."""
+
+    with _lock:
+        for sid, before in token.previous.items():
+            if before is None:
+                _by_session.pop(sid, None)
+            else:
+                _by_session[sid] = before
+    _RUN_BLOCK.reset(token.context)
+
+
+@contextmanager
+def bound_tool_block(names: Iterable[Any] | None, *, session_ids: Iterable[Any] = ()) -> Iterator[frozenset[str]]:
+    """Bind ``names`` as the block for ``session_ids`` and for this context, for the ``with`` body.
+
+    A session's previous binding is restored on exit, so a nested or overlapping run on
+    the same session never leaves the other's block behind.
+    """
+
+    token = bind_tool_block(names, session_ids=session_ids)
+    try:
+        yield token.block
+    finally:
+        reset_tool_block(token)
+
+
+def blocked_tools_for(session_id: Any = None) -> frozenset[str]:
+    """The block bound for ``session_id``, else the current run's, else nothing."""
+
+    if session_id:
+        with _lock:
+            found = _by_session.get(str(session_id))
+        if found is not None:
+            return found
+    return _RUN_BLOCK.get()
+
+
+def tool_definition_name(entry: Any) -> str:
+    """A tool definition's name in the chat, Responses or Anthropic payload shape."""
+
+    if not isinstance(entry, dict):
+        return ""
+    inner = entry.get("function")
+    target = inner if isinstance(inner, dict) else entry
+    return str(target.get("name") or "")
+
+
+def drop_blocked_request_tools(request: Any, *, session_id: Any = None) -> dict[str, Any] | None:
+    """The provider kwargs without the session's blocked tool definitions, or None if unchanged."""
+
+    if not isinstance(request, dict) or not isinstance(request.get("tools"), list):
+        return None
+    block = blocked_tools_for(session_id)
+    if not block:
+        return None
+    tools = [entry for entry in request["tools"] if tool_definition_name(entry) not in block]
+    if len(tools) == len(request["tools"]):
+        return None
+    return {**request, "tools": tools}
+
+
+def blocked_call_message(tool_name: Any, *, session_id: Any = None) -> str | None:
+    """The refusal for a call to a blocked tool, or None when the call may proceed."""
+
+    name = str(tool_name or "")
+    if not name or name not in blocked_tools_for(session_id):
+        return None
+    return f"Tool '{name}' is not available in this session."
+
+
+def prune_agent_tools(agent: Any, names: Iterable[Any] | None) -> None:
+    """Drop ``names`` from a constructed agent's tool list and valid-name set, once."""
+
+    block = _names(names)
+    tools = getattr(agent, "tools", None)
+    if not block or not isinstance(tools, list):
+        return
+    kept = [entry for entry in tools if tool_definition_name(entry) not in block]
+    if len(kept) != len(tools):
+        agent.tools = kept
+    valid = getattr(agent, "valid_tool_names", None)
+    if isinstance(valid, (set, frozenset)):
+        agent.valid_tool_names = {name for name in valid if name not in block}
+    # Resolved at construction from the unpruned set (agent_init._load_tools).
+    if "kanban_show" in block and hasattr(agent, "_kanban_worker_guidance"):
+        agent._kanban_worker_guidance = ""
+
+
+def reprune_turn_agent(session_id: Any = None) -> None:
+    """Re-apply the run's block to the turn's bound agent before a provider request.
+
+    A mid-session registry refresh (``tools/mcp_tool_agent.py`` re-derives ``agent.tools``
+    and ``valid_tool_names`` through ``get_tool_definitions``) brings blocked names back; the
+    wire filter and ``pre_tool_call`` still hold, but upstream's guidance and review nudges
+    read the agent's own set. Pruning again at every request keeps that set blocked.
+    """
+
+    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+
+    agent = current_persona_turn_agent()
+    if agent is None:
+        return
+    prune_agent_tools(agent, blocked_tools_for(session_id or getattr(agent, "session_id", None)))
+
+
+__all__ = [
+    "BlockToken",
+    "bind_tool_block",
+    "blocked_call_message",
+    "blocked_tools_for",
+    "bound_tool_block",
+    "drop_blocked_request_tools",
+    "prune_agent_tools",
+    "reprune_turn_agent",
+    "reset_tool_block",
+    "tool_definition_name",
+]

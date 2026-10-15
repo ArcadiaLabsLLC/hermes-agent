@@ -1,0 +1,236 @@
+"""Environment fences for ``tests/agent`` (added by the 2026-07-31 upstream sync).
+
+Two independent mechanisms live here. Neither weakens an assertion.
+
+1. ``_SLOW_LOOPBACK_TIMEOUT_NODE_IDS`` — a per-test WATCHDOG CEILING raise, not
+   a skip. The listed tests construct a real ``AIAgent`` against a local
+   ``base_url``; ``agent_init`` then probes that endpoint several times over
+   httpx (``detect_local_server_type`` / ``query_ollama_num_ctx``). On a host
+   whose loopback stack answers instantly the whole file costs under a second.
+   On this workstation a *refused* ``127.0.0.1`` connect costs ~2.0-2.4s and a
+   failing ``getaddrinfo`` ~1.0s (measured), so those probes push three of the
+   tests to 36-39s and a fourth to 24s against the 30s ``--timeout`` in
+   ``pyproject.toml``. Because ``--timeout-method=thread`` kills the WHOLE
+   interpreter, one over-budget test takes the entire file with it and the
+   parallel runner reports "no tests ran" for a file where nothing is wrong.
+
+   Raising the ceiling for exactly those node ids masks nothing: every
+   assertion still executes and any real failure still fails. The only thing
+   given up is catching a genuine hang in those four tests within 30s, and
+   ``scripts/run_tests_parallel.py``'s 300s per-file process kill still bounds
+   that. Unlike a skip, this needs no host probe to stay honest — on a fast
+   host the tests finish in under a second and never reach the raised ceiling.
+
+2. ``_ENV_GAP_SKIPS`` — the shared environment-gap registry, in its
+   probe-backed form (see ``tests/_env_gap_fence`` for the full contract). A
+   row names a mechanism and carries a live probe; when the probe says the gap
+   is present on this host the test is really SKIPPED, with the mechanism as
+   the reason. When the probe says otherwise the test runs, and
+   ``tests/test_env_gap_registry.py`` fails on the stale row.
+
+   The older mark-only form (``_ENV_GAPS``, which left the tests failing) was
+   emptied here by the 2026-08-10 audit — twenty of its twenty-four rows were
+   stale tests or a real defect — and deleted fork-wide by lane B5 (Q30). See the block comment above 
+Fork-owned half of ``tests/agent/conftest.py`` (seam Stage 5): the root
+``conftest.py`` attaches it when pytest registers that conftest (fixtures grafted
+onto it at directory scope, hooks as a fixture-free plugin); that upstream
+conftest carries no fork line (lane CARRY3).
+"""
+
+from __future__ import annotations
+
+import pathlib
+import os
+from contextvars import copy_context
+from functools import wraps
+
+import pytest
+
+from tests._env_gap_fence import (
+    EnvGapSkipRegistry,
+    apply_skips,
+    resolved_bash_spells_posix_mount_paths,
+    shell_true_is_not_posix,
+)
+
+# Per-test ceiling for the AIAgent-constructing tests described above. Sized so
+# the slowest measured run (38.7s on this host) has ~3x headroom while the sum
+# across a single file stays under the runner's 300s per-file process kill.
+_SLOW_LOOPBACK_TIMEOUT_SECONDS = 120
+
+_SLOW_LOOPBACK_TIMEOUT_NODE_IDS: dict[str, frozenset[str]] = {
+    # base_url="http://test" — every probe pays a ~1.0s getaddrinfo failure.
+    'test_skip_memory_store_65429.py': frozenset({
+        'test_skip_memory_with_memory_toolset_creates_store',        # 38.7s
+        'test_skip_memory_memory_tool_handler_works_and_provider_skipped',  # 24.5s
+    }),
+    # base_url="http://127.0.0.1:8000/v1" — every probe pays a ~2.0s refusal.
+    'test_verification_stop_caching.py': frozenset({
+        'test_db_flush_drops_only_nudge_keeps_candidate',   # 38.3s
+        'test_json_log_drops_only_nudge_keeps_candidate',   # 36.2s
+    }),
+}
+
+# ── Environment-gap registry (audited 2026-08-10) ───────────────────────────
+#
+# This directory registered 24 node ids across 12 files, all as pre-existing
+# Windows/host gaps. The audit reproduced every one of them and found TWENTY
+# were not gaps at all:
+#
+#   * agent/image_routing.py's _LOCAL_IMAGE_PATH_RE anchored only on `~/` and
+#     `/`, though its own comment claims parity with gateway's
+#     extract_local_files() — whose copy grew a Windows drive-letter anchor in
+#     #34632. A REAL DEFECT: a Windows operator's pasted C:\...\shot.png was
+#     silently dropped here while the identical path delivered via the gateway.
+#     Fixed in the code, not fenced.
+#   * ten rows asserted a POSIX path SPELLING (a "/" separator, a
+#     "cache/images" substring, a lowercase env-var name that Windows
+#     upper-cases, a UTF-8 file read back with the cp1252 default). Windows
+#     reproduces every one of those behaviours; only the string differed.
+#   * three rows monkeypatched HOME and expected `~` to follow. It does not on
+#     Windows — ntpath.expanduser prefers USERPROFILE — so the test quietly
+#     expanded ~ to the developer's REAL profile and stopped testing anything.
+#     They now use tests._home_env.point_home_at.
+#   * one leaked an open SessionDB into shutil.rmtree. Not a Windows quirk: a
+#     thread and an atexit registration leaked on EVERY platform, and POSIX
+#     merely unlinked the open file without complaining.
+#   * one was non-hermetic — credential_pool._seed_from_singletons()
+#     auto-discovers ~/.claude/.credentials.json, which HERMES_HOME does not
+#     sandbox, so a test whose premise was "the ONLY pool entry" ran with two.
+#   * one blamed cmd.exe for an inline `!`pwd`` snippet that run_inline_shell
+#     executes under bash on every platform (it prefers Git Bash on Windows).
+#     The stated reason was simply wrong; the real mechanism is that Git Bash
+#     answers in MSYS form, which `pwd -W` fixes.
+#
+# What remains is one genuine, probe-backed gap.
+
+
+def _shell_hook_scripts_are_not_directly_executable() -> bool:
+    """True where a `#!`-line script cannot be handed to CreateProcess/execve.
+
+    agent/shell_hooks.py runs a hook with ``subprocess.run(argv, shell=False)``
+    where argv[0] is the script path. POSIX honours the shebang in execve;
+    Windows has no shebang handling at all, so a `.sh` hook raises
+    FileNotFoundError before any payload is produced. This is a real product
+    gap (shell hooks do not function on Windows), not a test defect — see the
+    audit note filed with this change.
+    """
+    return os.name == "nt"
+
+
+_ENV_GAP_SKIPS: EnvGapSkipRegistry = {
+    # ── Shell premise (class U3, triage-561; lane h12-fix 2026-09-29) ───────
+    # Red identically on pure upstream ee5f49b943; see tests/_env_gap_fence.py.
+    'test_command_token_source.py': [
+        (
+            shell_true_is_not_posix,
+            'key_cmd runs with shell=True; the command "date +%s%N" needs a POSIX '
+            'sh, and cmd.exe runs its own date builtin (exit 1) or echoes the '
+            'substitution literally, so no token changes between mints',
+            {
+                'TestCaching::test_token_is_cached_between_calls',
+                'TestCaching::test_expired_token_is_reminted',
+                'TestCaching::test_no_advertised_ttl_caches_on_a_bounded_window',
+                'TestAbsoluteExpiry::test_the_token_actually_gets_re_minted',
+            },
+        ),
+    ],
+    'test_terminal_approval_batch.py': [
+        (
+            resolved_bash_spells_posix_mount_paths,
+            'asserts the native nested path appears in `pwd` output; the resolved '
+            'MSYS bash prints it in POSIX mount form (/x/...)',
+            {
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[False-0]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[False-2]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[True-0]',
+                'test_desktop_publishes_final_commands_before_wait_and_runs_in_order[True-2]',
+            },
+        ),
+    ],
+    'test_shell_hooks.py': [
+        (
+            _shell_hook_scripts_are_not_directly_executable,
+            'agent/shell_hooks.py spawns the hook via subprocess.run(argv, '
+            'shell=False) with the script path as argv[0]; Windows CreateProcess '
+            'has no shebang handling, so a POSIX hook script is not directly '
+            'executable and the callback fails before the payload is produced',
+            {
+                'TestCallbackSubprocess::test_block_aggregation_through_plugin_manager',
+                'TestCallbackSubprocess::test_matcher_regex_filters_callback',
+                'TestCallbackSubprocess::test_payload_schema_delivered',
+            },
+        ),
+    ],
+}
+
+#: The directory this conftest's registries own. The env-gap hooks below are
+#: GLOBAL — pytest hands them every item and every report in the session once
+#: this conftest is loaded — so a combined run would otherwise let these rows
+#: reach a same-named file in another directory. See tests/_env_gap_fence.py.
+_OWNER_DIR = pathlib.Path(__file__).resolve().parents[1] / "agent"
+
+
+@pytest.fixture(autouse=True)
+def _model_catalog_is_offline(monkeypatch):
+    """No test under tests/agent reaches OpenRouter's model catalog.
+
+    ``AIAgent`` built on an OpenRouter base URL spawns the ``openrouter-prewarm`` thread and
+    the compressor's context-length resolution calls ``fetch_model_metadata`` on the main
+    thread, both through ``agent.model_metadata_http.get``: 179 files in this directory
+    construct such an agent, and each test process paid one live HTTPS read (the H12
+    neighbourhood's retained stacks timed out in it, 2026-10-13). The transport is the one
+    seam both paths share; ``fetch_model_metadata`` catches the refusal and answers its
+    cache, so the behaviour under test is unchanged and nothing waits on a socket. A test
+    that exercises the HTTP path itself patches ``model_metadata_http.get`` after this and
+    wins.
+    """
+    from agent import model_metadata_http
+
+    def _offline(url, **kwargs):
+        raise ConnectionError(f"tests/agent is offline: live model catalog refused ({url})")
+
+    monkeypatch.setattr(model_metadata_http, "get", _offline)
+
+
+@pytest.fixture(autouse=True)
+def _compression_rotation_context(request, monkeypatch):
+    """H10: upstream's clear_session_vars clears rather than restoring tokens.
+
+    Keep that test's real rotation/clear assertions in a copied caller context,
+    so a later bundled test still sees its own environment fallback.
+    """
+    if request.node.nodeid != (
+        "tests/agent/test_compression_worker_isolation.py::"
+        "test_f5_session_contextvar_rebound_after_rotation"
+    ):
+        return
+    original = request.node.obj
+
+    @wraps(original)
+    def in_context(*args, **kwargs):
+        return copy_context().run(original, *args, **kwargs)
+
+    monkeypatch.setattr(request.node, "obj", in_context)
+
+
+def pytest_collection_modifyitems(items):
+    """Raise the watchdog ceiling for the slow-probe tests, then apply the skips."""
+    for item in items:
+        node_ids = _SLOW_LOOPBACK_TIMEOUT_NODE_IDS.get(item.path.name)
+        if node_ids is None:
+            continue
+        _, _, within_file = item.nodeid.partition("::")
+        if within_file in node_ids:
+            item.add_marker(pytest.mark.timeout(_SLOW_LOOPBACK_TIMEOUT_SECONDS))
+    apply_skips(items, _ENV_GAP_SKIPS, owner_dir=_OWNER_DIR)
+
+
+__all__ = [
+    "_ENV_GAP_SKIPS",
+    "_OWNER_DIR",
+    "_SLOW_LOOPBACK_TIMEOUT_NODE_IDS",
+    "_SLOW_LOOPBACK_TIMEOUT_SECONDS",
+    "_shell_hook_scripts_are_not_directly_executable",
+    "pytest_collection_modifyitems",
+]

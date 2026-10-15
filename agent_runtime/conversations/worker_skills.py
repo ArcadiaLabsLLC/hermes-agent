@@ -1,0 +1,116 @@
+"""Native session binding for the existing read-only skills service."""
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+__layer__ = "lanes"
+
+
+_OPERATIONS = ("list", "detail", "history")
+
+
+def declare_contracts() -> None:
+    """The ``eternia.skills.*`` wire contracts (pydantic models), declared once per process.
+
+    Under ``tui_gateway.pydantic_contracts: false`` nothing calls this at run time: the
+    catalog generated from these same models (``tui_gateway/contract_catalog_data.py``)
+    carries them, and ``scripts/gen_contract_catalog.py`` calls this to render them.
+    """
+    from tui_gateway.contracts import registry
+    from tui_gateway.contracts.base import JsonValue, Result
+    from tui_gateway.contracts.common import SessionParams
+
+    names = ["eternia.skills." + operation for operation in _OPERATIONS]
+    if all(name in registry.METHODS for name in names):
+        return
+
+    class InspectParams(SessionParams):
+        skill_id: str | None = None
+
+    class InspectResult(Result):
+        data: dict[str, JsonValue]
+
+    for name in names:
+        if name not in registry.METHODS:
+            registry.method(name, params=InspectParams, result=InspectResult)
+
+
+def install() -> None:
+    from tui_gateway import server
+    from tui_gateway.contract_seam import pydantic_contracts_enabled
+
+    if pydantic_contracts_enabled():
+        declare_contracts()
+    for operation in _OPERATIONS:
+        name = "eternia.skills." + operation
+
+        def inspect(rid, params, operation=operation):
+            snapshot = server.handle_request({"jsonrpc": "2.0", "id": rid,
+                "method": "session.activate", "params": {
+                    "session_id": params["session_id"], "omit_messages": True}})
+            if "error" in snapshot:
+                return snapshot
+            try:
+                with _bind_profile_home(params.get("profile")):
+                    data = _inspect(operation, snapshot["result"], params.get("skill_id"))
+                if len(json.dumps(data, ensure_ascii=True)) > 900 * 1024:
+                    return {"jsonrpc": "2.0", "id": rid, "error": {
+                        "code": 4130, "message": "This skill exceeds the document limit."}}
+                return {"jsonrpc": "2.0", "id": rid, "result": {"data": data}}
+            except (OSError, ValueError):
+                return {"jsonrpc": "2.0", "id": rid, "error": {
+                    "code": 4090, "message": "Skill information is unavailable."}}
+
+        server.register_method(name, inspect)
+
+
+@contextmanager
+def _bind_profile_home(profile: str | None) -> Iterator[None]:
+    """The named profile's home for the read. A subprocess worker IS its profile (no
+    ``profile`` param); the in-process worker names it on every request it sends."""
+    if not profile:
+        yield
+        return
+    from hermes_cli.profiles import get_profile_dir
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    token = set_hermes_home_override(get_profile_dir(profile))
+    try:
+        yield
+    finally:
+        reset_hermes_home_override(token)
+
+
+def _inspect(operation: str, snapshot: dict, skill_id: str | None) -> dict:
+    from agent.runtime_cwd import reset_session_cwd, set_session_cwd
+    from agent_runtime.skill_activity import skill_load_history
+    from hermes_constants import get_hermes_home
+    from hermes_state_registry import acquire, release_or_close
+    from agent_runtime.skill_inspection import skill_inspection_reader
+
+    info = snapshot["info"]
+    token = set_session_cwd(info["cwd"])
+    try:
+        tools = info.get("tools") or {}
+        can_load = any("skill_view" in names for names in tools.values() if isinstance(names, list))
+        reader = skill_inspection_reader()
+        if operation == "list":
+            return {"skills": reader.catalog(can_load=can_load)}
+        if operation == "detail":
+            if not isinstance(skill_id, str) or not skill_id or len(skill_id) > 512:
+                raise ValueError("invalid skill")
+            return {"skill": reader.detail(skill_id, can_load=can_load)}
+        key = snapshot.get("session_key") or info.get("stored_session_id") or snapshot.get("stored_session_id")
+        if not key:
+            return {"loaded": [], "historyComplete": False}
+        db = acquire(get_hermes_home() / "state.db")
+        try:
+            messages = db.get_messages_as_conversation(key, include_ancestors=True)
+            return {"loaded": skill_load_history(messages),
+                    "historyComplete": not bool(snapshot.get("running") or info.get("running"))}
+        finally:
+            release_or_close(db)
+    finally:
+        reset_session_cwd(token)

@@ -1,0 +1,92 @@
+# Exact operator conversation attachment
+
+Implementation: `454ed7a69a`, `088d8f30fa`, `359849b0d2`.
+Latest-main reconciliation: `105195343c`, including `0cf918c853`.
+Final sync: `fc8f0a35cc`, including the speech-pack changes through `f85a141b98`.
+Owner authorized coordinated main landing on 2026-09-28 after automated checks.
+This record does not claim native desktop acceptance.
+Launcher tracking: `EterniaLauncher/docs/archive/companion/CROSS_INTERFACE_RECOVERY_2026-09-28.md`.
+
+## Implemented boundary
+
+`runtime.operator.conversation.read` reads existing SessionDB history, native
+turn records and clarify tickets. `runtime.operator.conversation.message`
+validates the exact installation/workspace/instance/session, then calls the
+existing `perform_chat_turn`. It neither selects a default nor starts another
+conversation worker. Reads close their database handle and cannot mint sessions.
+
+Ownership: `agent_runtime/operator_conversation.py` validates and composes reads;
+`agent_runtime/serve_rpc/operator_conversation.py` exposes the methods;
+`persona_chat_history.messages.existing_persona_chat_messages` reuses curation.
+SessionDB, `mission_chat_turns`, `chat_turn_reservations` and clarify tickets remain
+the only native authorities. No upstream-owned file was changed.
+
+## Evidence
+
+`tests/agent_runtime/test_operator_conversation_attachment.py`: two tests pass
+against real profile stores and the real dispatcher, without serve or models.
+They cover A → B → A isolation, paged history, pending question identity,
+original Mission Control send → attachment replay (one spawn), and refusal of
+foreign/missing sessions, changed targets and replacement requests.
+
+Killing mutation: removing the install guard made the A → B read incorrectly
+succeed (`KeyError: 'error'` at the required refusal). Restored; both tests pass.
+Launcher additionally exercises its real adapter and encrypted recovery after
+lost acknowledgement and client reconstruction, with one native admission.
+
+## Lifecycle checkpoint
+
+Live partial answers come from the existing bounded journal projection. Launcher
+refreshes the authoritative read every two seconds while visible; this is not
+token-by-token fan-out and does not compete with Mission Control's frame reader.
+Settled history replaces live elements. No event cache or transcript store was added.
+
+`operator_execution.py` scopes Stop to the original admission/session. The existing
+receipt stores Stop intent and a normalized payload fingerprint. Reusing a new
+receipt with changed content refuses; old receipts remain replay-only evidence.
+`serve/operator_interrupt.py` binds upstream `InterruptScope` around the same
+worker. A queued Stop prevents dispatch; a running Stop targets that worker only.
+Uncertain/missing owners remain unconfirmed. Completion wins a late Stop.
+Worker settlement is pinned to the serve's profile home.
+
+The deterministic lane tests drive the real RPC context, admission, inflight
+table, dispatch and settlement without a daemon, socket, model or extra thread.
+They cover lost/repeated Stop acknowledgements, queued Stop, newer-turn isolation,
+workspace refusal, completion racing Stop and restart with uncertain work.
+Killing mutation: acknowledging Stop without calling upstream interruption makes
+the running test fail (`stop_requested` instead of `finished`); restored.
+
+## Post-merge verification
+
+Merged current main `312103de32`, retaining the embedded serve-shell seams.
+Selected operator and existing RPC admission checks: 23 passed; four daemon
+checks deliberately excluded. Final operator checks: 5 passed. Launcher's
+native-backed handoff and Discussion checks also pass against the final code.
+
+Send/Stop validate an existing session without reading its transcript or
+scanning admission history. Mutation restoring that scan failed the control-path
+test; restored. No upstream-owned implementation changed.
+
+## Landing verification
+
+After the secure-store merge: **69 tests passed**, covering operator recovery,
+RPC admission, host-store isolation and bundle profiles; four daemon-starting
+checks remained excluded. Packaging/closure checks: **22 passed**. Launcher ran
+**201 focused tests**, including native-backed reconstruction and both surfaces,
+against this merged runtime. No model, serve or operator profile was started.
+
+The citation gate failed identically on clean main `0cf918c853`: eight stale
+line references and one obsolete waiver. Replaced the references with verified
+symbols and removed that waiver; the unchanged gate passes. No waiver was added.
+
+The final incoming speech/profile/licence population passed **55 tests**, with
+engines mocked and no microphone or model started. The recovery and secure-store
+modules are present in the bundled desktop's first-party import closure.
+
+The native implementation claim is closed by the coordinated landing. Native
+desktop acceptance remains a separate Launcher queue item because the required
+QA tools are unavailable. Full-suite, real-provider, signed-installer and desktop
+smoke qualification are not claimed. Launcher pins the landed Hermes revision
+in `EterniaLauncher/installer/hermes/bundled-hermes.lock.json`.
+
+Do not replace these with another worker, replay authority or copied transcript.

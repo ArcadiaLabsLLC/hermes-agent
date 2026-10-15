@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "about": "Vetted licence texts for distributions whose wheel ships none (plan D4). scripts/bundle_licenses.py copies <distribution>/<version>/<file> into the output's licence-texts/ and cites it in licenses.json. An entry names the version it was vetted against; when the shipped version differs the override is not applied and the packager's verify fails until the text is re-vetted at the new version.",
+  "overrides": {
+    "ctranslate2": {
+      "version": "4.8.1",
+      "licence": "MIT",
+      "files": {"LICENSE": "54aa79d9fe3c09e67a16dcd95b9e88676405a6ec174efda31036983cf7672ecb"},
+      "source_url": "https://github.com/OpenNMT/CTranslate2/blob/0d8bcd362ac75ef860ef161d6f0efad0ae439ff0/LICENSE",
+      "tag": "v4.8.1",
+      "commit": "0d8bcd362ac75ef860ef161d6f0efad0ae439ff0",
+      "evidence": "repository LICENSE at the tag; python/setup.py at the tag declares license=\"MIT\"; no sdist on PyPI"
+    },
+    "fal-client": {
+      "version": "0.13.1",
+      "licence": "Apache-2.0",
+      "files": {"LICENSE": "c5cd488c00dea64e15d64d4a5a7832cede329f2c31a481890cf8a272107c4c45"},
+      "source_url": "https://github.com/fal-ai/fal/blob/01170088b9e3f3de8a1966cdfd36d700bfc555f7/LICENSE",
+      "tag": "fal_client_v0.13.1",
+      "commit": "01170088b9e3f3de8a1966cdfd36d700bfc555f7",
+      "evidence": "monorepo-root LICENSE at the tag covers projects/fal_client (the sdist's Project-URL repository); the sdist and its metadata carry no licence of their own, so none contradicts it"
+    },
+    "firecrawl-anydoc": {
+      "version": "0.2.4",
+      "licence": "MIT",
+      "files": {"LICENSE": "03a9e7657aac6536fb6458bd220347c4e7f85bd0a51d8d9e8528530b7a682ade"},
+      "source_url": "https://github.com/firecrawl/anydoc/blob/42bf1c5ecdde9eb0d96d6bd75a9e6698cf93b14c/LICENSE",
+      "tag": "v0.2.4",
+      "commit": "42bf1c5ecdde9eb0d96d6bd75a9e6698cf93b14c",
+      "evidence": "repository LICENSE at the tag, byte-identical to the LICENSE in the 0.2.4 sdist; License-Expression: MIT"
+    },
+    "flatbuffers": {
+      "version": "25.12.19",
+      "licence": "Apache-2.0",
+      "files": {"LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"},
+      "source_url": "https://github.com/google/flatbuffers/blob/7e163021e59cca4f8e1e35a7c828b5c6b7915953/LICENSE",
+      "tag": "v25.12.19",
+      "commit": "7e163021e59cca4f8e1e35a7c828b5c6b7915953",
+      "evidence": "repository LICENSE at the tag; python/setup.py at the tag declares license='Apache 2.0', version='25.12.19'; no sdist on PyPI"
+    },
+    "tokenizers": {
+      "version": "0.23.1",
+      "licence": "Apache-2.0",
+      "files": {"LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"},
+      "source_url": "https://github.com/huggingface/tokenizers/blob/7f1623b90b5adfb9bc327d4c3468d2f70bbce262/LICENSE",
+      "tag": "v0.23.1",
+      "commit": "7f1623b90b5adfb9bc327d4c3468d2f70bbce262",
+      "evidence": "repository LICENSE at the tag, byte-identical to tokenizers/LICENSE in the 0.23.1 sdist (a symlink to it in the repo); tokenizers/Cargo.toml license = \"Apache-2.0\""
+    }
+  }
+}

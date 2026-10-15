@@ -1,0 +1,6 @@
+# Byte-pinned cross-repo golden family: `MANIFEST.sha256` here is a claim about
+# bytes, and the launcher commits byte-identical copies. `-text` disables ALL
+# end-of-line conversion in both directions, so the bytes on disk are the bytes
+# in the object store are the bytes the other repo committed. Enumerated by
+# `tests/test_byte_pinned_fixture_families.py`.
+* -text

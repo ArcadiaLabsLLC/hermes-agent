@@ -1,0 +1,720 @@
+"""Rows (win32 only) that are upstream's OWN Windows reds at v2026.9.24 -- retired by an upstream fix.
+
+``_up_red`` / ``_up_red_skip`` rows with their class letters, the lifecycle-scan rows, the
+path-spelling strict xfails (PR class win-path-spelling), and the cp1252 e-ENC rows (a
+locale PROBE, not a platform guard). The evidence is
+``X:/wt/_holds/upstream-reds-v2026.9.24.md``.
+
+One ``ROWS`` table, already host-filtered; ``hooks._merge`` concatenates the four.
+The map is ``tests/_downstream/id_markers/__init__.py``.
+"""
+
+from __future__ import annotations
+
+import functools
+import os
+import sqlite3
+import sys
+
+import pytest
+
+from tests._downstream.id_markers.reasons import (
+    _CONTAINER_SPELLING,
+    __layer__,
+    _LIFECYCLE_SCAN,
+    _PATH_SPELLING,
+    _SEPARATOR_SPELLING,
+    _TMP_LITERAL,
+    _up_red as _up_red_unqualified,
+    _up_red_skip,
+    _up_red_when,
+    _WIN,
+)
+
+__layer__ = "models"
+
+#: Re-qualified 2026-10-10 (design sweep D3.13, lane build-1011-C6): every file below was
+#: run by name on the canonical test venv; each strict-xfail row that stays was seen red
+#: (XFAIL) there, and the XPASS, platform-skipped and upstream-deleted rows were removed.
+#: The `_up_red_skip` rows (process-killers) and the install.ps1 suite row (it writes the
+#: user PATH unfenced, D3.15) were not run and carry no stamp.
+QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-10)"
+
+_up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
+
+ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+}
+
+if _WIN:
+    ROWS.update({
+        "tests/tools/test_approval.py::TestDetectDangerousRm::test_symlinked_temp_dir_only_exempts_canonical_target": (
+            pytest.mark.xfail(reason=_TMP_LITERAL, strict=True),
+        ),
+        "tests/tools/test_computer_use.py::TestCuaDriverSessionReconnect::"
+        "test_cli_fallback_reads_screenshot_from_file": (
+            pytest.mark.xfail(reason=_PATH_SPELLING, strict=True),
+        ),
+        "tests/hermes_cli/test_kanban_db.py::"
+        "test_worktree_workspace_explicit_target_materializes_linked_worktree": (
+            pytest.mark.xfail(reason=_SEPARATOR_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_container_absolute_input_path_does_not_follow_host_symlink": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_container_relative_path_keeps_container_cwd_symlink": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_when_relative_path_escapes_workspace": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        "tests/tools/test_file_tools_cwd_resolution.py::test_warning_fires_from_terminal_cwd_when_registry_empty": (
+            pytest.mark.xfail(reason=_CONTAINER_SPELLING, strict=True),
+        ),
+        **{
+            f"tests/hermes_cli/test_gateway.py::{test}": (
+                _up_red_skip("the stop test outlives the 30 s thread timeout, which kills "
+                             "the process; the port test asserts the POSIX branch"),
+            )
+            for test in (
+                "TestRestartWaitsForApiServerPort::"
+                "test_port_is_reported_free_once_the_old_listener_closes",
+                "TestStopProfileGateway::"
+                "test_stop_profile_gateway_keeps_pid_file_when_process_still_running",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_gateway_restart_loop.py::{cls}::{test}": (_LIFECYCLE_SCAN,)
+            for cls, tests in (
+                ("TestTerminalToolGatewayLifecycleGuard", (
+                    "test_blocks_lifecycle_command_hidden_in_referenced_script",
+                    "test_blocks_launchctl_submit_hidden_in_referenced_script",
+                    "test_blocks_executable_shebang_script",
+                    "test_shell_option_with_value_still_scans_script",
+                    "test_nested_wrapper_script_is_scanned",
+                    "test_safe_referenced_script_passes_through",
+                )),
+                ("TestLifecycleGuardModule", (
+                    "test_nul_padded_script_is_still_scanned",
+                    "test_nul_padded_script_without_shebang_is_scanned",
+                    "test_oversized_nul_bearing_text_still_fails_closed",
+                    "test_cloud_backed_symlink_fails_closed_without_opening_target",
+                    "test_third_party_cloudstorage_path_fails_closed_without_opening",
+                )),
+                ("TestDotSourceIsScannedLikeSource", (
+                    "test_both_spellings_block_a_referenced_script",
+                    "test_env_assignment_prefix_does_not_hide_dot_source",
+                    "test_dot_source_nested_in_shell_c_is_blocked",
+                )),
+                ("TestTransparentWrapperPrefixes", (
+                    "test_wrapped_script_reference_is_scanned",
+                    "test_wrapped_dot_source_is_scanned",
+                    "test_wrapped_shell_c_payload_is_scanned",
+                    "test_privilege_and_namespace_wrappers_are_scanned",
+                    "test_command_string_options_are_rescanned",
+                    "test_local_script_named_like_a_wrapper_is_still_scanned",
+                )),
+                ("TestTerminalToolGatewayLifecycleGuardRemote", (
+                    "test_remote_backend_script_read_uses_env_execute",
+                    "test_unscannable_executed_script_names_the_reason",
+                )),
+            )
+            for test in tests
+        },
+        # Lane h10-fhrest (2026-09-29): install.ps1 is byte-identical to upstream; its own
+        # long-path suite fails every "short alias is rebuilt" case on a host whose profile
+        # has no 8.3 alias (PowerShell refuses the fabricated FIRST~1.LAS drive root first).
+        "tests/scripts/install/test_install_ps1_script_suites.py::"
+        "test_suite_passes[test-install-ps1-longpath.ps1-pwsh]": (
+            _up_red("the fabricated 8.3 profile alias is refused as a drive root before "
+                    "the normalizer rebuilds it; 10 of the suite's assertions", qualified=""),
+        ),
+        # Lane h10-fhrest (2026-09-29): _tool_defs_cache_key is upstream's bytes; on NTFS
+        # shutil.copy2 over an existing file keeps its file index and creation-time
+        # st_ctime, so with the mtime pinned back every keyed stat field is unchanged.
+        "tests/tools/test_model_tools.py::"
+        "test_tool_defs_cache_key_sees_config_replacement_with_pinned_mtime": (
+            _up_red("NTFS copy2 keeps st_ino and creation st_ctime; the pinned-mtime swap "
+                    "leaves every keyed stat field equal"),
+        ),
+        "tests/hermes_cli/test_gateway_windows.py::"
+        "test_exec_schtasks_round_trips_non_ascii_task_argument_live": (
+            _up_red("schtasks /Create is refused unelevated (Access is denied); the "
+                    "fork's gateway fence refuses the spawn first"),
+        ),
+        "tests/hermes_cli/test_gui_command.py::"
+        "test_stop_desktop_processes_locking_build_posix_swap_bypasses_early_return": (
+            _up_red("asserts the POSIX branch of code that has a Windows branch"),
+        ),
+        "tests/hermes_cli/test_kanban_db.py::"
+        "test_infrastructure_spawn_refusal_never_charges_the_card": (
+            _up_red("the refused spawn auto-blocks the card; no Windows marker in the text"),
+        ),
+        "tests/hermes_cli/test_mcp_config.py::TestMcpRemoveEvictsManager::"
+        "test_remove_evicts_in_memory_provider": (
+            _up_red("fakes a console with isatty(); _stdin_is_console() also asks "
+                    "GetConsoleMode of the real handle (class e-TTY)"),
+        ),
+        "tests/hermes_cli/test_profiles.py::TestFindAliasForProfile::"
+        "test_list_profiles_surfaces_custom_alias": (
+            _up_red("the alias is read back with its .bat suffix; issue #83938"),
+        ),
+        "tests/hermes_cli/test_desktop_lifecycle_windows_live.py::"
+        "test_holder_scan_fallback_respects_token_classifier": (
+            _up_red("patches hermes_cli.main._detect_venv_python_processes, but upstream's "
+                    "update_cmd_windows._desktop_owns_gateway_lifecycle calls its own module-level "
+                    "binding since 27df3b8847 (upstream-owned function, byte-identical here)"),
+        ),
+        "tests/tools/test_approved_command_clean_slate.py::"
+        "test_retry_backoff_does_not_clear_genuine_interrupt": (
+            _up_red_skip("patches time.sleep module-wide, so terminal_tool's cleanup thread "
+                         "busy-loops; under upstream's tests/home_io_guard.py (2026-09-25 merge) "
+                         "the spin starves the test past the 30 s thread timeout, which kills "
+                         "the process (upstream-owned test, loop and guard; green before the guard)"),
+        ),
+        # Arrived with the 2026-09-25 merge (067fa1a257): upstream tests of upstream code,
+        # red on Windows with no fork line in the path.
+        "tests/hermes_cli/test_gui_command.py::test_gui_successful_pack_swaps_new_app_into_release": (
+            _up_red("the pack step asks pm for git and the hermetic harness disables lazy installs"),
+        ),
+        "tests/hermes_cli/test_update_wedged_gateway.py::TestLaunchdRestartWedgedIntegration": (
+            _up_red("the launchd restart path imports the POSIX-only pwd module (class e-BR)"),
+        ),
+        "tests/test_live_system_guard.py::test_default_home_unmarked_tmpdir_is_relocated_before_pytest_uses_it": (
+            _up_red("the relocated tmpdir is still reported under the operator home on Windows"),
+        ),
+        "tests/scripts/test_bundle_native.py::"
+        "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (
+            _up_red("the win32 launcher_wrapper imports hermes_bootstrap, which the fixture "
+                    "repo never copies; the POSIX launcher imports the entry directly"),
+        ),
+        "tests/scripts/test_run_tests_parallel.py::test_scratch_root_is_per_user": (
+            _up_red("calls os.getuid, which Windows does not have"),
+        ),
+        "tests/tools/test_file_write_safety.py::TestBomHandling::test_a_dangling_symlink_destination_is_occupied": (
+            _up_red(r"readlink hands back the extended-length \\?\ spelling (class c-D)"),
+        ),
+        # Red on pure upstream/main 067fa1a257 on this box too (coordinator's
+        # pure_upstream_rerun.log): upstream Windows reds, byte-identical files.
+        "tests/hermes_cli/test_shallow_boundary_repair.py::test_failed_shallow_maintenance_restores_original_bytes": (
+            _up_red("read-only git object files refuse the restore on Windows (WinError 5)"),
+        ),
+        "tests/hermes_cli/test_update_no_gateway_restart.py::test_restart_deferral_crosses_real_completion_process": (
+            _up_red("the real completion child exits 1 on Windows; no Windows marker in the text"),
+        ),
+        # Upstream-NEW test files (2026-09-25 merge) red on PURE upstream/main 067fa1a257
+        # on this box too (lane log upnew_pure.log: 60 failed in 13 files).
+        **{node: (_up_red('red on pure upstream/main 067fa1a257 on Windows (upstream-new file, 2026-09-25 merge)'),) for node in (
+            'tests/hermes_cli/test_backup_preflight.py::test_preflight_captures_committed_wal_without_application_imports',
+            'tests/hermes_cli/test_install_bucket_separation.py::TestProfileCopyExclusions::test_copies_profile_payload_without_install_artifacts[export]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[None-True]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-False]',
+            'tests/hermes_cli/test_old_updater_takeover.py::test_historical_payload_maps_to_takeover_request_schema[resume1-True]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[cli]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_entrypoint_registers_and_warns_once_for_live_shared_home[serve]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[\\xff]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_cli_startup_quarantines_corrupt_ledger[{broken]',
+            'tests/hermes_cli/test_shared_profile_warning.py::test_warning_tracks_live_other_install_in_same_home',
+            'tests/hermes_cli/test_source_build.py::test_installed_npm_does_not_authorize_missing_workspace_dependencies',
+            'tests/hermes_cli/test_source_channel_integration.py::test_retirement_refuses_to_downgrade_newer_source[shallow]',
+            'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-reverted]',
+            'tests/hermes_cli/test_update_target_identity.py::test_branch_update_uses_real_refs_and_completion_request[fork-late-wrong-branch]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-early]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-late-other-branch]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-late]',
+            'tests/hermes_cli/test_update_target_identity.py::test_update_syntax_failure_restores_pre_update_head[True-origin]',
+            'tests/hermes_cli/test_venv_sync_currency.py::test_own_tree_sync_reuses_pm_without_writing_an_extra_stamp',
+            'tests/hermes_cli/test_version_info.py::test_get_version_info_derives_identity_from_reachable_release_tag',
+            'tests/hermes_cli/test_version_info.py::test_get_version_info_takes_the_version_a_calver_only_release_shipped',
+        )},
+        "tests/hermes_cli/test_isolated_serve_ledger_marker.py::"
+        "test_isolated_serve_ledger_row_is_marked_and_ordinary_serve_is_not": (
+            _up_red("spawns a real `hermes serve` against a tmp home (the fork's live-system "
+                    "guard backend-spawn arm refuses it by design; green on pure upstream)"),
+        ),
+        "tests/hermes_cli/test_session_message_page_owner.py::"
+        "test_message_pages_identify_the_serving_profile[None]": (
+            _up_red("with no serving profile the default page is the serving page, 120 != 1"),
+        ),
+        "tests/hermes_cli/test_web_server.py::TestWebServerEndpoints::"
+        "test_activating_an_endpoint_carries_its_credential_either_way": (
+            _up_red_skip("activation probes llm.modern.com live; the lookup outlives the "
+                         "30 s thread timeout, which kills the process"),
+        ),
+        "tests/hermes_cli/test_plugins.py::TestPluginDiscovery::"
+        "test_enabled_portable_plugin_registers_components": (
+            _up_red("app.darwin.location is str(tmp_path), a drive-letter path the declaration "
+                    "rejects as not absolute, so the plugin is disabled at load (class c-D)"),
+        ),
+        "tests/tui_gateway/test_tui_gateway_server.py::"
+        "test_load_cfg_raw_sees_replacement_with_pinned_mtime_and_size": (
+            _up_red("shutil.copy2 over an existing file keeps its NTFS file id and creation "
+                    "ctime, so no field of the cache signature moves (class e-ID)"),
+        ),
+        # A SKIP: the red is a teardown error, which a strict xfail cannot cover (the
+        # call phase passes and reads XPASS(strict)).
+        **{node: (_up_red_skip("the Proactor loop close in tests/conftest.py _ensure_current_event_loop "
+                               "teardown calls time.monotonic, which the test's three-tick clock has "
+                               "exhausted"),) for node in (
+            'tests/hermes_cli/test_backup.py::TestSafeCopyDb::test_aborts_when_source_remains_busy_past_deadline',
+        )},
+        **{node: (_up_red('CRLF written where LF is asserted (class c-B, issue class #121221)'),) for node in (
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_automatic_backup_omits_crc_valid_partial_member',
+            'tests/hermes_cli/test_backup.py::TestFailedZipMemberRecovery::test_incomplete_pre_update_backup_does_not_rotate_last_complete',
+        )},
+        **{node: (_up_red('path spelling: separators or drive-qualified POSIX literals (class c-D, PR class win-path-spelling #121224)'),) for node in (
+            'tests/hermes_cli/test_plugin_manifest_v2.py::TestDirectoryPluginKeepsIdentityOverEntryPoint::test_loader_and_listing_prefer_the_installed_directory',
+            'tests/hermes_cli/test_startup_fast_guards.py::test_literal_tilde_hermes_home_expands_before_any_reader',
+            'tests/hermes_cli/test_startup_fast_guards.py::test_normalize_hermes_home_env_rewrites_tilde_and_leaves_absolute_alone',
+            'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env0]',
+        )},
+        'tests/hermes_cli/test_update_host_obligation.py::test_recovery_host_state_dir_matches_the_gateway_resolver[env1]': (
+            _up_red_when(sys.version_info < (3, 13), (
+                "update_restart_recovery._host_state_dir asks os.path.isabs('/srv/xdg-state'), True on "
+                "Windows before CPython 3.13 and False from 3.13 on, where it then agrees with the "
+                "gateway resolver's Path.is_absolute (lane w5-fh, 2026-10-02)")),
+        ),
+        **{node: (_up_red('bash invocation with Windows paths inside a POSIX command string (class c-E, #121226)'),) for node in (
+            'tests/hermes_cli/test_agent_env_advertisement.py::TestWrapCommandAdvertisesHarness::test_shell_sets_default_and_preserves_outer',
+        )},
+        # Lane h10-fhrel 2026-09-29 (fork-hygiene row 'Upstream-owned Windows reds'): the MCP OAuth
+        # tests mock sys.stdin.isatty(), but upstream's _stdin_is_console() also asks GetConsoleMode of
+        # the real handle, so every interactive-flow test raises OAuthNonInteractiveError. Upstream
+        # PRs are paused (owner 2026-09-24), so these are rows, not a PR.
+        **{node: (_up_red('fakes a console with isatty(); _stdin_is_console() also asks '
+                          'GetConsoleMode of the real handle (class e-TTY)'),) for node in (
+            'tests/tools/test_mcp_cimd.py::test_build_oauth_auth_forwards_the_document_url',
+            'tests/tools/test_mcp_cimd.py::test_build_oauth_auth_omits_the_url_when_disabled',
+            'tests/tools/test_mcp_cimd.py::test_sdk_chooses_cimd_only_when_the_server_advertises_it[server-supports-cimd]',
+            'tests/tools/test_mcp_cimd.py::test_sdk_chooses_cimd_only_when_the_server_advertises_it[server-does-not]',
+            'tests/tools/test_mcp_cimd.py::test_sdk_chooses_cimd_only_when_the_server_advertises_it[server-silent]',
+            'tests/tools/test_mcp_cimd.py::test_manager_forwards_the_document_url',
+            'tests/tools/test_mcp_cimd.py::test_rejected_document_stops_being_presented',
+            'tests/tools/test_mcp_cimd.py::test_rejected_document_stays_rejected_after_a_restart',
+            'tests/tools/test_mcp_cimd.py::test_rejected_dcr_client_leaves_cimd_available',
+            'tests/tools/test_mcp_oauth.py::TestBuildOAuthAuth::test_scope_passed_through',
+            'tests/tools/test_mcp_oauth.py::TestBuildOAuthAuth::test_token_response_accepts_201_created',
+            'tests/tools/test_mcp_oauth.py::TestBuildOAuthAuth::test_failed_token_exchange_carries_a_bounded_redacted_excerpt',
+            'tests/tools/test_mcp_oauth.py::TestIsInteractive::test_suppress_interactive_oauth_disables_stdin_prompts',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_restore_entry_preserves_newer_concurrent_entry',
+            'tests/tools/test_mcp_oauth_manager.py::test_invalid_client_metadata_does_not_trip',
+            'tests/tools/test_mcp_oauth_manager.py::test_bridge_forwards_requests_and_poisons_on_token_endpoint_400',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_provider_token_exchange_includes_dcr_secret',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_malformed_201_token_response_does_not_expose_body',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_token_read_error_does_not_expose_body',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_malformed_201_refresh_response_clears_tokens',
+            'tests/tools/test_mcp_oauth_manager.py::test_manager_refresh_read_error_clears_tokens',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_response_without_refresh_token_keeps_stored_one',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_response_with_new_refresh_token_rotates',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_recovers_token_rotated_by_peer',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_rejects_disk_token_without_refresh_token',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_still_clears_when_disk_is_same_token',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_does_not_recover_expired_disk_token',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_does_not_recover_tokenless_disk_entry',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_recovery_never_logs_token_material',
+            'tests/tools/test_mcp_oauth_manager.py::test_concurrent_refresh_presents_single_use_token_exactly_once',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_fails_closed_while_a_peer_holds_the_fence',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_adopts_expired_peer_pair_and_posts_its_refresh_token',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_adopts_peer_pair_without_expiry_and_skips_the_post',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_restarts_flow_when_disk_pair_is_from_another_issuer',
+            'tests/tools/test_mcp_oauth_manager.py::test_refresh_400_recovery_rejects_disk_pair_from_another_issuer',
+            'tests/tools/test_mcp_oauth_user_agent.py::test_token_requests_carry_the_configured_user_agent[build_oauth_auth]',
+            'tests/tools/test_mcp_oauth_user_agent.py::test_token_requests_carry_the_configured_user_agent[oauth_manager]',
+            'tests/tools/test_mcp_oauth_user_agent.py::test_unconfigured_user_agent_falls_back_to_the_hermes_default[build_oauth_auth]',
+            'tests/tools/test_mcp_oauth_user_agent.py::test_unconfigured_user_agent_falls_back_to_the_hermes_default[oauth_manager]',
+            'tests/tools/test_mcp_oauth_user_agent.py::test_user_agent_does_not_disturb_token_auth_preparation',
+        )},
+        'tests/tools/test_mcp_startup_summary_names_failures.py::test_register_summary_names_failed_server_with_reason': (
+            _up_red('the summary carries the OS error text, `[WinError 2] The system cannot find the file specified`, not the missing binary name'),
+        ),
+        'tests/tools/test_mcp_windows_orphan_fix.py::TestWindowsTreeKillHelpers::test_tree_kill_terminates_descendants': (
+            _up_red('the fake psutil.Process tree is never terminated (`assert [] == [2, 3]`) on this host'),
+        ),
+        'tests/tools/test_mcp_shared_connection_resolved_identity.py::test_profile_with_other_secret_source_value_gets_its_own_stdio_connection': (
+            _up_red_skip('its secrets command is `cat <file>`; the stdio discovery hangs past the 30 s per-test cap on Windows and the thread-method timeout kills the whole process'),
+        ),
+        'tests/tools/test_mcp_shared_connection_resolved_identity.py::test_profile_with_other_profile_identity_header_gets_its_own_http_connection': (
+            _up_red_skip('polls 30 s for the spawned HTTP server port file, which never appears on this host; the 30 s per-test cap kills the whole process'),
+        ),
+        **{node: (_up_red('an open handle or read-only file blocks the delete, WinError 5 (class c-H)'),) for node in (
+            'tests/hermes_cli/test_shallow_boundary_repair.py::test_repair_does_not_mask_unrelated_object_loss',
+        )},
+        **{node: (_up_red('asserts the POSIX branch of code that has a Windows branch (class e-BR)'),) for node in (
+            'tests/hermes_cli/test_agent_plugins.py::test_server_declaration_joins_mcp_and_preserves_liveness',
+            'tests/hermes_cli/test_ctrl_enter_newline.py::test_ctrl_j_legacy_submit_when_multiline_shortcuts_disabled',
+            'tests/hermes_cli/test_local_runtime_child_env.py::test_spawn_server_keeps_the_callers_environment',
+            'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_passes_child_pid_exclude_to_scan',
+            'tests/hermes_cli/test_orphan_desktop_serve_reap.py::test_reap_kills_descendants_of_killed_roots_but_spares_a_failed_roots_subtree',
+            'tests/hermes_cli/test_plugins_cmd_catalog.py::test_catalog_platform_mismatch_refuses_before_install',
+        )},
+        **{node: (_up_red('a same-size, pinned-mtime replacement keeps the NTFS file id and creation ctime (class e-ID)'),) for node in (
+            'tests/hermes_cli/test_cli_mcp_config_watch.py::test_pinned_mtime_same_size_replacement_triggers_reload',
+            'tests/hermes_cli/test_config_cache_signature.py::test_load_config_sees_replacement_with_pinned_mtime_and_size',
+        )},
+        **{node: (_up_red('the fixture path carries characters Windows rejects, WinError 123 (class e-NAME)'),) for node in (
+            'tests/hermes_cli/test_doctor_wal_checkpoint_guard.py::test_session_count_reads_a_home_with_uri_reserved_characters',
+        )},
+        **{node: (_up_red('prompt_toolkit needs a real Windows console; none under pytest (class e-TTY)'),) for node in (
+        )},
+        **{node: (_up_red('no Windows marker in the failure text; red at the tag on this box (class f-?)'),) for node in (
+            'tests/hermes_cli/test_noninteractive_git.py::TestNoninteractiveGitEnv::test_safe_directory_reset_still_revokes_wildcard_for_real_git',
+            'tests/hermes_cli/test_plugin_validate.py::test_portable_validation_fails_orphan_and_reports_availability',
+        )},
+        # Host-conditional (lane w5-fh, 2026-10-02): each was a strict XPASS on a host
+        # without the condition, so the condition is the classification.
+        'tests/hermes_cli/test_anon_sign_in_flow.py::test_the_scope_is_entered_for_the_preconditions_and_the_persist_but_never_around_a_wait': (
+            _up_red_when(sys.version_info < (3, 13), (
+                "orders events by time.monotonic(), which is GetTickCount64 (15.6 ms) on "
+                "Windows before CPython 3.13, so a yield shares the scope's tick; "
+                "QueryPerformanceCounter from 3.13 on")),
+        ),
+        "tests/hermes_cli/test_completion.py::TestGenerateBash::test_valid_bash_syntax": (
+            pytest.mark.xfail(strict=True, reason=(
+                "bash resolves a native temp path by POSIX rules and eats its backslashes; "
+                "fixed by the open fork PR #121226 (shell invocation)")),
+        ),
+        **{
+            f"tests/acp_adapter/test_session.py::TestSymlinkAliasNormalization::{test}": (
+                _up_red("realpath over a Windows drive: an alias does not resolve to its "
+                        "target and a POSIX literal is drive-qualified (class c-D)"),
+            )
+            for test in (
+                "test_symlink_alias_compares_equal",
+                # test_missing_path_keeps_lexical_normalization XPASSes (strict) on
+                # cce73ee553 — upstream's fix landed; row retired (lane h10-fhrest).
+                "test_list_sessions_matches_symlink_alias_cwd",
+            )
+        },
+        **{
+            f"tests/gateway/test_runtime_footer.py::{test}": (
+                _up_red(f"{why}; twin: tests/gateway/test_runtime_footer_downstream.py"),
+            )
+            for test, why in (
+                ("test_home_relative_cwd_collapses_home", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_all_fields", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_latency_in_field_order", "HOME patched, USERPROFILE not (class c-C, #121222)"),
+                ("test_format_footer_skips_missing_context_length", "a POSIX cwd literal is drive-qualified (class c-D)"),
+                ("test_default_build_footer_line_ignores_turn_seconds", "a POSIX cwd literal is drive-qualified (class c-D)"),
+            )
+        },
+        # Lane TRIAGE (2026-09-26): upstream reds on Windows main whose cause is the
+        # SQLite 3.45.3 bundled with Windows CPython 3.12.5 (CI runs 3.50.4), or a
+        # Windows-only caller of a process-wide patch.
+        **{
+            f"tests/hermes_state/test_fts_runtime_rebuild.py::TestRuntimeFtsRebuild::{test}": (
+                _up_red_when(sqlite3.sqlite_version_info < (3, 46), "SQLite 3.45.3 cannot DROP a corrupt FTS5 table from a fresh "
+                        "connection ('vtable constructor failed: messages_fts'), so the "
+                        "stale-FTS rebuild never recovers; product defect, runtime-queue "
+                        "upstream-owned row"),
+            )
+            for test in (
+                "test_corruption_fails_open_and_rebuilds_on_reopen",
+                "test_repeated_deferrals_reap_inactive_orphan_then_rebuild",
+                "test_retry_backoff_resets_when_the_blocking_holder_set_changes",
+                "test_legacy_inline_fts_fails_open_and_recovers",
+            )
+        },
+        "tests/hermes_state/test_state_db_malformed_repair.py::test_repair_rebuilds_stale_btree_indexes": (
+            _up_red_when(sqlite3.sqlite_version_info < (3, 46), "pins SQLite >= 3.46 integrity_check wording 'wrong # of entries'; "
+                    "3.45.3 reports 'row N missing from index', which the product also "
+                    "parses and repairs via reindex_btree (probed)"),
+        ),
+        "tests/hermes_state/test_state_db_repair_non_destructive.py::"
+        "test_interrupted_snapshot_rolls_back_destination": (
+            _up_red_skip("patches time.monotonic process-wide with a 2-tick iterator; the "
+                         "conftest's Proactor loop close (IocpProactor.close) calls it at "
+                         "teardown and gets StopIteration. Test passes, teardown errors; "
+                         "PR candidate: an unbounded tick source"),
+        ),
+        # Lane h10b-triage (2026-09-29): red in the fork's three-directory run AND in a
+        # pure-upstream tree at merge-base ee5f49b943 with the same exception
+        # (docs/downstream/triage-561-2026-09-29.md).
+        **{
+            node: (_up_red(
+                "compares a POSIX spelling of a path (forward slashes, lower-case "
+                "suffix, a /repo or /work literal) against the Windows one; test-side "
+                "spelling, PR candidate class win-path-spelling"),)
+            for node in (
+                "tests/agent/test_context_file_sources.py::"
+                "test_manifest_matches_what_the_prompt_actually_loads",
+                "tests/agent/lsp/test_manager_locking.py::"
+                "test_delta_baseline_is_capped_by_write_recency",
+                # Lane h-rows (2026-10-02): agent/tool_executor.py::_ensure_file_checkpoint
+                # checkpoints the path resolved the way file tools resolve it (drive-
+                # qualified here); the test expects the unresolved str(Path("/approved/path")).
+                "tests/agent/test_tool_call_guardrail_runtime.py::"
+                "test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch",
+                "tests/tools/test_bot_mode_dm.py::"
+                "test_delivery_pins_the_hermes_entrypoint_beside_this_interpreter",
+                "tests/tools/test_bot_relay.py::"
+                "test_waiter_is_a_runner_entrypoint_the_approval_gate_lets_through",
+                "tests/tools/test_browser_pm.py::"
+                "test_restricted_path_discovers_external_browser_without_execution",
+                "tests/tools/test_project_tools.py::"
+                "test_agent_session_project_create_keeps_profile_active_pointer_and_moves_session",
+                "tests/tools/test_project_tools.py::"
+                "test_agent_session_project_switch_keeps_profile_active_pointer",
+                "tests/tools/test_tool_result_storage.py::TestMaybePersistToolResult::"
+                "test_tool_use_id_cannot_escape_storage_dir",
+            )
+        },
+        **{
+            node: (_up_red(
+                "deletes a directory or database a live handle still holds; Windows "
+                "answers WinError 32 where POSIX unlinks"),)
+            for node in (
+                "tests/agent/lsp/test_workspace.py::test_resolve_workspace_for_file_survives_deleted_cwd",
+                "tests/agent/lsp/test_workspace_release.py::"
+                "test_reaper_shuts_down_client_whose_root_was_deleted",
+                *(f"tests/agent/test_in_place_compaction.py::{t}" for t in (
+                    "TestCompactedTurnsStaySearchable::test_compacted_turns_found_by_default_search",
+                    "TestCompactedTurnsStaySearchable::test_rewound_turns_stay_hidden",
+                    "TestInPlaceAntiGrowthGuard::test_in_place_refuses_growing_compression",
+                    "TestInPlaceAntiGrowthGuard::test_in_place_salvages_near_break_even_growth",
+                    "TestInPlaceCompaction::test_in_place_alternation_preserved",
+                    "TestInPlaceCompaction::test_in_place_keeps_same_session_id",
+                    "TestInPlaceCompaction::test_rotation_still_preflushes",
+                    "TestRotationFallbackWhenFlagOff::test_rotation_when_flag_off",
+                )),
+                *(f"tests/agent/test_compression_boundary_hook.py::{t}" for t in (
+                    "TestCompressionBoundaryHook::test_automatic_notification_follows_core_persistence",
+                    "TestCompressionBoundaryHook::test_failure_before_persistence_does_not_notify",
+                    "TestCompressionBoundaryHook::test_hook_failure_does_not_break_compression",
+                    "TestCompressionBoundaryHook::test_no_progress_does_not_notify",
+                    "TestCompressionBoundaryHook::test_on_session_start_called_with_compression_boundary",
+                    "TestSessionCompressEvent::test_event_emitted_on_compression",
+                )),
+            )
+        },
+        **{
+            f"tests/tools/test_hermes_subprocess_env.py::{t}": (_up_red(
+                "clears HOME/USERPROFILE and then reaches Path.home(); POSIX falls back "
+                "to pwd, Windows raises 'Could not determine home directory'"),)
+            for t in (
+                "TestBrowserPassthroughPattern::test_browser_keys_recoverable_after_strip",
+                "TestDelegatedChildMarker::"
+                "test_delegated_child_context_scrubs_parent_kanban_keys_and_sets_marker",
+                "TestInheritCredentials::test_provider_keys_preserved_when_inheriting",
+                "TestInheritCredentials::test_pythonutf8_set_when_inheriting",
+                "TestInheritCredentials::test_tier1_secrets_stripped_even_when_inheriting",
+                "TestInternalDynamicSecrets::test_auxiliary_non_secrets_preserved",
+                "TestInternalDynamicSecrets::test_gateway_relay_id_stripped_even_when_inheriting",
+                "TestInternalDynamicSecrets::test_stripped_by_default",
+                "TestStripByDefault::test_buzz_platform_vars_stripped_by_default",
+                "TestStripByDefault::test_provider_keys_stripped_by_default",
+                "TestStripByDefault::test_pythonutf8_set",
+                "TestStripByDefault::test_tier1_secrets_stripped_by_default",
+                "TestTierInvariants::test_tier1_always_stripped_both_paths",
+            )
+        },
+        **{
+            f"tests/tools/test_browser_use_cli.py::{t}": (_up_red(
+                "spawns a fake browser-use CLI written as a POSIX script; Windows "
+                "refuses it with WinError 193"),)
+            for t in (
+                "TestBackendCdpResolution::test_named_session_composes_with_provider_backend",
+                "TestBrowserExec::test_code_piped_on_stdin",
+                "TestBrowserExec::test_nonzero_exit_reports_failure_and_stderr",
+                "TestBrowserExec::test_session_sets_bu_name",
+                "TestLegacyCloudMigration::test_explicit_backend_does_not_set_bu_autospawn",
+                "TestLegacyCloudMigration::test_migrated_config_gets_bu_autospawn",
+                "TestLightpandaPreamble::test_lightpanda_session_skips_own_tab_preamble",
+                "TestNativeScreenshots::test_text_only_model_gets_plain_result_with_path",
+                "TestNativeScreenshots::test_vision_model_gets_multimodal_envelope",
+                "TestOwnTabPreamble::test_named_packaged_chromium_skips_preamble",
+                "TestOwnTabPreamble::test_named_provider_browser_skips_preamble",
+                "TestOwnTabPreamble::test_named_shared_browser_gets_preamble",
+                "TestOwnTabPreamble::test_sentinel_never_reaches_subprocess_env",
+                "TestOwnTabPreamble::test_unnamed_session_gets_no_preamble",
+                "TestVaultEgressRedaction::test_exec_redacts_registered_vault_secret_from_stdout_and_stderr",
+                "TestVaultSupervisorAttach::test_exec_attaches_supervisor_to_the_browser_it_drives",
+            )
+        },
+    })
+
+if _WIN:
+    # Upstream's own Windows reds that arrived with the 2026-09-27 merge (upstream 2f14d5e6e4):
+    # red on a pure upstream tree on this box, green on fork main before the merge (or new with it).
+    ROWS.update({
+        **{
+            f"tests/agent/test_curator_rollback_staging.py::test_retain_staging_never_raises[{case}]": (
+                _up_red(r"asserts the POSIX spelling 'alpha/.git' in a message that carries alpha\.git "
+                        "(class c-D)"),
+            )
+            for case in ("collision", "rename_fails")
+        },
+        **{
+            f"tests/agent/test_runtime_self_protection.py::{test}": (
+                _up_red("the self-protection detector returns None for the Windows venv / uv spellings"),
+            )
+            for test in (
+                "test_rm_of_whole_uv_install_dir_is_detected",
+                "test_rm_rf_of_own_venv_is_detected",
+                "test_windows_del_and_powershell_spellings",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_uninstall_leftovers.py::{test}": (
+                _up_red("_remove_launchd_gateway calls os.getuid, absent on Windows (hermes_cli/uninstall.py:326)"),
+            )
+            for test in (
+                "test_remove_launchd_gateway_returns_false_when_no_plists",
+                "test_remove_launchd_gateway_sweeps_both_label_patterns",
+            )
+        },
+        **{
+            f"tests/hermes_cli/test_desktop_profile_launch.py::{test}": (
+                _up_red("patches Path.home but the Windows default root is not ~/.hermes, so the "
+                        "profile the test creates is not the one resolve_profile_env looks up"),
+            )
+            for test in (
+                "test_dash_p_desktop_appends_profile_to_packaged_launch",
+                "test_profile_equals_spelling_is_forwarded",
+                "test_missing_flag_does_not_forward_sticky_profile",
+            )
+        },
+    })
+
+if _WIN:
+    # Lane FOOTPRINT-DROP (2026-09-27): upstream test files back at upstream's bytes; the
+    # fork's Windows version of each marked test lives in the named ``*_downstream.py``
+    # sibling beside it.
+    ROWS.update({
+        "tests/test_live_system_guard_self_test.py::test_bypass_marker_disables_guard": (
+            pytest.mark.skip(reason=(
+                "win32: os.kill(pid, 0) is CTRL_C_EVENT to the console group, not a probe; "
+                "fork half: tests/test_live_system_guard_self_test_downstream.py::"
+                "test_bypass_marker_disables_guard_without_delivery"
+            )),
+        ),
+        "tests/agent/test_skill_utils.py::test_skill_config_home_vars_use_subprocess_home": (
+            _up_red(
+                "compares a resolved path as str() against str(Path): the resolver spells it with "
+                "forward slashes on win32; fork half: tests/agent/test_skill_utils_downstream.py::"
+                "test_skill_config_home_vars_use_subprocess_home_as_paths"
+            ),
+        ),
+        "tests/tools/test_skills_hub.py::TestOptionalSkillSourceBinaryAssets::"
+        "test_fetch_preserves_binary_assets": (
+            pytest.mark.xfail(strict=True, reason=(
+                "the fork's tools/skills_hub_official.py keys bundles by POSIX path (open PR "
+                "#121643); upstream looks them up with os.path.join, a different string on win32; "
+                "fork half: tests/tools/test_skills_hub_downstream.py::"
+                "test_fetch_keys_binary_assets_by_posix_path"
+            )),
+        ),
+        # Same fork choice, three more upstream ids that look a POSIX-keyed path up with
+        # os.path.join (upstream's own test_skills_tool already expects "arxiv/SKILL.md").
+        "tests/tools/test_skill_bundle_provenance.py::"
+        "test_bundled_optional_source_still_includes_support_files": (
+            pytest.mark.xfail(strict=True, reason=(
+                "the fork's tools/skills_hub_official.py keys bundles by POSIX path (open PR "
+                "#121643); upstream expects os.path.join, a different string on win32; fork half: "
+                "tests/tools/test_skills_hub_downstream.py::test_fetch_keys_binary_assets_by_posix_path"
+            )),
+        ),
+        **{
+            f"tests/tools/test_skills_tool.py::TestSkillViewCollisionDetection::{test}": (
+                pytest.mark.xfail(strict=True, reason=(
+                    "the fork's tools/skills_tool.py spells skill paths and collision matches in "
+                    "POSIX form; upstream expects os.path.join, a different string on win32; fork "
+                    "half: tests/tools/test_skills_tool.py::TestSameRootDuplicationResolves::"
+                    "test_nested_copy_inside_same_root_does_not_block_bare_name"
+                )),
+            )
+            for test in (
+                "test_support_markdown_does_not_collide_with_real_skill",
+            )
+        },
+        **{
+            f"tests/tools/test_local_env_blocklist.py::{test}": (
+                _up_red("the builder runs with an env holding neither USERPROFILE nor HOME, so "
+                        "Path.home() raises in the platform-default home fallback (class U3 "
+                        "remainder, red on pure upstream ee5f49b943)"),
+            )
+            for test in (
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[_make_run_env]",
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[_sanitize_subprocess_env]",
+                "TestNativeEnvironmentContracts::test_builders_strip_hermes_venv_pythonpath[hermes_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[_make_run_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[_sanitize_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[hermes_subprocess_env]",
+                "TestPythonhomeSanitized::test_builders_strip_pythonhome[build_subprocess_env]",
+                "TestSanePathIncludesHomebrew::test_make_run_env_appends_homebrew_on_minimal_path",
+            )
+        },
+        # Class U2/U4 singletons (triage-561, lane h12-fix 2026-09-29): each id red twice solo
+        # on the fork and twice on pure upstream ee5f49b943.
+        "tests/agent/lsp/test_client_e2e.py::test_aborted_start_reports_exit_status_and_stderr_tail": (
+            _up_red("asserts the aborted server is reported as killed by a signal; Windows reports its exit code (0xC0000409) (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_direct_contexts_stream_inline.py::test_inline_stream_stale_detector_still_fires_from_monitor_thread": (
+            _up_red("the stale kill aborts the socket and httpcore raises WinError 10053 instead of the reconnect the test expects (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_failed_turn_site_codes.py::test_persistence_failure_default_copy_is_actionable_and_profile_aware": (
+            _up_red("the default persistence-failure copy still names ~/.hermes on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/agent/test_stream_stale_kill_unwedge.py::test_wedged_stream_unwinds_within_its_stale_budget_and_reconnects": (
+            _up_red("closing the socket does not unwedge a blocked Windows reader; recovery takes ~21 s against the budget (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_desktop_startup_cost.py::test_current_packaged_launch_does_not_require_npm": (
+            _up_red("the packaged-launch probe spawns a command that does not resolve on Windows (WinError 2) (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_decide_pins_and_either_answer_ends_the_offer": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_interactive_offer_writes_only_on_a_yes_or_no": (
+            _up_red("no offer is made on this host (the pending-switch read is None); cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_pending_needs_docker_backend_unpinned_and_a_stale_container": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/hermes_cli/test_sandbox_image_switch.py::test_pending_reads_a_bound_terminal_scope_not_the_launch_env": (
+            _up_red("the pending-switch read returns None on this host; cause not settled (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_bot_desktop_placement.py::test_forward_port_carries_bytes_both_ways_through_the_exec_stream": (
+            _up_red("the forwarded socket is reset (WinError 10054) before the echo returns (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_computer_use.py::TestCuaEnvironmentScrubbing::test_cua_session_sanitizes_provider_env_vars": (
+            _up_red("no expected safe variable survives the scrub on this host (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_computer_use.py::TestRegistration::test_cua_driver_cmd_env_override_is_resolved_dynamically": (
+            _up_red("the override path is not an executable on Windows, so the resolver returns None (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        "tests/tools/test_tts_path_traversal.py::test_media_directive_in_path_is_rejected_before_any_echo": (
+            _up_red("the test's MEDIA: path is not a legal Windows filename (WinError 123) before the guard runs (class U2/U4 remainder, red solo on pure upstream ee5f49b943)"),
+        ),
+        # Class X (triage-561, lane h12-fix 2026-09-29): red identically on pure upstream
+        # ee5f49b943 (fork-edited implementation, same failure text).
+        "tests/tools/test_process_registry.py::TestStdinHelpers::"
+        "test_close_stdin_allows_eof_driven_process_to_finish": (
+            _up_red("the EOF-driven child does not exit after close_stdin on Windows (class X)"),
+        ),
+        "tests/tools/test_process_registry.py::TestSpawnEnvSanitization::"
+        "test_spawn_local_strips_blocked_vars_from_background_env": (
+            _up_red("the sanitized env drops USERPROFILE, so Path.home() raises in the platform-"
+                    "default home fallback (class X)"),
+        ),
+    })
+
+if _WIN and not sys.flags.utf8_mode:
+    # Probe, not platform: the red is the cp1252 locale, so it does not occur under
+    # scripts/run_tests.sh / run_tests_bundled.sh, which export PYTHONUTF8=1 — there
+    # an unconditional strict xfail XPASSes.
+    ROWS.update({
+        f"tests/hermes_cli/test_kanban_core_functionality.py::{test}": (
+            _up_red("write_text() of a non-ASCII worker log with no encoding= under the cp1252 locale: UnicodeEncodeError (class e-ENC)"),
+        )
+        for test in (
+            "test_dead_worker_reap_surfaces_the_workers_own_last_output",
+            "test_dead_worker_reap_reads_the_log_of_the_dispatching_board",
+        )
+    })
+    ROWS.update({
+        f"tests/tools/test_browser_real_profile.py::TestWindowsLockedProfileCopy::"
+        f"test_copy_auth_file_bounds_locks_without_overwriting[{locked}]": (
+            _up_red("the child prints _AUTH_DB_LOCKED's em dash as UTF-8 and the parent decodes "
+                    "it under the cp1252 locale (class e-ENC; class X)"),
+        )
+        for locked in ("source", "destination")
+    })

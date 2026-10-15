@@ -1,0 +1,1238 @@
+# 05 — The chat turn lane: one turn, end to end
+
+This document's operator lane sends one message to one persona instance and
+runs a bounded, receipted, durable turn. The old goal/task mission lane remains
+removed. Independent conversations and discussion runs share runtime authority
+without replacing the operator's session or prompt policy.
+Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
+sits under `### Durable provider-refusal transcript marker
+
+`persona_chat_history.vocabulary.TERMINAL_TURN_MARKERS` includes `provider_refused`.
+`markers._terminal_turn_marker_rows` emits that typed terminal marker when no
+assistant reply exists and carries the journal's sanitized `provider_refusal`.
+The unavailable reason says the request never left Hermes and directs the operator
+to review profile provider setup before sending a new message. HTTP refusals retain
+generic provider-refusal copy; uncertain outcomes do not acquire setup-recovery copy.
+
+`operator_channels.HistoryMessage.marker` preserves the refusal block and presents
+status `provider_refused`. `tests/agent_runtime/test_provider_refusal_history.py`
+proves real journal-to-history-to-console projection, reply deduplication and
+uncertainty separation. Launcher consumes the same typed marker; operator live
+no-credential acceptance is not claimed by this deterministic proof.
+
+### Known setup refusal before provider dispatch
+
+`mission_chat_outcome.classify_turn_failure` retains the phase-aware repair from
+`7fbd3688e6`: failure before agent-ready settles terminal `provider_unavailable`.
+Agent-ready itself precedes prompt assembly and HTTP dispatch. A typed
+`ProviderNotConfiguredError` after that handoff also settles unavailable when
+the runtime has seen neither a request-sent receipt nor reply text. The type's
+contract is an agent-construction setup refusal; generic exceptions retain
+uncertainty. Positive dispatch evidence always wins over the exception type.
+
+`TurnCommit._stream_progress` records a separate dispatch fact from the validated
+request-sent event; `_settle_failure` also reads the emitter's observed-reply fact.
+The classifier does not branch on timing-mark snapshots or redefine budgets.
+`tests/hermes_cli/test_mission_chat_provider_unavailable_payload.py` drives the
+real command/journal through local, sent, generic and duplicate-refusal cases.
+The remaining provider-neutral dispatch-evidence gap is queued separately.
+
+## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
+`_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
+`hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
+
+## Native result delivery
+
+`agent_runtime/persona_chat_continuity/wire.py::native_wire_row` redacts native
+history without applying a second size ceiling to tool results, assistant/system
+content or tool-call arguments. Upstream sizes results through its own three
+layers (tool caps, spillover, aggregate budgets) and owns context compression. The
+fork's composed-envelope limits remain in
+`agent_runtime/persona_chat_continuity/bounds.py::bound_composed_user_content`;
+the admitted operator message is preserved in full, with the remaining space
+shared by the runtime HUD and skill preload.
+
+`agent_runtime/native_persistence.py::project_native_message` feeds the live
+message and the SQLite row, so both must preserve the upstream-selected result
+and canonical arguments. Spill paths retain upstream's cache lifecycle; they are
+not a durable recovery promise. The real flush/replay, spill, redaction and
+receipt controls live in `tests/agent_runtime/test_native_result_policy_downstream.py`.
+Launcher owns its generated reply-page target independently of these policies.
+
+Native projection preserves upstream message fields, durable identities and all
+valid tool calls. `persona_chat_continuity/content.py` redacts readable content
+without flattening native blocks or scanning opaque media/signatures as text.
+SQLite still uses upstream's durable multimodal projection; preserving a live
+image does not promise that its bytes survive a restart. The native history
+loader requests upstream's replay repair so compression markers survive cold
+reads. These guarantees are exercised through the actual loader and SQLite flush
+in `tests/agent_runtime/test_native_representation_downstream.py`.
+
+## Operator text and full transcript reads
+
+### Mid-turn input and recorded recovery
+
+The existing steer buffer preserves `TimelineNotification` provenance through
+`agent/steering.py`. Machine notices never acquire the user-steer wrapper or
+set the user-intervention flag. Addressed operator steers retain their own
+client ID and a position allocated by the chat emitter's sequence authority;
+native SQLite persistence carries both through `display_metadata`. History
+curation uses that position inside the original turn, before its final reply.
+The background completion inbox and delivery acknowledgements remain the same.
+
+Operator history rows carry terminal outcomes read from the existing turn
+journal. `runtime.chat.turn.resolve` also accepts `dismiss` for an exact
+interrupted turn owned by the requested persona instance. Dismissal uses the
+same root lease and journal writer as `abandon`; it records acknowledgement
+without changing the interrupted outcome. Its marker remains as terminal
+evidence for tool settlement and carries `resolution: dismiss` for presentation.
+Retry availability depends on an actually available original message; the
+marker text does not promise one. Controls are in
+`tests/agent_runtime/test_transcript_recovery.py` and
+`tests/agent_runtime/test_steer_provenance_downstream.py`.
+
+`agent_runtime/operator_message.py::normalize_operator_message` is the admission
+policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
+preserving whitespace. Oversize input receives a typed refusal before dispatch.
+`hermes_cli/harness_parts/persona/chat_history_writes.py::_redact_persona_chat_text`
+and `mission_chat_turns/records.py::_safe_journal_metadata` retain whole redacted
+operator/reply bodies, including recorded-empty replies. They do not introduce
+another post-admission slice. The real admission/handler proof is
+`tests/hermes_cli/test_chat_content_integrity.py`.
+
+`agent_runtime/persona_chat_history/text.py::message_preview` marks abbreviated
+history rows with `text_truncated`, `text_total_chars` and `content_ref`.
+`serve_rpc/chat_verbs.py` registers `runtime.persona.chat.content` on the existing
+Console tier. Its reader, `persona_chat_history/content.py::read_chat_content`,
+uses the existing scoped, read-only SessionDB door. A reference names a message
+or a real tool-call input/result; an offset selects at most 16,000 Unicode
+characters. Continuations require the returned content revision. Changed content,
+wrong ownership, hidden/missing rows and unavailable storage receive refusals.
+Display reads use upstream's compacted/ancestor history; model replay still uses
+upstream's separate replay policy. No new transcript store exists. Each window
+currently scans the session; the indexed-lookup improvement is in `runtime-queue`.
+Tests: `tests/agent_runtime/test_chat_content_read.py`.
+
+`runtime.persona.chat.history.search` (same file, same Console tier as the history read) searches one
+conversation's history without loading it: `persona_chat_history/search.py::persona_chat_session_search`
+scans the curated, un-truncated rows the history read pages (the whole compression lineage), so a hit
+never shows text that read hides. Every query term must occur in one message (case-folded substring,
+so CJK needs no tokenizer); hits come newest-first with a snippet and an `open_before` history cursor
+whose page ends at the hit. Upstream's FTS `search_messages` was not used: it reads raw rows and has no
+session filter (L5.05).
+
+The existing SQLite flush seam calls
+`agent_runtime/native_persistence.py::project_native_sidecar` after upstream has
+assembled `api_content`, including synthesized sidecars. New native writes use
+the same redaction policy as live/cold replay; non-native persistence and opaque
+reasoning fields remain upstream-owned. This does not rewrite historical rows.
+Controls: `tests/agent_runtime/test_native_representation_downstream.py`.
+
+### Native redaction boundary
+
+`persona_chat_continuity/wire.py::native_wire_row` owns native readable-content
+redaction for live messages and cold replay. It redacts `content` (text leaves
+and ordinary JSON credential values), `tool_calls[].function.arguments`, and
+metadata classified by `persona_chat_continuity/content.py::NATIVE_METADATA_REDACTORS`.
+That inventory is the authority for known metadata fields: readable strings
+are masked; provider carriers remain byte-exact, including signed thinking text
+paired with its signature. The upstream durable reasoning-field inventory is
+checked against it, so an upstream addition requires explicit classification.
+
+Unknown top-level extensions and extra tool-call/function metadata still pass
+through without a redaction guarantee. They remain live; only upstream's selected
+top-level fields and persisted nested structures reach SQLite. Opaque carriers
+can include readable text, so this boundary is not a guarantee that every secret
+is removed from provider state. Do not recursively scrub signed/encrypted/media
+payloads or drop unfamiliar provider keys. A newly introduced carrier needs a
+provider-aware review, not an inferred exemption for arbitrary readable text.
+
+The final native sidecar seam deduplicates only after redaction; upstream
+non-native writes and distinct API text remain unchanged. Display curation owns
+message redaction and preview slicing. The operator history adapter preserves
+that text and its content reference without another sanitizer or whitespace
+rewrite. Full reads use the same curation; tool reads retain native redaction.
+Missing or malformed continuation revisions are invalid requests before storage
+is opened; a valid but stale revision remains `content_changed`.
+
+## Independent native conversations
+
+`agent_runtime/conversations/service.py::ConversationService` admits exact
+actor/account/profile/session scopes and delegates to runtime-owned native
+workers. Those workers reuse the canonical Desktop/TUI engine, SessionDB,
+provider/model resolution, permissions and skill reader. They never enter the
+operator-channel prompt policy or overwrite its default chat pointer.
+`worker_skills.py` binds catalog/detail/history to the worker's exact session;
+skill-load evidence proves a load, not ongoing model reasoning.
+
+`agent_runtime/discussions/native.py` uses auxiliary chat sessions for
+discussion participants. The same executor serves office and non-spatial rooms;
+the operator root remains independent. Launcher Compare instead fans out to
+independent native conversations, with failure and queues scoped per participant.
+
+## Existing operator conversations
+
+`agent_runtime/operator_conversation.py` attaches another view to an exact
+operator session, without minting history or changing its default pointer.
+Reads reuse SessionDB, `mission_chat_turns`, admission receipts and clarify
+tickets. Send, Stop and execution status validate ownership without loading transcript history.
+Launcher observes live journal output every two seconds while visible; this is
+not token-by-token fan-out and does not replace the original frame consumer.
+
+`agent_runtime/operator_execution.py` persists Stop intent on the original
+admission receipt. `hermes_cli/harness_parts/serve/operator_interrupt.py` reaches
+that turn's existing worker through upstream `InterruptScope`. Queued Stop
+prevents dispatch; missing or uncertain owners remain unconfirmed. Completion
+wins a late Stop, and an old turn ID cannot interrupt a newer turn. Receipt
+fingerprints reject changed payloads; old receipts remain replay-only evidence.
+
+Automated recovery and isolation evidence is in the
+[landing record](archive/operator-conversation-handoff-2026-09-28.md).
+Native desktop acceptance remains open in the Launcher queue.
+
+`operator_execution.operator_execution_reservation` joins instance/persona
+admissions to their resolved session using the exact turn journal's
+`root_chat_session_id` and `persona_instance_id`. Admission scope and payload
+fingerprint stay immutable for resend deduplication. It refuses unresolved
+or conflicting roots before persisting Stop intent; the instance's current
+default pointer is not execution evidence. Stop and attachment reads share
+this join. `test_operator_execution_recovery` covers the console's omitted
+`session_id` path, hard interrupt without tools, replay and conflicting journal
+evidence. Launcher `operator_native_test` exercises that wire shape through
+the Dart adapter against the native dispatcher, including a lost Stop ack.
+
+`serve_rpc.operator_conversation.status` reads the exact execution's native
+receipt and terminal journal state without requesting Stop or reading its
+transcript. Launcher uses bounded status reads after one Stop write, including
+a lost acknowledgement. Only native `stopped` or `finished` confirms the
+result; absent owners and disconnected reads remain unconfirmed. The
+[Stop audit](../downstream/operator-stop-audit-2026-10-06.md) records regression
+and baseline qualification; live cancellation latency remains unmeasured.
+
+## 1. Send admission — the turn's identity and its thread
+
+**Inline relay admission uses the runtime head, not the sender's profile.**
+`hermes_cli/harness_parts/mission_chat_door_binding.py::_mission_chat_turn_via_cli`
+enters `profile_context.process_home_scope(get_hermes_head_home())` around the
+canonical handler only when the current home differs. An already-head caller
+gets no synthetic override; an existing unbound override still fails the
+transcript durability guard. A sender's execution profile cannot replace the runtime's
+configured persona roster or defaults. The selected target still declares its
+execution profile through `GPTPersonaRuntime.mission_chat_reply`; the sender's
+context is restored on success, refusal or exception. The two roster reads in
+`tools/agent_chat/threads.py` load that same head's config. This does not merge
+profile catalogs or change workspace, exact-instance, session or relay guards.
+`tests/agent_runtime/test_agent_chat_runtime_roster.py` exercises the actual
+inline registry/handler and stores with two sender homes and sibling targets;
+only model execution is stubbed. Live relay and thread-opening acceptance is
+tracked separately in the Launcher's console live-contract audit.
+
+**A relay sent from inside a run is detached, never waited on.** The sender's run holds
+`profile_runner._WORKDIR_LOCK` for its whole body and a tool runs on a worker thread, so an
+inline `agent_chat_send` would wait for a child turn that needs the lock the sender holds; the
+wait ended only when the sender's wall budget killed the sender (203 s of a 240 s turn,
+`agent-chat-send-db7a2d34`, 2026-10-08). `tools/agent_chat/send.py::Send.envelope` reads
+`agent_runs_in_flight()` — the gauge the actor prewarm already yields on — and routes the send
+onto the dispatch lane, whose child is its own process. The handle says `auto_detached: true`
+and tells the model to finish its reply; the reply arrives as its own message. The admission
+refusals (no delivery channel, no sender session) are reworded for that case as
+`inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The detached
+budget rule is unchanged: the child's clock starts when it starts, and the row now records
+`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`. The child is
+booted onto the HEAD home (`get_hermes_head_home()`, the launcher's `profiles/base` pin), the same
+home the inline shim enters, because that config is where the configured personas live; booted
+onto the sender's profile home it answered `unknown persona` for every target (2026-10-08).
+
+**Stop reaches the work the turn started, and nothing else.** A dispatch records the sending
+turn's `client_message_id` as `parent_turn_id` (`relay_policy.RELAY_PARENT_TURN`, seeded beside
+the chain). `runtime.operator.conversation.stop` on a turn that is `stop_requested` cancels
+that turn's `running` dispatches through `running_work.cancel_work` and answers
+`dependent_dispatches`; a turn that finished on its own keeps its children, and a job the
+operator started has no parent and is never reached. A dispatch cancels to the typed
+`cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
+identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
+replied when the kill lands → the reply is kept.
+
+**A cancel is a request to the supervisor** (D1.07, owner rulings 2026-10-10). A process that
+does not supervise a dispatch never kills by pid. On the same machine it writes the row's
+durable `cancel_requested` (`dispatch_store.request_dispatch_cancel`): a row whose child never
+started is settled `cancelled` at once; a running one answers `cancel_requested`, and the
+supervising serve's cancel watch (`tools/agent_chat_dispatch/cancel_watch.py`, one thread per
+process while anything is supervised, a 2 s poll) turns the mark into its own identity-guarded
+cancel. The supervisor also reads the mark before the spawn and after stamping the owner, so a
+cancel racing a spawn is caught by one side. A dispatch whose turn runs on a PAIRED install is
+asked of that install with `peer.agent_chat.cancel` ([03](03-transport-and-wire.md)) from
+whichever process holds the Stop, and answers its typed outcome (`stopping`,
+`already_finished`, `not_running`, `peer_unreachable`, `peer_refused`); a turn stopped there
+keeps the partial output it wrote. `not_owned_here` names only the case a process cannot route
+at all: the dispatch lane is not resident in it.
+
+**One id, minted launcher-side, echoed byte-equal.** The launcher mints `agent-chat-send-<uuid4>` as
+the intent's `idempotencyKey` (`mission_agent_chat_panel.dart`), sends it as the RPC's
+`client_message_id` (`mission_agent_chat_adapter.dart`), and hermes echoes it as `turn_id`
+(`chat_turn_commit`'s reply envelopes) after `_cmd_mission_chat_message` reads it. Absent, hermes mints
+`agent-chat-send-<hex12>` and writes it back onto `args` so the serve lane and the turn store agree.
+The launcher's timeline names this the join key in its own docstring
+(`mission_chat_turn_timeline.dart`): one key, minted once, so the cross-process join is
+never a time-proximity guess.
+
+**Explicit `session_id`** (new-chat and per-chat sends) runs two SessionDB guards, both
+`REJECTED`/exit 2:
+
+- `unknown_chat_session` (`_cmd_mission_chat_message`) — the named root is not in the canonical
+  SessionDB. `next_expected`: *open a server-minted chat root before sending*.
+- `foreign_chat_session` (same handler) — the root exists but is not owned by the target: no owner,
+  no owner row, a differing persona, or a pinned `persona_instance_id` that is not the owner. On
+  success the turn ADOPTS the owner as its instance identity, so the bind below cannot
+  receive a different one. A clarify-token continuation resolves BEFORE this point
+  precisely so a ticket-supplied session flows through these guards, not around them.
+
+**Omitted `session_id`** (the dispatch lane, and any first-turn open) never reaches them. It
+resolves a target — explicit pin, else the single in-scope placement, else the canonical channel
+(`:2312-2320`) — then asks `resolve_dispatch_session_decision` whether to continue or mint
+(`:2331-2334`). Default policy is `new_per_dispatch`; the console's argparse `--new-session` is
+`store_true`, so an operator send arrives as explicit `False` and continues the instance's current
+default thread.
+
+**The pre-mint gate.** The mint is the turn's first durable side effect: a titled session row, plus
+a repoint of the instance's default-thread pointer once `open_chat` binds it. So every refusal
+decidable from `args` alone, plus a read-only retired-target pre-flight, is evaluated first
+(`:2368-2379`). The mint is idempotent through `PersonaChatMintReceiptStore().mint` (`:2397-2412`),
+keyed on the caller's `idempotency_key` or `send:<client_message_id>`. Two typed refusals escape it:
+`RetiredPersonaInstanceError` (`:2413-2428`) and `PersonaChatPersistenceError` (`:2429+`, the
+bind-landed/transcript-didn't case, which retracts the bind rather than returning a root that
+dereferences nowhere). An ambiguous BARE persona target — more than one live instance, no pin, no
+session — is refused before all of this with the candidate `@handles` (`:2210-2234`).
+
+## 2. The turn phases contract
+
+`agent_runtime/mission_chat_phases.py` is the turn's monotonic timeline; records carry it under
+`phases` (`TURN_PHASES_KEY`) at schema **v3** (`TURN_RECORD_SCHEMA_VERSION`). A v2 record has no `phases` key and is never migrated —
+the bump is how a reader tells "predates instrumentation" from "instrumented and never got there".
+`PHASE_ORDER`:
+
+```
+request_received → context_built → observability_built → emitter_created →
+write_ahead → agent_ready → provider_request_started → conversation_started →
+turn_context_built → preflight_done → request_built → request_assembled →
+client_built → tls_done → request_sent → response_headers →
+provider_first_byte → provider_returned → stream_done → native_committed → projected
+```
+
+**The provider span's stamps (h-chatperf, 2026-10-03).** Cold turn `1e4c06ba` spent 12.4 s
+between `provider_request_started` and its first byte with `request_assembled` the only mark
+inside. The loop now announces `conversation_started` (`run_conversation` entered),
+`turn_context_built`, `preflight_done` (iteration prep, request assembly and the preflight gate
+done) and `request_built` (`build_api_request` returned) through
+`conversation_observability._emit_phase_marker`; `agent_runtime/transport_phase_trace.py` hooks
+the request client's httpx `request` event to put an httpcore `trace` on the request and announces
+`client_built`, `tls_done`, `request_sent` and `response_headers`; the `llm_execution` middleware
+announces `provider_returned` when the provider call returns, on every provider path. `tls_done` is ABSENT on a
+request that rode a pooled connection — the absence is the reuse receipt. All nine are
+first-mark-wins (a tool loop's later dispatches move nothing) and ride the terminal `timing` block
+as `<mark>_ms`. The handler also folds `context_native_history_ms` (the per-turn SessionDB lineage
+reload) into `profile_timing` beside the context sub-spans.
+
+`request_assembled` landed 2026-08-22 (`785a35beae`) and splits the old "provider" span:
+`provider_request_started → request_assembled` is hermes assembly, `request_assembled →
+provider_first_byte` is client init + network + provider + whatever precedes the first reply-text
+delta (`:352-375`). **`provider_first_byte` is misnamed and kept:** the emitter marks it on the
+turn's FIRST REPLY-TEXT DELTA, not the provider's first byte, so reasoning and tool rounds land
+inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner the emitter's
+`first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
+turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
+and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
+flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
+`visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
+closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
+(§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm
+steady-state turn, `1` when a keyed input moved, and anything above `1` means something is
+re-resolving what the bundle holds. `prewarm_overlapped` landed with prep-cost Stage 6 and is
+sampled exactly as `builds_overlapped` is — monotonic spans intersected with the turn's window,
+counted by `agent_runtime/persona_chat_actor_prewarm.py` — because the other thing measured
+stealing a turn's pre-admit span is a chat-open actor prewarm for the operator's own root
+(5,750 ms across a whole pre-admit span, 2026-09-07).
+
+**Six `profile_timing` receipts landed 2026-09-01** (prep-cost Stages 3–5, `3b4923f6c2` /
+`139f480a23`; all `*_ms` keys `safe_turn_profile_timing` already admitted — no schema change):
+`profile_conversation_turn_context_ms` times `build_turn_context`, the owner of most of the
+`provider_request_started → request_assembled` span — the live record falsified the old belief
+that tool-schema `request_build` owned it (that bills **1 ms warm**; the expensive schema build
+runs at agent construction and is already cached in `model_tools._tool_defs_cache`); exactly one
+of `profile_conversation_system_prompt_restore_ms` / `..._build_ms` per prologue entry; exactly
+one of `agent_init_tool_defs_build_ms` / `..._cached_ms` per construction; and
+`session_db_open_ms` — the per-turn SessionDB writer-open, bench-measured **~6 ms warm**
+(5.7/6.5/6.6 median, flat from 0.6 to 170.8 MB store size; cold first-open 56–204 ms), which is
+why the open stays per-turn and unpooled. The durable record's block is the TURN's (a superset);
+the live result frame keeps the runner's dict byte-for-byte. Evidence + the owed live re-takes:
+`planned/chat-turn-prep-stages-3-5-field-notes-2026-09-01.md`.
+
+**Seven more landed with prep-cost Stage 6 (2026-09-07)** — the PRE-ADMIT sub-spans, because
+`context_built` and `observability_built` are one number each and a sandbox profile of the live
+root said ≥ 60 % of both is skill-directory walking performed three ways. The two builders time
+themselves and return a `timings` mapping the handler folds beside `session_db_open_ms`:
+`context_skill_preload_ms` / `context_hud_ms` / `context_signature_ms` from
+`agent_runtime/mission_chat_turn_context.py`, and `observability_skill_rows_ms` /
+`observability_catalog_walk_ms` / `observability_shared_catalog_ms` plus the 0/1
+`observability_catalog_cached` from `agent_runtime/prompt_observability.py` (`1` = no read on the
+turn's thread walked the catalog; past its 15 s TTL the memo answers stale and refreshes on a
+`skill-catalog-refresh` thread, so only a cold memo walks inline — h-turn1-again). The three in each
+group are disjoint (the walks are subtracted out of the block they run inside), so a group sums to
+its phase span rather than past it, and the mapping never reaches a persisted observability row —
+the handler pops it and `persist_prompt_observability_context` drops it again. Beside them ride
+`visibility_bundle_rebuild_component_<name>=1` flags (CP-7, §4a): which chat-lane bundle key
+component moved, names only, the same disclosure rule `resident_signature_diff` follows.
+`safe_turn_profile_timing` grew two admitted shapes for these — `*_cached` and
+`visibility_bundle_rebuild_*` — and admits nothing else new. Evidence and the owed operator read:
+`planned/chat-turn-prep-cost.md` §0.3 and `planned/chat-turn-prep-cost-field-notes-2026-09-07.md`.
+
+**Four honesty rules** (`:18-50`), each enforced in code, not by convention:
+
+1. **Absent, never a fake zero.** `snapshot()` emits only what was marked (`:334-355`);
+   `safe_turn_phases` drops what it cannot read and never defaults (`:463-499`); `flag()`/`count()`
+   treat `None` as "could not establish" and record nothing (`:242-279`) — which matters most for
+   the counters, where `0` is a real and interesting answer.
+2. **Monotonic only.** Anchor and marks come from one injected callable (`:170-179`); `anchored_at`
+   is the single wall stamp, for eyeballing `agent.log` (`:192-196`).
+3. **First mark wins**, under a per-phase lock inside `mark()` (`:221-240`) — `provider_first_byte`
+   (the first reply-text delta) rides the emitter's per-token `delta()` and may arrive on a worker thread.
+4. **Release-visible.** No flag, no debug gate; the block rides persists the turn already performs.
+
+Construction IS the anchor, taken as the handler's first statement
+(`turn_phases = TurnPhaseMarks()` in `_cmd_mission_chat_message`), ahead of the capability bind and the config load, because everything
+below is admission cost the operator waits through. Marks land at each
+`turn_phases.mark(...)` in `chat_turn_commit` (write_ahead — deliberately *before* the write it
+names) and on the emitter (provider_first_byte); `request_assembled` arrives as
+a trace payload, converted in `_stream_progress` (anchored by symbol since lane H3 split the file). The emitter's older `ttft_ms` is unchanged; `phases` is a superset, because the
+emitter is built ~1,100 lines in and its clock cannot see the profile bootstrap.
+
+### 2a. The `timing` block on the terminal payload (RO-7, 2026-09-06)
+
+Everything above is on the RECORD. Reading it took a hand-written script: on 2026-09-06 the
+question "why is a local turn slower than the Mac's" was answered by joining the launcher's
+`[MissionChatTiming]` diag line to `mission_chat_turns/*.json` on the turn id, and the answer —
+the extra seconds were spent BEFORE the provider, in context assembly correlated with overlapping
+visibility-bundle builds — was the opposite of what the launcher's line alone suggested. An
+operator cannot write that script.
+
+So the turn's terminal payload carries a closed projection — seven keys at RO-7, thirteen since
+prep-cost Stage 6 widened it (2026-09-07) — built by
+`mission_chat_phases.turn_timing_block` and copied in at commit inside
+`_mission_chat_commit_turn`, from the same two instruments the terminal persist writes in the same
+breath (`turn_phases` for the marks and counters, the handler's folded `profile_timing` superset
+for the runner's durations):
+
+| wire key | source |
+|---|---|
+| `turn_context_ms` | `profile_timing.profile_conversation_turn_context_ms` |
+| `request_assembled_ms` | `phases.request_assembled` |
+| `provider_first_byte_ms` | `phases.provider_first_byte` — the first reply-text delta, not the provider's first byte |
+| `provider_dispatch_ms` | `profile_timing.profile_conversation_provider_dispatch_ms` — the `llm_execution` span; replaced `responses_create_ms`, whose source nothing wrote after plugin-fit §4 Q4 (2026-09-29) |
+| `stream_consume_ms` | `profile_timing.profile_provider_stream_consume_ms` |
+| `builds_overlapped` | `phases.builds_overlapped` |
+| `resident_actor_reused` | `profile_timing.resident_actor_reused`, as a bool |
+| `context_built_ms` | `phases.context_built` (Stage 6) |
+| `observability_built_ms` | `phases.observability_built` (Stage 6) |
+| `write_ahead_ms` | `phases.write_ahead` (Stage 6) — CP-1's number |
+| `agent_ready_ms` | `phases.agent_ready` (Stage 6) |
+| `visibility_bundle_builds` | `phases.visibility_bundle_builds` (Stage 6) |
+| `runtime_resolve_ms` | `profile_timing.runtime_resolve_ms` (Stage 6) — no `profile_` prefix on this one |
+| `mcp_admission_ms` | `profile_timing.mcp_admission_ms` |
+| `agent_construct_ms` | `profile_timing.agent_construct_ms` |
+| `conversation_started_ms` | `phases.conversation_started` |
+| `turn_context_built_ms` | `phases.turn_context_built` |
+| `preflight_done_ms` | `phases.preflight_done` |
+| `request_built_ms` | `phases.request_built` |
+| `client_built_ms` | `phases.client_built` |
+| `tls_done_ms` | `phases.tls_done` |
+| `request_sent_ms` | `phases.request_sent` |
+| `response_headers_ms` | `phases.response_headers` |
+| `provider_returned_ms` | `phases.provider_returned` |
+
+Stage 6's six are APPENDED to `TURN_TIMING_ORDER` rather than interleaved chronologically, which
+is "additive in the strict sense" taken literally: no existing key moves in name OR position.
+Nothing reads the block positionally (the launcher's `AgentConsoleTurnTiming` reads it by key
+name), so the only cost is that the tuple lists the pre-admit half below the post-admit half.
+`write_ahead_ms` is why the widening happened: the pre-admit span is where a local turn's extra
+seconds live, and until Stage 6 it was readable only by opening the ledger file — which an
+operator cannot do for the OTHER machine.
+
+**Which frame it rides, precisely.** The payload is the one dict `_mission_chat_emit` hands out:
+the argv lane's `--json` object, and the streamed lane's `chat.final`. Under a served
+`runtime.chat.message` that is the last frame carrying a PAYLOAD on the per-request lane — the
+frame after it, `exit`, carries `{id, event, code}` and nothing else, and the launcher's fold
+models it as exactly that (`MissionControlStreamLine.exit(code)`, routed `terminal: true`), while
+its bridge decodes `chat.final` into a map and calls it "the conversational terminal". `.steer`
+has no turn payload of its own: a steer injects into a running turn, and the block rides that
+turn's terminal frame.
+
+**It is additive in the strict sense.** No existing key moves, `RPC_CONTRACT_VERSION` /
+`OPS_CONTRACT_VERSION` / `SERVE_SCHEMA_VERSION` do not move, and both byte-pinned fixture families
+regenerated unchanged. `TURN_TIMING_ORDER` is the closed set a reader may see, so nothing new in
+the runner's open namespace can reach the wire without a decision.
+
+**The record's honesty contract travels with it.** A phase the turn never reached has NO key — a
+zeroed `provider_first_byte_ms` would report a turn that died before the provider as the fastest
+of the day — while a MEASURED zero (`builds_overlapped: 0`, the answer that acquits build
+contention) survives. Values are sanitized on the way OUT as well as in, because this block is read
+straight off a wire frame: non-integers, a `True` in a millisecond slot, negatives and absurd
+magnitudes are dropped rather than coerced.
+
+### 2b. The turn's reasoning on the Thinking row (h-think-tokens, 2026-10-06)
+
+Two additive integers name what the model spent thinking: `reasoning_tokens` (the provider's
+`usage.output_tokens_details.reasoning_tokens`, summed over the turn's requests) and
+`reasoning_ms` (per request, first parsed event to the first reply output — output text, or a
+function call's arguments on a tool round; the terminal event when neither came — summed). Both
+come from the stream-gap window (`agent_runtime/stream_gap_receipt.py`, `TurnReasoning`, bound
+per turn by `bind_turn_reasoning` in `_run_conversation_with_usage_ledger`) and reach the runner
+result as `AgentRunResult.reasoning_window`. A request abandoned before its terminal event is not
+counted.
+
+**Absent is not zero.** No request reported a reasoning count → no key anywhere (an older
+transport, a non-Codex provider). A reported `0` stays `0`, so the Launcher can say "0 tokens".
+
+**Where they ride.** The Thinking frames (`reasoning.summary`) leave while the model streams,
+before the usage block exists, and are never held for it; the counts land at turn end in ONE
+update per surface:
+
+| surface | carrier |
+|---|---|
+| live | `turn.end` frame, `reasoning_tokens` / `reasoning_ms` beside `output_tokens` |
+| terminal payload | `chat.final` (the `_mission_chat_emit` dict), same two keys |
+| turn record | `mission_chat_turns/*.json`, top-level keys on the projected record (`_safe_journal_metadata`) |
+| stored Thinking rows | ONE `run.progress` event, step `reasoning_usage` (`ChatProgressSink.record_reasoning_usage`, written by `mission_chat_reply` after the run), folded by `persona_chat_history.trace._fold_reasoning_usage` onto every Thinking entry of the same `turn_id`; the carrier is no row of its own (`reasoning_usage_folded`, by design) |
+| history replay | every `thinking_summary` message of the turn (conversation schema v3), same two keys |
+
+An older Launcher ignores the keys; no contract integer moves.
+
+## 3. Model selection
+
+Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
+(`agent_runtime/persona_chat_session.py::_chat_effective_model_payload`):
+
+```
+chat-session override  >  instance override  >  persona default  >  config default
+```
+
+The chat-session override persists under `mission_control_chat_model_override`
+(`agent_runtime/persona_chat_session.py::_resolve_chat_model_override`, key spelled once as `agent_runtime/persona_chat_history/vocabulary.py::_CHAT_MODEL_OVERRIDE_CONFIG_KEY`) via
+`_resolve_chat_model_override`. Its scope is literally
+`mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
+not per-instance. Values validate against
+`^[A-Za-z0-9_.:/@+-]{1,200}$` (`:6582`); a violation is a typed refusal, a persist failure is
+`CHAT_MODEL_OVERRIDE_PERSIST_FAILED` (`:3552-3558`). The payload reports every tier separately
+rather than folding them, so `model_is_default` and `model_is_instance_override` are answerable from
+one record. Chat-lane compaction has its own cap:
+`agent_runtime.mission_chat.compaction_threshold_tokens`, default **150,000**
+(`agent_runtime/runtime_config.py::MissionChatConfig.compaction_threshold_tokens`), applied so it can only make compaction fire *earlier* than
+the compressor's own `ratio × window` derivation.
+
+## 4. Tool access posture — unbounded by default, restriction by exception
+
+The 2026-08-09 ruling inverted this lane. `agent_runtime/tool_permissions.py` answers two questions
+that used to be one (`:1-21`). **Standing posture**: `default_permission_mode()` (`:221-251`) reads
+`agent_runtime.tool_permissions.default_mode` from the ROOT config, shipping as `unbounded`
+(`permission_modes.py:69`). It loads through `load_root_runtime_config` so a sticky-active profile
+cannot widen the runtime, and any config fault resolves to the *bounded* fallback
+(`permission_modes.py:75`) — the shipped default is wide, but nothing the runtime failed to read
+hands out capability. **Did the operator narrow THIS session?**: the `ChatToolPermissionStore`
+record (`:79-130`), which survives the ruling **inverted** — once the escalation lane, now the
+RESTRICTION lane. A stored `profile_default` is the no-opinion sentinel the expiry writeback has
+written for months and is explicitly not read as a pin (`:269-282`); reading it as one would have
+frozen every session that ever held a lapsed grant into the old bounded tier. An unrecognised stored
+mode clamps to `bounded`, not to the wide default (`:91-103`).
+
+Every consumer reads one answer, from `permission_options_for_chat` (`:285-301`). What unbounded
+does on the lane (`agent_runtime/chat_lane_bundle.py`, where the chat-lane scope family lives since lane L5):
+
+- `_blocked_tool_names_for_chat` returns `[]` outright (`:583-586`), so the pre-ruling
+  `PERSONA_BLOCKED_TOOLS` set (`agent_runtime/personas.py::persona_blocked_tools`: `delegate_task`, `clarify`,
+  `memory`, `send_message`, `cronjob`, plus registry hygiene) does not apply to the default posture. Registry-hygiene names are still
+  unioned at agent construction on every lane — hygiene is junk removal, not a permission tier
+  (`:594-597`).
+- `_enabled_toolsets_for_chat` (`:684`) runs the DECLARATION (§4c) → chat capability augmentation →
+  the T3/T6a cost policy → the MCP admission scope, and `unbounded` bypasses the cost policy, never
+  the declaration. `file` / `terminal` / `code_execution` / `browser` / `vision` are
+  therefore present on a default turn because `harness_core` names them; a *bounded* persona
+  restores what the cost policy cut via
+  `agent_runtime.personas.<id>.chat_lane_restore_toolsets`.
+- The per-persona DEFER (`agent_runtime.personas.<id>.chat_lane_defer_tools`, root config,
+  `agent_runtime/chat_lane_defer.py`) is posture-independent: the listed tools leave the eager array
+  for the `tool_search` listing on every posture, `unbounded` included, and stay callable through
+  `tool_call` (the turn binds the list for the bridge's config reads,
+  `tools/tool_search_downstream.py::scoped_turn_defer`). Deferring is never a grant. Each turn's
+  model-input record carries `tool_schema.per_tool_chars` and `prompt_surface` (chars of the wire
+  form, by part), and a first turn logs one `prompt_surface …` line.
+- The turn's tool form has ONE owner, `agent_runtime/chat_lane_tool_form.py::settle_turn_tool_form`
+  (plan `planned/tool-form-one-owner-2026-10-08.md`): at construction (`apply_chat_lane_defer`,
+  from the runner's factory, no pin) and in the eternia-harness `pre_llm_call` hook before the
+  turn's first request, it assembles the lane's raw definitions plus the constructor's post-build
+  extras with the persona's names deferred (upstream's `assemble_tool_defs`), re-deriving the
+  `tool_search` bridge from the current catalog. The raw read and the assembly are memoized per
+  process on CONTENT — `chat_lane_bundle.registry_content_revision`, `admitted_mcp_tools(agent)`
+  (this run's `mcp-*` scope by name, toolset and schema digest), the actor's toolsets, the
+  persona's names, the context window, the tool-search config, `config.yaml`'s signature and the
+  Launcher link scope — never `registry.generation`, which admission moves twice a turn. The form
+  is published only when its bytes moved (the run's block pruned in the same write), and only then
+  is the session pin re-written: the pin is the turn's pre-brief `request["tools"]`. One log line
+  per turn: `tool_form_receipt turn=… source=<unchanged|memo|rebuilt> publishes= pin_written=
+  names= json_bytes= admitted=`. The factory sets `agent._skip_mcp_refresh` on every actor it
+  builds, so upstream's between-turns MCP refresh does not run on this lane
+  (`adopt_late_connections` still does, ahead of that flag); upstream's turn-1
+  `persist_tools=True` write and the rebuilt actor's `restore_agent_tool_prefix` are left as they
+  are — the restore folds a rebuilt actor onto the wire form, which the owner then leaves alone.
+- `agent_chat`, `board` and `clarify` are unconditional chat capabilities
+  (`_CHAT_CAPABILITY_TOOLSETS`, `:902`) regardless of the persona's configured list; `clarify` is
+  additionally un-blocked by name on the bounded lane (`:603`), which has a clarify bridge.
+- The Launcher's app functions (`launcher_app_functions`, Stage 7) join the augmentation once a
+  Launcher has listed them; under `read_only` the same chokepoint blocks every entry the Launcher
+  marks `requires_confirmation` (`extra_blocked_tools_for_permission_mode`) beside `READ_ONLY_BLOCKS`.
+
+The Launcher may mark an offered app-function entry `always_loaded: true`. Hermes keeps those
+entries visible through tool-search assembly, including a persona's defer extension; this is a
+discovery preference, not a grant. The bound connection's cached catalog owns the marks
+(`agent_runtime/launcher_app_functions.py`), and the definitions memo includes that catalog's
+lifetime token and origin. Re-declaration replaces the token even when another connection already
+synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
+an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
+
+One door for a name the session already has (lane bridge-direct, 2026-10-08). A `tool_call`
+that names an in-scope eager tool is dispatched by name, not refused: upstream's "directly-listed
+tool, not a deferred one" correction cost a full provider round trip for an unambiguous call
+(`launcher_generated_list`, turn `agent-chat-send-db7a2d34`). `tools/tool_search_downstream.py`
+rebinds `resolve_underlying_call`, `scoped_deferrable_names` and `dispatch_tool_search` at
+`tool_search.py`'s fork seam: the bridge's scope is the session's own definitions, eager or
+deferred (one function read by both the dispatcher and the executor's unwrap), an unknown name
+keeps upstream's correction, and a search reports the eager tools that answer a query under
+`directly_available` beside the unchanged deferred `matches`. The describe `call_rule` says an
+eager tool is called by name. Nothing is granted that the session did not already offer.
+
+Launcher also owns the WHEN: an entry may carry a one-line `guidance`, and the
+`eternia-harness` tool-guidance prompt section renders it only while that tool is in the
+session's list (`agent_runtime.launcher_app_functions.app_function_guidance_lines`), so the tool
+brief, the prompt line and any skill derive from one host-owned text (lane host-guidance,
+2026-10-08). Launcher owns the brief in each promoted entry's first sentence. The existing provider middleware
+(`tools/downstream_schema.py`) sends that brief and the input schema; `tool_describe` retains the
+full description, and `launcher.generated.list` returns the full component catalog and examples.
+Only `launcher.generated.list` and `launcher.generated.create` currently request this exposure.
+New component kinds belong in that catalog rather than growing the always-loaded tool schema.
+There is no additional prompt section or per-turn catalog fetch. Intelligence's native worker
+retains a typed `SessionBinding` on the gateway's existing session record
+(`agent_runtime/conversations/worker_app_functions.py`) so continued turns and agent replacement
+use the same discovery boundary. The worker adds no attributes to the upstream agent. The gateway's
+teardown chokepoint releases that record's exact catalog and open app-function requests; closed
+records cannot reacquire the link. A failed initial construction releases its binding, while a
+failed replacement retains the still-live agent's connection. Discovery and construction hold no
+session lock across network or factory work, and a late result cannot revive a closed catalog.
+Eager resume, branch creation and compute-host construction use a fork-owned construction scope
+until registration attaches the same binding under the session lock, before I/O or publication.
+Duplicate resumes and failed registration release the abandoned catalog, including errors after
+the transfer; a failed registered record cannot rediscover. Compute-host fallback migrates the
+same binding to its minimal record. The scope is context-local and transient,
+not a second session registry; no additional discovery request or model-schema change is introduced.
+
+`apply_chat_lane_tool_scope` (`:890`) is the display-parity door: it threads the REAL chat-lane
+resolution onto the operator preview, so `persona tool-diff` reports what the turn ships. It sets
+`configured_toolsets` from the same declaration on BOTH modes since S0a; the
+`all_registered_toolsets()` arm it used to take under `unbounded` is what made every persona's
+preview read 32 toolsets / 79 tools. It also carries the typed account of what the scoping removed
+(`chat_lane_capability_drops`, `:744`) — survivors alone were never an account of removals.
+
+### 4c. The declared toolset (S0a, 2026-09-03)
+
+The harness lane admits by the persona's BOUND PROFILE `toolsets:` key, read by
+`agent_runtime/persona_profiles.py::declared_lane_toolsets` and handed to every caller through
+`agent_runtime/persona_profiles.py::effective_toolsets`. A profile that declares nothing — or only the upstream default
+`["hermes-cli"]` that `hermes_cli/config_defaults.py` writes for an unset key — resolves
+`agent_runtime/personas.py::HARNESS_LANE_DEFAULT_TOOLSETS` = `harness_core`, reported as
+`toolset_declaration.source: lane_default`; any other list is honored verbatim as `profile_config`;
+an unresolvable profile home resolves the same default as `profile_unresolved`. A YAML fault
+resolves narrow, never wide. `harness_core` (`agent_runtime/harness_toolset.py::HARNESS_CORE_INCLUDES`, registered into
+upstream's `TOOLSETS` by `ensure_harness_core`) is a composite of 15 member
+toolsets — `agent_chat`, `board`, `clarify`, `delegation`, `terminal`, `file`, `web`, `browser`,
+`browser-cdp`, `skills`, `memory`, `todo`, `session_search`, `vision`, `code_execution` — expanded
+to those NAMES by `agent_runtime/toolset_names.py::expand_toolset_names` so the cost policy, which drops by name, still
+sees them. Measured 2026-09-03 on all four mission personas: **43 callable tools, 0 withheld**
+(was 79 / 17). `model_tool_tokens` read 1149 then, a names-only envelope (~12 tokens a tool); since
+lane h-prompt-tools (2026-10-05) it is measured from each registered schema as the wire carries it,
+chars/4 (`tool_visibility._estimate_model_tool_tokens`): 13,372 for today's 45, every tool eager; 10,183 since lane
+h-prompt-brief collapsed every wire description to one line (parameters whole, the full text served by `tool_describe`). The per-persona `AgentPersona.toolsets` list is
+LEGACY DISPLAY: it is reported as `persona_toolsets` / `toolset_declaration.persona_list` with
+`persona_toolsets_in_force: false` and admits nothing.
+
+### 4a. One visibility resolve per turn (`agent_runtime/chat_lane_bundle.py`, 2026-08-23)
+
+Those resolvers were being walked **four times per turn** — `capability_block` and `admission_line`
+from `build_mission_chat_turn_context`, `tool_contract` and `permission_state` from inside its
+`mission_chat_runtime_signature`, and `_enabled_toolsets_for_chat`/`_blocked_tool_names_for_chat` again in
+`mission_chat_reply` for the request itself. Each walk re-ran `permission_options_for_chat` →
+`effective_toolsets`/`all_registered_toolsets` → the registry `check_fn` sweep, and the caches
+underneath expire on 15/30 s TTLs tuned for one snapshot build rather than for operator cadence.
+Live receipt: `registry_probe_rounds=27` inside a 1,313 ms `context_built` span, six minutes after a
+serve boot, on a chat where nothing had changed (turn `2026-08-23T14:34:57Z`).
+
+`chat_lane_bundle` resolves the lane ONCE and memoizes the **composition** — never the probes. The
+key is the lane's own identity: persona revision, chat root + a fresh permission fingerprint (mode,
+source, expiry, remaining turns, mode blocks), root + active `config.yaml` `(mtime_ns, size)`,
+runtime root, entry-point lane, and the **registry content** the composition reads
+(`chat_lane_bundle.registry_content_revision`: the `(tool, toolset)` pairs, the toolset aliases, and
+`tools.registry.check_fn_epoch()`, which moves on every `invalidate_check_fn_cache`). Content, not
+`registry.generation`: MCP admission registers a run's admitted tools and tears them down after it,
+so the generation moved on every MCP-admitting turn while the content did not, and every such turn
+rebuilt (`visibility_bundle_rebuild_component_registry_epoch=1` on every turn from 2026-09-08 until
+lane h-bundle-epoch). Admission-scoped `mcp-*` registrations are left out of the content
+altogether (lane h-newchat-t1): they belong to whichever run admitted them, the composition
+never reads them, and a new chat's turn 1 that overlapped the chat-open prewarm's admission
+rebuilt twice, as the scope came up and as it went down (turn `5377d205`, 2026-10-06,
+`rt_bundle_builds=2`). The `check_fn` grace machinery is untouched, and a
+down backend still loses its TOOLS at construction because `registry.get_definitions` re-probes on
+its own TTL; what can go stale is the toolset NAME in the lane's accounting until the key moves.
+`invalidate_chat_lane_bundles()` is the explicit hatch. A bundle whose best-effort components
+faulted is served to that turn and never stored. Scope is the turn path only — the preview lane,
+snapshot builder and `persona_prewarm`'s memo warm still resolve live, because those are routinely
+driven with a monkeypatched resolver a config-keyed memo cannot see. (The chat-ACTOR prewarm of
+§4b is not an exception: it reads the bundle deliberately, because it is assembling the same
+request a turn assembles.) Receipt: `visibility_bundle_builds` (§2).
+
+**The reuse key stopped keying on row liveness at the same time.** `_runtime_signature` hashed
+`asdict(instance)` whole, and a chat turn WRITES that row (`state` flips, `updated_at` /
+`last_heartbeat_at` are stamped, the handler writes `skill_manifest_hash` back at the end of every
+turn), so with `persona_chat.hot_sessions` finally on, the second message of one chat 45 s after the
+first recorded `resident_rebuild_runtime_signature_changed` + `resident_actor_reused=0`
+(`2026-08-23T14:45:14Z`). It now folds explicit allowlists — `PERSONA_IDENTITY_FIELDS` /
+`INSTANCE_IDENTITY_FIELDS` (`persona_chat_identity.py`) — of the fields that decide what a
+constructed actor IS. Allowlists, not denylists: a new field on either record is presumed
+bookkeeping until someone names it.
+
+Session configuration follows the same rule (`persona_chat_identity.py`):
+the chat override already resolves into the provider/model components, while
+usage anchors, pruning counters and native thread bindings remain durable state,
+not actor identity. The session-field allowlist is currently empty; a new
+construction input must be named there unless another resolved component covers it.
+Upstream persistence is unchanged.
+
+`ProfileAgentRunner` completes that identity after provider resolution, for both
+prewarm and normal turns. `resolved_runtime_revision` hashes the resolved client
+inputs and local-model parameters. Thus endpoint, credential or local reload
+changes rebuild the actor; unrelated bookkeeping does not. Only the component
+name `resolved_runtime` enters rebuild receipts, never its values or digest.
+
+**And a refused reuse now NAMES the input that moved (2026-08-23).** The allowlist fix was not
+enough on its own: three consecutive turns of one neko chat at `19:03:10/23/40Z`, on a root the
+boot prewarm had warmed nine seconds earlier, each still recorded
+`resident_rebuild_runtime_signature_changed` — and the composite key can only say that *something*
+changed, so the diagnosis was a hand archaeology of the live store. The signature is now composed
+once as a flat dict (`mission_chat_runtime_signature_components`) and folded twice: `sha256` of the
+whole thing is the key, and one digest per component rides with it to `acquire`, which diffs them
+and writes `resident_rebuild_component_<name>` per moved component onto the turn record (plus one
+`resident_signature_diff root=… components=…` log line). NAMES only — the digests are one-way and
+no value is ever emitted. Two components lost their operator-shaped halves in the same pass:
+`permissions` folds `{mode, source, expired}` instead of the whole `permission_state_for_chat`
+answer (its `blocked_tools` list is resolved over every tool registered in the process, and the
+actor is built from `tool_contract`'s two lists, not from that projection), and `current_chat_goal`
+left `INSTANCE_IDENTITY_FIELDS` for the reason `goal_id` was never in it. `tool_contract` stays and
+may not be dropped — the actor IS constructed from it and `_prepare_resident_persona_chat_agent`
+does not re-apply it on reuse. Full receipt: `planned/chat-turn-prep-cost.md` §4.2 Stage 2a (the 2026-08 text is in that file's history).
+
+### 4b. The resident actor is built before the first turn (2026-08-23)
+
+With reuse finally working, the whole of §2.3's construction cost collapsed onto the FIRST turn
+of each chat root — the one turn an operator is watching, and the only turn a new chat ever has.
+`agent_runtime/persona_chat_actor_prewarm.py` moves it off: at serve boot (third on the one
+prewarm thread) and at chat-open (both arms of `persona instance open-chat`), a background worker
+builds that root's agent through `ProfileAgentRunner.prewarm` and registers it under the same
+`acquire()`, so the first message arrives to an already-resident entry. Full mechanism and its
+residue: **04-boot-and-lifecycle Stage 9a**.
+
+Two facts belong here rather than there. First, the reuse key: the prewarm calls
+`mission_chat_runtime_signature_components` — the SAME function the builder calls, which is why it is public
+— because `acquire` compares digests for byte equality and rebuilds on a miss, so an actor warmed
+under a re-derived key would be worse than no warm at all. Second, it cannot go through
+`build_mission_chat_turn_context`: that builder CONSUMES the queued-skill list, and warming through
+it would steal the operator's queued skills from the turn being warmed for.
+
+Receipt on the turn record: `agent_init_cold=false` with `agent_ready − write_ahead < 700 ms` on a
+chat's first message. **Half read, half still owed** (2026-08-24 turn store, ten records in the
+00:42–00:48Z window). The prewarm itself is proven live — 59 `persona_chat_actor_prewarm` lines in
+`profiles/base/logs/agent.log`, items warming in 78–2,531 ms (04's Stage 9a) — and the reuse it
+exists to feed is proven on every warm turn: five consecutive turns of one root (00:43:08/17/20/28/56)
+each read `resident_actor_reused=1`, `agent_init_cold=false` and no `resident_rebuild_component_*`
+key at all. What is NOT yet observed is the fresh-chat FIRST turn reading `agent_init_cold=false`:
+all three first turns in the window read `true`, and the two neko ones name
+`resident_rebuild_component_workspace_agents` — the `--agents-file` residue 04 names, a workspace-bound
+chat mismatching on the one input the prewarm cannot reproduce. The wall half of the receipt does
+hold there (`agent_ready − write_ahead` = 125 / 94 / 750 ms), so the residue costs a rebuild, not the
+old ~3 s construction (`planned/chat-turn-prep-cost.md` §4.2 Stage 2; re-armed 2026-09-07, whose §0.2 names the residue Stage 7 takes).
+
+### 4d. Repo-slot context reaches the prompt once (D1.12, 2026-10-11)
+
+The turn's workdir is resolved ONCE, in `build_mission_chat_turn_context` (its three inputs — the
+persona, the loaded `AGENTS.md` pointer, the primary slot's path — are first in hand there), and
+handed to `mission_chat_reply(workdir=)`; the reply resolves only for a caller that hands none.
+Under a slot assignment each assigned slot's `CLAUDE.md` / `AGENTS.md` loads as its own section
+(`agent_runtime/persona_slots.py::load_slot_context`). When the persona sets
+`include_core_context_files` AND the workdir is grounded, upstream's prompt builder also injects the
+cwd chain for that workdir, so `persona_slots.slot_context_for_prompt` drops every slot section whose
+content (BOM, newlines and outer whitespace normalised) the chain carries WHOLE — found through
+upstream's public `discover_context_files`, clean of the injection scan, inside the 20,000-char cap
+floor (per file and for the merged `AGENTS.md` chain). Every other section is kept: an
+`AGENTS.override.md` that replaced the slot's `AGENTS.md`, a non-primary slot, a config workdir
+elsewhere, an oversized or scan-blocked file. The workspace receipt carries
+`dedup = {"against": <cwd>, "dropped": [[slot, file], …]}`, and the prewarm builds its system message
+and receipt through the same `_turn_workspace`, so a warmed actor still matches its first turn.
+Measured on a one-slot persona carrying this repository's own `CLAUDE.md` + `AGENTS.md`: prompt
+59,503 → 34,669 chars, turn-context build median 4.6 → 9.5 ms (the discovery walk).
+
+## 5. MCP admission — the profile declares the server
+
+`agent_runtime/mcp_admission.py` turns the lane's honest refusal into a per-run, per-persona
+admission. The invariants it holds (`:19-63`):
+
+1. **The lane blanket never flips.** `discover_mcp_tools()` is never called from here; admission is
+   `register_mcp_servers({name: cfg})` over an explicitly resolved subset.
+2. **The profile declaration is the admission authority.** `_requested_servers` =
+   `declared_mcp_server_names` ∪ `effective_required_mcp_servers` (`:786-812`). **There is no role
+   lane.** S64 made declaration the sole authority; S66 removed the residual `task`/`stage`
+   parameters and the "role-admitted" wire text (`:130-132`, `:707-712`, `:789-791`). The `role` on
+   the decision record (`:352`, `:382`) is REPORTING only.
+3. **`unbounded` never crosses the declared set.** `scope_toolsets_to_admission` (`:956`) runs AFTER
+   permission-mode resolution and strips every `mcp-*` toolset this run was not admitted. It was
+   load-bearing while `unbounded` resolved `all_registered_toolsets()` in a multi-persona serve
+   process (that set includes another persona's admitted surface); since S0a §4c the resolved set is
+   the profile's declaration, so the scope is DEFENSIVE — it keeps the property true by construction
+   rather than by the shape of today's declarations, and it stays.
+4. **Single-flight and bounded in time.** An interleaved second admission is refused as
+   `mcp_admission_lane_busy` (`:123`); an over-budget registration degrades to
+   `mcp_admission_timeout` (`:124`) and the turn continues without those tools.
+5. **Bounded in CALLS too.** `McpCallBudget`, installed by `admit_mcp_servers` (`:1124`), refuses
+   past `max_tool_calls_per_run` with `mcp_admission_budget_exhausted` (`:146`) — the CALL is
+   refused, never the turn. Default 120, ~2× the heaviest honest Stage C drill (`:305`).
+
+Since D1.01 (owner ruling 2026-10-10) the admitted registry scope is RESIDENT
+(`mcp_admission/resident.py`): it lives while the server's transport session, its listed tools and
+the admitted config are unchanged, and isolation is `scope_toolsets_to_admission`. A run binds its
+`McpCallBudget` into the scope's slot; `release_mcp_admission` unbinds it at the end of every
+admitted run (a slot-less dispatch is refused), so `registry.generation` does not move and a reused
+actor's `get_tool_definitions` hits upstream's memo. The runner records
+`profile_timing.mcp_admission_reused` (1 = every admitted server's scope reused). A release fault
+is a typed `mcp_admission_teardown_failed` row and never fails a finished turn. `read_only` admits from a
+**positive** allowlist — the `reviewer` row of the launcher's own per-profile allowlist, pinned as a
+26-tool snapshot (`:190-258`) — so a tool the server grows later is denied by default rather than
+silently inherited; a server whose mutating tools cannot be named admits nothing
+(`mcp_read_only_subset_unknown`, `:137`). A runtime with **no MCP client at all** —
+`tools/mcp_tool._MCP_AVAILABLE` false because the optional `mcp` pip extra is absent — is its
+own code, `mcp_sdk_unavailable` (`MCP_SDK_UNAVAILABLE`, read through
+`mcp_admission.mcp_sdk_available`), because every such turn used to land on
+`mcp_not_registered_on_lane`, whose hint sends the operator at the server and the command —
+the two halves that are already healthy. That sentence cost weeks once
+(root cause 2026-08-26; `harness-skills/harness-runtime-model/references/proof.md` lists it as
+the hazard to check FIRST). Its hint names the extra and the required runtime RESTART, because
+availability is read once at import. Warm-vs-cold transport is recorded, not inferred
+(`TRANSPORT_WARM` / `TRANSPORT_COLD`) — and **the recorded milliseconds are not a spawn
+discriminator**: the honest one is a non-empty admitted SET
+(`registered_mcp_server_names()`, `mcp_admitted_servers`), never the clock. And the agent is told when it does not get what it declared:
+`render_mcp_admission_line` (`:1713`) puts one compact line on the volatile tail, kept a SEPARATE
+voice from the capability block — its denials resolve at a different lifecycle point and it has its
+own kill switch, and folding them would give one fact two voices. `MCP_OPERATING_SKILLS`
+(`:292-294`) also preloads the surface's operating manual; admitting a tool surface without its
+manual burned the live 2026-07-29 QA turn.
+
+### 5a. MCP progress on the `tool.progress` beat (2026-10-02)
+
+An MCP call asks its server for progress: `tools/call` carries `_meta.progressToken`, and each
+`notifications/progress` naming that token is folded into the call's live record and rides the
+chat stream's `tool.progress` beat (every `TOOL_HEARTBEAT_SECONDS`) as the `progress_*` fields —
+`progress_state`, `progress`, `progress_total`, `progress_message`, `progress_phase`, `expected_ms`,
+`seconds_since_progress`, `progress_updates`. The frame contract, field by field, is the docstring of
+`hermes_cli/harness_parts/persona/tool_heartbeat.py`; the relay is `tools/mcp_progress_relay.py`.
+The join is by IDENTITY, never by name: `registry.dispatch` opens a record on the tool's worker
+thread keyed by the `args` dict it hands the handler, the instrumented `session.call_tool` finds it
+by that same object, and `live_turns.live_turn_view` joins it on the thread id the foreground
+command already joins on. A server that reports nothing still beats, as
+`progress_state: "none_reported"`; a non-MCP tool's beat carries `progress_state: null`.
+`expected_ms` and `progress_phase` are what a server STATES in the notification's `_meta` (top
+level, or under one vendor key — the launcher QA server's `stagec_qa_build`); the relay never
+estimates one. The upstream MCP client keeps three additive one-line seams for it (the session
+instrument and the `message_handler` tee in `tools/mcp_tool_transport.py`, the dispatch bracket in
+`tools/registry.py`).
+
+**Reset-on-progress.** A call that keeps reporting is not killed by the MCP call timeout: the
+configured per-server timeout (`mcp_servers.<name>.timeout` > `timeouts.mcp.tool_call` > 300 s) is
+an IDLE bound that each progress report restarts, and the call's absolute cap is
+`mcp_servers.<name>.max_total_timeout` > `timeouts.mcp.tool_call_max_total` > 1800 s
+(`DEFAULT_MAX_TOTAL_TIMEOUT_S`; `0` turns it off). A silent call still times out at the base, with
+an error naming both numbers. The agent's own per-call deadline (`timeouts.tools.sequential_call`,
+420 s default) is separate and still applies.
+
+## 6. Terminal envelope grants
+
+`agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on
+this lane?". It exists because the same lane behaved two opposite ways on 2026-07-26: fail-CLOSED for
+a profile-bound persona (the legacy envelope fires on the mere presence of
+`HERMES_AGENT_RUNTIME_ROOT`, with no channel to obtain the demanded approval) and fail-OPEN for one
+binding no profile (the variable never exported, the envelope inert, `git push origin main`
+ungated). A bound `TerminalEnvelopeScope` closes the fail-open branch (`:1-58`).
+
+Four classes (`:156-163`): `git_push`, `destructive_git`, `recursive_delete`, `network_egress`.
+**Two independent grant doors** (`:56-70`): the **grants table**, deny-by-default, keyed
+`agent_runtime.terminal_envelope.grants.<role>.<lane>` (`:486`) and read from ROOT config so a
+profile cannot grant itself the right to push (`:489-497`); and the **permission mode**, where
+`resolve` grants any class in `GRANTABLE_COMMAND_CLASSES` on `resolved.unbounded` alone, without
+consulting the table (`:687`).
+
+Ruling R-2 removed the last hard floors, so `GRANTABLE_COMMAND_CLASSES` **is** `COMMAND_CLASSES`
+(`:168`) and `hard_floor_command_classes()` returns empty (`:1196-1207`). With `unbounded` shipping
+as the default, **every envelope class runs on a governed lane today with no stanza written
+anywhere.** That is deliberate: R-2 traded a preventive control for a detective one, and the
+compensating control is that a mode grant is receipted through `record_envelope_decision`
+(`:908-920`) with its provenance. `envelope_decision` returning `None` means "not governed, keep
+legacy behavior byte-for-byte" (`:616-628`) — callers must treat it as fall-through, never allow.
+
+## 7. Turn durability and the run budget
+
+**One file per chat session** — `mission_chat_turns/<safe_session_key>.json` with a co-located lock
+(`agent_runtime/mission_chat_turns/storage.py:31-57`), so concurrent turns in different chats never contend;
+the legacy monolith splits once on first read/write and is renamed aside, never deleted. Retention:
+100 turns per session, 50 session files, inside the per-session lock (`:72-73`).
+
+**The state table decides everything** (`:75-233`). Journal states: `pending`, `executing`,
+`outcome_unknown`, `native_committed`, `projected`, `abandoned`, `budget_exhausted`; legacy
+streaming states are read but never produced by `transition_mission_chat_turn` (`:440`). Every state
+belongs to exactly one lifecycle bucket, guarded at import time by *raised* (not asserted) contract
+checks so `python -O` cannot strip them (`:233-240`). The rule exists because the same defect landed
+twice ~700 lines apart — a consumer spelling "which turn states are over" as its own literal, which
+then did not know about `budget_exhausted`, leaving a turn over for minutes rendering a live spinner.
+Two subtleties worth not tidying: `budget_exhausted` is settled and deliberately absent from
+`INFLIGHT_TURN_STATES`, so no repair sweep may reopen it; and it may still promote to
+`native_committed` (`:223-226`), because a reply proven after the budget settled must never be lost.
+`turn-resolve --action abandon` accepts `outcome_unknown` only (`:192`).
+
+**The run budget is an accounting seam, not a scheduler.** `agent_runtime/run_budget.py` holds no
+policy, enforces nothing, never raises (`:29-44`); each mechanism decides on its own terms and then
+declares itself. Four kinds (`:66-72`): `wall`, `api_calls`, `total_tokens`, `mcp_calls`. Three
+deliberately distinct enforcement semantics (`:75-93`): `TRIPS_RUN` (raises `RunBudgetExceeded`),
+`LANDS_TURN` (steers a final checkpoint reply; the turn settles `budget_exhausted`), `REFUSES_CALL`
+(the call is declined, the turn continues). The block lands under `run_budget` in `profile_timing`
+(`:391`) and rides `RunBudgetExceeded.run_budget` so it survives the raised path.
+`safe_accounting_block` (`:394`) is the ONE reader every persistence/projection boundary goes
+through, and `turn_run_budget_metadata` (`:419`) the one adapter turning "the run that just
+ended" into the journal fragment a settle point splices in (`run_budget.py:46`) — both
+absence-preserving. Neither is the only code that touches the block: two live consumers read it
+straight off the record they were handed (`agent_runtime/operator_channels/contract.py::_dedupe_conversation_messages`,
+`agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
+(`runtime_config.py:150-164`), tunable at
+`agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always
+wins, including outside the clamp (`agent_runtime/config/knobs.py:155-176`). The last `max(60s, 15%)` is reserved for
+the graceful checkpoint, so a default turn has ~180 s of tool-using time.
+
+**The volatile tail** is how the agent is told any of this. Contributors register by name with their
+own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048
+(`mission_chat_turn_context.py:178-184`, where the byte budgets are defined). Per-contributor, not global, so a
+long capability account cannot squeeze out the countdown. Over-budget content states its shortfall
+twice: in band, so the agent reads it was not told everything, and as a typed accounting row, so no
+operator has to grep prose to learn a fact was clipped.
+
+## 8. Session scope and continuity
+
+`agent_runtime/chat_session_scope.py` is the ONE authority for *which* chat `SessionDB` is
+operator-visible. It exists because the persona-instance store deliberately collapses per-profile
+homes onto the shared runtime root while the chat SessionDB did not — so a CLI-lane turn minted its
+transcript into `profiles/<active>/state.db` while writing the binding into the shared store, and
+the cockpit dropped the row as `session_not_in_db` (`:1-38`). Ladder, highest first — six rungs
+(`:43-75`):
+
+| rung | source |
+| --- | --- |
+| `RELAY_CONTEXT` | the `_HERMES_HEAD_HOME` ContextVar — a nested relay turn cannot escape the operator that started it |
+| `ENV_HEAD_HOME` | `HERMES_HEAD_HOME`, what the Launcher supplies |
+| `INSTANCE_RECORDED` | `PersonaInstance.chat_head_home` — only when the caller names a `session_id`, because the chat head is a per-CONVERSATION fact |
+| `SHARED_ROOT_POINTER` | `<store_root>/chat_head_home.json`, published by an explicitly-headed process |
+| `CONFIG_DECLARED` | `agent_runtime.head_home`, written at `harness serve` boot by `root_anchor.py` |
+| `AMBIENT_HOME` | degraded: `get_hermes_home()` (`:72-74`). **NOT authoritative** — this is the rung the 2026-07-25 binding massacre and the 2026-07-27 read-lane gap were both computed in |
+
+Env and relay context always win over the pointer, so a recorded head can only ever narrow the
+ambient fallback (`:37-39`). Public surface: `resolve_chat_session_scope` (`:381`),
+`open_chat_session_db` (`:615`), `publish_chat_head_home` (`:716`), `declared_chat_head_home`
+(`:659`); `is_canonical_session_persistence` (`:151`) is the predicate the two §1 guards gate on.
+
+`agent_runtime/continuity.py` is narrower than its name: `return_summary_to_parent_session`
+(`:21-60`) posts ONE bounded child summary (1,200 chars, ≤8 refs) into the parent's chat session as
+an assistant message, through the same `mirrored_persona_chat_append` seam every other explicit
+persona-chat append uses — refs and a distillation, never the child transcript.
+
+### Cross-install continuity (S2b, R-IP10)
+
+Everything above holds when the target is on another install, with exactly two
+differences and both are stated on the refusal that enforces them.
+
+**`session_id` crosses; `clarify_token` does not.** A session id is a name the
+far install minted and handed back on the dispatch completion, and it means the
+same thing on both machines. A clarify token is minted by THIS install's clarify
+gateway and resolves against THIS install's pending questions, so carrying it
+across would hand the far side a token it cannot look up. `agent_chat_send`
+refuses an install-qualified target that carries one, as
+`clarify_token_not_portable`, and the refusal names the route rather than only
+the wall: answer them with `session_id` set to the session the delivery reported
+as "Their thread".
+
+**There is no shared default thread across installs.** Locally the default
+session is the one this pair has been using; on another install the default is
+that install's most recently established thread with anybody, which is almost
+never the one the caller means. So `agent_chat_open("@mac/dev")` with no
+`session_id` is refused `remote_session_required` — before any dial — and names
+the same source for the id.
+
+**The far read is a real read.** `agent_chat_open` with an `@install/` target
+calls `peer.thread.read`, which requires the `target` as well as the
+`session_id` and applies the SAME lane guard the local read applies
+(`_session_belongs_to_chat_lane`, through the shared
+`peer_directory.read_chat_lane_tail`). So a session id that is not part of that
+teammate's chat lane is `foreign_session` on either machine, and a paired
+install can spend a pointer it was given and discover nothing else. Until S2b
+that pointer — printed on every cross-install delivery since Stage 7 — resolved
+to nothing on the machine that received it.
+
+## 9. The agent create path
+
+`runtime.agent.create` (`serve_rpc/agent.py::_runtime_agent_create`) performs roster row + chat root +
+office placement in ONE handler with a recorded-progress reservation
+(`agent_runtime/agent_create_reservations.py`) and a compensating retire, replacing the launcher's
+two sequenced writes over two transports. The service (`agent_create.perform_agent_create`) runs
+with no `harness serve` because every lock in the path is a cross-process file lock. The argv
+`harness agent create` / `harness agent retire` doors were deleted 2026-10-02 (owner ruling: the
+launcher calls both only as methods). `runtime.agent.retire` is the same arrangement for the inverse
+(`agent_retire.perform_agent_retire`), and `harness persona instance retire` is the argv door onto
+it; see [06 — The inverse](06-office-and-board.md#the-inverse--one-call-takes-an-agent-off-the-level-and-says-what-left).
+An unknown persona is refused with `persona_not_found` (`agent_create.PERSONA_NOT_FOUND_REASON`,
+message built by `persona_not_found_message`), kept a separate reason from
+`persona_roster_unavailable` because the two need opposite responses. Anchors here are symbols
+rather than lines because this paragraph's `serve_rpc.py` line number (1960) was pointing thirty lines short of
+its handler by 2026-08-27, and read as verified the whole time.
+
+**The create path has THREE phases, and only two of them are atomic** (plan S4).
+`instance` and `placement` are the pair the reservation joins — a failure in the
+second compensates the first away. `skills` is deliberately outside that join.
+It runs after both writes are durable, the receipt reads `placed`
+(`agent_create_reservations.py::STATE_PLACED`), and its refusals stamp
+`rolled_back: false` because the agent they refuse for is standing, correct and
+messageable: only its skill assignment is owed. A placed agent without its
+skills is what every launcher drop produces today; retiring it to satisfy
+atomicity would archive a working agent to undo a file copy.
+
+**What the phase does, in order** (`agent_create.py::run_skills_phase`). Every
+id must be identical under BOTH `serde.safe_id` and the store's own
+`safe_assignment_token` before any root is walked — that is what makes "never
+path-joined from input" true and what makes the ack's `assigned` the list the
+store HOLDS rather than one it quietly re-spelled. Then every canonical id
+(`agent_runtime.profile_home.CANONICAL_SHARED_SKILL_IDS`) goes through
+`skill_install.install_and_verify_harness_skill`, which refuses unless the
+destination exists, the install receipt is `ok`, AND an independent
+`harness_skill_hash_mismatches` re-read is empty — three conditions because the
+mismatch detector alone `continue`s past a destination that does not exist, so
+a copy that never landed reads as a clean bill. Then `resolve_skills` must
+answer `resolved` for every id. Only then is `skill_overrides` written, at the
+INSTANCE tier through `PersonaInstanceStore.update_profile` — never
+`persona.skills`, which would reconfigure every other instance of that persona.
+
+**Install runs BEFORE resolve, which inverts the order D5 lists them in.** A
+canonical skill's resolvable copy IS the installed one, so resolving first would
+refuse `skill_unresolved: missing` on a fresh machine for a skill the next line
+would have installed.
+
+**This is the first place the repo↔installed hash is a GATE rather than a
+report.** `profile_readiness` files a mismatch as a severity-15 row and
+`prompt_observability` as a HUD flag; the launcher's sync control is a button.
+Nothing refused, which is how the 2026-08-24 incident handed a running agent a
+14457-byte copy of a 14906-byte skill. A verb that ASSIGNS a skill is the one
+place where "the copy is stale" has an answer that is not a warning.
+
+**The `None -> []` collapse in `persona instance update-profile` is fixed in the
+same slice.** `_cmd_persona_instance_update_profile` passed
+`skills=list(getattr(args, "skills", None) or [])`, so an omitted `--skill`
+reached the store as an empty LIST and the store's correct
+`if skills is not None or clear_skills:` contract then wrote
+`skill_overrides = []`: a `--display-name`-only call silently cleared every
+skill override on that instance. The store was never wrong — the collapse was in
+the layer whose job is to translate absent into absent.
+
+**`correlation_id` rides the create and echoes on its ack** (`agent_create` reads
+`params["correlation_id"]`, threads it into the placement write and copies it onto the result), so
+one gesture's create is joinable with its patches. Since S8b (`d107d132e0`) the RETIRE reads and
+threads the SAME normalisation, and since S8b-b (2026-08-27) BOTH argv doors onto it publish the
+flag, so a gesture's create half and delete half share one correlation space on the degraded lane
+as well as the RPC one — 06's inverse section has the thread. Nothing else on this lane mints or
+rewrites the token: it is the caller's, end to end.
+
+**The create's cost is now attributed.** `agent_runtime/agent_create_phases.py` splits the single
+`phases.instance_ms` into named spans as an INFO log receipt rather than new wire fields — `phases`
+rides the RPC result and a launcher parser reads it, so nothing there was touched (`:14-21`). It
+inherits the same honesty rules with one addition: **accumulate, never overwrite** (`:34-36`). The
+nesting is deliberate and encoded in `PHASE_ORDER`: `create_patch_ms` ⊃ `wire_row_ms` ⊃
+{`permission_options_ms`, `chat_lane_scope_ms`, `tool_visibility_ms`} — summing the printed keys
+over-counts, and that is the correct trade (`:40-52`). Instrumentation is free when nobody records
+— one `ContextVar` read, and only `perform_agent_create` installs a recorder.
+
+**The verdict the split produced is not the suspect it opened with.** Measured in a hermetic home
+with the `check_fn` cache holed (`tests/agent_runtime/test_agent_create_subphases.py:1-34`): an
+unwarmed create bills `instance_ms` 2,781 ms, of which `chat_lane_scope_ms` alone is **2,421** —
+`apply_chat_lane_tool_scope`, not `resolve_tool_visibility`, which measures **0** because the scope
+application already filled every shared cache it would have reached. The same create after
+`warm_persona_memos` bills 281 ms with `chat_lane_scope_ms` at 15 and zero probe rounds; the
+neighbouring-memo-key suspicion is ACQUITTED at HEAD. No test asserts a millisecond; the gate is the
+counted mechanism — the registry's probe-round counter (`tools/registry.py:286`), sampled as a
+per-turn delta (baselined in `_cmd_mission_chat_message`, counted in `_mission_chat_commit_turn`).
+
+## 10. Provider dispatch, and the outcome line
+
+The conversation loop sits a layer below the harness and cannot hold the turn's `TurnPhaseMarks`, so
+it announces the dispatch instant as a `run.progress` timing payload and the mission-chat handler
+converts it. `_emit_request_assembled_marker` (`agent_runtime/conversation_observability.py::_emit_request_assembled_marker`) fires once per
+PHYSICAL dispatch attempt, right after the transport preflight (so a codex token refresh lands on
+the hermes side of the split) and right before the provider call; it carries no
+`duration_ms`/`timing_key` because it names an INSTANT, which also keeps it out of the
+profile-timing dict. Step constant: `CONVERSATION_REQUEST_ASSEMBLED_STEP =
+"conversation_request_assembled"` (`agent_runtime/conversation_observability.py::CONVERSATION_REQUEST_ASSEMBLED_STEP`); `mark_from_trace_payload`
+(`mission_chat_phases.py:433-469`) is the only converter, and it takes nothing from a malformed one.
+
+**The payload has to survive the sink to reach that converter.** Its real route is
+`agent.status_callback → profile_runner._profile_status_callback (:1489) → ChatProgressSink.emit →
+on_trace → _stream_progress`, and the sink drops any `run.progress` payload carrying none of its
+Trace-lane signal keys (`progress.py:83-86`) — which a timing marker never carries, because it names
+an instant rather than work. That silently unmeasured `request_assembled` on every live turn through
+2026-08-23. `ChatProgressSink._forward_phase_timing_marker` (`progress.py:178-224`, called at `:137`
+ahead of the filter) now forwards the marker to `on_trace` ONLY: no EventLog row, no
+`before_first_trace` latch, no chat-log mirror, and only a `step` matched against the closed set of
+marker steps plus a bare `status` token — so the noise rule and the redaction boundary both stay
+intact. `phase_timing_marker_step` (`mission_chat_phases.py:400-431`) is the single authority both
+sides read, so producer and consumer cannot drift apart again.
+
+The live measurement that motivated the split (turn `c59ab99e`, 2026-08-22): **1,762 ms of a 13,532
+ms "provider" span elapsed before the request client existed** — prologue, tool-schema
+serialization, prompt-cache decoration, request middleware, the `pre_api_request` hook and the
+per-request client build all sat inside the span the launcher rendered as provider time. Every
+other lane reads provider first-byte from upstream's `post_api_request` hook: `first_chunk_at`
+(`agent._last_api_first_chunk_at`, upstream `e17276c7b4`) minus `started_at`. Same absent-never-zero
+rule: `first_chunk_at` is `None` when no first chunk was observed (a non-streaming call). The fork's
+`ttfb=` token on the `API call #N` log line (`74702c193e`) was a second copy of that instant and was
+retired 2026-09-24 (lane MECH) with `_fork_first_byte_s`.
+
+**Outcome recording is launcher-side, one line, at the settle chokepoint.** A turn that settles
+WITHOUT acceptance emits `[MissionChatOutcome] turn_id=… status=… error_kind=… message="…"` through
+`Logger`, so the release-build diag tee carries it
+(`mission_agent_chat_runtime_controller.dart`) — harness error prose only, never the
+operator's text.
+
+## Invariants
+
+1. **One id for the turn, minted launcher-side**: `idempotencyKey` → `client_message_id` →
+   `turn_id`, byte-equal at every hop. Nothing re-mints it; nothing joins on time proximity.
+2. **An unresolved phase is ABSENT, never a fake zero** — `mission_chat_phases`,
+   `agent_create_phases`, and upstream's `post_api_request.first_chunk_at` alike. First mark wins, monotonic clock only, and no
+   mark is ever subtracted from one taken in another process.
+3. **An instrument may never steer what it measures.** `TurnPhaseMarks.get` serves one caller; no
+   turn decision may branch on a mark.
+4. **The profile declaration is the sole MCP admission authority.** Role names neither narrow nor
+   widen it; the `role` on the decision record is reporting. **`unbounded` never crosses the
+   declared set**, and the scope applies after permission-mode resolution.
+5. **A config fault narrows** — permission default and envelope grants alike — and every
+   harness-wide posture knob reads the ROOT config, never the active profile's.
+6. **The mint is the first durable side effect**, so every refusal decidable without it comes first.
+7. **A recorded reply is never lost to a repair flip.** `budget_exhausted` and `outcome_unknown`
+   both promote to `native_committed`; nothing resurrects to `pending`.
+8. **Adding a turn state extends the table**, guarded by raised import-time checks.
+9. **The MCP admission line and the capability block stay two voices** — two budgets, two
+   independent failure modes.
+10. **The volatile tail is budgeted per contributor**; a shortfall is stated in band AND as a row.
+
+## Open rows
+
+- **New-chat first send settled REJECTED — OPEN, unreproduced.** 2026-08-22 02:00:47Z; the mint is
+  acquitted, the explicit-`session_id` lane implicated, and `[MissionChatOutcome]` (§10) stands
+  guard for the next occurrence → [record](planned/new-chat-first-send-rejected.md).
+- **Hermes admission cost — REMEDIATED 2026-08-23, warm half RE-TAKEN 2026-08-24; two
+  narrow opens left.** The ~4–6 s warm-turn share was remediated by
+  `planned/chat-turn-prep-cost.md` Stages 0–2
+  (`60c7f46ec1`/`7f2c82f090`/`bfde53b4ae`: visibility bundle, actor prewarm); first live
+  reuse receipt: bootstrap 3,782 ms → 62 ms (turns 17:33:01Z/17:33:17Z). The steady-state
+  re-take arrived on the 2026-08-24 00:42–00:48Z records: five consecutive warm turns of one
+  root read `registry_probe_rounds=0` + `visibility_bundle_builds=0` + `resident_actor_reused=1`
+  + `agent_init_cold=false`, and `request_assembled` is present on all ten records in the
+  window. Two clauses did NOT close and stay open: **`context_built<500`** held on two of the
+  five (343 / 468 ms) against 562 / 796 / 968 on the other three, and the **fresh-chat first
+  turn** still reads `agent_init_cold=true` through
+  `resident_rebuild_component_workspace_agents` (§4b) →
+  [plan](planned/mission-chat-admission-latency.md).
+- **Chat-lane context, memory and affordance gaps** — core-context/profile-memory knobs with no
+  operator surface, no shell hooks, no slash commands, no attachment *input*, no per-turn worktree
+  isolation, skill surface filter → [plan](planned/chat-lane-context-and-memory-gaps.md).
+- **The persona binding is not yet the env authority for spawned children** →
+  [plan](planned/persona-binding-env-authority.md).
+
+## Unverified carry-forward
+
+Mechanism exists in code; the NUMBER or live condition was not re-measured here.
+
+- **Warm/cold MCP admission timings** (6–8 ms warm, 0.2–0.3 ms teardown, 3,197 ms cold) —
+  `mcp_admission.TRANSPORT_WARM` / `TRANSPORT_COLD`, 2026-08-09, one 60-tool stdio server. The
+  `warm`/`cold` attribution field is live; the milliseconds are historical **and are not a
+  discriminator**. `launcher_qa` is a compiled Dart exe whose real cold spawn measured ~100 ms, so
+  the "~3,200 ms means a real cold spawn" rule of thumb reads a genuine spawn as a fast failure —
+  it sent a whole investigation down the wrong branch (corrected 2026-08-26; the docstring and
+  `profile_runner`'s comment were re-corrected 2026-09-02). The discriminator is the non-empty
+  admitted SET. No code compares an elapsed count, and
+  `tests/agent_runtime/test_mcp_admission.py::test_no_admission_code_branches_on_an_elapsed_millisecond_count`
+  is the fence that keeps it that way.
+- **The 2,421 ms `chat_lane_scope_ms`** —
+  `tests/agent_runtime/test_agent_create_subphases.py:17-24`, one machine, hermetic home. That file
+  states no test asserts a millisecond and none can reproduce the magnitude; the enforced gate is
+  the probe-round count. **Annotated 2026-08-23 (prep-cost 2026-08 text §3 H2, in that file's history): the 2,421 ms is the UNWARMED
+  CREATE subphase (warm create: 859/15 ms) — never re-quote it as a per-turn cost.**
+- **The 1,762 ms hermes share of turn `c59ab99e`** (`mission_chat_phases.py`, 2026-08-22 tree) and the live
+  phase-joined TTFT splits (alice 17.8 s, qa 9.2 s) — 2026-08-22 session receipts, read through the
+  launcher's audit tooling; not reproducible from this repo.
+- **Tool-schema census** (62 core tools / 93,075 bytes vs 34 deferrable / 32,182; 74% core) —
+  `send-policy-decisions-2026-08-09.md` §T7, a registry census on that date. The conclusion it
+  supports — no chat-lane schema budget, because deferral is already maxed and the only remaining
+  lever is the tool restriction the ruling removed — is a decision, not a measurement.
+
+## Supersedes
+
+`planned/agent-placement-verb.md` — **deleted 2026-08-27 by the S10 fold-in
+commit** (sha `1295212f2e`, in the history folded before the 2026-09-15 `main`, so not
+reachable from `main` or any remote ref). Its chat-lane half is §9 above: the third phase, its two gates,
+the order they actually run in, and the `None -> []` `update-profile` fix.
+
+The rest are archived under [`archive/2026-08-22-pre-consolidation/`](archive/2026-08-22-pre-consolidation/),
+superseded for the chat-turn lane by this document.
+
+| archived doc | disposition |
+| --- | --- |
+| `mission-chat-turn-context.md` | §7 (tail roster, budgets, HUD field contract) |
+| `mission-chat-mcp-admission.md` | §5. **Its role-lane language (`qa` at R1, `qa`+`dev` from the 2026-07-29 R4 widening) is STALE** — S64/S66 removed role admission entirely |
+| `mission-chat-terminal-envelope-grants.md` | §6 |
+| `UNBOUNDED_DEFAULT_PLAN_2026-08-09.md` | shipped; §4 is the as-built |
+| `mission-chat-lane-gap-audit.md` | G3/G4/G5/G5b/G6/G7/G10 landed; G1/G2/G9/G11/G12/G13 resolved *for the default posture* by the unbounded ruling (§4); remainder → `planned/chat-lane-context-and-memory-gaps.md` |
+| `chat-session-presence-authority.md` | §8 |
+| `turn-durability-design.md`, `run-budget-accounting.md` | §7 |
+| `send-policy-decisions-2026-08-09.md` | T5 shipped (§3); T2 and T7 are recorded decisions **not** to build |
+| `AGENT_CREATE_ONE_CALL_PLAN_2026-08-16.md`, `UNIFIED_AGENT_CREATE_CALL_PLAN_2026-08-16.md` | both shipped on the hermes side; §9 |
+| `PROVIDER_LOGIN_FIRST_CLASS_PLAN_2026-08-16.md` | PL-1 (`_provider_visibility_catalog` in `hermes_cli/harness.py`) and PL-2 (`hermes_cli/auth_noninteractive.py`) shipped; PL-3/4/5/6 are launcher-repo work, not tracked here |
+| `PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md` | B-1 shipped; remainder → `planned/persona-binding-env-authority.md` |
+| `eager-tool-discovery-audit-2026-08-09.md` | Fix B and Fix C shipped same-night; the lazy-builtin-discovery half is a startup-perf item, not a chat-lane one |
+
+### Dependency preflight refusal
+
+A missing or damaged provider SDK is refused before token spend. The additive
+`provider_refusal` block uses `status_code: 0`, the exact health issue `reason`
+(`runtime_dependency_missing`, `runtime_dependency_corrupt`,
+`runtime_dependency_metadata_conflict`, `runtime_dependency_metadata_unreadable`,
+`runtime_dependency_shadowed`), selected `provider`/`model`, `missing_packages`
+(the affected distribution names, including the `jiter.from_json` symptom), and
+`repair_hint` (the existing health remediation summaries). It settles as
+`chat_turn_provider_unavailable` / `failed` with exit 2, requiring no turn-resolve.
+Generic pre-request failures keep `provider_unavailable` without dependency fields.
+The source install selects provider extras in
+`EterniaLauncher/lib/features/mission_control/data/install/hermes_install_manifest.dart`;
+PM's `[all]` intentionally excludes opt-in provider SDKs. The bundled desktop
+profile separately declares Anthropic and retains its explicit provider exclusions.

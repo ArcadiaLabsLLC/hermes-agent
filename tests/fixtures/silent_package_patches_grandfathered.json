@@ -1,0 +1,4 @@
+{
+  "_comment": "Silent package-attribute monkeypatches grandfathered when tests/tooling/test_no_silent_package_patches.py landed (lane W3-A, 2026-09-25): 22 sites, re-taken on the rebased tip. Shrink-only: a fixed site loses its row; never add one. Emptied by lane W3-C (2026-09-25): every grandfathered site re-pointed at its reader.",
+  "sites": []
+}

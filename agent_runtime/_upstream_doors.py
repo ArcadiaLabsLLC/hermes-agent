@@ -1,0 +1,452 @@
+"""agent_runtime's doors onto upstream internals — the ``_private`` names more than one module reached.
+
+Program ruling Q5 (god-file-program-2026-09-24.md §6, §9): one adapter per fork
+package; ``hermes_cli/harness_parts/_upstream_doors.py`` is the harness's. A
+private upstream name that several agent_runtime modules read is read HERE,
+once, so a weekly upstream merge that renames it breaks one door instead of N
+call sites, and W0-G6 carries one ``private_upstream_imports`` row for it
+instead of one per reader. The single-reader reaches still in their own files
+are the rest of that arm (``tests/fixtures/import_layers_grandfathered.json``);
+the lane that opens such a file moves its reach here.
+
+Each door imports its upstream name at CALL time, as every call site it
+replaces did: a stub on the upstream module (``gateway.status._pid_exists``,
+``hermes_cli.profiles._get_profiles_root``) still reaches the call.
+
+Layer: ``models`` — the lowest, so every layer may use a door without an
+upward import (W0-G6).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+__layer__ = "models"
+__all__ = [
+    "codex_account_claims",
+    "codex_bounded_prompt_cache_key",
+    "codex_cache_scope_from_session_id",
+    "codex_content_cache_key",
+    "compression_threshold_for_model",
+    "cron_pools_present",
+    "default_hermes_home",
+    "dispatch_streams",
+    "doctor_section",
+    "gateway_agent_pending_sentinel",
+    "gguf_file_header",
+    "iter_named_profile_dirs",
+    "looks_like_help_or_version_command",
+    "mcp_key_name",
+    "mcp_register_server_tools",
+    "mcp_resolve_server_key",
+    "mcp_sdk_available_flag",
+    "mcp_server_map",
+    "mcp_wait_for_session",
+    "non_continuation_child_filter",
+    "pid_exists",
+    "piper_engine_importable",
+    "piper_voice_for_config",
+    "profiles_root",
+    "sanitize_surrogates",
+    "session_async_delivery_unset",
+    "session_async_delivery_var",
+    "skill_utils_raw_config_cache",
+    "skills_sync_primitives",
+    "skills_tool_inspection_doors",
+    "skills_walker",
+    "strip_quotes",
+    "subagent_compute_supervisor",
+    "subagent_is_descendant",
+    "subagent_registry",
+    "subagent_session_authority",
+    "subagent_transport_matches",
+    "subagent_uses_compute",
+    "subagent_visible_records",
+    "terminal_foreground_timeouts",
+    "terminate_host_pid",
+    "whisper_confident_text",
+]
+
+
+def pid_exists(pid: int) -> bool:
+    """``gateway.status._pid_exists`` — serve_registry, the dispatch store's
+    boot sweep (``dispatch_store.delivery``) and ``running_work.ownership``'s
+    PID identity read it here."""
+    from gateway.status import _pid_exists
+
+    return _pid_exists(pid)
+
+
+def profiles_root() -> Path:
+    """``hermes_cli.profiles._get_profiles_root`` — read by core_cache and snapshot."""
+    from hermes_cli.profiles import _get_profiles_root
+
+    return _get_profiles_root()
+
+
+def default_hermes_home() -> Path:
+    """``hermes_cli.profiles._get_default_hermes_home`` — read beside ``profiles_root`` by core_cache."""
+    from hermes_cli.profiles import _get_default_hermes_home
+
+    return _get_default_hermes_home()
+
+
+def compression_threshold_for_model(model: str, provider: str | None, *, allow_codex_gpt55_autoraise: bool) -> object:
+    """``agent.auxiliary_client._compression_threshold_for_model`` — read by
+    ``prompt_observability.context_budget``. Held widening row (ruling Q7,
+    ``upstream-footprint-ledger.md``): expose it publicly."""
+    from agent.auxiliary_client import _compression_threshold_for_model
+
+    return _compression_threshold_for_model(
+        model, provider, allow_codex_gpt55_autoraise=allow_codex_gpt55_autoraise
+    )
+
+
+def skills_walker():
+    """``tools.skills_tool._find_all_skills`` ITSELF, not a wrapper — read by
+    ``prompt_observability.skills_resolver``, whose installed-catalog memo keys
+    on the walker's identity so a patched or reloaded walker invalidates it.
+    Held widening row (ruling Q7): publish ``find_all_skills``."""
+    from tools.skills_tool import _find_all_skills
+
+    return _find_all_skills
+
+
+def skills_tool_inspection_doors():
+    """``tools.skills_tool``'s ``_find_all_skills``, ``_sort_skills``,
+    ``_skill_lookup_path_error``, ``_skill_search_dirs`` and ``_locate_skill`` ITSELF, in that
+    order — read by ``skill_inspection.skill_inspection_reader`` (lane PF-3 moved the reader out
+    of ``skills_tool.py``; it binds human inspection to the tool's own discovery and
+    collision/trust gates, so a copy would be a second resolver). Held widening row: publish a
+    read-only inspection port (catalog rows + locate) on upstream's skills tool. The disabled
+    set is not here: the reader takes upstream's public ``agent.skill_utils.
+    get_disabled_skill_names``, which ``tools.skills_tool._get_disabled_skill_names`` only
+    delegates to (w3-turn, 2026-10-01)."""
+    from tools.skills_tool import (
+        _find_all_skills, _locate_skill, _skill_lookup_path_error, _skill_search_dirs, _sort_skills,
+    )
+
+    return (_find_all_skills, _sort_skills, _skill_lookup_path_error, _skill_search_dirs,
+            _locate_skill)
+
+
+def skill_utils_raw_config_cache():
+    """``agent.skill_utils`` ITSELF plus the names ``_RAW_CONFIG_CACHE`` / ``_raw_config_cache_clear``
+    it holds — rebound by ``agent_runtime.skill_config_cache`` (a bounded cache for a process that
+    switches profiles; upstream's one-entry cache clears on every new key). Held widening row:
+    a bounded multi-entry ``_load_raw_config`` cache upstream (draft H)."""
+    from agent import skill_utils
+
+    return skill_utils, "_RAW_CONFIG_CACHE", "_raw_config_cache_clear"
+
+
+def sanitize_surrogates(text: str) -> str:
+    """``agent.message_sanitization._sanitize_surrogates`` — read by
+    ``profile_runner.resident_actor._sanitized_user_message_text``. Held widening
+    row (ruling Q7, ``upstream-footprint-ledger.md``): publish
+    ``sanitize_surrogates``. Raises what the upstream helper raises, and
+    ImportError if it relocates — the caller keeps its own fallback."""
+    from agent.message_sanitization import _sanitize_surrogates
+
+    return _sanitize_surrogates(text)
+
+
+def terminate_host_pid(pid: int, expected_start: int | None) -> None:
+    """``tools.process_registry.ProcessRegistry._terminate_host_pid`` — the
+    identity-verified tree-kill, read by
+    ``tools/agent_chat_dispatch/child.py::_kill_child``. Held widening row
+    (ruling Q7, ``upstream-footprint-ledger.md``): publish
+    ``ProcessRegistry.terminate_host_pid``. Raises what the upstream helper
+    raises; the caller is best-effort by contract."""
+    from tools.process_registry import ProcessRegistry
+
+    ProcessRegistry._terminate_host_pid(int(pid), expected_start)
+
+
+def terminal_foreground_timeouts(terminal: object) -> tuple[int, int]:
+    """``(default, cap)`` seconds of a FOREGROUND ``terminal`` call: the
+    resolved ``tools.terminal_tool._get_env_config()["timeout"]`` and the public
+    ``FOREGROUND_MAX_TIMEOUT`` — the two numbers ``_plan_execution`` decides a
+    call's deadline from. Read by ``getattr`` on the module the caller already
+    holds (never imported here). Raises when either is missing; the caller
+    degrades to "no timeout known".
+    Widening candidate: publish ``terminal_tool.effective_foreground_timeout()``."""
+    config = terminal._get_env_config()
+    return int(config["timeout"]), int(terminal.FOREGROUND_MAX_TIMEOUT)
+
+
+def cron_pools_present(scheduler: object) -> bool:
+    """``cron.scheduler._parallel_pools`` non-empty — the per-home dispatch pools
+    the ticker creates lazily on a home's first parallel tick and keeps until the
+    home departs (``discard_parallel_pools``), read by
+    ``running_work.lanes_process._cron_owned_here`` as durable proof the
+    scheduler runs in THIS process. A private ATTRIBUTE read by ``getattr`` on
+    the module the caller already holds (never imported here), so W0-G6's
+    private-import arm cannot see the reach. Until 2026-10-01 this read
+    ``_parallel_pool`` / ``_sequential_pool``, names the scheduler no longer has,
+    and so answered False for every process. Held widening row (ruling Q7,
+    ``upstream-footprint-ledger.md``): publish ``scheduler.owns_running_jobs()``."""
+    return bool(getattr(scheduler, "_parallel_pools", None))
+
+
+# ── tools.mcp_* — the MCP admission's warm-transport reads (lane B4) ────────
+#
+# ``agent_runtime.mcp_admission.transport`` reads seven private names across
+# four upstream modules; each is read here, at CALL time, so a stub on the
+# upstream module (``tools.mcp_tool._servers``, ``tools.mcp_tool_loop.
+# _wait_for_server_session_ready``, …) still reaches it and a missing seam raises at the call
+# the caller already guards (fail CLOSED). One held widening row per name
+# (ruling Q7, ``upstream-footprint-ledger.md``).
+
+
+def mcp_sdk_available_flag() -> bool:
+    """``tools.mcp_tool._MCP_AVAILABLE`` — is the optional ``mcp`` client importable.
+    Held widening row: publish ``mcp_sdk_available()``."""
+    from tools.mcp_tool import _MCP_AVAILABLE
+
+    return bool(_MCP_AVAILABLE)
+
+
+def mcp_server_map() -> tuple[dict, object]:
+    """``tools.mcp_tool._servers`` and ``._lock`` — the process's server cache and
+    the lock it is read under, as a PAIR: they are only ever read together. Held
+    widening rows: publish ``current_servers()``."""
+    from tools.mcp_tool import _lock, _servers
+
+    return _servers, _lock
+
+
+def mcp_key_name(key: object) -> str:
+    """``tools.mcp_tool_scope._key_name`` — a cache key's server name. Held
+    widening row: publish ``key_name``."""
+    from tools.mcp_tool_scope import _key_name
+
+    return _key_name(key)
+
+
+def mcp_resolve_server_key(name: str) -> object:
+    """``tools.mcp_tool_scope._resolve_server_key`` — the current profile's cache
+    key for a server name. Held widening row: publish ``resolve_server_key``."""
+    from tools.mcp_tool_scope import _resolve_server_key
+
+    return _resolve_server_key(name)
+
+
+def mcp_wait_for_session(server: object, timeout: float) -> object:
+    """``tools.mcp_tool_loop._wait_for_server_session_ready`` — wait a bounded
+    moment for a nudged server's session. Held widening row: publish
+    ``wait_for_server_session_ready``."""
+    from tools.mcp_tool_loop import _wait_for_server_session_ready
+
+    return _wait_for_server_session_ready(server, timeout=timeout)
+
+
+def mcp_register_server_tools(name: str, server: object, config: dict) -> object:
+    """``tools.mcp_tool_registration._register_server_tools`` — re-register a
+    connected server's tools under a run's filter (the ``tools/list_changed``
+    nuke-and-repave). Held widening row: publish ``register_server_tools``."""
+    from tools.mcp_tool_registration import _register_server_tools
+
+    return _register_server_tools(name, server, config)
+# ── lane W3-B: the single-reader reaches, moved in (each a held widening row in
+# ``upstream-footprint-ledger.md``, "Stock files a fork module reads by private
+# name"; each imported at CALL time like the call site it replaces) ──────────
+
+
+def codex_bounded_prompt_cache_key(key):
+    """``agent.transports.codex._bounded_prompt_cache_key`` — read by ``cache_routing``."""
+    from agent.transports.codex import _bounded_prompt_cache_key
+
+    return _bounded_prompt_cache_key(key)
+
+
+def codex_cache_scope_from_session_id(session_id):
+    """``agent.transports.codex._cache_scope_from_session_id`` — read by ``cache_routing``."""
+    from agent.transports.codex import _cache_scope_from_session_id
+
+    return _cache_scope_from_session_id(session_id)
+
+
+def codex_content_cache_key(instructions, tools, scope):
+    """``agent.transports.codex._content_cache_key`` — read by ``cache_routing``."""
+    from agent.transports.codex import _content_cache_key
+
+    return _content_cache_key(instructions, tools, scope)
+
+
+def dispatch_streams(agent) -> bool:
+    """``agent.turn_api_call._should_stream`` — read by ``conversation_observability``."""
+    from agent.turn_api_call import _should_stream
+
+    return bool(_should_stream(agent))
+
+
+def session_async_delivery_var():
+    """``gateway.session_context._SESSION_ASYNC_DELIVERY`` (the ContextVar itself) —
+    read by ``delivery_capability``."""
+    from gateway.session_context import _SESSION_ASYNC_DELIVERY
+
+    return _SESSION_ASYNC_DELIVERY
+
+
+def session_async_delivery_unset():
+    """``gateway.session_context._UNSET`` (the sentinel) — read by ``delivery_capability``."""
+    from gateway.session_context import _UNSET
+
+    return _UNSET
+
+
+def doctor_section(title: str) -> None:
+    """``hermes_cli.doctor_report._section`` — read by ``doctor_extensions``."""
+    from hermes_cli.doctor_report import _section
+
+    _section(title)
+
+
+def gateway_agent_pending_sentinel():
+    """``gateway.run._AGENT_PENDING_SENTINEL`` — read by ``gateway_queue_status``."""
+    from gateway.run import _AGENT_PENDING_SENTINEL
+
+    return _AGENT_PENDING_SENTINEL
+
+
+def iter_named_profile_dirs():
+    """``hermes_cli.profiles._iter_named_profile_dirs()`` — read by ``profile_home``."""
+    from hermes_cli.profiles import _iter_named_profile_dirs
+
+    return _iter_named_profile_dirs()
+
+
+def skills_sync_primitives():
+    """``(tools.skills_sync._dir_hash, tools.skills_sync._read_skill_name)`` ITSELF —
+    read by ``skill_publishability._sync_primitives``, which fails closed on any
+    import error. Raises what the import raises."""
+    from tools.skills_sync import _dir_hash, _read_skill_name
+
+    return _dir_hash, _read_skill_name
+
+
+def looks_like_help_or_version_command(command: str) -> bool:
+    """``tools.terminal_tool_guards._looks_like_help_or_version_command`` — read by ``terminal_policy``."""
+    from tools.terminal_tool_guards import _looks_like_help_or_version_command
+
+    return _looks_like_help_or_version_command(command)
+
+
+def strip_quotes(text: str) -> str:
+    """``tools.terminal_tool_guards._strip_quotes`` — read by ``terminal_policy``."""
+    from tools.terminal_tool_guards import _strip_quotes
+
+    return _strip_quotes(text)
+
+
+def non_continuation_child_filter(alias: str = "") -> str:
+    """``hermes_state_sessions.SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL``
+    for column prefix *alias* (``""``, ``"c."``) — upstream's one owner of "this
+    child is NOT a compression continuation" (branch / delegate / reset forks,
+    tool sessions; markers bound to the parent id). Every ``?`` in the clause
+    binds the parent id. Read by
+    ``agent_runtime/session_extensions.py::delete_compression_lineage``; upstream
+    2759f0fe97 keeps the constant, built by ``hermes_state_common._non_continuation_child_sql``."""
+    from hermes_state_sessions import SessionSessionsMixin
+
+    return SessionSessionsMixin._NON_CONTINUATION_CHILD_FILTER_SQL.format(alias=alias)
+
+
+def whisper_confident_text(segments, local_cfg: dict) -> str:
+    """``tools.transcription_local._join_confident_segments`` — upstream's silence-hallucination
+    gate over faster-whisper segments. Read by ``speech_service`` over the ONNX Whisper
+    engine's segments (``speech_stt_engines.WhisperSegment``, the same three fields)."""
+    from tools.transcription_local import _join_confident_segments
+
+    return _join_confident_segments(segments, local_cfg)
+
+
+def piper_voice_for_config(tts_config: dict):
+    """``tools.tts_tool_local._load_piper_voice_for_config`` — upstream's Piper resolve + load
+    into the shared LRU slot the ``speak`` tool also reads. Read by ``speech_service`` with an
+    explicit ``.onnx`` path. Returns ``(voice, piper_config)``."""
+    from tools.tts_tool_local import _load_piper_voice_for_config
+
+    return _load_piper_voice_for_config(tts_config)
+
+
+def piper_engine_importable() -> bool:
+    """``tools.tts_tool._import_piper`` answers — the same probe upstream's provider table uses."""
+    from tools.tts_tool import _import_piper
+
+    try:
+        _import_piper()
+    except ImportError:
+        return False
+    return True
+
+
+def gguf_file_header(path: Path):
+    """``hermes_cli.local_runtime.gguf._read_part`` — ONE file's own GGUF header.
+
+    Since v0.21.6 the public ``read_gguf_header`` reads a MODEL: a split member
+    answers with the first part's metadata and the parts' summed tensors, so it
+    cannot say what a given shard file holds. The local llama adapter's shard check
+    needs each file's own ``split.*`` keys. Door wanted: publish ``_read_part``."""
+    from hermes_cli.local_runtime.gguf import _read_part
+
+    return _read_part(Path(path))
+
+
+def codex_account_claims(token, identity: str) -> dict:
+    """Existing JWT decoder, only for the credential whose usage was reported.
+
+    Two named private-import exceptions (owner ruling 2026-10-15). Door wanted:
+    the "Public Codex credential claims door" request in the upstream footprint
+    ledger."""
+    from agent.account_usage import _codex_snapshot_identity
+    from hermes_cli.auth_constants import _decode_jwt_claims
+
+    if not isinstance(token, str) or _codex_snapshot_identity(token) != identity:
+        return {}
+    return _decode_jwt_claims(token)
+
+
+# Owned-child inspection: Q7 held widening seams, individually recorded in the
+# upstream footprint ledger. These expose existing authorities, never copies.
+def subagent_registry():
+    from tools.delegate_tool_registry import _active_subagents, _active_subagents_lock
+
+    return _active_subagents, _active_subagents_lock
+
+
+def subagent_is_descendant(child, parent):
+    from tools.delegate_tool_registry import _is_descendant_of
+
+    return _is_descendant_of(child, parent)
+
+
+def subagent_transport_matches(record, transport):
+    from tools.delegate_tool_registry import _subagent_transport_matches
+
+    return _subagent_transport_matches(record, transport)
+
+
+def subagent_session_authority(session_id):
+    from tui_gateway.server import _current_session_steer_authority
+
+    return _current_session_steer_authority(session_id)
+
+
+def subagent_visible_records(session_id, transport, session):
+    from tui_gateway.methods_subagents import _visible_subagent_records
+
+    return _visible_subagent_records(session_id, transport, session)
+
+
+def subagent_uses_compute(session):
+    from tui_gateway.server import _session_uses_compute_host
+
+    return _session_uses_compute_host(session)
+
+
+def subagent_compute_supervisor():
+    from tui_gateway import server
+
+    return server._compute_host_supervisor

@@ -1,0 +1,5 @@
+Building Windows application...                                 
+main.obj : error LNK2019: unresolved external symbol hb_a_symbol_that_is_never_defined referenced in function wWinMain [C:\work\hb_scratch\build\windows\x64\runner\hb_scratch.vcxproj]
+C:\work\hb_scratch\build\windows\x64\runner\Release\hb_scratch.exe : fatal error LNK1120: 1 unresolved externals [C:\work\hb_scratch\build\windows\x64\runner\hb_scratch.vcxproj]
+Building Windows application...                                     8.8s
+Build process failed.

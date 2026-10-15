@@ -1,0 +1,4 @@
+# git runs hooks through sh, and a CRLF shebang line fails as "bad
+# interpreter". The hooks carry no extension, so the root `*.sh` rule does not
+# reach them.
+* text eol=lf

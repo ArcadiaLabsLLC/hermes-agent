@@ -1,0 +1,48 @@
+# Source-grep debt register
+# =========================
+#
+# Every POSITIVE `in`-assertion over `inspect.getsource` output that existed
+# when tests/test_no_source_grep_assertions.py landed (2026-08-09). Each line
+# is one assertion that proves characters exist and nothing else — it goes
+# false-GREEN when a symbol is deleted but a mention of it survives, and
+# false-RED when a refactor moves the line to a neighbouring function.
+#
+# grandfathered violations: 18
+#
+# THIS REGISTER IS CLOSED TO ADDITIONS. The gate does not offer a way to
+# ledger a new violation: a new positive source grep is a red build, not a
+# new line here. The number above only ever goes down.
+#
+# Paying one off:
+#   1. Re-aim the assertion at the guarantee — execute the path and assert on
+#      what it returns/emits/raises, or parse the source and assert against a
+#      resolved AST node.
+#   2. Delete its line below and lower the count above.
+# Nothing in the gate needs editing, and a line left behind after the
+# assertion is gone FAILS test_source_grep_ledger_has_no_stale_entries — a
+# register that silently keeps paid-off rows rots exactly like the grep pins
+# it exists to retire.
+#
+# Key: <path>::<enclosing qualname>::<the assertion, as ast.unparse renders it>
+# Line numbers are deliberately absent: they would churn this file on every
+# unrelated edit above a violation, and the churn is what makes a baseline
+# stop being read.
+#
+tests/agent_runtime/test_mcp_admission_budget.py::test_the_dispatch_seam_the_budget_intercepts_still_exists::'entry.handler(args, **kwargs)' in source
+tests/agent_runtime/test_mcp_admission_budget.py::test_upstream_registers_mcp_tools_synchronously::'is_async=False' in source
+tests/agent_runtime/test_mcp_lane_agent_context_line.py::test_the_role_policy_is_imported_never_re_implemented::'effective_required_mcp_servers' in source
+tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"goal_id": visibility.get("goal_id")' in wire
+tests/agent_runtime/test_s27_tool_diff_task_goal_flags.py::test_the_live_task_goal_threading_is_kept::'"task_id": visibility.get("task_id")' in wire
+tests/agent_runtime/test_s29_agent_context_shape_retirement.py::test_the_contract_45_situational_hud_observability_field_survives_s39::'"situational_hud"' in source
+tests/agent_runtime/test_s30_retired_mission_chat_task_id_response.py::test_mission_chat_message_still_emits_every_key_the_launcher_reads::kept in source
+tests/agent_runtime/test_s32_persona_runtime_run_lane_residue.py::test_the_shared_progress_import_line_keeps_its_live_sibling::'ChatProgressSink(' in inspect.getsource(persona_runtime)
+tests/agent_runtime/test_s33_repo_baseline_retirement.py::test_the_worktree_creator_trio_stays_live_as_regression_infrastructure::'_ensure_isolated_worktree(' in source
+tests/agent_runtime/test_s33_repo_baseline_retirement.py::test_the_worktree_creator_trio_stays_live_as_regression_infrastructure::'isolated_repo_context_for_run(' in source
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_cli_only_count_is_deliberately_kept::'done' in source
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_new_snapshot_seams_are_extractions_not_a_second_lane::'board_summary_row' in boards
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_new_snapshot_seams_are_extractions_not_a_second_lane::'office_summary_row' in offices
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'MAX_BOARD_CARDS_PROJECTED' in board_row
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'MAX_OFFICE_ACTORS_PROJECTED' in office_row
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'actors_truncated' in office_row
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_projection_bounds_live_in_exactly_one_place::'cards_truncated' in board_row
+tests/agent_runtime/test_s48_cli_entity_row_consolidation.py::test_the_row_delegates_to_its_builder::builder in _row_source(name)

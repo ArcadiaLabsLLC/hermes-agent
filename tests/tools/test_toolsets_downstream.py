@@ -1,0 +1,187 @@
+"""Fork-owned tests moved out of ``tests/tools/test_toolsets.py`` (seam Stage 5).
+
+Same names, same bodies; the upstream file keeps only upstream's tests.
+"""
+
+from agent_runtime.harness_toolset import ensure_harness_core
+from toolsets import (
+    TOOLSETS,
+    resolve_toolset,
+)
+
+# ``harness_core`` is the fork's, registered through upstream's ``create_custom_toolset`` (lane h11-fp);
+# every fork reader ensures it, and so does this file before it resolves the name.
+ensure_harness_core()
+
+
+def _session_tool_names(platform: str) -> set[str]:
+    """The tool names a default session on ``platform`` sends the model: upstream's per-platform
+    resolver (every production caller - CLI, gateway, cron, ACP, api_server - goes through it) and
+    the schema snapshot, with the eternia-harness plugin discovered as agent init does."""
+    from hermes_cli.plugins import discover_plugins
+    from hermes_cli.tools_config import _get_platform_tools
+    from model_tools import _clear_tool_defs_cache, get_tool_definitions
+
+    discover_plugins()
+    _clear_tool_defs_cache()
+    enabled = sorted(_get_platform_tools({}, platform))
+    return {t["function"]["name"] for t in get_tool_definitions(enabled_toolsets=enabled, quiet_mode=True)}
+
+
+class TestSkillSearchToolsetCoverage:
+    """``skill_search`` must reach every default session that ships the skill-discovery tools,
+    and stay in its DIRECT tool list (never deferred behind ``tool_search``).
+
+    It is the plugin's tool, registered into ``skills``; a platform bundle reaches it because
+    upstream's resolver maps the bundle onto its member toolsets, and it stays eager through the
+    fork's never-defer set (``tools/tool_search_downstream.py``) - no longer by being named in
+    upstream's ``toolsets.py`` (lane h11-fp, 2026-09-29).
+    """
+
+    def test_hermes_cli_session_carries_skill_search(self):
+        assert "skill_search" in _session_tool_names("cli")
+
+    def test_messaging_platform_sessions_carry_skill_search(self):
+        for platform in ("cron", "telegram", "discord", "whatsapp", "slack", "signal", "api_server", "acp"):
+            assert "skill_search" in _session_tool_names(platform), (
+                f"{platform} exposes skill discovery but is missing skill_search"
+            )
+
+    def test_standalone_skills_toolset_includes_skill_search(self):
+        from hermes_cli.plugins import discover_plugins
+
+        discover_plugins()
+        assert "skill_search" in resolve_toolset("skills")
+
+    def test_skill_search_travels_with_skills_list_on_every_platform(self):
+        """Parity invariant: no default session may expose ``skills_list`` without also exposing
+        ``skill_search``. Guards against a platform enumerating skills while leaving search
+        unreachable (or deferred)."""
+        from hermes_cli.platforms import PLATFORMS
+
+        for platform in PLATFORMS:
+            names = _session_tool_names(platform)
+            if "skills_list" in names:
+                assert "skill_search" in names, f"platform '{platform}' exposes skills_list without skill_search"
+
+    def test_skill_search_leaves_the_direct_list_without_the_never_defer_entry(self, monkeypatch):
+        """Positive control for the eager guarantee: with ``skill_search`` out of the fork's
+        never-defer set, upstream defers it like any plugin tool and the session loses it."""
+        import tools.tool_search_downstream as downstream
+
+        monkeypatch.setattr(downstream, "_NEVER_DEFER_TOOLS", downstream._NEVER_DEFER_TOOLS - {"skill_search"})
+        names = _session_tool_names("cli")
+        assert "skills_list" in names and "skill_search" not in names
+
+
+class TestHarnessCoreToolset:
+    """``harness_core`` — the ONE toolset an Eternia persona profile declares.
+
+    S0a A1 (2026-09-03), plan
+    ``docs/agent-runtime-harness/archive/s0a-atlas-cleanup.md``. The numbers here
+    are the ratchet's static twin: what the harness lane admits, in tool NAMES,
+    resolved from this file alone.
+    """
+
+    def test_harness_core_retains_required_capabilities_with_the_registry(self):
+        from tools.registry import discover_builtin_tools
+
+        discover_builtin_tools()  # populates agent_chat / board / browser-cdp
+
+        resolved = set(resolve_toolset("harness_core"))
+
+        # Membership grows through declared included toolsets; pin capabilities,
+        # not an obsolete inventory count that rejects legitimate upstream additions.
+        # The fork's own two lanes are IN — they are registry-only toolsets, so
+        # this is also the proof that an ``includes`` reaches the registry view.
+        assert {"agent_chat_send", "agent_chat_threads", "board_card_add"} <= resolved
+        # ... and the conversational core the manual routes agents to.
+        assert {"clarify", "delegate_task", "terminal", "read_file", "web_search"} <= resolved
+        # ``browser-cdp`` is named as its own member so the two resolution
+        # lenses agree (43 at S0a, 44 since S2b; see the comment in TOOLSETS).
+        assert {"browser_cdp", "browser_dialog"} <= resolved
+
+    def test_harness_core_never_resolves_a_registry_hygiene_name(self):
+        """The static twin of the emitter's refusal: an inventory that lists a
+        withheld tool is worse than no inventory."""
+
+        from agent_runtime.personas import REGISTRY_HYGIENE_BLOCKED_TOOLS
+        from tools.registry import discover_builtin_tools
+
+        discover_builtin_tools()
+
+        assert not (set(resolve_toolset("harness_core")) & REGISTRY_HYGIENE_BLOCKED_TOOLS)
+
+    def test_harness_core_static_view_drops_only_the_registry_only_members(self):
+        static = set(resolve_toolset("harness_core", include_registry=False))
+
+        assert "agent_chat_send" not in static
+        assert "board_card_add" not in static
+        assert {"terminal", "read_file", "clarify", "delegate_task"} <= static
+
+    def test_expand_toolset_names_returns_the_member_names_in_order(self):
+        from agent_runtime.toolset_names import expand_toolset_names
+
+        assert expand_toolset_names(["harness_core"]) == [
+            "agent_chat", "board", "clarify", "delegation", "terminal", "file",
+            "web", "browser", "browser-cdp", "skills", "memory", "todo",
+            "session_search", "vision", "code_execution",
+        ]
+
+    def test_expand_toolset_names_passes_leaves_and_unknowns_through(self):
+        from agent_runtime.toolset_names import expand_toolset_names
+
+        assert expand_toolset_names(["file", "mcp-launcher_qa", "made_up"]) == [
+            "file", "mcp-launcher_qa", "made_up",
+        ]
+        # Order-preserving and deduped across a bundle and its own members.
+        assert expand_toolset_names(["file", "harness_core", "file"])[:2] == [
+            "file", "agent_chat",
+        ]
+
+    def test_expand_toolset_names_does_not_expand_a_composite_that_owns_tools(self):
+        """``debugging`` has ``includes`` AND direct tools: expanding it to its
+        members would silently drop ``terminal``/``process``. It passes through."""
+
+        from agent_runtime.toolset_names import expand_toolset_names
+
+        assert expand_toolset_names(["debugging"]) == ["debugging"]
+
+    def test_a_process_that_resolves_tools_has_harness_core_through_the_plugin(self, tmp_path):
+        """No fork module is imported first: ``model_tools`` discovers the eternia-harness plugin, whose
+        ``register`` defines the composite. Positive control: ``toolsets`` alone does not carry it."""
+
+        import os
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, toolsets\n"
+            "before = 'harness_core' in toolsets.TOOLSETS\n"
+            "import model_tools\n"
+            "print(before, 'harness_core' in toolsets.TOOLSETS, 'agent_runtime.toolset_names' in sys.modules)\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=240,
+            env={**os.environ, "HERMES_HOME": str(tmp_path)},
+        )
+        assert out.returncode == 0, out.stderr[-4000:]
+        assert out.stdout.strip().splitlines()[-1] == "False True False"
+
+    def test_expand_toolset_names_reads_no_registry(self):
+        """The A6a property, in-process: names without the registrars."""
+
+        import subprocess
+        import sys
+
+        code = (
+            "import sys\n"
+            "from agent_runtime.toolset_names import expand_toolset_names\n"
+            "names = expand_toolset_names(['harness_core'])\n"
+            "assert len(names) == 15, names\n"
+            "print('model_tools' in sys.modules)\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+        )
+        assert out.stdout.strip() == "False", out.stdout

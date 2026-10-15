@@ -1,0 +1,10 @@
+{
+  "name": "eternia-harness",
+  "label": "Agent Runtime Harness",
+  "description": "Backend routes for the Eternia Agent Runtime Harness (no dashboard UI).",
+  "icon": "Puzzle",
+  "version": "1",
+  "tab": { "hidden": true },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}

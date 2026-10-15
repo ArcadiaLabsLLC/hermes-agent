@@ -1,0 +1,5 @@
+# Upstream committed this contributor file with CRLF endings; the fork carries upstream's
+# bytes unchanged (lane FOOTPRINT-DROP 2026-09-27) instead of a normalising edit, so the
+# root `* text=auto eol=lf` rule must not rewrite it. Declared in
+# tests/test_line_endings.py::DELIBERATE_CRLF.
+uperLu@users.noreply.github.com -text
