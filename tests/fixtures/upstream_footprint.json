@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 216,
+  "files": 218,
   "deleted_lines": 1047,
   "heavy": 4,
   "reasons": [
@@ -742,6 +742,20 @@
         "heavy": 4
       },
       "reason": "scripts/run_tests_parallel.py: upstream's v0.21.7 _split_pathspec re-glues Windows drive letters itself; the fork's _split_path_list (PR #125263 carry) and the delegating body are deleted and upstream's body restored byte-for-byte. The downstream test is platform-honest (drive letters asserted on win32 only; the long-list case on every host). The file falls 187/48 -> 145/16 against the base and out of 'heavy'."
+    },
+    {
+      "change": "runtime row 'first setup installs extras all ... omits anthropic' (w1015c-dev): the Developer Edition's default selection carries the provider SDKs",
+      "before": {
+        "files": 216,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "after": {
+        "files": 218,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "Owner ruling 2026-10-15: one fork-owned list (pm/_fork_default_extras.py: all + anthropic, bedrock, vertex, azure-identity) read by setup / pm install and the test environment default; upstream's `all` is not edited. pm/install.py gains three tail lines rebinding _target_selection through the fork wrapper (every caller is upstream pm code resolving the module global, as pm/plugins_state.py's memo); pm/testenv.py gains three tail lines rebinding DEFAULT_TEST_EXTRAS. No fork caller exists to wrap instead. PR candidate: a configurable default extra set."
     }
   ]
 }

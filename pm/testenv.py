@@ -43,3 +43,8 @@ def testenv_python(project_root: Path) -> Path | None:
 def parse_extras(value: str) -> list[str] | None:
     """An empty value selects default extras; commas and spaces separate overrides."""
     return value.replace(",", " ").split() or None
+
+
+# Fork (ledger row `pm/testenv.py`): the default test environment carries the provider SDKs too.
+from pm._fork_default_extras import DEFAULT_EXTRAS
+DEFAULT_TEST_EXTRAS = DEFAULT_EXTRAS

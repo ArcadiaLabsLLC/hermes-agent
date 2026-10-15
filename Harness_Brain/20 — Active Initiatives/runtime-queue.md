@@ -734,7 +734,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (owner: provider SDKs on first setup)
 
-- [ ] **A first setup of the Developer Edition installs extras `["all"]` (`pm/extras.py` default, `pm/install.py` facts fallback, `pm/cli.py` `sync_venv`), and upstream's `all` does NOT include `anthropic` — it is its own extra, as are `mistral`, `bedrock`, `vertex`, `azure-identity` — so a fresh source install cannot run a Claude agent until someone installs the SDK by hand.** OWNER 2026-10-15: "it should install it on first setup of the repo". Target: the fork's default extra set is `all` plus every provider-SDK extra the Launcher's Connections offers (one fork-owned list, read by setup, `pm install`, the test environment default `pm/testenv.py::DEFAULT_TEST_EXTRAS`), never an edit to upstream's `all`; an existing environment missing one gets it in place at the next sync (the one-extra install from wave w1015b-con-x). · fork / pm install · lane: w1015c (after land-w1015b) **TAKEN 2026-10-15 w1015c-dev**
 
 ## Filed on arrival — 2026-10-15 (owner: provider packs for the bundled edition)
 
