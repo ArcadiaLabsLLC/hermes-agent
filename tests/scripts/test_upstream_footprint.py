@@ -172,6 +172,32 @@ def test_no_ledger_row_is_unreviewed_or_unledgered():
     assert unreviewed_rows(marked) == [path]
 
 
+def unledgered_paths(ledger_text: str, footprint) -> list[str]:
+    rows = ledger_rows(ledger_text)
+    return sorted(row.path for row in footprint.rows if row.path not in rows)
+
+
+def test_every_measured_upstream_edit_has_a_ledger_row():
+    """D3.03 as a POSITIVE guarantee: the measured footprint is the enumeration, and every
+    path in it has a row. The marker check above only reds on a row that SAYS unreviewed;
+    ``7bd2769236`` / ``e8c572f47b`` landed eight upstream edits with no row at all and it
+    stayed green."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    _, footprint = measure()
+    assert footprint.rows, "the footprint measured no rows; this gate would prove nothing"
+    assert unledgered_paths(text, footprint) == [], (
+        "these upstream files carry a fork edit and no ledger row: write the row (disposition "
+        "and reason) in the commit that lands the edit"
+    )
+
+    # Positive control: deleting one live row is caught, by name.
+    path = footprint.rows[0].path
+    kept = "\n".join(line for line in text.splitlines() if not line.startswith(f"| `{path}` |"))
+    assert unledgered_paths(kept, footprint) == [path]
+
+
 def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     """D3.06: the read-through derives its reader set from rows carrying ``READER_MOVED``, so a
     fork edit that ADDS a ``hermes_cli.config.load_config_readonly`` import to an upstream file
