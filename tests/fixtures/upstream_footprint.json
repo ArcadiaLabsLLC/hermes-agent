@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-15",
   "base": "71d34bad10",
-  "files": 216,
+  "files": 217,
   "deleted_lines": 1047,
   "heavy": 4,
   "reasons": [
@@ -742,6 +742,20 @@
         "heavy": 4
       },
       "reason": "scripts/run_tests_parallel.py: upstream's v0.21.7 _split_pathspec re-glues Windows drive letters itself; the fork's _split_path_list (PR #125263 carry) and the delegating body are deleted and upstream's body restored byte-for-byte. The downstream test is platform-honest (drive letters asserted on win32 only; the long-list case on every host). The file falls 187/48 -> 145/16 against the base and out of 'heavy'."
+    },
+    {
+      "change": "fork-hygiene row 'Include the interpreter ABI dependency in upstream update-CI routing' (w1015e-fh-h)",
+      "before": {
+        "files": 216,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "after": {
+        "files": 217,
+        "deleted_lines": 1047,
+        "heavy": 4
+      },
+      "reason": "One additive route line: hermes_cli/interpreter_abi.py (fork; imported by the fork's venv_sync.py hunk, 8441eb6bff2) joins _UPDATE_DEPENDENCIES so the e2e_upgrade lane runs when it changes; tests/ci/test_update_ci_routing.py named it. Retire when upstream owns the ABI re-entry or the fork hunk leaves venv_sync.py."
     }
   ]
 }
