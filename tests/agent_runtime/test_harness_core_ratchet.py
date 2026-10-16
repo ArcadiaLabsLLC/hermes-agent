@@ -44,7 +44,9 @@ HARNESS_CORE_MEMBERS = [
 # member list, which is exactly what that ratchet is for. Both numbers are
 # RE-MEASURED and not adjusted: 44 tools, and the token estimate the live
 # resolver reports for the declared set on this build. HQ1 moved it to 45.
-DECLARED_TOOL_COUNT = 45
+# Upstream v0.22.2 (2026-10-15 release merge) folded the five ``browser_vault_*``
+# tools into one ``browser_vault`` action tool: 45 -> 41, re-measured.
+DECLARED_TOOL_COUNT = 41
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
@@ -63,7 +65,9 @@ DECLARED_TOOL_COUNT = 45
 # Runtime-queue L2.17 (owner ruling 2026-10-10, c7073e8ace9 via land-w1015b):
 # collapsed tools' per-parameter prose rides as its first sentence, the rest
 # behind tool_describe: 10176 -> 8380 (-1796). Re-measured at the landing.
-DECLARED_TOKEN_ESTIMATE = 8380
+# Upstream v0.22.2 (2026-10-15 release merge): five ``browser_vault_*`` schemas became
+# one ``browser_vault`` action tool; the v0.22.2 schemas re-measured: 8380 -> 7792 (-588).
+DECLARED_TOKEN_ESTIMATE = 7792
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

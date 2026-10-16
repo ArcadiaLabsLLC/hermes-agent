@@ -79,7 +79,9 @@ def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitte
     # ratchet in the same commit, never adjusted to make a red go green.
     # 44 -> 45: HQ1 registered ``harness_query`` into ``agent_chat`` (2026-10-01),
     # re-measured with the ratchet in the same commit.
-    assert inventory["counts"]["tools"] == len(names) == 45
+    # 45 -> 41: upstream v0.22.2 folded the five ``browser_vault_*`` tools into one
+    # ``browser_vault`` action tool (2026-10-15 release merge), re-measured likewise.
+    assert inventory["counts"]["tools"] == len(names) == 41
     assert inventory["counts"]["toolsets"] == 15
     assert inventory["declared"] == ["harness_core"]
 

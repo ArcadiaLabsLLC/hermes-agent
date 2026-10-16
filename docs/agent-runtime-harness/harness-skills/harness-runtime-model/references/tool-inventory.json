@@ -70,11 +70,7 @@
         "browser_scroll",
         "browser_snapshot",
         "browser_type",
-        "browser_vault_enter_code",
-        "browser_vault_fill",
-        "browser_vault_list",
-        "browser_vault_save_login",
-        "browser_vault_unlock",
+        "browser_vault",
         "browser_vision"
       ]
     },
@@ -260,39 +256,11 @@
       "description": "Type text into an input field identified by its ref ID. Clears the field first, then types the new text. Requires browser_navigate and browser_snapshot to be..."
     },
     {
-      "name": "browser_vault_enter_code",
+      "name": "browser_vault",
       "toolset": "browser",
       "mutating": false,
       "gated": true,
-      "description": "The page asks for a one-time / verification / 2FA code after the password: call this. If the saved login has an authenticator key the code is generated and e..."
-    },
-    {
-      "name": "browser_vault_fill",
-      "toolset": "browser",
-      "mutating": false,
-      "gated": true,
-      "description": "Fill the CURRENT browser page from a vault handle (see browser_vault_list): a login item fills ONLY the password field (type the identifier/username yourself..."
-    },
-    {
-      "name": "browser_vault_list",
-      "toolset": "browser",
-      "mutating": false,
-      "gated": true,
-      "description": "ALWAYS call this first when a page asks for a password, card or address. Lists saved website logins, payment cards and addresses as handles with metadata (ki..."
-    },
-    {
-      "name": "browser_vault_save_login",
-      "toolset": "browser",
-      "mutating": false,
-      "gated": true,
-      "description": "The current page is a login form and browser_vault_list has no item for its origin: ask the user, through a masked prompt in their UI, to save the login for..."
-    },
-    {
-      "name": "browser_vault_unlock",
-      "toolset": "browser",
-      "mutating": false,
-      "gated": true,
-      "description": "Ask the user to unlock a password manager (1Password or Bitwarden) for this session. The master password is typed into a masked prompt owned by the UI and ne..."
+      "description": "Use saved logins, passwords, credentials, cards and addresses on the CURRENT browser page without secrets entering the conversation. Actions: list (call firs..."
     },
     {
       "name": "browser_vision",
@@ -404,7 +372,7 @@
       "toolset": "terminal",
       "mutating": true,
       "gated": true,
-      "description": "Execute shell commands. The host OS, shell, and terminal backend are stated in your environment section — write commands for THAT platform. Filesystem, curre..."
+      "description": "Execute shell commands on the OS, shell and backend named in your environment section. The working directory, files and exported variables persist between ca..."
     },
     {
       "name": "todo_list",
@@ -443,9 +411,9 @@
     }
   ],
   "counts": {
-    "tools": 45,
+    "tools": 41,
     "toolsets": 15,
-    "token_estimate": 8380
+    "token_estimate": 7792
   },
   "cli_only_verbs": [
     "persona instance open-chat",
