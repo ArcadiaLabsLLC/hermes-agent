@@ -463,7 +463,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (upstream PR sync lanes up-sync-1015-*)
 
-- [ ] **Sync lanes ran `scripts/check` only on conflicted branches, but upstream's ruff selection changed (RUF022/RUF100/UP006/RUF013/PIE807/PLW1510) and 4 clean-merged branches still carried reds only the check catches: every merged branch runs `scripts/check --base <sha>`; say so in `Running the tests.md`** · fork / upstream PR tooling · up-sync-1015-c logs; follow-up lane up-check-1015 · UNCLAIMED **TAKEN 2026-10-15 w1015j-hermes**
 
 ## Filed on arrival — 2026-10-15 (owner: the footprint ratchet only goes up)
 
