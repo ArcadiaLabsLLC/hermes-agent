@@ -218,6 +218,8 @@ def _apply_profile_home(env: dict) -> None:
             env["HERMES_HOME"] = value
     except Exception:
         pass
+    from agent_runtime.run_context import apply_run_context_child_env  # fork seam: the run's root + auth home (run-serialization S2)
+    apply_run_context_child_env(env)
     apply_subprocess_home_env(env)
 
 
