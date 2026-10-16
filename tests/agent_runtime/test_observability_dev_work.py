@@ -25,7 +25,8 @@ def test_observability_preserves_dev_work_payload_for_mission_control():
         "summary": "Patched 1 file: mission_control_page.dart",
         "detail": "Changed files: mission_control_page.dart",
         "patch_summary": "Patched 1 file",
-        "changed_files": ["mission_control_page.dart"],
+        # The name survives (a secret WORD is not a secret); the home path does not.
+        "changed_files": ["mission_control_page.dart", "secret_token.dart"],
         "files_touched": 2,
     }
 
@@ -78,7 +79,7 @@ def test_observability_preserves_safe_agent_thinking_summary_only():
             "summary": "Agent thinking process updated",
             "reasoning_summary": "Comparing tool proof against acceptance criteria.",
             "raw_thoughts": "SECRET hidden chain-of-thought must be dropped",
-            "detail": "C:/Users/beast/private_token.txt must be dropped",
+            "detail": "C:/Users/beast/private_token.txt is shortened",
         }
     )
 
@@ -88,6 +89,7 @@ def test_observability_preserves_safe_agent_thinking_summary_only():
         "status": "running",
         "summary": "Agent thinking process updated",
         "reasoning_summary": "Comparing tool proof against acceptance criteria.",
+        "detail": "…/private_token.txt is shortened",
     }
     encoded = repr(payload)
     assert "raw_thoughts" not in encoded

@@ -732,7 +732,8 @@ def test_safe_recent_messages_projects_persisted_turn_elements(isolate_agent_run
     assert status == "safe"
     assert rows[0]["client_message_id"] == "client_1"
     assert [item["id"] for item in rows[0]["turn_elements"]] == ["seg_1", "tool_1", "seg_2"]
-    assert rows[0]["turn_elements"][1]["files"] == ["safe.dart"]
+    # A secret WORD in a name is not a secret; the absolute path is shortened.
+    assert rows[0]["turn_elements"][1]["files"] == ["safe.dart", "…/private_token.txt"]
     assert mission_chat_turn_elements(session_id="s1", client_message_id="missing") == []
 
 

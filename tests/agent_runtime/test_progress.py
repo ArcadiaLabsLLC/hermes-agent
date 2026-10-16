@@ -4,7 +4,7 @@ from agent_runtime.progress import ChatProgressSink, _append_bounded_event, _saf
 from hermes_time import now
 
 
-def test_safe_progress_payload_preserves_dev_work_file_summary_but_not_paths():
+def test_safe_progress_payload_preserves_dev_work_file_summary_but_not_home_paths():
     payload = _safe_progress_payload(
         "run.tool.finished",
         {
@@ -32,13 +32,16 @@ def test_safe_progress_payload_preserves_dev_work_file_summary_but_not_paths():
         "step": "patch",
         "tool_name": "patch",
         "status": "passed",
+        # A secret WORD in a file name is not a secret; an absolute path is
+        # shortened to its name (plan redaction-one-value-redactor S1/S3).
+        "summary": "Patched 2 files: mission_control_page.dart, private_token.dart",
+        "detail": "Changed files: mission_control_page.dart, …/private_token.dart",
         "patch_summary": "Patched 2 files",
-        "changed_files": ["mission_control_page.dart"],
+        "changed_files": ["mission_control_page.dart", "private_token.dart", "api_key.txt"],
         "files_touched": 3,
     }
     encoded = repr(payload)
     assert "C:/Users" not in encoded
-    assert "api_key" not in encoded
     assert "SECRET" not in encoded
 
 
@@ -53,7 +56,7 @@ def test_safe_progress_payload_preserves_agent_thinking_summary_only():
             "summary": "Agent thinking process updated",
             "reasoning_summary": "Checking proof coverage before QA handoff.",
             "raw_thoughts": "SECRET hidden chain-of-thought must be dropped",
-            "detail": "C:/Users/beast/private_token.txt must be dropped",
+            "detail": "C:/Users/beast/private_token.txt is shortened",
         },
     )
 
@@ -64,6 +67,7 @@ def test_safe_progress_payload_preserves_agent_thinking_summary_only():
         "status": "running",
         "summary": "Agent thinking process updated",
         "reasoning_summary": "Checking proof coverage before QA handoff.",
+        "detail": "…/private_token.txt is shortened",
     }
     encoded = repr(payload)
     assert "raw_thoughts" not in encoded
@@ -246,17 +250,19 @@ def test_safe_progress_payload_passes_dispatch_fields():
             "dispatch_target": "backend_dev",
             "dispatch_order": (
                 "Run a bounded backend health check.\n"
-                "api_key=SECRET-VALUE must be dropped\n"
+                "api_key=SECRET-VALUE is scrubbed in place\n"
                 "Report the one-line result."
             ),
         },
     )
 
     assert payload["dispatch_target"] == "backend_dev"
-    # The full order keeps its newline structure; the secret LINE is dropped
-    # (not redacted-in-place), the surrounding lines survive.
+    # The full order keeps its newline structure; the secret VALUE is scrubbed
+    # in place and every line survives (plan redaction-one-value-redactor S1).
     assert payload["dispatch_order"] == (
-        "Run a bounded backend health check.\nReport the one-line result."
+        "Run a bounded backend health check.\n"
+        "api_key=[REDACTED] is scrubbed in place\n"
+        "Report the one-line result."
     )
     assert "SECRET-VALUE" not in payload["dispatch_order"]
     # The prose target_label is untouched by the new handlers.
@@ -391,15 +397,17 @@ def test_safe_progress_payload_passes_the_dispatch_reply_and_its_author():
             "status": "passed",
             "dispatch_reply": (
                 "On it — patch landed.\n"
-                "api_key=SECRET-VALUE must be dropped\n"
+                "api_key=SECRET-VALUE is scrubbed in place\n"
                 "Suite is green."
             ),
             "dispatch_reply_from": "Neko Mission Lead",
         },
     )
 
-    # Block grade: the secret LINE is dropped, the newline structure survives.
-    assert payload["dispatch_reply"] == "On it — patch landed.\nSuite is green."
+    # Block grade: the secret VALUE is scrubbed in place, the lines survive.
+    assert payload["dispatch_reply"] == (
+        "On it — patch landed.\napi_key=[REDACTED] is scrubbed in place\nSuite is green."
+    )
     assert "SECRET-VALUE" not in payload["dispatch_reply"]
     assert payload["dispatch_reply_from"] == "Neko Mission Lead"
 
