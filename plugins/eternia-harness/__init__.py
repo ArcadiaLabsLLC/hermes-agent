@@ -351,6 +351,17 @@ def migrate_legacy_persona_toolsets() -> None:
         logging.getLogger(__name__).warning("persona toolsets legacy-key migration failed", exc_info=True)
 
 
+def seed_persona_profile_defaults() -> None:
+    """Owner ruling 2026-10-03: hermes fills the approved seed keys into every persona's
+    bound profile ``config.yaml`` — absent keys only (``agent_runtime.persona_seed_defaults``)."""
+    try:
+        from agent_runtime.persona_seed_defaults import seed_all_persona_profiles
+
+        seed_all_persona_profiles()
+    except Exception:  # a failed seed must not take plugin load down
+        logging.getLogger(__name__).warning("persona seed defaults failed", exc_info=True)
+
+
 def register(ctx) -> None:
     from agent_runtime.provider_access import SharedProviderAccess
 
@@ -360,6 +371,7 @@ def register(ctx) -> None:
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
     migrate_retired_local_llama_id()
     migrate_legacy_persona_toolsets()
+    seed_persona_profile_defaults()
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
