@@ -32,6 +32,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **The serve's chat_turn_provider_refused block carries the provider's raw response body as `message`** — a 404 web page reached the launcher as "<!DOCTYPE html>…"; send the typed summary the serve already logs (`summary=HTTP 404 — Not Found`) as `message` and keep the body in the log · launcher side fixed in 79bdf72fb1 (wave/w1015i-mc).
 
+### Filed on arrival — 2026-10-15 (orchestrator: QA bundle build under load)
+
+- [ ] **Bundle packager's closure step fails a build outright on a busy machine** — the 2026-10-15 QA bundle build (`scripts/bundle_profile_package.py`, the `bundle_profile_closure` subprocess at the `timeout=600` call) hit `subprocess.TimeoutExpired` after a clean 99-package install while six audit lanes and a landing gate shared the box; the same step passed earlier when quieter. A load-sensitive step must not turn into a hard failure: measure the closure step, make it cheaper or progress-aware (time out on no progress, not on wall clock), and report the timeout as retryable to the QA cache (launcher `qa_harness_bundle.dart` retry cool-down).
+
 ### Filed on arrival — 2026-10-15 (owner sitting: first real QA bundle build)
 
 
