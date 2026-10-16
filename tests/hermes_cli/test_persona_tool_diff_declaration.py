@@ -123,7 +123,9 @@ def test_the_text_mode_names_the_source(
     # to make a red go green. 44 -> 45: HQ1 (``8767fbf7a1``) added ``harness_query``
     # to ``agent_chat``; the same ratchet reads DECLARED_TOOL_COUNT = 45. Toolvis slice 4
     # (ruling R1): the headline leads with the eager split and keeps 45 as callable-by-name.
-    assert "(45 callable by name)" in out
+    # 45 -> 41: upstream v0.22.2 folded the five ``browser_vault_*`` tools into one
+    # ``browser_vault`` (2026-10-15 release merge); the ratchet reads 41 in the same wave.
+    assert "(41 callable by name)" in out
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored" not in out
 

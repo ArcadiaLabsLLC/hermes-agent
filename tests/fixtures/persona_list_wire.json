@@ -87,7 +87,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 45,
+      "tool_count": 41,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/beta/config.yaml",
         "declared": [
@@ -229,7 +229,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 45,
+      "tool_count": 41,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [
@@ -369,7 +369,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 45,
+      "tool_count": 41,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [

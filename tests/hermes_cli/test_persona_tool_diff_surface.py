@@ -29,12 +29,12 @@ def test_tool_diff_prints_the_split(bound_profile_home, capsys):  # noqa: F811
     assert surface["contract_source"] == "chat_lane_bundle", surface.get("unavailable")
     assert counts["eager"] > 0 and counts["eager"] == visibility["eager_tool_count"]
     assert visibility["deferred_tool_count"] == counts["deferred"]
-    assert visibility["final_tool_count"] == 45, "R1: the callable-by-name count keeps its meaning"
+    assert visibility["final_tool_count"] == 41, "R1: the callable-by-name count keeps its meaning"
 
     assert _tool_diff("dev") == 0
     out = capsys.readouterr().out
     head = (f"dev: {counts['eager']} eager · {counts['deferred']} deferred · "
-            f"{counts['unavailable']} unavailable · {counts['blocked']} blocked (45 callable by name)")
+            f"{counts['unavailable']} unavailable · {counts['blocked']} blocked (41 callable by name)")
     assert head in out, out
     # Each non-eager group names the rule that moved it.
     for state in ("deferred", "unavailable"):
