@@ -12,10 +12,10 @@ import pytest
 from agent_runtime.redaction import (
     REDACTED_VALUE,
     TEXT_SECRET_VALUE_ASSIGNMENT_RE,
-    is_credential_key,
     redact_transport_text,
     redact_url,
 )
+from tests._downstream._seams import is_credential_key
 
 
 def test_space_separated_bearer_token_is_masked_and_the_assignment_rules_miss_it():

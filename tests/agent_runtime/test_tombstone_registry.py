@@ -4127,6 +4127,18 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "write_record",
         scope=("agent_runtime.builds.registry",),
     ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "dead-code queue TEST SEAM: the last production reader was "
+        "redact_transport_tree's _transport arm (deleted 73afa773143); moved to "
+        "tests/_downstream/_seams.py, where the workspace-clone suite uses it as "
+        "its oracle (lane r-deadcode)",
+        "is_credential_key",
+        "CREDENTIAL_KEYS",
+        scope=("agent_runtime.redaction",),
+    ),
 )
 
 

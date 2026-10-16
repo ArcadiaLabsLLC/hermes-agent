@@ -20,12 +20,12 @@ import pytest
 
 from agent_runtime import serve_rpc, workspace_slot_setup
 from agent_runtime.machine_roots import load_machine_roots, machine_roots_cache_clear, write_machine_roots
-from agent_runtime.redaction import is_credential_key
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_slot_recipe import text_carries_credential
 from agent_runtime.workspace_slot_runs import all_runs, runs_path
 from agent_runtime.workspace_slot_setup import clone_slot, run_step, settle_runs
 from agent_runtime.workspace_slots import SlotRefused, load_document, write_document
+from tests._downstream._seams import is_credential_key
 
 CLONE_URL = "https://github.com/ArcadiaLabsLLC/EterniaLauncher.git"
 ISSUED = "2026-10-05T12:00:00+00:00"

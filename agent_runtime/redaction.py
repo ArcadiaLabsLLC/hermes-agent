@@ -229,19 +229,7 @@ SIGNED_QUERY_MARKERS = (
     "api_key", "apikey", "token", "sig", "key",
 )
 
-#: Mapping keys whose value is a credential, spelled with ``-`` (``_`` folds).
-CREDENTIAL_KEYS = frozenset({
-    "authorization", "proxy-authorization", "api-key", "apikey", "x-api-key",
-    "cookie", "set-cookie", "access-token", "refresh-token",
-})
-
 _URL_RE = re.compile(r"https?://[^\s\]\[<>{}\"']+")
-
-
-def is_credential_key(key: Any) -> bool:
-    """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
-
-    return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
 
 
 def _signed_query_name(name: str) -> bool:
