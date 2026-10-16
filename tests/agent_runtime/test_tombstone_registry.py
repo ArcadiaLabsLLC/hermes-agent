@@ -3963,6 +3963,16 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "ABSENCE_PRESERVING_READERS",
         scope=("hermes_cli.flag_binding",),
     ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket C: a hand-kept tuple of the module's "
+        "patterns that no production code read; the pattern tests now enumerate "
+        "the module's own *_ASSIGNMENT_RE bindings (lane h5-deadcode)",
+        "ALL_SECRET_ASSIGNMENT_PATTERNS",
+        scope=("agent_runtime.redaction",),
+    ),
 )
 
 

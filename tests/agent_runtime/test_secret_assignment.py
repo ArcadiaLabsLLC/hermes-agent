@@ -26,9 +26,8 @@ import re
 
 import pytest
 
-from agent_runtime import realm_sync
+from agent_runtime import realm_sync, redaction
 from agent_runtime.redaction import (
-    ALL_SECRET_ASSIGNMENT_PATTERNS,
     ENV_SECRET_ASSIGNMENT_RE,
     SECRET_ASSIGNMENT_RE,
     SECRET_KEY_SEPARATOR,
@@ -218,6 +217,25 @@ def test_gate_still_catches_the_env_and_yaml_forms(text):
 @pytest.mark.parametrize("text", PROSE_NEGATIVES)
 def test_gate_stays_silent_on_prose(text):
     assert SECRET_ASSIGNMENT_RE.search(text) is None
+
+
+#: Every secret-assignment pattern the module owns, enumerated FROM THE MODULE (every
+#: compiled ``*_ASSIGNMENT_RE`` it binds), so a new one is pinned the moment it is written.
+#: A hand-kept tuple of them, ``ALL_SECRET_ASSIGNMENT_PATTERNS``, used to stand in for this
+#: and was read by nothing in production (plan l5-17-test-only-names, bucket C).
+ALL_SECRET_ASSIGNMENT_PATTERNS = tuple(
+    value
+    for name, value in sorted(vars(redaction).items())
+    if name.endswith("_ASSIGNMENT_RE") and isinstance(value, re.Pattern)
+)
+
+
+def test_the_pattern_enumeration_finds_every_named_pattern():
+    """Positive control for the walk: the four patterns named above are all in it."""
+
+    for pattern in (SECRET_ASSIGNMENT_RE, ENV_SECRET_ASSIGNMENT_RE, TEXT_SECRET_ASSIGNMENT_RE,
+                    TEXT_SECRET_VALUE_ASSIGNMENT_RE):
+        assert any(pattern is found for found in ALL_SECRET_ASSIGNMENT_PATTERNS), pattern.pattern
 
 
 @pytest.mark.parametrize(
