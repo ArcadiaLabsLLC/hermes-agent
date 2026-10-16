@@ -14,8 +14,10 @@ from agent_runtime.provider_account import ProviderRefused
 from hermes_cli import runtime_environment
 
 
-def _missing(table: dict[str, list[str]]):
-    return lambda *, provider=None, api_mode=None, model=None: list(table.get(provider, []))
+def _missing(table: dict):
+    """A stand-in keyed by provider, or by ``(provider, auth_mode)`` for a mode-only requirement."""
+    return lambda *, provider=None, api_mode=None, model=None, auth_mode=None: list(
+        table.get((provider, auth_mode) if auth_mode else provider, []))
 
 
 @pytest.fixture
@@ -34,11 +36,39 @@ def test_the_report_names_each_provider_missing_its_sdk_and_the_extra_that_fixes
     assert report["sdk_free"] is False
     assert report["providers"] == [
         {"provider": "anthropic", "missing": ["anthropic"], "extra": "anthropic", "installable": True,
-         "pack_available": False, "pack": None},
+         "pack_available": False, "pack": None, "needed_when": None},
         # openai is a core dependency: no extra installs it, so no install is offered.
         {"provider": "openai", "missing": ["openai"], "extra": None, "installable": False,
-         "pack_available": False, "pack": None},
+         "pack_available": False, "pack": None, "needed_when": None},
     ]
+
+
+def test_a_package_one_auth_mode_needs_is_reported_with_that_mode_and_never_blocks_a_turn(sdks):
+    """Owner ruling 2026-10-16: ``runtime.provider.list`` reports azure-identity, which Azure
+    Foundry needs only under ``model.auth_mode: entra_id``. The row names that mode; the pre-turn
+    check (no mode named) never requires it, so an api-key Foundry turn is never refused for it.
+
+    Killing mutation: drop the mode rows from ``_requirement_rows`` -> no azure-foundry row, red.
+    Positive control: the api-key path (``required_packages_for`` without a mode) needs nothing."""
+    sdks({("azure-foundry", "entra_id"): ["azure-identity"]})
+    rows = {row["provider"]: row for row in deps.provider_dependency_report()["providers"]}
+    assert rows["azure-foundry"] == {
+        "provider": "azure-foundry", "missing": ["azure-identity"], "extra": "azure-identity",
+        "installable": True, "pack_available": False, "pack": None, "needed_when": {"auth_mode": "entra_id"}}
+    assert runtime_environment.required_packages_for(provider="azure-foundry") == []
+    assert runtime_environment.required_packages_for(provider="azure-foundry", auth_mode="entra_id") == [
+        "azure-identity"]
+
+
+def test_the_mode_only_package_installs_its_one_extra(sdks):
+    """The Developer Edition's install button on the azure-foundry row installs azure-identity.
+    Killing mutation: ``_first_missing`` checks the hard table only -> ``already_installed``, red."""
+    sdks({("azure-foundry", "entra_id"): ["azure-identity"]})
+    extended = []
+    result = deps.install_provider_dependency(
+        "azure-foundry", extend=lambda reqs: extended.append(reqs) or True, new_generation=list)
+    assert (result["extra"], result["outcome"]) == ("azure-identity", "installed")
+    assert [item.split("==")[0] for item in extended[0]] == ["azure-identity"]
 
 
 def test_the_phone_edition_reports_nothing_and_refuses_an_install(monkeypatch):
