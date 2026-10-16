@@ -158,3 +158,50 @@ def test_the_native_history_reload_rides_the_pre_admit_fold():
     assert _safe_pre_admit_timings({"context_native_history_ms": 41, "unlisted_ms": 9}) == {
         "context_native_history_ms": 41
     }
+
+
+class _AnthropicHost:
+    """The slice of ``ClientLifecycleMixin`` an Anthropic request-client checkout reads."""
+
+    api_mode = "chat_completions"  # skip the credential refresh: this pins the stamp seam only
+
+    def __init__(self, steps, cached=None):
+        self.status_callback = lambda payload: steps.append(payload.get("step"))
+        self._cached = cached
+        self.built = []
+
+    def _request_anthropic_client_key(self):
+        return "k"
+
+    def _checkout_request_slot(self, slot, key):
+        return self._cached, None
+
+    def _build_anthropic_client_for_key(self, key):
+        client = SimpleNamespace(_client=httpx.Client())
+        self.built.append(client)
+        return client
+
+    def _store_request_slot(self, slot, client, key):
+        pass
+
+    def _anthropic_log_context(self):
+        return ""
+
+
+@pytest.mark.parametrize("reuse", [False, True], ids=["built", "reused"])
+def test_an_anthropic_turn_marks_request_sent(local_server, reuse):
+    """Owner sitting 2026-10-15: Anthropic turns logged no send_prep_receipt because nothing hooked
+    their request client; the checkout (new or reused) now does, like the Codex stream open."""
+
+    from agent.client_lifecycle import ClientLifecycleMixin
+
+    steps: list[str] = []
+    cached = SimpleNamespace(_client=httpx.Client()) if reuse else None
+    host = _AnthropicHost(steps, cached)
+    client = ClientLifecycleMixin._create_request_anthropic_client(host, reason="turn")
+    try:
+        client._client.post(f"{local_server}/v1/messages", json={"messages": "x" * 4096})
+    finally:
+        client._client.close()
+    marks = [CONVERSATION_MARKER_STEPS[s] for s in steps if s in CONVERSATION_MARKER_STEPS]
+    assert "request_sent" in marks, steps
