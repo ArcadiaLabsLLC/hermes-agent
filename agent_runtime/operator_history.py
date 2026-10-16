@@ -156,10 +156,6 @@ def _plan(params, session):
     target = _target(session.db, params["session_id"], row_id, client_id, after_reply=boundary == "after_reply",
                      branch=action == HistoryAction.BRANCH)
     target["boundary"] = boundary
-    # A branch must contain the full visible prefix. Until native compressed
-    # lineage copying is supported, never offer a misleading partial branch.
-    if action == HistoryAction.BRANCH and target["tip"] != params["session_id"]:
-        raise OperatorConversationRefused("branch_compressed_history_unavailable")
     identity = inspection_identity(params, session.owner)
     target["settings_revision"] = _digest([session.row.get("model_config"), session.row.get("cwd")])
     return {**identity, "action": action.value, **target,
