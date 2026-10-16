@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from agent.api_error_summary import is_provider_stream_parse_error
 from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, classify_api_error
+from agent.provider_failure import attach_provider_failure
 from agent.turn_overflow import recover_from_overflow
 from agent.turn_recovery import (
     _NONRETRYABLE_LABELS, abort_turn_on_interrupt, compute_error_backoff, free_tier_cooldown_ends_turn,
@@ -61,8 +62,13 @@ def handle_api_error(
     the retry loop with ``restart_with_rebuilt_messages`` armed (``"break"``) so the pre-API
     preflight re-runs against the fallback's context window (#84733)."""
     _provider_overflow_recovery_pending = False
+    # Bound before any return: _verdict reads both at call time, and the early returns
+    # (pre-classification recovery, interpreter shutdown) run before classify_api_error.
+    classified = None
+    error_context: dict[str, Any] = {}
 
     def _verdict(action: str, result: Optional[dict[str, Any]] = None) -> ApiErrorVerdict:
+        attach_provider_failure(result, classified, error_context)
         return ApiErrorVerdict(
             action=action, thinking_spinner=thinking_spinner, messages=messages,
             active_system_prompt=active_system_prompt, conversation_history=conversation_history,
