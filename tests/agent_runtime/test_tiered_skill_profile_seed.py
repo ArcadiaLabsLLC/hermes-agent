@@ -3,7 +3,7 @@
 from agent import skill_utils
 from agent_runtime.profile_home import get_shared_skills_dir, seed_profile_skill_roots
 from hermes_cli.config import read_user_config_raw
-from hermes_cli.profiles import _finish_profile_layout
+from hermes_cli.profiles_initialization import finish_profile_layout as _finish_profile_layout
 
 
 def test_two_profile_layouts_preserve_user_roots_exclusions_and_live_switch(tmp_path, monkeypatch):
