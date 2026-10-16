@@ -17,7 +17,7 @@ construction. A committed artifact is cold nowhere.
 WHAT IT IS AND IS NOT
 ---------------------
 It is the BUILTIN name/toolset map, read statically by
-``tools.registry.scan_registered_tools``. It is not a handler table — a handler is
+``tools.toolset_scan.scan_registered_tools``. It is not a handler table — a handler is
 a live callable and there is no static substitute for importing the module that
 defines it. It is also not the whole live registry: plugin tools register into the
 same singleton through ``hermes_cli.plugins`` and MCP tools through
@@ -50,7 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.registry import scan_registered_tools  # noqa: E402
+from tools.toolset_scan import scan_registered_tools  # noqa: E402
 
 #: Bumped when the SHAPE moves, never when a tool is added or removed.
 MANIFEST_SCHEMA_VERSION = 1
