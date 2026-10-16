@@ -790,3 +790,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-15 (lane w1015j-hermes)
 
 - [ ] **`hermes_cli/harness_parts/verify_commands.py` (`--mode live-tony`) asserts the store root equals one machine's path — the lowered `store_root()` compared to the literal owner's `<drive>:/Eternia/.hermes/agent-runtime` → `runtime_root_mismatch` — so the verify mode fails on every other machine and passes on this one whatever the configured root** · runtime / harness CLI · compare against the resolved default root (`hermes_constants.get_default_hermes_root() / "agent-runtime"`) or delete the live-tony arm if nothing calls it
+
+## Filed on arrival — 2026-10-15 (backend build wave A, realms)
+
+- **Map backend `409 realms.git_host_binding_lost` like `realms.git_host_unbound` (stop retrying), not to `sync_remote_unreachable`** · `hermes` · the backend's realm sync used to answer a permanent 503 when the GitHub App binding vanished mid-sync; since backend `0543d8b6` (REALM-SYNC-PERMANENT-503-1) it is a typed 409 that will not heal on retry · backend `docs/architecture/contracts/nexus/FRONTEND_STAGES.md` realms errors. **UNCLAIMED**
