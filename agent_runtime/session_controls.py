@@ -39,7 +39,7 @@ def speed_options(provider, model, base_url=None, api_mode=None) -> list[dict]:
 def resolved_session_controls(session_id: str, *, provider, model, base_url=None, api_mode=None) -> dict:
     from agent.fast_mode import parse_service_tier
     from hermes_cli.config import is_managed, load_config_readonly
-    from tools.approval_context import approval_policy_mode, approval_policy_modes
+    from .approval_surface_policy import approval_policy_mode, approval_policy_modes
     from tools.approval import approval_bypass_active
 
     config = load_config_readonly()
@@ -52,7 +52,7 @@ def resolved_session_controls(session_id: str, *, provider, model, base_url=None
                       "description": "Use this native approval policy."}) for value in approval_policy_modes()]
     if mode not in {row["id"] for row in native_options}:
         raise ValueError("invalid stored approval policy")
-    from tools.approval_context import scoped_approval_policy
+    from .approval_surface_policy import scoped_approval_policy
     with scoped_approval_policy(mode):
         effective_mode = approval_policy_mode()
     approval_options = []
@@ -121,9 +121,9 @@ def session_approval_scope(session_id: str | None):
         return
     from tools.approval import register_gateway_notify, unregister_gateway_notify
     from hermes_cli.config import is_managed
-    from tools.approval_context import (
-        approval_policy_mode, reset_current_session_key, scoped_approval_policy, set_current_session_key,
-    )
+    from tools.approval_context import reset_current_session_key, set_current_session_key
+
+    from .approval_surface_policy import approval_policy_mode, scoped_approval_policy
 
     mode = approval_policy_mode() if is_managed() else SessionControlStore().read(session_id).get("approval_mode", approval_policy_mode())
     token = set_current_session_key(session_id)

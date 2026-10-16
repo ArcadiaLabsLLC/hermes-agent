@@ -10,14 +10,11 @@ import threading
 import uuid
 
 from pm import paths, plugin_inputs
+from pm._fork_worker_exit import wait_for_slow_exit  # fork: ledger row pm/client.py
 from pm.package import InstallError, Runner, StatePackage
 from pm.plugin_inputs import Candidates, Members, PluginInput, Selection
 from pm.runtime import is_runtime, runtime_command, runtime_environment
 from pm.worker_operations import OPERATIONS
-
-
-# fork (L7.32): how long a worker that already returned its result may take to exit.
-_RESULT_EXIT_GRACE_SECONDS = 60
 
 
 def _missing_or_refuse(name):
@@ -165,12 +162,7 @@ def _request(operation, arguments, *, callbacks=None, pause_event=None, project_
             if monitor is not None:
                 monitor.join()
             writer.close()
-            # fork (L7.32): the result is in; a worker whose EXIT is slow under load (5 s ran out
-            # 2026-10-09) must not fail a completed request. The 5 s wait below then returns at once.
-            try:
-                process.wait(timeout=_RESULT_EXIT_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                pass
+            wait_for_slow_exit(process)
             if process.wait(timeout=5):
                 raise InstallError("pm", "worker exited unsuccessfully")
             receipt.accept_worker_receipt(response.get("receipt"), update_id)
