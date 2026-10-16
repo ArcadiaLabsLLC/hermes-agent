@@ -72,17 +72,6 @@ LAYERS = ("models", "policy", "stores", "lanes", "wiring")
 #: ``FORK_ONLY_PARENTS`` (``agent/charsheet/``, ``tools/agent_chat_dispatch/`` …).
 LAYERED_ROOTS = ("agent_runtime/", "hermes_cli/harness_parts/", "plugins/eternia-harness/")
 FORK_ONLY_PARENTS = ("agent/", "tools/")
-#: Lane pb-192 S1: the fork modules still inside upstream's ``tui_gateway/``, walked in place
-#: so their declared layers are proved before the MOVE to ``agent_runtime/gateway/``.
-PRE_MOVE_LAYERED_FILES = tuple(
-    f"tui_gateway/{name}.py"
-    for name in (
-        "answer_receipts", "compute_model_selection", "contract_catalog", "contract_catalog_data",
-        "contract_seam", "contracts/recovery", "execution_result", "inflight_recovery", "methods_pdf",
-        "recovery_history", "recovery_history_delivery", "session_execution", "session_recovery",
-        "session_retirement",
-    )
-)
 #: Q31 (ruled 2026-09-24, landed by lane B5): under these parents only PACKAGES are
 #: walked — a package the program creates is born declared, while the flat scripts
 #: and conftests stay outside until their own lane opens them.
@@ -750,9 +739,7 @@ def layered_roots(root: Path = ROOT, manifest: Path = MANIFEST) -> tuple[str, ..
         for path in fork_production_files(root, manifest)
         if path.startswith(FORK_ONLY_PARENTS)
     }
-    return (
-        LAYERED_ROOTS + PRE_MOVE_LAYERED_FILES + tuple(sorted(t for t in trees if t)) + package_roots(root, manifest)
-    )
+    return LAYERED_ROOTS + tuple(sorted(t for t in trees if t)) + package_roots(root, manifest)
 
 
 def layer_census(root: Path = ROOT, manifest: Path = MANIFEST) -> dict[str, list]:
