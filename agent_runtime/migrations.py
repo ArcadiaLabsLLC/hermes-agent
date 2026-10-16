@@ -6,6 +6,7 @@ from typing import Any
 
 from . import paths
 from .config import AgentRuntimeConfig, persona_records_from_config, load_agent_runtime_config, load_root_runtime_config
+from .redaction import is_secret_field_name
 
 __layer__ = "stores"
 
@@ -159,8 +160,7 @@ def _count_dirs(path: Path) -> int:
 def _redaction_safe_config(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in data.items():
-        lowered = key.lower()
-        if any(marker in lowered for marker in ("secret", "token", "password", "credential", "api_key")):
+        if is_secret_field_name(key):
             result[key] = "<redacted>"
         elif key == "personas" and isinstance(value, dict):
             result[key] = {str(pid): _redaction_safe_config(raw) if isinstance(raw, dict) else raw for pid, raw in value.items()}

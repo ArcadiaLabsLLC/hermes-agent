@@ -25,17 +25,13 @@ from agent_runtime.serde import (
 )
 
 from agent_runtime.mission_chat_turns.states import TURN_STATE_COMPLETED, _record_state
+from agent_runtime.redaction import has_secret_value
 
 __layer__ = "policy"
 
 
 _MAX_ELEMENTS = 80
 _MAX_TEXT = 20000
-
-
-_SENSITIVE_FILE_MARKERS = ("private_token", "secret_token", "api_key", "apikey", "credential")
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -496,7 +492,4 @@ def _safe_file_label(value: Any) -> str | None:
     text = safe_assignment_text(value, limit=240)
     if not text:
         return None
-    lowered = text.lower()
-    if any(marker in lowered for marker in _SENSITIVE_FILE_MARKERS):
-        return None
-    return text
+    return None if has_secret_value(text) else text

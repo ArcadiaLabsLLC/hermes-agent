@@ -20,6 +20,7 @@ from agent_runtime.cli_format import emit_json
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.migrations import effective_config_summary, migration_status
 from agent_runtime.profile_context import active_profile_name
+from agent_runtime.redaction import scrub_secret_values
 from agent_runtime.status import build_status
 from hermes_cli.harness_support import harness_repo_root
 
@@ -128,11 +129,7 @@ def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:
 
 
 def _safe_output_summary(text: str) -> str:
-    text = " ".join(str(text or "").split())
-    lowered = text.lower()
-    if any(marker in lowered for marker in ("secret", "token", "password", "credential", "authorization")):
-        return "<redacted>"
-    return text[:500]
+    return scrub_secret_values(" ".join(str(text or "").split()))[:500]
 
 
 def _git_summary(root: Path) -> dict:
