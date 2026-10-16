@@ -9,7 +9,7 @@ from hermes_time import now
 from .errors import EventPayloadTooLarge
 from .events import EventLog
 from .models import Event
-from .redaction import scrub_secret_values
+from .redaction import REDACTED_SECRET_LINE, has_secret_value, mask_local_paths, safe_file_labels, scrub_secret_values
 from .redaction_mode import redaction_observe_enabled
 from .stream_gap_receipt import REASONING_USAGE_STEP
 
@@ -90,9 +90,9 @@ _OPERATOR_DISPATCH_ORDER_MAX = 1500
 _OPERATOR_DISPATCH_REPLY_MAX = 1500
 _OPERATOR_DISPATCH_REPLY_FROM_MAX = 120
 # The patch diff artifact's path. It IS a path, so it needs the operator-line
-# grade (paths allowed, secret-bearing values still dropped) — the default
-# scalar arm's `_looks_sensitive_or_pathish` would eat it, which is correct for
-# an undeclared string and wrong for this one. Same bound and same shape as
+# grade (paths kept whole, secret values scrubbed) — the default scalar arm
+# shortens an absolute path to its name, which is right for an undeclared
+# string and wrong for this one. Same bound and same shape as
 # `command_full`, the other declared path-bearing operator field.
 _OPERATOR_PATCH_ARTIFACT_MAX = 500
 # Relay thread pointers: opaque runtime ids, never prose. Re-asserted at the
@@ -120,7 +120,7 @@ def _typed_tool_call_id(value: Any) -> bool:
     return (
         isinstance(value, str)
         and _TOOL_CALL_ID_RE.fullmatch(value) is not None
-        and not _looks_sensitive(value)
+        and not has_secret_value(value)
     )
 
 
@@ -542,16 +542,15 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
             continue
         if isinstance(value, str) and key == "dispatch_target":
             text = " ".join(value.strip().split())
-            if text and not _looks_sensitive(text):
-                safe[key] = text[:_OPERATOR_DISPATCH_TARGET_MAX]
-            elif observe and text:
-                safe[key] = _observe_text(value, limit=_OPERATOR_DISPATCH_TARGET_MAX)
-                _mark_would_redact(safe, key, "dispatch_target")
+            if text:
+                safe[key] = scrub_secret_values(text)[:_OPERATOR_DISPATCH_TARGET_MAX]
+                _note_scrub(safe, key, text, "dispatch_target", observe)
             continue
         if isinstance(value, str) and key == "dispatch_order":
             text = _safe_dispatch_order(value)
             if text:
                 safe[key] = text
+                _note_scrub(safe, key, value, "dispatch_order", observe)
             elif observe:
                 safe[key] = _observe_text(value, limit=_OPERATOR_DISPATCH_ORDER_MAX)
                 _mark_would_redact(safe, key, "dispatch_order")
@@ -560,17 +559,16 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
             text = _safe_dispatch_order(value, limit=_OPERATOR_DISPATCH_REPLY_MAX)
             if text:
                 safe[key] = text
+                _note_scrub(safe, key, value, "dispatch_reply", observe)
             elif observe:
                 safe[key] = _observe_text(value, limit=_OPERATOR_DISPATCH_REPLY_MAX)
                 _mark_would_redact(safe, key, "dispatch_reply")
             continue
         if isinstance(value, str) and key == "dispatch_reply_from":
             text = " ".join(value.strip().split())
-            if text and not _looks_sensitive(text):
-                safe[key] = text[:_OPERATOR_DISPATCH_REPLY_FROM_MAX]
-            elif observe and text:
-                safe[key] = _observe_text(value, limit=_OPERATOR_DISPATCH_REPLY_FROM_MAX)
-                _mark_would_redact(safe, key, "dispatch_reply_from")
+            if text:
+                safe[key] = scrub_secret_values(text)[:_OPERATOR_DISPATCH_REPLY_FROM_MAX]
+                _note_scrub(safe, key, text, "dispatch_reply_from", observe)
             continue
         if isinstance(value, str) and key == "output":
             text = _safe_operator_output_tail(value)
@@ -584,9 +582,10 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
                 safe[key] = text
             continue
         if isinstance(value, str) and key == "skill_name":
-            text = " ".join(value.strip().split())
-            if text and not _looks_sensitive(text) and len(text) <= 120:
+            text = scrub_secret_values(" ".join(value.strip().split()))
+            if text and len(text) <= 120:
                 safe[key] = text
+                _note_scrub(safe, key, value, "skill_name", observe)
             elif observe:
                 safe[key] = _observe_text(value, limit=120)
                 _mark_would_redact(safe, key, "skill_name")
@@ -597,40 +596,47 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
                 safe[key] = labels
             continue
         if isinstance(value, str) and key == "reasoning_summary":
-            text = " ".join(value.strip().split())
-            if not text or _looks_sensitive_or_pathish(text):
-                if observe and text:
-                    safe[key] = _observe_text(text, limit=500)
-                    _mark_would_redact(safe, key, "reasoning_summary")
-                continue
-            safe[key] = f"{text[:497]}…" if len(text) > 500 else text
+            text = _scrub_display(" ".join(value.strip().split()))
+            if text:
+                safe[key] = f"{text[:497]}…" if len(text) > 500 else text
+                _note_scrub(safe, key, value, "reasoning_summary", observe)
             continue
         if isinstance(value, str) and key in _DISPATCH_ID_KEYS:
             text = value.strip()
-            if text and not _looks_sensitive(text) and _DISPATCH_ID_RE.fullmatch(text):
+            if text and not has_secret_value(text) and _DISPATCH_ID_RE.fullmatch(text):
                 safe[key] = text
             elif observe and text:
                 safe[key] = _observe_text(text, limit=_OPERATOR_DISPATCH_ID_MAX)
                 _mark_would_redact(safe, key, key)
             continue
         if isinstance(value, str) and key == "command_label":
-            text = " ".join(value.strip().replace("\\", "/").split())
-            if not text or _looks_sensitive(text):
-                if observe and text:
-                    safe[key] = _observe_text(text, limit=240)
-                    _mark_would_redact(safe, key, "command_label")
-                continue
-            safe[key] = f"{text[:237]}..." if len(text) > 240 else text
+            text = _scrub_display(" ".join(value.strip().replace("\\", "/").split()))
+            if text:
+                safe[key] = f"{text[:237]}..." if len(text) > 240 else text
+                _note_scrub(safe, key, value, "command_label", observe)
             continue
         if isinstance(value, (str, int, float, bool)) or value is None:
-            text = str(value) if isinstance(value, str) else value
-            if isinstance(text, str) and _looks_sensitive_or_pathish(text):
-                if observe:
-                    safe[key] = _observe_text(text, limit=500)
-                    _mark_would_redact(safe, key, "scalar_progress_value")
-                continue
-            safe[key] = text
+            if isinstance(value, str):
+                safe[key] = _scrub_display(value)
+                _note_scrub(safe, key, value, "scalar_progress_value", observe)
+            else:
+                safe[key] = value
     return safe
+
+
+def _scrub_display(text: str) -> str:
+    """Display text: absolute paths shortened to their names, secret VALUES
+    replaced, every other word kept (``redaction.mask_local_paths`` then
+    ``scrub_secret_values`` -- the one policy, no word list)."""
+
+    return scrub_secret_values(mask_local_paths(text))
+
+
+def _note_scrub(payload: dict[str, Any], key: str, original: Any, reason: str, observe: bool) -> None:
+    """Observe mode records which field the value redactor changed."""
+
+    if observe and has_secret_value(str(original)):
+        _mark_would_redact(payload, key, reason)
 
 
 def _mark_would_redact(payload: dict[str, Any], key: str, reason: str) -> None:
@@ -655,7 +661,7 @@ def _observe_value(value: Any) -> Any:
 
 def _observe_text(value: str, *, limit: int) -> str:
     lines = [
-        "[redacted line — contained a secret]" if _looks_sensitive(line) else line
+        REDACTED_SECRET_LINE if has_secret_value(line) else line
         for line in str(value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     ]
     text = "\n".join(lines).strip()
@@ -674,8 +680,8 @@ def _safe_operator_line(value: str, *, limit: int) -> str | None:
 
 
 def _safe_dispatch_order(value: str, *, limit: int = _OPERATOR_DISPATCH_ORDER_MAX) -> str | None:
-    """Redaction boundary for the full agent-to-agent order: drop any secret-
-    bearing line, keep the rest with newline structure intact (never whitespace-
+    """Redaction boundary for the full agent-to-agent order: every line's secret
+    VALUES scrubbed in place, newline structure intact (never whitespace-
     collapsed), bounded at ``limit``. Consistent with the profile-runner scrub
     that produces the field; idempotent when re-applied.
 
@@ -685,8 +691,7 @@ def _safe_dispatch_order(value: str, *, limit: int = _OPERATOR_DISPATCH_ORDER_MA
     """
 
     text = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
-    kept = [line for line in text.split("\n") if not _looks_sensitive(line)]
-    order = "\n".join(kept).strip()
+    order = "\n".join(scrub_secret_values(line) for line in text.split("\n")).strip()
     if not order:
         return None
     if len(order) > limit:
@@ -749,49 +754,16 @@ def _safe_operator_path_list(value: list[Any]) -> list[str]:
 
 
 def _safe_file_labels(value: list[Any]) -> list[str]:
-    labels: list[str] = []
-    for item in value:
-        text = str(item or "").strip()
-        if not text or _looks_sensitive_or_pathish(text):
-            continue
-        label = text.replace("\\", "/").rsplit("/", 1)[-1]
-        if not label or _looks_sensitive_or_pathish(label):
-            continue
-        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", label):
-            continue
-        labels.append(label)
-    return labels[:12]
+    return safe_file_labels(value)[:12]
 
 
 def _safe_token_labels(value: list[Any]) -> list[str]:
     labels: list[str] = []
     for item in value:
         text = str(item or "").strip()
-        if not text or _looks_sensitive_or_pathish(text):
+        if not text or has_secret_value(text):
             continue
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", text):
             continue
         labels.append(text)
     return labels[:12]
-
-
-def _looks_sensitive_or_pathish(value: str) -> bool:
-    lowered = value.lower()
-    if _looks_sensitive(value):
-        return True
-    if ":/" in value or "\\" in value:
-        return True
-    if value.startswith(("/", "~")):
-        return True
-    if re.search(r"(^|\s)([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+", value):
-        return True
-    return False
-
-
-def _looks_sensitive(value: str) -> bool:
-    lowered = value.lower()
-    sensitive_markers = (
-        "secret", "token", "password", "api_key", "apikey", "authorization",
-        "bearer", "credential", "cookie", "private_key", "sk-", "passwd",
-    )
-    return any(marker in lowered for marker in sensitive_markers)
