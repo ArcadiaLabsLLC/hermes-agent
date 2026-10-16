@@ -247,7 +247,6 @@ packaging:
     - video_gen
     - kanban
     - cron_providers
-    - observability
     - dashboard_auth
     - security-guidance
     - disk-cleanup
