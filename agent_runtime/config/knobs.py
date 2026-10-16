@@ -101,8 +101,24 @@ def chat_lane_defer_tools(persona_id: str, cfg: AgentRuntimeConfig | None = None
     for key in (persona_id, *persona_id_aliases(persona_id)):
         raw = personas.get(key)
         if isinstance(raw, dict) and "chat_lane_defer_tools" in raw:
-            return _string_list(raw.get("chat_lane_defer_tools"))
+            return _fold_renamed_tools(_string_list(raw.get("chat_lane_defer_tools")))
     return []
+
+
+#: Tool names an upstream release folded into one tool, old -> new. A persona defer list
+#: written before the fold names the old tools; read literally it defers nothing and the
+#: folded tool rides eager. v0.22.2 folded the five vault verbs into ``browser_vault``.
+_FOLDED_TOOL_NAMES = dict.fromkeys(
+    ("browser_vault_list", "browser_vault_unlock", "browser_vault_fill",
+     "browser_vault_save_login", "browser_vault_enter_code"),
+    "browser_vault",
+)
+
+
+def _fold_renamed_tools(names: list[str]) -> list[str]:
+    """Map each pre-fold name to the tool that replaced it, first occurrence kept."""
+
+    return list(dict.fromkeys(_FOLDED_TOOL_NAMES.get(n, n) for n in names))
 
 
 def mission_chat_compaction_threshold_tokens(cfg: AgentRuntimeConfig | None = None) -> int:

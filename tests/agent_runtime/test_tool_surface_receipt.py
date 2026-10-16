@@ -46,7 +46,7 @@ def test_the_preview_and_the_factory_agree_on_one_input(harness_lane, monkeypatc
     # Anti-vacuity: the factory's eager set IS the wire it published (block pruned), and the
     # persona's defer took names off it — the join compares two non-trivial answers.
     assert receipt_names(factory, "eager") | set(factory["bridge"]) == {d["function"]["name"] for d in agent.tools}
-    assert factory["deferred"]["browser_vault_list"]["reason"] == "persona_defer"
+    assert factory["deferred"]["memory"]["reason"] == "persona_defer"
     assert "skill_manage" in factory["blocked"]
 
 
