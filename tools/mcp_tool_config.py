@@ -200,6 +200,13 @@ def _build_safe_env(user_env: Optional[dict]) -> dict:
     for key in ("HERMES_KANBAN_DB", "HERMES_KANBAN_BOARD"):
         if key in os.environ:
             env[key] = os.environ[key]
+    # HOME passes through but HERMES_HOME did not, so a child under a redirected HOME (or of a
+    # context-local home override) resolved a different Hermes home than the process that spawned it.
+    from hermes_constants import get_hermes_home
+    try:
+        env["HERMES_HOME"] = str(get_hermes_home())
+    except RuntimeError:  # no resolvable home directory: the child resolves its own, as before
+        pass
     if user_env:
         env.update(user_env)
     from agent.delegation_context import delegated_child_subprocess_env
