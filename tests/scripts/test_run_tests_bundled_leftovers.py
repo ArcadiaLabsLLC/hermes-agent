@@ -63,3 +63,12 @@ def test_scan_finds_a_real_orphan_of_the_shape(tmp_path):
             psutil.Process(pid).kill()
         except psutil.Error:
             pass
+
+
+def test_a_recycled_parent_pid_does_not_hide_the_orphan():
+    """Windows recycles PIDs: a process created AFTER the child at the dead parent's PID is not its parent."""
+    child_started = NOW
+    assert lo.parent_alive(42, child_started, {42: NOW + 5.0}) is False  # a newer process took PID 42
+    assert lo.parent_alive(42, child_started, {42: NOW - 5.0}) is True  # the real parent, still running
+    assert lo.parent_alive(42, child_started, {}) is False
+    assert lo.parent_alive(None, child_started, {42: NOW - 5.0}) is False
