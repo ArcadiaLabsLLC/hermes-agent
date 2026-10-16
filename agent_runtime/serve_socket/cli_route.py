@@ -99,6 +99,7 @@ def relay_argv(
     request_prefix: str = "relay",
     on_sent: Callable[[str], Any] | None = None,
     self_pid: Callable[[], int] | None = None,
+    refuse_self_dial: bool = True,
 ) -> RelayOutcome:
     """Send *argv* to this root's live serve and read its reply to the end.
 
@@ -108,7 +109,9 @@ def relay_argv(
     times out reads again, for a request that may run as long as it runs; without it the
     ``dial_seconds`` timeout bounds every read and a timeout is a ``REFUSED`` outcome.
     ``on_sent`` is called with the request id the moment the argv is on the wire.
-    ``self_pid`` answers "which process am I" for the self-dial guard (default: this pid).
+    ``self_pid`` answers "which process am I" for the self-dial guard (default: this pid);
+    ``refuse_self_dial=False`` turns the guard off for a caller whose argv cannot recurse
+    (``harness query … --direct``), where asking its own serve over the socket is harmless.
     ``KeyboardInterrupt`` propagates to the caller, which owns what a detach means.
     """
 
@@ -122,7 +125,7 @@ def relay_argv(
     if target is None:
         return RelayOutcome(RelayKind.NO_SERVE, "no_live_serve_socket")
     pid, boot_id = target.pid, target.boot_id
-    if pid is not None and int(pid) == (self_pid or _this_pid)():
+    if refuse_self_dial and pid is not None and int(pid) == (self_pid or _this_pid)():
         return RelayOutcome(RelayKind.NO_SERVE, "this_process_is_the_serve", pid=pid, boot_id=boot_id)
     token = read_token(store_root)
     if not token:

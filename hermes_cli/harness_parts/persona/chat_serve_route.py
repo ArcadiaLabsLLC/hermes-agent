@@ -24,9 +24,7 @@ after that point never re-runs it here.
 from __future__ import annotations
 
 import os
-import socket
 import sys
-import uuid
 from typing import Any, TextIO
 
 from hermes_cli.harness_parts.stream_relay import write_relay_line
@@ -47,7 +45,6 @@ SEND_CLIENT_NAME = "harness-chat-send"
 _DIAL_SECONDS = 10.0
 #: An idle read lap, not a deadline: a lap that times out just reads again.
 _READ_LAP_SECONDS = 30.0
-_TERMINAL_EVENTS = frozenset({"exit", "error"})
 
 #: ``(dest, flag, kind)`` for every option of ``mission-chat message`` the serve
 #: must see. ``kind`` is ``"value"`` (passed when not None), ``"float"``/``"int"``
@@ -145,71 +142,61 @@ def _say(why: str) -> None:
         pass
 
 
-def relay_send_via_serve(args: Any, *, out: TextIO | None = None) -> int | None:
-    """Hand this send to the live serve; its exit code, or ``None`` to run in-process."""
+#: Why a send ran in-process, by the shared route's reason (one stderr line each).
+_IN_PROCESS_WHY = {
+    "no_live_serve_socket": "no live serve for this runtime root",
+    "this_process_is_the_serve": "this process is the serve",
+    "no_auth_token": "no serve auth token",
+    "hello_rejected": "serve refused the hello",
+}
 
-    from agent_runtime import paths
-    from agent_runtime.serve_auth import read_token
-    from agent_runtime.serve_socket.client import ServeSocketClient
-    from agent_runtime.serve_socket.target import resolve_socket_target
+
+def relay_send_via_serve(args: Any, *, out: TextIO | None = None) -> int | None:
+    """Hand this send to the live serve; its exit code, or ``None`` to run in-process.
+
+    The dial, hello and frame loop are the shared CLI route's
+    (``agent_runtime.serve_socket.cli_route.relay_argv``) under its ``TURN_HANDOFF``
+    rule: in-process only while nothing was sent; once the argv is on the wire the turn
+    is the serve's and a failure is exit 1, never a second run here.
+    """
+
+    from agent_runtime.serve_socket.cli_route import FallbackPolicy, RelayKind, relay_argv
 
     sink = sys.stdout if out is None else out
-    store_root = paths.store_root()
-    target = resolve_socket_target(store_root)
-    if target is None:
-        _say("no live serve for this runtime root")
-        return None
-    if target.pid is not None and int(target.pid) == _this_pid():
-        _say("this process is the serve")
-        return None
-    token = read_token(store_root)
-    if not token:
-        _say("no serve auth token")
-        return None
-    connection = ServeSocketClient(target.host, target.port, timeout_seconds=_DIAL_SECONDS)
-    rid = f"chat-send-{uuid.uuid4().hex[:12]}"
+    sent: list[str] = []
     try:
-        try:
-            connection.connect()
-            hello = connection.hello(token=token, client=SEND_CLIENT_NAME)
-        except Exception as exc:  # noqa: BLE001 - any dial failure runs in-process, by name
-            _say(f"serve handshake failed: {type(exc).__name__}")
-            return None
-        if not isinstance(hello, dict) or hello.get("event") != "hello_ok":
-            _say("serve refused the hello")
-            return None
-        connection.set_timeout(_READ_LAP_SECONDS)
-        connection.send({"id": rid, "argv": send_argv(args)})
-        # From here the turn is the serve's: nothing below re-runs it here.
-        while True:
-            try:
-                frame = connection.read_frame()
-            except socket.timeout:  # noqa: UP041 - an idle lap, not a failure
-                continue
-            if frame is None:
-                write_relay_line(sys.stderr, f"mission-chat message: serve closed request {rid}")
-                return 1
-            if frame.get("id") != rid:
-                continue
-            event = frame.get("event")
-            if event == "line":
-                write_relay_line(sink, str(frame.get("line") or ""))
-            elif event == "stderr":
-                write_relay_line(sys.stderr, str(frame.get("line") or ""))
-            elif event in _TERMINAL_EVENTS:
-                error = frame.get("error")
-                if error:
-                    write_relay_line(sys.stderr, f"mission-chat message: serve error: {error}")
-                    return 1
-                return int(frame.get("code") or 0)
+        outcome = relay_argv(
+            send_argv(args),
+            client=SEND_CLIENT_NAME,
+            sink=lambda line: write_relay_line(sink, line),
+            err_sink=lambda line: write_relay_line(sys.stderr, line),
+            dial_seconds=_DIAL_SECONDS,
+            read_lap_seconds=_READ_LAP_SECONDS,
+            request_prefix="chat-send",
+            on_sent=sent.append,
+            self_pid=lambda: _this_pid(),
+        )
     except KeyboardInterrupt:
+        rid = sent[0] if sent else "(not sent)"
         write_relay_line(sys.stderr, f"mission-chat message: detached; the serve keeps request {rid}")
         return 130
-    except Exception as exc:  # noqa: BLE001 - a broken lane after the send ends the relay
-        write_relay_line(sys.stderr, f"mission-chat message: serve lane broke: {type(exc).__name__}")
-        return 1
-    finally:
-        connection.close()
+    if outcome.runs_locally(FallbackPolicy.TURN_HANDOFF):
+        reason = outcome.reason
+        if reason.startswith("transport_failed:"):
+            _say(f"serve handshake failed: {reason.split(':', 1)[1]}")
+        else:
+            _say(_IN_PROCESS_WHY.get(reason, reason))
+        return None
+    if outcome.kind is RelayKind.SERVED:
+        return int(outcome.code or 0)
+    reason, rid = outcome.reason, outcome.request_id
+    if reason == "serve_closed_connection":
+        write_relay_line(sys.stderr, f"mission-chat message: serve closed request {rid}")
+    elif reason.startswith("transport_failed:"):
+        write_relay_line(sys.stderr, f"mission-chat message: serve lane broke: {reason.split(':', 1)[1]}")
+    else:
+        write_relay_line(sys.stderr, f"mission-chat message: serve error: {reason}")
+    return 1
 
 
 def cmd_mission_chat_send(args: Any) -> int:
