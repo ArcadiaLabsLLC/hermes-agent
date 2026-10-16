@@ -35,10 +35,13 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence
 import run_tests_bundled_cache as cache  # noqa: E402 — registered by run_tests_bundled._load_sibling
 import run_tests_bundled_fixtures as fixtures
 import run_tests_bundled_plan as plan  # noqa: E402
+import run_tests_bundled_reds as reds  # noqa: E402
 import run_tests_bundled_scope as scope  # noqa: E402
 import run_tests_parallel as rtp  # noqa: E402
 
-FLAGS = frozenset({"--no-cache", "--cache-dir", "--cache-dry-run", "--cache-reset", "--cache-seed", "--cache-max-age"})
+FLAGS = frozenset({
+    "--no-cache", "--cache-dir", "--cache-dry-run", "--cache-reset", "--cache-seed", "--cache-max-age", "--rerun-known-reds",
+})
 CACHE_ENV = "HERMES_GATE_CACHE"
 PLUGIN_NAME = "hermes_dep_record"
 _PLUGIN_DIR = Path(__file__).resolve().parent / "_bundle_plugin"
@@ -67,6 +70,10 @@ def add_arguments(parser) -> None:
     parser.add_argument(
         "--cache-max-age", type=float, default=cache.DEFAULT_MAX_AGE_DAYS, metavar="DAYS",
         help=f"a green older than this misses (default {cache.DEFAULT_MAX_AGE_DAYS:g}, owner ruling Q2)",
+    )
+    parser.add_argument(
+        "--rerun-known-reds", action="store_true",
+        help="run every known red, even one whose file and recorded dependencies are unchanged since its red",
     )
 
 
@@ -99,13 +106,17 @@ class GateRun:
         self.rerun_alone: Optional[Callable[[str], int]] = None
         self.max_age_days = cache.DEFAULT_MAX_AGE_DAYS
         self.greens: Dict[str, dict] = {}  # each file's newest green.jsonl line, as the run read it
+        self.deps: Dict[str, "cache.StoredDeps"] = {}
+        self.reds: Dict[str, dict] = {}  # each file's newest red.jsonl line, as the run read it
+        self.red_decision: Optional["reds.RedDecision"] = None
+        self.red_outcomes: list = []  # known reds skipped this run, reported red without a process
         self._deps_written: set = set()
         self._lock = threading.Lock()
 
     @classmethod
     def start(
         cls, args, repo_root: Path, files: Sequence[Path], roots: Sequence[Path], pytest_args: Sequence[str],
-        environ: Mapping[str, str] = os.environ,
+        environ: Mapping[str, str] = os.environ, keyed_args: Sequence[str] = (),
     ) -> "GateRun":
         enabled = not getattr(args, "no_cache", False) and environ.get(CACHE_ENV, "1") != "0"
         override = getattr(args, "cache_dir", None) or environ.get(cache.STORE_ENV)
@@ -121,21 +132,25 @@ class GateRun:
         if getattr(args, "cache_reset", False):
             print(f"Green-result cache: --cache-reset, generation now {store.bump_generation()}", flush=True)
         if enabled:
-            gate._decide(files, [r for r in roots if Path(r).is_file()], pytest_args, environ)
+            gate._decide(files, [r for r in roots if Path(r).is_file()], pytest_args, environ, keyed_args)
             dry = getattr(args, "cache_dry_run", False)
             if not dry and gate.writes:
                 gate._skip(files, getattr(args, "cache_seed", None))
+                if not getattr(args, "rerun_known_reds", False):
+                    gate._skip_reds([r for r in roots if Path(r).is_file()])
             gate._print_decision(dry)
         return gate
 
-    def _decide(self, files, named, pytest_args, environ) -> None:
+    def _decide(self, files, named, pytest_args, environ, keyed_args=()) -> None:
         try:
             snapshot = cache.TreeSnapshot.take(self.repo_root, scope._scope_git)
         except (OSError, RuntimeError) as exc:
             self.disabled = f"git: {exc}"
             snapshot = None
         if snapshot is not None:
-            fixed = cache.FixedInputs.collect(snapshot, pytest_args, environ, strip_paths=[_PLUGIN_DIR])
+            fixed = cache.FixedInputs.collect(
+                snapshot, pytest_args, environ, strip_paths=[_PLUGIN_DIR], keyed_args=keyed_args,
+            )
             self.disabled = fixed.disabled
             deps = self.store.load_deps()
             modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.mods})
@@ -143,6 +158,7 @@ class GateRun:
             self.keyer = cache.Keyer(snapshot, fixed, modsets, shapes)
             self.generation = self.store.generation()
             self.greens = self.store.load_green()
+            self.deps, self.reds = deps, reds.load(self.store)
         else:
             deps = {}
         self.decision = cache.decide(
@@ -164,7 +180,19 @@ class GateRun:
         skipped = {cache.rel_of(path, self.repo_root) for path, _entry in self.cached}
         self.to_run = [path for path in files if cache.rel_of(path, self.repo_root) not in skipped]
 
+    def _skip_reds(self, named) -> None:
+        """Take the known reds whose key is unchanged since their red out of the run."""
+
+        self.red_decision = reds.decide(
+            self.to_run, self.repo_root, keyer=self.keyer, known=set(self.known_reds) | set(self.timed_out),
+            deps=self.deps, reds=self.reds, generation=self.generation, named=named, max_age_days=self.max_age_days,
+        )
+        skipped = {cache.rel_of(path, self.repo_root) for path, _line in self.red_decision.skipped}
+        self.to_run = [path for path in self.to_run if cache.rel_of(path, self.repo_root) not in skipped]
+
     def _print_decision(self, dry: bool) -> None:
+        if self.red_decision is not None and self.red_decision.reasons:
+            print(self.red_decision.line(), flush=True)
         d = self.decision
         misses = ", ".join(f"{reason} {n}" for reason, n in d.misses_by_reason().most_common()) or "none"
         tail = f"misses: {misses}; keys in {d.seconds:.1f}s; store {self.store.root}"
@@ -207,11 +235,18 @@ class GateRun:
     # ── as the run goes ──
 
     def emit_cached(self, outcome_type, on_outcome: Callable) -> None:
-        """Report every skipped file as passed without a process."""
+        """Report every skipped file without a process: a cached green as passed, a
+        known red whose key is unchanged as red (``record`` adds those to the result)."""
 
         for path, entry in self.cached:
             note = f"cached green {entry.t} ({entry.seconds:.1f}s, run {entry.run}); key unchanged, not run"
             on_outcome(outcome_type(path, 0, note, {}, 0.0, f"cached; green {entry.t} {entry.seconds:.1f}s", None))
+        for path, line in self.red_decision.skipped if self.red_decision is not None else ():
+            ids = sorted(self.known_reds.get(cache.rel_of(path, self.repo_root), ()))
+            outcome = outcome_type(path, 1, reds.note(line, ids), {"failed": len(ids)} if ids else {},
+                                   0.0, reds.SKIPPED_VIA, None)
+            self.red_outcomes.append(outcome)
+            on_outcome(outcome)
 
     def chain(self, on_outcome: Callable) -> Callable:
         def _both(outcome) -> None:
@@ -244,6 +279,7 @@ class GateRun:
             with self._lock:
                 self.store.drop_green([rel], why, self.run_id)
                 self.greens[rel] = {"f": rel, "drop": why}
+                self._red_key(rel, outcome.rc)
             return
         with self._lock:
             deps = self.collector.poll().get(rel)
@@ -259,6 +295,23 @@ class GateRun:
             self.store.append_green([entry.line()])
             self.greens[rel] = entry.line()
             self.greens_written += 1
+            self._red_key(rel, 0)
+
+    def _red_key(self, rel: str, rc: int) -> None:
+        """A red writes the key it went red under (its dependency record now, or the
+        collection-time ``partial`` record of a process killed mid-file); a red with
+        no record, or a green after a keyed red, drops the file's red key."""
+
+        deps = (self.collector.poll().get(rel) or self.collector.partial.get(rel)) if rc != 0 else None
+        if deps is None:
+            if (self.reds.get(rel) or {}).get("key"):
+                why = "green" if rc == 0 else "no-deps"
+                reds.drop(self.store, rel, why, self.run_id)
+                self.reds[rel] = {"f": rel, "drop": why}
+            return
+        self.store.write_deps({rel: deps}, self.run_id)
+        self._deps_written.add(rel)
+        reds.write_key(self.store, rel, self.keyer.key_fresh(rel, deps), self.run_id, self.generation)
 
     # ── after the run ──
 
@@ -309,6 +362,7 @@ class GateRun:
                 "fraction": self.fraction, "misses": dict(self.decision.misses_by_reason()),
                 "keys_seconds": round(self.decision.seconds, 2),
                 "defects": self.verdict.defects, "flakes": self.verdict.flakes,
+                "known_red_skipped": len(self.red_outcomes),
             }
         final_rc = {cache.rel_of(o.file, self.repo_root): o.rc for o in result.outcomes}
         failed = result.ledger.failed if result.ledger is not None else {}
@@ -316,7 +370,8 @@ class GateRun:
         plan.record_run(
             self.repo_root, cost, final_rc, failed, self.known_reds, timed_out=timed_out,
             previous_timed_out=self.timed_out, extra={**(extra or {}), **diagnostics}, record_path=self.store.runs,
-        )
+        )  # a skipped known red is absent from final_rc, so its red and timed-out entries carry forward
+        result.outcomes.extend(self.red_outcomes)  # ... and the Summary still lists it red
         skip = {cache.rel_of(p, self.repo_root) for p, _out in rtp._FLAKY_RESULTS}
         skip |= {cache.rel_of(leak.file, self.repo_root) for leak in result.leaks}
         seconds = result.ledger.file_seconds if result.ledger is not None else {}
@@ -341,7 +396,7 @@ class GateRun:
             f"{len(self.cached)} skipped as cached green, {len(self.sampled)} audited (seed {self.seed}); "
             f"{self.greens_written} green(s) written"
         )
-        compacted = self.store.compact()
+        compacted = self.store.compact() + ([reds.RED_FILE] if reds.compact(self.store) else [])
         print(f"  green-result cache: {state}; store {self.store.root}"
               + (f"; compacted {', '.join(compacted)}" if compacted else ""))
         shutil.rmtree(self.deps_dir, ignore_errors=True)

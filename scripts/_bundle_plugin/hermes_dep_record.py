@@ -29,6 +29,12 @@ finish, one JSON line per file goes to ``<dir>/deps-<pid>-<ns>.jsonl``::
   the reader therefore attributes to each line the UNION of ``mods_add`` up to
   and including it — a superset of what the file imported, never less.
 
+When a module finishes collecting, one ``{"k": "partial", ...}`` line (the same
+fields bar ``own`` and ``fx``) records what the file reached so far: a process
+killed mid-file (pytest-timeout's thread method, the runner's timeout) never
+writes its ``deps`` line, and the gate keys such a known red by this one
+(``scripts/run_tests_bundled_reds.py``). ``mods_add`` counts across both kinds.
+
 Events before the first module is collected (conftest chain, plugins) are the
 session's and are written into every line. Paths outside the repo root, and
 under ``.git``, ``__pycache__``, ``.venv``, ``.pytest_cache`` or a tool cache,
@@ -77,27 +83,32 @@ class _DepRecorder:
         else:
             os.environ.pop(CURRENT_FILE_ENV, None)
 
-    def _flush(self, rel: str) -> None:
-        trail = self._trail
-        bucket = trail.buckets.pop(rel, None) or Bucket()
-        session = trail.buckets[_SESSION]
-        mods = trail.filter.modules()
+    def _record(self, kind: str, rel: str, bucket: Bucket) -> dict:
+        session = self._trail.buckets[_SESSION]
+        mods = self._trail.filter.modules()
         added = sorted(mods - self._written_mods)
         self._written_mods |= mods
-        record = {
-            "k": "deps",
+        return {
+            "k": kind,
             "f": rel,
             "paths": sorted(bucket.paths | session.paths | {rel}),
             "dirs": sorted(bucket.dirs | session.dirs),
             "spawn_py": bucket.spawn_py + session.spawn_py,
             "spawn_other": bucket.spawn_other + session.spawn_other,
             "mods_add": added,
-            "own": sorted(bucket.paths),
         }
-        if rel not in self._fx_unknown:
-            record["fx"] = sorted(self._fixtures.pop(rel, ()))
+
+    def _write(self, record: dict) -> None:
         self._handle.write(json.dumps(record) + "\n")
         self._handle.flush()
+
+    def _flush(self, rel: str) -> None:
+        bucket = self._trail.buckets.pop(rel, None) or Bucket()
+        record = self._record("deps", rel, bucket)
+        record["own"] = sorted(bucket.paths)
+        if rel not in self._fx_unknown:
+            record["fx"] = sorted(self._fixtures.pop(rel, ()))
+        self._write(record)
         self._flushed.add(rel)
 
     def _rel_of(self, node) -> str:
@@ -112,6 +123,9 @@ class _DepRecorder:
 
     def pytest_collectreport(self, report):
         if str(report.nodeid).partition("::")[0].endswith(".py"):
+            rel = self._trail.current
+            if rel and "::" not in str(report.nodeid):  # the module itself: what a killed process keeps
+                self._write(self._record("partial", rel, self._trail.buckets.get(rel) or Bucket()))
             self._point(_SESSION)  # the module is collected: later events are the session's
 
     @pytest.hookimpl(hookwrapper=True)

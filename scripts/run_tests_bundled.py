@@ -584,6 +584,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
 _fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys of fixture modules
+_reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is unchanged are not re-run
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 
@@ -812,7 +813,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # per-file counts to .pytest_cache/hermes_fresh_dbs.jsonl. Set before the gate
     # starts, so the cache key's runner env is the same every run.
     os.environ.setdefault("HERMES_TEST_COUNT_FRESH_DBS", "1")
-    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args)  # the store: runs, durations, greens
+    # the skip list's deselects are keyed (its file is a runner input), so they never turn the cache off
+    gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args, keyed_args=deselect)
     durations = gate.durations(rtp._load_durations)
     unbundled = load_unbundled(args.unbundled_list)
     known_reds, timed_out = gate.known_reds, gate.timed_out
