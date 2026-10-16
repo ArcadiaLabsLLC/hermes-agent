@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from scripts.check_carried_prs import check, ledger_pairs
+from scripts.check_carried_prs import check, fetch_commands, ledger_pairs
 
 
 def git(repo, *args):
@@ -299,3 +299,26 @@ def test_missing_reviewed_base_is_error(history):
     del history[2]['prs']['12']['reviewed_base']
     save(history)
     assert run(history)[0] == 2
+
+
+def test_fetch_commands_bring_carried_pr_refs_into_reach(history):
+    """The printed fetch is what makes a ``refs/carried-prs`` head checkable, not a spelling."""
+    repo, _source, manifest = history
+    git(repo, 'update-ref', 'refs/pull/12/head', 'pr-head')
+    git(repo, 'remote', 'add', 'upstream', str(repo))
+    manifest['prs']['12']['head_ref'] = 'refs/carried-prs/12/head'
+    save(history)
+    assert run(history)[0] == 2
+    commands = fetch_commands(manifest)
+    assert [command[2] for command in commands] == ['upstream']
+    for command in commands:
+        subprocess.run(['git', '-C', str(repo), *command[1:]], check=True, capture_output=True, timeout=10)
+    assert run(history)[0] == 0
+
+
+def test_fetch_commands_cover_origin_branches_and_refuse_unknown_refs():
+    manifest = {'prs': {'7': {'head_ref': 'origin/fix/x'}}}
+    assert fetch_commands(manifest) == [
+        ['git', 'fetch', 'origin', '+refs/heads/fix/x:refs/remotes/origin/fix/x']]
+    with pytest.raises(ValueError, match='no fetch source'):
+        fetch_commands({'prs': {'7': {'head_ref': 'refs/carried-prs/8/head'}}})

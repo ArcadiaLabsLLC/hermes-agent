@@ -2,6 +2,8 @@
 """Compare reviewed carried PR hunks, never whole upstream files.
 
 Fetch the manifest's refs before running; this command is read-only and offline.
+``--fetch-commands`` prints the fetches that cover every ``head_ref``: the ``origin/<branch>``
+PR heads from origin, and each ``refs/carried-prs/<N>/head`` from upstream's ``pull/<N>/head``.
 Every open-PR ledger file must be classified. Deferred references are printed, not
 counted as checked. A changed fetched head requires a fresh applicability review.
 """
@@ -246,6 +248,22 @@ def _reviewed_pin(repo, entry):
     return head, reviewed_base
 
 
+def fetch_commands(manifest_data):
+    """The ``git fetch`` argv lists that bring every manifest ``head_ref`` up to date."""
+    branches, pulls = [], []
+    for number, entry in sorted(manifest_data['prs'].items(), key=lambda item: int(item[0])):
+        ref = entry['head_ref']
+        if ref.startswith('origin/'):
+            branch = ref[len('origin/'):]
+            branches.append(f'+refs/heads/{branch}:refs/remotes/origin/{branch}')
+        elif ref == f'refs/carried-prs/{number}/head':
+            pulls.append(f'+refs/pull/{number}/head:{ref}')
+        else:
+            raise ValueError(f'PR #{number}: no fetch source for head_ref {ref!r}')
+    return [['git', 'fetch', remote, *refspecs]
+            for remote, refspecs in (('origin', branches), ('upstream', pulls)) if refspecs]
+
+
 def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
     repo = Path(repo)
     pairs = ledger_pairs((repo / ledger).read_text(encoding='utf-8'))
@@ -314,7 +332,14 @@ def main(argv=None):
     parser.add_argument('--ledger', default=LEDGER)
     parser.add_argument('--manifest', default=MANIFEST)
     parser.add_argument('--fork-ref', help='compare a committed fork ref instead of working files')
+    parser.add_argument('--fetch-commands', action='store_true',
+                        help='print the git fetch commands for every manifest head_ref, then exit')
     args = parser.parse_args(argv)
+    if args.fetch_commands:
+        data = json.loads((args.repo / args.manifest).read_text(encoding='utf-8'))
+        for command in fetch_commands(data):
+            print(' '.join(command))
+        return 0
     try:
         code, output = check(args.repo, args.ledger, args.manifest, args.fork_ref)
     except (ValueError, OSError, KeyError, subprocess.TimeoutExpired) as exc:
