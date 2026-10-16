@@ -1029,9 +1029,7 @@ def test_progress_adapter_summarizes_write_file_as_dev_work_without_absolute_pat
             "tool_name": "write_file",
             "status": "passed",
             "outcome": "passed",
-            # Both files are named (a secret WORD in a name is not a secret);
-            # neither home path survives.
-            "summary": "Wrote code files: 2 files",
+            "summary": "Wrote code files: 2 files",  # a secret WORD in a name is not a secret
             "detail": "Changed files: customize_order.dart, private_token.dart",
             "file_summary": "Wrote code files",
             "changed_files": ["customize_order.dart", "private_token.dart"],

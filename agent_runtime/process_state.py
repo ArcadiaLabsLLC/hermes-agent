@@ -69,7 +69,7 @@ def reset_all_process_state() -> tuple[str, ...]:
         reset, _holds = _RESETS[name]
         try:
             reset()
-        except Exception as exc:  # collected; re-raised below
+        except Exception as exc:  # health: allow BLE001 -- every failure is re-raised as ProcessStateResetError below
             failed.append(name)
             first = first or exc
     if failed:
