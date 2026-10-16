@@ -509,6 +509,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
+### Filed on arrival — 2026-10-16 (lane r-turnrec)
+
+- [ ] **The agent's `status_callback` carries two calling conventions: upstream calls `(kind, text)` (`agent/status_output.py::_emit_status_kind`, `agent/conversation_compression.py::_emit_compaction_done`), the fork's receipts call it with one dict (`agent_runtime/conversation_observability.py`, `init_observability.py`, `codex_observability.py`), so the profile runner's `StatusEmitter.emit` dispatches on `isinstance(payload, str)`; every two-argument kind but compaction is still dropped there. Give the fork receipts their own callback (or a typed payload) so one callback has one shape** · seams · evidence: r-turnrec compaction fix (`StatusEmitter.emit`, runtime-queue row "Compaction never reaches the native conversation lane", closed) · READY 2026-10-16
+
 
 
 ### Filed on arrival — 2026-10-15 (door PR lanes doors-a, doors-b)
