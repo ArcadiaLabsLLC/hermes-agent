@@ -25,7 +25,6 @@ import urllib.request
 from pathlib import Path
 
 from hermes_cli.local_runtime.binaries import runtimes_root
-from hermes_cli.local_runtime.endpoint import child_query
 from hermes_cli.local_runtime.processes import server_child_env, spawn_server
 
 logger = logging.getLogger(__name__)
@@ -461,21 +460,15 @@ class LlamaServerSupervisor:
     def _probe_idle(self, model_id: str | None = None) -> bool | None:
         """Tri-state idle probe for the sweeper: True = confirmed idle, False = confirmed
         busy, None = the probe itself failed. The sweeper must never mistake a dead probe
-        for activity — that resets the idle clock and pins the model's VRAM. A model that
-        isn't loaded is idle: the router answers 400 for it (the reads don't autoload)."""
+        for activity — that resets the idle clock and pins the model's VRAM."""
         try:
             loaded = ([model_id] if model_id is not None
                       else [m for m, status in self.models().items() if status in _RESIDENT])
             for mid in loaded:
-                try:
-                    slots = self._request(f"/slots?{child_query(mid)}")
-                except urllib.error.HTTPError as exc:
-                    if exc.code == 400:
-                        continue
-                    raise
+                slots = self._request(f"/slots?model={mid}")
                 if any(s.get("is_processing") for s in slots):
                     return False
-                with self._open(f"/metrics?{child_query(mid)}", timeout_s=10, json_type=False) as r:
+                with self._open(f"/metrics?model={mid}", timeout_s=10, json_type=False) as r:
                     text = r.read().decode()
                 for line in text.splitlines():
                     if (line.startswith("llamacpp:requests_processing")
