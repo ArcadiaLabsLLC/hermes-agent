@@ -19,18 +19,21 @@ connection; the next turn, 10 s later, 481 ms on a pooled one. Two causes, both 
 (:func:`note_window_opened` / :func:`note_window_closed`, from
 ``mission_chat_phases.TurnPhaseMarks``), and holds ONE daemon thread, armed by every
 ``request_sent`` -- and by a disk tier's unflushed load, so a serve that takes no turn still
-writes back -- in a process that keeps resident chats (a serve). Every
+writes back -- in a serve, resident chats or not (owner ruling 2026-10-16: with
+``persona_chat.hot_sessions_enabled`` off every turn handshook after a 20 s pause, ~25 ms). Every
 :data:`KEEPER_INTERVAL_SECONDS`, at most :data:`KEEPER_MAX_TICKS` times after the last send, a tick
 that finds no turn window open runs every registered refresh (each refreshes its own memo only
 when it is old enough to lapse before the next tick) and sends one ``HEAD`` on the most recently
-active chat's connection. A turn reads the last value; a memo past its TTL inside a window is
+active chat's connection -- or, when that chat's actor is gone (no resident chats: a fresh actor
+per turn), on the process-shared pool through a client of the keeper's own
+(``provider_preconnect.refresh_process_connection``). A turn reads the last value; a memo past its TTL inside a window is
 refreshed after that turn's ``request_sent``, never inside it.
 
 **Why 15 s and not a minute.** The pool's ``keepalive_expiry`` is 20 s (upstream's value; reverse
 proxies close at 30-60 s): a refresh less often than that finds no connection to keep. At most
 :data:`KEEPER_MAX_TICKS` (five minutes) per pause; a longer pause pays as before.
 
-The thread stops when the resident registry is switched off, on :func:`stop` (the serve's drain)
+The thread stops when the serve's chat registry is reset, on :func:`stop` (the serve's drain)
 and at its tick cap. Observability is one log receipt per tick, never a parity-envelope key.
 """
 
@@ -114,28 +117,39 @@ def note_active_agent(agent: Any) -> None:
         _STATE["agent"] = weakref.ref(agent)
     except TypeError:
         _STATE["agent"] = None
+    from agent_runtime.provider_preconnect import remember_process_target
+
+    remember_process_target(agent)
 
 
 # ── the thread ──────────────────────────────────────────────────────────────
 
-#: Whether this process keeps resident chats (a serve). Injected by the layer that owns the
-#: registry (``persona_chat_continuity.runtime_registry.initialize_persona_chat_runtime_registry``)
-#: so this policy module never imports a store.
-_LIVE: dict[str, Callable[[], bool] | None] = {"check": None}
+#: Whether this process is a serve that has set up its chat registry -- resident chats ON OR OFF.
+#: Injected by the layer that owns the registry
+#: (``persona_chat_continuity.runtime_registry.initialize_persona_chat_runtime_registry``) so this
+#: policy module never imports a store.
+_LIVE: dict[str, Callable[[], bool] | None] = {"check": None, "resident": None}
 
 
-def bind_registry_live(check: Callable[[], bool] | None) -> None:
-    """Set the callable that answers "is the resident chat registry on?" (None: off)."""
+def bind_registry_live(check: Callable[[], bool] | None, resident: Callable[[], bool] | None = None) -> None:
+    """Set the callables that answer "has this serve set up its chat registry?" and "does it keep
+    resident chats?" (None: no). Without resident chats the last actor is discarded at turn end, so
+    the socket refresh never reads it back (it would build a client on a closed actor)."""
 
     _LIVE["check"] = check
+    _LIVE["resident"] = resident
 
 
-def _enabled() -> bool:
-    check = _LIVE["check"]
+def _ask(name: str) -> bool:
+    check = _LIVE[name]
     try:
         return bool(check()) if check is not None else False
     except Exception:
         return False
+
+
+def _enabled() -> bool:
+    return _ask("check")
 
 
 def arm() -> threading.Thread | None:
@@ -198,11 +212,11 @@ def tick_once(tick: int = 0) -> tuple[list[str], str]:
             logger.debug("idle refresh %s failed", key, exc_info=True)
     socket = "none"
     ref = _STATE.get("agent")
-    agent = ref() if ref is not None else None
-    if agent is not None and not turn_window_open():
-        from agent_runtime.provider_preconnect import refresh_idle_connection
+    agent = ref() if ref is not None and _ask("resident") else None
+    if not turn_window_open():
+        from agent_runtime.provider_preconnect import refresh_idle_connection, refresh_process_connection
 
-        socket = refresh_idle_connection(agent)
+        socket = refresh_idle_connection(agent) if agent is not None else refresh_process_connection()
     kinds = sorted({key.split(":", 1)[0] for key in refreshed})  # the key's tail is a home path
     logger.info(KEEPER_RECEIPT, tick, ",".join(kinds) or "none", socket,
                 max(0, int((time.perf_counter() - started) * 1000)))

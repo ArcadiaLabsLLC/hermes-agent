@@ -82,6 +82,8 @@ import weakref
 from typing import Any
 from urllib.parse import urlsplit
 
+from .process_state import register_process_state
+
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
@@ -346,6 +348,69 @@ def _idle_target(agent: Any) -> tuple[Any, ...] | str:
         return _IDLE_TARGETS.get(id(agent)) or STATUS_NO_TARGET
 
 
+#: h-idle-cold (2026-10-16): the last chat's URL and identity, held past its actor. A serve with
+#: resident chats off builds a fresh actor every turn and drops it at turn end, so no actor is
+#: left for :func:`refresh_idle_connection` to read; the keeper sends its ``HEAD`` through a
+#: client of its own on the process-shared pool instead (:func:`refresh_process_connection`).
+_PROCESS_TARGET: dict[str, Any] = {"target": None, "http": None}
+
+
+def remember_process_target(agent: Any) -> None:
+    """Record ``agent``'s base URL and identity headers for the idle keeper. Never raises."""
+
+    try:
+        url = _base_url(agent)
+        host = (urlsplit(url).hostname or "").lower()
+        if not url or not host or _is_loopback(host):
+            return
+        target = (url, host, _identity_headers(agent))
+        with _IDLE_TARGETS_LOCK:
+            if _PROCESS_TARGET["target"] != target:
+                _PROCESS_TARGET.update(target=target, http=None)
+    except Exception:
+        logger.debug("process idle target not recorded", exc_info=True)
+
+
+def refresh_process_connection() -> str:
+    """ONE ``HEAD`` on the process-shared pool the next turn's fresh client will mount. Returns a status.
+
+    The client is ``agent.process_bootstrap.build_keepalive_http_client`` for the remembered URL:
+    every client it builds for that URL mounts the same shared transport, so the connection this
+    keeps is the one a new actor's first request checks out.
+    """
+
+    with _IDLE_TARGETS_LOCK:
+        target, http = _PROCESS_TARGET["target"], _PROCESS_TARGET["http"]
+    if target is None:
+        return STATUS_NO_TARGET
+    url, host, headers = target
+    if http is None:
+        from agent.process_bootstrap import build_keepalive_http_client
+
+        http = build_keepalive_http_client(url)
+        if http is None:
+            return STATUS_NO_CLIENT
+        with _IDLE_TARGETS_LOCK:
+            if _PROCESS_TARGET["target"] == target:
+                _PROCESS_TARGET["http"] = http
+    started = time.perf_counter()
+    try:
+        status, kept = _open_connections(http, url, headers, count=1)
+    except Exception:
+        logger.debug("idle keep-warm failed for %s", host, exc_info=True)
+        status, kept = STATUS_FAILED, 0
+    logger.info(IDLE_KEEPWARM_RECEIPT, host, status, kept, max(0, int((time.perf_counter() - started) * 1000)))
+    return status
+
+
+def reset_process_target_for_tests() -> None:
+    with _IDLE_TARGETS_LOCK:
+        _PROCESS_TARGET.update(target=None, http=None)
+
+
+register_process_state(__name__, reset_process_target_for_tests, holds=("_PROCESS_TARGET",))
+
+
 def refresh_idle_connection(agent: Any) -> str:
     """h-idle-turn: ONE ``HEAD`` on the connection ``agent``'s turns ride, between turns. Returns a status.
 
@@ -380,4 +445,7 @@ __all__ = [
     "note_process_request_sent",
     "preopen_provider_connection",
     "refresh_idle_connection",
+    "refresh_process_connection",
+    "remember_process_target",
+    "reset_process_target_for_tests",
 ]
