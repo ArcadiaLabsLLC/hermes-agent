@@ -1,25 +1,22 @@
 """Carry native error classification on its terminal result, never on the agent."""
 
+import re
 from typing import Any
 
-from agent.api_error_summary import ApiErrorSummaryMixin
 from agent.error_classifier import ClassifiedError
 
-
-class _ProviderBody(Exception):
-    """A provider's raw error text with its status, for the shared one-line summariser."""
-
-    def __init__(self, text: str, status_code: int | None) -> None:
-        super().__init__(text)
-        self.status_code = status_code
+_HTML_TITLE = re.compile(r"<title[^>]*>([^<]+)</title>", re.IGNORECASE)
 
 
 def _block_message(value: str, status_code: int | None) -> str:
-    """The block's ``message``: an HTML error page becomes the summary the serve logs
-    (``HTTP 404 — Not Found``); the page itself stays in the log, never on the wire."""
-    if "<!DOCTYPE" in value or "<html" in value:
-        return ApiErrorSummaryMixin._summarize_api_error(_ProviderBody(value, status_code))
-    return value
+    """The block's ``message``: an HTML error page becomes the one line the serve logs for
+    it (``HTTP 404 — Not Found``, the shape ``ApiErrorSummaryMixin`` writes); the page
+    itself stays in the log, never on the wire."""
+    if "<!DOCTYPE" not in value and "<html" not in value:
+        return value
+    match = _HTML_TITLE.search(value)
+    title = match.group(1).strip() if match else "HTML error page (title not found)"
+    return f"HTTP {status_code} — {title}" if status_code else title
 
 
 def attach_provider_failure(
