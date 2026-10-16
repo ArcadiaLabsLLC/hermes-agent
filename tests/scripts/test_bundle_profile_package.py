@@ -502,3 +502,90 @@ def test_every_build_phase_prints_its_time_the_moment_it_ends(capsys):
     with pkg.phase("plan"):
         pass
     assert capsys.readouterr().out.startswith("phase plan: ") and pkg.PHASE_TIMES[before][0] == "plan"
+
+
+def _build_stubs(monkeypatch, tmp_path: Path, packs: dict):
+    """``_build`` with every heavy phase stubbed: what remains is how it plans and verifies."""
+    import scripts.bundle_profile_package as pkg
+
+    calls: list = []
+    written: dict = {}
+
+    def plans(profile, jobs, target, python_version, **_kw):
+        calls.append([sorted(selections) for _sites, selections in jobs])
+        return [{key: ({"core-dist", *((f"{key}-dist",) if key else ())}, []) for key in selections}
+                for _sites, selections in jobs]
+
+    monkeypatch.setattr(pkg, "distribution_plans", plans)
+    monkeypatch.setattr(pkg, "make_plan", lambda manifest, site, target, pv, index=None, distributions=None:
+                        _plan(set(), distributions[0]))
+    monkeypatch.setattr(pkg, "write_bundle", lambda *a, **k: {"first_party_files": 0, "distributions": {},
+                                                               "third_party_files": 0})
+    monkeypatch.setattr(pkg, "read_site", lambda site: {n: None for n in ("core-dist", *(f"{p}-dist" for p in packs))})
+
+    def write_pack(manifest, pack, names, dists, stage, out, target, pv):
+        written[pack] = names
+        return {"distributions": dict.fromkeys(names, "1"), "files": 0}
+
+    monkeypatch.setattr(pkg, "write_pack", write_pack)
+    monkeypatch.setattr(pkg, "verify_bundle", lambda *a, **k: [])
+    monkeypatch.setattr(pkg, "verify_pack", lambda *a, **k: [])
+    args = SimpleNamespace(reuse_stage=True, target="win32-x64", python_version="3.14.7", out=tmp_path / "core",
+                           bake_with=None, uv="uv", offline=False)
+    manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=())
+    (tmp_path / "core.pool").mkdir()
+    return pkg, args, manifest, calls, written
+
+
+def test_a_build_plans_the_core_and_every_pack_in_one_child_and_verifies_them_in_one_more(monkeypatch, capsys,
+                                                                                          tmp_path: Path):
+    """Lane h-bundle-speed (2026-10-16): a build with N engine packs starts TWO planning children —
+    one for the core and every pack over the pool, one re-planning the written core and packs from
+    their own metadata — where it used to start 2 + 4N (22 for five packs, 88 min for the QA bundle).
+    Every phase prints a ``phase <name>: <s>s`` line, and the build closes with ``phase total``.
+
+    Killing mutation: plan each pack in ``_build`` with ``pack_distributions(manifest, pack, [stage],
+    …)`` again (the per-pack core recompute) -> two more children, red."""
+    pkg, args, manifest, calls, written = _build_stubs(monkeypatch, tmp_path, {"a": ("x",), "b": ("y",)})
+    assert pkg._build(args, manifest, {}, tmp_path / "core.pool", None) == 0
+    assert calls == [[["", "a", "b"]], [[""], ["", "a"], ["", "b"]]]
+    assert written == {"a": {"a-dist"}, "b": {"b-dist"}}  # a pack is what its selection adds to the core's
+    out = capsys.readouterr().out
+    assert [line.split(":")[0] for line in out.splitlines() if line.startswith("phase ")] == [
+        "phase plan", "phase copy core", "phase copy pack a", "phase copy pack b", "phase verify plan",
+        "phase verify core", "phase verify pack a", "phase verify pack b"]
+
+
+def test_a_stalled_planning_child_is_stopped_and_the_build_says_retryable(monkeypatch, capsys, tmp_path: Path):
+    """The closure step must not turn load into a hard failure (runtime-queue row, 2026-10-15): the
+    child is stopped only when its progress report stands still, and the build exits
+    ``EXIT_RETRYABLE`` with a ``RETRYABLE:`` line. Positive control: a child that keeps reporting
+    NEW progress for longer than the stall window finishes and is read.
+
+    Killing mutation: reset the stall clock on any progress line, not only a changed one -> the
+    frozen child is stopped by the cap instead and the "no progress" assertion reds."""
+    import sys
+
+    import scripts.bundle_profile_package as pkg
+
+    frozen = ("import sys, time\n"
+              "while True:\n    print('progress walk parses=7', file=sys.stderr, flush=True); time.sleep(0.1)\n")
+    moving = ("import sys, time\n"
+              "for n in range(30):\n    print(f'progress walk parses={n}', file=sys.stderr, flush=True); time.sleep(0.1)\n"
+              "print('answer')\n")
+    with pytest.raises(pkg.PlanStalled, match="no progress for 1s"):
+        pkg._run_planner([sys.executable, "-c", frozen], stall=1, cap=20)
+    assert pkg._run_planner([sys.executable, "-c", moving], stall=1, cap=20).strip() == "answer"
+
+    _pkg, _args, manifest, _calls, _written = _build_stubs(monkeypatch, tmp_path, {})
+
+    def stalled(*_a, **_k):
+        raise pkg.PlanStalled("closure planning child no progress for 300s (last: progress walk parses=7)")
+
+    monkeypatch.setattr(pkg, "distribution_plans", stalled)
+    monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
+    monkeypatch.setattr("agent_runtime.bundle_profiles.manifest.load_profile", lambda _name: manifest)
+    assert pkg.main(["--target", "win32-x64", "--out", str(tmp_path / "core"), "--reuse-stage",
+                     "--no-serve-probe"]) == pkg.EXIT_RETRYABLE
+    out = capsys.readouterr().out
+    assert "RETRYABLE: closure planning child no progress" in out and "phase total:" in out
