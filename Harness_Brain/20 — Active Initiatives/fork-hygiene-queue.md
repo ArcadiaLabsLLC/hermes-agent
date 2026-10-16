@@ -420,7 +420,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-10 (build batch 2 C5–C6, fast gate FG2–FG3, landing 1011-batch2, filed by the orchestrator)
 
 - [ ] **A carried-PR test in an upstream file hits the 30 s cap: `tests/scripts/test_run_tests_parallel.py::test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips` times out in its bundle and alone; not in v0.21.6, so no upstream table can mark it** · fork / suite · build-1011-C6 D3.13 run, `7625cb7dad` · lane: carried-PR owner · still red alone 2026-10-15 (`+++ Timeout +++`): the test waits a 30 s scaled bound by design, so it needs `@pytest.mark.timeout(90)`, and as a carried hunk of PR #125263 the decorator goes on the PR branch first · the same node's q-suite-reds row is below · DEFERRED 2026-10-16: owner "pr branches should remain idle" — until upstream accepts the owner's PRs again
-- [ ] **Process kinds / vias are bare strings across four modules ("known-red", "shard i/k", "whole-check", "rerun", "retry") and the ledger counts them by first word; a typed via is the bar** · fork / suite · `RunLedger.summary`, `SoloPolicy`, `ShardJoin` (build-fastgate-FG2) · lane: one CHANGE (no `_Run` state MOVE row is open) · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-isolation)**
 
 ## Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 

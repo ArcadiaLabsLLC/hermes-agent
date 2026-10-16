@@ -23,10 +23,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import run_tests_bundled_cache as cache  # noqa: E402 — registered by run_tests_bundled._load_sibling
+import run_tests_bundled_via as vias
 
 RED_FILE = "red.jsonl"
 #: ``FileOutcome.via`` of a known red reported without a process
-SKIPPED_VIA = "known-red, skipped"
+SKIPPED_VIA = vias.KNOWN_RED_SKIPPED
 
 
 def red_path(store: "cache.GateStore") -> Path:
