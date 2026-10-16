@@ -51,6 +51,8 @@ _SHUTDOWN_TIMEOUT_SECS = 10.0
 # loaded machine (``5019 compute host did not send hello``, 3/3 under load).
 # Additive: the fixed wait is untouched and still runs after this one.
 _HELLO_COLD_START_GRACE_SECS = 50.0
+# A cold host imports the agent stack before its hello (~1.3s idle, 5s+ on a loaded box).
+_HELLO_TIMEOUT_SECS = 10.0
 # Late control-ack handlers: a compress that outlives its RPC waiter can run for the full
 # compression ceiling plus a stall-fallback retry, so keep registrations past that — bounded.
 # See #97948.
@@ -412,7 +414,7 @@ class HostSupervisor:
         while proc.poll() is None and time.monotonic() < grace_deadline:
             if self._hello_event.wait(timeout=0.25):
                 break
-        if not self._hello_event.wait(timeout=10.0):
+        if not self._hello_event.wait(timeout=_HELLO_TIMEOUT_SECS):
             self._terminate_process(proc)
             raise RuntimeError(f"compute host did not send hello; stderr={self._stderr_tail[-5:]}")
         self._validate_hello()
