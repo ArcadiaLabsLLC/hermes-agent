@@ -1,7 +1,7 @@
 """Fork: ``PythonEnvironment.sync`` re-runs a ``uv sync`` that failed only on a Windows sharing
 violation (runtime R749: ``failed to remove directory ...pillow_heif-1.6.0.data ... os error 32``).
 
-Killing mutation: drop the ``_retry_sync_on_sharing_violation`` line from ``sync`` ->
+Killing mutation: drop the ``retry_sync_on_sharing_violation`` line from ``sync`` ->
 ``test_a_sharing_violation_is_retried_until_the_sync_succeeds`` raises InstallError.
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+import pm._fork_uv_retry as uv_retry_mod
 import pm.environment as environment_mod
 from pm.environment import PythonEnvironment
 
@@ -29,7 +30,7 @@ def _environment(tmp_path, monkeypatch, outcomes: list[tuple[int, str]]) -> tupl
         return subprocess.CompletedProcess(args, code, "", stderr)
 
     monkeypatch.setattr(PythonEnvironment, "_run", run)
-    monkeypatch.setattr(environment_mod, "_SHARING_VIOLATION_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr(uv_retry_mod, "SHARING_VIOLATION_RETRY_DELAYS", (0.0, 0.0))
     env = PythonEnvironment(uv=Path("uv"), python=Path(sys.executable), destination=tmp_path / "env",
                             cache=tmp_path / "cache", env={})
     return env, calls

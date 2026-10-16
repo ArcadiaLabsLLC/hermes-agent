@@ -320,11 +320,6 @@ def is_current_session_yolo_enabled() -> bool:
     return is_session_yolo_enabled(get_current_session_key(default=""))
 
 
-def approval_bypass_active(session_key: str) -> bool:
-    """Whether process or session YOLO bypasses approval prompts for this key."""
-    return _YOLO_MODE_FROZEN or is_session_yolo_enabled(session_key)
-
-
 def _yolo_active() -> bool:
     """CLI ``--yolo`` (process-scoped, frozen at import) or gateway ``/yolo``
     (session-scoped). Hardline / deny-rule floors run BEFORE this everywhere."""

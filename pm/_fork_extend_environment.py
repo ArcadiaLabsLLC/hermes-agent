@@ -18,9 +18,8 @@ __all__ = ["extend_environment"]
 def extend_environment(requirements: Sequence[str], *, environment: Path, explicit: bool = False,
                        timeout: int = 300) -> bool:
     """Install ``requirements`` into ``environment`` in place. False on a resolver conflict."""
-    from pm.environment import (
-        ResolutionConflict, _retry_sync_on_sharing_violation, classify_uv_failure, managed_environment,
-    )
+    from pm._fork_uv_retry import retry_sync_on_sharing_violation
+    from pm.environment import ResolutionConflict, classify_uv_failure, managed_environment
     from pm.environments import venv_python
     from pm.operations import _require_install_allowed, _requirements
 
@@ -31,7 +30,7 @@ def extend_environment(requirements: Sequence[str], *, environment: Path, explic
     engine = managed_environment(environment, python=python, explicit=explicit)
     command = ["pip", "install", "--python", str(python), *requirements]
     result = engine._run(command, cwd=environment, timeout=timeout)
-    result = _retry_sync_on_sharing_violation(engine._run, command, environment, timeout, result)
+    result = retry_sync_on_sharing_violation(engine._run, command, environment, timeout, result)
     if not result.returncode:
         return True
     failure = classify_uv_failure("pip install", result.returncode, result.stderr or result.stdout)
