@@ -13,7 +13,7 @@ def inspect_children(install_id, scope, live, operation, params):
         "session_id": live.native_id,
         "owner_scope": digest([install_id, scope.key, live.route.id]),
         "worker_generation": live.worker.generation,
-        **{key: params[key] for key in (*COMMAND_PARAMS, "text") if key in params},
+        **{key: params[key] for key in (*COMMAND_PARAMS, "text", "host_ref", "paused") if key in params},
     }
     try:
         result = live.peer.call("eternia.subagents." + operation, request)

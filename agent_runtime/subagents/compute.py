@@ -26,6 +26,8 @@ def observe(operation: str, params: dict, owner: tuple) -> dict:
         else:
             reply = supervisor.observe(params["session_id"], "eternia.subagents." + operation, forwarded)
     except (OSError, RuntimeError, queue.Empty) as exc:
+        if operation == "spawning.set":
+            raise SubagentError(Refusal.UNKNOWN) from exc
         if operation in MUTATIONS:
             return {"version": VERSION, "generation": params["expected_generation"], "observed_at": time.time(),
                     "request_id": params["request_id"], "child_ref": params["child_ref"], "subagent_id": None,
@@ -34,7 +36,10 @@ def observe(operation: str, params: dict, owner: tuple) -> dict:
     if error := reply.get("error"):
         reason = next((reason for reason, code in ERROR_CODES.items() if code == error.get("code")), Refusal.UNAVAILABLE)
         raise SubagentError(reason)
-    return reply["result"]["data"]
+    data = reply["result"]["data"]
+    if operation in ("spawning", "spawning.set"):
+        data = {**data, "host_kind": "isolated_compute"}
+    return data
 
 
 def control_ack(server, frame, transport):

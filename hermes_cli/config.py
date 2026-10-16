@@ -161,7 +161,7 @@ def validate_env_var_name_for_write(key: str) -> None:
 # acquires it again (hermes_cli/plugins.py: `with ..., config_mod._CONFIG_LOCK:` then
 # read_user_config_raw() + save_config()). save_config itself no longer re-enters via
 # read_raw_config; it takes its raw mapping from require_readable_config_before_write.
-_CONFIG_LOCK = threading.RLock()
+_CONFIG_LOCK = CONFIG_WRITE_LOCK = threading.RLock()
 # path -> last successfully loaded (expanded) config; served after a parse failure so a
 # mid-edit broken YAML never silently drops user overrides (e.g. approvals.deny rules).
 _LAST_EXPANDED_CONFIG_BY_PATH: dict[str, Any] = {}
@@ -2462,11 +2462,6 @@ def _commented_sections_for_save(normalized: dict[str, Any]) -> Optional[str]:
     if not any(isinstance(e, dict) and e.get("provider") and e.get("model") for e in fb_entries):
         parts.append(_FALLBACK_COMMENT)
     return "".join(parts) or None
-
-
-def config_write_lock():
-    """Share the native in-process write lock across a guarded read/modify/save."""
-    return _CONFIG_LOCK
 
 
 def save_config(

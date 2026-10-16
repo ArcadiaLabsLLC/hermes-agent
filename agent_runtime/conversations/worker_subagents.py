@@ -11,6 +11,7 @@ def declare_contracts():
     from tui_gateway.contracts.base import Result
     from tui_gateway.contracts.common import SessionParams
     from tui_gateway.contracts.profiles_vault_complete_foreign_subagents import SubagentSnapshot
+    from pydantic import StrictBool
 
     class SubagentReadParams(SessionParams):
         owner_scope: str
@@ -23,6 +24,10 @@ def declare_contracts():
 
     class SubagentSteerParams(SubagentCommandParams):
         text: str
+
+    class SpawningSetParams(SubagentReadParams):
+        host_ref: str
+        paused: StrictBool
 
     class OwnedSubagentSnapshot(SubagentSnapshot):
         child_ref: str | None
@@ -68,16 +73,25 @@ def declare_contracts():
     class ChildCommandResult(Result):
         data: ChildCommand
 
+    class SpawningObservation(ChildObservation):
+        scope: str
+        host_kind: str
+        host_ref: str
+        paused: bool
+
+    class SpawningResult(Result):
+        data: SpawningObservation
+
     results = {"capabilities": ChildCapabilitiesResult, "list": ChildRosterResult, "tail": ChildTailResult,
-               "steer": ChildCommandResult, "stop": ChildCommandResult, "receipt": ChildCommandResult}
+               "steer": ChildCommandResult, "stop": ChildCommandResult, "receipt": ChildCommandResult,
+               "spawning": SpawningResult, "spawning.set": SpawningResult}
+    parameters = {"steer": SubagentSteerParams, "stop": SubagentCommandParams,
+                  "receipt": SubagentCommandParams, "spawning.set": SpawningSetParams}
 
     for operation in OPERATIONS:
         name = "eternia.subagents." + operation
         if name not in registry.METHODS:
-            params = SubagentCommandParams if operation in ("steer", "stop", "receipt") else SubagentReadParams
-            if operation == "steer":
-                params = SubagentSteerParams
-            registry.method(name, params=params, result=results[operation])
+            registry.method(name, params=parameters.get(operation, SubagentReadParams), result=results[operation])
 
 
 def inspect(operation, rid, params):
