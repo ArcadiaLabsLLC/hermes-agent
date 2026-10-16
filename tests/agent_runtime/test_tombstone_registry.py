@@ -3952,6 +3952,16 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "tui_gateway.session_recovery",
         "tui_gateway.session_retirement",
     ),
+    # -- lane q-docs: upstream v0.22.2 removed the table the script sorted --
+    *rows(
+        "s-q-docs",
+        "HEAD",
+        Form.PATH,
+        "upstream v0.22.2 (abbc2ba35c8) removed uv.lock's exclude-newer-package "
+        "table, the only thing this script sorted; its gate test went with it",
+        "scripts/sort_uv_lock_options.py",
+        "tests/scripts/test_sort_uv_lock_options.py",
+    ),
 )
 
 
