@@ -126,7 +126,7 @@ def test_native_branch_revision_pin_is_checked_inside_writer(tmp_path):
         db.create_session("source", source="mission_chat")
         db.append_message("source", "user", "original")
         row = db.get_messages("source")[0]
-        revision = db.history_control_revision("source")
+        revision = db.branch_history_revision("source")
         db.append_message("source", "assistant", "late reply")
         with pytest.raises(HistoryControlError, match="history_changed"):
             db.branch_before_message("source", row["id"], child_session_id="child", expected_history_digest=revision,
