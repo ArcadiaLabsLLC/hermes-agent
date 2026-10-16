@@ -1051,3 +1051,20 @@ class TestLightpandaPostSetup:
         # Not in the forced-setup gate: a missing binary must not nag every
         # user who toggles the browser toolset.
         assert "lightpanda" not in _POST_SETUP_INSTALLED
+
+
+def test_explicit_empty_list_does_not_enable_default_on_plugin_toolsets(monkeypatch):
+    """``platform_toolsets.cli: []`` is an explicit zero-tool state (#82010): a default-on
+    plugin toolset must not ride back in. Only an ABSENT key keeps plugin toolsets on by default."""
+    import hermes_cli.tools_config as _tc_mod
+
+    monkeypatch.setattr(_tc_mod, "_get_plugin_toolset_keys", lambda: {"zz_plugin_ts"})
+
+    explicit_empty = _get_platform_tools(
+        {"platform_toolsets": {"cli": []}}, "cli", include_default_mcp_servers=False
+    )
+    assert "zz_plugin_ts" not in explicit_empty
+
+    # Control: with no saved list the plugin toolset stays on by default.
+    absent = _get_platform_tools({}, "cli", include_default_mcp_servers=False)
+    assert "zz_plugin_ts" in absent

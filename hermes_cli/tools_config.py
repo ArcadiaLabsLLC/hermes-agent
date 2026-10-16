@@ -606,7 +606,8 @@ def _get_platform_tools(config: dict, platform: str, *, include_default_mcp_serv
         enabled_toolsets = _composite_toolsets(toolset_names, platform, explicitly_configured)
 
     _recover_platform_native_toolsets(enabled_toolsets, platform, skip=configurable_keys | plugin_ts_keys | platform_default_keys)
-    if plugin_ts_keys:
+    # An explicit EMPTY list is a zero-tool state (#82010): default-on plugin toolsets stay off too.
+    if plugin_ts_keys and not (explicitly_configured and not toolset_names):
         enabled_toolsets |= _enabled_plugin_toolsets(config, platform, toolset_names, plugin_ts_keys)
 
     # Context-engine tools are runtime-provided, not in any static composite: keep them for a non-default
