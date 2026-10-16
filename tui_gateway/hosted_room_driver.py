@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ContextManager, Protocol, cast
 
+from agent_runtime.discussions.hosted_room_driver_ext import with_independent_members
 from gateway import hosted_room_driver as state
 
 _CANCEL_ROUTE_RETRIES = 8
@@ -91,6 +92,7 @@ def _fences(task: Mapping[str, Any]) -> dict[str, int]:
             "expected_cancel_generation": int(task["cancel_generation"])}
 
 
+@with_independent_members
 class HostedRoomRuntime:
     """Run queued hosted-room tasks independently of Desktop connections."""
 
@@ -184,17 +186,6 @@ class HostedRoomRuntime:
             # the terminal-publication/route-repair race without busy-looping idle rooms.
             self._rooms_needing_reschedule.update(self._room_threads)
         self._wake.set()
-
-    def request_reconciliation(self, identity: state.TaskIdentity) -> None:
-        """A host has fresh evidence for this exact task (for example a human answer).
-
-        Invalidate only its negative recovery observation, not its durable lease
-        or generation. The existing worker still decides whether it can settle.
-        """
-        for key in tuple(self._inspected_indeterminate_attempts):
-            if key[:2] == (identity.room_id, identity.task_id):
-                self._inspected_indeterminate_attempts.discard(key)
-        self.wakeup()
 
     def status(self) -> dict[str, Any]:
         """Return a transport-neutral snapshot of runtime health."""
@@ -648,24 +639,6 @@ class HostedRoomRuntime:
                 # thread held its slot: schedule exactly one follow-up after it leaves
                 # (idle room scans never set this marker).
                 self._rooms_needing_reschedule.add(binding.room_id)
-
-    def _observe_independent_members(self, binding: HostedRoomBinding, lease: state.DriverLease) -> None:
-        """Observe the same task receipts without parking a room on one member."""
-        for task in self._tasks(binding, "running"):
-            if not task["payload"].get("independent", False):
-                continue
-            lease = self._renew_lease_if_needed(lease)
-            if self.clock() >= float(task["started_at"]) + self.turn_timeout_seconds:
-                self._expire_attempt_deadline(binding, task, lease)
-                continue
-            inspection = self._inspect_recovery_session(binding, task)
-            if inspection.terminal is not None:
-                attempt = state.TaskAttempt(identity=task["identity"], lease=lease,
-                    execution_generation=task["execution_generation"],
-                    cancel_generation=task["cancel_generation"])
-                with suppress(state.StaleTaskError):
-                    self._publish(binding, state.settle_task(self.db_path, attempt,
-                        **asdict(inspection.terminal), clock=self.clock))
 
     def _mark_ambiguous(self, binding: HostedRoomBinding, attempt: state.TaskAttempt) -> None:
         self._drop_lease(binding.room_id)
