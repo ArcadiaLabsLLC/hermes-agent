@@ -46,6 +46,7 @@ from agent_runtime.builds.unknowns import (
 )
 from agent_runtime.builds.vocabulary import (
     DETECT_BUDGET_MS,
+    DETECTED_SUB_REASONS,
     SUB_REASON_NO_SLOTS_DECLARED,
     SUB_REASON_NOT_IN_PROCESS,
     SUB_REASON_SCAN_BUDGET,
@@ -114,6 +115,10 @@ class DetectScan:
     unknowns: UnknownsIndex = field(default_factory=UnknownsIndex)
 
     def sub(self) -> dict[str, Any]:
+        if self.reason and self.reason not in DETECTED_SUB_REASONS:
+            # Only this module writes ``reason``, from the vocabulary's constants: a word
+            # outside the tuple is a producer bug, reported as the lane's collector_failed.
+            raise ValueError(f"detected sub reason {self.reason!r} is not a word of {DETECTED_SUB_REASONS}")
         return {"status": self.status, "reason": self.reason, "scan_ms": self.scan_ms,
                 "processes_examined": self.processes_examined, "candidates": self.candidates,
                 "budget_ms": self.budget_ms, "unknowns": self.unknowns.wire()}

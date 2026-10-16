@@ -127,7 +127,6 @@ REGISTRY_DIR_ENV = "HERMES_BUILD_REGISTRY_DIR"
 #: The writer's own ``status`` words.
 RECORD_STATUS_QUEUED = "queued"
 RECORD_STATUS_RUNNING = "running"
-RECORD_STATUS_FINISHED = "finished"
 #: ``controls.stop`` / ``controls.restart`` as a WRITER declares them.
 RECORD_STOP_REQUEST = "request"
 RECORD_STOP_KILL_TREE = "kill_tree"

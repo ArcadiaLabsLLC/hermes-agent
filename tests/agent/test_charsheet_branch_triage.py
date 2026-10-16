@@ -38,6 +38,7 @@ from pathlib import Path
 import pytest
 
 from agent.charsheet import palette as palette_mod
+from tests._downstream._seams import palette_colors
 from agent.charsheet import pipeline
 from agent.charsheet import prompts as prompts_mod
 from agent.charsheet.draft import (
@@ -88,8 +89,8 @@ def test_palette_sources_may_be_paths_not_only_images(tmp_path):
 
     assert from_path.mode == "P"
     # The same pixels by either door, so the path arm is not a second policy.
-    assert palette_mod.palette_colors(from_path) == palette_mod.palette_colors(from_image)
-    assert palette_mod.palette_colors(from_str) == palette_mod.palette_colors(from_image)
+    assert palette_colors(from_path) == palette_colors(from_image)
+    assert palette_colors(from_str) == palette_colors(from_image)
 
 
 @pytest.mark.parametrize("bad", [True, False, "48", 48.0, None])
@@ -150,7 +151,7 @@ def test_palette_colors_refuses_an_image_that_is_not_p_mode(mode):
     module was built to make impossible.
     """
     with pytest.raises(ValueError, match="expected a 'P'-mode palette image"):
-        palette_mod.palette_colors(Image.new(mode, (4, 4)))
+        palette_colors(Image.new(mode, (4, 4)))
 
 
 def test_palette_colors_answers_the_same_list_with_or_without_assigned_slots():
@@ -173,11 +174,11 @@ def test_palette_colors_answers_the_same_list_with_or_without_assigned_slots():
     unassigned = Image.new("P", (4, 4))
     assert unassigned.palette.colors == {}
     assert unassigned.getpalette() in (None, [])
-    assert palette_mod.palette_colors(unassigned) == []
+    assert palette_colors(unassigned) == []
 
     # Assigned: the filter still drops Pillow's padding.
     quantized = palette_mod.build_palette([_rgba((7, 9, 11, 255))], max_colors=2)
-    triples = palette_mod.palette_colors(quantized)
+    triples = palette_colors(quantized)
     assert triples and len(triples) < 256
     assert set(triples) == set(quantized.palette.colors)
 

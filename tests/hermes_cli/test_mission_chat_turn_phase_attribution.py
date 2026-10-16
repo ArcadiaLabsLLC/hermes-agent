@@ -83,15 +83,20 @@ def test_overlap_is_interval_intersection_not_containment(empty_ledger, span, ex
 
 
 def test_a_build_that_RAISED_still_occupied_the_process(empty_ledger):
-    """The span scope records on the way out, exception or not.
+    """A span closed on the way out is recorded, exception or not.
 
     A build that died halfway still spent that time in this process, and a turn
-    that overlapped it paid exactly the same price as if it had succeeded.
+    that overlapped it paid exactly the same price as if it had succeeded. The
+    production build (``snapshot.build``) closes its span in ``finally``; this
+    drives the same begin/end pair.
     """
 
     with pytest.raises(RuntimeError):
-        with snapshot_build_ledger.build_span_scope():
+        token = snapshot_build_ledger.begin_build()
+        try:
             raise RuntimeError("build blew up")
+        finally:
+            snapshot_build_ledger.end_build(token)
     assert empty_ledger.overlapping_builds(start=0.0, end=1e18) == 1
 
 

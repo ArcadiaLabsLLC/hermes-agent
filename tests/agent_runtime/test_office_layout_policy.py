@@ -172,8 +172,9 @@ def test_every_fixture_slot_is_genuinely_free(case):
 
 
 def _resolve_case(case: dict) -> tuple[float, float]:
-    """One case through the live policy: ``next_free_slot_for_kind``'s body with
-    the actor flattening skipped, because a case gives already-flat items.
+    """One case through the live policy: ``next_free_slot`` over the kind's folder
+    scan and lane, with the actor flattening skipped, because a case gives
+    already-flat items.
 
     The folder and the lane come from the POLICY, not from the case's own
     ``folder`` / ``lane_offset`` fields. Those two fields are the launcher's
@@ -481,10 +482,6 @@ def test_occupied_positions_flattens_actors_the_way_the_store_hands_them_over():
     assert policy.occupied_positions(actors, folder="Desks") == [
         policy.slot_at(0, 0, lane_offset=desk_lane)
     ]
-    assert policy.next_free_slot_for_kind(actors, "agent") == policy.slot_at(1, 0)
-    assert policy.next_free_slot_for_kind(actors, "desk") == policy.slot_at(
-        1, 0, lane_offset=desk_lane
-    )
 
 
 def test_a_stored_blank_folder_is_scanned_as_its_kinds_default():

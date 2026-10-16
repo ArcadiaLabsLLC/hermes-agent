@@ -53,6 +53,16 @@ RESOLUTION_ENV_PROFILE_DIR = "env_profile_dir"
 RESOLUTION_ACTIVE_PROFILE_MARKER = "active_profile_marker"
 RESOLUTION_DEFAULT = "default"
 
+#: Every rung main.py's ladder can name. The receipt reads it: a value outside it
+#: (a pre-parse that grew a rung this module never heard of, or a stray env var)
+#: is reported as ``resolution_recognised: false``, never passed off as a rung.
+RESOLUTION_RUNGS = (
+    RESOLUTION_FLAG,
+    RESOLUTION_ENV_PROFILE_DIR,
+    RESOLUTION_ACTIVE_PROFILE_MARKER,
+    RESOLUTION_DEFAULT,
+)
+
 #: main.py writes the answering rung here; the gateway reads it back at boot.
 #: An env var rather than a return value because the pre-parse runs before any
 #: hermes module is importable — that is the whole point of the pre-parse.
@@ -146,12 +156,14 @@ def build_gateway_home_receipt(
     (see :func:`env_key_names`); no value reaches this function.
     """
     profile = profile_name_of(hermes_home)
+    recognised = resolution in RESOLUTION_RUNGS
     telegram_configured = any(
         str(key).startswith(TELEGRAM_KEY_PREFIX) for key in env_keys
     )
     summary = (
         f"gateway home {hermes_home} "
-        f"(profile={profile or 'none'}, resolved by {resolution}), "
+        f"(profile={profile or 'none'}, resolved by {resolution}"
+        f"{'' if recognised else ' — not a rung this build knows'}), "
         f"{len(env_keys)} env key(s), "
         f"telegram_configured={str(telegram_configured).lower()}"
     )
@@ -163,6 +175,7 @@ def build_gateway_home_receipt(
         "profile": profile,
         "hermes_home": str(hermes_home),
         "resolution": resolution,
+        "resolution_recognised": recognised,
         "env_key_count": len(env_keys),
         "telegram_configured": telegram_configured,
     }

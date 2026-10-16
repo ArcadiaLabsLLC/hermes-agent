@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -133,25 +132,6 @@ def expiry_for(record: dict[str, Any]) -> float | None:
         return finished + FINISHED_RECORD_TTL_SECONDS
     started = _epoch(record.get("started_at"))
     return None if started is None else started + RUNNING_RECORD_TTL_SECONDS
-
-
-def write_record(directory: Path, record: dict[str, Any]) -> Path:
-    """Temp-then-rename the record to ``<directory>/<job_id>.json`` (the writer's own file)."""
-
-    job_id = str(record.get("job_id") or "").strip()
-    if not job_id or any(sep in job_id for sep in ("/", "\\", "..")):
-        raise ValueError(f"invalid job_id {job_id!r}")
-    directory.mkdir(parents=True, exist_ok=True)
-    target = directory / f"{job_id}.json"
-    fd, temp = tempfile.mkstemp(prefix=f".{job_id}.", suffix=".tmp", dir=directory)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(record, handle, sort_keys=True)
-        os.replace(temp, target)
-    except BaseException:
-        Path(temp).unlink(missing_ok=True)
-        raise
-    return target
 
 
 def stop_request_path(directory: Path, job_id: str) -> Path:

@@ -15,8 +15,9 @@ import types
 import pytest
 
 from agent_runtime.builds import history, sweep
-from agent_runtime.builds.registry import new_record, write_record
+from agent_runtime.builds.registry import new_record
 from agent_runtime.builds.vocabulary import REGISTRY_DIR_ENV
+from tests.agent_runtime._build_rows_fixture import write_record
 
 NOW = 1_759_590_720.0
 

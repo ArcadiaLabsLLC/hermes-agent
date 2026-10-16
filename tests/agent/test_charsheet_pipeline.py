@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from agent.charsheet import palette as palette_mod
+from agent.charsheet import palette as palette_mod, pipeline
+from tests._downstream._seams import palette_colors
 from agent.charsheet.palette import palette_table
-from agent.charsheet import pipeline
 from agent.charsheet.fake_draftsman import FakeDraftsman, slots_for
 from agent.charsheet.fake_draftsman import draw_glyph as _draw_glyph
 from agent.charsheet.fake_draftsman import square_image as _square_image
@@ -362,7 +362,7 @@ def test_composition_itself_leaves_no_rgb_under_transparency(sheet):
 
 def test_every_opaque_colour_on_the_sheet_comes_from_the_locked_palette(sheet, refs):
     palette = pipeline.build_sheet_palette(list(refs.values()))
-    allowed = set(palette_mod.palette_colors(palette))
+    allowed = set(palette_colors(palette))
     colors = sheet.getcolors(maxcolors=sheet.width * sheet.height) or []
     opaque = {(r, g, b) for _count, (r, g, b, alpha) in colors if alpha > 0}
 
@@ -373,7 +373,7 @@ def test_every_opaque_colour_on_the_sheet_comes_from_the_locked_palette(sheet, r
 def test_the_chroma_field_is_keyed_out_before_the_palette_is_built(refs):
     palette = pipeline.build_sheet_palette(list(refs.values()))
 
-    assert pipeline.MAGENTA not in set(palette_mod.palette_colors(palette))
+    assert pipeline.MAGENTA not in set(palette_colors(palette))
 
 
 def test_the_palette_needs_at_least_one_reference():
@@ -397,7 +397,7 @@ def test_locking_a_cell_keeps_its_alpha_and_zeroes_only_transparent_pixels(refs)
             if alpha == 0:
                 assert (r, g, b) == (0, 0, 0)
             else:
-                assert (r, g, b) in set(palette_mod.palette_colors(palette))
+                assert (r, g, b) in set(palette_colors(palette))
 
 
 def test_locking_refuses_anything_that_is_not_a_built_palette(refs):

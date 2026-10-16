@@ -31,6 +31,7 @@ from ..builds.liveness import PROGRESS, liveness_for
 from ..builds.recognizer_flutter import FlutterRecognizer
 from ..builds.unknowns import UNKNOWN_WRITER_UNIDENTIFIED
 from ..builds.vocabulary import (
+    ANNOUNCED_SUB_REASONS,
     BUILD_REGISTRY_DIRNAME,
     BUILD_STAGES,
     CONTROL_ALLOWED,
@@ -60,7 +61,7 @@ from ..builds.vocabulary import (
     SUB_REASON_REGISTRY_UNREADABLE,
 )
 from ..projection_accountant import ProjectionAccountant
-from .build_rows import BuildFacts, apply_slot, build_row, label_for, note_starter, slot_env_source
+from .build_rows import BuildFacts, apply_slot, build_row, label_for, note_starter, slot_env_source, spelled
 from .lanes_process import _read_checkpoint
 from .ownership import _head_home, _owner_of, _pid_identity
 from .rows import LanePass, _iso, _module, _preview, _source, elapsed_seconds
@@ -79,8 +80,12 @@ from .vocabulary import (
 __layer__ = "lanes"
 
 
+#: The agent and announced sub-healths' reasons (the detected one's are ``builds.detect``'s).
+_SUB_REASONS = ("", *ANNOUNCED_SUB_REASONS)
+
+
 def _sub(status: str, reason: str = "", **cost: Any) -> dict[str, Any]:
-    return {"status": status, "reason": reason, **cost}
+    return {"status": status, "reason": spelled(reason, _SUB_REASONS, "sub.reason"), **cost}
 
 
 def _census() -> Any:

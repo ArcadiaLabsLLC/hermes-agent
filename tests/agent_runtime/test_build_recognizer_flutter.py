@@ -29,6 +29,14 @@ def _golden(name: str) -> str:
     return (FIXTURES / f"{name}.txt").read_text(encoding="utf-8")
 
 
+def _recognize(text: str, *, cwd: str, seen_at: float) -> rf.FlutterRecognizer:
+    """A whole transcript in one pass, built the way the build lane builds one."""
+
+    recognizer = rf.FlutterRecognizer(cwd=cwd)
+    recognizer.feed(text, seen_at=seen_at)
+    return recognizer
+
+
 @pytest.mark.parametrize(
     ("golden", "sequence", "artifact"),
     [
@@ -39,7 +47,7 @@ def _golden(name: str) -> str:
     ],
 )
 def test_each_real_transcript_produces_its_ordered_stage_sequence(golden, sequence, artifact):
-    recognizer = rf.recognize_transcript(_golden(golden), cwd=CWD, seen_at=1.0)
+    recognizer = _recognize(_golden(golden), cwd=CWD, seen_at=1.0)
     assert recognizer.sequence == sequence
     assert recognizer.stage == sequence[-1]
     expected = None if artifact is None else {"path": CWD + "\\" + artifact, "kind": "executable"}
@@ -49,14 +57,14 @@ def test_each_real_transcript_produces_its_ordered_stage_sequence(golden, sequen
 
 
 def test_a_build_ending_without_the_built_line_indexes_the_directories_probed():
-    recognizer = rf.recognize_transcript(_golden("flutter_build_failed_link"), cwd=CWD, seen_at=1.0)
+    recognizer = _recognize(_golden("flutter_build_failed_link"), cwd=CWD, seen_at=1.0)
     recognizer.finish(target="windows", mode="release", seen_at=2.0)
     assert recognizer.artifact is None
     [entry] = recognizer.unknowns.wire()
     assert entry["kind"] == UNKNOWN_ARTIFACT_UNLOCATED
     assert "build/windows/x64/runner/Release" in entry["evidence"]
     # Positive control: a build that printed its Built line indexes nothing at finish.
-    built = rf.recognize_transcript(_golden("flutter_build_windows_release"), cwd=CWD, seen_at=1.0)
+    built = _recognize(_golden("flutter_build_windows_release"), cwd=CWD, seen_at=1.0)
     built.finish(target="windows", mode="release", seen_at=2.0)
     assert built.unknowns.wire() == []
 
@@ -75,7 +83,7 @@ def test_a_transcript_of_random_lines_is_unknown_throughout_and_indexes_nothing(
 
 def test_a_renamed_phase_indexes_exactly_that_line():
     renamed = _golden("flutter_build_windows_release").replace("Building Windows application...", "Assembling Windows application...")
-    recognizer = rf.recognize_transcript(renamed, cwd=CWD, seen_at=5.0)
+    recognizer = _recognize(renamed, cwd=CWD, seen_at=5.0)
     assert recognizer.sequence == ["done"]
     [entry] = recognizer.unknowns.wire()
     assert entry["kind"] == UNKNOWN_STAGE_LINE_UNRECOGNIZED

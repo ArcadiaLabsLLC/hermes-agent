@@ -238,19 +238,22 @@ def test_readiness_pass_leaves_credential_store_byte_identical(monkeypatch):
 def test_non_persisting_selection_still_rotates_in_memory():
     """The probe must not silently degrade round-robin to 'always the first'.
 
-    Killing mutation: make ``select_without_persisting_rotation`` skip the
-    rotation as well as the write (e.g. return ``available[0]`` unrotated) —
-    both calls hand back the same id.
+    Killing mutation: make a non-persisting ``select`` skip the rotation as
+    well as the write (e.g. return ``available[0]`` unrotated) — both calls
+    hand back the same id. Driven the way the readiness probe drives it
+    (``provider_probes``): ``select`` under ``pool_rotation_scope(False)``.
     """
     _seed_round_robin_store()
     from agent.credential_pool import load_pool
+    from agent_runtime.pool_rotation import pool_rotation_scope
 
     pool = load_pool(PROVIDER)
     # Only the ids cross into the assertions: a ``PooledCredential`` repr
     # carries its token fields, and no assertion in this suite may be one
     # failure away from printing credential-shaped material.
-    first = _selected_id(pool.select_without_persisting_rotation())
-    second = _selected_id(pool.select_without_persisting_rotation())
+    with pool_rotation_scope(False):
+        first = _selected_id(pool.select())
+        second = _selected_id(pool.select())
 
     assert first != second, (
         "the non-persisting selection pinned one credential: rotation was "

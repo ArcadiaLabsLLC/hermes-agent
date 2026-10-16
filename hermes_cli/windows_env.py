@@ -57,32 +57,6 @@ def _normalize_segment(entry: str) -> str:
     return ntpath.normcase(entry.rstrip("\\/"))
 
 
-def set_user_env(name: str, value: str) -> bool:
-    """Write ``name=value`` into HKCU\\Environment (User scope).
-
-    Preserves the existing registry value type (REG_EXPAND_SZ vs REG_SZ) when
-    the value already exists so unexpanded ``%VARS%`` are not flattened.
-    Returns True on success.
-    """
-    if winreg is None:
-        return False
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, _ENV_KEY, 0,
-            winreg.KEY_READ | winreg.KEY_WRITE,
-        ) as key:
-            value_type = winreg.REG_SZ
-            try:
-                _existing, value_type = winreg.QueryValueEx(key, name)
-            except FileNotFoundError:
-                value_type = winreg.REG_SZ
-            winreg.SetValueEx(key, name, 0, value_type, value)
-        return True
-    except OSError as e:
-        log_warn(f"Could not set User env {name}: {e}")
-        return False
-
-
 def add_user_path_entry(entry: str) -> bool:
     """Prepend ``entry`` to the User-scope PATH if not already present.
 

@@ -33,6 +33,25 @@ for f in PY_FILES:
         tokens[f] = set()
 is_test = lambda f: f.startswith("tests/") or "/tests/" in f or os.path.basename(f).startswith("test_")
 
+
+def in_module_seams(path="tests/_downstream/_seams.py"):
+    """``IN_MODULE_SEAMS`` from the seams module, read by AST (never imported: it imports the tree).
+
+    Plan l5-17-test-only-names (bucket B): a seam kept in its production module by ruling is
+    reached by tests on purpose, so it is counted as ``seam``, not offered as a test-only DECIDE.
+    """
+    try:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+    except (OSError, SyntaxError):
+        return set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "IN_MODULE_SEAMS" for t in node.targets):
+            return set(ast.literal_eval(node.value))
+    return set()
+
+
+SEAMS = in_module_seams()
+
 # ---------- dead-code census ----------
 dead = {}
 for f in FILES:
@@ -59,6 +78,7 @@ for f in FILES:
     own_tokens = tokens.get(f, set())
     # count references of the bare name INSIDE the file beyond its definition(s)
     own_count = collections.Counter(IDENT.findall(src))
+    names = [(name, "seam" if f"{f}::{name}" in SEAMS else kind, span) for name, kind, span in names]
     rows = []
     for name, kind, span in names:
         bare = name.split(".")[-1]
@@ -111,11 +131,11 @@ print()
 print("=== DEAD-CODE CENSUS (per file: candidates with 0 prod refs outside the file) ===")
 tot_dead = tot_testonly = tot_lines = 0
 for f, rows in dead.items():
-    candidates = [r for r in rows if r["kind"] != "decorated"]
+    candidates = [r for r in rows if r["kind"] not in ("decorated", "seam")]
     d = [r for r in candidates if r["prod_files"] == 0 and r["test_files"] == 0 and r["internal_refs"] == 0]
     t = [r for r in candidates if r["prod_files"] == 0 and r["test_files"] > 0 and r["internal_refs"] == 0]
     tot_dead += len(d); tot_testonly += len(t); tot_lines += sum(r["span"] for r in d)
-    print(f"{f}: unreferenced={len(d)} ({sum(r['span'] for r in d)} lines) test-only={len(t)} ({sum(r['span'] for r in t)} lines) decorated-not-judged={len(rows) - len(candidates)}")
+    print(f"{f}: unreferenced={len(d)} ({sum(r['span'] for r in d)} lines) test-only={len(t)} ({sum(r['span'] for r in t)} lines) decorated-or-seam-not-judged={len(rows) - len(candidates)}")
     for r in d:
         print(f"    DEAD  {r['kind']:8} {r['name']}  [{r['span']}]")
     for r in t:

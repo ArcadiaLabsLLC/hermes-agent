@@ -250,23 +250,6 @@ def published_relative_path(workspace_id: str) -> str:
     return f"{LEVEL_PUBLISHED_PREFIX}{paths.safe_path_token(workspace_id)}.json"
 
 
-def workspace_token_for_published_path(rel: str) -> str | None:
-    """The workspace token a published path names, or ``None`` if it is not one.
-
-    The exact inverse of :func:`published_relative_path` over the tokens that
-    function can produce — a nested path under the prefix is NOT one of them and
-    answers ``None`` rather than a guess.
-    """
-
-    text = str(rel).replace("\\", "/")
-    if not text.startswith(LEVEL_PUBLISHED_PREFIX) or not text.endswith(".json"):
-        return None
-    tail = text[len(LEVEL_PUBLISHED_PREFIX) : -len(".json")]
-    if not tail or "/" in tail:
-        return None
-    return tail
-
-
 # --- the store door ---------------------------------------------------------
 #
 # Below the line on purpose: everything above is pure, so the validation, the
