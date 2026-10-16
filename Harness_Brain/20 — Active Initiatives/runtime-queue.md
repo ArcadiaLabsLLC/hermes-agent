@@ -7,6 +7,8 @@ tags: [queue, program/mission-control, runtime]
 
 # Runtime — the hermes half of the Mission Control queue
 
+- [ ] **Step 6: expose profile delegation defaults and execution-host spawning pause through the existing owned subagent connection.** Owner approved 2026-10-16. Reuse native config read/write/managed policy and native pause state; preserve exact owner/generation checks across native, isolated compute and operator paths, with per-seam footprint accounting and behavioral proof. No parallel settings or execution authority. · fork / Agent Console · **TAKEN 2026-10-16 codex-subagent-settings**
+
 
 ## Ownership refresh — 2026-10-08
 
