@@ -37,6 +37,8 @@ End commit bodies with: Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 
 A holding file per landing outside the repo (branch tips, commits to review, rows verbatim, expected count) and a RESUME line in session memory after every report. A lane's report lives only in its notification — copy it the moment it arrives. File findings into the queue on arrival, by surface ([[TODO]]).
 
+Before the closing queue commit of a landing, run `python scripts/remap_cited_shas.py --onto origin/main <queue files>`: it rewrites every cited wave-branch SHA to the landed commit with the same author, date and subject, and prints each cited commit with no landed equivalent as `HELD` with the branches holding it. Pin each HELD commit with `git tag held/<lane>/<sha> <sha>` (pushed) and name its branch beside the citation until it lands.
+
 ## Never
 
 Dispatch a follow-up into another lane's worktree (message the lane); remove a worktree a lane could resume in; run two design sittings at once unless the owner asks for more (2026-10-10: three); let a lane run the full suite; paste this page into a brief.
