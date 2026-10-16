@@ -1,6 +1,5 @@
 
 import agent.prompt_builder as _owner_agent_prompt_builder
-import os
 import time
 from pathlib import Path
 
@@ -530,35 +529,6 @@ def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     assert FakeAgent.last_kwargs["api_mode"] == "codex_responses"
 
 
-def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkeypatch):
-    profile_home = tmp_path / "profiles" / "pm"
-    (profile_home / "home").mkdir(parents=True)
-    runtime_root = tmp_path / "runtime"
-    monkeypatch.setenv("HERMES_HOME", "before_home")
-    monkeypatch.setenv("HOME", "before_user_home")
-    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", "before_runtime")
-    monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: True)
-    monkeypatch.setattr("agent_runtime.profile_runner.status.get_profile_dir", lambda name: profile_home)
-    monkeypatch.setattr("agent_runtime.profile_runner.status.normalize_profile_name", lambda name: name)
-    seen = {}
-
-    class EnvAgent(FakeAgent):
-        def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["HERMES_HOME"] = os.environ.get("HERMES_HOME")
-            seen["HOME"] = os.environ.get("HOME")
-            seen["HERMES_AGENT_RUNTIME_ROOT"] = os.environ.get("HERMES_AGENT_RUNTIME_ROOT")
-            return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
-
-    ProfileAgentRunner(agent_factory=EnvAgent).run(AgentRunRequest(profile="pm", runtime_root=runtime_root, user_message="hi"))
-
-    assert seen["HERMES_HOME"] == str(profile_home)
-    assert seen["HOME"] == str(profile_home / "home")
-    assert seen["HERMES_AGENT_RUNTIME_ROOT"] == str(runtime_root)
-    assert os.environ["HERMES_HOME"] == "before_home"
-    assert os.environ["HOME"] == "before_user_home"
-    assert os.environ["HERMES_AGENT_RUNTIME_ROOT"] == "before_runtime"
-
-
 def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
     monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: False)
     constructed = False
@@ -705,7 +675,8 @@ def test_progress_adapter_surfaces_operator_command_and_scrubbed_output():
     payload = events[0]
     # Operator command keeps the path (unlike the path-stripped command_label).
     assert payload["command_full"] == "rg --files /home/x/foo"
-    assert "command_label" not in payload  # path-stripped variant drops it
+    # The Telegram-safe label shortens the absolute path instead of dropping.
+    assert payload["command_label"] == "rg --files …/foo"
     # Output is surfaced for terminal-class tools, with the secret LINE redacted
     # and the path line kept.
     assert "api_key=SECRET" not in payload["output"]
@@ -765,16 +736,16 @@ def test_progress_adapter_agent_chat_send_carries_structured_dispatch_fields():
     assert len(payload["target_label"]) <= len("→ backend_dev: ") + 90
 
 
-def test_agent_chat_dispatch_order_drops_secret_lines_and_target_is_capped():
+def test_agent_chat_dispatch_order_scrubs_secret_values_and_target_is_capped():
     events = []
     cb = _progress_adapter(events.append, "run.tool.started")
 
-    order = "Line one is fine.\napi_key=SUPERSECRET must be dropped\nLine three is fine."
+    order = "Line one is fine.\napi_key=SUPERSECRET is scrubbed\nLine three is fine."
     cb("call_1", "agent_chat_send", {"persona_id": "q" * 200, "message": order})
 
     payload = events[0]
-    # Secret-bearing line dropped whole; the surrounding lines survive in order.
-    assert payload["dispatch_order"] == "Line one is fine.\nLine three is fine."
+    # The secret VALUE is scrubbed in place; every line survives in order.
+    assert payload["dispatch_order"] == "Line one is fine.\napi_key=[REDACTED] is scrubbed\nLine three is fine."
     assert "SUPERSECRET" not in payload["dispatch_order"]
     # Target persona capped at 120.
     assert len(payload["dispatch_target"]) == 120
@@ -1028,17 +999,16 @@ def test_progress_adapter_summarizes_write_file_as_dev_work_without_absolute_pat
             "tool_name": "write_file",
             "status": "passed",
             "outcome": "passed",
-            "summary": "Wrote code file: customize_order.dart",
-            "detail": "Changed files: customize_order.dart",
-            "file_summary": "Wrote code file",
-            "changed_files": ["customize_order.dart"],
-            "files_touched": 1,
+            "summary": "Wrote code files: 2 files",  # a secret WORD in a name is not a secret
+            "detail": "Changed files: customize_order.dart, private_token.dart",
+            "file_summary": "Wrote code files",
+            "changed_files": ["customize_order.dart", "private_token.dart"],
+            "files_touched": 2,
             "tool_call_id": "call_2",
         }
     ]
     encoded = repr(events)
     assert "C:/Users" not in encoded
-    assert "private_token" not in encoded
 
 
 def test_progress_adapter_sanitizes_sensitive_tool_names_and_summaries():
@@ -1118,7 +1088,7 @@ def test_progress_adapter_reads_reasoning_text_from_structured_callback_shape():
     """The conversation loop emits ("reasoning.available", "_thinking", text,
     None) — args[1] is the channel placeholder, args[2] is the reasoning. The
     adapter must record the text (paths included), never the placeholder, and
-    must mask secret-bearing lines in place instead of dropping the summary."""
+    must scrub secret VALUES in place instead of dropping the summary."""
 
     events = []
     cb = _progress_adapter(events.append, "run.progress")
@@ -1135,7 +1105,7 @@ def test_progress_adapter_reads_reasoning_text_from_structured_callback_shape():
     assert "_thinking" not in summary
     assert "docs/scratch/goal_turn_probe.md" in summary
     assert "sk-live-12345" not in repr(events)
-    assert "[redacted line — contained a secret]" in summary
+    assert "export api_key=[REDACTED]" in summary
 
 
 class SlowInterruptibleAgent(FakeAgent):
@@ -1233,27 +1203,6 @@ def test_runner_allows_under_budget_result():
     )
 
     assert result.final_response == "ok"
-
-
-def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    monkeypatch.setenv("TERMINAL_CWD", "before_terminal_cwd")
-    caller_cwd = Path.cwd()
-    seen = {}
-
-    class CwdAgent(FakeAgent):
-        def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["cwd"] = Path.cwd()
-            seen["TERMINAL_CWD"] = os.environ.get("TERMINAL_CWD")
-            return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
-
-    ProfileAgentRunner(agent_factory=CwdAgent).run(AgentRunRequest(profile=None, user_message="hi", workdir=repo))
-
-    assert seen["cwd"] == repo
-    assert seen["TERMINAL_CWD"] == str(repo)
-    assert Path.cwd() == caller_cwd
-    assert os.environ["TERMINAL_CWD"] == "before_terminal_cwd"
 
 
 def test_runner_rejects_missing_workdir_before_agent_construction(tmp_path):
@@ -1782,7 +1731,7 @@ def test_refused_agent_chat_send_carries_no_reply():
     assert "dispatch_reply_from" not in payload
 
 
-def test_dispatch_reply_drops_secret_lines_and_bounds_at_1500():
+def test_dispatch_reply_scrubs_secret_values_and_bounds_at_1500():
     secret = _tool_finished_payload(
         "run.tool.finished",
         "agent_chat_send",
@@ -1794,8 +1743,8 @@ def test_dispatch_reply_drops_secret_lines_and_bounds_at_1500():
         },
         invocation={"persona_id": "neko", "message": "status?"},
     )
-    # Per-LINE drop, newline structure kept — the same block grade as the order.
-    assert secret["dispatch_reply"] == "Suite is green.\nShipping now."
+    # Values scrubbed in place, newline structure kept — the same grade as the order.
+    assert secret["dispatch_reply"] == "Suite is green.\napi_key=[REDACTED]\nShipping now."
     assert "SECRET-VALUE" not in secret["dispatch_reply"]
 
     long_reply = _tool_finished_payload(

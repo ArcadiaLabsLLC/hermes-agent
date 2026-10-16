@@ -372,7 +372,7 @@ def test_one_record_keeps_each_element_kinds_own_fields():
         "terminal",
         "git status",
         -9,
-        ["notes.md"],
+        ["notes.md", "api_key.txt"],  # a secret WORD in a file name is not a secret
     )
     assert "seg_type" not in tool and "text" not in tool
 

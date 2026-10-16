@@ -308,7 +308,13 @@ def promote_profile_to_persona(
             hermes_profile=profile_name,
             include_profile_memory=True,
         )
-    return store.save(persona)
+    saved = store.save(persona)
+    # The owner-ruled seed keys (2026-10-03: hermes seeds them on persona create).
+    from agent_runtime.persona_seed_defaults import persona_profile_homes, seed_persona_profile
+
+    for home in persona_profile_homes([saved]):
+        seed_persona_profile(home)
+    return saved
 
 
 #: The canonical spelling of the ruled ``alice_supervisor`` / ``neko_supervisor``

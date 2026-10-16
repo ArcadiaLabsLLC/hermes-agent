@@ -42,6 +42,8 @@ import time
 import weakref
 from typing import Any, Callable
 
+from .process_state import register_process_state
+
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
@@ -217,6 +219,9 @@ def reset_for_tests() -> None:
         _WINDOWS.clear()
         _REFRESHES.clear()
         _STATE.update(ticks=0, agent=None)
+
+
+register_process_state(__name__, reset_for_tests, holds=("_WINDOWS", "_REFRESHES", "_STATE"))
 
 
 __all__ = [

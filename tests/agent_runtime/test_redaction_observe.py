@@ -13,7 +13,8 @@ def test_observe_mode_keeps_suppressed_progress_payload_with_marker(monkeypatch)
         )
 
     assert payload["raw_model_output"] == "ordinary operator-visible output"
-    assert "[redacted line" in payload["command_label"]
+    # The value goes, the command stays (plan redaction-one-value-redactor S1).
+    assert payload["command_label"] == "curl -H API_KEY=[REDACTED]"
     assert payload["would_redact"]["raw_model_output"] == "unsupported_progress_key"
     assert payload["would_redact"]["command_label"] == "command_label"
 

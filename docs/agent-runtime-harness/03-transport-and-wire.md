@@ -1323,6 +1323,19 @@ convention, and sits BESIDE the argv lane: a frame is claimed by the method lane
 only when it names `jsonrpc` or `method`, neither of which an argv request has
 ever carried (`serve.py:151-156`).
 
+**A CLI verb reaches the live serve through ONE route** (cli-serve-route plan,
+2026-10-16): `agent_runtime/serve_socket/cli_route.py::relay_argv` dials the
+root's socket target, says hello with the root token, sends `{id, argv}` and
+reads that request to its end, returning a typed `RelayOutcome` (`served`,
+`no_serve`, `unreached`, `refused`). Whether a failure may run the verb in the
+asking process is decided once, by `RelayOutcome.runs_locally(FallbackPolicy)`:
+`READ` (`harness query`) falls back on anything; `WRITE` (`harness serve
+settles rearm`) runs locally only with no live serve, and a live serve that is
+unreachable or fails the request is a non-zero exit, never a second write;
+`TURN_HANDOFF` (`mission-chat message`) runs locally only while nothing was
+sent. Inside the serve the request id is bound (`current_serve_request_id`),
+so the relayed argv runs store-direct there with no extra flag.
+
 **The fork boundary is the reverse of the natural assumption: `agent_runtime/`
 is not in upstream at all.** The check that proves it is a path filter, not a
 judgement call — `git diff --name-only <baseline>..HEAD` minus

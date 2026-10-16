@@ -597,6 +597,14 @@ lifetime token and origin. Re-declaration replaces the token even when another c
 synced identical registry entries. An unlinked turn, a retired catalog, a different connection and
 an out-of-reach origin cannot inherit the promotion. Older Launchers omit the mark and retain deferred discovery.
 
+With several Launchers attached, the registry holds the UNION of their catalogs and each turn sees
+only its bound link's entries, with that link's schema for a name two Launchers declare differently
+(`_offered_to_bound_link`, `_bound_schema`); a switch between them moves no `registry.generation`.
+There is no per-connection registry scope: the profile-home scope stays, and a queued turn sees its
+sender's tools because it binds the sender's link (`hermes_cli/harness_parts/serve/queued_turn_origin.py`)
+— pinned for a turn queued by one Launcher while another attached last by
+`tests/agent_runtime/test_launcher_app_functions_queued_scope.py`.
+
 One door for a name the session already has (lane bridge-direct, 2026-10-08). A `tool_call`
 that names an in-scope eager tool is dispatched by name, not refused: upstream's "directly-listed
 tool, not a deferred one" correction cost a full provider round trip for an unambiguous call

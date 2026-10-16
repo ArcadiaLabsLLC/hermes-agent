@@ -70,6 +70,11 @@
         "canvases_removed": 0
       },
       "items": [],
+      "levels": {
+        "levels_added": 0,
+        "levels_changed": 0,
+        "levels_removed": 0
+      },
       "office": {
         "actors_added": 0,
         "actors_changed": 0,

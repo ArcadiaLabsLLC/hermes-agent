@@ -48,8 +48,72 @@ def _cmd_serve_settles(args) -> int:
     return 0
 
 
+#: Exit code when a live serve could not take the write (cli-serve-route write rule).
+_SERVE_RELAY_FAILED = 1
+_REARM_CLIENT_NAME = "harness-settles-rearm"
+
+
+def rearm_argv(args) -> list[str]:
+    """The argv the serve runs: this same re-arm. Inside the serve's request it runs
+    store-direct, because ``current_serve_request_id()`` is bound there (the marker
+    ``mission-chat message`` uses too), so the CLI contract gains no flag."""
+
+    argv = ["harness", "serve", "settles", "rearm", str(getattr(args, "ref", "") or "")]
+    if getattr(args, "session_id", None):
+        argv.append(f"--session-id={args.session_id}")
+    if getattr(args, "json", False):
+        argv.append("--json")
+    return argv
+
+
+def _relay_rearm(args) -> int | None:
+    """Hand the re-arm to the live serve; its exit code, or ``None`` to re-arm here.
+
+    A WRITE under the shared CLI route's rule (``cli_route.FallbackPolicy.WRITE``): only
+    NO live serve re-arms locally — the store lock then guards it. A live serve that
+    could not be reached or failed the request is a non-zero exit with the reason; the
+    re-arm never also runs here, because the serve's outbox pusher would not see it.
+    """
+
+    import sys
+
+    from agent_runtime.serve_socket.cli_route import FallbackPolicy, RelayKind, relay_argv
+
+    outcome = relay_argv(
+        rearm_argv(args),
+        client=_REARM_CLIENT_NAME,
+        sink=lambda line: print(line, flush=True),
+        err_sink=lambda line: print(line, file=sys.stderr, flush=True),
+        request_prefix="settles-rearm",
+    )
+    if outcome.runs_locally(FallbackPolicy.WRITE):
+        return None
+    if outcome.kind is RelayKind.SERVED:
+        return int(outcome.code or 0)
+    _emit({"ok": False, "reason": "serve_relay_failed", "detail": outcome.reason,
+           "answered_by": {"lane": "none", "serve_pid": outcome.pid}})
+    return _SERVE_RELAY_FAILED
+
+
+def _answered_by() -> dict[str, Any]:
+    from hermes_cli.harness_parts.serve.frames import current_serve_request_id
+
+    return {"lane": "serve" if current_serve_request_id() is not None else "direct"}
+
+
 def _cmd_serve_settles_rearm(args) -> int:
-    """Re-arm one settle by settle id or client message id (+ ``--session-id``)."""
+    """Re-arm one settle by settle id or client message id (+ ``--session-id``).
+
+    Outside a serve request a live serve does the write (``_relay_rearm``); the
+    store-direct body below is the in-serve form and the no-serve fallback.
+    """
+
+    from hermes_cli.harness_parts.serve.frames import current_serve_request_id
+
+    if current_serve_request_id() is None:
+        code = _relay_rearm(args)
+        if code is not None:
+            return code
 
     from agent_runtime.chat_turn_settles import (
         RearmResult,
@@ -69,5 +133,6 @@ def _cmd_serve_settles_rearm(args) -> int:
     if result is RearmResult.ACKED:
         _emit({"ok": False, "reason": SettleRefusal.SETTLE_ACKED, "settle_id": settle_id})
         return _REFUSED
-    _emit({"ok": True, "rearmed": result is RearmResult.REARMED, "settle": record.as_row()})
+    _emit({"ok": True, "rearmed": result is RearmResult.REARMED, "settle": record.as_row(),
+           "answered_by": _answered_by()})
     return 0

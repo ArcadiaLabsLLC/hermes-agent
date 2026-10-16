@@ -301,9 +301,13 @@ def test_the_persisted_core_survives_a_restart_after_an_identical_rewrite(
     _seed_workspace("alpha-one")
     config = _seed_profile_config("probe-profile")
     _converge_persisted_core()
+    # The SETTLED bytes, not ``BODY``: the build seeds the persona-profile defaults
+    # (``persona_seed_defaults``, fill-if-absent), so after convergence the file is
+    # ``BODY`` plus the seeded keys and rewriting ``BODY`` would be a genuine change.
+    settled = config.read_bytes().decode("utf-8")
 
     mtime_before = config.stat().st_mtime_ns
-    _atomic_rewrite(config, BODY)
+    _atomic_rewrite(config, settled)
     assert config.stat().st_mtime_ns != mtime_before, (
         "the probe's own rewrite did not move mtime; the pre-fix code would "
         "have hit anyway and this case would prove nothing"
@@ -378,9 +382,12 @@ def test_a_genuine_change_that_preserves_mtime_still_invalidates(
     _seed_workspace("alpha-one")
     config = _seed_profile_config("probe-profile")
     _converge_persisted_core()
+    # Edit the settled bytes (the build seeded defaults into them), keeping the length.
+    settled = config.read_bytes().decode("utf-8")
+    assert "deepseek-chat" in settled
 
     stamp = config.stat()
-    _atomic_rewrite(config, BODY_SAME_LENGTH)
+    _atomic_rewrite(config, settled.replace("deepseek-chat", "deepseek-chaT"))
     os.utime(config, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
 
     assert config.stat().st_mtime_ns == stamp.st_mtime_ns, (

@@ -14,7 +14,9 @@ is therefore the state upstream's own ``chat`` / ``gateway`` lanes already run i
 
 What a run does now: bind its :class:`McpCallBudget` into the scope's :class:`BudgetSlot`, which
 every metered handler reads AT CALL TIME; on the way out, clear the slot and keep the scope.
-``_WORKDIR_LOCK`` serialises runs, so one slot per scope is enough — never a stack.
+Since run-serialization S5 (2026-10-16) two roots may run at once, and two runs of one
+persona share a scope: a slot therefore holds one binding PER RUN, and a handler charges the
+binding of the run whose context it executes in (:data:`_RUN_CALL_BUDGET`, set by the run).
 
 Every read and write of :data:`_RESIDENT_SCOPES` happens under the admission mutex
 (``registration._ADMISSION_LOCK``); the slot carries its own lock because tool threads read it.
@@ -25,8 +27,10 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
 
 from .vocabulary import _MCP_TOOLSET_PREFIX, logger
 
@@ -39,33 +43,69 @@ __layer__ = "stores"
 SLOT_ATTR = "_mcp_admission_budget_slot"
 
 
-class BudgetSlot:
-    """The call budget a resident scope's metered handlers read at call time.
+#: The call budget of the run this context belongs to. Set by the run on its own thread
+#: (``AgentRunExecution.admit_mcp``) and inherited by the tool threads it starts, so a metered
+#: handler can tell WHICH bound run is calling.
+_RUN_CALL_BUDGET: ContextVar[Any] = ContextVar("mcp_admission_run_call_budget", default=None)
 
-    Bound by the run that admitted the scope, cleared by that run's release. A dispatch that
-    finds it empty belongs to no admitted run and is refused (``registration._metered_handler``).
+
+@contextmanager
+def run_call_budget_scope(budget: Any) -> Iterator[None]:
+    """Mark *budget* as this context's run budget for the width of the run."""
+
+    token = _RUN_CALL_BUDGET.set(budget)
+    try:
+        yield
+    finally:
+        _RUN_CALL_BUDGET.reset(token)
+
+
+class BudgetSlot:
+    """The call budgets a resident scope's metered handlers read at call time, one per run.
+
+    Bound by each run that admitted the scope, cleared by that run's release. A dispatch from a
+    context whose run holds a binding charges that binding; one from a run that bound none is
+    refused; one from a context that names no run at all (a thread that did not inherit the
+    run's context) charges the most recent binding — the single-run behaviour this slot had
+    before runs could overlap. An empty slot refuses every call
+    (``registration._metered_handler``).
     """
 
-    __slots__ = ("_lock", "_budget", "_on_exhausted")
+    __slots__ = ("_lock", "_bindings")
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._budget: Any = None
-        self._on_exhausted: Callable[..., None] | None = None
+        self._bindings: list[tuple[Any, Callable[..., None] | None]] = []
 
     def bind(self, budget: Any, on_exhausted: Callable[..., None] | None) -> None:
         with self._lock:
-            self._budget = budget
-            self._on_exhausted = on_exhausted
+            self._bindings = [row for row in self._bindings if row[0] is not budget]
+            self._bindings.append((budget, on_exhausted))
 
-    def clear(self) -> None:
+    def clear(self, budget: Any = None) -> None:
+        """Drop *budget*'s binding, or every binding when *budget* is ``None``."""
+
         with self._lock:
-            self._budget = None
-            self._on_exhausted = None
+            if budget is None:
+                self._bindings = []
+            else:
+                self._bindings = [row for row in self._bindings if row[0] is not budget]
+
+    def bound(self) -> bool:
+        with self._lock:
+            return bool(self._bindings)
 
     def current(self) -> tuple[Any, Callable[..., None] | None]:
+        owner = _RUN_CALL_BUDGET.get()
         with self._lock:
-            return self._budget, self._on_exhausted
+            if owner is not None:
+                for budget, on_exhausted in reversed(self._bindings):
+                    if budget is owner:
+                        return budget, on_exhausted
+                return None, None
+            if self._bindings:
+                return self._bindings[-1]
+            return None, None
 
 
 @dataclass(slots=True)
@@ -211,8 +251,12 @@ def record_resident_scope(server: str, config: Mapping[str, Any] | None, slot: B
     )
 
 
-def release_slots(servers: Iterable[str]) -> list[str]:
+def release_slots(servers: Iterable[str], *, budget: Any = None) -> list[str]:
     """Clear the budget slots of ``servers``' resident scopes in the current home.
+
+    With *budget*, only that run's binding goes, and a scope another run still holds a
+    binding in is kept whatever its state: the next admission repairs it, and dropping it
+    here would pull the tools out from under a run that is still calling them.
 
     A scope that no longer stands (its session went away or was replaced during the run, a
     tool was deregistered by a failed meter) is removed here rather than kept: its handlers may
@@ -226,7 +270,9 @@ def release_slots(servers: Iterable[str]) -> list[str]:
         scope = _RESIDENT_SCOPES.get((home, name))
         if scope is None:
             continue
-        scope.slot.clear()
+        scope.slot.clear(budget)
+        if scope.slot.bound():
+            continue
         reason = _invalid_reason(scope, None)
         if reason is None:
             continue
