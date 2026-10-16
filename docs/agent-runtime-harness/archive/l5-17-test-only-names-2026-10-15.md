@@ -1,6 +1,24 @@
 # The 51 test-only names from the L5.17 census: a ruling per bucket (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed. Row:
+Status: BUILT 2026-10-16 (lane h5-deadcode, branch `build/h5-deadcode`; archived on
+build). Census re-run over the 30 files after the build: 0 test-only names outside
+`IN_MODULE_SEAMS`, except `redaction.is_credential_key`, which the bucket-D deletion of
+`redact_transport_tree` left test-only (filed in the dead-code queue). Where the tree
+differed from this plan the tree was followed, and each commit says so:
+- **A** needed no change: the census already counts every decorated def as reached,
+  and the launcher calls all three verbs (`mission_action_console_twin_lane.dart`,
+  `mission_control_action_repository.dart`), so no DEAD-verb row.
+- **B** as planned: `tests/_downstream/_seams.py::IN_MODULE_SEAMS`, read by the census.
+- **C**: the 12 build tuples are read by `running_work/build_rows.py` (producer words
+  refuse, writer words fall to the unknown arm); `CONFLICT_REASONS` by the retire
+  mapping; the two receipt constants through a new `RESOLUTION_RUNGS`;
+  `ABSENCE_PRESERVING_READERS` and `ALL_SECRET_ASSIGNMENT_PATTERNS` deleted (tests
+  enumerate the function / the module instead).
+- **D**: 12 of the 18 deleted (plus `RECORD_STATUS_FINISHED`, newly dead), tests moved
+  onto the production spelling; the 6 that are test drivers for live code are seams
+  instead (`palette_colors`, `write_record` moved; `detection_enabled`,
+  `run_queued_sends_once`, `read_settle`, `build_flag_inventory` in `IN_MODULE_SEAMS`).
+Written 2026-10-15; owner approved as recommended 2026-10-15. Row:
 dead-code-burn-down-queue, "The post-v0.21.6 census slice: 14 names confirmed
 dead … and 51 test-only names to DECIDE". The 14 dead names are already deleted
 (lane w1015e-fh-h); this plan is only the 51.
