@@ -69,6 +69,9 @@ class _PendingTurn:
     complete: Callable[[dict], None] | None
     ready: threading.Event = field(default_factory=threading.Event)
 
+    def __iter__(self):  # fork, additive: upstream's has_pending_turn unpacks entries as (sid, callback)
+        return iter((self.sid, self.complete))
+
 
 def append_log_record(path: str | Path, record: str) -> None:
     """Append one log record using O_APPEND and exactly one os.write call."""
