@@ -38,6 +38,7 @@ __all__ = [
     "reasoning_effort_label",
     "_persona_chat_bound_owner",
     "_persona_chat_native_history",
+    "_persona_chat_native_read",
     "_persona_chat_native_revision",
     "_persona_chat_native_revision_of_read",
     "_persona_chat_native_tip",
@@ -436,6 +437,26 @@ def _persona_chat_native_history(session_db, active_session_id: str) -> list[dic
         return list(loader(active_session_id, include_ancestors=True, repair_alternation=True) or [])
     legacy = getattr(session_db, "get_messages", None)
     return list(legacy(active_session_id) or []) if callable(legacy) else []
+
+
+def _persona_chat_native_read(session_db, root_session_id: str):
+    """``(stamp, tip, history)``: the lineage stamp, THEN the read it vouches for.
+
+    The order is the guarantee. A write landing between the two bumps a revision
+    the stamp does not carry, so the stamp can only ever be OLDER than the history
+    it is stored with, never newer — a later equal stamp proves the history is still
+    what a fresh read returns. ``stamp`` is ``None`` when the store carries none
+    (lineage-stamp plan S3).
+    """
+    from .session_lineage_stamp import lineage_stamp
+
+    try:
+        stamp = lineage_stamp(session_db, root_session_id)
+    except Exception:  # noqa: BLE001 — a stamp is an optimisation; the read stays the authority
+        _logger.debug("lineage stamp unavailable for %s", root_session_id, exc_info=True)
+        stamp = None
+    tip = _persona_chat_native_tip(session_db, root_session_id)
+    return stamp, tip, _persona_chat_native_history(session_db, tip)
 
 
 def _persona_chat_native_revision(session_db, root_session_id: str) -> str:

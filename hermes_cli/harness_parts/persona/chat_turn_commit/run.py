@@ -101,6 +101,20 @@ def _steer_hot_window(window, payload) -> None:
     elif step == CONVERSATION_PROVIDER_RETURNED_STEP:
         window.close()
 
+def _resident_native_history(runtime_registry, session_db, root_session_id: str):
+    """``(tip, history)`` from the resident actor when the lineage stamp still matches, else ``None``."""
+
+    if runtime_registry is None:
+        return None
+    from agent_runtime.session_lineage_stamp import lineage_stamp
+
+    try:
+        stamp = lineage_stamp(session_db, root_session_id)
+    except Exception:  # noqa: BLE001 — a stamp is an optimisation; the read stays the authority
+        return None
+    return runtime_registry.resident_native_history(root_session_id, stamp=stamp)
+
+
 class _RunPhases:
     """The ``TurnCommit`` methods that build the turn and run it through the provider."""
 
@@ -119,8 +133,15 @@ class _RunPhases:
         # lineage from SessionDB (the sole continuation authority), and until
         # this span it hid inside ``context_built`` beside the skill preload.
         _history_started = time.monotonic()
-        active_session_id = _persona_chat_native_tip(session_db, session_id)
-        native_history = _persona_chat_native_history(session_db, active_session_id)
+        runtime_registry = persona_chat_runtime_registry()
+        # lineage-stamp S3: a resident actor whose stamped history is still current
+        # hands that history over; any write to the lineage since moves the stamp.
+        reused = _resident_native_history(runtime_registry, session_db, session_id)
+        if reused is not None:
+            active_session_id, native_history = reused
+        else:
+            active_session_id = _persona_chat_native_tip(session_db, session_id)
+            native_history = _persona_chat_native_history(session_db, active_session_id)
         history_read = native_history
         abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
         kept_history = [
@@ -143,7 +164,7 @@ class _RunPhases:
             session_db, session_id, active_session_id, history_read,
             safe_history=native_history if len(kept_history) == len(history_read or []) else None,
         )
-        self.runtime_registry = persona_chat_runtime_registry()
+        self.runtime_registry = runtime_registry
         self.chat_message = self.message
         # Relay sender attribution: resolve who sent this incoming message ONCE
         # (agent_chat_send relays carry requested_by="agent:<caller session>") and
