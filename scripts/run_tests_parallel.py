@@ -4,7 +4,7 @@
 The minimum-viable replacement for pytest-xdist + a subprocess-isolation
 plugin. Discovers test files under ``tests/`` (excluding integration/e2e
 unless explicitly requested), then runs one ``python -m pytest <file>``
-subprocess per file, with bounded parallelism (default: ``os.cpu_count()``).
+subprocess per file, with bounded parallelism (default: ``min(os.cpu_count(), 8)``).
 
 Why per-file rather than per-test?
     Per-test spawn overhead (~250ms × 17k tests = 70min CPU minimum)
@@ -34,7 +34,7 @@ Usage:
     pytest failure. Tokens after ``--`` are never validated.
 
 Environment:
-    HERMES_TEST_WORKERS  Override worker count (default: os.cpu_count())
+    HERMES_TEST_WORKERS  Override worker count (default: min(os.cpu_count(), 8))
     HERMES_TEST_PATHS    Override discovery roots (colon-sep; on Windows
                          ';' also works and drive letters are handled;
                          default: 'tests')
@@ -1061,6 +1061,32 @@ def _make_stdio_glyph_safe() -> None:
                 pass
 
 
+_DEFAULT_MAX_WORKERS = 8
+
+
+def _adaptive_default_jobs(cpu_count: int | None) -> int:
+    """Choose a conservative automatic worker count for import-heavy tests."""
+    return min(cpu_count or 4, _DEFAULT_MAX_WORKERS)
+
+
+def _announce_adaptive_jobs(our_args: list[str], jobs: int) -> None:
+    """Print the adaptive worker choice when neither ``-j`` nor HERMES_TEST_WORKERS set it."""
+    jobs_was_explicit = any(
+        token == "-j"
+        or token.startswith("-j")
+        or token == "--jobs"
+        or token.startswith("--jobs=")
+        for token in our_args
+    )
+    if not jobs_was_explicit and not os.environ.get("HERMES_TEST_WORKERS"):
+        print(
+            "Adaptive worker default: "
+            f"cpu_count={os.cpu_count() or 4}, "
+            f"cap={_DEFAULT_MAX_WORKERS}, selected={jobs}",
+            flush=True,
+        )
+
+
 def _pytest_flag_error(tokens: list[str]) -> Optional[str]:
     """Return pytest's own complaint about the bare passthrough tokens, if any.
 
@@ -1160,8 +1186,8 @@ def main() -> int:
         "-j",
         "--jobs",
         type=int,
-        default=int(os.environ.get("HERMES_TEST_WORKERS") or (os.cpu_count() or 4)),
-        help="Parallel worker count (default: $HERMES_TEST_WORKERS or cpu_count)",
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or _adaptive_default_jobs(os.cpu_count())),
+        help="Parallel worker count (default: $HERMES_TEST_WORKERS or min(cpu_count, 8))",
     )
     parser.add_argument(
         "--paths",
@@ -1443,6 +1469,7 @@ def main() -> int:
         test_counts = {f: test_counts[f] for f in files if f in test_counts}
         approx_total_tests = sum(test_counts.values())
 
+    _announce_adaptive_jobs(our_args, args.jobs)
     if roots:
         roots_str = [str(r.relative_to(repo_root)) if r.is_relative_to(repo_root) else str(r) for r in roots]
         print(
@@ -1452,8 +1479,7 @@ def main() -> int:
         )
     else:
         print(
-            f"Running {len(files)} test files (~{approx_total_tests} tests) "
-            f"with -j {args.jobs}",
+            f"Running {len(files)} test files (~{approx_total_tests} tests) with -j {args.jobs}",
             flush=True,
         )
 
