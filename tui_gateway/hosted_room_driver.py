@@ -185,6 +185,17 @@ class HostedRoomRuntime:
             room_thread.join(max(0.0, deadline - time.monotonic()))
         return not any(t.is_alive() for t in (thread, *room_threads))
 
+    def request_reconciliation(self, identity: state.TaskIdentity) -> None:
+        """A host has fresh evidence for this exact task (for example a human answer).
+
+        Invalidate only its negative recovery observation, not its durable lease or
+        generation; the existing worker still decides whether it can settle.
+        """
+        for key in tuple(self._inspected_indeterminate_attempts):
+            if key[:2] == (identity.room_id, identity.task_id):
+                self._inspected_indeterminate_attempts.discard(key)
+        self.wakeup()
+
     def wakeup(self) -> None:
         """Wake the worker after task admission or a room-state change."""
         with self._status_lock:
@@ -373,6 +384,8 @@ class HostedRoomRuntime:
             return transport is not None and transport is self.rpc
         info = transport.info(**_session_kw(profile, session_id))
         if not _info_active(info):
+            if info.get("stop_unresolved") is True:
+                return False  # Inactive alone does not settle an attempt whose stop is unresolved.
             # History was checked just before this probe: an inactive exact session cannot
             # keep executing, and after a restart its process-local task marker is absent.
             return True
@@ -851,7 +864,7 @@ class HostedRoomRuntime:
                     binding, task, lease, inspection.terminal, publish=False)
                 inspected.discard(attempt_key)
                 continue
-            if self.clock() < deadline:
+            if inspection.active or self.clock() < deadline:  # a provably active session is never deferred
                 self._set_blocked(binding.room_id, True)
                 return True
             deferred = self._fenced(
@@ -973,7 +986,8 @@ def _find_terminal_receipt(
         return _TerminalReceipt(
             status=cast(state.TerminalStatus, status), settlement_id=receipt_id,
             result=_bounded_terminal_result(
-                {"message_id": receipt_id, "text": message.get("content", "")}))
+                {"message_id": receipt_id, "text": message.get("content", ""),
+                 "error": message.get("error") or ""}))
     return None
 
 
