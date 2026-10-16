@@ -140,7 +140,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ### Filed on arrival — 2026-10-15 (owner screenshot during land-w1015h)
 
-- [ ] **Test-spawned serves flash a console window on Windows** — owner 2026-10-15: during the landing gate a `…\.venvs\hermes-test\Scripts\python.exe` console window opened on the desktop. `tests/agent_runtime/_serve_fixtures.py` starts `harness serve` with `subprocess.Popen(...)` and no `creationflags`, and the `*_child_e2e.py` / `test_gateway_peer_*_e2e.py` spawns pass at most `CREATE_NEW_PROCESS_GROUP`. On win32 every test child process must OR in `subprocess.CREATE_NO_WINDOW` (one shared spawn helper for the test children, not per-file flags), so a test run never draws on the operator's screen · owner 2026-10-15. **TAKEN 2026-10-15 w1015j-hermes**
 
 ### Filed on arrival — 2026-09-29 (h11-mcp landing)
 

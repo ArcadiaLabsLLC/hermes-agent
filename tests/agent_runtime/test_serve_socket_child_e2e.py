@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.agent_runtime._no_window import no_window
+
 #: Suite-speed Stage 4A's class mark: this file boots real serve/gateway CHILD
 #: processes. It selects nothing and skips nothing; it lets the runner's tail
 #: report name the class and a scheduler start these files first.
@@ -115,6 +117,7 @@ def _connect(env: dict[str, str], *args: str) -> tuple[int, dict | None, str]:
     completed = subprocess.run(
         [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "connect", *args],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         capture_output=True,
         text=True,
@@ -179,6 +182,7 @@ def _spawn_serve(
                 *extra_args,
             ],
             cwd=str(REPO_ROOT),
+            creationflags=no_window(),
             env=env,
             stdin=subprocess.DEVNULL if detached_stdin else subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -336,6 +340,7 @@ def test_probe_then_drain_over_the_socket_against_a_real_serve_child(tmp_path):
     process = subprocess.Popen(
         [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson"],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -482,6 +487,7 @@ def test_the_challenge_response_handshake_against_a_real_serve_child(tmp_path):
     process = subprocess.Popen(
         [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson"],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
@@ -764,7 +770,7 @@ def test_without_service_a_child_still_ends_when_its_stdin_closes(tmp_path):
 def _dead_pid() -> int:
     """A pid that is provably gone: spawned, waited on, reaped."""
 
-    process = subprocess.Popen([sys.executable, "-c", "pass"])
+    process = subprocess.Popen([sys.executable, "-c", "pass"], creationflags=no_window())
     process.wait(timeout=30)
     return process.pid
 

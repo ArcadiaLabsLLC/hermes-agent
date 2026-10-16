@@ -26,6 +26,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.agent_runtime._no_window import no_window
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOT_TIMEOUT_SECONDS = 180.0
 CLI_TIMEOUT_SECONDS = 180.0
@@ -102,6 +104,7 @@ class _Install:
         self.process = subprocess.Popen(
             [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson"],
             cwd=str(REPO_ROOT),
+            creationflags=no_window(),
             env=self.env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -141,6 +144,7 @@ class _Install:
         completed = subprocess.run(
             [sys.executable, "-m", "hermes_cli.main", "harness", *argv, "--json"],
             cwd=str(REPO_ROOT),
+            creationflags=no_window(),
             env=self.env,
             capture_output=True,
             text=True,
@@ -173,6 +177,7 @@ class _Install:
         completed = subprocess.run(
             [sys.executable, "-c", source, *args],
             cwd=str(REPO_ROOT),
+            creationflags=no_window(),
             env=self.env,
             capture_output=True,
             text=True,
