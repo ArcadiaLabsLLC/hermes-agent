@@ -45,7 +45,7 @@ crashes on the way and the Launcher's mirror changes in the same landing.
 - Families: `agent_runtime/realm_sync/drift.py` (`SyncFamily`).
 - Level store and baseline: `agent_runtime/level_sync.py` (`LevelStore` l.279,
   `level_baseline_key`, `read_level_baseline`).
-- Pin that forces the decision: `tests/agent_runtime/test_realm_sync_level_artifact.py::test_the_level_family_is_not_a_store_drift_family`
+- Pin that forced the decision (renamed when S2 landed): `tests/agent_runtime/test_realm_sync_level_artifact.py::test_the_level_family_is_a_store_drift_family_with_a_revert_arm`
   (l.282).
 - Launcher mirror: `EterniaLauncher/lib/features/mission_control/sync/realm_sync_status_report.dart`
   (`levels: RealmDocumentFamilyStatus.fromStatusJson(body, 'levels')`, l.326;
