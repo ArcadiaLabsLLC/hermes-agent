@@ -22,7 +22,6 @@ from typing import Any, Iterator, Mapping, Optional, Sequence
 from tools.connectors.gateway.errors import ToolGatewayError
 from tools.connectors.gateway.merge import PlannedCall
 from tools.connectors.gateway.names import parse_connector_name, vendor_slug_candidates
-from tools.connectors.gateway.wire import CONNECTOR_FILE_MAX_BYTES, execute_error_family
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +63,8 @@ class FileInputError(Exception):
 
     def result(self) -> dict[str, Any]:
         """The call's error entry, in the shape the gateway's execute errors take."""
+        from tools.connectors.gateway.wire import execute_error_family  # lazy: wire imports pydantic
+
         error: dict[str, Any] = {"code": self.code, "message": str(self), "family": execute_error_family(self.code)}
         if self.hint:
             error["hint"] = self.hint
@@ -235,6 +236,8 @@ def _backend_path(raw: str, task_id: Optional[str]) -> str:
 
 
 def _read_bytes(raw: str, path: str) -> bytes:
+    from tools.connectors.gateway.wire import CONNECTOR_FILE_MAX_BYTES  # lazy: wire imports pydantic
+
     try:
         size = os.path.getsize(path)
         if size > CONNECTOR_FILE_MAX_BYTES:

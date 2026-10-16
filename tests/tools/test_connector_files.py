@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hermes_constants import CONNECTOR_DOWNLOADS_SUBDIR, get_hermes_home
-from tools.connectors.gateway import files
+from tools.connectors.gateway import files, wire
 from tools.connectors.gateway.bridge import connector_describe, run_remote
 from tools.connectors.gateway.client import ConnectorClient
 from tools.connectors.gateway.merge import partition_calls
@@ -170,7 +170,7 @@ def test_a_refused_path_fails_the_call_before_any_upload(tmp_path, make_path, co
 
 
 def test_a_file_over_the_gateway_cap_is_refused_before_staging(tmp_path, monkeypatch):
-    monkeypatch.setattr(files, "CONNECTOR_FILE_MAX_BYTES", 4)
+    monkeypatch.setattr(wire, "CONNECTOR_FILE_MAX_BYTES", 4)
     gateway, storage = Gateway(), Storage()
 
     entry = _execute(gateway, storage, {"attachment": str(_pdf(tmp_path / "big.pdf"))})
