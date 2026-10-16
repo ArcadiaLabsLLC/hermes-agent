@@ -163,3 +163,44 @@ def test_the_skip_lists_deselects_are_keyed_and_never_turn_the_cache_off(repo):
     assert collect(deselect, deselect).digest != collect([]).digest, "the deselects are in the key"
     assert collect(["-k", "x", *deselect], deselect).disabled == "pytest args -k x"
     assert collect(deselect).disabled, "a deselect the runner did not append still turns the cache off"
+
+
+_KILLED = '''
+import os
+import helper_mod
+
+def test_killed():
+    os._exit(3)  # what pytest-timeout's thread method does: no sessionfinish, no deps line
+'''
+
+
+@pytest.mark.timeout(150)
+def test_a_process_killed_mid_file_leaves_a_partial_record_the_red_key_uses(repo, tmp_path):
+    """A timeout kills the process before its ``deps`` line: the collection-time
+    ``partial`` line is then the record (gate e2e, test_changed_line_mutation_check)."""
+
+    import os
+    import sys
+
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (proj / "helper_mod.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (proj / "test_k.py").write_text(_KILLED, encoding="utf-8")
+    plugin = Path(bundled.__file__).resolve().parent / "_bundle_plugin"
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(plugin), str(proj)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "test_k.py"],
+        cwd=proj, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    collector = cache.DepsCollector(tmp_path / "deps")
+    assert "test_k.py" not in collector.poll()
+    assert {"test_k.py", "helper_mod.py"} <= collector.partial["test_k.py"].paths | collector.partial["test_k.py"].mods
+
+    store_root = tmp_path / "store"
+    gate = _start(repo, store_root)
+    gate.collector.partial[T] = cache.FileDeps(**{k: set(v) for k, v in _DEPS.items()})
+    gate.on_outcome(SimpleNamespace(file=repo / T, rc=124, via="known-red", seconds=300.0))
+    assert reds.load(gate.store)[T].get("key"), "the killed red is keyed by its partial record"

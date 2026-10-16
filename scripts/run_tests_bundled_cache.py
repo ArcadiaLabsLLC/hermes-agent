@@ -153,6 +153,9 @@ class DepsCollector:
     def __init__(self, directory: Path) -> None:
         self.directory = Path(directory)
         self.files: Dict[str, FileDeps] = {}
+        #: what each file reached by the end of its collection (``partial`` lines): the
+        #: record of a file whose process was killed before its ``deps`` line
+        self.partial: Dict[str, FileDeps] = {}
         self._offsets: Dict[str, int] = {}
         self._mods: Dict[str, set] = {}
 
@@ -188,6 +191,9 @@ class DepsCollector:
             if record.get("k") == "deps":
                 mods.update(record.get("mods_add") or ())
                 self.files.setdefault(record["f"], FileDeps()).merge_deps(record, mods)
+            elif record.get("k") == "partial":
+                mods.update(record.get("mods_add") or ())
+                self.partial.setdefault(record["f"], FileDeps()).merge(record, mods)
             elif record.get("k") == "child":  # a Python child of the file (sitecustomize, stage 1b)
                 self.files.setdefault(record["f"], FileDeps()).merge_child(record)
 

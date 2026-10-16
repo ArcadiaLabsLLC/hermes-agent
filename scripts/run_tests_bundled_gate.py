@@ -298,10 +298,11 @@ class GateRun:
             self._red_key(rel, 0)
 
     def _red_key(self, rel: str, rc: int) -> None:
-        """A red writes the key it went red under (its dependency record now); a
-        red with no record, or a green after a keyed red, drops the file's red key."""
+        """A red writes the key it went red under (its dependency record now, or the
+        collection-time ``partial`` record of a process killed mid-file); a red with
+        no record, or a green after a keyed red, drops the file's red key."""
 
-        deps = self.collector.poll().get(rel) if rc != 0 else None
+        deps = (self.collector.poll().get(rel) or self.collector.partial.get(rel)) if rc != 0 else None
         if deps is None:
             if (self.reds.get(rel) or {}).get("key"):
                 why = "green" if rc == 0 else "no-deps"
