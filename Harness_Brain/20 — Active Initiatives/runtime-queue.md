@@ -30,6 +30,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-16 (build lane h1-lineage)
+
+- [ ] **A turn that reuses the resident actor's stamped native history (lineage-stamp S3) leaves no mark on the turn record: only `context_native_history_ms` drops, so "reused or read" is inferred from a duration. Add a typed `context_native_history_source` (`resident` / `read`) beside it — `_PRE_ADMIT_TIMING_KEYS` only admits ints, so it needs its own field on the phases/timing receipt** · fork / `hermes_cli/harness_parts/persona/chat_turn_commit/run.py::_build_context`, `hermes_cli/harness_parts/persona/chat_admission.py::_PRE_ADMIT_TIMING_KEYS` · evidence lands with `build/h1-lineage` S3 (`PersonaChatRuntimeRegistry.resident_native_history`)
+
 ### Filed on arrival — 2026-10-16 (build lane h4-seeds)
 - [ ] **`realm sync revert --to <version>` cannot move a LEVEL whose published copy changed between versions** · fork / realm sync · `agent_runtime/realm_revert_version.py::_upstream_moved_rows` walks office, boards, instances, canvases, persona defs and skills but no levels, so only a locally drifted level is restored; add a `_pair_rows(SyncFamily.LEVEL, …)` over `read_remote_levels` of both subtrees (found while landing the level arm, plan `realm-level-revert-arm-2026-10-15` S2)
 
