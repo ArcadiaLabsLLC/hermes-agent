@@ -77,15 +77,23 @@ def history_write_scope(params):
         yield
 
 
-def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=False):
+def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=False, branch=False):
     from agent.context_compressor import user_originated_turn_view, retryable_user_text
     from .runtime_hud.envelopes import extract_runtime_context_envelope, extract_skill_preload_envelope
     from .persona_chat_history.text import _safe_display_body_text, _INTERNAL_SCAFFOLDING_MARKERS
     from .persona_chat_history.vocabulary import logical_persona_chat_client_message_id
 
     tip = db.resolve_resume_session_id(session_id)
-    revision = db.history_control_revision(tip)
-    stored = db.get_messages_as_conversation(tip, include_row_ids=True)
+    # A branch copies the whole visible history across native compressed ancestry
+    # (branch-across-compressed-ancestry plan): it addresses and pins the lineage's
+    # DISPLAY rows. Rewind stays on the tip's live rows, as it always has.
+    lineage = dict(include_ancestors=True, include_compacted=True) if branch else {}
+
+    def revision_of():
+        return db.branch_history_revision(session_id) if branch else db.history_control_revision(tip)
+
+    revision = revision_of()
+    stored = db.get_messages_as_conversation(tip, include_row_ids=True, **lineage)
     users = [row for row in stored if user_originated_turn_view(row) is not None]
     matched = [row for row in users if (
         row.get("_row_id") == row_id if row_id is not None else
@@ -109,7 +117,7 @@ def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=
     # A repaired user/user pair or a compaction carrier is not the prompt the
     # Console selected. Refuse rather than silently combine/remove another ask.
     repaired = [row for row in db.get_messages_as_conversation(
-        tip, include_row_ids=True, repair_alternation=True) if user_originated_turn_view(row) is not None]
+        tip, include_row_ids=True, repair_alternation=True, **lineage) if user_originated_turn_view(row) is not None]
     view = next((row for row in repaired if row.get("_row_id") == target["_row_id"]), None)
     if view is None or view.get("content") != target.get("content"):
         raise OperatorConversationRefused("target_requires_compaction_review")
@@ -128,7 +136,7 @@ def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=
     _, redaction = _safe_display_body_text(draft, fallback="", limit=64000)
     if redaction != "safe" or len(draft) > 64000:
         raise OperatorConversationRefused("prompt_not_restorable")
-    if db.history_control_revision(tip) != revision:
+    if revision_of() != revision:
         raise OperatorConversationRefused("history_changed")
     ordinal = next(i for i, row in enumerate(repaired) if row["_row_id"] == target["_row_id"])
     return dict(tip=tip, revision=revision, row_id=target["_row_id"], ordinal=ordinal,
@@ -145,7 +153,8 @@ def _plan(params, session):
     boundary = params.get("boundary", "before_user_message")
     if boundary not in {"before_user_message", "after_reply"} or (boundary == "after_reply" and action != HistoryAction.BRANCH):
         raise OperatorConversationRefused("invalid_history_target")
-    target = _target(session.db, params["session_id"], row_id, client_id, after_reply=boundary == "after_reply")
+    target = _target(session.db, params["session_id"], row_id, client_id, after_reply=boundary == "after_reply",
+                     branch=action == HistoryAction.BRANCH)
     target["boundary"] = boundary
     # A branch must contain the full visible prefix. Until native compressed
     # lineage copying is supported, never offer a misleading partial branch.
@@ -275,7 +284,8 @@ def _apply_native(db, params, plan, config, title, key, request_digest):
                       mission_chat_root_id=child, history_source_session=params["session_id"])
     receipt = (key, json.dumps({"request_digest": request_digest, "result": result}))
     if plan["action"] == HistoryAction.BRANCH:
-        db.branch_before_message(plan["tip"], plan.get("boundary_row_id", plan["row_id"]), child_session_id=child,
+        db.branch_before_message(params["session_id"], plan.get("boundary_row_id", plan["row_id"]),
+            child_session_id=child,
             after_reply=plan["boundary"] == "after_reply",
             expected_history_digest=plan["revision"], operation_receipt=receipt,
             model_config=config, title=f"{title[:160]} · branch")
