@@ -86,43 +86,7 @@ class DiscussionReconstructionError(DiscussionPolicyError):
     """Raised when a persisted task cannot be reproduced from durable state."""
 
 
-@dataclass(frozen=True)
-class DiscussionLimits:
-    """Host-declared immutable policy, never inferred from a mutable global.
-
-    The default preserves Bot Mode's six-profile policy. An instance-aware host
-    may retain a larger historical member catalog, limit its active set separately,
-    and bound prompts to the native transport's smaller input envelope.
-    """
-    max_members: int = MAX_DISCUSSION_MEMBERS
-    max_rounds: int = MAX_DISCUSSION_ROUNDS
-    max_messages: int = MAX_DISCUSSION_MESSAGES
-    prompt_bytes: int = driver.MAX_PROMPT_BYTES
-    shared_profiles: bool = False
-    guidance: str = ""
-    conclusion_member_id: str | None = None
-
-    @property
-    def last_round_index(self) -> int:
-        return self.max_rounds if self.conclusion_member_id is not None else self.max_rounds - 1
-
-    def __post_init__(self) -> None:
-        for name, low, high in (("max_members", 2, hosted_rooms.MAX_MEMBERS),
-                                ("max_rounds", 1, MAX_DISCUSSION_ROUNDS),
-                                ("max_messages", 1, 384),
-                                ("prompt_bytes", 2048, driver.MAX_PROMPT_BYTES)):
-            value = getattr(self, name)
-            if type(value) is not int or not low <= value <= high:
-                raise DiscussionValidationError(f"invalid Discussion limit: {name}")
-        if type(self.shared_profiles) is not bool:
-            raise DiscussionValidationError("shared_profiles must be a boolean")
-        if not isinstance(self.guidance, str) or len(self.guidance.encode("utf-8")) > 1000:
-            raise DiscussionValidationError("invalid Discussion guidance")
-        if self.conclusion_member_id is not None:
-            _identifier(self.conclusion_member_id, label="conclusion_member_id")
-
-
-DEFAULT_LIMITS = DiscussionLimits()
+from gateway.hosted_room_limits import DEFAULT_LIMITS, DiscussionLimits, _conclude, task_round_index  # fork seam: below the names it reads at import
 
 
 @dataclass(frozen=True)
@@ -754,45 +718,6 @@ def plan_next_task(
         if round_index == room.limits.max_rounds - 1:
             return finish(decide("bounded", "max_rounds"))
     raise AssertionError("bounded Discussion loop exhausted unexpectedly")
-
-
-def _conclude(room, events, discussion, active, decision) -> DiscussionDecision:
-    """One optional ordinary driver turn; the same journal owns Stop and replay."""
-    response = response_from_payload(discussion.payload)
-    if response is not None and response.single_round:
-        return decision
-    member_id = room.limits.conclusion_member_id
-    if member_id is None:
-        return decision
-    decide = partial(DiscussionDecision, discussion_event_id=discussion.event_id,
-        source_event_seq=discussion.seq, thread_id=discussion.payload["thread_id"])
-    terminal = next((e for e in reversed(events) if e.kind in _TERMINAL_EVENT_KINDS
-        and e.payload.get("discussion_event_id") == discussion.event_id
-        and e.payload["round_index"] == room.limits.max_rounds), None)
-    if terminal is not None:
-        reason = {"turn.settled": "conclusion_completed", "turn.failed": "conclusion_failed",
-                  "turn.cancelled": "conclusion_cancelled", "turn.deferred": "conclusion_deferred"}[terminal.kind]
-        if terminal.kind == "turn.settled" and terminal.payload["passed"]:
-            reason = "conclusion_empty"
-        return decide("settled", reason)
-    member = next((m for m in active if m.member_id == member_id), None)
-    if member is None:
-        return decide("settled", "conclusion_member_unavailable")
-    _, messages, _ = _thread_messages(events, discussion)
-    seen = max(e.seq for e in messages)
-    prompt = _build_prompt(room=room, member=member, messages=messages, watermark=0,
-        seen_through_seq=seen, active_members=active, conclusion=True)
-    return decide("task", "conclusion_turn", task=_make_task_plan(room=room,
-        discussion_event=discussion, member=member, member_index=0,
-        round_index=room.limits.max_rounds, seen_through_seq=seen, prompt=prompt))
-
-
-def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits = DEFAULT_LIMITS) -> int:
-    """Read a durable task coordinate, including after the room has ended."""
-    match = _TURN_ID_RE.fullmatch(identity.turn_id)
-    if match is None:
-        raise DiscussionReconstructionError("turn_id is not a Discussion coordinate")
-    return _zero_based_int(int(match.group("round")), label="round_index", maximum=limits.last_round_index)
 
 
 def reconstruct_task_plan(

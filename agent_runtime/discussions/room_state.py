@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from gateway import hosted_room_discussion as policy
 from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms as rooms
+from gateway import hosted_room_history_pins as pins
 from .definitions import identifier, revision
 from .room_definition import execution_spec
 from .run_values import DiscussionError, digest
@@ -109,7 +110,7 @@ class RoomState:
     def retain(self, run_id: str) -> str | None:
         """Retain Ended history; a full retention budget must not prevent End."""
         try:
-            rooms.pin_room_history(self.db_path, room_id=run_id,
+            pins.pin_room_history(self.db_path, room_id=run_id,
                 expected_gateway_id=self.install_id, expected_epoch=1)
             return None
         except rooms.HostedRoomError as exc:
@@ -120,7 +121,7 @@ class RoomState:
     def release(self, run_id: str) -> None:
         """Drop a retention claim that no longer has a disbanded room behind it."""
         try:
-            rooms.unpin_room_history(self.db_path, room_id=run_id,
+            pins.unpin_room_history(self.db_path, room_id=run_id,
                 expected_gateway_id=self.install_id, expected_epoch=1)
         except rooms.HostedRoomError:
             logger.warning("Discussion retention release deferred: %s", run_id)

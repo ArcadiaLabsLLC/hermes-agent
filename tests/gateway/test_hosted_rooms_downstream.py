@@ -8,6 +8,7 @@ from __future__ import annotations
 import sqlite3
 import pytest
 from gateway import hosted_rooms as rooms
+from gateway import hosted_room_history_pins as pins
 
 from tests.gateway.test_hosted_rooms import (  # noqa: F401 — upstream names the moved tests use
     USER,
@@ -18,7 +19,7 @@ from tests.gateway.test_hosted_rooms import (  # noqa: F401 — upstream names t
 
 
 def _pin(db, room_id="room-1", *, gateway="gateway-a", epoch=1):
-    return rooms.pin_room_history(
+    return pins.pin_room_history(
         db, room_id=room_id, expected_gateway_id=gateway, expected_epoch=epoch
     )
 
@@ -166,10 +167,10 @@ def test_retention_limit_is_typed_and_unpin_frees_a_slot(tmp_path, monkeypatch):
 
     assert refusal.value.reason == "history_retention_full"
     assert isinstance(refusal.value, rooms.HostedRoomError)
-    assert rooms.unpin_room_history(
+    assert pins.unpin_room_history(
         db, room_id="room-first", expected_gateway_id="gateway-a", expected_epoch=1
     )
-    assert not rooms.unpin_room_history(
+    assert not pins.unpin_room_history(
         db, room_id="room-first", expected_gateway_id="gateway-a", expected_epoch=1
     )
     # Positive control: the identical pin that was refused now succeeds.
@@ -181,12 +182,12 @@ def test_unpin_rejects_stale_authority_and_tolerates_an_unused_store(tmp_path):
     db = tmp_path / "state.db"
     _create(db, "room-1")
 
-    assert not rooms.unpin_room_history(
+    assert not pins.unpin_room_history(
         db, room_id="room-1", expected_gateway_id="gateway-a", expected_epoch=1
     )
     _pin(db, "room-1")
     with pytest.raises(rooms.AuthorityConflictError):
-        rooms.unpin_room_history(
+        pins.unpin_room_history(
             db, room_id="room-1", expected_gateway_id="gateway-b", expected_epoch=1
         )
 
