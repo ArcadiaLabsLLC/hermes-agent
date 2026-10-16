@@ -3320,18 +3320,13 @@ def _advertise_agent_env() -> None:
     os.environ.setdefault("AI_AGENT", "hermes-agent")
     os.environ.setdefault("HERMES_AGENT", "true")
 
-def _builtin_verb_subparsers(subparsers, parent: str):
-    """The sub-verb action of built-in command ``parent`` (``auth`` → its ``add``/``list``/...), or None."""
-    parent_parser = subparsers.choices.get(parent) if parent in _BUILTIN_SUBCOMMANDS else None
-    actions = getattr(parent_parser, "_actions", ())
-    return next((a for a in actions if isinstance(a, argparse._SubParsersAction)), None)
-
 
 def _attach_plugin_cli_command(subparsers, cmd_info) -> None:
     """Register one plugin-provided command from its descriptor: top-level, or under the built-in
     named by ``cmd_info["parent"]``."""
     if cmd_info.get("parent"):
-        subparsers = _builtin_verb_subparsers(subparsers, cmd_info["parent"])
+        from hermes_cli.plugins_manifest_cli_commands import builtin_verb_subparsers
+        subparsers = builtin_verb_subparsers(subparsers, cmd_info["parent"], _BUILTIN_SUBCOMMANDS)
         if subparsers is None:
             raise ValueError(f"CLI command parent {cmd_info['parent']!r} is not a built-in command with sub-verbs")
     plugin_parser = subparsers.add_parser(
@@ -3345,50 +3340,6 @@ def _attach_plugin_cli_command(subparsers, cmd_info) -> None:
         plugin_parser.set_defaults(func=cmd_info["handler_fn"])
 
 
-def _declared_cli_command_argv(subparsers) -> str | None:
-    """The ``cli_command_key`` argv could name as a manifest-declared plugin command, else None: an
-    unknown first token (``hermes <verb>``) or an unknown sub-verb of a built-in (``hermes auth
-    <verb>``). Known built-in verbs return None and pay nothing."""
-    from hermes_cli._parser import command_argv
-
-    args = command_argv(sys.argv[1:])
-    if not args:
-        return None
-    if args[0] not in _BUILTIN_SUBCOMMANDS:
-        return args[0]
-    verbs = _builtin_verb_subparsers(subparsers, args[0])
-    if verbs is None or len(args) < 2 or args[1] in verbs.choices:
-        return None
-    return f"{args[0]} {args[1]}"
-
-
-def _attach_declared_plugin_cli_command(subparsers, key: str) -> bool:
-    """Attach the ``plugin.yaml``-declared command spelled ``key``, importing only its plugin.
-
-    Found by reading manifests, never by importing plugins; ``key`` comes from
-    :func:`_declared_cli_command_argv`, so it never shadows a built-in. False when nothing declares
-    ``key`` or it failed to attach.
-    """
-    log = logging.getLogger(__name__)
-    try:
-        from hermes_cli.plugins import cli_command_key, discover_declared_cli_commands
-
-        commands = discover_declared_cli_commands()
-    except Exception as exc:
-        log.warning("Declared plugin CLI scan failed: %s", exc)
-        return False
-    for cmd_info in commands:
-        if cli_command_key(cmd_info["name"], cmd_info["parent"]) != key:
-            continue
-        try:
-            _attach_plugin_cli_command(subparsers, cmd_info)
-        except Exception as exc:
-            log.warning("Plugin CLI command %r failed to attach: %s", key, exc)
-            return False
-        return True
-    return False
-
-
 def _register_plugin_cli_commands(subparsers) -> None:
     """Register plugin-provided commands (each plugin builds its own argparse tree).
 
@@ -3396,8 +3347,8 @@ def _register_plugin_cli_commands(subparsers) -> None:
     Full discovery is skipped when the invocation targets a known built-in or a declared command
     — eagerly importing every bundled plugin module costs 500-650ms.
     """
-    key = _declared_cli_command_argv(subparsers)
-    if key is not None and _attach_declared_plugin_cli_command(subparsers, key):
+    from hermes_cli.plugins_manifest_cli_commands import attach_declared_cli_command
+    if attach_declared_cli_command(subparsers, _BUILTIN_SUBCOMMANDS, _attach_plugin_cli_command):
         return
     if not _plugin_cli_discovery_needed():
         return

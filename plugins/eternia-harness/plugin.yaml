@@ -11,7 +11,7 @@ kind: backend
 api_version: 1
 tags: [harness, mission-control]
 # Attached before plugin discovery, materialising only this plugin
-# (hermes_cli/plugins.py::discover_declared_cli_commands).
+# (hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands).
 cli_commands:
   - name: harness
     help: Experimental Agent Runtime Harness

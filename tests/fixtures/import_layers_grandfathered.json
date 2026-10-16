@@ -38,6 +38,8 @@
   "agent_runtime/skill_search.py|tools.skills_tool|_sort_skills",
   "hermes_cli/harness_parts/pets_commands.py|agent.pet.render|_frame_is_blank",
   "hermes_cli/kanban_crash_evidence.py|hermes_cli.kanban_db|_pid_alive",
+  "hermes_cli/plugins_manifest_cli_commands.py|hermes_cli.plugins|_get_disabled_plugins",
+  "hermes_cli/plugins_manifest_cli_commands.py|hermes_cli.plugins|_get_enabled_plugins",
   "scripts/bundle_profile_closure.py|pm|_HOME",
   "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_persist_dispatch",
   "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_transaction",

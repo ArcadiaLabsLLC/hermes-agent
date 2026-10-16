@@ -37,6 +37,7 @@ from hermes_cli.config import load_config_readonly
 from hermes_cli.middleware import VALID_MIDDLEWARE
 from hermes_cli.plugin_capabilities import plugin_capability_granted
 from hermes_cli.relay_plugin_cutover import RELAY_PLUGINS_CONFIG_ENV, legacy_relay_plugin_keys
+from hermes_cli.plugins_manifest_cli_commands import cli_command_key  # fork: register_cli_command parent
 # Sibling modules' names are re-exported here (origin) so plugins and tests keep one import path.
 from hermes_cli.plugins_manifest import (
     _CONFIG_SCHEMA_TYPES, SUPPORTED_MANIFEST_VERSION, PluginManifest, _portable_skill_namespace,
@@ -1776,66 +1777,6 @@ def discover_plugins(force: bool = False) -> None:
     background discovery instead of racing a second scan."""
     _join_background_discovery()
     get_plugin_manager().discover_and_load(force=force)
-
-
-def cli_command_key(name: str, parent: str | None = None) -> str:
-    """``PluginManager._cli_commands`` key: the argv spelling, ``"<parent> <name>"`` or ``"<name>"``."""
-    return f"{parent} {name}" if parent else name
-
-
-def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parser: Any) -> None:
-    """Stub ``setup_fn``: load ONLY ``manifest``'s plugin, run the parser setup its ``register(ctx)``
-    registered for ``name``, then unload it again. Never runs :func:`discover_plugins`.
-
-    The load is transient because every ``hermes`` invocation builds its parser and a later discovery
-    (``gateway run``; anything importing ``model_tools``) calls ``register(ctx)`` a second time: kept
-    loaded, that call hits the duplicate system-prompt-section refusal and the failed load's ledger
-    sweep disposes BOTH loads. The parser keeps whatever ``setup_fn`` bound into it."""
-    manager = get_plugin_manager()
-    key = manifest_key(manifest)
-    entry = manager._cli_commands.get(name)
-    loaded_here = entry is None or entry.get("plugin_key") != key
-    if loaded_here:
-        manager._load_plugin(manifest)
-        entry = manager._cli_commands.get(name)
-    try:
-        if entry is None or entry.get("plugin_key") != key:
-            raise RuntimeError(f"plugin {key!r} declares CLI command {name!r} in its manifest "
-                               "but register(ctx) did not register it")
-        entry["setup_fn"](parser)
-        if entry.get("handler_fn") is not None:
-            parser.set_defaults(func=entry["handler_fn"])
-    finally:
-        if loaded_here:
-            manager.unload(key)
-
-
-def discover_declared_cli_commands() -> List[Dict[str, Any]]:
-    """CLI commands declared in ``plugin.yaml`` ``cli_commands:``, found WITHOUT importing any plugin.
-
-    One ``register_cli_command``-shaped descriptor per row, for every directory manifest discovery
-    would load (same precedence and enable gate; ``HERMES_SAFE_MODE`` yields nothing). Each
-    ``setup_fn`` materialises only its own plugin, so running a declared command costs one plugin
-    import instead of :func:`discover_plugins`. Entry-point plugins have no manifest to read and
-    keep the discovery path.
-    """
-    if _env_enabled("HERMES_SAFE_MODE"):
-        return []
-    winners = {manifest_key(m): m for m in collect_directory_manifests()}
-    config = load_config_readonly()  # one read serves both lists
-    disabled, enabled = _get_disabled_plugins(config), _get_enabled_plugins(config)
-    commands: List[Dict[str, Any]] = []
-    for plugin_key, manifest in winners.items():
-        if gate_manifest(manifest, disabled, enabled).action not in ("load", "load_now"):
-            continue
-        for row in manifest.cli_commands:
-            key = cli_command_key(row["name"], row["parent"])
-            commands.append({
-                **row, "parent": row["parent"] or None, "help": row["help"] or manifest.description or "",
-                "handler_fn": None, "plugin": manifest.name, "plugin_key": plugin_key,
-                "setup_fn": lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser),
-            })
-    return commands
 
 
 _background_discovery_thread: Optional[threading.Thread] = None
