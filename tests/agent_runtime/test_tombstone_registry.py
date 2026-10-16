@@ -3973,6 +3973,132 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "ALL_SECRET_ASSIGNMENT_PATTERNS",
         scope=("agent_runtime.redaction",),
     ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "workspace_token_for_published_path",
+        scope=("agent_runtime.level_sync",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "census re-run 2026-10-16 (lane h5-deadcode): the writer status word no "
+        "reader or writer spells; unreferenced anywhere",
+        "RECORD_STATUS_FINISHED",
+        scope=("agent_runtime.builds.vocabulary",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.CLASS_ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "spec.DirectionScheme.is_mirrored",
+        scope=("agent.charsheet",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.CLASS_ATTR,
+        "plan l5-17-test-only-names bucket D: a duplicate of the readiness "
+        "probe's own spelling (select under pool_rotation_scope(False), "
+        "provider_probes); the test now drives that (lane h5-deadcode)",
+        "pool_rotation.PoolRotationMixin.select_without_persisting_rotation",
+        scope=("agent_runtime",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: the placement hook "
+        "(agent_create.phases) composes next_free_slot itself; deleted with its "
+        "tests (lane h5-deadcode)",
+        "next_free_slot_for_kind",
+        scope=("agent_runtime.office_layout_policy",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: the mobile-core tree fold had no "
+        "caller after redact.py was re-homed; deleted with its singledispatch "
+        "chain and test (lane h5-deadcode)",
+        "redact_transport_tree",
+        "_transport",
+        scope=("agent_runtime.redaction",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production builds use "
+        "begin_build/end_build; the context manager and its class were test-only "
+        "(lane h5-deadcode)",
+        "build_span_scope",
+        "_BuildSpan",
+        scope=("agent_runtime.snapshot_build_ledger",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "capture_create_subphases",
+        scope=("agent_runtime.agent_create_phases",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "recognize_transcript",
+        scope=("agent_runtime.builds.recognizer_flutter",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: no entry point ever pinned its "
+        "lane; the pin and its dead precedence arm are deleted, tests label the "
+        "lane through HERMES_ENTRY_POINT_LANE (lane h5-deadcode)",
+        "set_entry_point_lane",
+        "_lane_override",
+        scope=("agent_runtime.mcp_lane",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: the eternia-harness plugin "
+        "registers postinstall through add_postinstall_arguments; the whole-"
+        "parser builder was test-only (lane h5-deadcode)",
+        "build_postinstall_parser",
+        scope=("hermes_cli.subcommands.postinstall",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "set_user_env",
+        scope=("hermes_cli.windows_env",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: production code with no production "
+        "caller, deleted with its tests (lane h5-deadcode)",
+        "builtin_modules",
+        scope=("tools.toolset_manifest",),
+    ),
 )
 
 

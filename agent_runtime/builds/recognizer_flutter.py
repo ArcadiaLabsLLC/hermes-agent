@@ -168,10 +168,3 @@ class FlutterRecognizer:
         evidence = "no 'Built' line; conventional outputs: " + ("; ".join(probed) if probed else f"none known for target {target!r}")
         self.unknowns.add(UNKNOWN_ARTIFACT_UNLOCATED, evidence, seen_at)
 
-
-def recognize_transcript(text: str, *, cwd: str = "", seen_at: float = 0.0) -> FlutterRecognizer:
-    """A whole transcript, read in one pass (the goldens' entry point)."""
-
-    recognizer = FlutterRecognizer(cwd=cwd)
-    recognizer.feed(text, seen_at=seen_at)
-    return recognizer

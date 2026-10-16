@@ -195,14 +195,6 @@ def using_create_subphases(recorder: CreateSubphases) -> Iterator[CreateSubphase
 
 
 @contextmanager
-def capture_create_subphases() -> Iterator[CreateSubphases]:
-    """Install a FRESH recorder for the duration of one mint."""
-
-    with using_create_subphases(CreateSubphases()) as recorder:
-        yield recorder
-
-
-@contextmanager
 def timed_create_subphase(key: str) -> Iterator[None]:
     """Bill the wrapped block to ``key`` — or do nothing at all.
 

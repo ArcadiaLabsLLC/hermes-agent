@@ -207,9 +207,6 @@ class DirectionScheme:
         # mapping they passed in out from under a constructed scheme.
         object.__setattr__(self, "mirrored", dict(self.mirrored))
 
-    def is_mirrored(self, direction: str) -> bool:
-        return direction in self.mirrored
-
     def source_of(self, direction: str) -> str | None:
         """The authored direction ``direction`` is flipped from, if derived."""
         return self.mirrored.get(direction)

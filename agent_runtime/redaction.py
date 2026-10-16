@@ -279,39 +279,6 @@ def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
     return text
 
 
-def redact_transport_tree(value: Any) -> Any:
-    """A JSON-safe copy of ``value``: credential-keyed values masked, every other
-    string through :func:`redact_transport_text`, scalars kept, anything else
-    stringified and redacted."""
-
-    return _transport(value)
-
-
-@singledispatch
-def _transport(value: Any) -> Any:
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    return redact_transport_text(str(value))
-
-
-@_transport.register(dict)
-def _transport_mapping(value: dict) -> Any:
-    return {str(key): REDACTED_VALUE if is_credential_key(key) else _transport(item) for key, item in value.items()}
-
-
-@_transport.register(list)
-@_transport.register(tuple)
-@_transport.register(set)
-@_transport.register(frozenset)
-def _transport_sequence(value: Any) -> Any:
-    return [_transport(item) for item in value]
-
-
-@_transport.register(str)
-def _transport_text(value: str) -> Any:
-    return redact_transport_text(value)
-
-
 # ── secret VALUES in a tool's input or result (the operator tool-IO lane) ─────
 #
 # THE DEFECT THIS RETIRES (2026-10-02): the tool-IO lane blanked any LINE that

@@ -143,38 +143,6 @@ def overlapping_builds(*, start: float, end: float) -> int | None:
     return closed + sum(1 for build_start in open_starts if build_start <= window_end)
 
 
-def build_span_scope(recorder: Any = None):
-    """Context manager that times a build and records it on exit.
-
-    Returned rather than inlined at the call site so the two ``monotonic``
-    reads and the "record even when the build raised" decision live in one
-    place. A build that raised IS recorded: it occupied the process for that
-    span whether or not it produced a core, and a turn that overlapped it paid
-    the same price.
-    """
-
-    return _BuildSpan(recorder or record_build)
-
-
-class _BuildSpan:
-    __slots__ = ("_recorder", "_started")
-
-    def __init__(self, recorder: Any) -> None:
-        self._recorder = recorder
-        self._started = 0.0
-
-    def __enter__(self) -> "_BuildSpan":
-        self._started = time.monotonic()
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> bool:
-        try:
-            self._recorder(started=self._started, ended=time.monotonic())
-        except Exception:  # pragma: no cover - an instrument never fails a build
-            pass
-        return False
-
-
 def reset_for_tests() -> None:
     """Drop all recorded spans AND the observed flag. Tests only."""
 

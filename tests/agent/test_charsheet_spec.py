@@ -57,9 +57,8 @@ def test_every_mirror_source_is_itself_authored(scheme):
     for derived, source in scheme.mirrored.items():
         assert source in scheme.authored, f"{derived} flips {source}, which is not drawn"
         assert scheme.source_of(derived) == source
-        assert scheme.is_mirrored(derived) is True
     for direction in scheme.authored:
-        assert scheme.is_mirrored(direction) is False
+        assert direction not in scheme.mirrored
         assert scheme.source_of(direction) is None
 
 

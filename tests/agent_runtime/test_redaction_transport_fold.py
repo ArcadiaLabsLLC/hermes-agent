@@ -14,7 +14,6 @@ from agent_runtime.redaction import (
     TEXT_SECRET_VALUE_ASSIGNMENT_RE,
     is_credential_key,
     redact_transport_text,
-    redact_transport_tree,
     redact_url,
 )
 
@@ -51,23 +50,6 @@ def test_exact_secrets_are_masked():
     assert redact_transport_text("value opaque-42 leaked", secrets=("opaque-42", "")) == (
         f"value {REDACTED_VALUE} leaked"
     )
-
-
-def test_tree_masks_credential_keys_and_walks_everything_else():
-    tree = {
-        "api_key": "plain",
-        "Access_Token": "plain",
-        "headers": {"Set-Cookie": "c=1"},
-        "items": ("Bearer tok", 3, None, True),
-        "name": "plain",
-    }
-    assert redact_transport_tree(tree) == {
-        "api_key": REDACTED_VALUE,
-        "Access_Token": REDACTED_VALUE,
-        "headers": {"Set-Cookie": REDACTED_VALUE},
-        "items": [f"Bearer {REDACTED_VALUE}", 3, None, True],
-        "name": "plain",
-    }
 
 
 def test_credential_key_folds_underscore_and_case():
