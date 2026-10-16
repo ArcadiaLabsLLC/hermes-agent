@@ -317,9 +317,9 @@ def mark_direct_hits(upstream):
     are already on the wire.
     """
 
-    def dispatch_tool_search(args, *, current_tool_defs, config=None, connector_search=None):
+    def dispatch_tool_search(args, *, current_tool_defs, config=None, connector_search=None, **upstream_kwargs):
         raw = upstream(args, current_tool_defs=current_tool_defs, config=config,
-                       connector_search=connector_search)
+                       connector_search=connector_search, **upstream_kwargs)
         try:
             payload = json.loads(raw)
         except Exception:
