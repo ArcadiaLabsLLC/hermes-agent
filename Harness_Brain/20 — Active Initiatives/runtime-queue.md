@@ -491,6 +491,8 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
+- [ ] **v0.22.2 folded `browser_vault_{list,unlock,fill,save_login,enter_code}` into one `browser_vault`; persona chat-lane defer lists and `test_chat_lane_defer` / `test_chat_lane_cache_hit_downstream` / `test_tool_surface*` still name the five, so the vault loads eagerly for personas that deferred it** · seams · rel-0222 toolset manifest diff · after the v0.22.2 landing
+
 - [ ] **WEAKNESS: `_codex_pool_row_refused` is a 20-line fork helper living inside upstream `hermes_cli/auth_codex.py`, with a silent `except Exception: return False`** (`8059b23fa3c`, runtime R596) — a seam is one import and one call; move the helper to a fork-owned module (e.g. `agent_runtime/auth_extensions.py`), keep one call in the upstream loop, and log an unparsable pool row instead of serving it unrefused. **TAKEN 2026-10-15 w1015j-hermes**
 
 

@@ -468,5 +468,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-15 (owner: the footprint ratchet only goes up)
 
+- [ ] **`Merging upstream.md` Step 4b lists fix(merge) commits from `origin/main..integration/upstream-daily` that main already carries via `-x` (11 of 24 at v0.22.2) and regen-only commits that apply cleanly but are wrong at the tag (a9a41e4); filter by the `cherry picked from` trailer and skip generated-only commits. Step 3's pyproject fork pair (coverage / pytest-timeout / `--timeout=30`) no longer exists on main; delete that rule** · fork / upstream merge runbook · rel-0222 `d092643e76b` · before the next release merge
+
 - [ ] **The upstream footprint rose 175 → 221 files (10-06 → 10-15), +36 since the v0.21.6 merge, almost all from fork lanes taking the raise-with-a-reason path (120 reason rows); give every file added since 10-06 a drop / extract / upstream verdict and plan the extract MOVE lanes** · fork / upstream footprint · `tests/fixtures/upstream_footprint.json` history on main · **TAKEN 2026-10-15 claude (lane fp-audit, design)**
 
