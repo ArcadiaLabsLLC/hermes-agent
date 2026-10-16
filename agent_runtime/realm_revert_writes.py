@@ -286,6 +286,54 @@ def _archive_local_only(item: StoreDriftItem, *, office_store, board_store) -> N
     )
 
 
+def _actions():
+    """``realm_revert.RevertAction`` (imported late: that module imports this one)."""
+
+    from .realm_revert import RevertAction
+
+    return RevertAction
+
+
+def _apply_persona_def(item: StoreDriftItem, entity, action, **_stores: Any) -> None:
+    # ONE arm: RESTORE never arises (the family has no ``removed`` rows)
+    # and ARCHIVE_LOCAL is refused by the table, so this is the adopt —
+    # the pull's own door, which writes the record through
+    # ``AgentStore.save`` and never deletes a persona.
+    from .persona_config_sync import adopt_persona_def
+
+    adopt_persona_def(item.item_key, entity)
+
+
+def _apply_skill(
+    item: StoreDriftItem, entity, action, *, realm_id: str | None, **_stores: Any
+) -> None:
+    # ONE arm for this family: RESTORE and ADOPT are the same install
+    # (the canonical slot is empty for a ``removed`` row and occupied for
+    # a ``changed`` one, and the guarded door decides which), so splitting
+    # them across the store-row helpers would be two spellings of one write.
+    if action is _actions().ARCHIVE_LOCAL:
+        _archive_local_skill(item)
+    else:
+        _install_skill_from_inbox(item, entity, realm_id=realm_id)
+
+
+def _apply_store_row(
+    item: StoreDriftItem, entity, action, *, office_store, board_store, realm_id: str | None
+) -> None:
+    """The office, board, instance and canvas rows: the pull lane's own write arms."""
+
+    if action is _actions().RESTORE:
+        _restore_from_upstream(
+            item, entity, office_store=office_store, board_store=board_store, realm_id=realm_id
+        )
+    elif action is _actions().ADOPT:
+        _adopt_from_upstream(
+            item, entity, office_store=office_store, board_store=board_store, realm_id=realm_id
+        )
+    else:  # ARCHIVE_LOCAL
+        _archive_local_only(item, office_store=office_store, board_store=board_store)
+
+
 def _current_content_hash(item: StoreDriftItem, *, office_store, board_store) -> str:
     """The baseline is realigned from the STORE's post-write content, not from
     the upstream artifact's hash.

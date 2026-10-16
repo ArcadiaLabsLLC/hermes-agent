@@ -54,6 +54,7 @@ no ledger anywhere, so archive-never-delete holds with no parameter at all.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -87,13 +88,11 @@ from .serde import to_jsonable
 from .realm_revert_writes import (  # noqa: F401 — REVERT_ACTOR_REF is re-exported
     REVERT_ACTOR_REF,
     _SkillWriteRefused,
-    _adopt_from_upstream,
-    _archive_local_only,
-    _archive_local_skill,
+    _apply_persona_def,
+    _apply_skill,
+    _apply_store_row,
     _current_content_hash,
-    _install_skill_from_inbox,
     _refuse_flow_graph,
-    _restore_from_upstream,
 )
 from .store import RealmStore
 
@@ -145,47 +144,6 @@ CONTAINER_FAMILIES = frozenset({DRIFT_FAMILY_BOARD, DRIFT_FAMILY_OFFICE_SURFACE}
 #: persona DEFINITION — a persona is referenced by placements, instances and
 #: assignments, and a revert never deletes one (the pull's ``retained`` rule).
 NO_LOCAL_ARCHIVE_FAMILIES = CONTAINER_FAMILIES | frozenset({DRIFT_FAMILY_PERSONA_DEFINITION})
-FAMILIES = frozenset(
-    {
-        DRIFT_FAMILY_BOARD,
-        DRIFT_FAMILY_BOARD_CARD,
-        DRIFT_FAMILY_OFFICE_SURFACE,
-        DRIFT_FAMILY_OFFICE_ACTOR,
-        DRIFT_FAMILY_PERSONA_INSTANCE,
-        DRIFT_FAMILY_FLOW_GRAPH,
-        DRIFT_FAMILY_SKILL,
-        DRIFT_FAMILY_PERSONA_DEFINITION,
-    }
-)
-
-#: Rows before containers, and the CANVAS after the agents it binds. A restored
-#: actor leaves its workspace's resurrection-guard ledger, which CHANGES the
-#: surface hash — so the surface arm (and the baseline realignment that follows
-#: it) must run after the rows it is downstream of, or a ``--all`` pass realigns
-#: the surface against a picture one write out of date.
-#:
-#: The canvas sits LAST for the pull lane's reason, not the surface's: a canvas
-#: binds nodes to instance ids, owner-liveness reaping archives a drawing whose
-#: owner is gone, and a canvas restored before its owner instance looks exactly
-#: like that. ``apply_flow_graph_pull`` runs after ``apply_persona_instance_pull``
-#: for this, and a ``--all`` revert that carried both would otherwise restore
-#: them in family-name order — ``flow_graph`` before ``persona_instance``.
-#: The SKILL family sits in the ROW band (0) and needs nothing from the others:
-#: its upstream is the per-realm inbox mirror and its container is the machine's
-#: shared skills root, so no other family's write can change what a skill row
-#: reverts to, and no skill write changes another family's hash.
-_PROCESS_ORDER = {
-    DRIFT_FAMILY_OFFICE_ACTOR: 0,
-    DRIFT_FAMILY_BOARD_CARD: 0,
-    DRIFT_FAMILY_PERSONA_INSTANCE: 0,
-    DRIFT_FAMILY_SKILL: 0,
-    DRIFT_FAMILY_PERSONA_DEFINITION: 0,
-    DRIFT_FAMILY_OFFICE_SURFACE: 1,
-    DRIFT_FAMILY_BOARD: 1,
-    DRIFT_FAMILY_FLOW_GRAPH: 2,
-}
-
-
 class RevertAction(str, Enum):
     RESTORE = "restore"  # baseline row, gone locally → live again from upstream
     ADOPT = "adopt"  # local row overwritten with the upstream artifact
@@ -441,44 +399,30 @@ class _Upstream:
         package = root.joinpath(*slug.split("/"))
         return (package if (package / "SKILL.md").is_file() else None), False
 
-    def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:
-        """``(entity_or_None, unreadable)``. ``unreadable`` True means the
-        artifact is not decodable HERE, which is never the same answer as
-        absent."""
+    def _office_surface(self, container: str, _item_key: str) -> tuple[Any, bool]:
+        remote = self._office(container)
+        return remote.surface, remote.surface_unreadable
 
-        if family == DRIFT_FAMILY_SKILL:
-            return self._skill(item_key)
-        if family == DRIFT_FAMILY_PERSONA_DEFINITION:
-            return self._persona_def(item_key)
-        if family == DRIFT_FAMILY_PERSONA_INSTANCE:
-            return self._instance(item_key)
-        if family == DRIFT_FAMILY_FLOW_GRAPH:
-            return self._flow_graph(item_key)
-        if family == DRIFT_FAMILY_OFFICE_SURFACE:
-            remote = self._office(container)
-            return remote.surface, remote.surface_unreadable
-        if family == DRIFT_FAMILY_OFFICE_ACTOR:
-            remote = self._office(container)
-            actor = remote.actors.get(item_key)
-            return actor, actor is None and remote.unreadable > 0
-        if family == DRIFT_FAMILY_BOARD:
-            remote = self._board(container)
-            return remote.board, remote.board_unreadable
+    def _office_actor(self, container: str, item_key: str) -> tuple[Any, bool]:
+        remote = self._office(container)
+        actor = remote.actors.get(item_key)
+        return actor, actor is None and remote.unreadable > 0
+
+    def _board_def(self, container: str, _item_key: str) -> tuple[Any, bool]:
+        remote = self._board(container)
+        return remote.board, remote.board_unreadable
+
+    def _board_card(self, container: str, item_key: str) -> tuple[Any, bool]:
         remote = self._board(container)
         card = remote.cards.get(item_key)
         return card, card is None and remote.unreadable > 0
 
+    def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:
+        """``(entity_or_None, unreadable)``. ``unreadable`` True means the
+        artifact is not decodable HERE, which is never the same answer as
+        absent. The family's arm (:data:`_FAMILY_ARMS`) names the reader."""
 
-#: Which baseline file records each drift family's rows. The two office
-#: families share one; a family not named here is a board row (board, card).
-_BASELINE_OF_FAMILY = {
-    DRIFT_FAMILY_OFFICE_ACTOR: "office",
-    DRIFT_FAMILY_OFFICE_SURFACE: "office",
-    DRIFT_FAMILY_PERSONA_INSTANCE: "instances",
-    DRIFT_FAMILY_FLOW_GRAPH: "flow_graphs",
-    DRIFT_FAMILY_SKILL: "skills",
-    DRIFT_FAMILY_PERSONA_DEFINITION: "persona_defs",
-}
+        return _FAMILY_ARMS[family].upstream_lookup(self, container, item_key)
 
 
 def _baseline_io() -> dict[str, tuple[Any, Any]]:
@@ -522,10 +466,10 @@ class _Baselines:
         self._touched: set[str] = set()
 
     def for_family(self, family: str) -> dict[str, str]:
-        return self._maps[_BASELINE_OF_FAMILY.get(family, "board")]
+        return self._maps[_FAMILY_ARMS[family].baseline]
 
     def mark_applied(self, family: str) -> None:
-        self._touched.add(_BASELINE_OF_FAMILY.get(family, "board"))
+        self._touched.add(_FAMILY_ARMS[family].baseline)
 
     def write_touched(self) -> None:
         for name, (_read, write) in self._io.items():
@@ -781,16 +725,6 @@ def _refuse_persona_def_door(item_key: str, entity):
     return persona_def_admission_refusal(item_key, entity)
 
 
-#: The family's OWN admission door, where the pull holds one. A family not
-#: named here passes the shared ``refuse_entity`` scan.
-_ADMISSION_DOORS = {
-    DRIFT_FAMILY_PERSONA_INSTANCE: _refuse_persona_instance_door,
-    DRIFT_FAMILY_FLOW_GRAPH: _refuse_flow_graph_door,
-    DRIFT_FAMILY_SKILL: _refuse_skill_door,
-    DRIFT_FAMILY_PERSONA_DEFINITION: _refuse_persona_def_door,
-}
-
-
 def _admission_refusal(item: StoreDriftItem, entity, key: str):
     """The same door every pulled payload passes.
 
@@ -802,7 +736,7 @@ def _admission_refusal(item: StoreDriftItem, entity, key: str):
     have turned away.
     """
 
-    door = _ADMISSION_DOORS.get(item.family)
+    door = _FAMILY_ARMS[item.family].refuse_door
     if door is not None:
         return door(item.item_key, entity)
     from .sync_admission import refuse_entity
@@ -813,36 +747,73 @@ def _admission_refusal(item: StoreDriftItem, entity, key: str):
 def _apply_revert(
     item: StoreDriftItem, entity, action: RevertAction, *, office_store, board_store, realm_id: str | None
 ) -> None:
-    """The one store write a decided revert makes. Raises; the caller accounts."""
+    """The one store write a decided revert makes, through the family's arm. Raises; the caller accounts."""
 
-    if item.family == DRIFT_FAMILY_PERSONA_DEFINITION:
-        # ONE arm: RESTORE never arises (the family has no ``removed`` rows)
-        # and ARCHIVE_LOCAL is refused by the table, so this is the adopt —
-        # the pull's own door, which writes the record through
-        # ``AgentStore.save`` and never deletes a persona.
-        from .persona_config_sync import adopt_persona_def
+    _FAMILY_ARMS[item.family].apply(
+        item, entity, action, office_store=office_store, board_store=board_store, realm_id=realm_id
+    )
 
-        adopt_persona_def(item.item_key, entity)
-    elif item.family == DRIFT_FAMILY_SKILL:
-        # ONE arm for this family: RESTORE and ADOPT are the same install
-        # (the canonical slot is empty for a ``removed`` row and occupied for
-        # a ``changed`` one, and the guarded door decides which), so splitting
-        # them across the two helpers below would be two spellings of one
-        # write.
-        if action is RevertAction.ARCHIVE_LOCAL:
-            _archive_local_skill(item)
-        else:
-            _install_skill_from_inbox(item, entity, realm_id=realm_id)
-    elif action is RevertAction.RESTORE:
-        _restore_from_upstream(
-            item, entity, office_store=office_store, board_store=board_store, realm_id=realm_id
-        )
-    elif action is RevertAction.ADOPT:
-        _adopt_from_upstream(
-            item, entity, office_store=office_store, board_store=board_store, realm_id=realm_id
-        )
-    else:  # ARCHIVE_LOCAL
-        _archive_local_only(item, office_store=office_store, board_store=board_store)
+
+@dataclass(frozen=True, slots=True)
+class FamilyArm:
+    """Everything the revert lane dispatches on per drift family — ONE row per family.
+
+    ``process_order``: the band a pass sorts the family into (below);
+    ``upstream_lookup``: the last-pulled subtree's reader, ``(upstream, container, key)``;
+    ``baseline``: which baseline sidecar records the family's rows (:func:`_baseline_io`);
+    ``apply``: the one store write a decided revert makes; ``refuse_door``: the family's
+    OWN admission door where the pull holds one (``None`` = the shared ``refuse_entity``).
+    A new drift family is a new row here; ``tests/agent_runtime/test_realm_revert.py``
+    reds while ``store_drift`` can emit a family this table has no row for.
+    """
+
+    process_order: int
+    upstream_lookup: Callable[[_Upstream, str, str], tuple[Any, bool]]
+    baseline: str
+    apply: Callable[..., None]
+    refuse_door: Callable[[str, Any], Any] | None = None
+
+
+#: Rows before containers, and the CANVAS after the agents it binds. A restored
+#: actor leaves its workspace's resurrection-guard ledger, which CHANGES the
+#: surface hash — so the surface arm (and the baseline realignment that follows
+#: it) must run after the rows it is downstream of, or a ``--all`` pass realigns
+#: the surface against a picture one write out of date.
+#:
+#: The canvas sits LAST for the pull lane's reason, not the surface's: a canvas
+#: binds nodes to instance ids, owner-liveness reaping archives a drawing whose
+#: owner is gone, and a canvas restored before its owner instance looks exactly
+#: like that. ``apply_flow_graph_pull`` runs after ``apply_persona_instance_pull``
+#: for this, and a ``--all`` revert that carried both would otherwise restore
+#: them in family-name order — ``flow_graph`` before ``persona_instance``.
+#: The SKILL family sits in the ROW band (0) and needs nothing from the others:
+#: its upstream is the per-realm inbox mirror and its container is the machine's
+#: shared skills root, so no other family's write can change what a skill row
+#: reverts to, and no skill write changes another family's hash.
+_FAMILY_ARMS: dict[str, FamilyArm] = {
+    DRIFT_FAMILY_OFFICE_ACTOR: FamilyArm(0, _Upstream._office_actor, "office", _apply_store_row),
+    DRIFT_FAMILY_BOARD_CARD: FamilyArm(0, _Upstream._board_card, "board", _apply_store_row),
+    DRIFT_FAMILY_PERSONA_INSTANCE: FamilyArm(
+        0, lambda up, _container, key: up._instance(key), "instances", _apply_store_row,
+        _refuse_persona_instance_door,
+    ),
+    DRIFT_FAMILY_SKILL: FamilyArm(
+        0, lambda up, _container, key: up._skill(key), "skills", _apply_skill, _refuse_skill_door
+    ),
+    DRIFT_FAMILY_PERSONA_DEFINITION: FamilyArm(
+        0, lambda up, _container, key: up._persona_def(key), "persona_defs", _apply_persona_def,
+        _refuse_persona_def_door,
+    ),
+    DRIFT_FAMILY_OFFICE_SURFACE: FamilyArm(1, _Upstream._office_surface, "office", _apply_store_row),
+    DRIFT_FAMILY_BOARD: FamilyArm(1, _Upstream._board_def, "board", _apply_store_row),
+    DRIFT_FAMILY_FLOW_GRAPH: FamilyArm(
+        2, lambda up, _container, key: up._flow_graph(key), "flow_graphs", _apply_store_row,
+        _refuse_flow_graph_door,
+    ),
+}
+#: The revert-addressable families and their sort bands, read off the table.
+FAMILIES = frozenset(_FAMILY_ARMS)
+_PROCESS_ORDER = {family: arm.process_order for family, arm in _FAMILY_ARMS.items()}
 
 
 def _realign_baseline(
