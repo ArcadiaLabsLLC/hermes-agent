@@ -84,6 +84,8 @@ from .realm_sync import (
     _workspaces_for_realm,
     store_drift_items,
 )
+from .realm_revert_level import apply_level, level_content_hash, read_level_upstream, refuse_level_door
+from .realm_sync.families import SyncFamily
 from .serde import to_jsonable
 from .realm_revert_writes import (  # noqa: F401 — REVERT_ACTOR_REF is re-exported
     REVERT_ACTOR_REF,
@@ -302,6 +304,8 @@ class _Upstream:
         self._flow_graphs: tuple[dict[str, Any], str | None] | None = None
         #: And the persona-definition projection.
         self._persona_defs: tuple[dict[str, Any], bool] | None = None
+        #: And the workspace levels: ``(bytes by token, unreadable tokens)``.
+        self._levels: tuple[dict[str, bytes], set[str]] | None = None
 
     def _office(self, workspace_id: str):
         from .office_sync import _read_remote_office
@@ -417,6 +421,12 @@ class _Upstream:
         card = remote.cards.get(item_key)
         return card, card is None and remote.unreadable > 0
 
+    def _level(self, _container: str, token: str) -> tuple[Any, bool]:
+        if self._levels is None:
+            self._levels = read_level_upstream(self._subtree)
+        levels, unreadable = self._levels
+        return (None, True) if token in unreadable else (levels.get(token), False)
+
     def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:
         """``(entity_or_None, unreadable)``. ``unreadable`` True means the
         artifact is not decodable HERE, which is never the same answer as
@@ -436,6 +446,7 @@ def _baseline_io() -> dict[str, tuple[Any, Any]]:
         read_persona_instance_baseline,
         write_persona_instance_baseline,
     )
+    from .level_sync import read_level_baseline, write_level_baseline
     from .skill_sync import read_skill_baseline, write_skill_baseline
 
     return {
@@ -445,6 +456,7 @@ def _baseline_io() -> dict[str, tuple[Any, Any]]:
         "flow_graphs": (read_flow_graph_baseline, write_flow_graph_baseline),
         "skills": (read_skill_baseline, write_skill_baseline),
         "persona_defs": (read_persona_config_baseline, write_persona_config_baseline),
+        "levels": (read_level_baseline, write_level_baseline),
     }
 
 
@@ -772,6 +784,8 @@ class FamilyArm:
     baseline: str
     apply: Callable[..., None]
     refuse_door: Callable[[str, Any], Any] | None = None
+    #: The post-write content hash; ``None`` = ``realm_revert_writes._current_content_hash``.
+    content_hash: Callable[[StoreDriftItem], str] | None = None
 
 
 #: Rows before containers, and the CANVAS after the agents it binds. A restored
@@ -810,6 +824,9 @@ _FAMILY_ARMS: dict[str, FamilyArm] = {
         2, lambda up, _container, key: up._flow_graph(key), "flow_graphs", _apply_store_row,
         _refuse_flow_graph_door,
     ),
+    SyncFamily.LEVEL: FamilyArm(
+        0, _Upstream._level, "levels", apply_level, refuse_level_door, level_content_hash
+    ),
 }
 #: The revert-addressable families and their sort bands, read off the table.
 FAMILIES = frozenset(_FAMILY_ARMS)
@@ -834,7 +851,11 @@ def _realign_baseline(
         baseline.pop(key, None)
         return
     try:
-        baseline[key] = _current_content_hash(item, office_store=office_store, board_store=board_store)
+        content_hash = _FAMILY_ARMS[item.family].content_hash
+        baseline[key] = (
+            content_hash(item) if content_hash is not None
+            else _current_content_hash(item, office_store=office_store, board_store=board_store)
+        )
     except Exception as exc:  # noqa: BLE001 — the write landed; the receipt did not
         # The write happened, so the row is NOT reported as refused — but a
         # baseline entry that cannot be re-read is left absent rather than

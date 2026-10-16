@@ -41,6 +41,7 @@ from .drift import (
     _drift_counts,
     store_drift_items,
 )
+from .level_drift import LEVEL_DRIFT_COUNTS
 from .sidecar import (
     _held_profile_artifacts,
     _timestamp_file,
@@ -137,9 +138,9 @@ def realm_sync_status(
         # ``state``/``ahead``/``behind`` are UNCHANGED — other consumers key off
         # them — this only ADDS store-vs-baseline drift accounting on top.
         "store_drift": store_drift,
-        # The level and map families are top-level rows, not ``store_drift``
-        # families (neither has a revert arm yet), so the flag asks them
-        # directly. Reading ``store_drift`` alone answered False over a map the
+        # The map family is a top-level row, not a ``store_drift`` family (no
+        # revert arm yet), so the flag asks it directly (the level row too, for
+        # its held/refused-free count while both shapes ship). Reading ``store_drift`` alone answered False over a map the
         # launcher had just saved, and every consumer of this flag — the
         # launcher's sheet, its chip, its auto-publish gate — then said there
         # was nothing to publish.
@@ -262,6 +263,10 @@ def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str,
         # so a local model-switcher edit lights "unpublished changes". Arrives
         # with its revert arm, for the canvas family's reason.
         "personas": _drift_counts(drift_items, _PERSONA_DEFINITION_DRIFT_COUNTS),
+        # Additive seventh family (2026-10-16, owner ruling 2026-10-10: one count):
+        # the workspace LEVEL, with its revert arm. The top-level ``levels`` row
+        # stays for one release so an older launcher keeps its count.
+        "levels": _drift_counts(drift_items, LEVEL_DRIFT_COUNTS),
         "items": [item.as_dict() for item in drift_items],
     }
 
@@ -300,16 +305,13 @@ def _map_status_row(realm_id: str) -> dict[str, Any]:
 def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
     """``{publishable, unpublished, held, refused}`` for the workspace LEVEL family.
 
-    **A top-level key and DELIBERATELY NOT a ``store_drift`` family**, and the
-    reason is the one :func:`_flow_graph_status_row` records for why the canvas
-    was not one either until its revert arm landed: ``store_drift`` rows are
-    exactly the set the REVERT lane addresses. ``realm_revert`` sorts them
-    through ``_PROCESS_ORDER[row.family]`` — a direct subscript — and dispatches
-    on family for the upstream lookup, the baseline and the store door. A family
-    added there without a revert arm hands ``revert --all`` a ``KeyError`` and
-    offers the operator an exit that does not exist, so the level family's revert
-    arm is a follow-up with its own row, and until it lands this key carries the
-    same arithmetic in the shape that has no such promise attached.
+    **A top-level key AS WELL AS a ``store_drift`` family since 2026-10-16**, the
+    canvas family's path: the level's revert arm landed with its drift rows
+    (``realm_sync.level_drift``), and the owner's 2026-10-10 ruling folds this row
+    into ``store_drift.levels`` — kept here for ONE release so an older launcher
+    keeps its count, then deleted (plan ``realm-level-revert-arm-2026-10-15``, S4).
+    ``held`` and ``refused`` stay only here until then: a held or unreadable level
+    has no drift row by construction.
 
     ``unpublished`` is the identical hash-vs-baseline compare the publish scan
     makes, spent here as a count — one walk's arithmetic in two shapes, never

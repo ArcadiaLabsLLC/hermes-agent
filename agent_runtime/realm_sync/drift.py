@@ -16,6 +16,7 @@ from .. import paths
 from ..models import Workspace
 from ..store import RealmStore, skill_tombstoned
 from .families import SyncFamily
+from .level_drift import level_drift_key, level_store_drift_items
 from .publish_scans import _office_publish_scan
 from .artifacts import (
     _flow_graph_projection,
@@ -28,6 +29,7 @@ __all__ = [
     "DRIFT_FAMILY_BOARD",
     "DRIFT_FAMILY_BOARD_CARD",
     "DRIFT_FAMILY_FLOW_GRAPH",
+    "DRIFT_FAMILY_LEVEL",
     "DRIFT_FAMILY_OFFICE_ACTOR",
     "DRIFT_FAMILY_OFFICE_SURFACE",
     "DRIFT_FAMILY_PERSONA_DEFINITION",
@@ -111,6 +113,8 @@ DRIFT_FAMILY_SKILL = SyncFamily.SKILL
 #: last-synced baseline. The container is EMPTY: the definitions travel in ONE
 #: realm-wide document, so the row's spec is ``persona_definition::<id>``.
 DRIFT_FAMILY_PERSONA_DEFINITION = SyncFamily.PERSONA_DEFINITION
+#: The workspace LEVEL family (2026-10-16): joined with its revert arm (``realm_sync.level_drift``).
+DRIFT_FAMILY_LEVEL = SyncFamily.LEVEL
 
 DRIFT_KIND_ADDED = "added"
 DRIFT_KIND_CHANGED = "changed"
@@ -238,6 +242,7 @@ _BASELINE_KEY_OF: Final[Mapping[str, Callable[[StoreDriftItem], str]]] = {
     SyncFamily.SKILL: _skill_drift_key,
     SyncFamily.FLOW_GRAPH: _flow_graph_drift_key,
     SyncFamily.PERSONA_DEFINITION: _persona_definition_drift_key,
+    SyncFamily.LEVEL: level_drift_key,
 }
 
 #: (count name, family, kind or None for "every row of this family"). The
@@ -837,4 +842,5 @@ DRIFT_WALKS: Final[tuple[Callable[[str, list[Workspace]], list[StoreDriftItem]],
     _flow_graph_store_drift_items,
     _skill_drift_walk,
     _persona_definition_store_drift_items,
+    level_store_drift_items,
 )

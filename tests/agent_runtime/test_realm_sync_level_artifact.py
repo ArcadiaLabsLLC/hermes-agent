@@ -279,16 +279,19 @@ def test_status_reports_an_unpublished_level_as_unpublished(
     assert realm_sync_status(realm.id)["levels"]["unpublished"] == 0
 
 
-def test_the_level_family_is_not_a_store_drift_family(isolate_agent_runtime_root, tmp_path):
-    """Deliberate, and pinned so a later lane has to make the decision rather
-    than inherit it: ``realm_revert`` subscripts ``_PROCESS_ORDER[row.family]``
-    directly and dispatches on family for the store door, so a drift row with no
-    revert arm hands ``revert --all`` a ``KeyError`` and offers the operator an
-    exit that does not exist. The level family's revert arm is a filed
-    follow-up; when it lands, this test changes with it."""
+def test_the_level_family_is_a_store_drift_family_with_a_revert_arm(isolate_agent_runtime_root, tmp_path):
+    """The decision this pin used to hold open, now made (owner ruling 2026-10-10,
+    plan ``realm-level-revert-arm-2026-10-15`` S2): the level rows arrive WITH
+    their revert arm, so ``revert --all`` over a drifted level has an exit. The
+    revert behaviour itself is ``test_realm_level_revert.py``."""
+
+    from agent_runtime.realm_revert import _FAMILY_ARMS
+    from agent_runtime.realm_sync.families import SyncFamily
 
     realm, _repo, _ws = _realm_with_workspace_and_level(tmp_path)
 
-    families = {row["family"] for row in realm_sync_status(realm.id)["store_drift"]["items"]}
+    store_drift = realm_sync_status(realm.id)["store_drift"]
 
-    assert "level" not in families
+    assert {row["family"] for row in store_drift["items"]} == {"level"}
+    assert store_drift["levels"] == {"levels_changed": 0, "levels_added": 1, "levels_removed": 0}
+    assert SyncFamily.LEVEL in _FAMILY_ARMS
