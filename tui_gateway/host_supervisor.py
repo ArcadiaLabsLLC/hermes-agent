@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 MUTATOR_ROUTE_TABLE: dict[str, str] = {
     "eternia.subagents.steer": "run-concurrent", "eternia.subagents.stop": "run-concurrent",
+    "eternia.subagents.spawning.set": "run-concurrent",
     "prompt.submit": "turn-path", "session.interrupt": "turn-path", "reload.mcp": "run-concurrent",
     "session.save": "run-concurrent", "session.compress": "idle-gated",
     "prompt.submit.truncate": "idle-gated", "slash.model": "idle-gated",

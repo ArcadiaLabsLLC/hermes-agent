@@ -176,6 +176,35 @@ def _get_inherit_mcp_toolsets() -> bool:
     """Whether narrowed child toolsets should keep the parent's MCP toolsets."""
     return is_truthy_value(_cfg().get("inherit_mcp_toolsets"), default=True)
 
+def delegation_defaults() -> dict:
+    """Resolved spawning defaults, without credentials or a parent-specific route.
+
+    Consumers must label these as defaults: live children retain their own
+    captured configuration. Empty routing/effort values mean parent inheritance.
+    """
+    from tools.delegate_tool import _child_compression_cap_tokens, DEFAULT_MAX_ITERATIONS
+    from tools.process_registry import ProcessRegistry
+    from hermes_constants import parse_reasoning_effort
+
+    cfg = _cfg()
+    reasoning = parse_reasoning_effort(cfg.get("reasoning_effort"))
+    return {
+        "model": cfg.get("model") or "", "provider": cfg.get("provider") or "",
+        "reasoning_effort": reasoning or None,
+        "max_iterations": cfg.get("max_iterations", DEFAULT_MAX_ITERATIONS),
+        "max_concurrent_children": _get_max_concurrent_children(),
+        "max_spawn_depth": _get_max_spawn_depth(),
+        "orchestrator_enabled": _get_orchestrator_enabled(),
+        "child_timeout_seconds": _get_child_timeout() or 0,
+        "worktree_isolation": _get_worktree_isolation(),
+        "independent_completions": _get_independent_completions(),
+        "oneshot_max_children": _get_oneshot_max_children(),
+        "compression_threshold_tokens": _child_compression_cap_tokens(cfg.get("compression_threshold_tokens")) or 0,
+        "surface_child_process_notifications": ProcessRegistry._surface_child_process_notifications(),
+        "inherit_mcp_toolsets": _get_inherit_mcp_toolsets(),
+    }
+
+
 def _normalized_runtime_url(value: Any) -> str:
     return str(value or "").strip().rstrip("/")
 
