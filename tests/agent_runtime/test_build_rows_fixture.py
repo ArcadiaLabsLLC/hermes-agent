@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agent_runtime.builds import unknowns as u
 from agent_runtime.builds import vocabulary as v
 
@@ -87,3 +89,82 @@ def test_a_build_row_names_its_starter_or_says_it_could_not():
     orphan = by_id["build:agent:sess_build_stalled"]
     assert orphan["started_by_instance"] is None and orphan["slot_id"] is None
     assert {"starter_unknown", "slot_unresolved"} <= {entry["kind"] for entry in orphan["unknowns"]}
+
+
+# ── the producer spells every closed word FROM its tuple (plan l5-17-test-only-names, C) ──
+
+
+def _row(**overrides):
+    from agent_runtime.running_work.build_rows import BuildFacts, build_row
+
+    return build_row(BuildFacts(source=v.SOURCE_AGENT, stable_id="s1", **overrides), None)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"liveness": "zombie"},
+        {"progress_signal": "vibes"},
+        {"stop": ("maybe", "")},
+        {"restart_control": (v.CONTROL_REFUSED, "because")},
+    ],
+    ids=["liveness", "progress_signal", "control", "reason"],
+)
+def test_a_producer_word_outside_its_vocabulary_refuses_the_row(overrides):
+    with pytest.raises(ValueError, match="is not a word of"):
+        _row(**overrides)
+
+
+def test_a_source_outside_its_vocabulary_refuses_the_row():
+    from agent_runtime.running_work.build_rows import BuildFacts, build_row
+
+    with pytest.raises(ValueError, match="source"):
+        build_row(BuildFacts(source="rumoured", stable_id="s1"), None)
+
+
+def test_every_vocabulary_word_is_accepted_by_the_producer():
+    """Positive control for the refusals above: each tuple's own words pass through unchanged."""
+
+    for word in v.BUILD_LIVENESS:
+        assert _row(liveness=word)["liveness"] == word
+    for word in v.PROGRESS_SIGNALS:
+        assert _row(progress_signal=word)["progress_signal"] == word
+    for state in v.CONTROL_STATES:
+        for reason in ("", *v.CONTROL_REASONS):
+            controls = _row(liveness=v.LIVENESS_LIVE, stop=(state, reason), restart_control=(state, reason))["controls"]
+            assert (controls["stop"], controls["stop_reason"]) == (state, reason)
+    for word in v.BUILD_TOOLCHAINS:
+        assert _row(toolchain=word)["toolchain"] == word
+    for word in v.BUILD_MODES:
+        assert _row(mode=word)["mode"] == word
+    for word in v.STARTED_BY_KINDS:
+        assert _row(started_by={"kind": word, "label": "x"})["started_by"]["kind"] == word
+    for word in v.ARTIFACT_KINDS:
+        assert _row(artifact={"path": "a", "kind": word})["artifact"]["kind"] == word
+    for arm in v.ENV_SOURCE_ARMS:
+        value = f"{arm}launcher" if arm == v.ENV_SOURCE_SLOT_PREFIX else arm
+        assert _row(env_source=value)["env_source"] == value
+
+
+def test_a_writer_word_outside_its_vocabulary_is_the_unknown_arm_never_a_guess():
+    row = _row(toolchain="cmake", mode="turbo", started_by={"kind": "cron", "label": "x"},
+               artifact={"path": "a.zip", "kind": "zip"}, env_source="slot:")
+    assert row["toolchain"] == v.TOOLCHAIN_UNKNOWN
+    assert row["mode"] == ""
+    assert row["started_by"] == {"kind": v.STARTED_BY_TOOL, "label": "x"}
+    assert row["artifact"] == {"path": "a.zip", "kind": v.ARTIFACT_KIND_OTHER}
+    assert row["env_source"] == v.ENV_SOURCE_UNKNOWN
+
+
+def test_a_sub_reason_outside_its_vocabulary_refuses_the_sub():
+    from agent_runtime.builds.detect import DetectScan
+    from agent_runtime.running_work.lanes_build import _sub
+
+    for reason in v.DETECTED_SUB_REASONS:
+        assert DetectScan(status="unavailable", reason=reason).sub()["reason"] == reason
+    for reason in v.ANNOUNCED_SUB_REASONS:
+        assert _sub("unavailable", reason)["reason"] == reason
+    with pytest.raises(ValueError):
+        DetectScan(status="unavailable", reason=v.SUB_REASON_REGISTRY_UNREADABLE).sub()
+    with pytest.raises(ValueError):
+        _sub("unavailable", v.SUB_REASON_SCAN_BUDGET)
