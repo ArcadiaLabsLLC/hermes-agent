@@ -374,4 +374,23 @@ def test_the_params_block_is_additive_and_the_contract_integer_does_not_move():
 
     assert serve_rpc.manifest()["contract"] == 1
     assert serve_rpc.RPC_CONTRACT_VERSION == 1
-    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "params"}
+    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "params", "limits"}
+
+
+def test_the_manifest_advertises_the_operator_text_admission_its_doors_enforce():
+    """A composer reads the send limit off the runtime instead of copying 64,000. The
+    advertised number and unit are the ones ``normalize_operator_message`` refuses on:
+    a body of exactly ``max_length`` code points is admitted, one more is refused."""
+
+    from agent_runtime.operator_message import (
+        OperatorMessageInvalid,
+        normalize_operator_message,
+    )
+
+    admission = serve_rpc.manifest()["limits"]["operator_text"]
+    assert admission["unit"] == "unicode_code_point"
+    limit = admission["max_length"]
+    # Astral code points: one each in the advertised unit, two UTF-16 units each.
+    assert normalize_operator_message("\U0001F600" * limit)
+    with pytest.raises(OperatorMessageInvalid):
+        normalize_operator_message("\U0001F600" * (limit + 1))

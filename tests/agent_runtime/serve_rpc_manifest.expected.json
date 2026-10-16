@@ -1,5 +1,11 @@
 {
   "contract": 1,
+  "limits": {
+    "operator_text": {
+      "max_length": 64000,
+      "unit": "unicode_code_point"
+    }
+  },
   "methods": [
     "peer.agent_chat.cancel",
     "peer.agent_chat.execute",

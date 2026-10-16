@@ -5,6 +5,19 @@ __layer__ = "policy"
 
 # A transport admission limit, never a post-acceptance truncation budget.
 MAX_MESSAGE_LENGTH = 64_000
+#: What ``MAX_MESSAGE_LENGTH`` counts: Python ``len(str)``, one per Unicode code point
+#: (not UTF-16 units, not bytes, not grapheme clusters).
+MESSAGE_LENGTH_UNIT = "unicode_code_point"
+
+
+def operator_text_admission() -> dict[str, Any]:
+    """The admission rule a composer reads before send, from the one owner of the number.
+
+    Advertised on the method-lane manifest (``serve_rpc.registry.manifest``'s ``limits``)
+    so a client never copies the constant. A client may resolve a SMALLER limit (product
+    entitlements); the server refusal below stays the final authority either way.
+    """
+    return {"max_length": MAX_MESSAGE_LENGTH, "unit": MESSAGE_LENGTH_UNIT}
 
 
 class OperatorMessageInvalid(ValueError):

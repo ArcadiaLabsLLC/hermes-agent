@@ -191,9 +191,16 @@ def manifest() -> dict[str, Any]:
     2026-10-10): ``serve_rpc.twin_params.TWIN_METHOD_PARAMS`` and the
     ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS`` (characters, health,
     the five chat-family verbs and the ten ``runtime.realm.*`` verbs in the first).
+
+    ``limits`` says how much a client may SEND, under the same additive rule.
+    ``operator_text`` is ``operator_message.operator_text_admission()``: the length
+    every operator-text door (``runtime.chat.message``, ``runtime.chat.steer``,
+    ``runtime.operator.conversation.message``, the CLI) admits, and the unit it counts
+    in, so a composer can refuse before send instead of copying the number.
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
+    from ..operator_message import operator_text_admission
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import TWIN_METHOD_PARAMS
@@ -212,4 +219,5 @@ def manifest() -> dict[str, Any]:
                 **SUBAGENT_METHOD_PARAMS,
             }.items())
         },
+        "limits": {"operator_text": operator_text_admission()},
     }

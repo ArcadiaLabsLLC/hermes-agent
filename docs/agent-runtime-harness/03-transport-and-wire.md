@@ -44,6 +44,15 @@ spent only by a turn that reached `streaming`.
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
 
+## Operator text admission
+
+The method-lane manifest (`ready` / `hello_ok` / `version`, `rpc.limits`) carries
+`operator_text: {max_length, unit}` from `agent_runtime/operator_message.py`
+(`operator_text_admission`): the length every operator-text door admits and the unit
+it counts (`unicode_code_point`, Python `len`). A composer resolves its own limit
+from that value and product entitlements and refuses before send; the server refusal
+(`message_invalid`) stays final. No client copies the number.
+
 ## Operator model selection
 
 The existing `runtime.operator.conversation.model.select` also accepts

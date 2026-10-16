@@ -74,7 +74,7 @@ def test_the_manifest_grew_by_two_names_and_the_integer_did_not_move():
     # The ops still ride BESIDE this and do not join it. ``params`` (R-C8) DID
     # join it, additively: a client that ignores the key keeps working, and the
     # keys it lists are exactly the ones these two verbs already honour.
-    assert set(manifest) == {"contract", "methods", "tiers", "params"}
+    assert set(manifest) == {"contract", "methods", "tiers", "params", "limits"}
     assert {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD} <= set(manifest["params"])
 
 

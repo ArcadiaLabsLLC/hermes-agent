@@ -424,7 +424,7 @@ def test_the_method_joined_the_manifest_without_moving_the_contract_integer():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "params"}
+    assert set(manifest) == {"contract", "methods", "tiers", "params", "limits"}
 
 
 def test_the_peer_prefix_is_the_declaration_that_it_touches_no_level():

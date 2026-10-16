@@ -117,7 +117,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 
-- [ ] **Expose operator-text admission capabilities to the Console composer through the existing runtime connection.** `agent_runtime/operator_message.py::MAX_MESSAGE_LENGTH` owns 64,000 Unicode characters; Launcher `composerResourcesFor` independently consumes an entitlement quota (4,000 fallback) and clamps pasted text. Advertise the runtime admission value and counting unit, then let the existing Launcher composer policy resolve it with product entitlements and show any refusal before send without silently losing a paste. Preserve the server refusal as final authority; do not copy another numeric constant or invent a second quota owner. Launcher consumer: `EterniaLauncher/lib/features/messaging/input/composer_resources_binding.dart`. · content-boundary audit 2026-10-10 · the hermes half moves the launcher's byte-pinned ready fixture: land it with the launcher composer consumer in one cross-repo wave · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-chatsend)**
 
 
 ### Filed on arrival — 2026-10-10 (D2.07 redesign, filed by the orchestrator)
