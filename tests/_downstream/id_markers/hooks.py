@@ -1,7 +1,7 @@
 """The assembler and the pytest hooks that apply the id table.
 
 ``_merge`` builds ``ID_MARKS`` from the four class tables by CONCATENATING marks per key
-in table order (fork, posix, upstream_reds, upstream_reds_v0216, upstream_reds_v0217, distributions): a key in two tables is a
+in table order (fork, posix, upstream_reds, upstream_reds_v0216, upstream_reds_v0217, upstream_reds_v0222, distributions): a key in two tables is a
 MERGE, never an override. ``SHARED_KEYS`` names those keys, so a cross-class row is a
 fact a test can pin. The map is ``tests/_downstream/id_markers/__init__.py``.
 """
@@ -19,6 +19,7 @@ import pytest
 
 from tests._downstream.id_markers import (
     distributions, fork_marks, posix_marks, upstream_reds, upstream_reds_v0216, upstream_reds_v0217,
+    upstream_reds_v0222,
 )
 from tests._downstream.id_markers.distributions import REQUIRES_DISTRIBUTION
 from tests._downstream.id_markers.posix_marks import IMPORT_TIME_POSIX_MODULES, IMPORT_TIME_POSIX_SHIMS
@@ -51,7 +52,7 @@ def _shared_keys(*tables: Table) -> frozenset[str]:
 
 _TABLES = (
     fork_marks.ROWS, posix_marks.ROWS, upstream_reds.ROWS, upstream_reds_v0216.ROWS, upstream_reds_v0217.ROWS,
-    distributions.ROWS,
+    upstream_reds_v0222.ROWS, distributions.ROWS,
 )
 ID_MARKS: Table = _merge(*_TABLES)
 SHARED_KEYS: frozenset[str] = _shared_keys(*_TABLES)

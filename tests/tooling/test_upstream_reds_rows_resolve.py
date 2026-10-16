@@ -21,6 +21,7 @@ _TABLES = (
     _REPO / "tests" / "_downstream" / "id_markers" / "upstream_reds.py",
     _REPO / "tests" / "_downstream" / "id_markers" / "upstream_reds_v0216.py",
     _REPO / "tests" / "_downstream" / "id_markers" / "upstream_reds_v0217.py",
+    _REPO / "tests" / "_downstream" / "id_markers" / "upstream_reds_v0222.py",
 )
 _MANIFEST = _REPO / "tests" / "fixtures" / "upstream_manifest.txt"
 

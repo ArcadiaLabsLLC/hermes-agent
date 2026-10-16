@@ -26,6 +26,7 @@ so the file a lane edits to add a row is data, and its name says what will retir
       upstream_reds.py   models   TABLE (win32): upstream's own Windows reds -- retired by an upstream fix
       upstream_reds_v0216.py models TABLE (win32): reds on the pure v0.21.6 tag -- retired by an upstream fix, re-run at the next release merge
       upstream_reds_v0217.py models TABLE (win32): reds on the pure v0.21.7 tag -- retired by an upstream fix, re-run at the next release merge
+      upstream_reds_v0222.py models TABLE (win32): reds on the pure v0.22.2 tag -- retired by an upstream fix, re-run at the next release merge
       distributions.py   models   TABLE: an optional distribution -- retired by installing the extra
       hooks.py           lanes    _merge -> ID_MARKS; the collect / modifyitems / runtest_setup hooks; ids_marked
 
