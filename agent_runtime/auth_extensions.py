@@ -193,7 +193,8 @@ def codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) ->
     ``last_error_reset_at``, so a row the pool had just declared exhausted without a reset stamp was
     served anyway. Same rule, same sole-credential TTL, read from the persisted row.
     """
-    from agent.credential_pool import STATUS_DEAD, PooledCredential, _exhausted_until
+    from agent.credential_pool import STATUS_DEAD, PooledCredential
+    from hermes_cli.harness_parts._upstream_doors import exhausted_until
     try:
         credential = PooledCredential.from_dict("openai-codex", entry)
     except Exception as exc:
@@ -204,5 +205,5 @@ def codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) ->
     if credential.last_status == STATUS_DEAD:
         return True
     sole = sum(1 for row in rows if row.get("last_status") != STATUS_DEAD) <= 1
-    until = _exhausted_until(credential, sole_credential=sole)
+    until = exhausted_until(credential, sole_credential=sole)
     return until is not None and until > time.time()
