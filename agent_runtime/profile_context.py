@@ -297,12 +297,9 @@ def persona_profile_context(
         "HERMES_AGENT_RUNTIME_ROOT": os.environ.get("HERMES_AGENT_RUNTIME_ROOT"),
         "HERMES_AUTH_HOME": os.environ.get("HERMES_AUTH_HOME"),
     }
-    # Record the operator/head home BEFORE this override diverts
-    # ``get_hermes_home()``. Set-once (nested relay hops keep the outermost home)
-    # so a relay-target chat turn running under a persona profile-home override
-    # can still persist its operator-visible transcript (persona-chat SessionDB)
-    # to the home the Mission Control projection reads (2026-07-18 relay
-    # SessionDB-persistence fix).
+    # Record the operator/head home BEFORE this override diverts ``get_hermes_home()``. Set-once
+    # (nested relay hops keep the outermost) so a relay-target turn under a persona override still
+    # persists its persona-chat SessionDB transcript where Mission Control reads it (2026-07-18).
     head_home_token = record_hermes_head_home_if_unset(get_hermes_head_home())
     token = set_hermes_home_override(binding.profile_home)
     # The shared-auth home this binding pins: the head's, so a persona keeps its
@@ -359,9 +356,7 @@ def persona_profile_context(
             # the profile home this context just diverted to.
             if resolved_root is not None:
                 os.environ[RUNTIME_ROOT_ENV] = str(resolved_root)
-        # The context-local twin of the export above (run-serialization S2): spawns read it
-        # through ``run_context.apply_run_context_child_env``, in-process readers through
-        # ``run_context.runtime_root_signal``.
+        # Context-local twin of the export above (run-serialization S2); readers: ``run_context``.
         with run_runtime_root_scope(resolved_root):
             yield
     finally:
