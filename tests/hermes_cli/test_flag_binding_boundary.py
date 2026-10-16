@@ -404,10 +404,12 @@ def _flags_read_as_absent_or_given(
     at — it is reported, because silently skipping it is how a gate reports a
     subset as if it were the whole.
 
-    ``reader_names`` derives from :data:`flag_binding.ABSENCE_PRESERVING_READERS`
-    by default rather than a literal repeated here — a SECOND
-    absence-preserving reader declared there tomorrow is inside this gate the
-    moment it is declared, with no matching edit owed in this file. ``modules``
+    ``reader_names`` derives from the reader FUNCTION itself
+    (``flag_binding.list_flag_or_absent.__name__``) by default rather than a
+    literal repeated here, so a rename of the reader moves this gate with it.
+    (A declared set, ``ABSENCE_PRESERVING_READERS``, used to stand here; no
+    production code read it, so it was deleted — plan l5-17-test-only-names,
+    bucket C. A second absence-preserving reader is added to this default.) ``modules``
     defaults to the real package walk; both are parameters (not just read from
     the module scope) so a test can prove the derivation is live rather than
     hardcoded, by pointing this at a synthetic module and a synthetic reader
@@ -416,7 +418,7 @@ def _flags_read_as_absent_or_given(
     """
 
     if reader_names is None:
-        reader_names = flag_binding.ABSENCE_PRESERVING_READERS
+        reader_names = frozenset({flag_binding.list_flag_or_absent.__name__})
     walk_modules = _package_modules() if modules is None else modules
 
     names: set[str] = set()
@@ -455,8 +457,8 @@ def test_a_second_absence_preserving_reader_joins_the_gate_by_declaration_alone(
     ``flag_binding`` tomorrow would be silently outside the gate until someone
     remembered to edit this file too. This proves the OTHER shape: a synthetic
     reader name that is not ``list_flag_or_absent`` at all is still found, as
-    long as it is passed in ``reader_names`` — the same set
-    ``flag_binding.ABSENCE_PRESERVING_READERS`` supplies by default. Without
+    long as it is passed in ``reader_names`` — the parameter the default fills
+    from the reader function. Without
     the row's fix (a hardcoded ``!= "list_flag_or_absent"`` comparison) this
     would fail: the synthetic name would never match and ``"widgets"`` would
     never be collected.

@@ -3952,6 +3952,17 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "tui_gateway.session_recovery",
         "tui_gateway.session_retirement",
     ),
+    # -- lane h5-deadcode: the L5.17 test-only names (plan l5-17-test-only-names) --
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket C: a declared reader set no production"
+        " code read; the boundary gate now derives its default from the reader "
+        "function itself (lane h5-deadcode)",
+        "ABSENCE_PRESERVING_READERS",
+        scope=("hermes_cli.flag_binding",),
+    ),
 )
 
 
