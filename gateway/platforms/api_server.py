@@ -3671,6 +3671,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                 logger.exception("[api_server] session chat stream failed")
                 self._set_run_status(
                     run_id, "failed", error=_redact_api_error_text(exc), last_event="run.failed")
+                await events.flush()  # fork (PR #137460 remainder): worker events precede the error frame
                 await queue.put(_event_payload("error", {"message": _redact_api_error_text(exc)}))
             finally:
                 self._active_run_agents.pop(run_id, None)
