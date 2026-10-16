@@ -7,8 +7,8 @@ from agent_runtime.live_turns import conversation_agents
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
-from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
-from .model import HISTORY_OPERATIONS, Refusal, SubagentError, include_history_capabilities
+from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope, process_home_scope
+from .model import HISTORY_OPERATIONS, SETTINGS_OPERATIONS, Refusal, SubagentError, include_service_capabilities
 from .native import has_live_ancestor, inspect_records, registry_snapshot
 
 __layer__ = "lanes"
@@ -83,8 +83,18 @@ def inspect_operator(operation: str, params: dict) -> dict:
             data = inspect_history(operation, params, owner=owner, db=session.db,
                                    session_id=params["session_id"], home=home, revalidate=checked.revalidate)
             return {**identity, **data}
-        with persona_profile_scope(binding, runtime_root=paths.store_root()):
+        with persona_profile_scope(binding, runtime_root=paths.store_root()), process_home_scope(home):
+            if operation in SETTINGS_OPERATIONS:
+                from .settings import inspect_settings
+                data = inspect_settings(operation, params, owner=owner,
+                    profile_label=binding.hermes_profile or home.name, revalidate=checked.revalidate)
+                return {**identity, **data}
+            if operation in ("spawning", "spawning.set"):
+                from .spawning import inspect_spawning
+                data = inspect_spawning(operation, params, owner=owner,
+                    host_kind="operator_runtime", revalidate=checked.revalidate)
+                return {**identity, **data}
             records = [record for record in registry_snapshot() if checked.visible(record)]
             data = inspect_records(operation, params, owner=owner, visible=records,
                                    exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)
-        return {**identity, **include_history_capabilities(operation, data)}
+        return {**identity, **include_service_capabilities(operation, data)}

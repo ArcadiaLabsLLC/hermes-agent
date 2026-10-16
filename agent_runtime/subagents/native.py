@@ -138,6 +138,10 @@ def inspect_native(operation: str, params: dict) -> dict:
         revalidate_reply(operation, revalidate)
         return data
 
+    if operation in ("spawning", "spawning.set"):
+        from .spawning import inspect_spawning
+        return inspect_spawning(operation, params, owner=owner, host_kind="native_worker", revalidate=revalidate)
+
     visible = [record for record in upstream.subagent_visible_records(session_id, transport, session)
                if exact(record) or same_native_profile(record, session.get("agent"), get_hermes_home().resolve())]
     return inspect_records(operation, params, owner=owner,

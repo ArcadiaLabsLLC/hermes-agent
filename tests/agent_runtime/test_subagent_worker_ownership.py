@@ -30,7 +30,7 @@ def request(call, operation, **params):
 
 def test_native_owner_generation_and_recycled_child(gateway, tmp_path):
     server, owner, transport, call = gateway
-    assert request(call, "capabilities")["result"]["data"]["operations"] == ["list", "tail", "steer", "stop", "receipt"]
+    assert {"list", "tail", "steer", "stop", "receipt", "spawning", "spawning.set"} <= set(request(call, "capabilities")["result"]["data"]["operations"])
     assert "error" in request(call, "history")
     child = registered(owner, transport)
     writer = LiveTranscriptWriter("delegation", 0, "task", root=tmp_path)

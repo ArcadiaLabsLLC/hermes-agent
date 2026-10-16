@@ -1,5 +1,6 @@
 """Real delegate_task children are inspectable through the production service."""
 import pytest
+import json
 
 from agent_runtime.conversations.model import ConversationScope
 from agent_runtime.conversations.service import ConversationService
@@ -36,7 +37,16 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
                      lambda r: "Child public progress." in r["text"])
         assert len(tail["text"].encode()) <= 16384 and "PRIVATE_KICKOFF_CONTEXT" not in tail["text"]
         assert tail["subagent_id"] == child["subagent_id"]
-        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "history", "result", "tree"]
+        assert {"settings", "settings.set", "spawning", "spawning.set"} <= set(service.subagents(scope, sid, "capabilities", {})["operations"])
+        spawning = service.subagents(scope, sid, "spawning", {})
+        host_guard = {"expected_generation": spawning["generation"], "host_ref": spawning["host_ref"]}
+        assert service.subagents(scope, sid, "spawning.set", {**host_guard, "paused": True})["paused"]
+        assert service.subagents(scope, sid, "spawning", {})["paused"]
+        assert service.subagents(scope, sid, "list", {})["children"][0]["subagent_id"] == child["subagent_id"]
+        assert not service.subagents(scope, sid, "spawning.set", {**host_guard, "paused": False})["paused"]
+        if mode == "native-worker" and action == "steer":
+            capture = {"settings": service.subagents(scope, sid, "settings", {}), "spawning": spawning}
+            (tmp_path / "subagent-native-settings.json").write_text(json.dumps(capture, indent=2), encoding="utf-8")
         if mode != "isolated-compute":
             assert service.subagents(scope, sibling, "list", {})["children"] == []
         else:

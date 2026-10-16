@@ -7,6 +7,8 @@ tags: [queue, program/fork-hygiene]
 
 # Fork hygiene — open queue
 
+- [ ] **Repair the upstream onboarding import that blocks native gateway startup.** Clean `b9e7e77cc7` reproduces `NameError: Path` at `tui_gateway/methods_onboarding.py:71` before handler binding; existing worker/compute tests and all six subagent process round trips fail before routing. Evidence: `docs/downstream/agent-console-subagents-settings-2026-10-16.md` § Qualification. Keep the native footprint ruling explicit; Step 6 does not silently absorb a fifth seam. · upstream / gateway · UNCLAIMED
+
 - [ ] **Triage upstream/macOS jobs exposed by the subagent-history PR's broader CI matrix.** Run `38832830663`, macOS shards `116755299378` / `116755299386`, fails in update/PM/source-stamp/MCP subprocess fixtures: copied update trees lack `agent_runtime`, import probes hit the live-system guard, and PM/tool fixtures touch the setup environment. These files are outside Step 5's changed paths; Windows fork-scope qualification does not establish a macOS baseline. Reproduce on the same native CI host against the base before attributing or exempting them. Preserve the run logs; do not weaken live-system guards or grow the skip list from this report. · fork / CI · UNCLAIMED
 
 - [ ] **Resolve the fork owner's existing commit identity in contributor attribution.** PR #11 run `38832830663` rejects the configured owner author email because it has no contributor mapping. Step 5 retains the repository's established author and required co-author footer; no identity is fabricated or rewritten. Confirm the owner account mapping through the existing contributor tooling, with any upstream-file footprint accounted for. · fork / CI · UNCLAIMED

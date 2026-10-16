@@ -161,7 +161,7 @@ def validate_env_var_name_for_write(key: str) -> None:
 # acquires it again (hermes_cli/plugins.py: `with ..., config_mod._CONFIG_LOCK:` then
 # read_user_config_raw() + save_config()). save_config itself no longer re-enters via
 # read_raw_config; it takes its raw mapping from require_readable_config_before_write.
-_CONFIG_LOCK = threading.RLock()
+_CONFIG_LOCK = CONFIG_WRITE_LOCK = threading.RLock()
 # path -> last successfully loaded (expanded) config; served after a parse failure so a
 # mid-edit broken YAML never silently drops user overrides (e.g. approvals.deny rules).
 _LAST_EXPANDED_CONFIG_BY_PATH: dict[str, Any] = {}
@@ -2277,7 +2277,7 @@ def _merge_managed_overlay(expanded: dict[str, Any]) -> tuple[dict[str, Any], An
 
 def _load_config_cache_hit(
     path_key: str, cache_sig: Any, *, require_writable: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Lookup: the cached expanded config for ``path_key`` if its signature equals
     ``cache_sig`` AND every ``${VAR}`` it was expanded against still has the same value, else
     ``None``. Signatures matching is not enough: a load before load_hermes_dotenv() would otherwise
@@ -2310,7 +2310,7 @@ def _load_config_cache_hit(
     return None
 
 
-def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> Dict[str, Any]:
+def _load_config_impl(*, want_deepcopy: bool, ensure_home: bool = True) -> dict[str, Any]:
     # Lock-free fast path for cache hits — same publication contract as `_read_raw_config_impl`
     # above (whole-tuple replace, `_CONFIG_LOCK` only serializes rebuilds and writers). A hit costs
     # ~0.024ms; behind a lock held by `save_config()` the same read measured 10010ms, and on a

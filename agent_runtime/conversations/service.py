@@ -119,13 +119,16 @@ class ConversationService:
 
     def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
         from .subagents import inspect_children
-        from agent_runtime.subagents.model import HISTORY_OPERATIONS, include_history_capabilities
+        from agent_runtime.subagents.model import HISTORY_OPERATIONS, SETTINGS_OPERATIONS, include_service_capabilities
 
         if operation in HISTORY_OPERATIONS:
             from .subagent_history import inspect_stored_children
             return inspect_stored_children(self, scope, self._owned_route(scope, session_id), operation, params)
+        if operation in SETTINGS_OPERATIONS:
+            from .subagent_settings import inspect_profile_defaults
+            return inspect_profile_defaults(self, scope, self._owned_route(scope, session_id), operation, params)
         with self._session(scope, session_id, existing_only=True) as live:
-            return include_history_capabilities(operation, inspect_children(self.install_id, scope, live, operation, params))
+            return include_service_capabilities(operation, inspect_children(self.install_id, scope, live, operation, params))
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_options_for_subject
