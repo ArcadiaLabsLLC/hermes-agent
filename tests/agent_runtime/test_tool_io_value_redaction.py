@@ -179,3 +179,94 @@ def test_target_and_changed_paths_keep_a_file_named_for_a_secret_word():
     paths = ["agent_runtime/token_budget.py", "docs/password-policy.md"]
     assert _safe_operator_paths(paths) == paths
     assert _safe_operator_path_list(paths) == paths
+
+
+# --------------------------------------------------------------------------- #
+# the value-redactor corpus: every display lane, one table (plan S0)          #
+# docs/agent-runtime-harness/planned/redaction-one-value-redactor-2026-10-15.md
+# --------------------------------------------------------------------------- #
+
+from agent_runtime import events as _events
+from agent_runtime import observability as _observability
+from agent_runtime.profile_runner.dispatch_payloads import _agent_chat_target_label, _scrub_dispatch_order
+from agent_runtime.profile_runner.tool_payloads import _safe_command_label, _safe_reasoning_summary
+
+# Built, never spelled. A GitHub-token shape carries no secret WORD, so a word
+# list cannot see it; the assignment value is plain letters, so only the
+# assignment rule can.
+_FAKE_GH = "ghp_" + "A1" * 12
+_FAKE_ASSIGNED = "hunter" + "Two" * 4
+
+
+def _progress_lane(key: str):
+    return lambda text: _safe_progress_payload("run.progress", {key: text}).get(key)
+
+
+#: Every lane that decides what an operator or a channel reader sees of a
+#: free-text field. Short texts throughout: the excerpt lane bounds at 90.
+_VALUE_LANES = {
+    "progress.reasoning_summary": _progress_lane("reasoning_summary"),
+    "progress.summary": _progress_lane("summary"),
+    "progress.skill_name": _progress_lane("skill_name"),
+    "progress.command_label": _progress_lane("command_label"),
+    "progress.dispatch_target": _progress_lane("dispatch_target"),
+    "progress.dispatch_order": _progress_lane("dispatch_order"),
+    "progress.dispatch_reply": _progress_lane("dispatch_reply"),
+    "progress.dispatch_reply_from": _progress_lane("dispatch_reply_from"),
+    "dispatch_payloads.order": _scrub_dispatch_order,
+    "dispatch_payloads.target_label": lambda text: _agent_chat_target_label(
+        "agent_chat_send", {"persona_id": "base", "message": text}
+    ),
+    "tool_payloads.command_label": lambda text: _safe_command_label({"command": text}),
+    "tool_payloads.reasoning_summary": lambda text: _safe_reasoning_summary(("_thinking", text), {}),
+    "events.text": lambda text: _events._safe_text(text, limit=500),
+    "observability.display_text": _observability._safe_display_text,
+    "observability.reasoning_summary": lambda text: _observability._safe_event_payload(
+        {"reasoning_summary": text}
+    ).get("reasoning_summary"),
+}
+
+#: The lanes that used to drop a field for looking like a PATH. They shorten an
+#: absolute path to its name now; the operator lanes keep paths as they always did.
+_PATH_LANES = (
+    "progress.reasoning_summary", "progress.summary", "progress.command_label",
+    "tool_payloads.command_label", "events.text",
+    "observability.display_text", "observability.reasoning_summary",
+)
+
+
+@pytest.fixture
+def _strict(monkeypatch):
+    monkeypatch.setenv("HERMES_REDACTION_MODE", "strict")
+
+
+@pytest.mark.parametrize("lane", sorted(_VALUE_LANES))
+def test_corpus_a_a_secret_value_with_no_secret_word_is_blanked(lane, _strict):
+    shown = _VALUE_LANES[lane](f"pushed with {_FAKE_GH} then retried")
+    assert _FAKE_GH not in (shown or "")
+
+
+@pytest.mark.parametrize("lane", sorted(_VALUE_LANES))
+def test_corpus_b_a_secret_word_with_no_secret_value_survives(lane, _strict):
+    text = "token_budget.py caps the password field"
+    assert text in (_VALUE_LANES[lane](text) or "")
+
+
+@pytest.mark.parametrize("lane", sorted(_VALUE_LANES))
+def test_corpus_c_a_secret_value_beside_its_word_goes_and_the_rest_stays(lane, _strict):
+    shown = _VALUE_LANES[lane](f"login used password={_FAKE_ASSIGNED} for the probe") or ""
+    assert _FAKE_ASSIGNED not in shown
+    assert "login used password=" in shown and "for the probe" in shown
+
+
+@pytest.mark.parametrize("lane", sorted(_VALUE_LANES))
+def test_corpus_d_a_relative_path_survives(lane, _strict):
+    assert "agent_runtime/token_budget.py" in (_VALUE_LANES[lane]("edited agent_runtime/token_budget.py") or "")
+
+
+@pytest.mark.parametrize("lane", _PATH_LANES)
+@pytest.mark.parametrize("path", ["/home/alice/proj/notes.txt", r"C:\Users\alice\proj\notes.txt", "~/proj/notes.txt"])
+def test_corpus_e_an_absolute_path_is_shortened_to_its_name(lane, path, _strict):
+    shown = _VALUE_LANES[lane](f"opened {path} to check") or ""
+    assert "alice" not in shown and "proj" not in shown
+    assert "opened" in shown and "notes.txt" in shown and "to check" in shown
