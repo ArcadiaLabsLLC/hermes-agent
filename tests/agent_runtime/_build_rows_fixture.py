@@ -197,6 +197,14 @@ def _seed_slots(root: Path) -> None:
 #: temp-then-rename one record. A writer lives outside hermes, so hermes ships only the
 #: reader; this is the test-side writer the goldens and the registry suites write with
 #: (moved out of ``agent_runtime.builds.registry``, plan l5-17-test-only-names, bucket D).
+def new_record(**fields: Any) -> dict[str, Any]:
+    """``registry.new_record``, beside the writer, so a suite that writes records imports one place."""
+
+    from agent_runtime.builds.registry import new_record as fill
+
+    return fill(**fields)
+
+
 def write_record(directory: Path, record: dict[str, Any]) -> Path:
     """Temp-then-rename the record to ``<directory>/<job_id>.json`` (the writer's own file)."""
 

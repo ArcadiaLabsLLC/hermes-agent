@@ -19,10 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from agent.charsheet import palette as palette_mod
+from agent.charsheet import palette as palette_mod, pipeline
 from tests._downstream._seams import palette_colors
 from agent.charsheet.palette import palette_table
-from agent.charsheet import pipeline
 from agent.charsheet.fake_draftsman import FakeDraftsman, slots_for
 from agent.charsheet.fake_draftsman import draw_glyph as _draw_glyph
 from agent.charsheet.fake_draftsman import square_image as _square_image
