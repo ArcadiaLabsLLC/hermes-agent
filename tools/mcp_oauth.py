@@ -385,6 +385,9 @@ def _can_open_browser() -> bool:
 
 def _read_json(path: Path) -> dict | None:
     """Read a JSON file, returning None if it doesn't exist or is invalid."""
+    from agent.secret_files import secret_path
+
+    path = secret_path(path)
     if not path.exists():
         return None
     try:
@@ -397,8 +400,12 @@ def _read_json(path: Path) -> dict | None:
 def _write_json(path: Path, data: dict) -> None:
     """OAuth tokens/client info at 0600 from creation, parent tightened to 0700 (``secure_parent_dir``
     refuses ``/``, top-level dirs and the install tree — #25821, #93050)."""
+    from agent.secret_files import secret_store_bound, write_secret_json
     from hermes_constants import mkdir_under_hermes_home
 
+    if secret_store_bound():  # a store slot has no parent directory to create or tighten
+        write_secret_json(path, data, mode=0o600, default=str)
+        return
     mkdir_under_hermes_home(path.parent)
     secure_parent_dir(path)
     atomic_json_write(path, data, mode=0o600, default=str)
@@ -591,9 +598,11 @@ class HermesTokenStorage:
         server's metadata document cannot be re-fetched (#115329)."""
         # The ``.refresh.lock`` sidecar is deliberately kept: flock is inode-bound, so unlinking it
         # while a peer holds the fence would let the next acquirer lock a fresh inode (two holders).
+        from agent.secret_files import unlink_secret
+
         for p in (self._tokens_path(), self._client_info_path(), self._cimd_rejected_path(),
                   *(() if keep_metadata else (self._meta_path(),))):
-            p.unlink(missing_ok=True)
+            unlink_secret(p, missing_ok=True)
 
     def snapshot(self) -> dict[str, bytes]:
         """filename -> bytes of the existing state files; ``restore()`` it to undo a ``remove()`` after

@@ -49,8 +49,10 @@ def _subscriptions_lock():
 
 def _load_subscriptions_unlocked() -> dict[str, dict]:
     """Read one complete store snapshot; unreadable or malformed files read as empty."""
+    from agent.secret_files import secret_path
+
     try:
-        raw = _subscriptions_path().read_bytes()
+        raw = secret_path(_subscriptions_path()).read_bytes()
     except OSError:
         return {}
     try:
@@ -68,7 +70,13 @@ def _load_subscriptions() -> dict[str, dict]:
 
 def _save_subscriptions_unlocked(subs: dict[str, dict]) -> None:
     # The file holds per-route HMAC secrets: atomic_json_write fchmods the temp file 0o600 BEFORE the
-    # rename (no umask window) and re-asserts the mode on the destination afterwards.
+    # rename (no umask window) and re-asserts the mode on the destination afterwards. A registered
+    # secret file store holds the bytes instead (agent.secret_files).
+    from agent.secret_files import secret_store_bound, write_secret_json
+
+    if secret_store_bound():
+        write_secret_json(_subscriptions_path(), subs, mode=_SUBSCRIPTIONS_FILE_MODE)
+        return
     atomic_json_write(_subscriptions_path(), subs, mode=_SUBSCRIPTIONS_FILE_MODE)
 
 

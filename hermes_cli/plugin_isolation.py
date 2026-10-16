@@ -59,6 +59,7 @@ HOST_OBJECT_BASES: dict[str, str] = {
     "register_browser_provider": "agent.browser_provider:BrowserProvider",
     "register_terminal_environment_provider": "agent.terminal_env_provider:TerminalEnvironmentProvider",
     "register_secret_source": "agent.secret_sources.base:SecretSource",
+    "register_secret_file_store": "agent.secret_files:SecretFileStore",
     "register_tts_provider": "agent.tts_provider:TTSProvider",
     "register_transcription_provider": "agent.transcription_provider:TranscriptionProvider",
     "register_context_engine": "agent.context_engine:ContextEngine",

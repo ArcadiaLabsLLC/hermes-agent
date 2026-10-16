@@ -27,8 +27,9 @@ def _qwen_cli_auth_path() -> Path:
 
 
 def _read_qwen_cli_tokens() -> dict[str, Any]:
+    from agent.secret_files import secret_path
     from hermes_cli.auth import _qwen_cli_auth_path
-    auth_path = _qwen_cli_auth_path()
+    auth_path = secret_path(_qwen_cli_auth_path())
     if not auth_path.exists():
         raise _qwen_err("Qwen CLI credentials not found. Run 'qwen auth qwen-oauth' first.", "qwen_auth_missing")
     try:

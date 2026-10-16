@@ -256,6 +256,9 @@ def _load_json_file(path: Path) -> dict:
     ``docker exec`` as root wrote it, the gosu-dropped gateway can't read it)
     would otherwise silently leave the user unauthorized.
     """
+    from agent.secret_files import secret_path
+
+    path = secret_path(path)
     if not path.exists():
         return {}
     try:
@@ -286,6 +289,11 @@ def _load_json_file(path: Path) -> dict:
 
 
 def _save_json_file(path: Path, data: dict) -> None:
+    from agent.secret_files import secret_store_bound, write_secret_json
+
+    if secret_store_bound():
+        write_secret_json(path, data, mode=0o600)
+        return
     atomic_json_write(path, data, mode=0o600)
 
 
@@ -665,6 +673,8 @@ class PairingStore:
 
     def _all_platforms(self, suffix: str) -> list:
         """Platforms that have a ``-<suffix>.json`` data file (``_``-prefixed files are shared state)."""
+        from agent.secret_files import list_secret_files
+
         tail = f"-{suffix}.json"
-        platforms = (f.name.replace(tail, "") for f in self._dir.iterdir() if f.name.endswith(tail))
+        platforms = list_secret_files(self._dir, tail)
         return [p for p in platforms if not p.startswith("_")]

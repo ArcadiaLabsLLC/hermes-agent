@@ -138,16 +138,16 @@ def _remove_env_source(provider: str, removed) -> RemovalResult:
 
 def _remove_hermes_pkce(provider: str, removed) -> RemovalResult:
     """~/.hermes/.anthropic_oauth.json is ours — delete it outright."""
+    from agent.secret_files import unlink_secret
     from hermes_constants import get_hermes_home
 
     result = RemovalResult()
     oauth_file = get_hermes_home() / ".anthropic_oauth.json"
-    if oauth_file.exists():
-        try:
-            oauth_file.unlink()
+    try:
+        if unlink_secret(oauth_file):
             result.cleaned.append("Cleared Hermes Anthropic OAuth credentials")
-        except OSError as exc:
-            result.hints.append(f"Could not delete {oauth_file}: {exc}")
+    except OSError as exc:
+        result.hints.append(f"Could not delete {oauth_file}: {exc}")
     return result
 
 

@@ -107,6 +107,9 @@ class CredentialPersistError(RuntimeError):
 
 def _load_json_if_exists(path: Path, what: str) -> Optional[Any]:
     """Parsed JSON from *path*, or None when missing/unreadable/corrupt (debug-logged)."""
+    from agent.secret_files import secret_path
+
+    path = secret_path(path)
     if not path.exists():
         return None
     try:
@@ -118,7 +121,13 @@ def _load_json_if_exists(path: Path, what: str) -> Optional[Any]:
 
 def _atomic_write_private_json(path: Path, payload: Any) -> None:
     """0600-from-creation temp file + fsync + atomic replace (the token is never briefly umask-readable).
-    The parent dir's mode is left alone (~/.claude/ is owned by Claude Code)."""
+    The parent dir's mode is left alone (~/.claude/ is owned by Claude Code). A registered
+    secret file store holds the bytes instead (``agent.secret_files``)."""
+    from agent.secret_files import secret_store_bound, write_secret_json
+
+    if secret_store_bound():
+        write_secret_json(path, payload, mode=0o600)
+        return
     atomic_json_write(path, payload, mode=0o600)
 
 

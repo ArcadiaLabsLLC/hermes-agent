@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- one row in the scoped-provider registrar table (register_secret_file_store); the table is the registrar mechanism and has no other home
 """Hermes Plugin System — discovers, loads, and manages plugins.
 
 Sources, later overriding earlier on key collision: bundled ``<repo>/plugins/<name>/`` (``memory/``
@@ -1049,6 +1050,9 @@ _SCOPED_PROVIDER_REGISTRARS: tuple[tuple[str, str, str, str, str, str, dict[str,
      "orchestrator owns ordering/precedence/provenance; the source only fetches. Since dotenv usually "
      "loads before discovery, the manager re-pulls enabled plugin sources afterwards.",
      {"normalize": None, "register": "register_source", "param": "source"}),
+    ("register_secret_file_store", "secret_file_store", "agent.secret_files", "agent.secret_files:SecretFileStore",
+     "secret file store", "Register an :class:`agent.secret_files.SecretFileStore`; while one is registered "
+     "the credential files are read from and written to it instead of the disk.", {}),
     ("register_tts_provider", "tts_provider", "agent.tts_registry",
      "agent.tts_provider:TTSProvider", "TTS provider",
      "Register an :class:`agent.tts_provider.TTSProvider`; ``provider.name`` is matched by "

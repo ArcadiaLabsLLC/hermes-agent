@@ -358,7 +358,14 @@ def load_env_file(env_path: Path) -> dict[str, str]:
     Memoised per path on the open descriptor's stat identity (see the cache comment above). Always
     returns a fresh dict: callers mutate what they get back (``build_profile_secret_scope`` layers
     external secrets over it).
+
+    A registered secret file store (``agent.secret_files``) holds the bytes instead: parsed
+    without the fstat memo, since a store slot has no descriptor.
     """
+    from agent.secret_files import read_secret_bytes, secret_store_bound
+
+    if secret_store_bound():
+        return _parse_env_text(_decode_env_bytes(read_secret_bytes(env_path) or b""))
     key = str(env_path)
     try:
         with open(env_path, "rb") as handle:
