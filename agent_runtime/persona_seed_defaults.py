@@ -113,8 +113,8 @@ def seed_persona_profile(profile_home: Path | str) -> dict[str, Any]:
         writes = seed_writes(_read_config(path), pooled_providers=_pooled_providers(home))
         for key, value in writes:
             atomic_roundtrip_yaml_update(path, key, value)
-    except Exception as exc:
-        logger.warning("persona_seed_failed path=%s error=%s", path, type(exc).__name__)
+    except Exception as exc:  # fail-open per profile: a seed must never break persona create or startup
+        logger.warning("persona_seed_failed path=%s error=%s", path, type(exc).__name__, exc_info=True)
         return {"path": str(path), "seeded": [], "error": type(exc).__name__}
     for key, _value in writes:
         logger.info("persona_seed_filled path=%s key=%s", path, key)
@@ -130,7 +130,7 @@ def persona_profile_homes(personas: Iterable[Any]) -> list[Path]:
     for persona in personas:
         try:
             home = resolve_persona_profile(persona).profile_home
-        except Exception:
+        except (ValueError, OSError):  # an unusable profile name or home: nothing to seed
             continue
         if home is not None and home not in homes:
             homes.append(home)

@@ -9,6 +9,8 @@ turns a raise into a ``refused_store_error`` row, so nothing here reports.
 
 from __future__ import annotations
 
+from typing import Any
+
 from . import board_models, office_models, paths
 from .realm_sync import (
     DRIFT_FAMILY_BOARD,
