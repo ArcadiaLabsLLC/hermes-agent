@@ -115,15 +115,6 @@ TEXT_SECRET_VALUE_ASSIGNMENT_RE = re.compile(
     r"(?i)(" + TEXT_SECRET_KEYS + r")" + SECRET_KEY_SEPARATOR + r"([^\s,;]+)"
 )
 
-#: Every secret-assignment pattern this module owns. The group-contract test
-#: iterates it, so a new pattern added here is automatically pinned.
-ALL_SECRET_ASSIGNMENT_PATTERNS = (
-    SECRET_ASSIGNMENT_RE,
-    ENV_SECRET_ASSIGNMENT_RE,
-    TEXT_SECRET_ASSIGNMENT_RE,
-    TEXT_SECRET_VALUE_ASSIGNMENT_RE,
-)
-
 
 # ── file labels ───────────────────────────────────────────────────────────────
 
