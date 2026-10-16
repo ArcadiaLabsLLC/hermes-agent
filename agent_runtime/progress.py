@@ -9,7 +9,7 @@ from hermes_time import now
 from .errors import EventPayloadTooLarge
 from .events import EventLog
 from .models import Event
-from .redaction import REDACTED_SECRET_LINE, has_secret_value, mask_local_paths, safe_file_labels, scrub_secret_values
+from .redaction import REDACTED_SECRET_LINE, has_secret_value, safe_file_labels, scrub_display_text, scrub_secret_values
 from .redaction_mode import redaction_observe_enabled
 from .stream_gap_receipt import REASONING_USAGE_STEP
 
@@ -596,7 +596,7 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
                 safe[key] = labels
             continue
         if isinstance(value, str) and key == "reasoning_summary":
-            text = _scrub_display(" ".join(value.strip().split()))
+            text = scrub_display_text(" ".join(value.strip().split()))
             if text:
                 safe[key] = f"{text[:497]}…" if len(text) > 500 else text
                 _note_scrub(safe, key, value, "reasoning_summary", observe)
@@ -610,26 +610,18 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
                 _mark_would_redact(safe, key, key)
             continue
         if isinstance(value, str) and key == "command_label":
-            text = _scrub_display(" ".join(value.strip().replace("\\", "/").split()))
+            text = scrub_display_text(" ".join(value.strip().replace("\\", "/").split()))
             if text:
                 safe[key] = f"{text[:237]}..." if len(text) > 240 else text
                 _note_scrub(safe, key, value, "command_label", observe)
             continue
         if isinstance(value, (str, int, float, bool)) or value is None:
             if isinstance(value, str):
-                safe[key] = _scrub_display(value)
+                safe[key] = scrub_display_text(value)
                 _note_scrub(safe, key, value, "scalar_progress_value", observe)
             else:
                 safe[key] = value
     return safe
-
-
-def _scrub_display(text: str) -> str:
-    """Display text: absolute paths shortened to their names, secret VALUES
-    replaced, every other word kept (``redaction.mask_local_paths`` then
-    ``scrub_secret_values`` -- the one policy, no word list)."""
-
-    return scrub_secret_values(mask_local_paths(text))
 
 
 def _note_scrub(payload: dict[str, Any], key: str, original: Any, reason: str, observe: bool) -> None:

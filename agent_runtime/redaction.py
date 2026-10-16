@@ -125,27 +125,14 @@ ALL_SECRET_ASSIGNMENT_PATTERNS = (
 )
 
 
-# ── label filters (moved in from profile_runner by lane R3) ──────────────────
-
-
-def looks_sensitive_or_pathish(value: str) -> bool:
-    """Does ``value`` look like a secret or a filesystem path? The progress/tool-IO
-    label filter (lane R3 made ``profile_runner``'s copy this owner; the
-    ``events``/``observability``/``progress`` copies fold onto it in their lanes)."""
-
-    lowered = value.lower()
-    if any(marker in lowered for marker in ("secret", "token", "password", "api_key", "apikey", "authorization", "bearer", "credential", "cookie", "private_key", "sk-")):
-        return True
-    if ":/" in value or "\\" in value or value.startswith(("/", "~")):
-        return True
-    if re.search(r"(^|\s)([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+", value):
-        return True
-    return False
+# ── file labels ───────────────────────────────────────────────────────────────
 
 
 def safe_file_labels(value: Any) -> list[str]:
-    """Bare file NAMES from a list of paths, dropping anything sensitive, pathish
-    or outside ``[A-Za-z0-9_.-]{1,96}`` (same owner note as above)."""
+    """Bare file NAMES from a list of paths: the last segment of each, dropped
+    when it carries a secret VALUE (:func:`has_secret_value`) or falls outside
+    ``[A-Za-z0-9_.-]{1,96}``. A secret WORD in a file name is not a secret. The
+    one owner: ``progress``, ``observability`` and ``profile_runner`` call it."""
 
     if not isinstance(value, list):
         return []
@@ -155,7 +142,7 @@ def safe_file_labels(value: Any) -> list[str]:
         if not text:
             continue
         label = Path(text.replace("\\", "/")).name
-        if not label or looks_sensitive_or_pathish(label):
+        if not label or has_secret_value(label):
             continue
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", label):
             continue
@@ -507,3 +494,12 @@ def mask_local_paths(text: str, *, roots: tuple[str, ...] = ()) -> str:
         return (f"…/{name}" if name else "…") + tail
 
     return _LOCAL_PATH_RE.sub(_label, str(text))
+
+
+def scrub_display_text(text: str, *, roots: tuple[str, ...] = ()) -> str:
+    """Display text for any reader: absolute paths shortened
+    (:func:`mask_local_paths`), secret VALUES replaced
+    (:func:`scrub_secret_values`), every other word kept. The one policy the
+    progress, event and observability lanes share -- no word list decides."""
+
+    return scrub_secret_values(mask_local_paths(text, roots=roots))

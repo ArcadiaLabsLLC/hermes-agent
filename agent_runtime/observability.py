@@ -7,6 +7,7 @@ from hermes_time import now
 
 from .incidents import CRITICAL_INCIDENT_KINDS, MODEL_INVALID_OUTPUT
 from .models import Event, Incident
+from .redaction import safe_file_labels, scrub_display_text
 from .states import RunState
 from .store import ACTIVE_RUN_STATES
 
@@ -368,8 +369,8 @@ def _event_display_title(event_type: str, payload: dict[str, Any], kind: str) ->
 
 
 def _safe_display_text(value: Any) -> str:
-    text = " ".join(str(value or "").strip().split())
-    if not text or _looks_sensitive_or_pathish(text):
+    text = scrub_display_text(" ".join(str(value or "").strip().split()))
+    if not text:
         return ""
     return f"{text[:497]}..." if len(text) > 500 else text
 
@@ -382,9 +383,9 @@ def _safe_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "incident_count", "decision_type", "validation_status", "error_class", "next_expected", "stage_id",
         "patch_summary", "code_summary", "file_summary", "changed_files", "files_touched",
         # Patch shape only: how many lines moved and which patch grammar. The
-        # artifact PATH is deliberately absent — this lane is path-free by
-        # design (the drop below would eat it anyway), so a Telegram-grade
-        # reader learns the size of a change and never where it lives.
+        # artifact PATH is deliberately absent, so a Telegram-grade reader
+        # learns the size of a change and never where it lives (a path in prose
+        # is shortened to its name by ``scrub_display_text`` below).
         "patch_adds", "patch_dels", "patch_mode",
         "reasoning_summary", "envelope_id", "decision_count", "continuation_count",
         "model_invocation_count", "close_reason", "next_action_before", "next_action_after",
@@ -407,49 +408,19 @@ def _safe_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
     for key in allowed:
         value = payload.get(key)
         if key == "changed_files" and isinstance(value, list):
-            labels = _safe_file_labels(value)
+            labels = safe_file_labels(value)[:12]
             if labels:
                 safe[key] = labels
             continue
         if key == "reasoning_summary" and isinstance(value, str):
-            text = " ".join(value.strip().split())
-            if not text or _looks_sensitive_or_pathish(text):
-                continue
-            safe[key] = f"{text[:497]}…" if len(text) > 500 else text
+            text = scrub_display_text(" ".join(value.strip().split()))
+            if text:
+                safe[key] = f"{text[:497]}…" if len(text) > 500 else text
             continue
         if not isinstance(value, (str, int, float, bool)):
             continue
-        if isinstance(value, str) and _looks_sensitive_or_pathish(value):
-            continue
-        safe[key] = value
+        safe[key] = scrub_display_text(value) if isinstance(value, str) else value
     return safe
-
-
-def _safe_file_labels(value: list[Any]) -> list[str]:
-    labels: list[str] = []
-    allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
-    for item in value:
-        text = str(item or "").strip()
-        if not text or _looks_sensitive_or_pathish(text):
-            continue
-        label = text.replace("\\", "/").rsplit("/", 1)[-1]
-        if not label or _looks_sensitive_or_pathish(label):
-            continue
-        if len(label) > 96 or any(ch not in allowed_chars for ch in label):
-            continue
-        labels.append(label)
-    return labels[:12]
-
-
-def _looks_sensitive_or_pathish(value: str) -> bool:
-    lowered = value.lower()
-    sensitive_markers = (
-        "secret", "token", "password", "api_key", "apikey", "authorization",
-        "bearer", "credential", "cookie", "private_key", "sk-",
-    )
-    if any(marker in lowered for marker in sensitive_markers):
-        return True
-    return ":/" in value or "\\" in value or "/" in value
 
 
 def _run_age_seconds(reference_time: datetime, run: Any) -> float | None:

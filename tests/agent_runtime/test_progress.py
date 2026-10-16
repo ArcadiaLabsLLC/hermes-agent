@@ -842,8 +842,8 @@ def test_the_WHOLE_live_chain_carries_the_marker_from_the_loop_to_the_mark(
 def test_safe_progress_payload_passes_the_patch_artifact_path_and_counts():
     # The allowlist is the whole gate: a key missing from _SAFE_PROGRESS_KEYS
     # vanishes SILENTLY here, and a path-bearing key that reaches the default
-    # scalar arm is dropped by _looks_sensitive_or_pathish — so this field needs
-    # BOTH the allowlist entry and its own operator-line arm.
+    # scalar arm is shortened to its last segment (redaction.scrub_display_text)
+    # — so this field needs BOTH the allowlist entry and its own operator-line arm.
     safe = _safe_progress_payload(
         "run.tool.finished",
         {

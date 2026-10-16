@@ -10,7 +10,7 @@ from typing import Any, Callable
 import re
 
 from agent_runtime._upstream_doors import terminal_foreground_timeouts
-from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels, scrub_secret_values
+from agent_runtime.redaction import has_secret_value, safe_file_labels, scrub_display_text, scrub_secret_values
 from agent_runtime.serde import strict_int
 from agent_runtime.profile_runner.dispatch_payloads import (
     _agent_chat_dispatch_fields,
@@ -334,14 +334,11 @@ def _safe_command_label(invocation: Any) -> str | None:
     command = invocation.get("command") or invocation.get("cmd")
     if not isinstance(command, str):
         return None
-    text = " ".join(command.strip().split())
+    # The Telegram-safe label: secret VALUES replaced and absolute paths
+    # shortened to their names (``redaction.scrub_display_text``); a word in
+    # the command never drops it.
+    text = scrub_display_text(" ".join(command.strip().split()).replace("\\", "/"))
     if not text:
-        return None
-    lowered = text.lower()
-    if any(marker in lowered for marker in ("secret", "token", "password", "api_key", "apikey", "authorization", "bearer", "credential", "cookie", "private_key", "sk-")):
-        return None
-    text = text.replace("\\", "/")
-    if re.search(r"(^|\s)([A-Za-z]:/|//|/home/|/users/|/x/|/c/|~)", text.lower()):
         return None
     return f"{text[:237]}..." if len(text) > 240 else text
 
@@ -505,7 +502,7 @@ def _duration_ms(value: Any) -> int | None:
 
 def _safe_label(value: Any) -> str | None:
     text = str(value or "").strip()
-    if not text or looks_sensitive_or_pathish(text):
+    if not text or has_secret_value(text):
         return None
     if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", text):
         return None

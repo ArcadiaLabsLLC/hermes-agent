@@ -17,6 +17,7 @@ from .decision_contract_registry import allowed_event_types, validate_event_payl
 from .errors import EventPayloadTooLarge
 from .locks import events_lock
 from .models import EVENT_PAYLOAD_LIMIT_BYTES, Event, payload_bytes
+from .redaction import has_secret_value, mask_local_paths, scrub_display_text
 from .serde import from_jsonable, to_jsonable
 
 __layer__ = "stores"
@@ -771,8 +772,8 @@ def _progress_event_id(evt: Event, payload: dict) -> str | None:
 def _safe_text(value, *, limit: int = 240) -> str | None:
     if value is None:
         return None
-    text = " ".join(str(value).strip().split())
-    if not text or _looks_sensitive_or_pathish(text):
+    text = scrub_display_text(" ".join(str(value).strip().split()))
+    if not text:
         return None
     return f"{text[: limit - 3]}..." if len(text) > limit else text
 
@@ -783,32 +784,7 @@ def _label(value, fallback: str) -> str:
 
 def _safe_token(value) -> str | None:
     text = str(value or "").strip()
-    if not text or _looks_sensitive_or_pathish(text):
+    if not text or has_secret_value(text):
         return None
-    safe = re.sub(r"[^A-Za-z0-9_.:-]+", "_", text)[:120].strip("_")
+    safe = re.sub(r"[^A-Za-z0-9_.:-]+", "_", mask_local_paths(text))[:120].strip("_")
     return safe or None
-
-
-def _looks_sensitive_or_pathish(value: str) -> bool:
-    lowered = value.lower()
-    sensitive_markers = (
-        "secret",
-        "token",
-        "password",
-        "api_key",
-        "apikey",
-        "authorization",
-        "bearer",
-        "credential",
-        "cookie",
-        "private_key",
-        "sk-",
-        "passwd",
-    )
-    if any(marker in lowered for marker in sensitive_markers):
-        return True
-    if ":/" in value or "\\" in value or value.startswith(("/", "~")):
-        return True
-    if re.search(r"(^|\s)([A-Za-z]:)?[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
-        return True
-    return bool(re.search(r"(^|\s)[A-Za-z0-9_.-]+\.(dart|py|js|ts|json|yaml|yml|md|txt)/", value, re.IGNORECASE))
