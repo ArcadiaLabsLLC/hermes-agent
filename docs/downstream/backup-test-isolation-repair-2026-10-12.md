@@ -97,3 +97,25 @@ evidence, not another backlog.
 | `triage-h11-registration-red.log` | `88b0bc9afe378b9072f6b1dd5139fc1fe5984df496a1ea15a9cc004ae60c15bc` |
 | `triage-h11-batch-green314.log` | `76240889e0ece4b9331dd0b6fcc80a62e8b982cefee6e9ec1ba6fb4de878703e` |
 | `triage-batch-focused314.log` | `ed8edf795f65620df9bb2715f0bfe9d212f9ba276e80f9bb403c094528144a46` |
+
+## Other consumers qualified — 16 October 2026 (lane r-isolation)
+
+Only two modules bind `hermes_constants._get_platform_default_hermes_home` at
+import: `hermes_cli/backup.py` (repaired above) and `gateway/status.py`. Every
+other reader (`hermes_cli/gateway.py`, `hermes_cli/install_state.py`,
+`pm/environments.py`, `scripts/verify_harness_skill_install.py`) imports it
+inside the function, so it resolves through the root fixture's patch at call
+time.
+
+`gateway.status` reproduced through a scratch test that imports it at
+collection: inside the body its alias still answers the operator's native home
+(`%LOCALAPPDATA%\hermes`) while the patched resolver answers the test home. Its
+one consumer, `_profile_label_for_home`, compares a home against
+`hermes_constants.get_default_hermes_root()` FIRST (read through the module, so
+patched) and only then against the alias, path-only (`resolve(strict=False)`),
+under `contextlib.suppress`. Both scratch cases (`_profile_label_for_home` and
+`scoped_lock_owner_label` on a non-profile home) passed with no home-I/O guard
+refusal and the expected `None`. No wrong answer or refusal reproduces, so no
+fixture extension and no upstream submission: the class stays two consumers,
+one repaired and one qualified harmless. A new module-level importer of the
+resolver is the trigger to re-qualify.
