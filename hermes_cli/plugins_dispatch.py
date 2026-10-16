@@ -45,6 +45,8 @@ _HOOK_TIMEOUT_BOUNDED_HOOKS: set[str] = {
     "pre_auxiliary_call", "post_auxiliary_call", "pre_verify", "on_session_start", "on_session_end",
     # Fail-open consumer on every inbound gateway message: a hung plugin must not stall the profile.
     "post_gateway_admission",
+    # Embedder transform: a hung callback skips (the untransformed row is written), like a raise.
+    "transform_persisted_row",
 }
 
 # Policy hooks: timeout / still-running must fail closed (block the tool).
