@@ -3659,106 +3659,6 @@ export interface LlmOneshotParams {
 export interface LlmOneshotResult {
   text: string
 }
-export interface RecoveryParams {
-  session_id: string
-  profile?: string | null
-  execution_id?: string | null
-}
-export interface RecoverySnapshot {
-  session_id: string
-  message_count: number
-  messages: TranscriptMessage[]
-  info: SessionLiveInfo
-  stored_session_id?: string | null
-  resumed?: string | null
-  session_key?: string | null
-  messages_omitted?: boolean | null
-  hydrating?: boolean | null
-  running?: boolean | null
-  turn_started_at?: number | null
-  started_at?: number | null
-  status?: string | null
-  inflight?: InflightTurn | null
-  queued?: QueuedPrompt | null
-  pending_approval?: PendingApproval | null
-  open_requests?: OpenRequestEntry[] | null
-  pending_connection?: ConnectionRequestPayload | null
-  todo_state?: TodoState | null
-  auto_continue?: AutoContinue | null
-  execution?: ExecutionEvidence | null
-  epoch: string
-  latest_seq: number
-  history: HistoryPosition
-  inflight_position?: InflightPosition | null
-}
-export interface ExecutionEvidence {
-  id: string
-  session_key: string
-  status: string
-  cancel_requested: boolean
-  user_row_id?: number | null
-  result?: ExecutionResult | null
-}
-export interface ExecutionResult {
-  text: string
-  truncated: boolean
-  error?: string | null
-}
-export interface HistoryPosition {
-  session_key: string
-  through_row: number
-  version: number
-}
-export interface InflightPosition {
-  execution_id: string
-  user: number
-  assistant: number
-  reasoning: number
-  revision: number
-  segment_ends: SegmentEnd[]
-}
-export interface SegmentEnd {
-  assistant: number
-  reasoning: number
-}
-export interface RecoveryHistoryParams {
-  session_id: string
-  profile?: string | null
-  position: HistoryPosition
-  message_index?: number
-  offset?: number
-}
-export interface RecoveryHistoryPage {
-  chunks: RecoveryHistoryChunk[]
-  message_index: number
-  offset: number
-  more: boolean
-  reset?: boolean
-}
-export interface RecoveryHistoryChunk {
-  index: number
-  offset: number
-  data: string
-  complete: boolean
-}
-export interface RecoveryInflightParams {
-  session_id: string
-  profile?: string | null
-  execution_id: string
-  field: 'user' | 'assistant' | 'reasoning'
-  revision?: number
-  through: number
-  offset?: number
-}
-export interface RecoveryInflightPage {
-  text?: string
-  offset?: number
-  more?: boolean
-  reset?: boolean
-}
-export interface RetirementResult {
-  status: 'retired' | 'protected'
-}
 export interface SystemBatteryParams {
   profile?: string | null
 }
@@ -4582,6 +4482,106 @@ export interface PluginCatalogLookupEntry {
   repo: string
   sha: string
   subdir: string
+}
+export interface RecoveryParams {
+  session_id: string
+  profile?: string | null
+  execution_id?: string | null
+}
+export interface RecoverySnapshot {
+  session_id: string
+  message_count: number
+  messages: TranscriptMessage[]
+  info: SessionLiveInfo
+  stored_session_id?: string | null
+  resumed?: string | null
+  session_key?: string | null
+  messages_omitted?: boolean | null
+  hydrating?: boolean | null
+  running?: boolean | null
+  turn_started_at?: number | null
+  started_at?: number | null
+  status?: string | null
+  inflight?: InflightTurn | null
+  queued?: QueuedPrompt | null
+  pending_approval?: PendingApproval | null
+  open_requests?: OpenRequestEntry[] | null
+  pending_connection?: ConnectionRequestPayload | null
+  todo_state?: TodoState | null
+  auto_continue?: AutoContinue | null
+  execution?: ExecutionEvidence | null
+  epoch: string
+  latest_seq: number
+  history: HistoryPosition
+  inflight_position?: InflightPosition | null
+}
+export interface ExecutionEvidence {
+  id: string
+  session_key: string
+  status: string
+  cancel_requested: boolean
+  user_row_id?: number | null
+  result?: ExecutionResult | null
+}
+export interface ExecutionResult {
+  text: string
+  truncated: boolean
+  error?: string | null
+}
+export interface HistoryPosition {
+  session_key: string
+  through_row: number
+  version: number
+}
+export interface InflightPosition {
+  execution_id: string
+  user: number
+  assistant: number
+  reasoning: number
+  revision: number
+  segment_ends: SegmentEnd[]
+}
+export interface SegmentEnd {
+  assistant: number
+  reasoning: number
+}
+export interface RecoveryHistoryParams {
+  session_id: string
+  profile?: string | null
+  position: HistoryPosition
+  message_index?: number
+  offset?: number
+}
+export interface RecoveryHistoryPage {
+  chunks: RecoveryHistoryChunk[]
+  message_index: number
+  offset: number
+  more: boolean
+  reset?: boolean
+}
+export interface RecoveryHistoryChunk {
+  index: number
+  offset: number
+  data: string
+  complete: boolean
+}
+export interface RecoveryInflightParams {
+  session_id: string
+  profile?: string | null
+  execution_id: string
+  field: 'user' | 'assistant' | 'reasoning'
+  revision?: number
+  through: number
+  offset?: number
+}
+export interface RecoveryInflightPage {
+  text?: string
+  offset?: number
+  more?: boolean
+  reset?: boolean
+}
+export interface RetirementResult {
+  status: 'retired' | 'protected'
 }
 /** ``answers`` rides only on a reconnect replay (locks the server already accepted; null = skipped). */
 export interface ClarifyRequestParams {
