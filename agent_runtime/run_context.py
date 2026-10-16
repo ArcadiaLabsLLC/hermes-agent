@@ -66,9 +66,18 @@ def run_runtime_root_scope(root: Path | str | None) -> Iterator[None]:
     if not text:
         yield
         return
+    from hermes_constants import get_hermes_home
+
+    from agent_runtime.resolution import resolve_runtime, runtime_resolution_scope
+
+    # The same answer ``resolve_runtime()`` gave while the root was exported: the env layer
+    # wins with this root, and the Hermes home is the one bound right now (the persona's
+    # under a profile binding), exactly what ``os.environ["HERMES_HOME"]`` held.
+    resolution = resolve_runtime({RUNTIME_ROOT_ENV: text, "HERMES_HOME": str(get_hermes_home())})
     token = _RUN_RUNTIME_ROOT.set(text)
     try:
-        yield
+        with runtime_resolution_scope(resolution):
+            yield
     finally:
         _RUN_RUNTIME_ROOT.reset(token)
 
