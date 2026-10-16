@@ -1,7 +1,13 @@
 # Planned — retire the process-global `chdir` before turn concurrency widens
 
-**Status:** NOT IMPLEMENTED. Designed, unscheduled. The status quo is deliberate and is
-guarded by a test that routes whoever changes it here.
+**Status, corrected 2026-10-16 on archiving: ~~NOT IMPLEMENTED. Designed, unscheduled.~~
+BUILT by run-serialization S4** (`76ee9cec743`, landed on main in `7c3bb31a12b`): a run's
+workdir is bound as `TERMINAL_CWD` in its terminal scope
+(`agent_runtime/profile_runner/workdir.py::_agent_workdir`), never `os.chdir`;
+`tests/agent_runtime/test_serve_cwd_serialization_invariant.py` reds on a `chdir`. The
+build and its residue are `run-serialization-retirement-field-notes-2026-10-16.md` beside
+this file. Row: runtime-queue, "plans the per-run paths that replace `os.chdir`" (deleted
+at this archiving). The body below is the plan as written, before S4.
 **Owning doc:** [`../04-boot-and-lifecycle.md`](../04-boot-and-lifecycle.md), Invariant 10.
 **Source:** `archive/2026-08-22-pre-consolidation/env-determinism-audit.md` §4.
 

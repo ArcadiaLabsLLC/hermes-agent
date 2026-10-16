@@ -758,8 +758,6 @@ Nothing below is implemented. Each links to a plan carrying its own evidence and
   aimed at it. → [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md)
 - **The boot resubscribe still buys a fourth full core** — HY-L2, the one stage of its plan that
   did not ship. → [`planned/boot-resubscribe-fourth-core.md`](planned/boot-resubscribe-fourth-core.md)
-- **Turn concurrency is capped by a process-global `chdir`** (Invariant 10); retiring it is
-  designed, unscheduled. → [`planned/serve-cwd-per-run-paths.md`](planned/serve-cwd-per-run-paths.md)
 
 ## Supersedes
 
