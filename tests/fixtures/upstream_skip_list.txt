@@ -1,9 +1,12 @@
-# Upstream-owned test files scripts/run_tests_bundled.py does NOT run unless the
-# file is named on the command line (owner ruling 2026-10-05; plan
+# Upstream-owned test files (or nodes) scripts/run_tests_bundled.py does NOT run unless
+# the file is named on the command line (owner ruling 2026-10-05; plan
 # docs/agent-runtime-harness/planned/suite-speed-2026-10-05.md §3 Stage 1, O1).
 #
-# One row per file: `path · why · upstream SHA`, the three fields separated by
-# " · ". `why` starts with a class word the weekly merge lane keys its re-check
+# One row per NODE: `path::node · why · upstream SHA`, the three fields separated
+# by " · " — the file still runs and only that node is deselected. A FILE row
+# (`path · why · upstream SHA`) keeps the whole file out, and is only for a file
+# that hangs, freezes or cannot collect; a file row whose `why` names one of the
+# file's tests is refused (tests/scripts/test_upstream_skip_list.py). `why` starts with a class word the weekly merge lane keys its re-check
 # on (Harness_Brain/50 — Agent Handoffs/Merging upstream.md, step 5b):
 #   P0       — a freeze candidate: re-run only under the watchdog/VM the P0 row names
 #   env      — environmental (provider-network hang, WSL bash shadow, missing acp/ripgrep): re-run bare
@@ -20,4 +23,4 @@ tests/hermes_cli/test_source_launcher_publication.py · P0: same freeze set; rep
 tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_update_completion_process.py · upstream: nondeterministic on Windows - 8-9 of its update-completion tests red on the pure tag v0.21.6 and on main, a different set each run (lock and child-process timing), so per-test strict marks XPASS; re-run bare at each release (2026-10-10) · d923a5eb48
-tests/hermes_cli/test_old_updater_takeover.py · upstream: nondeterministic on the pure tag v0.22.2 - test_serve_resume_child_reuses_respawn_without_updater_or_supervisors all four params red on tag run 1, [True-False] alone on tag run 2; on the merge candidate the set moved again ([True-False] XPASS against a strict mark) (2026-10-15) · d923a5eb48
+tests/hermes_cli/test_old_updater_takeover.py::test_serve_resume_child_reuses_respawn_without_updater_or_supervisors · upstream: nondeterministic on the pure tag v0.22.2 - all four params red on tag run 1, [True-False] alone on tag run 2; on the merge candidate the set moved again ([True-False] XPASS against a strict mark) (2026-10-15) · d923a5eb48
