@@ -188,14 +188,30 @@ class DepsCollector:
                 continue
             if not isinstance(record, dict) or not record.get("f"):
                 continue
-            if record.get("k") == "deps":
-                mods.update(record.get("mods_add") or ())
-                self.files.setdefault(record["f"], FileDeps()).merge_deps(record, mods)
-            elif record.get("k") == "partial":
-                mods.update(record.get("mods_add") or ())
-                self.partial.setdefault(record["f"], FileDeps()).merge(record, mods)
-            elif record.get("k") == "child":  # a Python child of the file (sitecustomize, stage 1b)
-                self.files.setdefault(record["f"], FileDeps()).merge_child(record)
+            handler = _RECORD_HANDLERS.get(record.get("k"))
+            if handler is not None:
+                handler(self, record, mods)
+
+    def _on_deps(self, record: dict, mods: set) -> None:
+        mods.update(record.get("mods_add") or ())
+        self.files.setdefault(record["f"], FileDeps()).merge_deps(record, mods)
+
+    def _on_partial(self, record: dict, mods: set) -> None:
+        mods.update(record.get("mods_add") or ())
+        self.partial.setdefault(record["f"], FileDeps()).merge(record, mods)
+
+    def _on_child(self, record: dict, mods: set) -> None:
+        """A Python child of the file (sitecustomize, stage 1b)."""
+
+        self.files.setdefault(record["f"], FileDeps()).merge_child(record)
+
+
+#: one handler per recorder line kind (``k``); an unknown kind is skipped
+_RECORD_HANDLERS = {
+    "deps": DepsCollector._on_deps,
+    "partial": DepsCollector._on_partial,
+    "child": DepsCollector._on_child,
+}
 
 
 # ── The store ───────────────────────────────────────────────────────────────
