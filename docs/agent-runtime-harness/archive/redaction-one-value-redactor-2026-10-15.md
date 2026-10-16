@@ -1,7 +1,10 @@
 # One value redactor for every lane; the secret word lists go (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed. Row: runtime-queue,
-"Word-based redaction, the CLASS (third instance)".
+Status: BUILT 2026-10-16 (lane h2-redact, branch `build/h2-redact`; approved by the owner
+2026-10-15, all recommendations). S0–S5 built, plus S4b: the same class in `child_events`,
+`mission_chat_turns/records`, `migrations` and `harness_parts/verify_commands`, found by the S5
+census. The live policy is `docs/agent-runtime-harness/07-observability.md` § "Display
+redaction: values, never words"; this file is history.
 
 ## In plain English
 
