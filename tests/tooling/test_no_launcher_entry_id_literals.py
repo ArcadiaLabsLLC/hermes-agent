@@ -23,8 +23,10 @@ from pathlib import PurePosixPath
 from scripts import god_file_probe as probe
 
 #: An entry id: ``launcher.`` and at least two dotted segments. ``launcher.pid``
-#: and ``launcher.sh`` (file names) have one, and are not ids.
-ENTRY_ID = re.compile(r"(?<![\w.])launcher\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+")
+#: and ``launcher.sh`` (file names) have one, and are not ids; ``launcher.parent.name``
+#: is a ``Path`` named ``launcher`` walking up (upstream ``hermes_cli/install_state.py``
+#: at v0.22.2), and no entry id starts with ``parent``.
+ENTRY_ID = re.compile(r"(?<![\w.])launcher\.(?!parent\.)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+")
 
 #: (path, id) -> why it may be written. Protocol only; never an intent.
 ALLOWED: dict[tuple[str, str], str] = {
@@ -76,6 +78,8 @@ def test_the_pattern_sees_an_id_and_not_a_file_name():
     assert entry_ids("launcher.media.playback.state") == {"launcher.media.playback.state"}
     assert entry_ids('open(sd / "launcher.pid"); Path("launcher.sh"); "launcher."') == set()
     assert entry_ids("self.launcher.parent.mkdir()") == set()
+    assert entry_ids('launcher.parent.name == "bin" and launcher.parent.parent.name') == set()
+    assert entry_ids("launcher.parental.controls") == {"launcher.parental.controls"}
 
 
 def test_no_launcher_entry_id_outside_the_allow_list():
