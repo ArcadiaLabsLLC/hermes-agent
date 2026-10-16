@@ -179,9 +179,10 @@ def test_changed_result_or_owner_during_read_refuses(stored):
         history_call(home, db, revalidate=changed)
 
 
-def test_operator_history_uses_the_existing_console_owner(placed_agent, tmp_path):
+def test_operator_history_uses_the_existing_console_owner(request, tmp_path):
     from agent_runtime.persona_chat_durability import default_persona_session_db
-    params = target(placed_agent["persona_instance_id"])
+    placement = request.getfixturevalue("placed_agent")
+    params = target(placement["persona_instance_id"])
     with closing(default_persona_session_db()) as db:
         store_result(db, params["session_id"])
         saved_tree(Path(db.db_path).parent, params["session_id"])

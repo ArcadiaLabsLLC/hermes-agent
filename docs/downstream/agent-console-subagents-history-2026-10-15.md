@@ -73,6 +73,14 @@ compute and in-process execution. Each closes its host, reopens the service,
 and reads history with a worker factory that fails if invoked. Changed
 production modules pass ruff; footprint/private-import allowances are unchanged.
 
+The code-health ratchet also passes with zero blocking/advisory findings. Its
+first CI report flagged an imported pytest fixture shadowed by an argument;
+the existing request-based fixture lookup fixes it, and all 11 history tests pass.
+The unchanged repository-wide ruff/Windows-footgun findings remain tracked in
+the fork hygiene queue. CI contributor attribution also lacks a mapping for
+the existing configured author; that setup gap is filed separately. These
+failures are not represented as a green whole-CI run.
+
 Applied killing mutation: remove projected content from
 `References.historical`'s signature. The changed-result test fails with
 `DID NOT RAISE SubagentError`. Restoring the signature returns the suite to green.
