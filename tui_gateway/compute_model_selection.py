@@ -1,4 +1,5 @@
 """Apply idle model changes in the existing compute owner and return its receipt."""
+__layer__ = "lanes"
 from tui_gateway.session_execution import control
 
 

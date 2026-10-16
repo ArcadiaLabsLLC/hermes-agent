@@ -1,5 +1,6 @@
 """Disposable, seekable delivery of an already projected native history."""
 from __future__ import annotations
+__layer__ = "stores"
 
 from collections import OrderedDict
 from contextlib import ExitStack

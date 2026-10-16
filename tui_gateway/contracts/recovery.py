@@ -1,4 +1,5 @@
 """Observation-only recovery of a native execution and its replay position."""
+__layer__ = "models"
 from typing import Literal
 
 from pydantic import Field

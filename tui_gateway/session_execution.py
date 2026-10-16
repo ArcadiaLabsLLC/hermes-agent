@@ -1,5 +1,6 @@
 """Execution evidence on native sessions; SessionDB remains the durable owner."""
 from __future__ import annotations
+__layer__ = "lanes"
 
 import json
 import threading

@@ -1,5 +1,6 @@
 """Recovery reads the native session, history and requests under their existing owners."""
 from __future__ import annotations
+__layer__ = "lanes"
 
 from tui_gateway import event_replay, session_execution
 from tui_gateway.recovery_history import history_page

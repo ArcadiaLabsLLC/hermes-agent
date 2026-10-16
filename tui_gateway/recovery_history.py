@@ -1,5 +1,6 @@
 """Bounded delivery of the native display projection, without a second history store."""
 from __future__ import annotations
+__layer__ = "stores"
 
 import json
 

@@ -1,4 +1,5 @@
 """Segment boundaries on the existing inflight text, not another event history."""
+__layer__ = "policy"
 
 
 def record(session, kind, payload):

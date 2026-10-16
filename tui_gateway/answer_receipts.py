@@ -1,4 +1,5 @@
 """Bounded acknowledgements; no answers or reusable secret hashes are retained."""
+__layer__ = "models"
 import hashlib
 import hmac
 import json

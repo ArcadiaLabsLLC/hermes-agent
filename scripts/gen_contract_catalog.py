@@ -141,6 +141,7 @@ def render() -> str:
         "name, required}; a spec is None (a value), {model, arity} or {union: [models], tags: [class names],",
         "arity, discriminator, mapping: {tag: model}, open: a non-model member exists}; arity one/list/dict.",
         '"""',
+        '__layer__ = "models"',
         "",
         "# fmt: off",
         f"METHODS = {methods!r}",
