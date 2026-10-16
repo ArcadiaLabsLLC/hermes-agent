@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from tests._env_gap_fence import EnvGapSkipRegistry
 from tests._downstream.hermes_cli_conftest.probes import (
+    _global_git_autocrlf_overrides_system,
     _no_module,
     _no_os_chown,
     _no_posix_mode_bits,
@@ -208,6 +209,33 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             '(class d-P); the test registers a real scheduled task',
             {
                 'test_status_warns_and_uninstall_removes_pre_suffix_launchers',
+            },
+        ),
+    ],
+    # -- hosted Windows XPASS requalification (run 38426498916, lane r-isolation) --
+    'test_update_pause_debt_windows_live.py': [
+        (
+            _unelevated_windows_shell,
+            '`sc.exe create` answers "OpenSCManager FAILED 5: Access is denied" in an '
+            'unelevated shell; the tests register a real Windows service. Green on the '
+            'elevated hosted runner, where the strict upstream-red row XPASSed',
+            {
+                'test_a_launch_recovering_an_unready_service_keeps_the_debt_without_stalling',
+                'test_a_running_service_owes_its_gateway_until_that_gateway_is_ready[absent]',
+                'test_a_running_service_owes_its_gateway_until_that_gateway_is_ready[ready]',
+            },
+        ),
+    ],
+    'test_version_info.py': [
+        (
+            _global_git_autocrlf_overrides_system,
+            'the fixture repo commits through git with HOME=tmp (the system '
+            'core.autocrlf) and get_version_info reads it with the user config, whose '
+            'core.autocrlf differs, so the CRLF worktree reads ".dirty"; with '
+            'GIT_CONFIG_GLOBAL=NUL both pass here. Green on the hosted runner',
+            {
+                'test_get_version_info_derives_identity_from_reachable_release_tag',
+                'test_get_version_info_takes_the_version_a_calver_only_release_shipped',
             },
         ),
     ],

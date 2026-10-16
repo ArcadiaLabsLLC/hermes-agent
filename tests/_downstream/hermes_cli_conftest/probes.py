@@ -199,6 +199,26 @@ def _test_python_outside_project_venv() -> bool:
     return _interpreter_outside_checkout()
 
 
+@functools.cache
+def _global_git_autocrlf_overrides_system() -> bool:
+    """True where the user's git config sets ``core.autocrlf`` to a value the system's
+    config does not: a repo written under ``HOME=<tmp>`` then normalises line endings
+    differently from a git that reads the user's config."""
+    import subprocess as _sp
+
+    def read(scope: str) -> str | None:
+        try:
+            done = _sp.run(["git", "config", scope, "--get", "core.autocrlf"],
+                           capture_output=True, text=True, timeout=15, check=False)
+        except (OSError, _sp.SubprocessError):
+            return None
+        value = done.stdout.strip().lower()
+        return value or None if done.returncode == 0 else None
+
+    user = read("--global")
+    return user is not None and user != (read("--system") or "false")
+
+
 def _unelevated_windows_shell() -> bool:
     """True on a Windows shell without administrator rights (schtasks /Create refuses)."""
     if sys.platform != "win32":
