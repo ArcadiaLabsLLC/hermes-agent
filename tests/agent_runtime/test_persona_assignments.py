@@ -2703,6 +2703,72 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     assert "mission_control_chat_model_override" not in stored_config
 
 
+def test_a_draft_chats_first_send_pins_its_model_to_the_new_session_only(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """Owner ruling 2026-10-15: a model picked in a DRAFT chat is held by the Launcher and
+    rides the first send; hermes pins it to the session that draft minted. The next send
+    (no model) keeps it, and the agent's other chat and its default are untouched."""
+
+    from argparse import Namespace
+
+    cfg = _assignment_config()
+    cfg.personas["dev"] = {
+        "model": "gpt-default",
+        "provider": "openai-codex",
+        "api_mode": "codex_responses",
+        "hermes_profile": "profile-dev",
+    }
+    db = _TranscriptDB()
+    for module in (chat_turn_message, chat_open, lifecycle_commands):
+        monkeypatch.setattr(module, "load_agent_runtime_config", lambda: cfg)
+        monkeypatch.setattr(module, "_default_persona_session_db", lambda: db)
+    monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
+    seen: list[str | None] = []
+
+    class _FakeRuntime:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def mission_chat_reply(self, persona_arg, message, **kwargs):
+            seen.append(kwargs.get("model_override"))
+            return SimpleNamespace(final_response="ok", input_tokens=1, output_tokens=1,
+                                   total_tokens=2, raw={})
+
+    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    first_thread = instance.session_id
+    assert chat_open._cmd_persona_instance_open_chat(Namespace(
+        persona_id="dev", persona_instance_id=instance.id, session_id=None, new_session=True,
+        idempotency_key="draft-chat-1", kill_active=False, add_instance=False, json=True,
+    )) == 0
+    draft_session = json.loads(capsys.readouterr().out)["session_id"]
+    assert draft_session and draft_session != first_thread
+
+    def send(client_message_id, model):
+        return chat_turn_message._cmd_mission_chat_message(SimpleNamespace(
+            persona_id="dev", persona_instance_id=instance.id, session_id=draft_session,
+            task_id=None, goal_id=None, title=None, message="hello", provider=None,
+            model=model, use_agent_default=False, surface_prompt="", intent_hint="chat",
+            requested_by="test", client_message_id=client_message_id, stream=False,
+            max_seconds=5.0, json=True,
+        ))
+
+    assert send("draft_first", "anthropic/claude-sonnet-4") == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["session_id"] == draft_session
+    assert first["model_selection"]["effective_model"] == "anthropic/claude-sonnet-4"
+    assert send("draft_second", None) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["model_selection"]["effective_model"] == "anthropic/claude-sonnet-4"
+    assert seen == ["anthropic/claude-sonnet-4", "anthropic/claude-sonnet-4"]
+    pinned = json.loads(db.sessions[draft_session]["model_config"])
+    assert pinned["mission_control_chat_model_override"]["model"] == "anthropic/claude-sonnet-4"
+    other = db.sessions.get(first_thread) or {}
+    assert "mission_control_chat_model_override" not in json.loads(other.get("model_config") or "{}")
+    assert AgentStore().get("dev").model != "anthropic/claude-sonnet-4"
+
+
 def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
     monkeypatch, capsys, isolate_agent_runtime_root
 ):
