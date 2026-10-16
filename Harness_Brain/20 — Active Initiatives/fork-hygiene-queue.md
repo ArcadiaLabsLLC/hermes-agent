@@ -32,7 +32,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-16 (build lane h-bundle-speed, reds proven on `origin/main` `aba5fec098c`)
 
-- [ ] **The shared test venv's `nemo_relay-0.8.4.dist-info` has no `METADATA` (only `licenses/`, `sboms/`), so `Graph.__init__` (`_norm(d.metadata["Name"])` over `md.distributions()`) raises `TypeError` and five bundle tests are red on `origin/main` for an environmental reason: `test_a_requested_extra_of_a_base_declaration_ships_its_requirements`, `test_a_placeholder_requirement_is_never_followed_or_shipped` (tests/scripts/test_bundle_profile_closure.py), `test_the_speech_pack_runs_whisper_on_onnx_asr_and_ships_no_ctranslate2`, `test_each_provider_sdk_the_wheel_omits_ships_as_its_own_pack` (tests/agent_runtime/test_bundle_profiles.py), `test_a_dropped_extra_is_not_followed_and_ships_only_when_its_distribution_imports_without_it` (tests/scripts/test_bundle_profile_gate.py). Repair the venv entry, and make `Graph` skip (and name) a distribution with no Name rather than crash** · `scripts/bundle_profile_closure.py` `Graph.__init__` · UNCLAIMED
 
 ## Filed on arrival — 2026-10-16 (build lane h3-runser)
 
@@ -384,7 +383,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-08 (release merge v0.21.6)
 
-- [ ] **The shared test venv still has nemo-relay 0.8; upstream v0.21.6 passes `additional_plugins_toml` to it and logs a warning — bump the venv's nemo-relay** · fork hygiene (test env) · release lane rel-0216 · UNCLAIMED · released 2026-10-10 (lane-1010 returned L7.31, workstation hazard; reason in `queue-sweep-2026-10-10/L7-outcomes.md`) **TAKEN 2026-10-15 w1015b-fh-b** · VERDICT 2026-10-15: DESIGN — still true: the shared venv has nemo-relay 0.8.4 against pyproject's >=0.10,<0.11; bumping a venv every concurrent lane imports from is a landing/idle-box step (`uv pip install --python ~/.venvs/hermes-test/Scripts/python.exe "nemo-relay>=0.10,<0.11"`), not a lane's. · CHECKED 2026-10-15: blocked on an idle-box window with no lane importing the shared venv · 2026-10-15 lane leftovers-1015: the venv is user-home (`~/.venvs/hermes-test`, found by `scripts/run_tests.sh`), not repo-managed; it still reads 0.8.4; upstream `v0.22.2` keeps `>=0.10,<0.11` and its `uv.lock` pins `0.10.0`, so the idle-box command is `uv pip install --python ~/.venvs/hermes-test/Scripts/python.exe "nemo-relay==0.10.0"`
 
 ## Filed on arrival — 2026-10-09 (lane opus-fix-toolsets-refusal)
 
