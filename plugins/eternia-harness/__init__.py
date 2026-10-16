@@ -392,6 +392,16 @@ def seed_persona_profile_defaults() -> None:
         logging.getLogger(__name__).warning("persona seed defaults failed", exc_info=True)
 
 
+def _worker_config_frozen() -> bool:
+    """A worker bound to an explicit config snapshot (upstream ``agent.safe_worker_policy``)
+    reads no profile ``config.yaml``, so plugin load runs none of the config-file migrations."""
+    try:
+        from agent.safe_worker_policy import worker_config_snapshot
+    except ImportError:  # a tree without upstream's worker policy has no frozen workers
+        return False
+    return worker_config_snapshot() is not None
+
+
 def register(ctx) -> None:
     from agent_runtime.provider_access import SharedProviderAccess
 
@@ -399,10 +409,11 @@ def register(ctx) -> None:
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
-    migrate_retired_local_llama_id()
-    migrate_legacy_persona_toolsets()
-    migrate_legacy_office_schema()
-    seed_persona_profile_defaults()
+    if not _worker_config_frozen():  # the three read and rewrite profile config.yaml files
+        migrate_retired_local_llama_id()
+        migrate_legacy_persona_toolsets()
+        seed_persona_profile_defaults()
+    migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
