@@ -28,6 +28,7 @@ import pytest
 
 from agent_runtime.mcp_admission import render_mcp_admission_line
 from agent_runtime.mcp_lane import (
+    ENTRY_POINT_LANE_ENV,
     HARNESS_LANE,
     MCP_CONTEXT_LINE_PREFIX,
     MCP_CONTEXT_LINE_TAIL,
@@ -35,7 +36,6 @@ from agent_runtime.mcp_lane import (
     mcp_lane_requirement_failures,
     mission_chat_mcp_lane_line,
     render_mcp_lane_line,
-    set_entry_point_lane,
 )
 from tests.agent_runtime.persona_samples import sample_personas
 from tests._downstream.split_package_source import patch_where_bound
@@ -50,11 +50,9 @@ def _qa_declaring(*servers: str):
 
 
 @pytest.fixture(autouse=True)
-def _harness_lane():
-    # The lane pin is process-wide; never let one test's pin leak into the next.
-    set_entry_point_lane(HARNESS_LANE)
-    yield
-    set_entry_point_lane(None)
+def _harness_lane(monkeypatch):
+    # Labelled the way an embedder labels its own lane; monkeypatch undoes it.
+    monkeypatch.setenv(ENTRY_POINT_LANE_ENV, HARNESS_LANE)
 
 
 @pytest.fixture(autouse=True)
@@ -196,11 +194,11 @@ def test_a_persona_that_declares_nothing_still_pays_nothing():
     )
 
 
-def test_an_mcp_registering_lane_says_nothing():
+def test_an_mcp_registering_lane_says_nothing(monkeypatch):
     """``hermes -p launcher-qa chat`` DOES run discovery. Claiming a drop there
     would be the mirror-image lie of the one this fixes."""
 
-    set_entry_point_lane("chat")
+    monkeypatch.setenv(ENTRY_POINT_LANE_ENV, "chat")
 
     assert mission_chat_mcp_lane_line(_qa_declaring("launcher_qa")) == ""
 

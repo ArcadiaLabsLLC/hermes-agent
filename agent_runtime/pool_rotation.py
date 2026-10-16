@@ -207,12 +207,3 @@ class PoolRotationMixin:
             if persist_rotation:
                 write_pool_rotation_cursor(self.provider, self._rotation_cursor)
         return entry
-
-    def select_without_persisting_rotation(self, *, model=None):
-        """Select and rotate in memory only; real token refresh still runs outside the pool lock.
-
-        ``model`` is forwarded for the same reason ``CredentialPool.select`` forwards it: the
-        model-scoped cooldown filter lives in ``_available_entries``, so a read-only selection
-        that dropped it would hand back an entry the persisting path would have skipped."""
-        with pool_rotation_scope(False):
-            return self.select(model=model)

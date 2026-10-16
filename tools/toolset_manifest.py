@@ -135,12 +135,3 @@ def builtin_toolset_names() -> List[str]:
 
     return sorted(set(_tools().values()))
 
-
-def builtin_modules() -> Dict[str, List[str]]:
-    """``{module_stem: [tool_name, …]}`` — which file owns which name.
-
-    The fact a debugger wants when a tool is missing at runtime: it names the
-    module to check for an import failure, without importing it to find out.
-    """
-
-    return {module: list(names) for module, names in _manifest()["modules"].items()}

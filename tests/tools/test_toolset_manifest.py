@@ -43,7 +43,6 @@ import pytest
 from tools.toolset_scan import scan_registered_tools
 from tools.toolset_manifest import (
     MANIFEST_PATH,
-    builtin_modules,
     builtin_tool_names,
     builtin_tool_names_for_toolsets,
     builtin_toolset_for_tool,
@@ -212,7 +211,6 @@ def test_the_reader_and_the_artifact_are_the_same_facts():
 
     assert builtin_tool_names() == sorted(manifest["tools"])
     assert builtin_toolset_names() == sorted(set(manifest["tools"].values()))
-    assert builtin_modules() == manifest["modules"]
     for name, toolset in manifest["tools"].items():
         assert builtin_toolset_for_tool(name) == toolset
 

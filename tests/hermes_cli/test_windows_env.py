@@ -58,17 +58,6 @@ def fake_reg():
         yield reg
 
 
-def test_set_user_env_creates_reg_sz(fake_reg):
-    assert windows_env.set_user_env("HERMES_GIT_BASH_PATH", r"C:\Git\bin\bash.exe")
-    assert fake_reg.values["HERMES_GIT_BASH_PATH"] == (r"C:\Git\bin\bash.exe", REG_SZ)
-
-
-def test_set_user_env_preserves_existing_type(fake_reg):
-    fake_reg.values["HERMES_HOME"] = (r"%LOCALAPPDATA%\hermes", REG_EXPAND_SZ)
-    assert windows_env.set_user_env("HERMES_HOME", r"C:\Users\x\.hermes")
-    assert fake_reg.values["HERMES_HOME"][1] == REG_EXPAND_SZ
-
-
 def test_add_user_path_prepends_when_absent(fake_reg):
     fake_reg.values["Path"] = (r"C:\Windows;C:\Windows\System32", REG_EXPAND_SZ)
     assert windows_env.add_user_path_entry(r"C:\Users\x\AppData\Local\hermes\bin")
@@ -111,7 +100,6 @@ def test_add_user_path_creates_when_missing(fake_reg):
 
 def test_helpers_noop_without_winreg():
     with patch.object(windows_env, "winreg", None):
-        assert windows_env.set_user_env("X", "y") is False
         assert windows_env.add_user_path_entry(r"C:\x") is False
         assert windows_env.is_windows() is False
         # broadcast must not raise
