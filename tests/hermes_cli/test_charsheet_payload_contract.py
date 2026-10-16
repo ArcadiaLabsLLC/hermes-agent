@@ -280,3 +280,42 @@ def test_the_human_line_counts_the_keys(capsys):
     assert "sprite:" in line and "thumb:" in line
     assert "status:" in line and "list:" in line
     assert "conditional" in line
+
+
+def _resolve_producer(producer: str) -> list[str]:
+    """Every ``path::Symbol`` the producer string names that does NOT resolve.
+
+    Grammar: ``<path>::<dotted> / <dotted> …`` — later names share the path.
+    Resolved at runtime (import + getattr), not by spelling.
+    """
+    import importlib
+    from pathlib import Path
+
+    path, _, names = producer.partition("::")
+    if not (Path(contract.__file__).resolve().parents[1] / path).is_file():
+        return [f"{path} (no such file)"]
+    module = importlib.import_module(path.removesuffix(".py").replace("/", "."))
+    missing = []
+    for name in (part.strip() for part in names.split("/")):
+        target = module
+        for attr in name.split("."):
+            target = getattr(target, attr, None)
+            if target is None:
+                break
+        if target is None or not callable(target):
+            missing.append(f"{path}::{name}")
+    return missing
+
+
+def test_every_payload_names_a_producer_that_exists(document):
+    """The published ``producer`` is where a launcher reader goes to read the code.
+
+    ``list`` named ``hermes_cli/harness.py::_characters_draft_summary`` for weeks
+    after the verbs moved into ``agent/charsheet/draft/`` (build-1011-C3).
+    """
+    missing = [
+        miss
+        for kind, payload in sorted(document["payloads"].items())
+        for miss in _resolve_producer(payload["producer"])
+    ]
+    assert missing == []

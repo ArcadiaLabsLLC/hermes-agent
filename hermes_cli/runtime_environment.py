@@ -35,6 +35,7 @@ from typing import Iterator
 from hermes_cli.venv_integrity import (
     canonical_distribution,
     import_name_for,
+    metadata_listing_scope,
     module_available,
     venv_integrity_issues,
 )
@@ -149,7 +150,8 @@ def runtime_environment_status_scope() -> Iterator[None]:
 
     token = _STATUS_SCOPE.set({})
     try:
-        yield
+        with metadata_listing_scope():
+            yield
     finally:
         _STATUS_SCOPE.reset(token)
 

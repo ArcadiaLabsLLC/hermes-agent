@@ -9,6 +9,7 @@ from hermes_cli.runtime_environment import required_packages_for, runtime_enviro
 from . import paths
 from .models import AgentPersona
 from .profile_context import active_profile_name
+from .provider_dependency_error import ProviderDependencyError
 
 __layer__ = "stores"
 
@@ -74,4 +75,7 @@ def assert_provider_health_for_persona(persona: AgentPersona) -> None:
         kind = issue.get("kind") or "runtime_dependency_missing"
         issue_bits.append(f"{kind}:{package}")
     detail = ", ".join(issue_bits) or "runtime dependency issue"
-    raise ImportError(f"Harness provider dependency preflight failed before token spend: {detail}; interpreter={sys.executable}")
+    raise ProviderDependencyError(
+        f"Harness provider dependency preflight failed before token spend: {detail}; interpreter={sys.executable}",
+        persona=persona, issues=health["issues"],
+    )

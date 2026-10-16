@@ -19,6 +19,7 @@ from agent_runtime.config import resolve_mission_chat_max_seconds
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
     mark_from_trace_payload as _mark_turn_phase_from_trace_payload,
+    phase_timing_marker_step,
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
 from agent_runtime.mission_chat_turns.journal import (
@@ -216,7 +217,6 @@ class _RunPhases:
     def _observe(self) -> None:
         """The record-at-injection observability row and the fed envelope. Marks ``observability_built``."""
 
-        args = self.args
         turn_context = self.turn_context
         instance = self.instance
         # Stage 6 item 2: taken off the built context, not re-measured. The builder
@@ -334,6 +334,10 @@ class _RunPhases:
     def _stream_progress(self, payload: dict[str, object] | None) -> None:
         if payload:
             self.trace_payloads.append(payload)
+            from agent_runtime.conversation_observability import TRANSPORT_REQUEST_SENT_STEP
+
+            if phase_timing_marker_step(payload) == TRANSPORT_REQUEST_SENT_STEP:
+                self.provider_request_dispatched = True
             # The conversation loop's dispatch-start marker becomes the
             # `request_assembled` phase mark here — the loop cannot hold the
             # turn's TurnPhaseMarks itself (it lives a layer below the
@@ -377,6 +381,7 @@ class _RunPhases:
                 persona_id=self.normalized_persona,
                 persona_instance_id=self.instance.id,
                 client_message_id=self.client_message_id,
+                input_position=self.stream_emitter.input_position,
             )
             return handle.close
         finally:
@@ -581,10 +586,11 @@ class _RunPhases:
                 ),
                 provider_override=model_selection.get("effective_provider"),
                 model_override=model_selection.get("effective_model"),
-                # Per-instance reasoning-effort override for this turn (None =
-                # inherit the runtime default). Applied to the model call by the
-                # transport; unsupported/absent values fall back to the default.
-                reasoning_effort=getattr(self.instance, "reasoning_effort", None),
+                # This chat's effort, else the instance's (None = inherit the
+                # runtime default). Applied to the model call by the transport;
+                # unsupported/absent values fall back to the default.
+                reasoning_effort=(model_selection.get("chat_reasoning_effort")
+                                  or getattr(self.instance, "reasoning_effort", None)),
                 surface_prompt=getattr(args, "surface_prompt", "") or "",
                 max_wall_seconds=relay_wall_seconds,
                 # C8: the legacy `chat.delta` lane is RETIRED (ruling 0 — one

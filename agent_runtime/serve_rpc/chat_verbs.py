@@ -152,7 +152,7 @@ def _runtime_persona_instance_create(rid: Any, params: dict, context: RpcContext
 @method("runtime.chat.turn.resolve", tier=TIER_CONSOLE)
 def _runtime_chat_turn_resolve(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """``harness mission-chat turn-resolve``. Params: ``session_id``,
-    ``client_message_id``, ``turn_id``, ``action`` (``abandon``),
+    ``client_message_id``, ``turn_id``, ``action`` (``abandon`` or ``dismiss``),
     ``persona_instance_id`` (all required); ``reason``."""
     from agent_runtime.chat_verbs.turn_resolve import resolve_chat_turn
 

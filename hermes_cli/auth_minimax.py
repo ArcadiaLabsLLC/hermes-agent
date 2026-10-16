@@ -174,7 +174,7 @@ def _minimax_save_auth_state(auth_state: dict[str, Any], *, set_active: bool = T
 
 
 def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True,
-                       timeout_seconds: float = 15.0, on_verification=None,
+                       timeout_seconds: float = 15.0, on_verification=None, on_expiry=None,
                        persist: bool = True) -> dict[str, Any]:
     """Run MiniMax OAuth flow, persist tokens, return auth state dict."""
     from hermes_cli.auth import PROVIDER_REGISTRY, _can_open_graphical_browser, _is_remote_session, _minimax_pkce_pair, _minimax_request_user_code, _minimax_save_auth_state, _print_device_code_instructions
@@ -204,6 +204,9 @@ def _minimax_oauth_login(*, region: str = "global", open_browser: bool = True,
             open_browser=open_browser and _can_open_graphical_browser(),
         )
 
+        if on_expiry is not None:
+            now = datetime.now(UTC)
+            on_expiry(now.timestamp(), _minimax_resolve_token_expiry_unix(int(code_data["expired_in"]), now=now))
         interval_raw = code_data.get("interval")
         if on_verification is not None:
             on_verification(str(code_data["verification_uri"]), str(code_data["user_code"]))

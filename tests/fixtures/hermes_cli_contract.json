@@ -5949,7 +5949,8 @@
           "action": "store",
           "canonical": "--action",
           "choices": [
-            "abandon"
+            "abandon",
+            "dismiss"
           ],
           "nargs": 1,
           "required": true,

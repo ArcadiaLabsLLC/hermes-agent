@@ -40,12 +40,11 @@ Pinned semantics (do not "tidy" these)
 * **Capability drops and envelope grants/refusals ride the volatile tail too**
   (``ddc5af110``), and simultaneously the HUD dict, so the operator's CONTEXT
   peek shows the SAME account the agent was told.
-* **An admitted MCP surface arrives WITH its operating manual.** A turn that
-  is handed tools but not the document describing what to do when they refuse
-  will improvise — the 2026-07-29 ``helper_low_information_capture`` burn. The
-  manuals (``mcp_admission.MCP_OPERATING_SKILLS``) join the SAME required-preload
-  set as ``load_policy: required_preload``, because everything downstream asks
-  one question and a second list would be a second answer to it.
+* **An admitted MCP surface's operating manual loads ON DEMAND** (owner ruling
+  L1.13, 2026-10-10). The manuals (``mcp_admission.MCP_OPERATING_SKILLS``) stay in
+  the chat lane's skill index (``chat_lane_bundle.operating_skills``) and are read
+  with ``skill_view`` when a turn needs them; a 9k-token manual preloaded into
+  every chat stayed in history for the life of the chat.
 * **One resolve, one object.** The wall budget the agent is told about is the
   same object the runner's clamp enforces; the capability account recorded for
   the operator is the same object rendered for the agent. Resolving either twice
@@ -235,14 +234,6 @@ def _default_build_preloaded_skills_prompt(
     return prompt, loaded, list(missing or [])
 
 
-def _default_admitted_operating_skills(persona: Any, *, session_id: str | None) -> list[str]:
-    # Through the bundle, which resolves ``mission_chat_operating_skills`` — see
-    # this module's "one resolve" note and :mod:`agent_runtime.chat_lane_bundle`.
-    from .chat_lane_bundle import chat_lane_bundle
-
-    return list(chat_lane_bundle(persona, session_id=session_id).operating_skills)
-
-
 def _default_load_workspace_agents(agents_file: Any) -> Any:
     from .prompt_observability import load_workspace_agents_context
 
@@ -341,9 +332,6 @@ class MissionChatTurnResolvers:
     #: — the call site passes the keyword only when it is accepted.
     required_preload_skills: Callable[..., list[str]] = (
         _default_required_preload_skills
-    )
-    admitted_operating_skills: Callable[..., list[str]] = (
-        _default_admitted_operating_skills
     )
     build_preloaded_skills_prompt: Callable[..., tuple[str, list[str], list[str]]] = (
         _default_build_preloaded_skills_prompt
@@ -771,26 +759,6 @@ def _safe_admission_line(
         return ""
 
 
-def _safe_admitted_operating_skills(
-    persona: Any, *, session_id: str, resolvers: MissionChatTurnResolvers
-) -> list[str]:
-    """Same never-fails contract as the admission LINE, for the same reason.
-
-    Both read the same admission policy, and neither is worth a failed turn: a
-    turn that loses its manual is degraded, a turn that raises is lost.
-    """
-
-    try:
-        return list(
-            resolvers.admitted_operating_skills(persona, session_id=session_id) or []
-        )
-    except Exception:  # pragma: no cover - a context input must never fail a turn
-        logger.debug("admitted MCP operating skills unavailable for this turn", exc_info=True)
-        return []
-
-
-
-
 def _required_preload_skills(
     resolvers: MissionChatTurnResolvers,
     skills: Sequence[Any],
@@ -829,25 +797,10 @@ def _resolve_skill_preload(
     this one place, ahead of every other resolution — a second consume would
     silently swallow an operator's queued skill.
 
-    ``required`` has TWO producers and one meaning: "runtime policy says the
-    model must be holding this skill on this turn".
-
-    * The persona's own grants whose frontmatter declares
-      ``load_policy: required_preload`` for this surface — the standing answer.
-    * The operating manual(s) for whatever MCP surface THIS run was actually
-      admitted (``mcp_admission.MCP_OPERATING_SKILLS``) — the per-turn answer.
-      Handing an agent a tool surface while withholding the document that says
-      what to do when that surface refuses is what turned one live
-      ``helper_low_information_capture`` into a burned QA turn (2026-07-29): the
-      remedy was written down, granted to the persona, and never in context.
-
-    They merge into one list rather than two because everything downstream —
-    the ``required_skill_names`` marking that renders the stronger "runtime
-    policy requires this skill" activation note, the observability row's
-    ``required_preload_skills``, the missing-skill accounting — asks the same
-    question, and a second list would be a second answer to it. Standing policy
-    comes first so a turn's admitted manual can never displace it; ``dict``
-    de-duplication keeps a skill that is both from being loaded twice.
+    ``required`` is the persona's own grants whose frontmatter declares
+    ``load_policy: required_preload`` for this surface. An admitted MCP surface's
+    operating manual is NOT here: it loads on demand through ``skill_view``
+    (owner ruling L1.13, 2026-10-10); the skill index still lists it.
     """
 
     queued = list(
@@ -858,14 +811,7 @@ def _resolve_skill_preload(
     )
     required = list(
         dict.fromkeys(
-            [
-                *_required_preload_skills(
-                    resolvers, getattr(persona, "skills", []) or [], root_registries
-                ),
-                *_safe_admitted_operating_skills(
-                    persona, session_id=session_id, resolvers=resolvers
-                ),
-            ]
+            _required_preload_skills(resolvers, getattr(persona, "skills", []) or [], root_registries)
         )
     )
     to_preload = list(dict.fromkeys([*required, *queued]))

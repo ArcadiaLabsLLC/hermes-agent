@@ -49,10 +49,14 @@ def prepare(server) -> None:
 
 
 def register(server) -> None:
-    """Install the existing recovery/retirement owners in their original order."""
+    """Install fork methods once for every native gateway execution host."""
     from tui_gateway import session_recovery
     server._session_recovery = session_recovery
     session_recovery.register(server)
     from tui_gateway import session_retirement
     server._session_retirement = session_retirement
     session_retirement.register(server)
+    from agent_runtime.conversations import worker_subagents
+    worker_subagents.register(server)
+    from agent_runtime.conversations import worker_permissions
+    worker_permissions.register(server)

@@ -33,8 +33,10 @@ __BUNDLED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec() {
   # run_tests.sh re-executes ITSELF under run-in-hermes-env when the checkout's
   # environment is stale (`exec run-in-hermes-env "$BASH" run_tests.sh ARGS`);
-  # re-enter this wrapper instead, so the second pass is still bundled.
-  if [ -z "${RUNNER_PATH:-}" ] && [ "$#" -ge 3 ] && [ "$1" = "$__BUNDLED_DIR/run-in-hermes-env" ]; then
+  # re-enter this wrapper instead, so the second pass is still bundled. `-ef` (same
+  # file), not `=`: under a drive-spelled PWD run_tests.sh names `X:/…` where this
+  # wrapper's `pwd` said `/x/…` (build-fastgate-FG1).
+  if [ -z "${RUNNER_PATH:-}" ] && [ "$#" -ge 3 ] && [ "$1" -ef "$__BUNDLED_DIR/run-in-hermes-env" ]; then
     builtin exec "$1" "$2" "$__BUNDLED_DIR/run_tests_bundled.sh" "${@:4}"
   fi
   if [ -z "${RUNNER_PATH:-}" ]; then

@@ -211,3 +211,59 @@ def test_the_hot_window_is_the_pre_admit_span_and_each_provider_wait():
         assert turn_activity.hot_turn_windows() == 0, "the window closes when the provider call returns"
         _steer_hot_window(window, _marker("conversation_request_assembled"))
     assert turn_activity.hot_turn_windows() == 0, "a window left open is closed by the turn's exit"
+
+
+def _counted_outside_the_turn(*, room) -> int:
+    """``_turns_admitted`` read from another thread while a turn sits OUTSIDE its hot window."""
+
+    yielding.bind_turn_overlay_room(room)
+    try:
+        seen: list[int] = []
+        with turn_activity.admitted_turn() as window:
+            window.close()  # between the pre-admit span and any provider wait
+            reader = threading.Thread(target=lambda: seen.append(yielding._turns_admitted()))
+            reader.start()
+            reader.join(5)
+        return seen[0]
+    finally:
+        yielding.bind_turn_overlay_room(None)
+
+
+def test_a_room_that_folds_the_turn_overlay_stands_aside_for_the_whole_turn():
+    """D2.06: every subscriber folds ``persona_chat_turn`` -> the overlay carries
+    the turn's start row, so a build waits outside the hot windows too."""
+
+    assert _counted_outside_the_turn(room=lambda: True) == 1
+
+
+def test_a_room_that_does_not_fold_it_keeps_the_hot_window_rule():
+    """Positive control: same turn, same instant, a room without the overlay."""
+
+    assert _counted_outside_the_turn(room=lambda: False) == 0
+    assert _counted_outside_the_turn(room=None) == 0
+
+
+def test_an_unreadable_room_is_the_conservative_hot_window_rule():
+    def _broken():
+        raise RuntimeError("room gone")
+
+    assert _counted_outside_the_turn(room=_broken) == 0
+
+
+def test_the_serve_room_folds_the_overlay_only_when_every_subscriber_declares_it(monkeypatch):
+    from types import SimpleNamespace
+
+    from hermes_cli.harness_parts.serve import subscriptions
+
+    owner = next(
+        cls for cls in vars(subscriptions).values()
+        if isinstance(cls, type) and "_room_folds_turn_overlay" in vars(cls)
+    )
+
+    def _room(*declarations):
+        fake = SimpleNamespace(_room_fold_declarations=lambda: list(declarations))
+        return owner._room_folds_turn_overlay(fake)
+
+    assert _room() is False, "an empty room is not a room that folds anything"
+    assert _room({"persona_chat_turn"}, {"persona_chat_turn", "office_actor"}) is True
+    assert _room({"persona_chat_turn"}, None) is False, "a client that said nothing folds the historical set"

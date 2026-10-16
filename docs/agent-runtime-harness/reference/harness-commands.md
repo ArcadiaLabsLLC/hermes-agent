@@ -3084,7 +3084,7 @@ positional arguments:
     message             Send one Mission Control chat turn through the normal Hermes profile context
     queue-skill         Load a skill on the next Mission Control chat turn
     steer               Steer an active streamed Mission Control chat turn
-    turn-resolve        Resolve one outcome_unknown chat turn
+    turn-resolve        Resolve an uncertain turn or dismiss an interruption
     clarify-tickets     Clarify-token adoption readout: live tickets with state/age/session binding,
                         and the bound_via histogram
     dispatch            Operate the agent-to-agent dispatch delivery queue
@@ -3219,7 +3219,7 @@ usage: hermes harness mission-chat turn-resolve [-h] --session-id SESSION_ID
                                                 --client-message-id CLIENT_MESSAGE_ID
                                                 --turn-id TURN_ID
                                                 [--persona-instance-id PERSONA_INSTANCE_ID]
-                                                --action {abandon} [--json]
+                                                --action {abandon,dismiss} [--json]
 
 options:
   -h, --help            show this help message and exit
@@ -3227,7 +3227,7 @@ options:
   --client-message-id CLIENT_MESSAGE_ID
   --turn-id TURN_ID
   --persona-instance-id PERSONA_INSTANCE_ID
-  --action {abandon}
+  --action {abandon,dismiss}
   --json
 ```
 

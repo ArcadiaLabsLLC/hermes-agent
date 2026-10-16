@@ -14,6 +14,9 @@ from that base to the working tree, restricted to the manifest:
   python scripts/upstream_footprint.py --json           # per-file rows
   python scripts/upstream_footprint.py --ledger <md>    # write / merge the ledger
   python scripts/upstream_footprint.py --refresh-manifest   # needs the upstream remote
+  python scripts/upstream_footprint.py --add-row <path> --reason "<why>" --change "<row/lane>"
+                                        --owner-ruling "<date> · <where recorded>"
+                                        # one new upstream edit: its ledger row and the fixture
 
 CI has no ``upstream`` remote, which is why the manifest is committed and read
 from disk. ``tests/scripts/test_upstream_footprint.py`` holds the three numbers
@@ -36,6 +39,7 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "tests" / "fixtures" / "upstream_manifest.txt"
+FIXTURE = ROOT / "tests" / "fixtures" / "upstream_footprint.json"
 DEFAULT_LEDGER = ROOT / "docs" / "agent-runtime-harness" / "planned" / "upstream-footprint-ledger.md"
 HEAVY_THRESHOLD = 200
 UPSTREAM_REF = "upstream/main"
@@ -257,6 +261,93 @@ def merge_ledger(existing: str | None, footprint: Footprint) -> str:
     return head + "".join(body) + tail
 
 
+def ledger_add_row(text: str, row: FileDelta, *, disposition: str, reason: str, stage: str = "-") -> str:
+    """Insert (or replace) ``row.path``'s ledger row and touch no other line.
+
+    ``--ledger`` rewrites every row's counts from the tree; a lane adding ONE
+    additive hunk wants its own row and nothing else (fork-hygiene row
+    2026-10-15: hand merges per lane, and a heredoc that wrote a backslash as
+    a ``\\x08``). Rows stay sorted by path, as ``merge_ledger`` writes them.
+    """
+    if disposition not in DISPOSITIONS:
+        raise ValueError(f"disposition {disposition!r} is not one of {DISPOSITIONS}")
+    if not reason.strip() or reason.strip().startswith(UNREVIEWED_PREFIX):
+        raise ValueError("a row added by hand carries its reason")
+    lines = text.splitlines(keepends=True)
+    start = next(i for i, line in enumerate(lines) if line.lstrip().startswith("|") and _split_row(line)[:1] == ["path"])
+    end = start + 2
+    while end < len(lines) and lines[end].lstrip().startswith("|"):
+        end += 1
+    new = "| " + " | ".join(
+        [f"`{_cell(row.path)}`", str(row.added), str(row.deleted), _cell(disposition), _cell(reason), _cell(stage)]
+    ) + " |\n"
+    body = [line for line in lines[start + 2 : end] if _split_row(line)[0].strip("`") != row.path]
+    at = next((i for i, line in enumerate(body) if _split_row(line)[0].strip("`") > row.path), len(body))
+    body.insert(at, new)
+    return "".join(lines[: start + 2] + body + lines[end:])
+
+
+# A reason row that raises the fixture cites the owner's ruling (owner, 2026-10-15): the date and
+# where it is recorded, e.g. "2026-10-15 · Harness_Brain/30 — Decisions/0015". The rows already on
+# main when the rule landed carry ``"grandfathered": true`` instead; there are exactly
+# GRANDFATHERED_REASONS of them and the number only falls, so a new row cannot borrow the marker.
+OWNER_RULING_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\b\W*\w.*")
+GRANDFATHERED_REASONS = 121
+
+
+def unruled_reasons(fixture: dict) -> list[str]:
+    """``change`` of every non-grandfathered reason row whose ``owner_ruling`` is missing or
+    does not name a date followed by where the ruling is recorded."""
+    return [
+        str(row.get("change", "?"))
+        for row in fixture.get("reasons", [])
+        if row.get("grandfathered") is not True
+        and not OWNER_RULING_RE.match(str(row.get("owner_ruling", "")).strip())
+    ]
+
+
+def grandfathered_count(fixture: dict) -> int:
+    return sum(1 for row in fixture.get("reasons", []) if row.get("grandfathered") is True)
+
+
+def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str,
+                       owner_ruling: str | None = None) -> dict:
+    """The fixture at the tree's numbers, with a ``reasons`` row saying why they moved."""
+    before = {n: fixture[n] for n in ("files", "deleted_lines", "heavy")}
+    after = {"files": tree.files, "deleted_lines": tree.deleted_lines, "heavy": tree.heavy}
+    out = {**fixture, **after, "measured_at": today}
+    row = {"change": change, "before": before, "after": after, "reason": reason}
+    if owner_ruling is not None:
+        row["owner_ruling"] = owner_ruling
+    out["reasons"] = [*fixture.get("reasons", []), row]
+    return out
+
+
+def add_row(path: str, *, reason: str, change: str, disposition: str = "carry", stage: str = "-",
+            ledger: Path = DEFAULT_LEDGER, fixture_path: Path = FIXTURE, base: str | None = None,
+            owner_ruling: str | None = None) -> str:
+    """``--add-row``: ``path``'s ledger row and the fixture's numbers + reason, in one step.
+
+    Refuses when the fork does not edit ``path`` or when, after the add, some
+    measured upstream edit still has no ledger row (a rise this call cannot explain)."""
+    _, tree = measure(base)
+    row = next((r for r in tree.rows if r.path == path), None)
+    if row is None:
+        raise SystemExit(f"--add-row: the fork does not edit upstream file {path} ({tree.line()})")
+    text = ledger_add_row(ledger.read_text(encoding="utf-8"), row, disposition=disposition, reason=reason, stage=stage)
+    missing = sorted({r.path for r in tree.rows} - set(ledger_rows(text)))
+    if missing:
+        raise SystemExit(f"--add-row: upstream edits with no ledger row: {', '.join(missing)} — add each one")
+    import datetime
+
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    updated = fixture_add_reason(fixture, tree, change=change, reason=reason, today=datetime.date.today().isoformat(),
+                                 owner_ruling=owner_ruling)
+    ledger.write_text(text, encoding="utf-8", newline="\n")
+    fixture_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return f"{tree.line()} (was files={fixture['files']} deleted_lines={fixture['deleted_lines']} heavy={fixture['heavy']})"
+
+
 # --------------------------------------------------------------------------- git
 
 
@@ -299,8 +390,25 @@ def manifest_paths(base_listing: str, tip_listing: str) -> list[str]:
     return sorted({path for listing in (base_listing, tip_listing) for path in listing.split("\0") if path})
 
 
-def refresh_manifest(manifest_path: Path = MANIFEST) -> str:
-    base = _git("merge-base", "HEAD", UPSTREAM_REF).strip()[:10]
+def refresh_base(explicit: str | None = None) -> str:
+    """The base a refreshed manifest is headed with.
+
+    ``explicit`` (``--base``) wins. Otherwise the merge base with upstream of
+    ``MERGE_HEAD`` when a merge is in progress, else of ``HEAD``: D3.03 re-bases the
+    manifest INSIDE the release merge commit, before that commit exists, so ``HEAD``
+    alone still answers the OLD base (v0.21.7 lane, which had to bypass the flag).
+    """
+    if explicit:
+        return _git("rev-parse", "--verify", f"{explicit}^{{commit}}").strip()[:10]
+    merging = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+        capture_output=True, text=True, encoding="utf-8", check=False,
+    ).returncode == 0
+    return _git("merge-base", "MERGE_HEAD" if merging else "HEAD", UPSTREAM_REF).strip()[:10]
+
+
+def refresh_manifest(manifest_path: Path = MANIFEST, base: str | None = None) -> str:
+    base = refresh_base(base)
     ls_tree = ("-c", "core.quotepath=off", "ls-tree", "-r", "-z", "--name-only")
     paths = manifest_paths(_git(*ls_tree, base), _git(*ls_tree, UPSTREAM_REF))
     manifest_path.write_text(f"# base {base}\n" + "\n".join(paths) + "\n", encoding="utf-8", newline="\n")
@@ -309,14 +417,30 @@ def refresh_manifest(manifest_path: Path = MANIFEST) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--base", help="merge base to diff from (default: the manifest header's base)")
+    parser.add_argument("--base", help="merge base to diff from (default: the manifest header's base); "
+                        "with --refresh-manifest, the base the manifest is refreshed at")
     parser.add_argument("--json", action="store_true", help="emit per-file rows {path, added, deleted, heavy}")
     parser.add_argument("--ledger", nargs="?", const=str(DEFAULT_LEDGER), help="write/merge the ledger markdown")
     parser.add_argument("--refresh-manifest", action="store_true", help=f"regenerate the manifest from {UPSTREAM_REF}")
+    parser.add_argument("--add-row", metavar="PATH", help="ledger row + fixture numbers for ONE upstream edit")
+    parser.add_argument("--reason", help="--add-row: why the edit is carried (ledger reason and fixture reason)")
+    parser.add_argument("--change", help="--add-row: the row or lane the edit belongs to (fixture `change`)")
+    parser.add_argument("--owner-ruling", help="--add-row: the owner ruling that allows the raise "
+                        "(date + where it is recorded; fixture `owner_ruling`)")
+    parser.add_argument("--disposition", default="carry", choices=DISPOSITIONS)
+    parser.add_argument("--stage", default="-")
     args = parser.parse_args(argv)
 
+    if args.add_row:
+        if not (args.reason and args.change and args.owner_ruling):
+            parser.error("--add-row needs --reason, --change and --owner-ruling (no ruling: extract the "
+                         "edit into a fork module instead)")
+        print(add_row(args.add_row, reason=args.reason, change=args.change, disposition=args.disposition,
+                      stage=args.stage, base=args.base, owner_ruling=args.owner_ruling))
+        return 0
+
     if args.refresh_manifest:
-        print(f"[up-fp] manifest refreshed at base {refresh_manifest()}")
+        print(f"[up-fp] manifest refreshed at base {refresh_manifest(base=args.base)}")
     _, footprint = measure(args.base)
     if args.json:
         print(json.dumps([asdict(row) for row in footprint.rows], indent=2))

@@ -1,7 +1,7 @@
-"""``mission-chat turn-resolve`` / ``runtime.chat.turn.resolve`` — settle one ``outcome_unknown`` turn.
+"""``mission-chat turn-resolve`` / ``runtime.chat.turn.resolve`` — resolve one exact turn.
 
-The only resolution is ``abandon``: the operator confirms the ambiguous turn is
-dead so the next send can carry a new ``client_message_id``. The caller must
+``abandon`` confirms an ambiguous turn is dead; ``dismiss`` acknowledges an
+interruption without changing its recorded outcome. The caller must
 name the instance that OWNS the chat root, the turn must be in an
 operator-resolvable state with the exact ``turn_id``, and the write runs under
 the root's lease — a live turn on the same root refuses ``chat_busy`` rather
@@ -14,12 +14,13 @@ from typing import Any
 
 from ..persona_chat_durability import default_persona_session_db as _default_persona_session_db
 from ..persona_chat_session import _persona_chat_session_owner
+from ..mission_chat_turns.states import TurnResolution
 
 __layer__ = "lanes"
 __all__ = ["TURN_RESOLVE_CAPABILITY", "resolve_chat_turn"]
 
 TURN_RESOLVE_CAPABILITY = "mission.chat.turn.resolve"
-_DEFAULT_REASON = "operator requested abandon and resend"
+_DEFAULT_REASON = "operator requested turn resolution"
 
 
 def _refusal(error_kind: str, error: str, **fields: Any) -> dict:
@@ -36,33 +37,36 @@ def _owner_instance_id(session_id: str) -> str | None:
         return None
 
 
-def _abandon(session_id: str, client_message_id: str, turn_id: str, actor: str, reason: str) -> dict:
+def _resolve_exact_turn(session_id: str, client_message_id: str, turn_id: str, actor: str,
+             reason: str, action: TurnResolution) -> dict:
     from ..mission_chat_outcome import ChatErrorKind
-    from ..mission_chat_turns.journal import abandon_mission_chat_turn
+    from ..mission_chat_turns.journal import resolve_mission_chat_turn
     from ..mission_chat_turns.reads import mission_chat_turn_record
     from ..mission_chat_turns.states import (
-        OPERATOR_RESOLVABLE_TURN_STATES, TURN_STATE_ABANDONED, MissionChatTurnPersistOutcome)
+        MissionChatTurnPersistOutcome)
     from ..persona_assignments import safe_assignment_token
 
     record = mission_chat_turn_record(session_id=session_id, client_message_id=client_message_id)
     # The resolvable set is the turn store's own table, never a literal here.
-    if (not record or record.get("state") not in OPERATOR_RESOLVABLE_TURN_STATES
+    if (not record or record.get("state") not in action.states
             or safe_assignment_token(record.get("turn_id")) != turn_id):
         return _refusal(ChatErrorKind.CHAT_TURN_RESOLUTION_MISMATCH,
-                        "resolution requires the exact matching outcome_unknown root/client/turn",
+                        "resolution requires an eligible state and the exact root/client/turn",
                         session_id=session_id, client_message_id=client_message_id, turn_id=turn_id)
-    outcome = abandon_mission_chat_turn(session_id=session_id, client_message_id=client_message_id,
-                                        turn_id=turn_id, resolution_actor=actor, resolution_reason=reason)
+    outcome = resolve_mission_chat_turn(session_id=session_id, client_message_id=client_message_id,
+                                        turn_id=turn_id, action=action,
+                                        resolution_actor=actor, resolution_reason=reason)
     return {
         "ok": outcome is MissionChatTurnPersistOutcome.PERSISTED,
         "capability_id": TURN_RESOLVE_CAPABILITY,
-        "resolution": "abandon",
-        "journal_state": TURN_STATE_ABANDONED,
+        "resolution": action.value,
+        "journal_state": action.result_state,
         "root_chat_session_id": session_id,
         "session_id": session_id,
         "client_message_id": client_message_id,
         "turn_id": turn_id,
-        "next_expected": "send again with a new client_message_id",
+        "next_expected": ("send again with a new client_message_id"
+                          if action is TurnResolution.ABANDON else "interruption dismissed; recorded work retained"),
     }
 
 
@@ -82,8 +86,12 @@ def resolve_chat_turn(
     client_id = safe_assignment_text(client_message_id, limit=240)
     turn = safe_assignment_token(turn_id)
     instance = safe_assignment_token(persona_instance_id)
-    if safe_assignment_token(action) != "abandon" or not instance:
-        return _refusal(ChatErrorKind.INVALID_REQUEST, "action=abandon and persona_instance_id are required")
+    try:
+        resolution = TurnResolution(action)
+    except (TypeError, ValueError):
+        return _refusal(ChatErrorKind.INVALID_REQUEST, "action must be abandon or dismiss")
+    if not instance:
+        return _refusal(ChatErrorKind.INVALID_REQUEST, "persona_instance_id is required")
     if _owner_instance_id(session) != instance:
         return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION, "chat root is not owned by the requested persona instance",
                         session_id=session, persona_instance_id=instance)
@@ -95,7 +103,7 @@ def resolve_chat_turn(
                 return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION,
                                 "chat root is not owned by the requested persona instance",
                                 session_id=session, persona_instance_id=instance)
-            return _abandon(session, client_id, turn, instance,
-                            safe_assignment_text(reason, limit=320) or _DEFAULT_REASON)
+            return _resolve_exact_turn(session, client_id, turn, instance,
+                            safe_assignment_text(reason, limit=320) or _DEFAULT_REASON, resolution)
     except PersonaChatBusyError as exc:
         return _refusal(ChatErrorKind.CHAT_BUSY, str(exc), session_id=session, lease_owner=exc.owner)

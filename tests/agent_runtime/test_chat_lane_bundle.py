@@ -150,7 +150,6 @@ def test_the_whole_turn_path_walks_the_toolset_chokepoint_exactly_once(monkeypat
 
     monkeypatch.setattr(CLB, "_enabled_toolsets_for_chat", _counted)
     builds_before = CLB.bundle_builds_this_thread()
-    DEFAULT_RESOLVERS.admitted_operating_skills(persona, session_id="chat-once")
     DEFAULT_RESOLVERS.tool_contract(persona, session_id="chat-once")
     DEFAULT_RESOLVERS.permission_state(persona, session_id="chat-once")
     DEFAULT_RESOLVERS.capability_block(persona, session_id="chat-once")

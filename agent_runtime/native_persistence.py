@@ -19,8 +19,11 @@ def project_native_message(agent, msg, content, msg_idx):
     record_wire_boundary_drift(bound)
     msg.clear()
     msg.update(bound.row)
-    platform_id = agent._persona_chat_client_message_id
     role = msg.get("role", "unknown")
+    platform_id = agent._persona_chat_client_message_id
+    if role == "user" and (msg.get("display_kind") == "steer"
+                           or (msg.get("display_metadata") or {}).get("steering")):
+        platform_id = msg.get("platform_message_id") or f"{platform_id}:input:{msg_idx}"
     if role != "user":
         platform_id = f"{platform_id}:{role}:{msg_idx}"
     msg["platform_message_id"] = platform_id

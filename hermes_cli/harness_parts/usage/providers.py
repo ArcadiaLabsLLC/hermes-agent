@@ -114,15 +114,15 @@ def _nous_usage_login_detected() -> bool:
 
 
 def _fetch_nous_usage():
-    from agent.account_usage import build_nous_credits_snapshot
-    from hermes_cli.nous_account import get_nous_portal_account_info
+    from agent_runtime.provider_account_metadata import nous_usage_snapshot
 
-    account = get_nous_portal_account_info(force_fresh=True)
-    return build_nous_credits_snapshot(account)
+    return nous_usage_snapshot()
 
 
 def _fetch_codex_usage():
-    return fetch_codex_account_usage()
+    from agent_runtime.provider_account_metadata import usage_snapshot
+
+    return usage_snapshot("openai-codex", fetch_codex_account_usage())
 
 
 def _fetch_anthropic_usage():

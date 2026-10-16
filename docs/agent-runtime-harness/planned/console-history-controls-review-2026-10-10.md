@@ -1,5 +1,8 @@
 # Console history controls — review of draft PR #7 (2026-10-10)
 
+Current disposition: [October 14 reconciliation](#reconciliation--october-14).
+The original review below is retained as historical evidence.
+
 This note is the evidence behind the rows filed under "Fork-owned → Filed on
 arrival — 2026-10-10 (Console history PR #7 review)" in
 `Harness_Brain/20 — Active Initiatives/runtime-queue.md`. It reviews
@@ -118,3 +121,59 @@ accept. A killed serve can block history controls forever.
   - no test of admission-lock ordering or of concurrent accepts;
   - the rewind test never asserts the returned draft;
   - `test_archived_marker`'s negative assertion has no positive control.
+
+## Reconciliation — October 14
+
+The findings above describe `91b79fd19`, not current main. Re-audited the landed
+history implementation at `fa124924aa` before changing it. The repair retains
+SessionDB, CheckpointManager and the existing history coordinator as owners.
+
+| Original finding | Current implementation and verification |
+|---|---|
+| Native writer refusal reported as uncertain | `operator_history.apply_operator_history` maps the native guard exceptions. The real-store `test_native_write_guards_are_definite_refusals` cases pass for branch and rewind. |
+| Admission contention misclassified | The short admission lock waits; the mutation lock has its own refusal. `test_two_short_admissions_wait_instead_of_false_history_conflict` passes. |
+| Dead accepted turn blocks history | `repair_orphaned_chat_receipts` settles only proven-dead owners and is called by boot reconciliation. `test_dead_accept_owner_settles_once_and_live_owner_remains` passes. |
+| Busy checkpoint store and missed tool snapshots | Typed `CheckpointStoreBusy` refusals and pre-write undo rollback already exist. Tool waits consume the remaining turn budget; the native default remains fail-fast. `test_operator_turn_undo.py`, `test_checkpoint_store_wait_downstream.py`, and `test_checkpoint_turn_wait.py` pass. |
+| Curation/target validation and lock scope | Curation reads are inside the typed boundary, checkpoint targets are validated before mutation, and lock acquisition errors are caught before yielding to the operation body. No second implementation added. |
+| Deleted files and stale footprint prose | Native ownership hashes survive deletion; compatibility tests pass. The old footprint fixture description has already been corrected. |
+| Unrecorded private SessionDB dependency | Added the missing private-API seam row to the existing footprint ledger. No upstream source changes or submission. |
+| Rewind race and coverage gaps | The landed in-place-content race test detects a missing digest pin. Added real compaction-carrier/lineage cases, an actual Windows junction case, a returned-draft assertion and a positive interruption-marker control. |
+
+Focused qualification: **77 passing tests across 11 files** after correcting an
+initial test fixture that conflated a compaction carrier with a plain prompt in
+a compressed child. The production refusal behavior was retained. Changed
+Python files pass Ruff.
+
+Applied mutations establish the limits of these claims: dropping the revision
+pin permits the in-place race; dropping linked-path validation makes a matching
+external file eligible; omitting the draft or marker fails their new assertions.
+Removing the lineage guard permits an incomplete preview. Removing the carrier
+guard changes the specific refusal (a later guard still refuses it), so that
+case proves accurate classification, not the absence of every other safeguard.
+Each mutation was restored; exact reds are recorded in the repair commit body.
+
+The separate Dispatch Stop repair accepts the cancellation owner's `ok` status
+at the existing RPC boundary and preserves its exact outcome. Seven RPC cases
+cover accepted, pending, already-finished and refused cancellation; removing
+`ok` from the accepted set fails all five accepted cases. No process supervisor,
+history store or parallel lifecycle was introduced.
+
+### Landing gate receipt
+
+Candidate `8bf7337cd1`, Python 3.14.7, canonical fork scope over `tests`:
+**1,034 files, 12,673 passed, zero final failures or errors, 56 skipped**, in
+884.3 seconds with four workers. No cached greens were skipped. The runner used
+64 bundles, eight solos, three known-red files run once, and one isolated retry;
+there were no process deaths or straggler retries. The documented upstream and
+idle-box exclusions remained in effect. The doc-citation probe also passed.
+
+This was **not a clean first attempt**. In completed bundle #34,
+`test_skill_root_freshness.py` had four passes and one failure after
+`test_skill_realm_sync_status.py`: the metadata-directory grouping test saw one
+listing rather than two. All five tests passed on the isolated retry. The
+original diagnostic remains in the existing gate store's `runs.jsonl`; fork
+hygiene owns the investigation. A follow-up per-file run reproduced the same
+failure before passing on retry, so the runner's isolation-leak label does not
+establish bundle contamination. No unbundled exception or production caching
+change was added. The runner contract's 22 tests passed; the freshness file's
+five final passes must be read with its recorded first-attempt failure.

@@ -43,7 +43,7 @@ python scripts/dump_payload_contract.py --check      # character payload keys
 python scripts/dump_toolset_manifest.py              # the fork's tool inventory
 python scripts/emit_harness_tool_inventory.py
 python scripts/generate_agent_runtime_stream_fixtures.py
-python scripts/generate_agent_runtime_response_fixtures.py
+python scripts/generate_agent_runtime_response_fixtures.py --launcher-root <launcher worktree>   # also rewrites its mirror
 ```
 
 ## Heavy commands

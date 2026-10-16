@@ -42,9 +42,10 @@ def _record(agent):
         agent=agent, request=AgentRunRequest(profile="neko", user_message=f"hi\n{_HUD}"))
 
 
-#: The weight rides a parameter: the wire collapses every description to one line
-#: (lane h-prompt-brief) but carries parameter schemas whole.
-_HEAVY_PARAMS = {"payload": {"type": "string", "description": "x" * 2000}}
+#: The weight rides the parameter STRUCTURE: the wire collapses every description to one
+#: line (lane h-prompt-brief) and each parameter's prose to its first sentence (owner ruling
+#: L2.17), but carries the schema's structure whole.
+_HEAVY_PARAMS = {f"field_{index}": {"type": "string", "description": "x"} for index in range(150)}
 
 
 def _tools():

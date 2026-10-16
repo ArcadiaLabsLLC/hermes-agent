@@ -336,6 +336,31 @@ def log_stream_attach(*, op: str, purpose: str, **fields: Any) -> None:
         pass
 
 
+def log_stream_detach(*, op: str, purpose: str, **fields: Any) -> None:
+    """ONE line when an argv reader ENDS — the close of its ``stream_attach``.
+
+    The argv lane's attach line said a reader arrived and nothing ever said it
+    left, so "is that ``caller=cli`` reader still attached, and whose is it?"
+    (runtime row: argv readers attached long after the launcher settled on its
+    hub, reproduced 2026-10-15) could only be inferred from later build lines.
+    Same shape as the attach line, ``pid`` last. Never raises.
+    """
+
+    try:
+        extras = " ".join(
+            f"{key}={'-' if value is None else value}" for key, value in fields.items()
+        )
+        logger.info(
+            "stream_detach op=%s purpose=%s%s pid=%d",
+            op,
+            purpose,
+            f" {extras}" if extras else "",
+            os.getpid(),
+        )
+    except Exception:  # pragma: no cover - observability must never fail a lane
+        pass
+
+
 def log_stream_denied(
     *, reason: str, lane: Any, connection: str, **fields: Any
 ) -> None:

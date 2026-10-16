@@ -921,6 +921,26 @@ def _pool_entries(auth_store: dict[str, Any], provider_id: str) -> Optional[list
     return entries if isinstance(entries, list) else None
 
 
+def _codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) -> bool:
+    """Fork: whether the pool's own selection would refuse ``entry`` right now.
+
+    ``_available_entries`` skips a DEAD row and an EXHAUSTED row until ``_exhausted_until``
+    (``last_error_reset_at`` or ``last_status_at`` + the status TTL). The fallback used to read only
+    ``last_error_reset_at``, so a row the pool had just declared exhausted without a reset stamp was
+    served anyway. Same rule, same sole-credential TTL, read from the persisted row.
+    """
+    from agent.credential_pool import STATUS_DEAD, PooledCredential, _exhausted_until
+    try:
+        credential = PooledCredential.from_dict("openai-codex", entry)
+    except Exception:
+        return False
+    if credential.last_status == STATUS_DEAD:
+        return True
+    sole = sum(1 for row in rows if row.get("last_status") != STATUS_DEAD) <= 1
+    until = _exhausted_until(credential, sole_credential=sole)
+    return until is not None and until > time.time()
+
+
 def _pool_codex_credential() -> tuple[str, str]:
     """``(access_token, row base_url)`` of the first pool entry with a non-empty access_token that is
     not in an exhaustion cooldown window, so the caller routes the token to the host that row belongs
@@ -931,12 +951,14 @@ def _pool_codex_credential() -> tuple[str, str]:
     from agent.credential_pool import _parse_absolute_timestamp
     from hermes_cli.auth import _nonempty_str, read_credential_pool
     try:
-        for entry in _codex_pool_dicts(read_credential_pool("openai-codex")):
+        rows = list(_codex_pool_dicts(read_credential_pool("openai-codex")))
+        for entry in rows:
             token = entry.get("access_token")
             # Same normaliser as ``_codex_pool_rate_limit_status``: a millisecond epoch compared
             # raw reads as far-future here and as elapsed there, hiding a usable entry (#103349).
             reset_at = _parse_absolute_timestamp(entry.get("last_error_reset_at"))
             in_cooldown = reset_at is not None and reset_at > time.time()
+            in_cooldown = in_cooldown or _codex_pool_row_refused(entry, rows)
             if _nonempty_str(token) and not in_cooldown:
                 return token.strip(), _stripped(entry.get("base_url"))
     except Exception:
@@ -1107,12 +1129,16 @@ def _codex_exchange_authorization_code(
     return tokens
 
 
-def _codex_device_code_login(*, on_verification=None) -> dict[str, Any]:
+def _codex_device_code_login(*, on_verification=None, on_expiry=None) -> dict[str, Any]:
     """Run the OpenAI device code login flow and return credentials dict."""
     from hermes_cli.auth import _utc_now_z
     issuer, client_id = "https://auth.openai.com", CODEX_OAUTH_CLIENT_ID
     device_data = _codex_request_device_code(issuer, client_id)
     user_code = device_data["user_code"]
+    # The provider may omit expiry; the local polling cap is not its code lifetime.
+    if on_expiry is not None and device_data.get("expires_in") is not None:
+        started_at = time.time()
+        on_expiry(started_at, started_at + float(device_data["expires_in"]))
 
     # Step 2: Show user the code
     print("To continue, follow these steps:\n")

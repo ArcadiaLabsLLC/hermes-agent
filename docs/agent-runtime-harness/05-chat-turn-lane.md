@@ -5,7 +5,39 @@ runs a bounded, receipted, durable turn. The old goal/task mission lane remains
 removed. Independent conversations and discussion runs share runtime authority
 without replacing the operator's session or prompt policy.
 Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
-sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
+sits under `### Durable provider-refusal transcript marker
+
+`persona_chat_history.vocabulary.TERMINAL_TURN_MARKERS` includes `provider_refused`.
+`markers._terminal_turn_marker_rows` emits that typed terminal marker when no
+assistant reply exists and carries the journal's sanitized `provider_refusal`.
+The unavailable reason says the request never left Hermes and directs the operator
+to review profile provider setup before sending a new message. HTTP refusals retain
+generic provider-refusal copy; uncertain outcomes do not acquire setup-recovery copy.
+
+`operator_channels.HistoryMessage.marker` preserves the refusal block and presents
+status `provider_refused`. `tests/agent_runtime/test_provider_refusal_history.py`
+proves real journal-to-history-to-console projection, reply deduplication and
+uncertainty separation. Launcher consumes the same typed marker; operator live
+no-credential acceptance is not claimed by this deterministic proof.
+
+### Known setup refusal before provider dispatch
+
+`mission_chat_outcome.classify_turn_failure` retains the phase-aware repair from
+`7fbd3688e6`: failure before agent-ready settles terminal `provider_unavailable`.
+Agent-ready itself precedes prompt assembly and HTTP dispatch. A typed
+`ProviderNotConfiguredError` after that handoff also settles unavailable when
+the runtime has seen neither a request-sent receipt nor reply text. The type's
+contract is an agent-construction setup refusal; generic exceptions retain
+uncertainty. Positive dispatch evidence always wins over the exception type.
+
+`TurnCommit._stream_progress` records a separate dispatch fact from the validated
+request-sent event; `_settle_failure` also reads the emitter's observed-reply fact.
+The classifier does not branch on timing-mark snapshots or redefine budgets.
+`tests/hermes_cli/test_mission_chat_provider_unavailable_payload.py` drives the
+real command/journal through local, sent, generic and duplicate-refusal cases.
+The remaining provider-neutral dispatch-evidence gap is queued separately.
+
+## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
 
@@ -37,6 +69,27 @@ reads. These guarantees are exercised through the actual loader and SQLite flush
 in `tests/agent_runtime/test_native_representation_downstream.py`.
 
 ## Operator text and full transcript reads
+
+### Mid-turn input and recorded recovery
+
+The existing steer buffer preserves `TimelineNotification` provenance through
+`agent/steering.py`. Machine notices never acquire the user-steer wrapper or
+set the user-intervention flag. Addressed operator steers retain their own
+client ID and a position allocated by the chat emitter's sequence authority;
+native SQLite persistence carries both through `display_metadata`. History
+curation uses that position inside the original turn, before its final reply.
+The background completion inbox and delivery acknowledgements remain the same.
+
+Operator history rows carry terminal outcomes read from the existing turn
+journal. `runtime.chat.turn.resolve` also accepts `dismiss` for an exact
+interrupted turn owned by the requested persona instance. Dismissal uses the
+same root lease and journal writer as `abandon`; it records acknowledgement
+without changing the interrupted outcome. Its marker remains as terminal
+evidence for tool settlement and carries `resolution: dismiss` for presentation.
+Retry availability depends on an actually available original message; the
+marker text does not promise one. Controls are in
+`tests/agent_runtime/test_transcript_recovery.py` and
+`tests/agent_runtime/test_steer_provenance_downstream.py`.
 
 `agent_runtime/operator_message.py::normalize_operator_message` is the admission
 policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
@@ -456,14 +509,14 @@ An older Launcher ignores the keys; no contract integer moves.
 ## 3. Model selection
 
 Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
-(`hermes_cli/harness_parts/persona/chat_session.py::_chat_effective_model_payload`):
+(`agent_runtime/persona_chat_session.py::_chat_effective_model_payload`):
 
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
 
 The chat-session override persists under `mission_control_chat_model_override`
-(`hermes_cli/harness_parts/persona/chat_session.py::_resolve_chat_model_override`, `agent_runtime/persona_chat_history/vocabulary.py:320`) via
+(`agent_runtime/persona_chat_session.py::_resolve_chat_model_override`, key spelled once as `agent_runtime/persona_chat_history/vocabulary.py::_CHAT_MODEL_OVERRIDE_CONFIG_KEY`) via
 `_resolve_chat_model_override`. Its scope is literally
 `mission_control_chat_session` (`:7085`, inside `_chat_effective_model_payload`) — per-thread,
 not per-instance. Values validate against
@@ -1167,3 +1220,19 @@ superseded for the chat-turn lane by this document.
 | `PROVIDER_LOGIN_FIRST_CLASS_PLAN_2026-08-16.md` | PL-1 (`_provider_visibility_catalog` in `hermes_cli/harness.py`) and PL-2 (`hermes_cli/auth_noninteractive.py`) shipped; PL-3/4/5/6 are launcher-repo work, not tracked here |
 | `PERSONA_PROFILE_BINDING_AUTHORITY_PLAN_2026-08-16.md` | B-1 shipped; remainder → `planned/persona-binding-env-authority.md` |
 | `eager-tool-discovery-audit-2026-08-09.md` | Fix B and Fix C shipped same-night; the lazy-builtin-discovery half is a startup-perf item, not a chat-lane one |
+
+### Dependency preflight refusal
+
+A missing or damaged provider SDK is refused before token spend. The additive
+`provider_refusal` block uses `status_code: 0`, the exact health issue `reason`
+(`runtime_dependency_missing`, `runtime_dependency_corrupt`,
+`runtime_dependency_metadata_conflict`, `runtime_dependency_metadata_unreadable`,
+`runtime_dependency_shadowed`), selected `provider`/`model`, `missing_packages`
+(the affected distribution names, including the `jiter.from_json` symptom), and
+`repair_hint` (the existing health remediation summaries). It settles as
+`chat_turn_provider_unavailable` / `failed` with exit 2, requiring no turn-resolve.
+Generic pre-request failures keep `provider_unavailable` without dependency fields.
+The source install selects provider extras in
+`EterniaLauncher/lib/features/mission_control/data/install/hermes_install_manifest.dart`;
+PM's `[all]` intentionally excludes opt-in provider SDKs. The bundled desktop
+profile separately declares Anthropic and retains its explicit provider exclusions.

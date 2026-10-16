@@ -1,5 +1,13 @@
-from agent_runtime.mission_chat_clarify import MAX_CHOICES, MissionChatClarifyCapture
+import json
+
+from agent_runtime.mission_chat_clarify import MAX_CHOICES, OUTCOME_ROUTED, MissionChatClarifyCapture
 from hermes_cli.harness_parts.persona import chat_tickets_commands
+from tools.clarify_tool import clarify_tool
+
+
+def _ask(cap, *questions):
+    """Drive the capture through upstream's real ``clarify_tool`` — the join that broke."""
+    return json.loads(clarify_tool(list(questions), callback=cap.callback))
 
 
 def test_capture_records_first_question_and_choices():
@@ -7,28 +15,55 @@ def test_capture_records_first_question_and_choices():
     assert not cap.requested
     assert cap.request is None
 
-    sentinel = cap.callback("Which dev — launcher or backend?", ["launcher", "backend"])
+    result = _ask(cap, {"question": "Which dev — launcher or backend?", "choices": ["launcher", "backend"]})
 
+    assert "error" not in result
     assert cap.requested
+    # Bare choices: upstream's "(Recommended)" decoration never reaches the caller.
     assert cap.request == {
         "question": "Which dev — launcher or backend?",
         "choices": ["launcher", "backend"],
     }
-    # Sentinel tells the model to end its turn with the question, and echoes the
-    # offered options so the reply prose can present them.
-    assert "end your turn" in sentinel.lower()
-    assert "launcher" in sentinel and "backend" in sentinel
+    assert result["outcome"] == OUTCOME_ROUTED
+    assert result["responses"][0]["status"] == "unanswered"
+    # The notice tells the model to end its turn with the question, and echoes
+    # the offered options so the reply prose can present them.
+    notice = result["notice"]
+    assert "end your turn" in notice.lower()
+    assert "launcher" in notice and "backend" in notice
 
 
 def test_capture_open_ended_question_has_no_choices():
     cap = MissionChatClarifyCapture()
-    cap.callback("What repo is this in?")
+    _ask(cap, {"question": "What repo is this in?"})
     assert cap.request == {"question": "What repo is this in?"}
+
+
+def test_capture_multi_select_is_flagged_for_the_caller():
+    cap = MissionChatClarifyCapture()
+    _ask(cap, {"question": "Which lanes?", "choices": ["a", "b"], "multi_select": True})
+    assert cap.request == {"question": "Which lanes?", "choices": ["a", "b"], "multi_select": True}
+
+
+def test_capture_several_questions_fold_into_one_prompt():
+    cap = MissionChatClarifyCapture()
+    result = _ask(cap, {"question": "Which repo?", "choices": ["launcher", "hermes"]}, {"question": "Which branch?"})
+
+    request = cap.request
+    assert request["question"] == "1. Which repo?\n2. Which branch?"
+    # One pick cannot answer two questions, so no top-level choices.
+    assert "choices" not in request
+    assert request["questions"] == [
+        {"question": "Which repo?", "choices": ["launcher", "hermes"]},
+        {"question": "Which branch?"},
+    ]
+    assert [r["status"] for r in result["responses"]] == ["unanswered", "unanswered"]
+    assert "questions as your reply" in result["notice"]
 
 
 def test_capture_trims_to_max_choices_and_drops_blanks():
     cap = MissionChatClarifyCapture()
-    cap.callback("Pick one", ["a", "   ", "b", "c", "d", "e"])
+    cap.callback([{"qid": "q0", "question": "Pick one", "choices_offered": ["a", "   ", "b", "c", "d", "e"]}])
     assert cap.request["choices"] == ["a", "b", "c", "d"]
     assert len(cap.request["choices"]) == MAX_CHOICES
 
@@ -37,17 +72,17 @@ def test_capture_first_call_wins():
     # The model is told to stop after asking; if it asks twice anyway, the
     # question we already reported to the caller stays authoritative.
     cap = MissionChatClarifyCapture()
-    cap.callback("first?")
-    cap.callback("second?", ["x"])
+    _ask(cap, {"question": "first?"})
+    _ask(cap, {"question": "second?", "choices": ["x"]})
     assert cap.request == {"question": "first?"}
 
 
 def test_capture_empty_question_records_nothing():
     cap = MissionChatClarifyCapture()
-    out = cap.callback("   ")
+    out = cap.callback([{"qid": "q0", "question": "   "}])
     assert not cap.requested
     assert cap.request is None
-    assert "non-empty" in out
+    assert "non-empty" in out["notice"]
 
 
 # ── the operator readout ────────────────────────────────────────────────────

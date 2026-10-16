@@ -264,7 +264,7 @@ def _fork_wide_drift() -> tuple[_probe.Drift, _probe.Drift]:
     fixture_bodies, fixture_names = _probe.duplicate_fixture()
     return (
         _probe.compare_sets("W0-G3 duplicate bodies", bodies, fixture_bodies),
-        _probe.compare_sets("W0-G3 helper names", names, fixture_names),
+        _probe.compare_name_groups("W0-G3 helper names", names, fixture_names),
     )
 
 
@@ -303,3 +303,16 @@ def test_the_fork_wide_baseline_still_describes_the_code(fork_wide_drift):
     bodies, names = fork_wide_drift
     assert not bodies.stale, "delete these groups — they no longer duplicate:\n" + bodies.render()
     assert not names.stale, "delete these name rows — the collision is gone:\n" + names.render()
+
+
+def test_a_helper_group_that_lost_an_owner_is_a_shrink_not_a_new_group():
+    """``--write-fixtures`` refuses NEW; a group narrowed by a fold must record (build-1011-C1)."""
+
+    fixture = {"_helper: a.py, b.py, c.py"}
+    shrunk = _probe.compare_name_groups("W0-G3 helper names", {"_helper: a.py, b.py"}, fixture)
+    assert shrunk.new == [] and shrunk.stale == ["_helper: a.py, b.py, c.py"]
+    # Positive controls: a gained owner and a brand-new name are still NEW.
+    grown = _probe.compare_name_groups("W0-G3 helper names", {"_helper: a.py, b.py, d.py"}, fixture)
+    assert grown.new == ["_helper: a.py, b.py, d.py"]
+    fresh = _probe.compare_name_groups("W0-G3 helper names", {"_other: a.py, b.py"}, fixture)
+    assert fresh.new == ["_other: a.py, b.py"]

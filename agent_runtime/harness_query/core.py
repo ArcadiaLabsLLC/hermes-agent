@@ -113,15 +113,19 @@ def _mcp_resolution(instance: Any) -> dict[str, Any]:
 
     Never EXERCISED: whether a turn actually called a server is on that turn's
     receipt (``profile_timing.mcp_calls_spent`` in ``persona chat history``),
-    and this answer says so rather than standing in for it.
+    and this answer says so rather than standing in for it. ``sdk`` is whether
+    the OBSERVING process has an MCP client at all (the ``mcp`` extra): admitted
+    servers register nothing without one, which a turn reports only after the
+    fact as ``mcp_sdk_unavailable``.
     """
 
-    from ..mcp_admission import resolve_mcp_admission
+    from ..mcp_admission import MCP_SDK_UNAVAILABLE, mcp_sdk_available, resolve_mcp_admission
     from ..store import AgentStore
 
     base = {
         "basis": "resolved_now",
         "exercised":"not_answered_here: cite a turn's profile_timing.mcp_calls_spent",
+        "sdk": "available" if mcp_sdk_available() else MCP_SDK_UNAVAILABLE,
     }
     persona = next((item for item in AgentStore().list_all() if item.id == instance.persona_id), None)
     if persona is None:

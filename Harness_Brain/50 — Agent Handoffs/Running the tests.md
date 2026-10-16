@@ -13,7 +13,7 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 ## The commands
 
 ```bash
-python -m pytest -q -p no:cacheprovider <file>                  # ONE file, debugging only
+$HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
@@ -24,6 +24,15 @@ python scripts/dump_payload_contract.py --check                 # after any char
 python scripts/doc_cite_adjacency.py --exclude archive --exclude planned          # the ruled doc-cite scope
 python scripts/changed_line_mutation_check.py --list --base origin/main           # mutation inventory (safe unattended)
 ```
+
+**A one-file debugging run names the test venv's interpreter, and reads a red twice.** A bare
+`python` on this box is the system Python 3.12 without the test venv, so its import errors are
+false reds; use the shared venv (`HERMES_PYTHON`, the venv under `~/.venvs/hermes-test`) or `scripts/run_tests.sh <file>`. With no `HERMES_PYTHON`, `scripts/run_tests.sh` uses the shared venv (`HERMES_TEST_VENV`, default
+`~/.venvs/hermes-test`) and refuses when it is missing; it refuses any interpreter inside the live Hermes
+home (owner ruling 2026-10-15; CI keeps upstream's activation path). `run_tests.sh` exports `PYTHONUTF8=1`, which hides a
+`write_text`/`open` with no `encoding=`: a file red under the venv's bare pytest and green under
+`run_tests.sh` is that difference, not a product bug — check it before filing a row (L6.19, L6.25,
+L4.01 in `queue-sweep-2026-10-10/`).
 
 **Upstream-PR and sync lanes pin the base by SHA and own their uv cache.** Run
 `UV_CACHE_DIR=<lane scratch>/uv-cache python scripts/check --base <sha>`, with the SHA read once
@@ -165,6 +174,12 @@ A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `
   `known-red` line ran alone once, capped, never in a bundle this time; it is not evidence of a leak
   either way.
 - Pre-existing reds are never baselined ([[0010 — Stale sweep and ratchets first, never baseline]]).
+- **A bare `bash` spawned from Python on Windows is WSL, not Git Bash.** `CreateProcess` searches
+  `C:\Windows\System32` before `PATH`, so `subprocess.run(["bash", …])` reaches
+  `C:\Windows\System32\bash.exe` even from a Git Bash shell whose own `bash` is Git's (build-1011-B1
+  built a 558 MB test env under the WSL home that way). A helper or lane that needs bash from Python
+  names Git Bash by its absolute path, `C:\Program Files\Git\bin\bash.exe`; the upstream tests that
+  spawn a bare `bash` are judged by the shell they reach (env-gap rows `782e29b1e28`, `bd9ed2faf98`).
 - A stale `index.lock` after a killed run (zero bytes, no git alive) is `rm`'d once the interrupted
   log's last lines are read. The fork's root `conftest.py` sets `GIT_OPTIONAL_LOCKS=0` for every test
   process, and the bundled runner passes it to its own git, so git's opportunistic index refresh no
@@ -190,7 +205,11 @@ five habits cost about 390 minutes a day.
   the first costs both a re-merge and a second gate run.
 
 ## What a lane runs, and what it never runs
-
+- **A contract change runs the tests that pin it, and the producer names them** (owner ruling
+  2026-10-10, convention, no gate). A producer of a pinned contract — an envelope, a snapshot set,
+  an event count, an argv, a producer walk — carries the pinning test files in its docstring, and a
+  lane that changes the producer runs those files with its touched tests. Four contract-moving lanes
+  left their pins red before this (`d677799521`).
 - **While implementing:** `ruff` (or `pyflakes`) on the touched modules, foreground, explicit
   timeout. Nothing heavier.
 - **At the end of the lane, before the report:** ONLY the test files that import a module you
@@ -205,6 +224,10 @@ five habits cost about 390 minutes a day.
   lives in a fork-owned `tests/**/*_downstream.py` that imports upstream's fixtures. Appending to an
   upstream test file adds a file to the fork's upstream footprint (`tests/scripts/test_upstream_footprint.py`);
   landing h-turn1 had to move one (`92be2b3a10`).
+- **A raise of the upstream footprint cites an owner ruling.** A new `reasons` row in
+  `tests/fixtures/upstream_footprint.json` carries `owner_ruling` (date + where recorded), or the
+  edit moves into a fork module; `test_every_raise_cites_an_owner_ruling` reds otherwise (owner,
+  2026-10-15; the field is described in `upstream-footprint-ledger.md`).
 - **A CHANGE commit carries its positive control:** the defect planted on a throwaway copy, the red
   pasted into the commit body, reverted. A new gate lands with its killing mutation recorded. A
   control that has not been run is a belief.
@@ -245,6 +268,16 @@ the checkout's `.pytest_cache/hermes_bundled_runs.jsonl` (a receipt; the gate's 
 store's `runs.jsonl`, and the known-red read skips an idle line either way): quote it in the
 landing report. An idle run that still reds is a new row carrying its receipt line
 (`stall_samples`, `stall_max_ms`, `max_lag_ms`), never a lowered floor.
+
+## The Launcher QA MCP from a session in this repo
+
+`scripts/launcher_qa_mcp.py` starts the EterniaLauncher's `launcher_qa` MCP server with
+everything machine-specific read from the environment: `STAGEC_QA_REPO_ROOT` (or
+`ETERNIA_LAUNCHER_ROOT`) names the launcher checkout; `STAGEC_LAUNCH_HELPER` defaults to that
+checkout's direct-EXE helper; the prebuilt server is used when present, else `dart run`. Register
+it once with `claude mcp add launcher_qa -- python scripts/launcher_qa_mcp.py`; `--print` shows
+what it resolved. A missing variable is a refusal naming it, never a half-configured server
+(owner ruling 2026-10-15).
 
 ## After a landing that touches the chat path: the live latency check
 

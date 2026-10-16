@@ -8,7 +8,7 @@ leaking into the Agent Console).
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from types import SimpleNamespace
 
 from hermes_time import now
@@ -542,8 +542,8 @@ def test_synthetic_mission_row_anchors_to_assignment_created_at():
         "assign_1",
         instance_id="personainst_dev",
         task_id="task_1",
-        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 6, 22, 21, 30, 0, tzinfo=timezone.utc),
+        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 22, 21, 30, 0, tzinfo=UTC),
     )
     instance = _mission_persona_instance("personainst_dev", "dev", "task_1", assignment_id="assign_1")
 
@@ -572,19 +572,19 @@ def test_synthetic_mission_row_matches_assignment_by_instance_and_task():
         "assign_old",
         instance_id="personainst_dev",
         task_id="task_1",
-        created_at=datetime(2026, 6, 22, 20, 0, 0, tzinfo=timezone.utc),
+        created_at=datetime(2026, 6, 22, 20, 0, 0, tzinfo=UTC),
     )
     newer = _persona_assignment(
         "assign_new",
         instance_id="personainst_dev",
         task_id="task_1",
-        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=timezone.utc),
+        created_at=datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=UTC),
     )
     other_task = _persona_assignment(
         "assign_other",
         instance_id="personainst_dev",
         task_id="task_2",
-        created_at=datetime(2026, 6, 23, 9, 0, 0, tzinfo=timezone.utc),
+        created_at=datetime(2026, 6, 23, 9, 0, 0, tzinfo=UTC),
     )
     instance = _mission_persona_instance("personainst_dev", "dev", "task_1", assignment_id=None)
 
@@ -629,7 +629,7 @@ def test_synthetic_mission_row_falls_back_to_instance_assigned_at():
 
 
 def test_iso_timestamp_normalizes_datetime_values():
-    aware = datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=timezone.utc)
+    aware = datetime(2026, 6, 22, 21, 0, 2, 500000, tzinfo=UTC)
     naive = datetime(2026, 6, 22, 21, 0, 2, 500000)
 
     assert iso_timestamp(aware) == "2026-06-22T21:00:02.500000Z"
@@ -1004,7 +1004,8 @@ def test_interrupted_turn_without_assistant_row_synthesizes_system_message(isola
     assert marker["client_message_id"] == "client_interrupted"
     assert marker["turn_id"] == "turn_interrupted"
     assert marker["timestamp"] == record["updated_at"]
-    assert "Retry the message" in marker["text"]
+    assert marker["operator_message_present"] is True
+    assert "Retry the message" not in marker["text"]
 
 
 def test_interrupted_turn_synthesis_skips_completed_running_and_answered(isolate_agent_runtime_root):

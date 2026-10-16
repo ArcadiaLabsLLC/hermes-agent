@@ -178,8 +178,7 @@ def test_interrupted_marker_row_is_unchanged(isolate_agent_runtime_root):
     assert marker["turn_id"] == "turn_interrupted"
     assert marker["turn_seq"] == TURN_SEQ_TERMINAL
     assert marker["text"] == (
-        "Agent turn interrupted before a reply was recorded. Retry the message "
-        "to run a fresh turn."
+        "Agent turn interrupted before a reply was recorded."
     )
 
 

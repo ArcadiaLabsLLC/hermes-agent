@@ -31,6 +31,7 @@ from agent_runtime.mission_chat_workdir import (
     WORKDIR_SOURCE_PERSONA_CONFIG,
     WORKDIR_SOURCE_PERSONA_REPO_SCOPE,
     WORKDIR_SOURCE_PROCESS_CWD,
+    WORKDIR_SOURCE_USER_HOME,
     WORKDIR_SOURCE_WORKSPACE_AGENTS,
     mission_chat_workdir_for_persona,
     persona_workdir_config_key,
@@ -259,8 +260,25 @@ def test_persona_lookup_survives_a_config_fault(monkeypatch):
     # A config fault must never fail a turn — it degrades to "nothing configured".
     resolved = mission_chat_workdir_for_persona(_persona("qa"))
 
-    assert resolved.path is None
+    assert resolved.source == WORKDIR_SOURCE_USER_HOME
     assert resolved.rows() == []
+
+
+def test_an_ungrounded_live_persona_works_in_the_home_never_the_spawners_cwd(tmp_path, monkeypatch):
+    # 2026-10-15: a QA serve's Base chat ran file tools in
+    # C:/windows/system32/spool/drivers/x64/3 -- the cwd its spawner held.
+    home = tmp_path / "home"
+    home.mkdir()
+    spawner_cwd = tmp_path / "spool"
+    spawner_cwd.mkdir()
+    monkeypatch.chdir(spawner_cwd)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+    resolved = mission_chat_workdir_for_persona(_persona("base"))
+
+    assert resolved.source == WORKDIR_SOURCE_USER_HOME
+    assert resolved.path == str(home.resolve())
+    assert resolved.grounded is True
 
 
 # ── resolver + live-turn wiring ─────────────────────────────────────────────
@@ -343,10 +361,14 @@ def test_mission_chat_turn_is_grounded_in_the_configured_workdir(tmp_path, monke
     assert _same(str(runner.request.workdir), repo)
 
 
-def test_mission_chat_turn_without_grounding_passes_no_workdir(tmp_path, monkeypatch):
-    # The unchanged default: no workdir on the request means profile_runner
-    # never chdirs, exactly as before G6.
+def test_mission_chat_turn_without_grounding_runs_in_the_home(tmp_path, monkeypatch):
+    # No rung grounds the persona: the request carries the operator's home, so
+    # profile_runner chdirs there instead of keeping whatever cwd the serve's
+    # spawner held (2026-10-15, a system driver directory).
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     runner = _CapturingRunner()
 
     _runtime(runner).mission_chat_reply(
@@ -355,7 +377,8 @@ def test_mission_chat_turn_without_grounding_passes_no_workdir(tmp_path, monkeyp
         permission_session_id="session_mission_chat",
     )
 
-    assert runner.request.workdir is None
+    assert runner.request.workdir is not None
+    assert Path(runner.request.workdir) == home.resolve()
 
 
 def test_a_missing_configured_workdir_never_fails_the_turn(tmp_path, monkeypatch):

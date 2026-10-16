@@ -803,8 +803,11 @@ def flush_skill_frontmatter_disk_cache() -> bool:
 
 
 def _schedule_frontmatter_flush() -> None:
-    # The write-back runs on the idle keeper's tick, never on the turn thread.
+    # The write-back runs on the idle keeper's tick, never on the turn thread. Arming here
+    # (a no-op outside a serve) lets a serve that takes no turn flush its boot parses;
+    # a CLI child flushes at exit (``parse_cache.flush_disk_tiers``).
     idle_turn_keeper.register_refresh("skill_frontmatter_disk", flush_skill_frontmatter_disk_cache)
+    idle_turn_keeper.arm()
 
 
 #: D1.05 CF-2: the cross-process tier under the frontmatter memo.

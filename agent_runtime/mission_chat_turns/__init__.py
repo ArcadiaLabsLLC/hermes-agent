@@ -5,7 +5,7 @@ Owner doc: ``docs/agent-runtime-harness/05-chat-turn-lane.md`` (the turn journal
 Entry points (what calls in), and the modules an agent opens to follow each:
 
 * ``persist_mission_chat_turn`` / ``transition_mission_chat_turn`` /
-  ``abandon_mission_chat_turn`` (``harness_parts/persona/chat_turn_commit/*``,
+  ``resolve_mission_chat_turn`` (``harness_parts/persona/chat_turn_commit/*``,
   ``chat_admission``, ``chat_tickets_commands``) -> ``journal`` -> ``storage``
   (lock, read, write, cap) and ``records`` (the record's shape); ``states`` for
   ``next_turn_state`` and the transition table.
@@ -46,7 +46,7 @@ Must never import: ``hermes_cli``; nothing in this package imports this map.
 
 from __future__ import annotations
 
-from agent_runtime.mission_chat_turns import (  # noqa: F401 — every family, lowest layer first
+from agent_runtime.mission_chat_turns import (
     states,
     records,
     storage,
@@ -80,13 +80,13 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.mission_chat_turns.records import (
     TURN_PROFILE_TIMING_KEY,
-    _safe_todo_state,  # noqa: F401 — test seam (test_profile_runner)
+    _safe_todo_state,
     safe_provider_refusal,
     safe_turn_profile_timing,
 )
-from agent_runtime.mission_chat_turns.storage import _store_dir  # noqa: F401 — test seam
+from agent_runtime.mission_chat_turns.storage import _store_dir
 from agent_runtime.mission_chat_turns.journal import (
-    abandon_mission_chat_turn,
+    resolve_mission_chat_turn,
     mark_stale_inflight_turns_interrupted,
     persist_mission_chat_turn,
     transition_mission_chat_turn,
@@ -106,7 +106,6 @@ __all__ = [
     "INFLIGHT_TURN_STATES",
     "JOURNAL_TURN_STATES",
     "LEGACY_TURN_STATES",
-    "MissionChatTurnPersistOutcome",
     "OPERATOR_RESOLVABLE_TURN_STATES",
     "REPLY_RECOVERABLE_TURN_STATES",
     "RESEND_BLOCKING_TURN_STATES",
@@ -125,7 +124,7 @@ __all__ = [
     "TURN_STATE_PROJECTED",
     "TURN_STATE_PROVIDER_REFUSED",
     "TURN_STATE_RUNNING",
-    "abandon_mission_chat_turn",
+    "MissionChatTurnPersistOutcome",
     "inflight_chat_session_roots",
     "inflight_turn_rows",
     "mark_stale_inflight_turns_interrupted",
@@ -134,6 +133,7 @@ __all__ = [
     "mission_chat_turn_records",
     "next_turn_state",
     "persist_mission_chat_turn",
+    "resolve_mission_chat_turn",
     "safe_provider_refusal",
     "safe_turn_profile_timing",
     "transition_mission_chat_turn",

@@ -21,13 +21,13 @@ def delete_persona_chat(params: dict, *, caller: Any | None = None) -> dict:
     Refusals: ``foreign_chat_session``, ``chat_busy``,
     ``chat_session_db_unavailable``, ``status: not_found``."""
     from ..mission_chat_door import CHAT_DELETE_VERB
-    from ..persona_open_chat import _text
+    from ..persona_open_chat import _first_text
     from .door import caller_requester, run_cli_chat_verb
 
     return run_cli_chat_verb(
         CHAT_DELETE_VERB,
-        session_id=_text(params, "session_id"),
-        persona_id=_text(params, "persona_id"),
-        persona_instance_id=_text(params, "persona_instance_id"),
+        session_id=_first_text(params, "session_id"),
+        persona_id=_first_text(params, "persona_id"),
+        persona_instance_id=_first_text(params, "persona_instance_id"),
         requested_by=caller_requester(params, caller),
     )

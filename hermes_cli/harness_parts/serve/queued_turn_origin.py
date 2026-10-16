@@ -20,6 +20,7 @@ a send that reached the door with no serve request (a one-shot CLI).
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from agent_runtime.launcher_app_functions import (
@@ -38,8 +39,29 @@ __all__ = ["deliver_to_queued_peer", "queued_turn_link", "queued_turn_peer", "se
 
 logger = logging.getLogger(__name__)
 
-#: Session attribute: queued request id -> the paired-device sink still owed its settle.
+#: Session attribute: queued request id -> (the paired-device sink still owed its settle,
+#: when it was remembered).
 _PEERS_ATTR = "_queued_turn_settle_peers"
+
+#: A remembered peer outlives neither its connection nor this bound: a turn that requeues,
+#: or whose settle is never pushed, must not keep a detached device's sink referenced.
+QUEUED_PEER_TTL_SECONDS = 3600.0
+
+
+def _attached(session: Any, sink: Any) -> bool:
+    lock, sinks = getattr(session, "connection_sinks_lock", None), getattr(session, "connection_sinks", None)
+    if lock is None or sinks is None:
+        return True  # no connection table to consult: the TTL alone bounds it
+    with lock:
+        return any(live is sink for live in sinks.values())
+
+
+def _prune_peers(session: Any, peers: dict[str, Any], *, now: float) -> None:
+    """Drop every remembered peer that detached or outlived :data:`QUEUED_PEER_TTL_SECONDS`."""
+
+    for rid, (sink, remembered_at) in list(peers.items()):
+        if now - remembered_at > QUEUED_PEER_TTL_SECONDS or not _attached(session, sink):
+            peers.pop(rid, None)
 
 def send_origin() -> dict[str, Any]:
     """The origin of the send running on this thread, from the serve request it arrived on."""
@@ -114,7 +136,9 @@ def queued_turn_peer(session: Any, entry: Any, rid: str) -> Any:
         if peers is None:
             peers = {}
             setattr(session, _PEERS_ATTR, peers)
-        peers[rid] = sink
+        now = time.monotonic()
+        _prune_peers(session, peers, now=now)
+        peers[rid] = (sink, now)
     return sink
 
 
@@ -122,7 +146,11 @@ def deliver_to_queued_peer(session: Any, frame: dict[str, Any]) -> int:
     """A queued turn's ``turn_settled`` to the paired device that sent it: once, first push."""
 
     peers = getattr(session, _PEERS_ATTR, None)
-    sink = peers.pop(str(frame.get("request_id") or ""), None) if peers else None
+    if not peers:
+        return 0
+    _prune_peers(session, peers, now=time.monotonic())
+    remembered = peers.pop(str(frame.get("request_id") or ""), None)
+    sink = remembered[0] if remembered else None
     if sink is None:
         return 0
     try:

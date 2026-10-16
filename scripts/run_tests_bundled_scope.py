@@ -175,7 +175,7 @@ class MergeChange:
     merged: set[str]  # its combined diff: paths whose blob differs from BOTH parents
     after: set[str]  # ``<merge>..HEAD`` and working-tree edits
     first_parent: int  # paths of ``git diff <parent1> <merge>``, the spelling this replaces
-    standing: List[str]  # conftest or chain paths in ``merged`` whose fork hunk the merge left unchanged
+    standing: List[str]  # paths in ``merged`` whose fork hunk the merge left unchanged
 
     @property
     def paths(self) -> set[str]:
@@ -184,23 +184,24 @@ class MergeChange:
     def account(self) -> str:
         return (
             f"Since merge {self.merge}: {len(self.merged)} path(s) in its combined diff (against its first "
-            f"parent: {self.first_parent}) + {len(self.after)} after it; conftest or chain path(s) whose fork hunk the merge "
+            f"parent: {self.first_parent}) + {len(self.after)} after it; path(s) whose fork hunk the merge "
             f"left unchanged, not reaching: {', '.join(self.standing) or 'none'}"
         )
 
 
 def merge_change(repo_root: Path, merge_sha: str) -> MergeChange:
-    """``changed_paths_for_merge`` less each ``conftest.py`` or session-chain path
-    (``pyproject.toml``) the merge only re-applied a standing fork hunk to
-    (``conftest_hunk_unchanged``) and nothing after the merge touched: such a
-    path is "changed" against the tag forever, and would otherwise reach every
-    upstream test below it."""
+    """``changed_paths_for_merge`` less each path the merge only re-applied a
+    standing fork hunk to (``conftest_hunk_unchanged``) and nothing after the
+    merge touched: such a path is "changed" against the tag forever, and would
+    otherwise reach every upstream test below it — a conftest by directory, a
+    session-chain path by the chain, a fork-edited upstream module by import
+    (owner ruling 2026-10-15 extended the rule from conftests and the chain to
+    modules: ``hermes_state.py`` alone reached 453 upstream files)."""
 
     parents, merged, after = _merge_parts(repo_root, merge_sha)
     standing = sorted(
         rel for rel in merged - after
-        if (rel.rsplit("/", 1)[-1] == "conftest.py" or chain.in_chain(rel))
-        and conftest_hunk_unchanged(repo_root, rel, merge_sha)
+        if conftest_hunk_unchanged(repo_root, rel, merge_sha)
     )
     first_parent = len(_git_paths(repo_root, "diff", "--name-only", parents[0], merge_sha))
     return MergeChange(merge_sha, merged, after, first_parent, standing)
@@ -276,6 +277,7 @@ class ScopeSelection:
     excluded: List[Path] = field(default_factory=list)
     skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
     idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
+    chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
 
     @property
     def selected(self) -> List[Path]:
@@ -316,7 +318,7 @@ def select_scope(
     changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
     chain_hit = bool(chain.chain_changed(changed))
     skipped, idle_box = set(skipped), set(idle_box)
-    sel = ScopeSelection()
+    sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
     for path in files:
         rel = _rel_posix(path, repo_root)
         if rel in skipped and path.resolve() not in named_real:

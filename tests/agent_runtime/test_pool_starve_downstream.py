@@ -167,8 +167,8 @@ def test_the_worker_beats_a_parked_request_as_idle_and_a_working_one_as_not(monk
             frame = json.loads(frames.readline())
             ready = ready or frame.get("method") == "snapshot.ready"
             idle = (frame.get("params") or {}).get("idle_s") or {}
-            for rid in seen:
-                seen[rid] = max(seen[rid], float(idle.get(rid, 0.0)))
+            for rid, value in seen.items():
+                seen[rid] = max(value, float(idle.get(rid, 0.0)))
             if seen["parked"] >= 1.0:
                 break
     finally:
@@ -240,6 +240,41 @@ def test_four_parked_riders_do_not_delay_a_chat_turns_anchor(caplog):
         pool.shutdown(wait=True)
     receipt = _messages(caplog, "chat_turn_accept_to_anchor request=chat-turn-1 ")
     assert receipt and int(_fields(receipt[0])["queue_ms"]) < 1000, receipt
+
+
+@pytest.mark.timeout(60)
+def test_four_standing_streams_do_not_starve_a_deferred_reply():
+    """w1015b-con-x: ``harness stream`` never returns. On the shared lane four of them
+    held every worker and ``history.pending``'s deferred reply never ran (live
+    2026-10-15, ``[ConsoleHistory] history_unavailable stage=runtime reason=rpc_timeout``).
+
+    Killing mutation: ``submit_accepted`` routing a stream to ``pool.submit`` -> red."""
+
+    release = threading.Event()
+    parked = threading.Semaphore(0)
+
+    def dispatch(argv):
+        parked.release()
+        release.wait(30)
+        return 0
+
+    pool = RequestPool(4)
+    session, _frames = _session(dispatch, pool)
+    session.drain_state = None
+    replies: list = []
+    answered = threading.Event()
+    try:
+        for index in range(4):
+            submit_accepted(pool, session._run, _ArgvRequest(f"stream-{index}", ["harness", "stream"]))
+        for _ in range(4):
+            assert parked.acquire(timeout=10), "a stream never reached a worker"
+        sink = SimpleNamespace(emit=lambda frame: (replies.append(frame), answered.set()))
+        assert ArgvLanes._spawn_reply(session, sink, lambda: {"id": "pending-1", "result": {"pending": None}})
+        assert answered.wait(5), "the deferred reply queued behind the standing streams"
+    finally:
+        release.set()
+        pool.shutdown(wait=True)
+    assert replies == [{"id": "pending-1", "result": {"pending": None}}]
 
 
 # ── one turn, one handler ─────────────────────────────────────────────────────

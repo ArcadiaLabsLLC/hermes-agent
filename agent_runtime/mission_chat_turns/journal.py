@@ -1,4 +1,4 @@
-"""The journal's four writes — persist, transition, abandon, mark stale.
+"""The journal's four writes — persist, transition, resolve, mark stale.
 
 Every write goes through ``_mutate_session``, the ONE write chokepoint: the
 session's lock held for the whole read-modify-write, the turn cap applied, and a
@@ -18,8 +18,7 @@ from agent_runtime.mission_chat_turns.states import (
     INFLIGHT_TURN_STATES,
     JOURNAL_TURN_STATES,
     LEGACY_TURN_STATES,
-    OPERATOR_RESOLVABLE_TURN_STATES,
-    TURN_STATE_ABANDONED,
+    TurnResolution,
     TURN_STATE_INTERRUPTED,
     _JOURNAL_TRANSITIONS,
     _LEGACY_TO_JOURNAL_STATE,
@@ -170,11 +169,12 @@ def transition_mission_chat_turn(
     )
 
 
-def abandon_mission_chat_turn(
+def resolve_mission_chat_turn(
     *,
     session_id: str | None,
     client_message_id: str | None,
     turn_id: str | None,
+    action: TurnResolution = TurnResolution.ABANDON,
     resolution_actor: str | None = None,
     resolution_reason: str | None = None,
 ) -> MissionChatTurnPersistOutcome:
@@ -189,17 +189,19 @@ def abandon_mission_chat_turn(
         if not isinstance(existing, dict):
             return False, MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
         if (
-            _record_state(existing) not in OPERATOR_RESOLVABLE_TURN_STATES
+            _record_state(existing) not in action.states
             or safe_assignment_token(existing.get("turn_id")) != exact_turn
         ):
             return False, MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
+        if existing.get("resolution") == action.value:
+            return False, MissionChatTurnPersistOutcome.PERSISTED
         record = dict(existing)
         record.update(
             {
-                "state": TURN_STATE_ABANDONED,
+                "state": action.result_state,
                 "updated_at": now_iso_micro(),
                 "resolved_at": now_iso_micro(),
-                "resolution": "abandon",
+                "resolution": action.value,
                 "resolution_actor": safe_assignment_text(
                     resolution_actor, limit=160
                 )
@@ -207,7 +209,7 @@ def abandon_mission_chat_turn(
                 "resolution_reason": safe_assignment_text(
                     resolution_reason, limit=320
                 )
-                or "explicit abandon",
+                or f"explicit {action.value}",
             }
         )
         session[message_key] = record

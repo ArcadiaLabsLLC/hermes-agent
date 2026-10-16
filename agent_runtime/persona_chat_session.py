@@ -189,6 +189,11 @@ def _persist_chat_model_override(
         if override.get("clear") is True:
             current.pop(_CHAT_MODEL_OVERRIDE_CONFIG_KEY, None)
         else:
+            if "reasoning_effort" not in override:
+                # A model-only write (a turn's own --provider/--model, a picker choice) keeps
+                # the chat's effort tier; only an explicit effort or a clear moves it.
+                kept = (_chat_model_override_from_config(current) or {}).get("reasoning_effort")
+                override = {**override, "reasoning_effort": kept} if kept else override
             current[_CHAT_MODEL_OVERRIDE_CONFIG_KEY] = override
     if session_db is None or not session_id:
         return current
@@ -213,16 +218,31 @@ def _chat_model_override_from_config(model_config: dict[str, object]) -> dict[st
         return None
     provider = _safe_chat_model_override_value(raw.get("provider"), field="provider")
     model = _safe_chat_model_override_value(raw.get("model"), field="model")
-    if not provider and not model:
+    effort = _chat_reasoning_effort(raw.get("reasoning_effort"))
+    if not provider and not model and not effort:
         return None
     return {
         "schema_version": 1,
         "provider": provider,
         "model": model,
+        "reasoning_effort": effort,
         "source": safe_assignment_text(raw.get("source"), limit=80) or "session",
         "scope": "mission_control_chat_session",
         "updated_at": safe_assignment_text(raw.get("updated_at"), limit=80) or None,
     }
+
+
+def _chat_reasoning_effort(value) -> str | None:
+    """A stored chat-tier effort, or ``None``: an unreadable value is ignored, never run."""
+
+    if not isinstance(value, str):
+        return None
+    from agent_runtime.persona_assignments.profile import _normalize_reasoning_effort_override
+
+    try:
+        return _normalize_reasoning_effort_override(value)
+    except ValueError:
+        return None
 
 
 def _resolve_chat_model_override(
@@ -249,7 +269,8 @@ def _chat_effective_model_payload(
     """Effective-model cascade for one chat turn.
 
     Tiers (highest wins): chat-session override > instance override >
-    persona default > agent_runtime config default. ``default_*`` stays the
+    persona default > agent_runtime config default. Reasoning effort cascades the
+    same way: the chat's own effort > the instance's > the profile's. ``default_*`` stays the
     persona/config tier so the instance tier is reported honestly instead of
     being folded in silently; ``agent_*`` is what future turns/runs of THIS
     agent use when no chat override is active.
@@ -260,7 +281,8 @@ def _chat_effective_model_payload(
     # An instance whose persona left the roster still gets a summary; it has no
     # profile to scope into, so only the instance and config tiers apply.
     binding = resolve_persona_profile(persona) if persona is not None else None
-    effort = getattr(instance, "reasoning_effort", None)
+    chat_effort = (override or {}).get("reasoning_effort")
+    effort = chat_effort or getattr(instance, "reasoning_effort", None)
     reasoning = None
     if binding is not None and binding.readiness == "ready":
         with persona_profile_scope(binding):
@@ -313,7 +335,9 @@ def _chat_effective_model_payload(
         "effective_provider": provider,
         "effective_model": model,
         "effective_reasoning_effort": reasoning_effort_label(reasoning),
-        "reasoning_effort_source": "instance" if effort else ("profile" if reasoning else "default"),
+        "chat_reasoning_effort": chat_effort,
+        "reasoning_effort_source": ("conversation" if chat_effort else "instance" if effort
+                                    else "profile" if reasoning else "default"),
         "reasoning_capabilities": capabilities.wire(),
         "model_is_default": not bool(override and ((override.get("provider") or "") or (override.get("model") or ""))),
         "model_is_instance_override": bool(instance_provider or instance_model),

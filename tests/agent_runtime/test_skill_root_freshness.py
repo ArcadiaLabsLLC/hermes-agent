@@ -5,7 +5,6 @@
 * a name the cached registry does not hold (a skill added since) re-walks inline and resolves;
 * a resolved file that is gone (a skill deleted since) re-walks inline and reports it missing;
 * a plain map (every caller but the turn's pre-admit assembly) walks as before;
-* the site-packages grouping is re-listed when the directory changes, and only then.
 
 Named sabotage: ``needs_fresh_walk`` answering False -> the added/deleted rows red;
 ``registry_for_turn`` walking -> the no-walk row reds.
@@ -53,8 +52,6 @@ def test_a_turn_reads_the_cached_root_and_rewalks_it_after_request_sent(root):
     assert thread is not None and thread.name == fresh.REVALIDATE_THREAD_NAME
     thread.join(10)
     assert fresh.pending_refreshes_for_tests() == []
-
-
 def test_a_skill_added_since_the_last_walk_still_resolves_on_the_turn(root):
     _skill(root, "beta")
 
@@ -77,22 +74,3 @@ def test_a_plain_map_still_walks(root):
 
     assert sr.skill_root_walks_this_thread() == 1
     assert fresh.pending_refreshes_for_tests() == []
-
-
-def test_the_site_packages_grouping_is_relisted_only_when_the_directory_changes(tmp_path, monkeypatch):
-    from hermes_cli import venv_integrity
-
-    site = tmp_path / "site-packages"
-    (site / "jiter-0.12.0.dist-info").mkdir(parents=True)
-    listings: list[Path] = []
-    real = venv_integrity._list_metadata_dirs
-    monkeypatch.setattr(venv_integrity, "_list_metadata_dirs", lambda d: listings.append(d) or real(d))
-
-    first = venv_integrity._metadata_dirs_by_distribution(site)
-    again = venv_integrity._metadata_dirs_by_distribution(site)
-    (site / "jiter-0.13.0.dist-info").mkdir()
-    changed = venv_integrity._metadata_dirs_by_distribution(site)
-
-    assert len(listings) == 2
-    assert first == again and len(first["jiter"]) == 1
-    assert len(changed["jiter"]) == 2

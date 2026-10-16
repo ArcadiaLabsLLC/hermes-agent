@@ -662,6 +662,45 @@ def test_the_cli_stream_command_logs_its_attachment(monkeypatch, build_log):
     assert attaches[0]["pid"] == str(os.getpid())
 
 
+@pytest.mark.parametrize("cancel", [False, True], ids=["returned", "cancelled"])
+def test_a_serve_side_argv_reader_names_its_request_and_logs_its_end(monkeypatch, build_log, cancel):
+    """Runtime row 2026-10-15: four ``cli_stream`` attaches beside the hub, two still
+    framing turns minutes later, and no line said whose they were or whether they
+    ended. The attach now names the serve request and connection, and a detach
+    line closes it with the frame count and why it ended."""
+
+    from types import SimpleNamespace
+
+    from agent_runtime.request_control import request_cancel_scope
+    from hermes_cli.harness_parts import runtime_commands
+    from hermes_cli.harness_parts.serve import frames as serve_frames
+
+    monkeypatch.setattr(stream_mod, "stream_frames", lambda **kwargs: iter(({"a": 1}, {"b": 2})))
+    rid_token = serve_frames._request_id.set("req-6")
+    sink_token = serve_frames._request_sink.set(SimpleNamespace(_target=SimpleNamespace(key="conn-3")))
+    event = threading.Event()
+    if cancel:
+        event.set()
+    try:
+        with request_cancel_scope(event):
+            code = runtime_commands._cmd_stream(
+                Namespace(poll_interval=0.01, heartbeat_interval=60, delta_debounce_ms=0,
+                          max_frames=None, resync=False, fold_entities=None)
+            )
+    finally:
+        serve_frames._request_sink.reset(sink_token)
+        serve_frames._request_id.reset(rid_token)
+
+    assert code == 0
+    attach = _lines(build_log, _ATTACH_PREFIX)
+    detach = _lines(build_log, "stream_detach ")
+    assert len(attach) == 1 and len(detach) == 1, [r.getMessage() for r in build_log.records]
+    assert (attach[0]["request"], attach[0]["connection"], attach[0]["max_frames"]) == ("req-6", "conn-3", "-")
+    assert (detach[0]["request"], detach[0]["connection"]) == ("req-6", "conn-3")
+    assert detach[0]["frames"] == "2"
+    assert detach[0]["end"] == ("cancelled" if cancel else "returned")
+
+
 # ── 5. the join key: one pid across the three families (BO-3) ───────────────
 
 

@@ -27,8 +27,9 @@ HARNESS_QUERY_SCHEMA = {
         "Read-only harness lookup, cheap enough for every turn. question=roster (persona instances), "
         "instance (one instance + the MCP servers it resolves as configured/admitted now), sessions "
         "(an instance's chat sessions with hot/busy/cold runtime_state), live_qa (live or resumable QA "
-        "sessions by exact id, with a verdict). Use this instead of `hermes harness snapshot`; cite the "
-        "ids it returns."
+        "sessions by exact id, with a verdict). Use this instead of `hermes harness snapshot` or "
+        "`session_search` (transcript history, not live state); cite the ids it returns verbatim, never "
+        "an id cut from a chat root."
     ),
     "parameters": {
         "type": "object",

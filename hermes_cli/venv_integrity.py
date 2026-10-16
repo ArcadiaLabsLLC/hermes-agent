@@ -43,10 +43,13 @@ not a rewrite.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sysconfig
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Iterator, Optional
 
 # Distribution name -> the module name you actually import. Identical for most
 # packages; the exceptions are the ones that would otherwise make us probe a
@@ -118,43 +121,64 @@ def site_package_dirs() -> list[Path]:
     return seen
 
 
-#: h-warm-phases: ``directory -> (its mtime_ns, the grouping)``. Every chat turn's provider-health
-#: check asked this of the whole site-packages tree (a listing plus a stat per entry: ~20 ms a turn
-#: on the operator's venv). Installing or removing a distribution adds or removes a metadata
-#: directory in ``directory`` itself, which moves its mtime; the grouping reads names only.
-_GROUPED_BY_DIRECTORY: dict[str, tuple[int, dict[str, list[Path]]]] = {}
-
-
 def _metadata_dirs_by_distribution(directory: Path) -> dict[str, list[Path]]:
-    """Map canonical distribution name -> its metadata dirs inside ``directory``."""
-    try:
-        stamp = directory.stat().st_mtime_ns
-    except OSError:
-        return {}
-    cached = _GROUPED_BY_DIRECTORY.get(str(directory))
-    if cached is not None and cached[0] == stamp:
-        return {name: list(dirs) for name, dirs in cached[1].items()}
-    grouped = _list_metadata_dirs(directory)
-    _GROUPED_BY_DIRECTORY[str(directory)] = (stamp, grouped)
-    return {name: list(dirs) for name, dirs in grouped.items()}
+    """Read current metadata names without statting every installed file.
 
-
-def _list_metadata_dirs(directory: Path) -> dict[str, list[Path]]:
+    Directory timestamps can stay equal across additions/removals, so they
+    cannot certify a cached grouping. scandir supplies entry types with the
+    listing on common filesystems; only metadata-shaped entries need a type
+    check. No process memo can retain a repaired or newly corrupt environment.
+    """
     grouped: dict[str, list[Path]] = {}
     try:
-        children = sorted(directory.iterdir())
+        with os.scandir(directory) as entries:
+            children = sorted(
+                Path(entry.path)
+                for entry in entries
+                if entry.name.endswith((".dist-info", ".egg-info")) and entry.is_dir()
+            )
     except OSError:
         return grouped
     for child in children:
-        if not child.is_dir():
-            continue
-        if child.suffix not in (".dist-info", ".egg-info"):
-            continue
         # ``{escaped_name}-{version}.dist-info``; the escaped name never
         # contains ``-`` (PEP 427 replaces it with ``_``), so the first dash
         # ends the name. ``.egg-info`` may carry no version at all.
         raw_name = child.stem.split("-", 1)[0]
         grouped.setdefault(canonical_distribution(raw_name), []).append(child)
+    return grouped
+
+
+#: One site-packages listing per directory for the width of a scope. The listing
+#: answers a question about the INTERPRETER (``site_package_dirs`` reads
+#: process-global ``sysconfig``), so every persona of one snapshot build reads
+#: the same tree; without the scope each distinct package list re-listed it.
+_LISTING_SCOPE: ContextVar[dict[Path, dict[str, list[Path]]] | None] = ContextVar(
+    "hermes_venv_metadata_listing_scope", default=None
+)
+
+
+@contextmanager
+def metadata_listing_scope() -> Iterator[None]:
+    """List each site-packages directory once inside this scope.
+
+    For a bounded read that treats the interpreter as fixed (one snapshot
+    build). Never wrap a span that installs packages; outside a scope every
+    call re-lists, which is the module's no-process-memo rule.
+    """
+    token = _LISTING_SCOPE.set({})
+    try:
+        yield
+    finally:
+        _LISTING_SCOPE.reset(token)
+
+
+def _scoped_metadata_dirs(directory: Path) -> dict[str, list[Path]]:
+    memo = _LISTING_SCOPE.get()
+    if memo is None:
+        return _metadata_dirs_by_distribution(directory)
+    grouped = memo.get(directory)
+    if grouped is None:
+        grouped = memo[directory] = _metadata_dirs_by_distribution(directory)
     return grouped
 
 
@@ -216,7 +240,7 @@ def metadata_issues(
     reported_unreadable: set[str] = set()
 
     for directory in dirs:
-        grouped = _metadata_dirs_by_distribution(Path(directory))
+        grouped = _scoped_metadata_dirs(Path(directory))
         for canonical, metadata_dirs in sorted(grouped.items()):
             if canonical not in wanted:
                 continue

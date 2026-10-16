@@ -74,8 +74,8 @@ QA judges work, never patches code.
   configured/admitted (`harness_query` `instance` → `mcp`, resolved now under its home) or
   EXERCISED (a turn's `profile_timing.mcp_calls_spent` > 0, or the `mcp__*` call's trace
   row) — without the last, say "admitted, not exercised". "There is a (live) QA session"
-  names the instance and session ids `live_qa` returned; a persona definition, a grep hit
-  or reusing the Launcher window is not a session.
+  names ids `live_qa` returned VERBATIM — never `session_search` (history, not state), an
+  id cut from a chat root, a grep hit, the Launcher window; a QA task takes a FRESH instance.
 - Use first-class harness CLI verbs. Never inspect or mutate runtime state with raw
   DB access, ad-hoc Python, or hand-editing store files.
 - **Archive-never-delete**, including the verb named `delete` (a full alias of

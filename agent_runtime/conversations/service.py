@@ -106,14 +106,23 @@ class ConversationService:
         self._workers.release(live.route.profile, live.worker)
 
     @contextmanager
-    def _session(self, scope: ConversationScope, session_id: str) -> Iterator[LiveConversation]:
+    def _session(self, scope: ConversationScope, session_id: str, *, existing_only=False) -> Iterator[LiveConversation]:
         route = self.store.get(session_id, scope)
         if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
             raise ConversationError(Refusal.WRONG_OWNER)
-        with self._bindings.borrow(route) as live:
+        with self._bindings.borrow(route, existing_only=existing_only) as live:
             yield live
 
+    def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
+        from .subagents import inspect_children
+
+        with self._session(scope, session_id, existing_only=True) as live:
+            return inspect_children(self.install_id, scope, live, operation, params)
+
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
+        from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_options_for_subject
+
+        from .model import permission_subject
         from .prompt import submit, validate
 
         files = validate(prompt)
@@ -126,8 +135,15 @@ class ConversationService:
             if admitted:
                 live.app_functions.bind(receipt.execution_id, launcher_request,
                                         session_id=session_id, turn_id=turn_id, client_scope=scope.client)
+                subject = permission_subject(live.route)
                 try:
+                    # D2.07: the operator lane's resolver, per turn, keyed by the route id;
+                    # the worker derives the block from the mode where the catalog lives.
+                    permission = permission_options_for_subject(subject, session_id=live.route.id)
+                    live.bind_permission(receipt.execution_id, permission.permission_mode)
                     submit(live.peer, live.native_id, prompt, receipt.execution_id)
+                    # A turn that was never admitted spends nothing of a turns-bounded grant.
+                    ChatToolPermissionStore().consume_turn(persona_id=subject, session_id=live.route.id)
                     live.dispatched(turn_id)
                     self.store.settle(session_id, turn_id, TurnState.RUNNING)
                 except ConversationError as exc:
@@ -187,9 +203,18 @@ class ConversationService:
     def _facts(self, route, snapshot: dict, inventory: dict) -> dict:
         from hermes_cli.config import is_managed
 
+        from agent_runtime.tool_permissions import permission_state_for_subject
+        from .model import permission_subject
+
+        # The permission the Console's control binds to (D2.07 decision 8): the same
+        # resolver as the operator lane, read without consuming a turns-bounded grant;
+        # `runtime.persona.permission.set(persona_id=<subject>, session_id=<route id>)` writes it.
+        permission = permission_state_for_subject(permission_subject(route), session_id=route.id)
         return {**model_facts(route.id, snapshot, inventory),
                 "default_model_id": model_preferences.default_id(Path(route.home), self.auth_home),
-                "can_save_model_default": not is_managed()}
+                "can_save_model_default": not is_managed(),
+                "permission": {key: permission[key] for key in (
+                    "subject", "mode", "source", "expired", "turns_remaining", "expires_at")}}
 
     def select_model(self, scope: ConversationScope, session_id: str, model_id: str,
                      *, save_default: bool = False) -> dict:

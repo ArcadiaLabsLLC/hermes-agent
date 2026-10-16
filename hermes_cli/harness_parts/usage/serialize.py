@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from agent_runtime.clock import iso_timestamp
+from agent_runtime.provider_account_view import account_view
 
 from .detect import USAGE_SCHEMA, _usage_provider_label
 
@@ -67,6 +68,7 @@ def _unavailable_usage_lane(provider_id: str, reason: str, *, active: bool) -> d
         "display_name": _usage_provider_label(provider_id),
         "active": active,
         "available": False,
+        "account": account_view(provider_id, None),
         "plan": None,
         "source": None,
         "fetched_at": None,
@@ -93,6 +95,7 @@ def _serialize_usage_lane(provider_id: str, snapshot, *, active: bool) -> dict:
         "display_name": _usage_provider_label(provider_id),
         "active": active,
         "available": bool(snapshot.available),
+        "account": account_view(provider_id, snapshot),
         "plan": snapshot.plan,
         "source": snapshot.source,
         "fetched_at": iso_timestamp(snapshot.fetched_at),

@@ -684,24 +684,18 @@ def test_the_seeded_dev_persona_grants_the_admitted_surfaces_manual():
     assert "launcher-mcp-operations" in _persona("dev").skills
 
 
-def test_an_admitted_manual_that_is_not_installed_degrades_the_preload_quietly(
-    qa_profile, monkeypatch
-):
-    """Hermes grants the manual; it cannot install the manual's CONTENT.
+def test_an_admitted_manual_loads_on_demand_not_in_the_preload(qa_profile, monkeypatch):
+    """Owner ruling L1.13 (2026-10-10): the admitted surface's manual is read with
+    ``skill_view`` when a turn needs it, never preloaded into every chat.
 
-    ``launcher-mcp-operations`` is realm-owned — not under
-    ``docs/agent-runtime-harness/harness-skills`` and never written by
-    ``skill_install`` — so a realm pull that renames or removes it leaves the
-    grant and the admission intact while the file is gone. This drives the REAL
-    loader (``DEFAULT_RESOLVERS.build_preloaded_skills_prompt``) against a
-    HERMES_HOME where the skill is absent and pins the CURRENT behavior: the
-    chat lane never fails a turn over a preload, so the manual lands in the
-    ``missing`` accounting the observability row reports and the turn continues
-    without it. (The worker-lane analogue raises; this lane deliberately does
-    not.) Only ``consume_queued_skills`` is stubbed, because consuming the queue
-    is a real store mutation and this test is not about the queue.
+    Drives the REAL resolvers (only ``consume_queued_skills`` is stubbed — it is
+    a store mutation) for a persona that is admitted ``launcher_qa`` AND granted
+    its manual, so the manual is exactly what the old merge would have added.
+    The positive control is the bundle's ``operating_skills``: the same persona
+    still resolves the manual there, which is what keeps it in the skill index.
     """
 
+    from agent_runtime import chat_lane_bundle
     from agent_runtime import mission_chat_turn_context as turn_context
 
     _enable_root_admission(monkeypatch)
@@ -716,10 +710,11 @@ def test_an_admitted_manual_that_is_not_installed_degrades_the_preload_quietly(
         resolvers=resolvers,
     )
 
-    # Admitted + granted ⇒ runtime policy still REQUIRES it this turn ...
-    assert "launcher-mcp-operations" in preload.required
-    # ... it just is not on disk, so it is reported, not raised.
-    assert "launcher-mcp-operations" in preload.missing
+    assert chat_lane_bundle.mission_chat_operating_skills(
+        _qa_with_manual(), session_id=None
+    ) == ["launcher-mcp-operations"]
+    assert "launcher-mcp-operations" not in preload.required
+    assert "launcher-mcp-operations" not in preload.missing
     assert "launcher-mcp-operations" not in preload.loaded
 
 
@@ -843,10 +838,14 @@ def test_concurrent_admission_is_refused_not_interleaved(qa_profile):
     worker.start()
     try:
         assert in_flight.wait(5)
+        waited_from = time.perf_counter()
         second = admit_mcp_servers(
-            _admission(qa_profile), register=lambda _servers: ["should not run"]
+            _admission(qa_profile), register=lambda _servers: ["should not run"],
+            timeout_seconds=0.4,
         )
 
+        # Owner ruling 2026-10-10 (L1.11): it WAITED its budget before refusing.
+        assert time.perf_counter() - waited_from >= 0.35
         assert second.admitted == ()
         assert [row["code"] for row in second.denial_rows()] == [MCP_ADMISSION_LANE_BUSY]
         # Same fence as the timeout row: retrying is a real route, the deleted
@@ -858,6 +857,39 @@ def test_concurrent_admission_is_refused_not_interleaved(qa_profile):
     finally:
         release.set()
         worker.join(30)
+
+
+def test_a_second_admission_waits_for_the_mutex_instead_of_refusing(qa_profile):
+    """Owner ruling 2026-10-10 (L1.11): an admission behind an in-flight one waits
+    within its own budget, and registers once the mutex frees."""
+
+    in_flight = threading.Event()
+    release = threading.Event()
+    registered: list[str] = []
+
+    def _hold(_servers):
+        in_flight.set()
+        release.wait(30)
+        return []
+
+    worker = threading.Thread(
+        target=lambda: admit_mcp_servers(_admission(qa_profile), register=_hold), daemon=True
+    )
+    worker.start()
+    try:
+        assert in_flight.wait(5)
+        threading.Timer(0.2, release.set).start()
+        second = admit_mcp_servers(
+            _admission(qa_profile),
+            register=lambda servers: registered.extend(servers) or [],
+            timeout_seconds=5,
+        )
+    finally:
+        release.set()
+        worker.join(30)
+
+    assert registered, "the second admission ran its registrar after waiting"
+    assert MCP_ADMISSION_LANE_BUSY not in [row["code"] for row in second.denial_rows()]
 
 
 def test_the_single_flight_mutex_is_released_after_a_completed_admission(qa_profile):

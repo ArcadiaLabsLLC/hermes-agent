@@ -30,6 +30,16 @@ operation changes only the session unless `save_default: true` is explicit;
 both identities must be confirmed before success. Existing config/model and
 compute owners perform the write. [Shared-provider evidence](../downstream/shared-provider-authority-2026-09-29.md).
 
+Each admitted send carries its permission: the service resolves
+`permission_options_for_subject("profile:<name>", session_id=<route id>)` — the
+operator lane's resolver — and calls the worker method `eternia.permission.bind`
+(`conversations/worker_permissions.py`) with the turn's execution id and MODE
+before `prompt.submit`; the worker derives the block from its own Launcher
+catalog and binds it for that turn through `worker_app_functions.bind`. A turn
+whose mode never arrived binds `read_only` and logs `permission_bind_missing`
+(owner ruling 2026-10-15: read-only unless allowed); a turns-bounded grant is
+spent only by a turn that reached `streaming`.
+
 `agent_runtime/discussions/rpc.py` exposes the same discussion service to both
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
 identities; spatial placement remains separate.
@@ -1437,6 +1447,39 @@ authority, so in-process tool relay, CLI and serve transport get the same depth
     redeemed the pairing code that minted it. It is absent from
     `SocketConnection.payload()`, from every log line, and from `DeviceRecord`,
     which has no field for it by construction.
+
+### Provider sign-in deadline projection
+
+`provider_signin._Session.view` adds nullable `provider_started_at` and
+`provider_expires_at`, both UNIX seconds, to `runtime.provider.signin.*` results.
+`provider_browser_login.run_browser_login` forwards the same fields in an optional
+NDJSON `expiry` event. The original registry `started_at` stays session creation;
+its 15-minute cap is not advertised as the provider's code lifetime.
+
+Optional `on_expiry` callbacks on the existing Nous/xAI/MiniMax/Codex helpers
+report their provider response expiry. Codex browser login reports its actual
+loopback callback timeout. Missing device expiry and Anthropic paste-code expiry
+stay null. `tests/hermes_cli/test_provider_signin_expiry_downstream.py` proves the
+deadline through each machine driver and the registry, plus unknown/invalid values.
+
+### Provider account display projection
+
+`provider_account._usage_view` and `usage.serialize._serialize_usage_lane` emit
+the same additive `account` block: `email`, `organisation`, and `plan` are each
+string or null. Unknown stays null; account IDs and provider labels are never
+substituted for account identity. Legacy `plan` remains available.
+
+`provider_account_metadata.nous_usage_snapshot` reuses the existing portal report's
+email/organisation and usage plan. `usage_snapshot` reads existing Codex credentials
+without refresh and uses `_upstream_doors.codex_account_claims` only when their
+principal matches the usage snapshot identity. Codex email comes from that JWT's
+profile claim; organisation stays null when not reported. The current Anthropic
+OAuth usage reader provides no identity or plan; these remain null until a trusted
+report supplies them. No new account endpoint or auth flow is introduced.
+
+`provider_account_view.account_view` is pure; credential reads remain in fetch
+code. `tests/agent_runtime/test_provider_account_metadata.py` proves transport
+parity, nulls, secret exclusion, existing Nous projection and Codex account matching.
 
 ## Open rows
 

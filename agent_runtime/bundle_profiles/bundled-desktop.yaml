@@ -128,7 +128,8 @@ packaging:
   # import sites tolerate absence; this profile turns lazy installs off, so an
   # unshipped extra is an unavailable feature, never a download.
   extras:
-    # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out.
+    # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out of the
+    # wheel; since 2026-10-15 each ships as a provider pack instead (packaging.packs below).
     - anthropic     # Anthropic provider (core agent: providers On)
     - mcp           # MCP over HTTP (On); stdio servers are switched off by config
     - fal           # image generation (On)
@@ -203,8 +204,9 @@ packaging:
   # Engine packs: extras the core bundle does NOT carry. Each is built as its
   # own output (only the distributions the core lacks) and downloaded on first
   # use (owner, 2026-09-28); bundled Hermes finds an installed pack through
-  # HERMES_ENGINE_PACKS (site-packages/hermes-engine-packs.pth). No pack = the
-  # engine's imports fail = that speech provider reports unavailable.
+  # HERMES_ENGINE_PACKS (site-packages/hermes-engine-packs.pth), or, once the
+  # runtime is up, `runtime.provider.pack.activate` (agent_runtime.provider_packs).
+  # No pack = the engine's imports fail = that provider reports unavailable.
   packs:
     speech:
       extras:
@@ -212,6 +214,18 @@ packaging:
         - stt-onnx      # speech service: STT, Whisper and Parakeet TDT tiers, both on onnx-asr / onnxruntime (On)
         # (stt-whisper is upstream's faster-whisper extra: ctranslate2 + Intel OpenMP. Not shipped
         # since owner ruling 2026-09-29; full Hermes keeps it for its own local STT.)
+    # Provider packs (owner ruling 2026-10-15): one per provider SDK the wheel does not
+    # ship, downloaded by the Launcher only when the user signs in to that provider. A pack
+    # named `provider-<extra>` carries exactly that one extra; the runtime reports a provider
+    # whose missing SDK a pack carries as `pack_available` (agent_runtime.provider_packs).
+    provider-bedrock:
+      extras: [bedrock]          # boto3 + botocore, jmespath, s3transfer
+    provider-vertex:
+      extras: [vertex]           # google-auth + pyasn1, pyasn1-modules
+    provider-azure-identity:
+      extras: [azure-identity]   # Entra ID auth for azure-foundry: azure-core, msal, msal-extensions
+    provider-mistral:
+      extras: [mistral]          # mistralai: the Mistral speech providers (TTS / STT)
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
   resources:
     - skills

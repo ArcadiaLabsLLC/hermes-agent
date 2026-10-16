@@ -94,11 +94,13 @@ class AgentRunRequest:
     progress_callback: Callable[[dict[str, Any]], None] | None = None
     stream_callback: Callable[[str | None], None] | None = None
     agent_ready_callback: Callable[[Any], Callable[[], None] | None] | None = None
-    # Interactive clarify bridge: ``callback(question, choices) -> str``. On the
+    # Interactive clarify bridge, upstream's batched contract
+    # (``tools.clarify_tool``): ``callback(questions) -> {"answers", "outcome",
+    # "notice"?}`` over the normalized question list. On the
     # operator/relay chat lane this is a NON-blocking capture (records the
     # question and ends the turn) rather than the CLI's blocking human prompt;
     # unset on autonomous runs so ``clarify`` stays inert there.
-    clarify_callback: Callable[[str, list[str] | None], str] | None = None
+    clarify_callback: Callable[[list[dict[str, Any]]], dict[str, Any]] | None = None
     runtime_root: Path | None = None
     workdir: Path | None = None
     # Resolved, side-effect-free MCP admission for this run (agent_runtime.

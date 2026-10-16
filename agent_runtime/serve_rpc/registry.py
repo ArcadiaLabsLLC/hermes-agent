@@ -20,9 +20,9 @@ __layer__ = "lanes"
 __all__ = [
     "_METHODS",
     "_METHOD_TIERS",
+    "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
-    "_ensure_conversation_methods",
     "_ensure_work_methods",
     "manifest",
     "method",
@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 
-_METHODS: dict[str, Callable[[Any, dict, "RpcContext"], dict]] = {}
+_METHODS: dict[str, Callable[[Any, dict, RpcContext], dict]] = {}
 
 
 #: name → the tier a caller must hold to run it. A PARALLEL registry rather than
@@ -189,13 +189,15 @@ def manifest() -> dict[str, Any]:
     come from ``persona_open_chat``. Scoped opens never fall back to an older,
     account-blind lane. The argv twins publish theirs too (owner ruling L4.22,
     2026-10-10): ``serve_rpc.twin_params.TWIN_METHOD_PARAMS`` and the
-    ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS``.
+    ``runtime.board.*`` writes from ``board.BOARD_METHOD_PARAMS`` (characters, health,
+    the five chat-family verbs and the ten ``runtime.realm.*`` verbs in the first).
     """
 
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
     from ..persona_open_chat import OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS
     from .board import BOARD_METHOD_PARAMS
     from .twin_params import TWIN_METHOD_PARAMS
+    from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -207,6 +209,7 @@ def manifest() -> dict[str, Any]:
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
                 **BOARD_METHOD_PARAMS,
+                **SUBAGENT_METHOD_PARAMS,
             }.items())
         },
     }

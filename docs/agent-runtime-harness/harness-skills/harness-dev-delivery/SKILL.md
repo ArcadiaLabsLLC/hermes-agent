@@ -5,7 +5,7 @@ metadata:
   hermes:
     surfaces: [mission_chat]
     modes: [standard]
-    load_policy: recommended
+    load_policy: required_preload
 ---
 
 # Harness Dev Delivery

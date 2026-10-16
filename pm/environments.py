@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shlex
+import sys
 from pathlib import Path
 
 from hermes_constants import get_default_hermes_root, project_venv_dir
@@ -61,6 +62,12 @@ def owning_home_root(project_root: Path) -> Path | None:
     key = install_key(root)
     candidates = [candidate for candidate in dict.fromkeys((root.parent, _get_platform_default_hermes_home()))
                   if (candidate / "installs" / key / "facts.json").is_file()]
+    # Fork: the Launcher's layout keeps the data root BESIDE the checkout (``<parent>/.hermes``),
+    # so without this a sandbox HERMES_HOME found no owner and acted as one -- syncing a full
+    # environment and republishing the checkout's launchers on every launch.
+    sibling = root.parent / ".hermes"
+    if sibling not in candidates and (sibling / "installs" / key / "facts.json").is_file():
+        candidates.insert(1 if root.parent in candidates else 0, sibling)
     if not candidates:
         return None
     owner = _launcher_bound_root(root, candidates) or candidates[0]
@@ -574,13 +581,32 @@ def shell_exports(env: dict[str, str], dialect: str) -> str:
                      if _SHELL_IDENTIFIER.fullmatch(name) and name not in read_only)
 
 
+def _utf8_stdout() -> None:
+    """Fork: emit the exports as UTF-8 whatever the console codec is.
+
+    The readers (``activate``, ``scripts/run-in-hermes-env``) evaluate bytes, and
+    a cp1252 console (Git Bash on Windows) cannot encode a value such as a
+    non-ANSI path, so ``print`` died with ``UnicodeEncodeError`` before a single
+    export was written and the runner reported a missing environment instead.
+    """
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="strict")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Print the composed activation environment.")
     parser.add_argument("--format", choices=["json", *_SHELL_DIALECTS], default="json")
     options = parser.parse_args(argv)
     env = activation_environment(Path(__file__).resolve().parents[1])
+    _utf8_stdout()
     print(json.dumps(env) if options.format == "json" else shell_exports(env, options.format))
 
+
+# Fork (ledger row `pm/environments.py`): HERMES_DEPENDENCY_ROOT borrows a lender's environment, read-only.
+from pm._fork_dependency_borrow import borrow_dependency_home_root, borrow_owning_home_root
+dependency_home_root = borrow_dependency_home_root(dependency_home_root)
+owning_home_root = borrow_owning_home_root(owning_home_root)
 
 if __name__ == "__main__":
     main()

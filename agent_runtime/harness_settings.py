@@ -41,11 +41,6 @@ LEGACY_KEYS: dict[str, tuple[str, str]] = {
 }
 
 
-def settings_path(name: str) -> str:
-    """The dotted ``hermes config set`` path of one harness setting."""
-    return ".".join((*SETTINGS_PATH, name))
-
-
 def harness_setting(name: str, default: Any = None, *, config: Mapping | None = None) -> Any:
     """``plugins.entries.eternia-harness.settings.<name>``, else the legacy key, else ``default``."""
     if config is None:

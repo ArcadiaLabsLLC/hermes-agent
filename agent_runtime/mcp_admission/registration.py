@@ -47,7 +47,8 @@ def admit_mcp_servers(
 
     Returns an outcome rather than raising: a capability probe must never be able
     to fail a turn. Every degradation is typed —
-    ``mcp_admission_lane_busy`` (another admission in flight),
+    ``mcp_admission_lane_busy`` (another admission still in flight after this
+    one's budget, which the mutex wait and the registration share),
     ``mcp_admission_timeout`` (budget exhausted; the registrar keeps running in
     the background and may land for a LATER turn, which is why the timeout row
     says "not available for this turn" rather than "failed"), and
@@ -130,8 +131,8 @@ def _client_disabled_outcome(admission: McpAdmission) -> McpAdmissionOutcome:
 class Admission:
     """One :func:`admit_mcp_servers` call, as its phases.
 
-    ``run`` = :meth:`acquire` (the single-flight mutex; a held one is a typed
-    ``lane_busy``) → :meth:`classify` (warm / cold, after the mutex and before
+    ``run`` = :meth:`acquire` (the single-flight mutex, waited on within the budget;
+    one still held when the budget is spent is a typed ``lane_busy``) → :meth:`classify` (warm / cold, after the mutex and before
     the registrar) → the meter (one :class:`McpCallBudget` per admission) →
     :meth:`register_bounded` (the worker, waited on for the bounded budget) →
     :meth:`timed_out` or :meth:`outcome`. The WORKER releases the mutex, never the
@@ -178,15 +179,36 @@ class Admission:
     def elapsed_ms(self) -> int:
         return int((time.perf_counter() - self.started) * 1000)
 
+    def remaining_budget(self) -> float:
+        """What is left of this admission's ONE budget (the mutex wait spends it too)."""
+
+        return max(0.0, self.budget - (time.perf_counter() - self.started))
+
     def acquire(self) -> McpAdmissionOutcome | None:
+        """Take the single-flight mutex, WAITING for an in-flight admission.
+
+        Owner ruling 2026-10-10 (queue-sweep L1.11): the next admission waits on
+        the mutex within its own budget instead of refusing at once, so one
+        abandoned registration (its worker still connecting past its caller's
+        budget) no longer starves the next turn. ``abandon`` stops the wait as it
+        stops the registration wait. Only a mutex still held when the budget is
+        spent answers ``mcp_admission_lane_busy``.
+        """
+
         if _ADMISSION_LOCK.acquire(blocking=False):
             return None
+        while (remaining := self.remaining_budget()) > 0:
+            if _ADMISSION_LOCK.acquire(timeout=min(_ABANDON_POLL_SECONDS, remaining)):
+                return None
+            if self.abandon is not None and self.abandon():
+                break
         busy = tuple(
             McpAdmissionDenial(
                 server=name,
                 code=MCP_ADMISSION_LANE_BUSY,
                 summary=(
-                    f"Another MCP admission is in flight in this process, so '{name}' "
+                    f"Another MCP admission was still in flight in this process after "
+                    f"this turn's {self.budget:.0f}s admission budget, so '{name}' "
                     "was not registered for this turn."
                 ),
                 fix_hint=(
@@ -261,9 +283,10 @@ class Admission:
             _ADMISSION_LOCK.release()
             logger.warning("MCP admission could not start its registration thread", exc_info=True)
             return None
+        budget = self.remaining_budget()
         if self.abandon is None:
-            return self.done.wait(self.budget)
-        deadline = time.perf_counter() + self.budget
+            return self.done.wait(budget)
+        deadline = time.perf_counter() + budget
         while not self.done.wait(min(_ABANDON_POLL_SECONDS, max(0.0, deadline - time.perf_counter()))):
             if time.perf_counter() >= deadline or self.abandon():
                 return False

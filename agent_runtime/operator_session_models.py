@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import closing, contextmanager
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from . import chat_session_scope, paths
@@ -18,7 +19,8 @@ from .persona_assignments import PersonaInstanceStore
 from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
 from .persona_chat_session import (
-    _persist_chat_model_override, log_model_selection, reasoning_effort_label,
+    _chat_model_override_from_config, _persist_chat_model_override, _session_model_config,
+    log_model_selection, reasoning_effort_label,
 )
 from .profile_context import persona_profile_scope, resolve_persona_profile
 from .session_model_catalog import choices, facts, model_key
@@ -120,10 +122,18 @@ _SAVED = {"conversation": "session_override",
           "agent_default": "persona_instance_store+session_override_cleared"}
 
 
+def _receipt_choice(params: dict) -> str | None:
+    model_id = params.get("model_id") if isinstance(params.get("model_id"), str) else None
+    effort = params.get("reasoning_effort")
+    if not isinstance(effort, str):
+        return model_id
+    return f"{model_id or '-'},effort={effort or 'inherit'}"
+
+
 def select_operator_model(params: dict) -> dict:
     receipt = dict(verb="runtime.operator.conversation.model.select",
                    target=params.get("session_id"), scope=str(params.get("scope") or "-"),
-                   chosen=params.get("model_id") if isinstance(params.get("model_id"), str) else None)
+                   chosen=_receipt_choice(params))
     try:
         facts = _select_operator_model(params)
     except Exception as exc:
@@ -135,7 +145,41 @@ def select_operator_model(params: dict) -> dict:
     return facts
 
 
+def _chat_effort_request(params: dict) -> str | None:
+    """The chat-tier effort a selection carries: a level, ``""`` (inherit), or ``None`` (absent).
+
+    One chat can run quick and another deep without moving their agent default, so an effort
+    is a CONVERSATION choice only, and it travels alone (``model_id`` absent): the levels it is
+    checked against are the chat's current model's (``reasoning_capabilities``)."""
+    if "reasoning_effort" not in params:
+        return None
+    effort = params["reasoning_effort"]
+    if (not isinstance(effort, str) or params.get("scope") != "conversation"
+            or params.get("model_id") is not None or params.get("use_agent_default", False) is not False):
+        raise OperatorConversationRefused("invalid_model_selection")
+    return effort.strip().lower()
+
+
+def _check_chat_effort(params: dict, effort: str) -> None:
+    if not effort:
+        return
+    capabilities = inspect_operator_settings(params)["model"]["reasoning_capabilities"]
+    if capabilities.get("state") == "unsupported":
+        raise OperatorConversationRefused("reasoning_unsupported")
+    levels = capabilities.get("levels")
+    if capabilities.get("state") == "supported" and levels:
+        allowed = set(levels)
+    else:
+        from hermes_constants import VALID_REASONING_EFFORTS
+        allowed = {"none", *VALID_REASONING_EFFORTS}
+    if effort not in allowed:
+        raise OperatorConversationRefused("invalid_reasoning_effort")
+
+
 def _select_operator_model(params: dict) -> dict:
+    effort = _chat_effort_request(params)
+    if effort is not None:
+        return _select_chat_effort(params, effort)
     scope, choice = params.get("scope"), params.get("model_id")
     inherit = params.get("use_agent_default", False)
     if type(inherit) is not bool or scope not in ("conversation", "agent_default"):
@@ -154,6 +198,36 @@ def _select_operator_model(params: dict) -> dict:
     except PersonaChatBusyError as exc:
         raise OperatorConversationRefused("conversation_busy") from exc
     return operator_model_facts(params)
+
+
+def _select_chat_effort(params: dict, effort: str) -> dict:
+    with operator_session_read(params):
+        _require_idle(params["session_id"])
+    _check_chat_effort(params, effort)
+    try:
+        with persona_chat_root_lease(params["session_id"], observer_kind="model_selection"):
+            _require_idle(params["session_id"])
+            # The owner-checked session-db writer has ONE authority (rule 15).
+            from .operator_undo import _undo_store_writer
+
+            with _undo_store_writer(params) as db:
+                _persist_chat_model_override(session_db=db, session_id=params["session_id"],
+                                             override=_with_chat_effort(db, params["session_id"], effort or None))
+    except PersonaChatBusyError as exc:
+        raise OperatorConversationRefused("conversation_busy") from exc
+    return operator_model_facts(params)
+
+
+def _with_chat_effort(db, session_id: str, effort: str | None, base: dict | None = None) -> dict:
+    """The chat override with *effort* as its effort tier; *base* (default: the stored override)
+    keeps its model tier. A result naming nothing clears the override."""
+    if base is None:
+        base = _chat_model_override_from_config(_session_model_config(db, session_id)) or {}
+    if not (base.get("provider") or base.get("model") or effort):
+        return {"schema_version": 1, "clear": True}
+    return {"schema_version": 1, "provider": base.get("provider"), "model": base.get("model"),
+            "reasoning_effort": effort, "source": "operator", "scope": "mission_control_chat_session",
+            "updated_at": datetime.now(UTC).isoformat()}
 
 
 def _write_model(params: dict, selection: tuple[str, str, str] | None, *, save_default: bool,
@@ -178,4 +252,11 @@ def _write_model(params: dict, selection: tuple[str, str, str] | None, *, save_d
         override = _requested_chat_model_override(SimpleNamespace(
             provider=None if inherit else provider, model=None if inherit else model,
             use_agent_default=inherit))
+        if save_default:
+            # Saving the agent default clears this chat's MODEL tier; its own effort stays
+            # (a chat model pick keeps it in _persist_chat_model_override; only "use the agent
+            # default" resets both).
+            kept = _chat_model_override_from_config(_session_model_config(db, params["session_id"])) or {}
+            if kept.get("reasoning_effort"):
+                override = _with_chat_effort(db, params["session_id"], kept["reasoning_effort"], base={})
         _persist_chat_model_override(session_db=db, session_id=params["session_id"], override=override)

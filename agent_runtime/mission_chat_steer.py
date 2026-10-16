@@ -10,7 +10,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .paths import unlink_quietly
 
@@ -26,6 +26,7 @@ class MissionChatSteerHandle:
     runtime_root: Path
     session_id: str
     agent: Any
+    input_position: Callable[[], dict[str, Any]] | None = None
     stop_event: threading.Event = field(default_factory=threading.Event)
     processed_client_ids: set[str] = field(default_factory=set)
     thread: threading.Thread | None = None
@@ -46,6 +47,7 @@ def start_active_mission_chat_turn(
     persona_instance_id: str | None = None,
     client_message_id: str | None = None,
     poll_seconds: float = _POLL_SECONDS,
+    input_position: Callable[[], dict[str, Any]] | None = None,
 ) -> MissionChatSteerHandle:
     """Register a live Mission Control chat turn and watch its steer inbox."""
 
@@ -73,6 +75,7 @@ def start_active_mission_chat_turn(
         runtime_root=root,
         session_id=normalized_session_id,
         agent=agent,
+        input_position=input_position,
     )
     handle.thread = threading.Thread(
         target=_watch_inbox,
@@ -93,6 +96,7 @@ def submit_mission_chat_steer(
     persona_id: str | None = None,
     persona_instance_id: str | None = None,
     timeout_seconds: float = _ACK_TIMEOUT_SECONDS,
+    notification: bool = False,
 ) -> dict[str, Any]:
     normalized_session_id = (session_id or "").strip()
     normalized_client_id = (client_message_id or "").strip()
@@ -132,6 +136,7 @@ def submit_mission_chat_steer(
                 "persona_id": persona_id,
                 "persona_instance_id": persona_instance_id,
                 "message": normalized_message,
+                "notification": notification,
                 "created_at": time.time(),
             },
         )
@@ -206,12 +211,21 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
         unlink_quietly(path)
         return
     try:
-        steer(message)
+        from agent.steering import PendingSteer
+        from tools.process_registry_notifications import TimelineNotification
+
+        position = handle.input_position() if handle.input_position else {}
+        text = (TimelineNotification(message, "Background process update", "process_completed")
+                if request.get("notification") is True else message)
+        pending = PendingSteer.from_text(text, platform_id=client_message_id, metadata=position)
+        if steer(pending) is False:
+            raise ValueError("agent refused the input")
         handle.processed_client_ids.add(client_message_id)
-        _mirror_steer_to_live_log(handle.session_id, message, client_message_id)
+        _mirror_steer_to_live_log(handle.session_id, message, client_message_id,
+                                position=position, notification=request.get("notification") is True)
         _write_json_atomic(
             ack_path,
-            _accepted(session_id=handle.session_id, client_message_id=client_message_id),
+            {**_accepted(session_id=handle.session_id, client_message_id=client_message_id), **position},
         )
     except Exception as exc:
         _write_json_atomic(
@@ -227,7 +241,8 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
         unlink_quietly(path)
 
 
-def _mirror_steer_to_live_log(session_id: str, message: str, client_message_id: str) -> None:
+def _mirror_steer_to_live_log(session_id: str, message: str, client_message_id: str,
+                            *, position: dict[str, Any], notification: bool) -> None:
     """Put an accepted mid-turn steer into the session's live chat log.
 
     ``handle.session_id`` is the ROOT chat session (``_agent_ready_for_steer``
@@ -245,14 +260,16 @@ def _mirror_steer_to_live_log(session_id: str, message: str, client_message_id: 
 
         record_chat_message(
             session_id=session_id,
-            role="operator",
+            role="system" if notification else "operator",
             text=message,
             client_message_id=client_message_id,
-            steered=True,
+            steered=not notification,
+            turn_id=position.get("turn_id"),
+            turn_seq=position.get("turn_seq"),
         )
     except Exception:
-        return None
-    return None
+        return
+    return
 
 
 def _accepted(*, session_id: str, client_message_id: str, duplicate: bool = False) -> dict[str, Any]:

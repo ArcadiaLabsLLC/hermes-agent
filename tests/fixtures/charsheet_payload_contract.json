@@ -240,7 +240,7 @@
         "palette"
       ],
       "object": "",
-      "producer": "hermes_cli/harness.py::_characters_draft_summary / _characters_installed_rows"
+      "producer": "agent/charsheet/draft/payloads.py::draft_summary / installed_rows"
     },
     "sprite": {
       "argv": "harness characters sprite <slug> --json [--no-sheet]",
@@ -521,7 +521,7 @@
         "sheet"
       ],
       "object": "character",
-      "producer": "agent/charsheet/draft.py::sprite_payload"
+      "producer": "agent/charsheet/draft/installed.py::sprite_payload"
     },
     "status": {
       "argv": "harness characters status --draft <id> --json",
@@ -1107,7 +1107,7 @@
         "palette"
       ],
       "object": "status",
-      "producer": "agent/charsheet/draft.py::CharacterDraft.status_payload"
+      "producer": "agent/charsheet/draft/draft.py::CharacterDraft.status_payload"
     },
     "thumb": {
       "argv": "harness characters thumb --draft <id> (--row <key> | --direction <dir>) --json",
@@ -1250,7 +1250,7 @@
         "row"
       ],
       "object": "",
-      "producer": "agent/charsheet/draft.py::CharacterDraft.row_thumb / CharacterDraft.direction_thumb"
+      "producer": "agent/charsheet/draft/draft.py::CharacterDraft.row_thumb / CharacterDraft.direction_thumb"
     }
   },
   "schema": "charsheet_payload_contract/v1"

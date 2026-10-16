@@ -40,6 +40,10 @@ OPERATOR = str(MessageRole.OPERATOR)
 AGENT = str(MessageRole.AGENT)
 SYSTEM = str(MessageRole.SYSTEM)
 
+_OPERATOR_OUTCOME_STATUS = {
+    "failed": "failed", "provider_refused": "failed", "interrupted": "interrupted",
+}
+
 
 @dataclass(frozen=True)
 class RowShape:
@@ -229,10 +233,16 @@ class HistoryMessage:
         settled_state = safe_assignment_token(self.row.get("settled_state"))
         if settled_state:
             message["settled_state"] = settled_state
+        for key in ("resolution", "operator_message_present"):
+            if key in self.row:
+                message[key] = self.row[key]
         if self.client_message_id:
             message["client_message_id"] = self.client_message_id
         if turn_id:
             message["turn_id"] = turn_id
+        refusal = self.row.get("provider_refusal")
+        if isinstance(refusal, dict):
+            message["provider_refusal"] = dict(refusal)
         _carry_turn_seq(message, self.row)
         _carry_history_run_budget(message, self.row)
         _carry_retry_lineage(message, self.row)
@@ -245,7 +255,8 @@ class HistoryMessage:
             "actor_instance_id": shape.actor_instance_id,
             "role": self.role,
             "kind": shape.kind,
-            "status": "delivered",
+            "status": (_OPERATOR_OUTCOME_STATUS.get(self.row.get("settled_state"), "delivered")
+                       if self.role == OPERATOR else "delivered"),
             "display_title": "",
             "display_text": self.text,
             "redaction_status": self._redaction(),
@@ -254,6 +265,8 @@ class HistoryMessage:
 
     def annotate(self, message: dict[str, Any], shape: RowShape) -> None:
         row = self.row
+        if self.role == OPERATOR and row.get("settled_state"):
+            message["settled_state"] = row["settled_state"]
         runtime_context = row.get("runtime_context")
         if self.role == OPERATOR and isinstance(runtime_context, dict):
             message["runtime_context"] = {
@@ -276,18 +289,21 @@ class HistoryMessage:
         _carry_turn_seq(message, row)
         _carry_history_run_budget(message, row)
         _carry_retry_lineage(message, row)
+        if row.get("steered"):
+            message["steered"] = True
 
     def _turn_identity(self, message: dict[str, Any]) -> None:
-        if not self.client_message_id:
-            return
-        if self.role == OPERATOR:
+        # System notifications retain their recorded position too. Only an
+        # operator/agent row may derive a turn identity from a client id.
+        turn_id = safe_assignment_token(self.row.get("turn_id"))
+        if self.client_message_id:
             message["client_message_id"] = self.client_message_id
-            message["turn_id"] = canonical_persona_chat_turn_id(self.client_message_id)
-        elif self.role == AGENT:
-            message["turn_id"] = canonical_persona_chat_turn_id(
-                self.client_message_id
-            ) or safe_assignment_token(self.row.get("turn_id"))
-            message["client_message_id"] = self.client_message_id
+            if self.role == OPERATOR:
+                turn_id = turn_id or canonical_persona_chat_turn_id(self.client_message_id)
+            elif self.role == AGENT:
+                turn_id = canonical_persona_chat_turn_id(self.client_message_id) or turn_id
+        if turn_id:
+            message["turn_id"] = turn_id
 
 
 def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:

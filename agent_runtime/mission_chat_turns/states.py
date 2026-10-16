@@ -9,7 +9,7 @@ two state readers. Imports nothing in its package.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 from agent_runtime.serde import safe_assignment_token
@@ -155,6 +155,21 @@ RESEND_BLOCKING_TURN_STATES = frozenset(
 # The only states ``turn-resolve --action abandon`` accepts: the genuinely
 # ambiguous provider outcome, and nothing else.
 OPERATOR_RESOLVABLE_TURN_STATES = frozenset({TURN_STATE_OUTCOME_UNKNOWN})
+
+
+class TurnResolution(StrEnum):
+    """Operator actions on existing records; dismissal retains the terminal outcome."""
+
+    ABANDON = "abandon"
+    DISMISS = "dismiss"
+
+    @property
+    def states(self) -> frozenset[str]:
+        return OPERATOR_RESOLVABLE_TURN_STATES if self is self.ABANDON else frozenset({TURN_STATE_INTERRUPTED})
+
+    @property
+    def result_state(self) -> str:
+        return TURN_STATE_ABANDONED if self is self.ABANDON else TURN_STATE_INTERRUPTED
 
 # A legacy record entering the journal lane is read as its journal equivalent.
 _LEGACY_TO_JOURNAL_STATE = {

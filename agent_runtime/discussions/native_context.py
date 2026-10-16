@@ -60,9 +60,11 @@ class NativeContext:
             return workspace
 
     def resolve(self, ref: ParticipantRef, workspace_id: str, *,
-                require_placement: bool = True, require_ready: bool = True) -> dict[str, Any]:
+                require_placement: bool = True, require_ready: bool = True,
+                personas: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """One member's live binding. ``personas`` (id -> persona) lets a caller that
+        resolves many members load the runtime config ONCE (``roster``)."""
         from agent_runtime.persona_assignments import PersonaInstanceStore
-        from agent_runtime.config import load_agent_runtime_config, ensure_persisted_personas
         from agent_runtime.profile_context import resolve_persona_profile, active_profile_name
         from agent_runtime.workspace_scope import effective_workspace_id
         from agent_runtime.persona_lifecycle import is_runtime_persona
@@ -80,7 +82,8 @@ class NativeContext:
                 raise DiscussionError("instance_retired", instance_id=ref.instance_id)
             if require_placement and effective_workspace_id(instance, active_workspace_id=workspace_id) != workspace_id:
                 raise DiscussionError("foreign_workspace", instance_id=ref.instance_id)
-            personas = {p.id: p for p in ensure_persisted_personas(load_agent_runtime_config())}
+            if personas is None:
+                personas = self._personas()
             persona = personas.get(instance.persona_id)
             if persona is None or not is_runtime_persona(persona):
                 raise DiscussionError("persona_not_found", instance_id=ref.instance_id)
@@ -99,11 +102,19 @@ class NativeContext:
         return self.resolve(ParticipantRef(member["install_id"], member["instance_id"]),
                             run["workspace_id"], require_placement=run["table_id"] is not None)
 
+    @staticmethod
+    def _personas() -> dict[str, Any]:
+        from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+
+        return {p.id: p for p in ensure_persisted_personas(load_agent_runtime_config())}
+
     def roster(self, workspace_id: str) -> list[dict[str, Any]]:
         from agent_runtime.persona_assignments import PersonaInstanceStore
         with self.scope():
             self.workspace(workspace_id)
             result = []
+            # Loaded once for the whole walk; ``roster`` is a polled read.
+            personas = self._personas()
             scan = PersonaInstanceStore().scan_all()
             if scan.unreadable:
                 raise DiscussionError("roster_unreadable", count=scan.unreadable)
@@ -112,7 +123,7 @@ class NativeContext:
             for instance in scan.instances:
                 ref = ParticipantRef(self.install_id, instance.id)
                 try:
-                    row = self.resolve(ref, workspace_id)
+                    row = self.resolve(ref, workspace_id, personas=personas)
                     row.update(available=True, reason=None)
                 except DiscussionError as exc:
                     if exc.reason == "foreign_workspace":

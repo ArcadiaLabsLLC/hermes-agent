@@ -90,11 +90,11 @@ def _warm_skill_catalog(agent) -> None:
 _FIRST_TURN_STORE_STEPS = (("skill_catalog", _warm_skill_catalog),)
 
 __all__ = [
-    "AgentRunExecution",
     "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
     "_RUNTIME_RESOLVE_CACHE",
     "_RUNTIME_RESOLVE_CACHE_LOCK",
     "_RUNTIME_RESOLVE_STAMPED_FILES",
+    "AgentRunExecution",
     "_blocked_tool_names_for_run",
     "_cleanup_agent_ready",
     "_emit_agent_ready_callback_warning",
@@ -108,7 +108,7 @@ __all__ = [
 
 # ── which tools and toolsets a run may use ──────────────────────────────────
 
-def _blocked_tool_names_for_run(request: "AgentRunRequest") -> list[str]:
+def _blocked_tool_names_for_run(request: AgentRunRequest) -> list[str]:
     """Registry hygiene plus this run's admission-scoped MCP tool block."""
 
     names = _blocked_tool_names_with_registry_hygiene(request.blocked_tool_names)
@@ -124,7 +124,7 @@ def _blocked_tool_names_for_run(request: "AgentRunRequest") -> list[str]:
 
 
 def _enabled_toolsets_for_run(
-    request: "AgentRunRequest", admitted_servers: tuple[str, ...] = ()
+    request: AgentRunRequest, admitted_servers: tuple[str, ...] = ()
 ) -> list[str] | None:
     """Scope this run's toolsets to the MCP servers it was ADMITTED.
 
@@ -216,6 +216,21 @@ def _runtime_resolve_cache_key(request: AgentRunRequest) -> tuple:
         tuple(stamps),
         authentication_owner_stamps(),
     )
+
+
+def _run_transport(request: AgentRunRequest, runtime: dict) -> dict:
+    """``api_mode`` + ``base_url`` for the run, decided as ONE pair. An OpenCode relay serves
+    Anthropic-wire, Responses and chat/completions models behind one provider, so a persisted
+    instance/persona ``api_mode`` (the provider default) is wrong for every model but one; the relay's
+    per-model authority, ``opencode_transport``, decides both halves so the URL and the client agree."""
+    from agent.opencode_affinity import opencode_transport
+
+    base_url = runtime.get("base_url")
+    api_mode, url = opencode_transport(runtime.get("provider") or request.provider,
+                                       runtime.get("model") or request.model, base_url)
+    if api_mode is not None:
+        return {"api_mode": api_mode, "base_url": url or base_url}
+    return {"api_mode": request.api_mode or runtime.get("api_mode"), "base_url": base_url}
 
 
 def _resolve_request_runtime(
@@ -500,6 +515,7 @@ class AgentRunExecution:
         from ..terminal_envelope.records import terminal_envelope_scope
         from agent_runtime.skill_resolution import skill_runtime_scope
         from ..local_llama_adapter.provider import prewarm_scope
+        from ..session_controls import session_approval_scope
 
         with (
             _WORKDIR_LOCK,
@@ -513,6 +529,7 @@ class AgentRunExecution:
             # delegations from this run carry a session_key the completion
             # drain can resolve to a chat root (see chat_root_session_key_scope).
             chat_root_session_key_scope(request.tool_execution_scope_id),
+            session_approval_scope(None if request.prewarm_only else request.root_chat_session_id),
             # Bound for the whole run so the terminal tool can resolve which
             # lane/role it is executing under. Deliberately INSIDE
             # persona_profile_context but independent of it: the envelope's
@@ -684,8 +701,7 @@ class AgentRunExecution:
         built = runner._agent_factory(
             provider=runtime.get("provider") or request.provider,
             model=runtime.get("model") or request.model or "",
-            api_mode=request.api_mode or runtime.get("api_mode"),
-            base_url=runtime.get("base_url"),
+            **_run_transport(request, runtime),
             api_key=runtime.get("api_key"),
             **construction_kwargs(runtime),
             **self.reasoning_kwargs,
@@ -707,10 +723,22 @@ class AgentRunExecution:
         from agent_runtime.chat_lane_skill_index import apply_chat_lane_skill_scope
 
         apply_chat_lane_skill_scope(built, request.chat_lane_index_skills)
+        self.apply_chat_speed(built)
         self.timing["agent_construct_ms"] = _emit_request_timing(
             request, "agent_construct", construct_started
         )
         return built
+
+    def apply_chat_speed(self, agent) -> None:
+        if not self.request.root_chat_session_id:
+            return
+        from ..session_controls import apply_session_speed, resolved_session_controls
+
+        controls = resolved_session_controls(self.request.root_chat_session_id,
+            provider=self.runtime.get("provider") or self.request.provider,
+            model=self.runtime.get("model") or self.request.model,
+            **_run_transport(self.request, self.runtime))
+        apply_session_speed(agent, controls)
 
     def acquire_agent(self) -> None:
         request, timing = self.request, self.timing
@@ -775,6 +803,7 @@ class AgentRunExecution:
             _prepare_resident_persona_chat_agent(entry.agent, self.turn_state)
             # The effort is per RUN, not per actor: a reused actor sends this run's.
             entry.agent.reasoning_config = self.reasoning_kwargs.get("reasoning_config")
+            self.apply_chat_speed(entry.agent)
         self.agent = entry.agent
         timing["resident_actor_reused"] = 1 if reused else 0
         if rebuild_reason:

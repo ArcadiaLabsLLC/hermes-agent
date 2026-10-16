@@ -121,6 +121,10 @@ class SettleRecord:
     #: the schema version does not move, so an older serve still reads it).
     rearm_count: int = 0
     rearmed_at: str | None = None
+    #: The boot id of the serve that wrote the record (additive; ``None`` on a record
+    #: written before it existed, or by a writer with no serve). Owner ruling
+    #: 2026-10-10 (L5.10): a non-owner serve pushes only records it wrote.
+    recorded_by: str | None = None
 
     def as_row(self) -> dict[str, Any]:
         """The stored record as one listing row (the operator verbs' shape)."""
@@ -236,6 +240,7 @@ def record_settle(
     request_id: str,
     exit_code: int,
     outcome: TurnOutcome,
+    recorded_by: str | None = None,
 ) -> SettleRecord | None:
     """Durable BEFORE the exit frame. ``None`` when there is nothing to push.
 
@@ -269,6 +274,7 @@ def record_settle(
             settled_at=stamp,
             next_attempt_at=stamp,
             updated_at=stamp,
+            recorded_by=_settle_text(recorded_by),
         )
         _write(record)
         return record

@@ -713,3 +713,11 @@ def test_every_owned_member_has_a_producer_in_the_cli_lane():
         "turn-outcome member(s) nothing in the CLI lane can produce: "
         f"{unproduced}"
     )
+
+
+def test_positive_dispatch_evidence_wins_over_missing_handoff():
+    from agent.auxiliary_unavailable import ProviderNotConfiguredError
+
+    result = classify_turn_failure(ProviderNotConfiguredError("setup unavailable"), provider_submitted=True, request_started=False, request_dispatched=True)
+    assert result.error_kind == ChatErrorKind.CHAT_TURN_OUTCOME_UNKNOWN
+    assert result.provider_refusal is None

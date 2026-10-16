@@ -408,7 +408,6 @@ def _admitted_clause(
     if not names:
         return ""
     listed = ", ".join(dict.fromkeys(names))
-    return (
-        f" Admitted on this turn: {listed}. Call tools present in your tool list directly; "
-        "discover deferred tools with tool_search and invoke them through tool_call."
-    )
+    # Facts only (owner ruling L2.12, 2026-10-10): how to reach a deferred tool is
+    # the capability block's deferred line, not a second copy here.
+    return f" Admitted on this turn: {listed}."

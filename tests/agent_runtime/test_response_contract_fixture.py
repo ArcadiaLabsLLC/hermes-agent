@@ -454,3 +454,24 @@ def test_no_realm_sync_fixture_carries_a_machine_path(name):
     raw = (FIXTURES / name).read_text(encoding="utf-8")
     for leak in ("C:\\", "X:\\", "/tmp/", "AppData", "Temp", "hermes-response-fixtures"):
         assert leak not in raw, f"{name} leaks a machine path fragment {leak!r}"
+
+
+# --------------------------------------------------------------------------- #
+# THE LAUNCHER MIRROR (owner ruling 2026-10-15: one regeneration writes both)
+# --------------------------------------------------------------------------- #
+def test_the_generator_mirrors_every_envelope_and_the_manifest_byte_for_byte(tmp_path):
+    generator = importlib.import_module(_GENERATOR)
+    mirror = tmp_path / generator.LAUNCHER_MIRROR
+    mirror.mkdir(parents=True)
+    (mirror / "README.md").write_text("the launcher's own", encoding="utf-8")
+    generator.mirror_to(tmp_path)
+    for name in (*generator.FIXTURE_CASES, "MANIFEST.sha256"):
+        assert (mirror / name).read_bytes() == (FIXTURES / name).read_bytes(), name
+    assert (mirror / "README.md").read_text(encoding="utf-8") == "the launcher's own"
+
+
+def test_a_missing_launcher_mirror_is_refused_not_created(tmp_path):
+    generator = importlib.import_module(_GENERATOR)
+    with pytest.raises(generator.MirrorMissing):
+        generator.mirror_to(tmp_path)
+    assert not (tmp_path / generator.LAUNCHER_MIRROR).exists()

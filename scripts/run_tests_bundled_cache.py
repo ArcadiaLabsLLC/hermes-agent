@@ -41,6 +41,7 @@ ALL_EXCLUDED_PREFIXES = ("Harness_Brain/", "docs/")
 RUNNER_GLOBS = (
     "scripts/run_tests_bundled*.py", "scripts/_bundle_plugin/*", "scripts/run_tests_bundled.sh",
     "scripts/run_tests.sh", "scripts/run_tests_parallel.py", "scripts/_activation.sh",
+    "scripts/_fork_test_env.sh", "scripts/fork_test_env.txt",
     "scripts/ensure_fork_dev_deps.py", "scripts/test_*.txt",
     "tests/fixtures/upstream_skip_list.txt", "tests/fixtures/upstream_manifest.txt",
 )
@@ -55,11 +56,14 @@ MISSING = "MISSING"
 #: compact green.jsonl / deps.jsonl to their newest line per file past this; modsets.jsonl past the second
 COMPACT_BYTES = 4 << 20
 MODSETS_COMPACT_BYTES = 32 << 20
+#: archive ``runs.jsonl`` past this, keeping its newest RUNS_KEEP lines live
+RUNS_COMPACT_BYTES = 8 << 20
+RUNS_KEEP = 50
 #: owner ruling Q2: a green older than this misses
 DEFAULT_MAX_AGE_DAYS = 14.0
 #: a file that was flaky, leaked or went unreached is cached again only after this many greens in a row
 PROBATION_GREENS = 2
-PROBATION_DROPS = frozenset({"flaky", "leak", "unreached"})
+PROBATION_DROPS = frozenset({"flaky", "leak", "unreached", "abnormal-exit"})
 
 
 def gate_store_dir(repo_root: Path, primary: Optional[Path], override: Optional[str] = None) -> Path:
@@ -87,10 +91,25 @@ class FileDeps:
     spawn_other: int = 0
     #: records written by Python children that inherited the file (stage 1b)
     child_records: int = 0
+    #: fixtures the file's tests set up (``fx``), and whether every record of it said so
+    fixtures: set = field(default_factory=set)
+    fx_records: int = 0
+    deps_records: int = 0
+    #: paths the file itself opened (not the session's imports), and what its children touched:
+    #: both stay keyed by their whole blob (``run_tests_bundled_fixtures``)
+    own: set = field(default_factory=set)
+    opaque: set = field(default_factory=set)
 
     @property
     def spawned(self) -> bool:
         return bool(self.spawn_py or self.spawn_other)
+
+    @property
+    def fx(self) -> Optional[list[str]]:
+        """The fixtures the file set up, or None when a record did not say (the blob key applies)."""
+
+        known = self.deps_records and self.fx_records == self.deps_records
+        return sorted(self.fixtures) if known else None
 
     def merge(self, record: dict, mods: Iterable[str]) -> None:
         self.paths.update(record.get("paths") or ())
@@ -98,6 +117,25 @@ class FileDeps:
         self.mods.update(mods)
         self.spawn_py += int(record.get("spawn_py") or 0)
         self.spawn_other += int(record.get("spawn_other") or 0)
+
+    def merge_deps(self, record: dict, mods: Iterable[str]) -> None:
+        """One ``deps`` line of the test process (its fixtures and own opens, when recorded)."""
+
+        self.merge(record, mods)
+        self.deps_records += 1
+        if isinstance(record.get("fx"), list):
+            self.fx_records += 1
+            self.fixtures.update(record["fx"])
+        self.own.update(record.get("own") or ())
+
+    def merge_child(self, record: dict) -> None:
+        """One ``child`` line: a Python child's paths and modules are never fingerprinted."""
+
+        mods = record.get("mods") or ()
+        self.merge(record, mods)
+        self.child_records += 1
+        self.opaque.update(record.get("paths") or ())
+        self.opaque.update(mods)
 
     @property
     def child_covered(self) -> bool:
@@ -148,11 +186,9 @@ class DepsCollector:
                 continue
             if record.get("k") == "deps":
                 mods.update(record.get("mods_add") or ())
-                self.files.setdefault(record["f"], FileDeps()).merge(record, mods)
+                self.files.setdefault(record["f"], FileDeps()).merge_deps(record, mods)
             elif record.get("k") == "child":  # a Python child of the file (sitecustomize, stage 1b)
-                deps = self.files.setdefault(record["f"], FileDeps())
-                deps.merge(record, record.get("mods") or ())
-                deps.child_records += 1
+                self.files.setdefault(record["f"], FileDeps()).merge_child(record)
 
 
 # ── The store ───────────────────────────────────────────────────────────────
@@ -211,13 +247,18 @@ class StoredDeps:
     spawn_other: int
     child_records: int
     run: str
+    #: the fixtures the file set up (None: not recorded, blob keys) and the paths kept by blob
+    fx: Optional[list[str]] = None
+    keep: list[str] = field(default_factory=list)
 
 
 class GateStore:
     """``<store>/``: ``deps.jsonl`` + ``modsets.jsonl`` (what each file
     depends on), ``green.jsonl`` (its last green and the key it ran under),
     ``runs.jsonl`` (the run record, ex ``.pytest_cache/hermes_bundled_runs.jsonl``),
-    ``durations.json`` (clean-pass seconds, rel-keyed) and ``generation``."""
+    ``durations.json`` (clean-pass seconds, rel-keyed) and ``generation``.
+    ``runs.archive.jsonl`` holds the run lines compaction moved out of ``runs.jsonl``,
+    verbatim: an investigation receipt is moved, never discarded."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
@@ -225,6 +266,7 @@ class GateStore:
         self.modsets = self.root / "modsets.jsonl"
         self.green = self.root / "green.jsonl"
         self.runs = self.root / "runs.jsonl"
+        self.runs_archive = self.root / "runs.archive.jsonl"
         self.durations = self.root / "durations.json"
         self.generation_file = self.root / "generation"
         self._known_modsets: Optional[set] = None
@@ -246,11 +288,14 @@ class GateStore:
             if digest not in known:
                 known.add(digest)
                 modsets.append({"id": digest, "z": _pack(deps.mods)})
-            lines.append({
+            line = {
                 "f": rel, "run": run_id, "paths": sorted(deps.paths), "dirs": sorted(deps.dirs),
                 "mods": [digest], "spawn_py": deps.spawn_py, "spawn_other": deps.spawn_other,
                 "child": deps.child_records,
-            })
+            }
+            if deps.fx is not None:
+                line.update(fx=deps.fx, keep=sorted(deps.own | deps.opaque))
+            lines.append(line)
         _append_lines(self.modsets, modsets)
         _append_lines(self.deps, lines)
 
@@ -263,7 +308,8 @@ class GateStore:
             out[rel] = StoredDeps(
                 rel, list(r.get("paths") or ()), list(r.get("dirs") or ()), list(r.get("mods") or ()),
                 int(r.get("spawn_py") or 0), int(r.get("spawn_other") or 0), int(r.get("child") or 0),
-                str(r.get("run") or ""),
+                str(r.get("run") or ""), list(r["fx"]) if isinstance(r.get("fx"), list) else None,
+                list(r.get("keep") or ()),
             )
         return out
 
@@ -338,11 +384,20 @@ class GateStore:
 
     # ── compaction ──
 
-    def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES) -> List[str]:
+    def compact(self, limit: int = COMPACT_BYTES, modsets_limit: int = MODSETS_COMPACT_BYTES,
+                runs_limit: int = RUNS_COMPACT_BYTES, runs_keep: int = RUNS_KEEP) -> List[str]:
         """Rewrite ``green.jsonl`` and ``deps.jsonl`` to the NEWEST line per file
         once one passes ``limit`` bytes, and ``modsets.jsonl`` to the sets the
         kept deps lines name once it passes ``modsets_limit``. A line another
-        run appends mid-rewrite can be lost: that is a miss, never a false hit."""
+        run appends mid-rewrite can be lost: that is a miss, never a false hit.
+
+        ``runs.jsonl`` past ``runs_limit`` keeps its newest ``runs_keep`` lines and
+        APPENDS the rest, byte for byte, to ``runs.archive.jsonl``. Every run line
+        carries the whole carried-forward red map, so the newest line alone is the
+        final-red state ``last_record`` reads; the older lines' bundle diagnostics
+        and first-attempt evidence move to the archive, which the runner never
+        reads. ``skip_runs`` then counts only the live lines: fewer counted skip
+        runs can only select the larger early audit fraction (the safe direction)."""
 
         done = []
         for path in (self.green, self.deps):
@@ -356,6 +411,18 @@ class GateStore:
             _rewrite(self.modsets, kept.values())
             self._known_modsets = None
             done.append(self.modsets.name)
+        if _size(self.runs) > runs_limit:
+            lines = self.runs.read_bytes().splitlines(keepends=True)
+            if len(lines) > runs_keep:
+                old, kept = lines[: len(lines) - runs_keep], lines[len(lines) - runs_keep:]
+                if old and not old[-1].endswith(b"\n"):
+                    old[-1] += b"\n"
+                with self.runs_archive.open("ab") as handle:
+                    handle.writelines(old)
+                tmp = self.runs.with_name(f"{self.runs.name}.{os.getpid()}.tmp")
+                tmp.write_bytes(b"".join(kept))
+                os.replace(tmp, self.runs)
+                done.append(self.runs.name)
         return done
 
 
@@ -573,13 +640,21 @@ def uncovered_spawn(spawn_py: int, spawn_other: int, child_records: int) -> bool
 class Keyer:
     """``key(rel) = sha256`` over the file's recorded paths, listed directories,
     module sets and (when a spawned process went unrecorded) the ALL sentinel,
-    each against the run's start snapshot, plus the fixed inputs."""
+    each against the run's start snapshot, plus the fixed inputs.
 
-    def __init__(self, snapshot: TreeSnapshot, fixed: FixedInputs, modsets: Dict[str, List[str]]) -> None:
+    With ``shapes`` (``run_tests_bundled_fixtures``) and a record that names its
+    fixtures (``fx``), a fixture module is keyed by its core and the fixtures the
+    file used instead of its blob; without either, every path keys by blob."""
+
+    def __init__(
+        self, snapshot: TreeSnapshot, fixed: FixedInputs, modsets: Dict[str, List[str]], shapes=None,
+    ) -> None:
         self.snapshot = snapshot
         self.fixed = fixed
         self.modsets = modsets
+        self.shapes = shapes
         self._modset_hash: Dict[str, str] = {}
+        self._modset_rest: dict[str, tuple[str, list[str]]] = {}
 
     def _mods(self, digest: str) -> str:
         found = self._modset_hash.get(digest)
@@ -593,11 +668,50 @@ class Keyer:
             found = self._modset_hash[digest] = h.hexdigest()
         return found
 
-    def key(self, rel: str, paths: Iterable[str], dirs: Iterable[str], mods: Iterable[str], uncovered: bool) -> str:
+    def _path_line(self, p: str, fx: Optional[Sequence[str]], keep: frozenset) -> str:
+        if fx is not None and p not in keep and self.shapes.is_fixture_module(p):
+            shape = self.shapes.shape(p)
+            if shape is not None:
+                return shape.line(p, fx)
+        return f"path\t{p}\t{self.snapshot.blob(p)}"
+
+    def _mods_split(self, digest: str, fx: Sequence[str], keep: frozenset) -> str:
+        """``_mods`` for a record that names its fixtures: the non-fixture modules
+        hashed once per set, each fixture module by :meth:`_path_line`."""
+
+        found = self._modset_rest.get(digest)
+        if found is None:
+            paths = self.modsets.get(digest)
+            if paths is None:
+                return MISSING
+            h = hashlib.sha256()
+            fixture_modules = []
+            for rel in paths:
+                if self.shapes.is_fixture_module(rel):
+                    fixture_modules.append(rel)
+                else:
+                    h.update(f"{rel}\t{self.snapshot.blob(rel)}\n".encode())
+            found = self._modset_rest[digest] = (h.hexdigest(), fixture_modules)
+        h = hashlib.sha256(found[0].encode())
+        for rel in found[1]:
+            h.update((self._path_line(rel, fx, keep) + "\n").encode())
+        return h.hexdigest()
+
+    def key(
+        self, rel: str, paths: Iterable[str], dirs: Iterable[str], mods: Iterable[str], uncovered: bool,
+        fx: Optional[Sequence[str]] = None, keep: Iterable[str] = (),
+    ) -> str:
         snap = self.snapshot
-        lines = [f"path\t{p}\t{snap.blob(p)}" for p in sorted(set(paths) | {rel})]
-        lines += [f"dir\t{d}\t{snap.dir_names(d)}" for d in sorted(set(dirs))]
-        lines += [f"mods\t{self._mods(m)}" for m in sorted(set(mods))]
+        if fx is None or self.shapes is None:
+            lines = [f"path\t{p}\t{snap.blob(p)}" for p in sorted(set(paths) | {rel})]
+            lines += [f"dir\t{d}\t{snap.dir_names(d)}" for d in sorted(set(dirs))]
+            lines += [f"mods\t{self._mods(m)}" for m in sorted(set(mods))]
+        else:  # the file's own source and what it opened itself always key by blob
+            kept = frozenset(keep) | {rel}
+            lines = [self._path_line(p, fx, kept) for p in sorted(set(paths) | {rel})]
+            lines += [f"dir\t{d}\t{snap.dir_names(d)}" for d in sorted(set(dirs))]
+            lines += [f"mods\t{self._mods_split(m, fx, kept)}" for m in sorted(set(mods))]
+            lines.append("fx\t1")
         if uncovered:
             lines.append(f"ALL\t{snap.all_digest()}")
         lines.append(f"fixed\t{self.fixed.digest}")
@@ -606,14 +720,15 @@ class Keyer:
     def key_stored(self, deps: "StoredDeps") -> str:
         return self.key(
             deps.rel, deps.paths, deps.dirs, deps.mods,
-            uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records),
+            uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records), deps.fx, deps.keep,
         )
 
     def key_fresh(self, rel: str, deps: FileDeps) -> str:
         digest = _digest(deps.mods)
         self.modsets.setdefault(digest, sorted(deps.mods))
         return self.key(
-            rel, deps.paths, deps.dirs, [digest], uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records)
+            rel, deps.paths, deps.dirs, [digest], uncovered_spawn(deps.spawn_py, deps.spawn_other, deps.child_records),
+            deps.fx, deps.own | deps.opaque,
         )
 
 

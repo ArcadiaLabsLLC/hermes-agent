@@ -168,6 +168,13 @@ def tool_finished(turn_id: str | None, call_id: Any) -> None:
             turn.calls.pop(call, None)
 
 
+def conversation_agents(session_id: str, persona_instance_id: str) -> tuple[Any, ...]:
+    """Pin the live parent objects for an already-authorized operator conversation."""
+    with _lock:
+        return tuple(turn.agent for turn in _turns.values()
+                     if turn.session_id == session_id and turn.persona_instance_id == persona_instance_id)
+
+
 def _activity(agent: Any) -> tuple[int | None, float | None]:
     """``(api_calls, seconds_since_activity)`` off the agent's own summary, else Nones."""
 

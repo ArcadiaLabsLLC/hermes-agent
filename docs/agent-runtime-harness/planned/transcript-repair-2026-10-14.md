@@ -1,0 +1,96 @@
+# Transcript delivery and recovery repair — 2026-10-14
+
+The existing steer buffer now preserves the distinction between operator input
+and background notifications. Addressed input carries its client id and its
+position from the existing protocol emitter through native persistence. There
+is no second input queue or transcript store. Operator history exposes the
+journal's terminal outcome. The existing turn-resolution verb can acknowledge
+an interrupted turn without deleting its terminal evidence.
+
+Persona identity, prompt composition, permissions, tools, memory, ownership and
+delegation are unchanged. This repair does not require agents to narrate every
+steer. Delivery after the final tool drain is a separate audit row: this slice
+proves inputs consumed by the active turn, not a new next-turn scheduler.
+
+## Boundaries
+
+- `agent/steering.py` carries typed inputs in upstream's existing string-compatible
+  buffer. Three upstream integration seams use it; footprint ledger entries name
+  their native value and hold any upstream submission for review.
+- Plain-text append callers retain their existing ordering. Requeued typed
+  batches precede inputs that arrived while the batch was drained.
+- Display text is captured alongside addressed input at admission, not recovered
+  by importing a private upstream compression parser.
+- `TurnResolution` selects the existing journal mutation. Dismissal keeps the
+  state `interrupted`; the projected terminal marker still settles old tools.
+  The client hides the acknowledged card. Missing-prompt markers say so.
+
+## Verification
+
+The initial full fork gate selected 1,115 files: 15,031 passed, four failed,
+one setup error and 53 skipped. Its failures led to four corrections: retain
+plain-text requeue behavior, address the retry test by marker kind now that
+operator rows also carry outcomes, regenerate the CLI reference, and remove
+the private upstream import. The five-file focused rerun passed all 47 tests.
+The package-manager setup error reproduced on unchanged base `0525cc6c37`:
+the shared Python 3.13 interpreter cannot build a fixture requiring 3.14. It is
+filed in the fork-hygiene queue and is not a transcript regression.
+
+The provenance suite exercises the real inbox, protocol emitter, SQLite flush
+and reopened history. Recovery tests cover exact owner/root/client/turn guards,
+idempotent dismissal, terminal-tool settlement, failure history and absent
+prompts. Existing upstream steering and compression tests remain intact.
+
+Recorded before implementation: the recovery suite had five failing cases;
+the provenance suite failed the user-wrapper, coalesced-input and overwritten-id
+checks. Commit `30c0cd3c50` records those red results. Follow-up checks and the
+final gate receipt are recorded in the landing commit.
+
+The second whole-tree selection ran 1,115 files (81 cached greens, 25 clean
+cache-audit samples): 14,236 passed, one failed, one setup error and 51 skipped.
+Its routing-ladder failure was in the new input row builder. The builder now
+chooses user/notification shape once, then attaches shared metadata. The focused
+recovery, provenance and routing checks passed all 25 tests after that correction.
+
+Independent review also found that the canonical projection dropped a system
+notification's recorded identity. It now carries that identity without inventing
+an anchor. The inbox/SQLite test compares raw and canonical ordering; removing
+the system identity carry made it fail at the notification's position. No
+persona or operator-policy authority moved.
+
+The reviewed candidate `9bb47086c1` completed the fork landing gate: 1,115
+selected files, 12,044 tests passed, zero failed, one setup error and 49
+skipped in 595.5 seconds. There were no isolated retries. The result cache
+skipped 247 unchanged green files and re-ran 25 audit samples, all clean.
+The sole setup error is the independently reproduced Python-version fixture
+mismatch above; the gate remains red for that known environment issue.
+Independent CHANGE review reported no remaining findings on this candidate.
+
+## Baseline re-audit — 2026-10-15
+
+Audited fetched main `5fc3c617dfbe13845af8695a68639f38c3b51681` in an
+isolated worktree. No runtime code or tests were changed by this audit.
+
+The late-finalization steer gap above is now fixed by `3500b88847`.
+`hermes_cli/harness_parts/persona/chat_turn_commit/leftover_steer.py` consumes
+the turn's remaining steer through the existing root-send queue, preserving the
+chat and ownership boundary. The fresh focused run of
+`tests/agent_runtime/test_leftover_steer_next_turn.py` passed all **three tests**.
+This was an Eternia integration gap, not a new upstream input authority.
+
+The PM slow-exit result needs an environment distinction:
+
+| Check | Result | Meaning |
+|---|---|---|
+| Existing closure `646acfb921` | 1/1 passed on another account's shared Python 3.14.5 environment | The old version-mismatch premise was genuinely gone there; no PM fixture repair was needed. |
+| Current default `scripts/run_tests.sh tests/pm/test_worker_slow_exit_downstream.py` | Refuses before collection: this account's `~/.venvs/hermes-test` is missing | Local test-environment setup remains incomplete here. |
+| Explicit old clone Python 3.13.15 control | Fixture setup rejects the Python version required by the staged PM project | Reproduces the earlier setup error; it does not execute or disprove the shutdown assertion. |
+
+The three steer tests used the explicit existing Python 3.13.15 interpreter;
+they are not evidence that the missing canonical environment is qualified.
+Upstream owns `tests/pm/_fixtures.py` and PM runtime staging. Neither result
+demonstrates an upstream PM defect or an Eternia persona/runtime regression.
+The workstation-specific setup gap is filed, unclaimed, in the existing
+fork-hygiene queue, separately from the valid other-host closure. Use the
+documented shared environment and rerun the one PM test before calling this
+baseline green on this workstation. No new full-tree gate was run in this audit.

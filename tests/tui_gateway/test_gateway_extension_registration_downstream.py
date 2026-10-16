@@ -19,6 +19,9 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
     server.sys = sys
     server.calls = []
     server.imported = []
+    server._methods = {}
+    server.register_method = lambda name, handler: server._methods.__setitem__(name, handler)
+    server._profile_scoped = lambda handler: handler
     monkeypatch.setitem(sys.modules, server.__name__, server)
     real_import = builtins.__import__
     def importing(name, globals=None, locals=None, fromlist=(), level=0):
@@ -55,6 +58,7 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
 def test_registration_order_and_server_aliases_are_preserved(monkeypatch):
     server = registration(monkeypatch, inspect_pdf_import=True)
     assert server.calls == ORDER
+    assert callable(server._methods["eternia.subagents.list"])
     assert server._CONNECTOR_RPC_METHODS == frozenset({"connectors.fixture"})
     for name in ("methods_connectors", "methods_connectors_account", "methods_pdf", "session_recovery", "session_retirement"):
         assert hasattr(server, "_" + name)

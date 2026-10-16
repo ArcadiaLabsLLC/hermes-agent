@@ -41,6 +41,40 @@ def test_the_upstream_footprint_never_rises_and_the_fixture_follows_it_down():
     )
 
 
+RAISE_REFUSAL = (
+    "a `reasons` row raises the upstream footprint without an `owner_ruling` (owner, 2026-10-15). "
+    "Extract the edit into a fork module instead (a plugin hook, a fork-owned module the upstream "
+    "file calls once), or get the owner's ruling and cite it on the row as "
+    '"owner_ruling": "<YYYY-MM-DD> · <where it is recorded>"'
+)
+
+
+def test_every_raise_cites_an_owner_ruling():
+    """Owner ruling 2026-10-15: a raise carries the ruling that allowed it. The rows already on
+    main when the rule landed are marked ``grandfathered``; their number only falls."""
+    from scripts.upstream_footprint import GRANDFATHERED_REASONS, grandfathered_count, unruled_reasons
+
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    assert grandfathered_count(fixture) <= GRANDFATHERED_REASONS, (
+        f"{grandfathered_count(fixture)} rows are marked grandfathered, more than the "
+        f"{GRANDFATHERED_REASONS} on main when the rule landed: a new row cannot borrow the marker. "
+        + RAISE_REFUSAL
+    )
+    unruled = unruled_reasons(fixture)
+    assert not unruled, f"{unruled}: " + RAISE_REFUSAL
+
+    # Positive controls: a new row without the field, with a bare date, or borrowing the
+    # grandfathered marker IS caught; one citing a ruling is not.
+    row = {"change": "planted", "before": {}, "after": {}, "reason": "why"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], row]}) == ["planted"]
+    bare = {**row, "owner_ruling": "2026-10-15"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], bare]}) == ["planted"]
+    ruled = {**row, "owner_ruling": "2026-10-15 · Harness_Brain/30 — Decisions/0099"}
+    assert unruled_reasons({"reasons": [*fixture["reasons"], ruled]}) == []
+    borrowed = {"reasons": [*fixture["reasons"], {**row, "grandfathered": True}]}
+    assert grandfathered_count(borrowed) == grandfathered_count(fixture) + 1
+
+
 NUMSTAT_Z = (
     "3\t0\thermes_cli/main.py\0"  # upstream, light, additive
     "150\t60\ttools/registry.py\0"  # upstream, heavy (210 > 200)
@@ -172,6 +206,32 @@ def test_no_ledger_row_is_unreviewed_or_unledgered():
     assert unreviewed_rows(marked) == [path]
 
 
+def unledgered_paths(ledger_text: str, footprint) -> list[str]:
+    rows = ledger_rows(ledger_text)
+    return sorted(row.path for row in footprint.rows if row.path not in rows)
+
+
+def test_every_measured_upstream_edit_has_a_ledger_row():
+    """D3.03 as a POSITIVE guarantee: the measured footprint is the enumeration, and every
+    path in it has a row. The marker check above only reds on a row that SAYS unreviewed;
+    ``7bd2769236`` / ``e8c572f47b`` landed eight upstream edits with no row at all and it
+    stayed green."""
+    from scripts.upstream_footprint import DEFAULT_LEDGER
+
+    text = DEFAULT_LEDGER.read_text(encoding="utf-8")
+    _, footprint = measure()
+    assert footprint.rows, "the footprint measured no rows; this gate would prove nothing"
+    assert unledgered_paths(text, footprint) == [], (
+        "these upstream files carry a fork edit and no ledger row: write the row (disposition "
+        "and reason) in the commit that lands the edit"
+    )
+
+    # Positive control: deleting one live row is caught, by name.
+    path = footprint.rows[0].path
+    kept = "\n".join(line for line in text.splitlines() if not line.startswith(f"| `{path}` |"))
+    assert unledgered_paths(kept, footprint) == [path]
+
+
 def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     """D3.06: the read-through derives its reader set from rows carrying ``READER_MOVED``, so a
     fork edit that ADDS a ``hermes_cli.config.load_config_readonly`` import to an upstream file
@@ -203,3 +263,49 @@ def test_every_reader_moved_to_load_config_readonly_says_so_in_the_ledger():
     fake = ("+++ b/tools/x.py\n+    from hermes_cli.config import cfg_get, load_config_readonly\n"
             "+++ b/tools/y.py\n-    from hermes_cli.config import load_config_readonly\n")
     assert readonly_reader_moves(fake) == {"tools/x.py"}
+
+
+def _planted_merge(tmp_path):
+    """A clone mid release merge: main and the tag both grew from ``old``; ``upstream/main`` is the tag."""
+    import subprocess
+
+    repo = tmp_path / "clone"
+    repo.mkdir()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],
+            cwd=repo, capture_output=True, text=True, encoding="utf-8", check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    (repo / "a.py").write_text("a\n", encoding="utf-8")
+    git("add", "a.py")
+    git("commit", "-q", "-m", "old base")
+    old = git("rev-parse", "HEAD")
+    git("checkout", "-q", "-b", "tag")
+    (repo / "u.py").write_text("u\n", encoding="utf-8")
+    git("add", "u.py")
+    git("commit", "-q", "-m", "upstream tag")
+    tag = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/upstream/main", tag)
+    git("checkout", "-q", "main")
+    (repo / "f.py").write_text("f\n", encoding="utf-8")
+    git("add", "f.py")
+    git("commit", "-q", "-m", "fork work")
+    return repo, git, old, tag
+
+
+def test_a_manifest_refreshed_inside_a_release_merge_takes_the_incoming_base(tmp_path, monkeypatch):
+    from scripts import upstream_footprint as fp
+
+    repo, git, old, tag = _planted_merge(tmp_path)
+    monkeypatch.setattr(fp, "ROOT", repo)
+    # Positive control: before the merge starts, HEAD's merge base is the OLD base.
+    assert fp.refresh_base() == old[:10]
+    git("merge", "--no-commit", "--no-ff", "tag")
+    manifest = tmp_path / "manifest.txt"
+    assert fp.refresh_manifest(manifest) == tag[:10]
+    assert manifest.read_text(encoding="utf-8").splitlines()[0] == f"# base {tag[:10]}"
+    # --base wins over both, and is resolved to a commit.
+    assert fp.refresh_base("HEAD") == git("rev-parse", "HEAD")[:10]

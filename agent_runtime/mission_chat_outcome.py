@@ -50,6 +50,8 @@ import time
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
+from .serde import stripped_str
+
 __layer__ = "models"
 
 __all__ = [
@@ -358,6 +360,9 @@ class ProviderRefusal:
     #: choose copy, which is ``reason``'s job.
     failure_reason: str | None = None
 
+    missing_packages: tuple[str, ...] = ()
+    repair_hint: str | None = None
+
     def resets_in_seconds(self, *, now: float | None = None) -> int | None:
         """Whole seconds until the refusal lifts, or ``None`` when unknown.
 
@@ -384,6 +389,11 @@ class ProviderRefusal:
         old behaviour did was send operators to that verb.
         """
 
+        if self.repair_hint:
+            return (
+                f"repair the runtime dependencies: {self.repair_hint}; send a NEW "
+                "client_message_id; this turn is settled and needs NO turn-resolve"
+            )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
                 "no model provider could take this request and it never left Hermes; "
@@ -412,9 +422,12 @@ class ProviderRefusal:
             ("provider", self.provider),
             ("model", self.model),
             ("failure_reason", self.failure_reason),
+            ("repair_hint", self.repair_hint),
         ):
             if isinstance(value, str) and value.strip():
                 block[key] = value.strip()
+        if self.missing_packages:
+            block["missing_packages"] = list(self.missing_packages)
         if self.reset_at not in (None, ""):
             block["reset_at"] = self.reset_at
         resets_in = self.resets_in_seconds(now=now)
@@ -469,7 +482,7 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
         status_code = int(block.get("status_code"))
     except (TypeError, ValueError):
         return None
-    failure_reason = _text(block.get("failure_reason"))
+    failure_reason = stripped_str(block.get("failure_reason"))
     if status_code not in PROVIDER_REFUSAL_STATUS_CODES:
         if status_code != 400:
             return None
@@ -477,11 +490,11 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
             return None
     return ProviderRefusal(
         status_code=status_code,
-        reason=_text(block.get("reason")),
-        message=_text(block.get("message")),
+        reason=stripped_str(block.get("reason")),
+        message=stripped_str(block.get("message")),
         reset_at=block.get("reset_at"),
-        provider=_text(block.get("provider")),
-        model=_text(block.get("model")),
+        provider=stripped_str(block.get("provider")),
+        model=stripped_str(block.get("model")),
         failure_reason=failure_reason,
     )
 
@@ -496,13 +509,6 @@ def _humanize_seconds(seconds: int) -> str:
     if seconds < 5400:
         return f"{round(seconds / 60)} min"
     return f"{round(seconds / 3600)} h"
-
-
-def _text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    text = value.strip()
-    return text or None
 
 
 @dataclass(frozen=True, slots=True)
@@ -583,7 +589,8 @@ def wall_budget_exceeded(exc: BaseException, *, provider_submitted: bool) -> boo
 
 
 def classify_turn_failure(
-    exc: BaseException, *, provider_submitted: bool, request_started: bool = True
+    exc: BaseException, *, provider_submitted: bool, request_started: bool = True,
+    request_dispatched: bool | None = None
 ) -> TurnOutcome:
     """Name a failed mission-chat turn. Pure: reads ``exc``, writes nothing.
 
@@ -600,20 +607,46 @@ def classify_turn_failure(
     request started is a known, terminal ``provider_unavailable``. The default
     is the conservative answer for a caller with no phase evidence: assume the
     request may have started, which keeps ``outcome_unknown`` honest.
+
+    ``request_dispatched`` is independent positive send/reply evidence, never a
+    timing-mark read. When explicitly false, a typed ProviderNotConfiguredError
+    (agent construction refused) can settle unavailable even after agent-ready.
+    Generic failures retain uncertainty; true dispatch evidence always wins.
     """
 
+    from .provider_dependency_error import ProviderDependencyError
+
+    if isinstance(exc, ProviderDependencyError):
+        return replace(
+            PROVIDER_UNAVAILABLE_OUTCOME,
+            provider_refusal=ProviderRefusal(
+                status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
+                reason=exc.reason, message=stripped_str(str(exc)), provider=exc.provider,
+                model=exc.model, missing_packages=exc.missing_packages,
+                repair_hint=exc.repair_hint,
+            ),
+        )
     budget_tripped = wall_budget_exceeded(exc, provider_submitted=provider_submitted)
     if provider_submitted and not budget_tripped:
         refusal = provider_refusal(exc)
         if refusal is not None:
             return replace(PROVIDER_REFUSED_OUTCOME, provider_refusal=refusal)
-        if not request_started:
+        from agent.auxiliary_unavailable import ProviderNotConfiguredError
+
+        # Agent-ready is a handoff, before assembly/dispatch. This typed setup
+        # exception guarantees construction refused; generic failures do not.
+        # Positive send/response evidence always wins over the exception type.
+        if request_dispatched is not True and (
+            not request_started or (
+                request_dispatched is False and isinstance(exc, ProviderNotConfiguredError)
+            )
+        ):
             return replace(
                 PROVIDER_UNAVAILABLE_OUTCOME,
                 provider_refusal=ProviderRefusal(
                     status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
                     reason=PROVIDER_UNAVAILABLE_REASON,
-                    message=_text(str(exc)),
+                    message=stripped_str(str(exc)),
                 ),
             )
     return _FAILURE_TABLE[(budget_tripped, provider_submitted)]
@@ -848,6 +881,8 @@ class FinalizationWarningKind(StrEnum):
     INSTANCE_STATE_COMMIT_FAILED = "instance_state_commit_failed"
     #: A turn-journal transition returned a non-``persisted`` outcome.
     TURN_RECORD_NOT_PERSISTED = "turn_record_not_persisted"
+    #: A steer left over after the final tool drain could not be queued as the next turn.
+    LEFTOVER_STEER_NOT_QUEUED = "leftover_steer_not_queued"
 
 
 @dataclass(frozen=True, slots=True)

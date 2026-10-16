@@ -4,7 +4,8 @@ The persona chat lane's eager set (ruling R1 as the owner amended it: only the f
 ``browser_vault_*`` tools are deferred) is built from the REAL registry schemas and
 assembled through upstream's ``assemble_tool_defs``; the wire is what the eternia-harness
 ``llm_request`` middleware (``tools.downstream_schema.brief_request_tools``) sends. Each
-tool must reach the provider as one sentence plus its parameter schema, unchanged, and
+tool must reach the provider as one sentence plus its parameter schema (structure whole,
+prose cut to first sentences, owner ruling L2.17), and
 ``tool_describe`` must still serve the full text.
 """
 
@@ -19,6 +20,7 @@ from tools.downstream_schema import (
     BRIEF_DESCRIPTIONS,
     KEEP_FULL_WIRE_DESCRIPTIONS,
     ONE_LINE_MAX_CHARS,
+    PROMOTED_BRIEF_PARAMETER_CHARS,
     _first_sentence,
     brief_request_tools,
 )
@@ -72,17 +74,51 @@ def test_the_lane_carries_exactly_the_amended_eager_set(lane):
     assert set(names) == {*_EAGER_BUILTINS, *_BRIDGE}, sorted(names)
 
 
-def test_every_eager_tool_is_one_line_with_its_parameter_schema_unchanged(lane):
-    """One sentence on one line (the KEEP_FULL tools excepted), parameters identical to the
-    assembled definition's — types, required, enums and per-parameter prose."""
+def _prose_free(node):
+    """A schema with every ``description`` string blanked: its structure, types, required
+    and enums, which must ride the wire unchanged."""
+    if isinstance(node, dict):
+        return {k: ("" if k == "description" and isinstance(v, str) else _prose_free(v))
+                for k, v in node.items()}
+    if isinstance(node, list):
+        return [_prose_free(item) for item in node]
+    return node
+
+
+def _descriptions(node, path=""):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "description" and isinstance(value, str):
+                yield path, value
+            else:
+                yield from _descriptions(value, f"{path}/{key}")
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from _descriptions(item, f"{path}/{index}")
+
+
+def test_every_eager_tool_is_one_line_with_its_parameter_structure_unchanged(lane):
+    """One sentence on one line (the KEEP_FULL tools excepted); the parameter schema keeps
+    types, required and enums, and each parameter's prose rides as its first sentence
+    (owner ruling L2.17) — the KEEP_FULL tools keep theirs whole."""
     _raw, eager, wire = lane
     offenders = []
+    shortened = 0
     for before, after in zip(eager, wire):
         name, description = _fn(after)["name"], _fn(after)["description"]
-        if _fn(after).get("parameters") != _fn(before).get("parameters"):
-            offenders.append(f"{name}: parameter schema changed on the wire")
+        params_before, params_after = _fn(before).get("parameters"), _fn(after).get("parameters")
+        if _prose_free(params_after) != _prose_free(params_before):
+            offenders.append(f"{name}: parameter structure changed on the wire")
         if name in KEEP_FULL_WIRE_DESCRIPTIONS:
+            if params_after != params_before:
+                offenders.append(f"{name}: a kept tool's parameter prose was cut")
             continue
+        wire_prose = dict(_descriptions(params_after))
+        for path, text in _descriptions(params_before):
+            expected = _first_sentence(text, PROMOTED_BRIEF_PARAMETER_CHARS)
+            if wire_prose.get(path) != expected:
+                offenders.append(f"{name}{path}: {wire_prose.get(path)!r} != {expected!r}")
+            shortened += expected != " ".join(text.split())
         if "\n" in description or len(description) > ONE_LINE_MAX_CHARS:
             offenders.append(f"{name}: not one line ({len(description)} chars)")
         elif _first_sentence(description) != description:

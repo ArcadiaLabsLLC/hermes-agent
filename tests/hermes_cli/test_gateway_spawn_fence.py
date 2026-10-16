@@ -481,3 +481,19 @@ def test_spawn_fence_forwards_profile_only_when_unarmed(monkeypatch, tmp_path):
     with pytest.raises(GatewayFenceViolation):
         gateway_windows._spawn_detached(home=tmp_path)
     assert calls == [(None, tmp_path)]
+
+
+def test_the_fence_and_the_live_guard_share_one_backend_classifier():
+    """Fork-hygiene 2026-10-15: the fence's backend arm IS live_guard_classify's.
+
+    A backend spawned from inside ``python -c`` code was invisible to the fence's own
+    whitespace tokenizer; the shared classifier splits code words. Inert code naming
+    the words stays allowed, as it does for the live guard.
+    """
+    from tests._downstream import live_guard_classify
+
+    spawning = [sys.executable, "-c", "import subprocess; subprocess.run(['hermes', 'gateway', 'run'])"]
+    inert = [sys.executable, "-c", "print('hermes gateway run')"]
+    assert live_guard_classify.backend_spawn_subcommand(spawning, str) == "gateway"
+    assert _gateway_fence.classify(spawning) is not None
+    assert _gateway_fence.classify(inert) is None

@@ -74,6 +74,7 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
+from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
 TARGETS: dict[str, tuple[str, dict[str, str]]] = {
@@ -173,18 +174,24 @@ def evaluate_markers(requirements: str, env: dict[str, str]) -> str:
 
 def install_pool(requirements: str, stage: Path, target: str, python_version: str,
                  uv: str = "uv", offline: bool = False) -> None:
-    """Install the exported pins into ``stage`` for ``target`` — hashes required, wheels only."""
-    if stage.exists():
-        shutil.rmtree(stage)
-    stage.mkdir(parents=True)
+    """Install the exported pins into ``stage`` for ``target`` — hashes required, wheels only.
+
+    uv runs into a scratch folder outside the work tree and the pool is moved into
+    ``stage`` whole, with a bounded retry on a Windows sharing violation
+    (``scripts/bundles/pool_install.py`` says why).
+    """
+    remove_tree(stage)
+    stage.parent.mkdir(parents=True, exist_ok=True)
     req = stage.parent / f"{stage.name}.requirements.txt"
     req.write_text(evaluate_markers(requirements, marker_env(target, python_version)), encoding="utf-8")
-    cmd = [uv, "pip", "install", "--target", str(stage), "--python-platform", TARGETS[target][0],
-           "--python-version", python_version, "--no-config", "--no-deps", "--require-hashes",
-           "--only-binary", ":all:", "--link-mode", "copy", "--no-compile", "-r", str(req)]
-    if offline:
-        cmd.append("--offline")
-    subprocess.run(cmd, cwd=ROOT, check=True, timeout=1800, stdin=subprocess.DEVNULL)
+
+    def command(into: Path) -> list[str]:
+        cmd = [uv, "pip", "install", "--target", str(into), "--python-platform", TARGETS[target][0],
+               "--python-version", python_version, "--no-config", "--no-deps", "--require-hashes",
+               "--only-binary", ":all:", "--link-mode", "copy", "--no-compile", "-r", str(req)]
+        return [*cmd, "--offline"] if offline else cmd
+
+    install_pool_into(command, stage, cwd=ROOT)
 
 
 # -- distribution facts from a site directory ------------------------------------------------
@@ -573,6 +580,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
         "third_party_files": third_party,
         "excluded_data": dict(manifest.excluded_data),
     }
+    if manifest.packaging_packs:  # the runtime reads which pack carries which extra here
+        record["packs"] = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
     if plan.sibling:  # only a profile with a sibling tree records one: the desktop record is unchanged
         record["forced_tree"] = {"dir": FORCED_TREE_DIR, "modules": sorted(plan.sibling), "files": len(tree_rels)}
     (out / BUNDLE_MANIFEST).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -783,6 +792,9 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     problems += licence_problems(out, plan.distributions)
     problems += resource_problems(app_files, tracked_files(), manifest.packaging_resources,
                                   manifest.excluded_data, manifest.packaging_skill_platforms)
+    packs = {name: list(extras) for name, extras in manifest.packaging_packs.items()}
+    if record.get("packs", {}) != packs:
+        problems.append(f"bundle-manifest.json packs {record.get('packs', {})} != the profile's {packs}")
     if record["target"].startswith("win32"):  # other targets read the system zone database
         problems += named_timezone_problems(site)
     index = index if index is not None else module_index(plugins=manifest.packaging_plugins)

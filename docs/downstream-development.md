@@ -148,13 +148,15 @@ junction only once `tests/tooling` passes on it.
 
 Weakness escalation per domain — what a lane records when work reveals architecture below the bar, and which queue the row goes to — is [`CLAUDE.md`](../CLAUDE.md) § "Weakness escalation"; the god-file program that applies it is `docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`.
 
-`scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state` — `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+`scripts/run_tests_bundled.sh tests` — over the whole tree, never three directories (a three-directory form misses the upstream tests of an upstream file the change edits; `Harness_Brain/50 — Agent Handoffs/Running the tests.md` measures it). `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
 `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
 
 ### Unattended reporting
 
 Pushes are instant now (2026-09-03 ruling: both repos' pre-push hooks are
-gone, hermes `504953f6ad`) and hermes' own CI is largely inert (billing), so
+gone, hermes `504953f6ad`) and fork CI (`fork-gates.yml`) checks mutation claims,
+the tombstone registry and docket claims but never runs the landing suite (receipt:
+`Harness_Brain/50 — Agent Handoffs/Running the tests.md` § "The gates are tests, not hooks"), so
 the checks that used to run on every push to `release` — the validated suite
 and any mutation-claim drift — now run only when someone happens to run them
 by hand. Nothing catches a `main` that goes red between two people's runs, or

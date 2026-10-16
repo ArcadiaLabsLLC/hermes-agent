@@ -33,7 +33,7 @@ from agent_runtime.mission_chat_turns import (
     INFLIGHT_TURN_STATES,
     TERMINAL_TURN_STATES,
     MissionChatTurnPersistOutcome,
-    abandon_mission_chat_turn,
+    resolve_mission_chat_turn,
     mark_stale_inflight_turns_interrupted,
     mission_chat_turn_record,
     transition_mission_chat_turn,
@@ -201,6 +201,18 @@ def test_root_hud_line_does_not_claim_a_shared_clock():
     assert "this turn only" in line
     assert "SAME clock" not in line
     assert render_turn_budget_line(None) == ""
+
+
+def test_the_budget_line_carries_facts_only():
+    """Owner ruling L2.12 (2026-10-10): the volatile tail states the clock and the
+    reserve's effect, never advice on spending it; every byte rides history."""
+    budget = resolve_turn_wall_budget(
+        max_seconds=240.0, min_relay_seconds=_MIN_RELAY, now=1_000.0
+    )
+    assert render_turn_budget_line(budget, now=1_000.0) == (
+        "- Wall budget: ~240s left of 240s (this turn only). With under 60s left the "
+        "harness stops new tool calls and asks you for a final checkpoint reply."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -485,7 +497,7 @@ def test_budget_exhausted_requires_no_turn_resolve():
         state="budget_exhausted",
     )
     assert (
-        abandon_mission_chat_turn(
+        resolve_mission_chat_turn(
             session_id=_SESSION,
             client_message_id=_CLIENT,
             turn_id=_TURN,

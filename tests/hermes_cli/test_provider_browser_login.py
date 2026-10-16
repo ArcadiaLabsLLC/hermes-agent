@@ -45,7 +45,7 @@ def test_upstream_catalog_rows_carry_no_sign_in_methods():
 def test_wire_has_one_terminal_and_never_serializes_helper_output(monkeypatch, capsys, failure):
     original_disable = logging.root.manager.disable
 
-    def driver(verify, flow):
+    def driver(verify, flow, expiry):
         assert flow == "browser"
         verify("https://provider.example/authorize", "USER-CODE")
         print("SENTINEL printed access token")
@@ -194,7 +194,7 @@ def test_anthropic_pkce_driver_surfaces_the_link_and_saves_through_upstream_add(
     monkeypatch.setattr(webbrowser, "open", lambda *_a, **_k: pytest.fail("driver opened a browser"))
     monkeypatch.setattr("sys.stdin", _PastedCode(seen))
     original = wire._DRIVERS["anthropic"]
-    monkeypatch.setitem(wire._DRIVERS, "anthropic", lambda verify, flow: original(
+    monkeypatch.setitem(wire._DRIVERS, "anthropic", lambda verify, flow, expiry: original(
         lambda url, code: (seen.append(url), verify(url, code)), flow))
     assert auth_login_command(SimpleNamespace(provider="anthropic", flow=None, profile=None, json=True)) == 0
     rows = events(capsys)

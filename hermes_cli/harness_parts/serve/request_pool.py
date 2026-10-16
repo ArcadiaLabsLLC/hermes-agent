@@ -26,6 +26,17 @@ until its exit frame; another one reaching a worker meanwhile runs no handler
 and is answered ``chat_turn_duplicate_in_flight`` (re-present this id; the
 journal answers once the turn settles). A presentation after the turn ended is
 the journal's to answer, exactly as before.
+
+**A standing stream has a lane of its own (lane w1015b-con-x).** ``harness stream``
+never returns: the launcher holds two to four of them per attachment, and on the
+shared lane each one held a worker for the life of its connection. The deferred
+method replies (``RpcContext.spawn_reply`` -- ``history.pending``, settings,
+models, every console inspection) ran on what was left. Live 2026-10-15 a QA
+serve held three streams (``serve_stream_worker_reclaimed`` req-1, req-2, req-7)
+on four workers, and an earlier boot attached four at once, so ``history.pending``
+queued behind them and the launcher logged ``rpc_timeout`` twice per new chat.
+:meth:`RequestPool.submit_stream` takes them off the shared lane; its width
+(:data:`STREAM_LANE_WORKERS`) is a ceiling on threads, not a reservation.
 """
 
 from __future__ import annotations
@@ -46,15 +57,21 @@ DUPLICATE_REFUSED_RECEIPT = (
 #: The code the journal's own duplicate-in-flight answer exits with.
 DUPLICATE_IN_FLIGHT_EXIT_CODE = 2
 _CLIENT_MESSAGE_ID_FLAG = "--client-message-id"
+#: Threads the standing-stream lane may grow to. Streams are infinite, so this
+#: bounds how many may run at once; a closed connection's are reclaimed.
+STREAM_LANE_WORKERS = 32
 
 
 class RequestPool:
-    """The shared request lane and the chat-turn lane, each ``size`` workers."""
+    """The shared request lane and the chat-turn lane, each ``size`` workers, and
+    the standing-stream lane (:data:`STREAM_LANE_WORKERS`)."""
 
     def __init__(self, size: int) -> None:
         workers = max(1, int(size))
         self.shared = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="harness-serve")
         self.turns = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="harness-serve-turn")
+        self.streams = ThreadPoolExecutor(
+            max_workers=STREAM_LANE_WORKERS, thread_name_prefix="harness-serve-stream")
 
     def submit(self, fn: Callable[..., Any], *args: Any) -> Future:
         return self.shared.submit(fn, *args)
@@ -62,14 +79,18 @@ class RequestPool:
     def submit_turn(self, fn: Callable[..., Any], *args: Any) -> Future:
         return self.turns.submit(fn, *args)
 
-    def shutdown(self, wait: bool = True) -> None:
-        """Stop both lanes taking work, then (``wait``) join both."""
+    def submit_stream(self, fn: Callable[..., Any], *args: Any) -> Future:
+        return self.streams.submit(fn, *args)
 
-        self.shared.shutdown(wait=False)
-        self.turns.shutdown(wait=False)
+    def shutdown(self, wait: bool = True) -> None:
+        """Stop every lane taking work, then (``wait``) join them all."""
+
+        lanes = (self.shared, self.turns, self.streams)
+        for lane in lanes:
+            lane.shutdown(wait=False)
         if wait:
-            self.shared.shutdown(wait=True)
-            self.turns.shutdown(wait=True)
+            for lane in lanes:
+                lane.shutdown(wait=True)
 
 
 def turn_claim_key(argv: Any) -> tuple[str, str] | None:

@@ -1426,7 +1426,7 @@ def _nous_device_code_login(
     *, portal_base_url: Optional[str] = None, inference_base_url: Optional[str] = None,
     client_id: Optional[str] = None, scope: Optional[str] = None, open_browser: bool = True,
     timeout_seconds: float = 15.0, insecure: bool = False, ca_bundle: Optional[str] = None,
-    on_verification: Optional[Callable[[str, str], None]] = None) -> dict[str, Any]:
+    on_verification: Optional[Callable[[str, str], None]] = None, on_expiry=None) -> dict[str, Any]:
     """Run the Nous device-code flow and return full OAuth state without persisting."""
     from hermes_cli.auth import (
         PROVIDER_REGISTRY, _coerce_ttl_seconds, _is_remote_session, _optional_base_url,
@@ -1456,6 +1456,9 @@ def _nous_device_code_login(
         verification_url = str(device_data["verification_uri_complete"])
         user_code = str(device_data["user_code"])
         expires_in = int(device_data["expires_in"])
+        if on_expiry is not None:
+            started_at = time.time()
+            on_expiry(started_at, started_at + expires_in)
         interval = int(device_data["interval"])
         _print_device_code_instructions(
             verification_url, user_code, open_browser=open_browser, failure_dash="—")

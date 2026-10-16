@@ -74,9 +74,11 @@ def isolated_interpreter_env() -> dict[str, str]:
 
 def probe_sqlite_runtime(python: str | Path, *, timeout: float = 30.0) -> SQLiteRuntimeInfo | None:
     """Probe SQLite in *python*, never the caller's linked SQLite."""
+    from hermes_cli.child_interpreter import child_python_argv
+
     try:
         result = subprocess.run(
-            [str(python), "-I", "-c", _PROBE_SCRIPT], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+            [*child_python_argv(python, "-I"), "-c", _PROBE_SCRIPT], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
             check=False, env=isolated_interpreter_env())
     except (OSError, subprocess.TimeoutExpired):
         return None

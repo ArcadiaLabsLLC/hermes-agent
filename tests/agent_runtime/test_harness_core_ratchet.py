@@ -60,7 +60,10 @@ DECLARED_TOOL_COUNT = 45
 # in-turn auto-detach rule in fewer words than it had: 10183 -> 10168 (-15).
 # Upstream v0.21.6 (2026-10-09): ``terminal``'s ``heartbeat`` parameter gained
 # "Ignored on foreground commands.": 10168 -> 10176 (+8), all in ``terminal``.
-DECLARED_TOKEN_ESTIMATE = 10176
+# Runtime-queue L2.17 (owner ruling 2026-10-10, c7073e8ace9 via land-w1015b):
+# collapsed tools' per-parameter prose rides as its first sentence, the rest
+# behind tool_describe: 10176 -> 8380 (-1796). Re-measured at the landing.
+DECLARED_TOKEN_ESTIMATE = 8380
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

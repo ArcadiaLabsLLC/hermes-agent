@@ -61,3 +61,10 @@ def test_explicit_user_shared_root_is_preserved_without_duplicate(tmp_path, monk
     data = read_user_config_raw(path)
     assert data["skills"]["extra_dirs"] == [shared.as_posix()]
     assert data["skills"]["excluded_dirs"] == ["user", ".realm_inbox", ".provenance"]
+
+
+def test_realm_inbox_and_provenance_trees_are_never_scanned(tmp_path):
+    shared = tmp_path / "shared" / "skills"
+    assert skill_utils.is_excluded_skill_path(shared / ".realm_inbox" / "x" / "SKILL.md")
+    assert skill_utils.is_excluded_skill_path(shared / ".provenance" / "x" / "SKILL.md")
+    assert not skill_utils.is_excluded_skill_path(shared / "x" / "SKILL.md")

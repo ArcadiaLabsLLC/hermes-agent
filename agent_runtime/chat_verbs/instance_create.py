@@ -28,24 +28,24 @@ def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
     ``session_id`` (= ``default_chat_session_id``), ``display_name``, ``mode``,
     ``placement_id`` and the rest of the argv row."""
     from ..mission_chat_door import INSTANCE_CREATE_VERB
-    from ..persona_open_chat import _text
+    from ..persona_open_chat import _first_text
     from .door import COORDINATOR_ARGS_CLOSED, caller_requester, run_cli_chat_verb
 
-    persona_id = _text(params, "persona_id")
+    persona_id = _first_text(params, "persona_id")
     if not persona_id:
         return {"ok": False, "error_kind": "invalid_request", "error": "persona_id is required"}
     return run_cli_chat_verb(
         INSTANCE_CREATE_VERB,
         persona_id=persona_id,
-        title=_text(params, "title") or "New operator chat",
-        display_name=_text(params, "display_name"),
-        session_id=_text(params, "session_id"),
+        title=_first_text(params, "title") or "New operator chat",
+        display_name=_first_text(params, "display_name"),
+        session_id=_first_text(params, "session_id"),
         kill_active=params.get("kill_active") is True,
         add_instance=params.get("add_instance") is True,
-        placement_id=_text(params, "placement_id"),
-        workspace_id=_text(params, "workspace_id"),
-        realm_id=_text(params, "realm_id"),
-        client_message_id=_text(params, "client_message_id"),
+        placement_id=_first_text(params, "placement_id"),
+        workspace_id=_first_text(params, "workspace_id"),
+        realm_id=_first_text(params, "realm_id"),
+        client_message_id=_first_text(params, "client_message_id"),
         requested_by=caller_requester(params, caller),
         **COORDINATOR_ARGS_CLOSED,
     )

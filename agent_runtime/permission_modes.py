@@ -115,17 +115,38 @@ def permission_mode_is_restriction(mode: str | None) -> bool:
     return normalize_permission_mode(mode) in RESTRICTION_PERMISSION_MODES
 
 
+
+PROFILE_SUBJECT_PREFIX = "profile:"
+
+
+def profile_permission_subject(name: str) -> str:
+    return PROFILE_SUBJECT_PREFIX + name
+
+
+def is_profile_subject(subject: str | None) -> bool:
+    return isinstance(subject, str) and subject.startswith(PROFILE_SUBJECT_PREFIX) and bool(
+        subject[len(PROFILE_SUBJECT_PREFIX):].strip())
+
+
+def profile_subject_name(subject: str) -> str:
+    return subject[len(PROFILE_SUBJECT_PREFIX):].strip()
+
+
 __all__ = [
     "FALLBACK_DEFAULT_PERMISSION_MODE",
     "PERMISSION_MODE_BOUNDED",
     "PERMISSION_MODE_PROFILE_DEFAULT",
     "PERMISSION_MODE_READ_ONLY",
     "PERMISSION_MODE_UNBOUNDED",
+    "PROFILE_SUBJECT_PREFIX",
     "RESTRICTION_PERMISSION_MODES",
     "SHIPPED_DEFAULT_PERMISSION_MODE",
     "SUPPORTED_PERMISSION_MODES",
     "effective_permission_mode",
+    "is_profile_subject",
     "normalize_permission_mode",
     "permission_mode_is_restriction",
     "permission_mode_is_unbounded",
+    "profile_permission_subject",
+    "profile_subject_name",
 ]

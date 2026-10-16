@@ -30,7 +30,7 @@ import pytest
 
 from agent_runtime.mission_chat_turns import (
     MissionChatTurnPersistOutcome,
-    abandon_mission_chat_turn,
+    resolve_mission_chat_turn,
     inflight_chat_session_roots,
     mark_stale_inflight_turns_interrupted,
     mission_chat_turn_record,
@@ -197,7 +197,7 @@ def test_abandon_accepts_only_the_genuinely_ambiguous_state(state, _lifecycle, _
     """
 
     _seed("s_abandon", "m", state)
-    outcome = abandon_mission_chat_turn(
+    outcome = resolve_mission_chat_turn(
         session_id="s_abandon",
         client_message_id="m",
         turn_id="m",

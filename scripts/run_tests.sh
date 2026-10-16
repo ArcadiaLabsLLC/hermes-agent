@@ -47,9 +47,10 @@
 # The fork's shared-venv probe (``$HERMES_TEST_VENV``, ``~/.venvs/hermes-test``)
 # retired at the 2026-09-25 upstream merge in favour of upstream's door: an
 # explicit ``HERMES_PYTHON`` that has pytest wins when nothing is activated.
-# On the workstation that is the shared canonical test venv:
+# On a workstation that is the shared canonical test venv when one exists
+# (~/.venvs/hermes-test), else the clone's own .venv:
 #
-#   HERMES_PYTHON=C:/Users/beast/.venvs/hermes-test/Scripts/python.exe #     scripts/run_tests.sh tests/hermes_cli
+#   HERMES_PYTHON=~/.venvs/hermes-test/Scripts/python.exe scripts/run_tests.sh tests/hermes_cli
 #
 # Without it the runner activates the checkout (upstream's supported path).
 
@@ -75,6 +76,22 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 _has_pytest() { [ -n "$1" ] && [ -x "$1" ] && "$1" -c 'import pytest' 2>/dev/null; }
 # shellcheck source=scripts/_activation.sh
 . "$SCRIPT_DIR/_activation.sh"
+# Fork (owner ruling 2026-10-15): on a workstation, no HERMES_PYTHON means the
+# shared test venv (HERMES_TEST_VENV, default ~/.venvs/hermes-test), never the
+# PM test environment activation would sync inside the operator's live Hermes
+# home. Missing shared venv = refuse. CI keeps upstream's activation path.
+if [ -z "${__HERMES_ACTIVATED:-}" ] && ! _has_pytest "${HERMES_PYTHON:-}" && [ -z "${CI:-}" ]; then
+  _SHARED_VENV="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}"
+  for _candidate in "$_SHARED_VENV/Scripts/python.exe" "$_SHARED_VENV/bin/python"; do
+    if _has_pytest "$_candidate"; then HERMES_PYTHON="$_candidate"; break; fi
+  done
+  if ! _has_pytest "${HERMES_PYTHON:-}"; then
+    echo "error: no HERMES_PYTHON and no shared test venv with pytest at $_SHARED_VENV" >&2
+    echo "       create it, or set HERMES_PYTHON / HERMES_TEST_VENV (Running the tests.md)" >&2
+    exit 1
+  fi
+  echo "▶ no HERMES_PYTHON — using the shared test venv: $HERMES_PYTHON"
+fi
 if [ -z "${__HERMES_ACTIVATED:-}" ] && _has_pytest "${HERMES_PYTHON:-}"; then
   PYTHON="$HERMES_PYTHON"
   echo "▶ not activated — using HERMES_PYTHON: $PYTHON"
@@ -219,6 +236,11 @@ for _test_var in HERMES_TEST_IMAGE HERMES_TEST_WORKERS HERMES_TEST_PATHS \
     TEST_ENV+=("$_test_var=${!_test_var}")
   fi
 done
+# Fork: the fork's own test variables come through ONE door, a tracked name list
+# (scripts/_fork_test_env.sh, scripts/fork_test_env.txt), not a hunk here per name.
+# shellcheck source=scripts/_fork_test_env.sh
+. "$SCRIPT_DIR/_fork_test_env.sh"
+fork_test_env_extend "$SCRIPT_DIR/fork_test_env.txt" || exit 2
 
 # ── Run in hermetic env ──────────────────────────────────────────────────────
 # env -i: start with empty environment, opt-in only what we need.
@@ -290,6 +312,24 @@ REAL_HERMES_ROOT="$(
 )"
 if [ -n "$REAL_HERMES_ROOT" ]; then
   echo "▶ real store root handed to the gateway fence: $REAL_HERMES_ROOT"
+fi
+# Fork (rows 2026-10-15): say which interpreter runs the tests, and refuse one
+# inside the operator's live store root (warn only under CI, whose store root
+# is the runner's throwaway home) — owner ruling 2026-10-15.
+_TEST_INTERP="$(
+  "$PYTHON" -c 'import os, sys
+e = os.path.normcase(os.path.realpath(sys.executable)); r = sys.argv[1]
+r = os.path.normcase(os.path.realpath(r)).rstrip(os.sep) + os.sep if r else ""
+print(("INSIDE " if r and e.startswith(r) else "") + sys.executable)' "${REAL_HERMES_ROOT:-}" 2>/dev/null || true
+)"
+echo "▶ test interpreter: ${_TEST_INTERP#INSIDE }"
+if [ "${_TEST_INTERP#INSIDE }" != "$_TEST_INTERP" ]; then
+  if [ -n "${CI:-}" ]; then
+    echo "⚠ that interpreter lives inside the store root ($REAL_HERMES_ROOT)" >&2
+  else
+    echo "error: that interpreter lives inside the live Hermes home ($REAL_HERMES_ROOT); tests never run there — set HERMES_PYTHON to the shared test venv" >&2
+    exit 1
+  fi
 fi
 
 # Fork (Git Bash / MSYS / WSL): a native-Windows "$PYTHON" (…/Scripts/python.exe)

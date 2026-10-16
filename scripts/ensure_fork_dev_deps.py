@@ -8,17 +8,27 @@ place that installs them. The check reads the file itself, so a pin added
 there needs no edit here. pip when the venv has it, else ``uv pip`` (a
 ``uv sync`` venv has no pip). Exit 0 when satisfied (installed or already
 there), 1 when an install was needed and failed.
+
+Concurrent lanes share one test venv, so the install runs under an exclusive
+lock beside it (``<sys.prefix>/.fork-dev-deps.lock``, owner ruling 2026-10-15:
+an install lock first, per-lane venvs only if it is not enough); a waiter
+re-checks the pins once it holds the lock, so it installs nothing another lane
+already installed.
 """
 
 from __future__ import annotations
 
+import contextlib
 import shutil
 import subprocess
 import sys
+import time
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-REQUIREMENTS = Path(__file__).resolve().parent.parent / "requirements-fork-dev.txt"
+ROOT = Path(__file__).resolve().parent.parent
+REQUIREMENTS = ROOT / "requirements-fork-dev.txt"
+LOCK_WAIT_SECONDS = 900.0
 
 
 def pins(text: str) -> dict[str, str]:
@@ -45,9 +55,44 @@ def unmet(required: dict[str, str]) -> dict[str, str | None]:
     return missing
 
 
+@contextlib.contextmanager
+def install_lock(path: Path | None = None, *, wait: float = LOCK_WAIT_SECONDS):
+    """Hold the venv's exclusive install lock; wait for another lane's install to finish."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from agent_runtime.file_locks import LockUnavailable, try_lock_exclusive, unlock
+
+    path = path or Path(sys.prefix) / ".fork-dev-deps.lock"
+    deadline = time.monotonic() + wait
+    with open(path, "a+b") as handle:
+        announced = False
+        while True:
+            try:
+                try_lock_exclusive(handle)
+                break
+            except LockUnavailable:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"another install held {path} for {wait:.0f} s") from None
+                if not announced:
+                    print(f"> waiting for another lane's install into {sys.prefix} ({path})", file=sys.stderr)
+                    announced = True
+                time.sleep(0.5)
+        try:
+            yield
+        finally:
+            unlock(handle)
+
+
 def main(requirements: Path = REQUIREMENTS) -> int:
     if not requirements.is_file():
         return 0
+    if not unmet(pins(requirements.read_text(encoding="utf-8"))):
+        return 0
+    with install_lock():
+        return _pip_install_requirements(requirements)
+
+
+def _pip_install_requirements(requirements: Path) -> int:
     missing = unmet(pins(requirements.read_text(encoding="utf-8")))
     if not missing:
         return 0

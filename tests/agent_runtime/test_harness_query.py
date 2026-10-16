@@ -13,6 +13,8 @@ Killing mutations (each applied, red recorded, reverted — see the commit):
   M5 core._live_qa drops the persona filter                  -> dev-busy test red
   M6 harness_query registered into toolset "harness_query"   -> registration test red
   M7 answer_routed never dials the serve                     -> serve-routing test red
+  M8 schema description drops the session_search / chat-root steer -> steer test red
+  M9 _mcp_resolution drops the ``sdk`` read                          -> mcp-client test red
 """
 
 from __future__ import annotations
@@ -103,6 +105,17 @@ def test_instance_resolves_by_instance_id_and_by_persona_id_and_misses_honestly(
     assert by_id["mcp"]["exercised"].startswith("not_answered_here")
     assert by_id["mcp"]["basis"] in {"resolved_now", "unresolved"}
     assert miss["ok"] is False and miss["error"] == "not_found"
+
+
+def test_instance_says_whether_this_process_has_an_mcp_client(monkeypatch):
+    """The launcher's acceptance preflight reads readiness here, before a turn (M9)."""
+    from agent_runtime.mcp_admission import transport
+
+    qa, _dev = _qa_and_dev()
+    monkeypatch.setattr(transport, "mcp_sdk_available_flag", lambda: False)
+    assert harness_query.answer("instance", instance=qa.id)["mcp"]["sdk"] == "mcp_sdk_unavailable"
+    monkeypatch.setattr(transport, "mcp_sdk_available_flag", lambda: True)  # positive control
+    assert harness_query.answer("instance", instance=qa.id)["mcp"]["sdk"] == "available"
 
 
 def test_sessions_returns_only_the_named_instances_sessions(no_resident_registry):
@@ -275,3 +288,15 @@ def test_persona_show_resolves_through_the_same_core(capsys):
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 0 and payload["persona_instance"]["persona_instance_id"] == qa.id
+
+
+def test_the_tool_steers_session_lookups_off_transcript_history():
+    """P2 (2026-10-15): Base answered "is there a QA session to reuse?" from four
+    ``session_search`` calls and offered an instance id cut from a chat root. The
+    schema the model reads must name both as not-a-receipt (M8)."""
+
+    from tools.agent_chat.query import HARNESS_QUERY_SCHEMA
+
+    text = HARNESS_QUERY_SCHEMA["description"]
+    assert "`session_search` (transcript history, not live state)" in text
+    assert "never an id cut from a chat root" in text

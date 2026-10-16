@@ -49,6 +49,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+from .serde import stripped_str
+
 __layer__ = "lanes"
 
 __all__ = [
@@ -151,13 +153,13 @@ def refusal_codes_by_kind() -> dict[str, int]:
     return {str(kind): code for kind, code in codes.items()}
 
 
-def _text(params: dict, *names: str) -> str | None:
+def _first_text(params: dict, *names: str) -> str | None:
     """First non-blank string among ``names``, stripped. ``None`` otherwise."""
 
     for name in names:
-        value = params.get(name)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+        value = stripped_str(params.get(name))
+        if value is not None:
+            return value
     return None
 
 
@@ -186,8 +188,8 @@ def _open_chat_args(
 
     return SimpleNamespace(
         persona_id=persona_id,
-        persona_instance_id=_text(params, "persona_instance_id"),
-        session_id=_text(params, "session_id"),
+        persona_instance_id=_first_text(params, "persona_instance_id"),
+        session_id=_first_text(params, "session_id"),
         new_session=bool(params.get("new_session")),
         client_scope=owner,
         kill_active=bool(params.get("kill_active")),
@@ -196,12 +198,12 @@ def _open_chat_args(
         # and ``client_message_id`` is the name the same value carries on the
         # SEND lane and on ``persona instance create``. Both are accepted, in
         # that order, so one client vocabulary reaches one CLI flag.
-        idempotency_key=_text(params, "idempotency_key", "client_message_id"),
+        idempotency_key=_first_text(params, "idempotency_key", "client_message_id"),
         # Provenance, defaulted from what the TRANSPORT proved. ``"cli"`` is the
         # argparse default this verb has always had, kept for a caller with no
         # device identity so the two doors do not answer with different words.
         requested_by=(
-            _text(params, "requested_by") or _caller_device_id(caller) or "cli"
+            _first_text(params, "requested_by") or _caller_device_id(caller) or "cli"
         ),
         # The minting arm, closed. See the docstring.
         add_instance=False,
@@ -284,7 +286,7 @@ def perform_persona_instance_open_chat(
         return PersonaOpenChatOutcome(refusal=PersonaOpenChatRefusal(
             code=ERR_INVALID_PARAMS, message="Invalid conversation owner.", data={"reason": exc.reason}))
 
-    persona_id = _text(params, "persona_id")
+    persona_id = _first_text(params, "persona_id")
     if not persona_id:
         return PersonaOpenChatOutcome(
             refusal=PersonaOpenChatRefusal(
@@ -325,7 +327,7 @@ def perform_persona_instance_open_chat(
         )
 
     row = dict(to_jsonable(row))
-    correlation_id = _text(params, "correlation_id")
+    correlation_id = _first_text(params, "correlation_id")
 
     if exit_code == 0 and row.get("ok") is True:
         if "install_id" in params:
@@ -334,13 +336,13 @@ def perform_persona_instance_open_chat(
             row["correlation_id"] = correlation_id
         return PersonaOpenChatOutcome(result=row)
 
-    reason = _text(row, "error_kind") or "open_chat_refused"
+    reason = _first_text(row, "error_kind") or "open_chat_refused"
     data = {key: value for key, value in row.items() if key not in {"ok", "error"}}
     data["reason"] = reason
     data["exit_code"] = exit_code
     if correlation_id is not None:
         data["correlation_id"] = correlation_id
-    message = _text(row, "error", "status") or f"open-chat refused: {reason}"
+    message = _first_text(row, "error", "status") or f"open-chat refused: {reason}"
     return PersonaOpenChatOutcome(
         refusal=PersonaOpenChatRefusal(
             code=refusal_codes_by_kind().get(reason, ERR_INVALID_PARAMS),

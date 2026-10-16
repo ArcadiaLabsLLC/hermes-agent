@@ -471,13 +471,14 @@ def add_mission_chat(subs) -> None:
     mission_chat_steer.add_argument("--json", action="store_true")
     mission_chat_steer.set_defaults(func=chat_coordinator._cmd_mission_chat_steer)
     mission_chat_resolve = mission_chat_subs.add_parser(
-        "turn-resolve", help="Resolve one outcome_unknown chat turn"
+        "turn-resolve", help="Resolve an uncertain turn or dismiss an interruption"
     )
     mission_chat_resolve.add_argument("--session-id", required=True)
     mission_chat_resolve.add_argument("--client-message-id", required=True)
     mission_chat_resolve.add_argument("--turn-id", required=True)
     mission_chat_resolve.add_argument("--persona-instance-id", default=None)
-    mission_chat_resolve.add_argument("--action", choices=["abandon"], required=True)
+    from agent_runtime.mission_chat_turns.states import TurnResolution
+    mission_chat_resolve.add_argument("--action", choices=list(TurnResolution), required=True)
     mission_chat_resolve.add_argument("--json", action="store_true")
     mission_chat_resolve.set_defaults(func=chat_tickets_commands._cmd_mission_chat_turn_resolve)
     # Read-only adoption readout for the clarify-token binding. Registered with

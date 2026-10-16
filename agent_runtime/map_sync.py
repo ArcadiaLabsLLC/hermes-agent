@@ -312,23 +312,6 @@ def published_relative_path(map_id: str) -> str:
     return f"{MAP_PUBLISHED_PREFIX}{paths.safe_path_token(map_id)}.json"
 
 
-def map_token_for_published_path(rel: str) -> str | None:
-    """The map token a published path names, or ``None`` if it is not one.
-
-    The exact inverse of :func:`published_relative_path` over the tokens that
-    function can produce — a nested path under the prefix is NOT one of them and
-    answers ``None`` rather than a guess.
-    """
-
-    text = str(rel).replace("\\", "/")
-    if not text.startswith(MAP_PUBLISHED_PREFIX) or not text.endswith(".json"):
-        return None
-    tail = text[len(MAP_PUBLISHED_PREFIX) : -len(".json")]
-    if not tail or "/" in tail:
-        return None
-    return tail
-
-
 # --- the store door ---------------------------------------------------------
 
 

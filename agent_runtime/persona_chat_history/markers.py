@@ -24,9 +24,9 @@ from .vocabulary import (
 __layer__ = "stores"
 __all__ = [
     "_carry_run_budget",
+    "_ordered_message_rows",
     "_silent_turn_marker_row",
     "_terminal_turn_marker_rows",
-    "_ordered_message_rows",
 ]
 
 
@@ -134,6 +134,7 @@ def _terminal_turn_marker_rows(
     session_id: str,
     assistant_client_message_ids: set[str],
     records: list[dict[str, Any]] | None = None,
+    operator_client_message_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Synthesize the typed marker row for every terminally-settled, reply-less turn.
 
@@ -182,10 +183,24 @@ def _terminal_turn_marker_rows(
             "turn_id": turn_id,
             # The canonical turn-store state, not a second vocabulary.
             "settled_state": state,
+            "operator_message_present": client_message_id in (operator_client_message_ids or set()),
             # C8 ordering key: the terminal marker IS the turn's terminal
             # row (a turn has a reply or a marker, never both).
             "turn_seq": TURN_SEQ_TERMINAL,
         }
+        # Keep terminal evidence for tool settlement; dismissal hides the card,
+        # not the interrupted outcome or its unfinished tool calls.
+        if record.get("resolution"):
+            marker_row["resolution"] = record["resolution"]
+        if state == "provider_refused":
+            refusal = record.get("provider_refusal")
+            if isinstance(refusal, dict):
+                marker_row["provider_refusal"] = dict(refusal)
+                if refusal.get("reason") == "provider_unavailable":
+                    marker_row["text"] = (
+                        "This request never left Hermes because the model provider was unavailable. "
+                        "Review this profile's provider setup, then send a new message."
+                    )
         if client_message_id in retried_as:
             marker_row["retried_as"] = retried_as[client_message_id]
         _carry_run_budget(marker_row, record)

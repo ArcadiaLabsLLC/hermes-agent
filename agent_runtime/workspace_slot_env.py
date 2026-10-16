@@ -163,15 +163,6 @@ def _kept_env(workspace_id: str, slot: str, env_keep: Any) -> dict[str, str]:
     return {name: stored[name] for name in names if name in stored}
 
 
-def drop_slot_fill(workspace_id: str, slot: str) -> bool:
-    payload = _read()
-    removed = (payload["workspaces"].get(workspace_id) or {}).pop(slot, None)
-    if removed is None:
-        return False
-    _write(payload)
-    return True
-
-
 def _write(payload: dict[str, Any]) -> None:
     target = slot_env_path()
     target.parent.mkdir(parents=True, exist_ok=True)

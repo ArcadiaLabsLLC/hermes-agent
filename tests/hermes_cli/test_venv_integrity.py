@@ -7,9 +7,15 @@ filesystem would go red rather than keep passing on a shared shape.
 
 from __future__ import annotations
 
+import os
+import shutil
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+from hermes_cli import venv_integrity
 from hermes_cli.venv_integrity import (
     canonical_distribution,
     import_name_for,
@@ -39,6 +45,55 @@ def test_single_dist_info_is_clean(tmp_path):
     _dist_info(tmp_path, "jiter", "0.15.0")
 
     assert metadata_issues(["jiter"], directories=[tmp_path]) == []
+
+
+@pytest.mark.parametrize("initial_conflict", [False, True], ids=["addition", "repair"])
+def test_metadata_health_refreshes_with_the_same_directory_timestamp(tmp_path, initial_conflict):
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    added = _dist_info(tmp_path, "jiter", "0.15.0") if initial_conflict else None
+    stamp = tmp_path.stat().st_mtime_ns
+    conflict = ["runtime_dependency_metadata_conflict"]
+    assert [issue["kind"] for issue in metadata_issues(["jiter"], directories=[tmp_path])] == (
+        conflict if initial_conflict else []
+    )
+
+    if added is None:
+        _dist_info(tmp_path, "jiter", "0.15.0")
+    else:
+        shutil.rmtree(added)
+    os.utime(tmp_path, ns=(stamp, stamp))
+    assert tmp_path.stat().st_mtime_ns == stamp
+    assert [issue["kind"] for issue in metadata_issues(["jiter"], directories=[tmp_path])] == (
+        [] if initial_conflict else conflict
+    )
+
+
+def test_metadata_listing_checks_only_metadata_shaped_entry_types(tmp_path, monkeypatch):
+    metadata = _dist_info(tmp_path, "jiter", "0.15.0")
+    (tmp_path / "unrelated_package").mkdir()
+    (tmp_path / "unrelated.py").write_text("", encoding="utf-8")
+    (tmp_path / "not_a_directory.dist-info").write_text("", encoding="utf-8")
+    real_scandir = os.scandir
+    checked = []
+
+    class Entry:
+        def __init__(self, entry):
+            self.entry = entry
+            self.name, self.path = entry.name, entry.path
+
+        def is_dir(self):
+            checked.append(self.name)
+            assert self.name.endswith((".dist-info", ".egg-info"))
+            return self.entry.is_dir()
+
+    @contextmanager
+    def entries(directory):
+        with real_scandir(directory) as scan:
+            yield (Entry(entry) for entry in scan)
+
+    monkeypatch.setattr(os, "scandir", entries)
+    assert venv_integrity._metadata_dirs_by_distribution(tmp_path) == {"jiter": [metadata]}
+    assert sorted(checked) == ["jiter-0.15.0.dist-info", "not_a_directory.dist-info"]
 
 
 def test_three_conflicting_dist_info_dirs_are_reported(tmp_path):
@@ -282,3 +337,41 @@ def test_import_name_and_canonical_form():
     assert import_name_for("google-auth") == "google.auth"
     assert import_name_for("anthropic") == "anthropic"
     assert canonical_distribution("Pydantic_Core") == "pydantic-core"
+
+
+def _count_listings(monkeypatch) -> list[Path]:
+    listed: list[Path] = []
+    real = venv_integrity._metadata_dirs_by_distribution
+
+    def counting(directory: Path):
+        listed.append(directory)
+        return real(directory)
+
+    monkeypatch.setattr(venv_integrity, "_metadata_dirs_by_distribution", counting)
+    return listed
+
+
+def test_a_status_scope_lists_each_site_packages_tree_once_across_package_lists(tmp_path, monkeypatch):
+    """R446: the listing is a fact about the interpreter, not the persona. Inside one
+    snapshot-build scope, two different package lists (two providers) list the tree once.
+    Killing mutation: ``runtime_environment_status_scope`` stops entering
+    ``metadata_listing_scope`` -> two listings."""
+    from hermes_cli.runtime_environment import runtime_environment_status_scope
+
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    _dist_info(tmp_path, "jiter", "0.15.0")
+    listed = _count_listings(monkeypatch)
+    with runtime_environment_status_scope():
+        first = metadata_issues(["jiter"], directories=[tmp_path])
+        second = metadata_issues(["jiter", "anthropic"], directories=[tmp_path])
+    assert listed == [tmp_path]
+    assert [i["kind"] for i in first] == [i["kind"] for i in second] == ["runtime_dependency_metadata_conflict"]
+
+
+def test_outside_a_scope_every_call_lists_again(tmp_path, monkeypatch):
+    # Positive control: the no-process-memo rule still holds outside a scope.
+    _dist_info(tmp_path, "jiter", "0.12.0")
+    listed = _count_listings(monkeypatch)
+    metadata_issues(["jiter"], directories=[tmp_path])
+    metadata_issues(["openai"], directories=[tmp_path])
+    assert listed == [tmp_path, tmp_path]

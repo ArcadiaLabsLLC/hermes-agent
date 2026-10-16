@@ -429,8 +429,6 @@ def registry_content_revision() -> str:
     )
 
 
-#: The pre-tool-form spelling, kept one release (plan tool-form-one-owner-2026-10-08 S1).
-_registry_content_revision = registry_content_revision
 
 def chat_lane_bundle_key_material(
     persona: Any, permission: Any, *, session_id: str | None

@@ -345,6 +345,7 @@ _UPDATE_DEPENDENCIES = (
     "hermes_cli/steward.py",
     "hermes_cli/observability/shared_metrics_update.py",
     "hermes_cli/main_install_repair.py",
+    "hermes_cli/interpreter_abi.py",  # venv_sync re-enters a generation built for another Python
     "hermes_logging.py",
     "hermes_platform/host/__init__.py",
     "hermes_platform/host/facts.py",
