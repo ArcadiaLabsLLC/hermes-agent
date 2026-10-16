@@ -15,7 +15,7 @@ def declare_contracts() -> None:
     """The ``eternia.skills.*`` wire contracts (pydantic models), declared once per process.
 
     Under ``tui_gateway.pydantic_contracts: false`` nothing calls this at run time: the
-    catalog generated from these same models (``tui_gateway/contract_catalog_data.py``)
+    catalog generated from these same models (``agent_runtime/gateway/contract_catalog_data.py``)
     carries them, and ``scripts/gen_contract_catalog.py`` calls this to render them.
     """
     from tui_gateway.contracts import registry
@@ -39,7 +39,7 @@ def declare_contracts() -> None:
 
 def install() -> None:
     from tui_gateway import server
-    from tui_gateway.contract_seam import pydantic_contracts_enabled
+    from agent_runtime.gateway.contract_seam import pydantic_contracts_enabled
 
     if pydantic_contracts_enabled():
         declare_contracts()

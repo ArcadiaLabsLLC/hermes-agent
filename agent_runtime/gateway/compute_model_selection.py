@@ -1,6 +1,6 @@
 """Apply idle model changes in the existing compute owner and return its receipt."""
 __layer__ = "lanes"
-from tui_gateway.session_execution import control
+from agent_runtime.gateway.session_execution import control
 
 
 def apply(server, frame: dict, session: dict) -> dict:

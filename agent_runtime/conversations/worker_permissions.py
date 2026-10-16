@@ -72,7 +72,7 @@ def _handle(rid, params):
 
 def register(server) -> None:
     """Installed with the other fork methods at gateway import (``gateway_extensions``)."""
-    from tui_gateway.contract_seam import pydantic_contracts_enabled
+    from agent_runtime.gateway.contract_seam import pydantic_contracts_enabled
 
     if pydantic_contracts_enabled():
         declare_contracts()

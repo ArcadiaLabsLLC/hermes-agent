@@ -4,10 +4,10 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import Result
-from .common import SessionParams
-from .registry import method
-from .sessions import LiveSessionSnapshot
+from tui_gateway.contracts.base import Result
+from tui_gateway.contracts.common import SessionParams
+from tui_gateway.contracts.registry import method
+from tui_gateway.contracts.sessions import LiveSessionSnapshot
 
 
 class RecoveryParams(SessionParams):

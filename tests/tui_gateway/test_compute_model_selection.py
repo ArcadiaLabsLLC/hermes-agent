@@ -5,8 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from tui_gateway import compute_model_selection, server
-from tui_gateway.session_execution import control
+from tui_gateway import server
+from agent_runtime.gateway import compute_model_selection
+from agent_runtime.gateway.session_execution import control
 
 
 def test_model_change_rechecks_busy_after_waiting_for_admission():

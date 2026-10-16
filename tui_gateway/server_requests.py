@@ -94,7 +94,7 @@ class ServerRequest:
 
 _lock = threading.Lock()
 _open: dict[str, ServerRequest] = {}
-from tui_gateway.answer_receipts import AnswerReceipts
+from agent_runtime.gateway.answer_receipts import AnswerReceipts
 
 _answer_receipts = AnswerReceipts()  # Guarded by the pending-request owner's lock.
 
@@ -162,7 +162,7 @@ def _emit_cancel(req: ServerRequest, reason: str) -> None:
 
 
 def _register(req: ServerRequest) -> None:
-    from tui_gateway.contract_seam import registry as contracts  # fork seam: pydantic or the catalog
+    from agent_runtime.gateway.contract_seam import registry as contracts  # fork seam: pydantic or the catalog
 
     contract = contracts.SERVER_REQUESTS.get(req.method)
     if contract is None:

@@ -58,7 +58,7 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
     # Default = ``conversations.subprocess_worker`` (ruling R8, plan snapshot-offproc S2).
     "snapshot.subprocess_worker": "agent_runtime/snapshot_worker/worker.py::subprocess_worker_enabled",
     "auth.subprocess_signin": "agent_runtime/provider_signin.py::subprocess_signin_enabled",
-    "tui_gateway.pydantic_contracts": "tui_gateway/contract_seam.py::pydantic_contracts_enabled",
+    "tui_gateway.pydantic_contracts": "agent_runtime/gateway/contract_seam.py::pydantic_contracts_enabled",
     "sessions.git_probe": "tui_gateway/git_probe.py::git_probe_enabled",
     # Upstream's own connectors switch (read with an in-code default, no DEFAULT_CONFIG entry).
     "tools.connectors.enabled": "tools/connectors/gateway/config.py::load_config",

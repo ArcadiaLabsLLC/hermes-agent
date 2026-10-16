@@ -72,7 +72,7 @@ config:
   conversations.subprocess_worker: false
   auth.subprocess_signin: false
   # The in-process gateway reads its wire contracts from the catalog generated from the pydantic
-  # models (tui_gateway/contract_seam.py), never from pydantic itself.
+  # models (agent_runtime/gateway/contract_seam.py), never from pydantic itself.
   tui_gateway.pydantic_contracts: false
   # Upstream's connectors switch: the gateway/portal connectors (and their pydantic wire models)
   # are not packaged, so the connectors tool is out of the schema and its RPCs answer "unavailable".
@@ -126,7 +126,7 @@ packaging:
   omitted_distributions:
     - distribution: pydantic
       imports: [pydantic]
-      degrades: the in-process gateway validates its wire against the generated contract catalog (tui_gateway/contract_seam.py, tui_gateway.pydantic_contracts false); the connectors RPCs and MCP OAuth are not packaged
+      degrades: the in-process gateway validates its wire against the generated contract catalog (agent_runtime/gateway/contract_seam.py, tui_gateway.pydantic_contracts false); the connectors RPCs and MCP OAuth are not packaged
     - distribution: pydantic-core
       imports: [pydantic_core]
       degrades: nothing beyond pydantic's row — only pydantic imports it
@@ -294,7 +294,7 @@ packaging:
     - gateway.platforms.yuanbao_sticker
     - plugins.platforms
     # pydantic (pydantic-core is Rust): the gateway's pydantic contract models — the in-process gateway
-    # reads the generated catalog through tui_gateway/contract_seam.py — the connectors account RPCs
+    # reads the generated catalog through agent_runtime/gateway/contract_seam.py — the connectors account RPCs
     # (a seam in tui_gateway/server.py), the connectors gateway/portal wire clients, MCP device OAuth.
     - tui_gateway.contracts
     - tui_gateway.methods_connectors
@@ -509,10 +509,10 @@ packaging:
     - tools.agent_chat_dispatch.local_child
     # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in
     # venv_sync (hermes_bootstrap imports it guarded and only recovers without it: an app-store
-    # wheel is never re-launched), and PDF attach (pdftoppm) lives in tui_gateway.methods_pdf
+    # wheel is never re-launched), and PDF attach (pdftoppm) lives in agent_runtime.gateway.methods_pdf
     # (tui_gateway/server.py imports it guarded; the phone serves no pdf.attach).
     - hermes_cli.venv_sync
-    - tui_gateway.methods_pdf
+    - agent_runtime.gateway.methods_pdf
     # Owner decisions D3/D4/D5 (2026-09-30, phone-gate plan §5). D3: the secrets vault — the local
     # Fernet store and the external password managers; the host's secure store binding is the phone's
     # vault and the vault.* RPCs answer unavailable. D4: DuckDuckGo search runs its query in a worker

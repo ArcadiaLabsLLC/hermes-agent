@@ -25,7 +25,7 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
     monkeypatch.setitem(sys.modules, server.__name__, server)
     real_import = builtins.__import__
     def importing(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "tui_gateway" or (not name and level == 1):
+        if name in ("tui_gateway", "agent_runtime.gateway") or (not name and level == 1):
             modules = {}
             for child in fromlist:
                 if inspect_pdf_import and child == "methods_pdf":
@@ -80,7 +80,7 @@ def test_connector_internal_import_failure_retains_existing_optional_semantics(m
     assert server._CONNECTOR_RPC_METHODS == frozenset()
 
 
-@pytest.mark.parametrize("error_name", ["tui_gateway", "tui_gateway.methods_pdf"])
+@pytest.mark.parametrize("error_name", ["agent_runtime.gateway", "agent_runtime.gateway.methods_pdf"])
 def test_omitted_pdf_has_no_handler_and_preserves_remaining_order(monkeypatch, error_name):
     server = registration(monkeypatch, ("methods_pdf", error_name))
     assert server.calls == [name for name in ORDER if name != "methods_pdf"]
@@ -96,9 +96,9 @@ def test_pdf_internal_import_error_propagates(monkeypatch):
 def test_live_handlers_keep_server_namespace_and_native_owner_handles():
     from tui_gateway import server
     assert server._methods["pdf.attach"].__globals__ is vars(server)
-    assert server._methods_pdf.__name__ == "tui_gateway.methods_pdf"
-    assert server._session_recovery.__name__ == "tui_gateway.session_recovery"
-    assert server._session_retirement.__name__ == "tui_gateway.session_retirement"
+    assert server._methods_pdf.__name__ == "agent_runtime.gateway.methods_pdf"
+    assert server._session_recovery.__name__ == "agent_runtime.gateway.session_recovery"
+    assert server._session_retirement.__name__ == "agent_runtime.gateway.session_retirement"
     for name in ("session.recover", "session.recovery.history", "session.recovery.inflight", "session.retire"):
         assert callable(server._methods[name])
     response = server._methods["session.retire"]("job2", {"session_id": "job2-missing"})

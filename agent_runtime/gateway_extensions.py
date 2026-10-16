@@ -17,11 +17,11 @@ try:
 except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic contracts) are not shipped
     _methods_connectors = _methods_connectors_account = None
 try:
-    from tui_gateway import methods_pdf as _methods_pdf
+    from agent_runtime.gateway import methods_pdf as _methods_pdf
 except ImportError as _pdf_exc:  # a bundle that starts no process (the phone) serves no pdf.attach
-    # `from tui_gateway import x` reports a missing submodule as ImportError(name=<package>); anything
+    # `from agent_runtime.gateway import x` reports a missing submodule as ImportError(name=<package>); anything
     # methods_pdf itself fails to import carries another name and still raises.
-    if _pdf_exc.name not in ("tui_gateway", "tui_gateway.methods_pdf"):
+    if _pdf_exc.name not in ("agent_runtime.gateway", "agent_runtime.gateway.methods_pdf"):
         raise
     _methods_pdf = None
 
@@ -50,10 +50,10 @@ def prepare(server) -> None:
 
 def register(server) -> None:
     """Install fork methods once for every native gateway execution host."""
-    from tui_gateway import session_recovery
+    from agent_runtime.gateway import session_recovery
     server._session_recovery = session_recovery
     session_recovery.register(server)
-    from tui_gateway import session_retirement
+    from agent_runtime.gateway import session_retirement
     server._session_retirement = session_retirement
     session_retirement.register(server)
     from agent_runtime.conversations import worker_subagents

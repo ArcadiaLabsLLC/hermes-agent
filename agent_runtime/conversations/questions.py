@@ -11,7 +11,7 @@ SUPPORTED = frozenset({"approval", "clarify", "sudo", "secret", "vault.unlock_pr
 
 def validate_answer(request: dict, result: dict) -> None:
     # The registry the profile selects: a phone checks the answer's shape against the catalog.
-    from tui_gateway.contract_seam import registry
+    from agent_runtime.gateway.contract_seam import registry
 
     contract = registry.SERVER_REQUESTS.get(request["method"])
     if contract is None or len(json.dumps(result, ensure_ascii=True)) > 64 * 1024:

@@ -7,7 +7,7 @@ reference them bare.
 """
 __layer__ = "lanes"
 
-from .method_ctx import HandlerRegistry, bind_module
+from tui_gateway.method_ctx import HandlerRegistry, bind_module
 
 _registry = HandlerRegistry()
 method = _registry.method

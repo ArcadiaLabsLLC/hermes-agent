@@ -8,7 +8,7 @@ every runtime reader of the registry reads it through :data:`registry` here, and
 switch ``tui_gateway.pydantic_contracts`` (default on) picks the implementation:
 
 * on (desktop) — ``tui_gateway.contracts.registry``, unchanged;
-* off (phone) — :mod:`tui_gateway.contract_catalog`: the same catalog rendered from those
+* off (phone) — :mod:`agent_runtime.gateway.contract_catalog`: the same catalog rendered from those
   models to plain data, with a pure-Python SHAPE validator (unknown keys, missing required
   keys, nested models and unions — never value types).
 
@@ -42,7 +42,7 @@ def contract_registry() -> ModuleType:
         from tui_gateway.contracts import registry as pydantic_registry
 
         return pydantic_registry
-    from tui_gateway import contract_catalog
+    from agent_runtime.gateway import contract_catalog
 
     return contract_catalog
 

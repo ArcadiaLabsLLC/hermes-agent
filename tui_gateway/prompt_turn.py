@@ -768,7 +768,7 @@ def _invoke_agent(
                 hold["held"] += delta
                 return
             delta, hold["held"] = hold["held"] + delta, ""
-        from tui_gateway.session_execution import checkpoint_guard
+        from agent_runtime.gateway.session_execution import checkpoint_guard
         with checkpoint_guard(session):
             with session["history_lock"]:
                 _append_inflight_delta(session, delta)
@@ -1200,7 +1200,7 @@ def _run_prompt_submit(
             _invoke_agent(
                 sid, session, st, prompt, run_message, streamer, images, display_kind,
                 display_metadata, turn_author, text)
-            from tui_gateway.session_execution import checkpoint_guard
+            from agent_runtime.gateway.session_execution import checkpoint_guard
             with checkpoint_guard(session):
                 status_note = _absorb_turn_result(
                     sid, session, st, text, display_kind, display_metadata)
@@ -1217,7 +1217,7 @@ def _run_prompt_submit(
             # structured control snapshot now so the Desktop card never paints the pre-judge turn count.
             _publish_session_control_snapshot(sid, session, only_if_present=True)
         except Exception as e:
-            from tui_gateway.session_execution import checkpoint_guard
+            from agent_runtime.gateway.session_execution import checkpoint_guard
             with checkpoint_guard(session):
                 _recover_turn_exception(sid, session, st, e)
         finally:

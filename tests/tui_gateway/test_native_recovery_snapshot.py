@@ -6,8 +6,9 @@ import threading
 import pytest
 
 from hermes_state import SessionDB
-from tui_gateway import event_replay, server, server_requests, session_execution, session_recovery
-from tui_gateway.contracts.recovery import RecoveryHistoryPage, RecoverySnapshot
+from tui_gateway import event_replay, server, server_requests
+from agent_runtime.gateway import session_execution, session_recovery
+from agent_runtime.gateway.contracts_recovery import RecoveryHistoryPage, RecoverySnapshot
 
 
 @pytest.fixture

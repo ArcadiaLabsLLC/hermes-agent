@@ -630,7 +630,7 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
                 if db is not None:
                     _reopen_if_finalized(db, str(session.get("session_key") or ""))
             _persist_submit_user_row(session, text, display_kind)
-            from tui_gateway.session_execution import submitted
+            from agent_runtime.gateway.session_execution import submitted
             submitted(session)
             return None
     except Exception as exc:
@@ -652,7 +652,7 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
     # this rejected prompt as live. Release the slot a turn would normally own.
     with session["history_lock"]:
         try:
-            from tui_gateway.session_execution import rejected
+            from agent_runtime.gateway.session_execution import rejected
             rejected(session)
         except Exception:
             logger.warning("Could not persist rejected execution outcome", exc_info=True)
@@ -732,7 +732,7 @@ def _lock_in_submit_turn(
                 rid, sid, session, params, requested_rebind_ids)
             if err is not None:
                 return err, {}
-        from tui_gateway.session_execution import admit
+        from agent_runtime.gateway.session_execution import admit
         try:
             admit(session, params.get("execution_id"))
         except (ValueError, RuntimeError) as exc:
@@ -877,7 +877,7 @@ def _(rid, params: dict) -> dict:
             isolated_response["result"].update(survivor_fields)
             return isolated_response
         if execution_id := params.get("execution_id"):
-            from tui_gateway.session_execution import uncertain
+            from agent_runtime.gateway.session_execution import uncertain
             uncertain(session, execution_id)
             return isolated_response
         # An ordinal/id alone is not consent. A client that carries a leftover ordinal into an ORDINARY

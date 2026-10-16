@@ -1,5 +1,5 @@
-from tui_gateway import session_execution as execution
-from tui_gateway.execution_result import MAX_RESULT_BYTES, public_result
+from agent_runtime.gateway import session_execution as execution
+from agent_runtime.gateway.execution_result import MAX_RESULT_BYTES, public_result
 from tests.tui_gateway.test_native_execution_fence import owner as owner
 
 

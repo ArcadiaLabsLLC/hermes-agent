@@ -122,7 +122,7 @@ def _set_model(rid, params, key, value, session):
             return _stash_pending_model_switch(rid, key, value, session, confirmed, parsed_flags)
         if session.get("_compute_host_active"):
             from tui_gateway import server
-            from tui_gateway.compute_model_selection import forward
+            from agent_runtime.gateway.compute_model_selection import forward
             return forward(server, rid, params, session)
         explicit_provider = parsed_flags.explicit_provider
         failed_agent_init = session.get("agent") is None and session.get("agent_error") is not None

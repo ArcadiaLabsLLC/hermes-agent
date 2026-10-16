@@ -49,7 +49,7 @@ from tui_gateway.checkpoints import (_load_checkpoints_enabled, _resolve_checkpo
 from tui_gateway._env import env_float, env_int
 from tui_gateway.turn_marker import clear_turn_marker, marker_writer_state, read_turn_marker, record_turn_start
 # Fork seam (embedded Hermes): the registry the profile selects (pydantic, or the generated catalog).
-from tui_gateway.contract_seam import registry as _contracts
+from agent_runtime.gateway.contract_seam import registry as _contracts
 # User-facing copy shared with the split method modules (they close over this namespace).
 from tui_gateway.user_messages import (
     AGENT_BUILD_ABANDONED, AGENT_MISSING_FOR_TURN, AGENT_STILL_STARTING, agent_init_failed_message, busy_message,
@@ -687,7 +687,7 @@ def _default_session_cwd() -> str:
 
 
 def write_json(obj: dict) -> bool:
-    from tui_gateway.session_execution import publish
+    from agent_runtime.gateway.session_execution import publish
     return publish(_sessions, obj, _write_json_frame)
 
 

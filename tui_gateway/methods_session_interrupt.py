@@ -73,7 +73,7 @@ def _(rid, params: dict) -> dict:
         session, err = _sess_nowait(params, rid)
         if err:
             return err
-        from tui_gateway.session_execution import interrupt
+        from agent_runtime.gateway.session_execution import interrupt
         applied = interrupt(str(params.get("session_id") or ""), session, expected)
         return _ok(rid, {"status": "interrupted" if applied else "not_interrupted", "interrupted": applied})
     _tts_stream_stop()  # keypress barge-in also silences streaming TTS (voice is process-global)

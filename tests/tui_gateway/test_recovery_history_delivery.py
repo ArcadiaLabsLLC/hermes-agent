@@ -5,8 +5,9 @@ import tracemalloc
 
 import pytest
 
-from tui_gateway import recovery_history, server, session_recovery
-from tui_gateway.recovery_history_delivery import HistoryDeliveries, HistoryDelivery
+from tui_gateway import server
+from agent_runtime.gateway import recovery_history, session_recovery
+from agent_runtime.gateway.recovery_history_delivery import HistoryDeliveries, HistoryDelivery
 from tests.tui_gateway.test_native_recovery_snapshot import owner, read_history  # noqa: F401
 
 
