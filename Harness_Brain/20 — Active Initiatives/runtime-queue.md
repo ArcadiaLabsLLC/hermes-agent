@@ -32,8 +32,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-16 (build lane h-bundle-speed, branch `build/h-bundle-speed`)
 
-- [ ] **The provider-azure-identity engine pack ships `azure-core` alone — no `azure-identity`, `msal` or `msal-extensions`, so `import azure.identity` still fails with the pack installed: `Graph.dist_for_top` resolves the namespace top `azure` to `packages_distributions()["azure"][0]` (azure-core), so the walk never reaches azure-identity although the pool holds all three; measured 2026-10-16 (win32-x64 build: pack = 85 files, 0.68 MiB, `{azure-core}`). Fix: resolve a namespace top by the dotted import (`azure.identity` -> the distribution whose RECORD holds `azure/identity/`), with a fixture of two distributions sharing a top** · fork-owned (`scripts/bundle_profile_closure.py` `Graph.dist_for_top`, `agent/azure_identity_adapter.py`) · moves every bundle's plan: the core's set must stay byte-equal, only the pack grows · UNCLAIMED **TAKEN 2026-10-16 h-packs**
-- [ ] **`runtime.provider.list` `dependencies` never offers the provider-azure-identity pack: `_PROVIDER_PACKAGE_REQUIREMENTS` has no `azure-foundry` row (only `_PM_EXTRA_FOR_DISTRIBUTION` names `azure-identity`), so the Launcher's sign-in can never download a pack the bundle builds and ships per release** · fork-owned (`hermes_cli/runtime_environment.py` `_PROVIDER_PACKAGE_REQUIREMENTS`, `agent_runtime/provider_dependencies.py` `provider_dependency_report`) · waits on the VERDICT on the bundle-closure row (drop vs keep) · UNCLAIMED **TAKEN 2026-10-16 h-packs**
 
 ### Filed on arrival — 2026-10-16 (build lane h3-runser, branch `build/h3-runser`)
 
@@ -804,7 +802,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ## Filed on arrival — 2026-10-15 (launcher lane w1015e-mc-l)
 
 ## Filed on arrival — 2026-10-15 (lane w1015i-packs)
-- [ ] **The `provider-mistral` and `provider-azure-identity` packs are built but nothing reports them: `runtime.provider.list` `dependencies` walks `hermes_cli/runtime_environment.py` `_PROVIDER_PACKAGE_REQUIREMENTS`, which names bedrock and vertex only — Mistral is a speech provider (`tools/tts_tool.py`, `tools/transcription_cloud.py`) and azure-identity is the optional Entra mode of `azure-foundry` (`agent/azure_identity_adapter.py`), so neither can be a hard provider requirement.** Needs a "needed only when" dependency entry (speech provider = mistral; azure-foundry `auth_mode = entra_id`) so the report can name `pack_available` for them; until then the Launcher can offer those two packs only from its own catalog. Evidence: `agent_runtime/provider_packs.py`, `agent_runtime/provider_dependencies.py` (`wave/w1015i-packs`). · fork / bundle packaging · filed by w1015i-packs · RULED 2026-10-16 (owner): drop the `provider-mistral` engine pack (remove it from the bundled-desktop manifest's packaging packs and its docs/tests; nothing reaches it); keep `provider-azure-identity` and fix it (it ships azure-core only — see the `Graph.dist_for_top` namespace row) and have `runtime.provider.list` report it **TAKEN 2026-10-16 h-packs**
 
 ## Filed on arrival — 2026-10-15 (lane w1015j-hermes)
 
