@@ -84,6 +84,53 @@ upstream door list.
 - `tools/agent_chat/send.py`, `tools/agent_chat_dispatch/`: reason about the lock to
   choose a child process for agent-to-agent sends; still correct (conservative).
 
-## Slice outcomes
+## Slice outcomes (lane h3-runser, branch `build/h3-runser`)
 
-Recorded under the plan's status section as each slice lands.
+| slice | commit | outcome |
+|---|---|---|
+| S1 census | `197d6a5bf3b` | this note |
+| S2 spawns from context | `c95ab355f17` | `agent_runtime/run_context.py`; one fork call in `local.py::_apply_profile_home` bridges the run's root + auth home into every factory-built child |
+| S3 envelope + root | `7bf55ca1118` | safety block, audit-root ladder and `paths.store_root()` read the run's bound root (`runtime_root_signal`, `runtime_resolution_scope`) |
+| S4 no `os.chdir` | `76ee9cec743` | workdir bound as `TERMINAL_CWD` in the run's terminal scope; `flutter_build_guard` reads the scope |
+| S5 per-root lock | `d1324ca9dd1` | `root_run_lock(root)` for the run; `_WORKDIR_LOCK` is the workspace writers' turnstile; `export_env=False`; POSIX `HOME` under `_PROCESS_HOME_LOCK`; MCP `BudgetSlot` one binding per run |
+
+Every CHANGE commit carries its killing mutation and the recorded red.
+
+## S5 live two-root proof (2026-10-16)
+
+Setup, all lane-owned and torn down after: a temporary `HERMES_HOME` and runtime
+root, two profiles `alpha` / `beta` each bound by a config-declared persona with its
+own `repo_scope` workdir, a scripted OpenAI-compatible model server on loopback, and
+`harness serve --ndjson --service` started from the lane worktree with the test venv
+(ended with `serve connect --drain`). Approval mode `manual`, timeout 90 s. Root A's
+model asks for `rm -rf ./runser_alpha_scratch` (needs operator approval, never
+answered); five seconds after that tool call, root B's model asks for a terminal
+command printing the basenames of its `HERMES_HOME`, runtime root, auth home and
+cwd. The same driver ran against `origin/main` `343319c5d37` as the control.
+
+| run | A tool call → A exit | B send → B exit | B's first model call |
+|---|---|---|---|
+| control (`origin/main`) | 752.9 → 850.6 (approval timed out) | 759.5 → 856.7 (97 s) | 852.4 — **after A ended** |
+| branch, run 1 | 439.7 → 537.0 (timed out) | 447.0 → 474.3 (27 s) | 471.2 — during A's wait |
+| branch, run 2 | 962.6 → 1057.7 (timed out) | 969.4 → 1000.2 (31 s) | 995.0 — during A's wait |
+
+(Seconds, last digits of the epoch stamps in the lane's timeline files.)
+
+No crossing: root B's child printed `home_tail=beta root_tail=root auth_tail=home
+cwd_tail=work_beta` on the branch run that overlapped A's wait — byte-identical to
+the control, where nothing overlapped. Each root's transcript
+(`harness persona chat history`) holds only its own operator rows (0 foreign rows
+in either). The temp root's `config.yaml` under the platform default home was read
+by the root anchor but not written (mtime unchanged); skills installed into the temp
+home only.
+
+Setup facts worth keeping: a serve on a fresh root needs `HERMES_HEAD_HOME` (the
+launcher sets it) or every persona turn fails `chat_session_db_unavailable` — the
+process-home override has no authoritative head without it.
+
+## Residue (rows filed)
+
+- POSIX still serializes every run behind `_PROCESS_HOME_LOCK` until the upstream
+  door for in-process `HOME` / `expanduser` readers lands (plan decision 3).
+- `persona_profile_context(export_env=True)` has no production caller left.
+- `planned/serve-cwd-per-run-paths.md` describes the chdir regime this retired.

@@ -1,6 +1,6 @@
 """Run-serialization S2: a child spawned inside a turn carries THAT turn's root and auth home.
 
-Plan: ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md`` S2.
+Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S2.
 
 Every case binds with ``export_env=False`` — the mode that writes nothing into
 ``os.environ`` — and runs two bindings at once on two threads, so a child env that is

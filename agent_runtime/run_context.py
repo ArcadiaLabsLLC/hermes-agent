@@ -1,6 +1,6 @@
 """The run's context-local process facts: what a turn used to publish through ``os.environ``.
 
-Plan: ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md``.
+Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md``.
 ``persona_profile_context`` writes ``HERMES_AGENT_RUNTIME_ROOT`` and ``HERMES_AUTH_HOME``
 into the process env for the width of a turn, and that write is sound only while one turn
 runs at a time (``profile_runner.workdir._WORKDIR_LOCK``). This module is the per-context

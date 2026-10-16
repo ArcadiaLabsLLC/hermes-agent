@@ -1,6 +1,6 @@
 """CLI-to-serve route S3: ``harness serve settles rearm`` is a write the live serve does.
 
-Plan: ``docs/agent-runtime-harness/planned/cli-serve-route-2026-10-15.md`` S3. With a live
+Plan: ``docs/agent-runtime-harness/archive/cli-serve-route-2026-10-15.md`` S3. With a live
 serve the parsed verb hands ``serve settles rearm <ref>`` to it and never touches
 the store itself; with no serve it re-arms locally; a live serve that fails the request
 is a non-zero exit and still no local write.

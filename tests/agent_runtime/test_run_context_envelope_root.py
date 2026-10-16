@@ -1,6 +1,6 @@
 """Run-serialization S3: the envelope and the store resolve the RUN's root, not the process env's.
 
-Plan: ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md`` S3.
+Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S3.
 
 Two runs bound at once on two threads, both with ``export_env=False`` (nothing is
 written into ``os.environ``). Each must see its own runtime root through the three

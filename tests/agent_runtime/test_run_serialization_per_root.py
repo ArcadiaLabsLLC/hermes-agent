@@ -1,6 +1,6 @@
 """Run-serialization S5: one run per chat ROOT — another root progresses while one waits.
 
-Plan: ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md`` S5.
+Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S5.
 
 Driven through the real runner (``ProfileAgentRunner.run``) with a fake agent, so the
 whole scope stack is entered as a serve turn enters it. Root A's agent parks inside its

@@ -1,6 +1,6 @@
 """CLI-to-serve route S1: one relay loop, one typed outcome, one fallback rule.
 
-Plan: ``docs/agent-runtime-harness/planned/cli-serve-route-2026-10-15.md`` S1. Every case
+Plan: ``docs/agent-runtime-harness/archive/cli-serve-route-2026-10-15.md`` S1. Every case
 runs against a real serve socket lane on a thread of this process
 (``test_serve_socket_lane.running_serve``), whose dispatch is a spy.
 

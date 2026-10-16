@@ -1,6 +1,6 @@
 """Run-serialization S4: a grounded run's directory is context-local — no ``os.chdir``.
 
-Plan: ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md`` S4.
+Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S4.
 
 Two runs grounded in two different workdirs, inside ``_agent_workdir`` at the same
 moment on two threads. Each must see its OWN directory through every upstream cwd

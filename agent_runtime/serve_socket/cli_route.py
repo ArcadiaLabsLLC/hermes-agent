@@ -1,6 +1,6 @@
 """One CLI-to-serve route: relay a ``harness …`` argv to the live serve, with one fallback rule.
 
-Plan: ``docs/agent-runtime-harness/planned/cli-serve-route-2026-10-15.md``. Before this
+Plan: ``docs/agent-runtime-harness/archive/cli-serve-route-2026-10-15.md``. Before this
 module two callers each carried the same dial/auth/hello/frame loop
 (``harness_query.serve_route.query_via_serve`` and
 ``hermes_cli.harness_parts.persona.chat_serve_route.relay_send_via_serve``), and each
