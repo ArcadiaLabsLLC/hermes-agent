@@ -1,6 +1,6 @@
 # Eternia Lens in hermes — an ingest-and-trigger module for the Mission Control persona
 
-**Status: proposed, written 2026-10-01; the §6 rulings were accepted by the owner 2026-10-02. Nothing here is built.** Program cursor: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` (the row under "Owner asks — 2026-10-01"). The launcher half is one row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, filed the same day.
+**Status: written 2026-10-01; the §6 rulings were accepted by the owner 2026-10-02. L0 and L1 BUILT 2026-10-16 on branch `q/r-realm-lens` (lane r-realm-lens; on main when that branch lands): `agent_runtime/lens/`, `plugins/eternia-lens/`, `runtime.lens.*` in `agent_runtime/serve_rpc/lens.py`, the poller started by the socket-owning serve. Deviations, recorded: the poller is a daemon thread on the serve's liveness event (the serve's other workers' shape), not an asyncio task; the fold is served as `runtime.lens.fold` and rides the push-lane snapshot only with the launcher's fold-painter lane (the stream fixtures are cross-stack); the §6a rule additions and W2/W5 typed values are not in L0 (runtime-queue row). L2–L4 not built.** Program cursor: `Harness_Brain/20 — Active Initiatives/runtime-queue.md` (the row under "Owner asks — 2026-10-01"). The launcher half is one row in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, filed the same day.
 
 ## 0. The ask, and the one sentence that scopes it
 

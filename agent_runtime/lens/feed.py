@@ -11,7 +11,7 @@ missing capability is reported, never faked.
 
 A feed's URL never carries a credential: userinfo in the URL is refused at the
 reader, because the only place a source secret may live is the hermes credential
-pool, addressed by an opaque reference (L1).
+pool, addressed by the feed's opaque ``credential_ref`` (L1, ``lens.credentials``).
 
 Observations keep the reference's honesty rules: a gap is a gap (``value`` is
 ``None`` and ``gap`` is True, never interpolated), and an observation carries
@@ -102,7 +102,10 @@ _SOURCE_READERS = {
 }
 
 FEED_KEYS_REQUIRED = frozenset({"version", "id", "kind", "interval_ms", "source"})
-FEED_KEYS_OPTIONAL: frozenset[str] = frozenset()
+#: ``credential_ref`` (L1): an opaque reference into the hermes credential pool
+#: (``lens.credentials``), never the bytes. ``allow_private_network`` (L1, W10):
+#: the explicit opt-in a loopback / private / link-local source needs.
+FEED_KEYS_OPTIONAL = frozenset({"credential_ref", "allow_private_network"})
 
 
 def read_feed(value: Any) -> dict[str, Any]:
@@ -112,13 +115,19 @@ def read_feed(value: Any) -> dict[str, Any]:
     kind = enum_value(m["kind"], FeedKind)
     if kind not in AVAILABLE_FEED_KINDS:
         raise WireError(WireRefusal.INVALID_VALUE, "feed_kind_unavailable")
-    return {
+    feed = {
         "version": bounded_int(m["version"], minimum=1, maximum=1),
         "id": opaque_id(m["id"]),
         "kind": kind.value,
         "interval_ms": bounded_int(m["interval_ms"], minimum=MINIMUM_INTERVAL_MS, maximum=MAXIMUM_INTERVAL_MS),
         "source": _SOURCE_READERS[kind](m["source"]),
     }
+    if m.get("credential_ref") is not None:
+        feed["credential_ref"] = opaque_id(m["credential_ref"])
+    # Absence and an explicit False are one canonical form (no key).
+    if m.get("allow_private_network") is not None and boolean_value(m["allow_private_network"]):
+        feed["allow_private_network"] = True
+    return feed
 
 
 # --- observations -------------------------------------------------------------

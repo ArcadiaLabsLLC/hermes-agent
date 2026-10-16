@@ -1,0 +1,205 @@
+"""The Lens poll door: a reader with a clock, under ``harness serve``.
+
+Plan ``eternia-lens-in-hermes.md`` §3 (``poller.py``), stage L1. Started by the
+serve that owns the home's socket (one writer over the store), stopped with the
+serve's liveness event. It reads; it never schedules an agent (the exit door is
+stage L2, and reads :func:`~agent_runtime.lens.episode.needs_admission`).
+
+Each :meth:`LensPoller.tick` polls every due feed of every ENABLED monitor once:
+
+* a read that answers records its number; a read that fails records a GAP — one
+  gap row per failed poll, with the typed reason — and backs the feed off
+  (interval x 2, x 4, capped at x 8) until it answers again;
+* after each record, every rule on that feed is evaluated over its window and the
+  rule's Episode moves (``episode.observe``);
+* a feed the watcher could not see while the serve was down gets ONE
+  ``watcher_offline`` gap at start (W8(a)): missed windows are gaps, never silence.
+
+The serve runs this on a daemon thread; the module keeps the watcher's state
+(running / since / last tick) for the fold.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone, UTC
+from typing import Any, Callable
+
+from .episode import EpisodeState, observe
+from .rules import evaluate
+from .sources import read_feed_source
+from .sources.transport import ReadReason, ReadResult
+from .store import LensStore, MonitorState, from_ms, to_ms
+
+__layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
+
+TICK_SECONDS = 1.0
+MAXIMUM_BACKOFF = 8
+RETENTION_EVERY = timedelta(minutes=10)
+#: A feed whose newest row is older than this many intervals was not watched.
+_OFFLINE_INTERVALS = 1.5
+
+Clock = Callable[[], datetime]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass
+class _FeedClock:
+    next_due: datetime
+    failures: int = 0
+
+
+@dataclass
+class WatcherState:
+    running: bool = False
+    since: datetime | None = None
+    last_tick: datetime | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        def _at(moment: datetime | None) -> int | None:
+            return None if moment is None else to_ms(moment)
+
+        return {"running": self.running, "since_ms": _at(self.since), "last_tick_ms": _at(self.last_tick)}
+
+
+WATCHER = WatcherState()
+
+
+@dataclass
+class LensPoller:
+    store_factory: Callable[[], LensStore] = LensStore
+    clock: Clock = _utc_now
+    client: Any = None
+    resolver: Any = None
+    _clocks: dict[tuple[str, str], _FeedClock] = field(default_factory=dict)
+    _last_retention: datetime | None = None
+
+    # --- one pass -------------------------------------------------------------
+
+    def catch_up(self) -> int:
+        """Record one ``watcher_offline`` gap per enabled feed that went unwatched."""
+
+        store, now, recorded = self.store_factory(), self.clock(), 0
+        for monitor_id, manifest in self._enabled(store):
+            for feed in manifest["feeds"]:
+                latest = store.latest(monitor_id, feed["id"])
+                horizon = timedelta(milliseconds=feed["interval_ms"] * _OFFLINE_INTERVALS)
+                if latest is not None and now - from_ms(latest["observed_ms"]) > horizon:
+                    store.record(monitor_id, feed["id"], observed_at=now, received_at=now, value=None,
+                                 reason=ReadReason.WATCHER_OFFLINE.value)
+                    recorded += 1
+        return recorded
+
+    def tick(self) -> int:
+        """Poll every due feed once. Returns how many reads were made."""
+
+        store, now, reads = self.store_factory(), self.clock(), 0
+        for monitor_id, manifest in self._enabled(store):
+            for feed in manifest["feeds"]:
+                key = (monitor_id, feed["id"])
+                clock = self._clocks.setdefault(key, _FeedClock(next_due=now))
+                if clock.next_due > now:
+                    continue
+                result = read_feed_source(feed, client=self.client, resolver=self.resolver)
+                received = self.clock()
+                self._record(store, monitor_id, manifest, feed, result, observed=now, received=received)
+                self._reschedule(clock, feed, result, now)
+                reads += 1
+        self._retention(store, now)
+        WATCHER.last_tick = now
+        return reads
+
+    def _enabled(self, store: LensStore) -> list[tuple[str, dict[str, Any]]]:
+        out = []
+        for row in store.monitors(states=(MonitorState.ENABLED,)):
+            if row["sealed"] is not None:
+                out.append((row["monitor_id"], row["sealed"]["manifest"]))
+        return out
+
+    def _reschedule(self, clock: _FeedClock, feed: dict[str, Any], result: ReadResult, now: datetime) -> None:
+        clock.failures = 0 if result.value is not None else clock.failures + 1
+        factor = min(2 ** max(clock.failures - 1, 0), MAXIMUM_BACKOFF) if clock.failures else 1
+        clock.next_due = now + timedelta(milliseconds=feed["interval_ms"] * factor)
+
+    def _record(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
+                result: ReadResult, *, observed: datetime, received: datetime) -> None:
+        received = max(observed, received)
+        store.record(monitor_id, feed["id"], observed_at=observed, received_at=received,
+                     value=result.value, reason=result.reason.value, http_status=result.http_status)
+        for rule in manifest["rules"]:
+            if rule["feed_id"] == feed["id"]:
+                # Evaluated at the RECEIVE time: an observation is never later than its verdict.
+                self._evaluate(store, monitor_id, feed, rule, received)
+
+    def _evaluate(self, store: LensStore, monitor_id: str, feed: dict[str, Any], rule: dict[str, Any],
+                  now: datetime) -> None:
+        from .feed import Observation
+
+        interval = timedelta(milliseconds=feed["interval_ms"])
+        span = timedelta(milliseconds=rule["window_ms"]) + interval * (rule["samples"] + 3)
+        rows = store.observations(monitor_id, feed["id"], start=now - span, end=now + timedelta(milliseconds=1))
+        observations = [
+            Observation(monitor_id=monitor_id, feed_id=feed["id"], sequence=row["sequence"],
+                        observed_at=from_ms(row["observed_ms"]), received_at=from_ms(row["received_ms"]),
+                        value=row["value"], gap=row["gap"])
+            for row in rows
+        ]
+        previous = store.latest_episode(monitor_id, rule["id"])
+        verdict = evaluate(rule, observations, now=now, expected_interval=interval,
+                           was_firing=previous is not None and previous.state is EpisodeState.ACTIVE)
+        nxt = observe(monitor_id=monitor_id, rule_id=rule["id"],
+                      next_ordinal=(previous.ordinal if previous else 0) + 1,
+                      verdict=verdict, at=now, previous=previous)
+        if nxt is not None and nxt != previous:
+            store.save_episode(nxt)
+
+    def _retention(self, store: LensStore, now: datetime) -> None:
+        from .retention import apply_retention
+
+        if self._last_retention is None or now - self._last_retention >= RETENTION_EVERY:
+            self._last_retention = now
+            apply_retention(store, now)
+
+    # --- the loop -------------------------------------------------------------
+
+    def run(self, stop_event: threading.Event) -> None:
+        WATCHER.running, WATCHER.since = True, self.clock()
+        try:
+            self.catch_up()
+            while not stop_event.is_set():
+                try:
+                    self.tick()
+                except Exception:
+                    logger.warning("lens poll pass failed", exc_info=True)
+                stop_event.wait(TICK_SECONDS)
+        finally:
+            WATCHER.running = False
+
+
+def lens_shipped() -> bool:
+    """True when this installation ships the ``eternia-lens`` plugin directory.
+
+    The phone bundle does not list it (ruling 4: phones run no poller), so the
+    phone's serve never starts a watcher — by packaging, not by a flag."""
+
+    from hermes_cli.plugins import get_bundled_plugins_dir
+
+    return (get_bundled_plugins_dir() / "eternia-lens" / "plugin.yaml").is_file()
+
+
+def start_lens_poller(*, stop_event: threading.Event) -> threading.Thread | None:
+    """Start the watcher on a daemon thread; it stops with ``stop_event``. None when not shipped."""
+
+    if not lens_shipped():
+        return None
+    poller = LensPoller()
+    thread = threading.Thread(target=poller.run, args=(stop_event,), name="harness-serve-lens-poller", daemon=True)
+    thread.start()
+    return thread

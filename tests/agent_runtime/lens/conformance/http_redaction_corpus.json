@@ -1,0 +1,15 @@
+[
+  {
+    "id": "401-encoded-secret",
+    "httpStatus": 401,
+    "body": {
+      "secret": "do-not-copy-this-secret",
+      "encoded": "ZG8tbm90LWNvcHktdGhpcy1zZWNyZXQ="
+    },
+    "oracle": {
+      "status": "unavailable",
+      "number": null,
+      "httpStatus": 401
+    }
+  }
+]
