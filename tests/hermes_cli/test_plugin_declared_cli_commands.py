@@ -19,6 +19,7 @@ import pytest
 
 import hermes_cli.main as main_mod
 from hermes_cli import plugins as plugins_mod
+from hermes_cli import plugins_manifest_cli_commands as declared_mod
 
 
 def _write_plugin(root, name, marker_dir):
@@ -66,7 +67,7 @@ def _attach(cmd_info):
 
 def test_a_declared_stub_materialises_exactly_its_own_plugin(two_bundled_plugins):
     markers = two_bundled_plugins
-    declared = {c["name"]: c for c in plugins_mod.discover_declared_cli_commands()}
+    declared = {c["name"]: c for c in declared_mod.discover_declared_cli_commands()}
 
     assert set(declared) == {"alpha", "beta"}
     assert not list(markers.iterdir()), "the scan must import no plugin"
@@ -141,7 +142,7 @@ def test_the_declared_scan_reads_config_once(two_bundled_plugins, monkeypatch):
     monkeypatch.setattr(config_mod, "load_config_readonly", _read)
     monkeypatch.setattr(plugins_mod, "load_config_readonly", _read)
 
-    names = [c["name"] for c in plugins_mod.discover_declared_cli_commands()]
+    names = [c["name"] for c in declared_mod.discover_declared_cli_commands()]
 
     assert len(reads) == 1
     # The one read is the one the gate used: beta is disabled by it.
@@ -161,7 +162,7 @@ def test_discovery_after_a_declared_stub_loads_the_plugin_once(two_bundled_plugi
                  'def register(ctx):\n'
                  '    _plain_register(ctx)\n'
                  '    _register_section(ctx)\n')
-    declared = {c["name"]: c for c in plugins_mod.discover_declared_cli_commands()}
+    declared = {c["name"]: c for c in declared_mod.discover_declared_cli_commands()}
 
     parser = _attach(declared["alpha"])
     plugins_mod.discover_plugins()
@@ -183,13 +184,13 @@ def test_a_built_in_verb_skips_the_declared_scan(monkeypatch):
     declared pass: plugin commands are already absent from a built-in invocation's tree."""
 
     scans = []
-    real = plugins_mod.discover_declared_cli_commands
+    real = declared_mod.discover_declared_cli_commands
 
     def counting():
         scans.append(1)
         return real()
 
-    monkeypatch.setattr(plugins_mod, "discover_declared_cli_commands", counting)
+    monkeypatch.setattr(declared_mod, "discover_declared_cli_commands", counting)
     _calls, _parser, subparsers = _parse_under(["gateway", "status"], monkeypatch)
     assert scans == [] and "harness" not in subparsers.choices
 

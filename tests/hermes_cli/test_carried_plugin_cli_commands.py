@@ -15,6 +15,7 @@ import pytest
 
 import hermes_cli.main as main_mod
 from hermes_cli import plugins as plugins_mod
+from hermes_cli import plugins_manifest_cli_commands as declared_mod
 
 
 def _write_plugin(root, name, marker_dir, parent=""):
@@ -89,6 +90,6 @@ def test_a_declared_parent_verb_attaches_under_the_builtin_and_known_verbs_scan_
     assert args.flag is True and args.func(args) == "beta"  # the plugin's handler, not cmd_auth
     assert sorted(p.name for p in markers.iterdir()) == ["beta.registered"] and discovered == []
     # A built-in verb of the same parent keeps its own handler and never reads a manifest.
-    monkeypatch.setattr(plugins_mod, "discover_declared_cli_commands", lambda: pytest.fail("scanned"))
+    monkeypatch.setattr(declared_mod, "discover_declared_cli_commands", lambda: pytest.fail("scanned"))
     builtin = _parse(["auth", "list"], monkeypatch)
     assert builtin.auth_action == "list" and builtin.func is not args.func
