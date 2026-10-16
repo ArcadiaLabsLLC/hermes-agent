@@ -29,11 +29,27 @@ def _message_text(db, session_id: str, content_id: str) -> str:
     return matches[0]
 
 
-def _tool_text(db, session_id: str, content_id: str, *, field: str) -> str:
+def _tool_candidate_rows(db, session_id: str, content_id: str, *, field: str):
+    """The rows the match below runs over: an indexed lineage read, else the full display read.
+
+    The indexed read returns the same decoded display rows narrowed to those that can
+    carry ``content_id`` (lineage-stamp plan S2); the match, the hidden-row filter and
+    the redaction below run unchanged on either.
+    """
+    from ..chat_session_scope import is_canonical_session_persistence
+    from ..session_lineage_stamp import lineage_tool_rows
     from .curation import _read_raw_messages
 
+    if is_canonical_session_persistence(db):
+        rows = lineage_tool_rows(db, session_id, tool_call_id=content_id, field=field)
+        if rows is not None:
+            return rows
+    return _read_raw_messages(db, session_id)
+
+
+def _tool_text(db, session_id: str, content_id: str, *, field: str) -> str:
     matches = []
-    for row in _read_raw_messages(db, session_id):
+    for row in _tool_candidate_rows(db, session_id, content_id, field=field):
         if row.get("display_kind") == "hidden":
             continue
         if field == "tool_result" and row.get("role") == "tool" and row.get("tool_call_id") == content_id:

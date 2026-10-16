@@ -19,6 +19,7 @@ stamp taken before the gap can ever equal one taken after it.
 """
 from __future__ import annotations
 
+import re
 import secrets
 from typing import Any, NamedTuple, Optional
 
@@ -141,3 +142,37 @@ def lineage_stamp(db: Any, root_session_id: str) -> Optional[LineageStamp]:
             f"SELECT session_id, revision FROM {REVISION_TABLE} WHERE session_id IN ({placeholders})",
             sessions).fetchall())
     return LineageStamp(epoch, tip, sessions, tuple(int(found.get(s, 0)) for s in sessions))
+
+
+#: A tool call id the JSON text of ``tool_calls`` spells byte-for-byte as itself,
+#: whatever the writer's escaping; anything else takes the caller's full read.
+_PLAIN_ID = re.compile(r"[A-Za-z0-9_.:\-]{1,200}")
+
+
+def lineage_tool_rows(db: Any, root_session_id: str, *, tool_call_id: str, field: str) -> Optional[list[dict]]:
+    """The lineage's DISPLAY rows that can carry ``tool_call_id``, decoded as the full display read decodes them.
+
+    One query over the lineage's sessions, narrowed in SQLite to the rows that could
+    match (``tool_result``: the tool rows answering that id; ``tool_input``: the
+    assistant rows whose ``tool_calls`` text contains it), then deduped and decoded by
+    SessionDB's own display functions. Every display-dedupe key of those rows carries
+    the call id, so deduping the candidates alone picks the same representative the
+    whole-lineage dedupe picks. The caller applies its usual matching, hidden-row
+    filter and redaction — policy stays where it is. ``None``: use the full read.
+    """
+    if field not in ("tool_input", "tool_result") or not _PLAIN_ID.fullmatch(tool_call_id or ""):
+        return None
+    needed = ("_read_ctx", "_resume_lineage_ids", "_active_clause", "_dedupe_display_generations",
+              "_row_to_message_dict", "resolve_resume_session_id")
+    if not all(callable(getattr(db, name, None)) for name in needed):
+        return None
+    tip = db.resolve_resume_session_id(root_session_id)
+    sessions = list(db._resume_lineage_ids(tip))
+    narrow = ("role = 'tool' AND tool_call_id = ?" if field == "tool_result"
+              else "role = 'assistant' AND tool_calls IS NOT NULL AND instr(tool_calls, ?) > 0")
+    sql = (f"SELECT * FROM messages WHERE session_id IN ({', '.join('?' for _ in sessions)})"
+           + db._active_clause(False, True) + f" AND {narrow} ORDER BY id ASC")
+    with db._read_ctx() as conn:
+        rows = conn.execute(sql, (*sessions, tool_call_id)).fetchall()
+    return [db._row_to_message_dict(row, warn_context="lineage_tool_rows", summary_flag=True)
+            for row in db._dedupe_display_generations(rows)]
