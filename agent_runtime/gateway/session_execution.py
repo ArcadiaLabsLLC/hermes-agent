@@ -155,6 +155,20 @@ def interrupt(sid: str, session: dict, expected: str) -> bool:
         return True
 
 
+def exact_interrupt_reply(params: dict, rid, sess_nowait, ok) -> dict | None:
+    """session.interrupt with ``expected_execution_id``: stop exactly that execution, before any
+    process-wide voice effect. ``None`` leaves the request to upstream's handler, which passes its
+    own session lookup and reply builder."""
+    expected = str(params.get("expected_execution_id") or "").strip()
+    if not expected:
+        return None
+    session, err = sess_nowait(params, rid)
+    if err:
+        return err
+    applied = interrupt(str(params.get("session_id") or ""), session, expected)
+    return ok(rid, {"status": "interrupted" if applied else "not_interrupted", "interrupted": applied})
+
+
 def adopt(session: dict, record: dict | None) -> bool:
     """A compute child adopts the parent's admitted receipt, never admits twice."""
     if record is None:
