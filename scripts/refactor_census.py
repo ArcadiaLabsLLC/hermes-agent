@@ -53,6 +53,33 @@ def in_module_seams(path="tests/_downstream/_seams.py"):
 SEAMS = in_module_seams()
 
 # ---------- dead-code census ----------
+#: Decorators that WRAP a function and leave it called by its own name, so a
+#: name search judges it like an undecorated def. Every other decorator is read
+#: as a registration (singledispatch ``.register``, ``@method``, routes,
+#: ``@property``, ``@doctor_check``...) and its function is counted
+#: ``decorated``, not offered. Closed list on purpose: an unknown decorator
+#: defaults to "reached", the direction that cannot invent a DEAD row.
+TRANSPARENT_DECORATORS = frozenset({
+    "contextmanager", "asynccontextmanager", "lru_cache", "cache", "wraps",
+    "staticmethod", "classmethod", "abstractmethod", "overload", "singledispatch",
+    "dataclass", "total_ordering", "final",
+})
+
+
+def _decorator_name(node):
+    """The last dotted segment of a decorator, call or not (``functools.lru_cache(maxsize=1)`` -> ``lru_cache``)."""
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return node.id if isinstance(node, ast.Name) else ""
+
+
+def is_registered(node):
+    """Is ``node`` reached through a registering decorator rather than by its name?"""
+    return any(_decorator_name(d) not in TRANSPARENT_DECORATORS for d in node.decorator_list)
+
+
 dead = {}
 for f in FILES:
     if not f.endswith(".py"):
@@ -62,15 +89,15 @@ for f in FILES:
     names = []
     for n in tree.body:
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            # A decorated function is reached through its decorator (singledispatch
-            # `.register`, `@method`, routes, `@property`), never by its own name: it is
-            # counted as `decorated`, not offered as a DEAD candidate (L5.17: 46 of 60).
-            top_kind = "decorated" if n.decorator_list and not isinstance(n, ast.ClassDef) else type(n).__name__
+            # A function behind a REGISTERING decorator is reached through it, never by its
+            # own name: counted as `decorated`, not offered (L5.17: 46 of 60). A wrapping
+            # decorator (`@contextmanager`, `@lru_cache`) hides nothing: judged by name.
+            top_kind = "decorated" if not isinstance(n, ast.ClassDef) and is_registered(n) else type(n).__name__
             names.append((n.name, top_kind, n.end_lineno - n.lineno + 1))
             if isinstance(n, ast.ClassDef):
                 for m in n.body:
                     if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and not (m.name.startswith("__") and m.name.endswith("__")):
-                        names.append((n.name + "." + m.name, "decorated" if m.decorator_list else "method", m.end_lineno - m.lineno + 1))
+                        names.append((n.name + "." + m.name, "decorated" if is_registered(m) else "method", m.end_lineno - m.lineno + 1))
         elif isinstance(n, ast.Assign):
             for t in n.targets:
                 if isinstance(t, ast.Name):

@@ -62,4 +62,3 @@ Delete it. When the last row of an instalment closes, the program ledger (`god-f
 
 ## Filed on arrival — 2026-10-16 (lane h5-deadcode)
 
-- [ ] **`scripts/refactor_census.py` treats EVERY decorator as a registration, so a test-only `@contextmanager` / `@lru_cache` / `@dataclass` helper is never offered (it hid `agent_create_phases.capture_create_subphases`): judge only registering decorators (`@method`, `.register`, routes, `@property`) as reached** · `fork / dead code tooling` · `scripts/refactor_census.py` (`top_kind = "decorated" if n.decorator_list`) · lane: CHANGE with a census-test fixture per decorator kind · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-deadcode)**

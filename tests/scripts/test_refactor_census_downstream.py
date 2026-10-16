@@ -135,3 +135,87 @@ def test_every_in_module_seam_names_a_live_attribute():
         for part in qualname.split("."):
             target = getattr(target, part)
         assert callable(target), entry
+
+
+WRAPPED_MODULE = textwrap.dedent(
+    """
+    import contextlib
+    import functools
+    from contextlib import contextmanager
+    from dataclasses import dataclass
+
+
+    @contextmanager
+    def zz_ctx_helper():
+        yield
+
+
+    @contextlib.asynccontextmanager
+    async def zz_async_ctx_helper():
+        yield
+
+
+    @functools.lru_cache(maxsize=None)
+    def zz_cached_helper():
+        return 1
+
+
+    @dataclass
+    class ZzRecord:
+        value: int = 0
+
+
+    class Box:
+        @staticmethod
+        def zz_static_helper():
+            return 2
+
+        @method("box.open")
+        def zz_rpc_method(self):
+            return 3
+
+
+    @method("zz.verb")
+    def zz_rpc_verb():
+        return 4
+
+
+    @router.get("/zz")
+    def zz_route():
+        return 5
+
+
+    @doctor_check
+    def zz_unknown_registry():
+        return 6
+    """
+)
+
+
+def test_a_wrapping_decorator_hides_nothing_and_a_registering_one_still_does(tmp_path):
+    """Dead-code queue row (lane r-deadcode): `@contextmanager` hid `capture_create_subphases`.
+
+    Each wrapping kind is judged by its name and offered; each registering kind (and an
+    unknown decorator, the safe default) stays ``decorated``.
+    """
+
+    (tmp_path / "mod.py").write_text(WRAPPED_MODULE, encoding="utf-8")
+    (tmp_path / "files.txt").write_text("mod.py\n", encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "files.txt", str(out)],
+        cwd=tmp_path, check=True, capture_output=True, timeout=60, text=True,
+    )
+    kinds = {r["name"]: r["kind"] for r in json.loads(out.read_text(encoding="utf-8"))["dead"]["mod.py"]}
+    dead = [line.split()[-2] for line in done.stdout.splitlines() if line.strip().startswith("DEAD ")]
+
+    assert kinds["zz_ctx_helper"] == "FunctionDef"
+    assert kinds["zz_async_ctx_helper"] == "AsyncFunctionDef"
+    assert kinds["zz_cached_helper"] == "FunctionDef"
+    assert kinds["ZzRecord"] == "ClassDef"
+    assert kinds["Box.zz_static_helper"] == "method"
+    for offered in ("zz_ctx_helper", "zz_async_ctx_helper", "zz_cached_helper", "ZzRecord", "Box.zz_static_helper"):
+        assert offered in dead, offered
+    for reached in ("Box.zz_rpc_method", "zz_rpc_verb", "zz_route", "zz_unknown_registry"):
+        assert kinds[reached] == "decorated", reached
+        assert reached not in dead, reached
