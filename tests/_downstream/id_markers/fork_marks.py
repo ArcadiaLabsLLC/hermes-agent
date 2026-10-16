@@ -207,6 +207,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
+    # v0.22.2's PowerShell clone-failure case runs install.ps1 under its own 240 s child
+    # budget and takes 29.2 s alone on this box (2026-10-16), so the 30 s cap killed it
+    # under load (release lane rel-0222-reds).
+    "tests/scripts/install/test_install_clone_throttle_fallback.py::"
+    "test_clone_failure_reason_carries_gits_own_error": (pytest.mark.timeout(120),),
     # Lane h10-fhrest (2026-09-29): _apply_tui_python_env runs shutil.which("") for an
     # unset HERMES_PYTHON, which stats every PATH directory; a developer PATH that
     # carries a real hermes home's bin trips the home-I/O guard. Upstream PR candidate:
