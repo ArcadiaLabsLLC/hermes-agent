@@ -4,6 +4,13 @@ Status: PLAN — written 2026-10-15; owner approval owed. Row: runtime-queue,
 "board_card fold: the `runtime.board.*` twins ack but publish no fold; a fold
 needs its producer inside `board_lock` (board-surface-rpc-lane.md rule 3)".
 
+## Build status (lane h4-seeds, 2026-10-16)
+
+BLOCKED at S0: the measurement is a live end-to-end timing (ack, full core
+received, Launcher repaint) on a running serve and Launcher, which a build lane
+does not start; it needs the owner's machine. S1–S4 are gated on its number, so
+nothing was built.
+
 ## In plain English
 
 Board writes now have fast RPC twins (build-1011-C4), but after each write the
