@@ -40,7 +40,7 @@ def resolved_session_controls(session_id: str, *, provider, model, base_url=None
     from agent.fast_mode import parse_service_tier
     from hermes_cli.config import is_managed, load_config_readonly
     from .approval_surface_policy import approval_policy_mode, approval_policy_modes
-    from tools.approval import approval_bypass_active
+    from tools.approval import is_approval_bypass_active_for_session
 
     config = load_config_readonly()
     saved = SessionControlStore().read(session_id)
@@ -60,7 +60,10 @@ def resolved_session_controls(session_id: str, *, provider, model, base_url=None
         with scoped_approval_policy(option["id"]):
             if approval_policy_mode() == option["id"]:
                 approval_options.append(option)
-    bypass = approval_bypass_active(session_id)
+    # Upstream's reader also counts ``approvals.mode: off``; read it under a manual binding so a
+    # policy of "off" stays a writable policy and only process/session YOLO reads as a bypass.
+    with scoped_approval_policy("manual"):
+        bypass = is_approval_bypass_active_for_session(session_id)
     profile_tier = parse_service_tier((config.get("agent") or {}).get("service_tier")) or ""
     requested = profile_tier if managed else saved.get("service_tier", profile_tier)
     options = speed_options(provider, model, base_url, api_mode)

@@ -224,3 +224,22 @@ def test_host_policy_and_bypass_are_reported_honestly():
         assert facts["approval"]["writable"] is False
     finally:
         disable_session_yolo("policy-chat")
+
+
+def test_an_off_policy_is_a_writable_policy_not_a_bypass():
+    """Upstream's ``is_approval_bypass_active_for_session`` also counts ``approvals.mode: off``;
+    the console reads it under a manual binding, so a profile set to Off stays a policy a
+    conversation can tighten.
+
+    Killing mutation: drop the ``scoped_approval_policy("manual")`` around the bypass read in
+    ``resolved_session_controls`` -> source ``bypass``, writable False.
+    """
+    from hermes_constants import get_hermes_home
+
+    home = get_hermes_home()
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.yaml").write_text(json.dumps({"approvals": {"mode": "off"}}), encoding="utf-8")
+    facts = resolved_session_controls("off-policy-chat", provider="openai", model="gpt-6.1-sol")
+    assert facts["approval"]["mode"] == "off"
+    assert facts["approval"]["source"] == "profile"
+    assert facts["approval"]["writable"] is True
