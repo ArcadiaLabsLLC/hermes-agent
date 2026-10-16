@@ -5,6 +5,24 @@ substance is ruled: 2026-10-10, "fold the `levels` status row into
 `store_drift` (one count)"). Row: runtime-queue, "A realm-synced LEVEL has no
 revert arm, so `realm sync status` reports it and the operator cannot act on it".
 
+## Build status (lane h4-seeds, 2026-10-16)
+
+- **S1 built** — `realm_revert._FAMILY_ARMS` is the one dispatch table; the arm
+  functions for the store rows live in `realm_revert_writes`.
+- **S2 built** — `realm_sync/level_drift.py` (rows + `store_drift.levels`), the arm in
+  `realm_revert_level.py`; the top-level `levels` row is still emitted. Two choices
+  the plan left open: a HELD level has no drift row (the skill family's rule — the
+  hold's exit is `realm sync resolve`), and ARCHIVE_LOCAL writes to
+  `level_conflicts/archive/`, a subfolder, so an archived level never reads as held.
+- **S3 not built here** — the launcher mirror is a launcher-repo change for the paired
+  landing. Until it lands, the launcher already shows a level row under its wire word
+  (`RealmDriftItemFamily.unknown`) and can revert it by selector.
+- **S4** waits one release after S3. **Live proof** (edit, status, revert) needs the
+  owner's machine.
+- Gap: `realm_revert_version._upstream_moved_rows` has no level family, so
+  `revert --to <version>` restores a drifted level but not one whose published copy
+  moved between versions (filed as its own row).
+
 ## In plain English
 
 Realm sync can tell the operator "this level differs from the published copy",

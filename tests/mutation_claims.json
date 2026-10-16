@@ -2503,9 +2503,9 @@
     {
       "id": "ir-h4-the-instance-family-is-not-addressable-by-revert",
       "path": "agent_runtime/realm_revert.py",
-      "symbol": "FAMILIES",
+      "symbol": "_FAMILY_ARMS",
       "operator": "drop-the-family-from-the-revert-selector",
-      "find": "        DRIFT_FAMILY_PERSONA_INSTANCE,\n",
+      "find": "    DRIFT_FAMILY_PERSONA_INSTANCE: FamilyArm(\n        0, lambda up, _container, key: up._instance(key), \"instances\", _apply_store_row,\n        _refuse_persona_instance_door,\n    ),\n",
       "replace": "",
       "test": [
         "{python}",

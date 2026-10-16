@@ -679,11 +679,20 @@ def test_every_drift_family_the_walk_can_produce_has_a_revert_arm():
     a ``KeyError`` in the middle of a ``--all`` pass, after earlier rows have
     already been written. Asserting the SETS is what makes the next family's
     author trip here rather than in an operator's store.
+
+    Enumerated from ``SyncFamily`` itself against the drift module's own per-family
+    table (``drift._BASELINE_KEY_OF``, which every drift row's baseline key reads),
+    never from a set typed here: each family is a drift family exactly when it has a
+    revert arm (``realm_revert._FAMILY_ARMS``, the one dispatch table).
     """
 
-    from agent_runtime.realm_revert import _PROCESS_ORDER
+    from agent_runtime.realm_revert import _FAMILY_ARMS, _PROCESS_ORDER
+    from agent_runtime.realm_sync.drift import _BASELINE_KEY_OF
+    from agent_runtime.realm_sync.families import SyncFamily
 
-    assert set(_PROCESS_ORDER) == FAMILIES
+    for family in SyncFamily:
+        assert (family in _FAMILY_ARMS) == (family in _BASELINE_KEY_OF), family
+    assert set(_PROCESS_ORDER) == FAMILIES == set(_FAMILY_ARMS)
     assert DRIFT_FAMILY_FLOW_GRAPH in FAMILIES
 
 

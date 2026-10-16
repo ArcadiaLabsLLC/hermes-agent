@@ -6,6 +6,35 @@ door-fit-2026-09-27.md for the owner to approve"); no seed lands before
 approval. Row: runtime-queue, "Seed the door-fit PARTIAL keys … on persona
 create — HERMES seeds them, not the launcher" (owner, 2026-10-03).
 
+## Build status (lane h4-seeds, 2026-10-16)
+
+- **S0 — the writer.** No fork code writes a new profile's `config.yaml`: upstream
+  `hermes_cli/profiles.py::create_profile` does, behind three upstream-owned callers (CLI
+  `profile create`, REST `POST /api/profiles`, ws `profiles.create`). The fork's
+  persona-create door is `agent_runtime/persona_profiles.py::promote_profile_to_persona`.
+  So the one writer is `agent_runtime/persona_seed_defaults.py`, called from that door
+  (at mint) and from the plugin's startup sweep (every persisted persona's bound profile,
+  which is what reaches a profile upstream created).
+- **S1 + S2 — built for lines 1 and 2** (fill-if-absent, round-trip writer, fail-open).
+- **Held, with the question each needs:**
+  - Line 3 — OWNER: `skills.create_dir` = the shared root makes `skill_manage` write
+    agent-authored skills straight into the root realm sync publishes, past the
+    hash-guarded promotion door (`agent_runtime/skill_promotion.py`, "the ONE guarded
+    door"). Recommend: do not seed it; new skills stay profile-local and promote.
+  - Line 4 — sequencing: the shared root is already a search root through the fork's
+    tier in `agent/skill_utils.py::get_skill_search_roots`; seeding `external_dirs` only
+    pays when that carry is deleted (S3), and before then lists the root twice. Seed it in
+    the S3 commit that deletes the carry.
+  - Line 5 — DESIGN: nothing computes a placement's surface-incompatible skill set; only
+    `agent_runtime/skill_view_result.py` refuses per call.
+  - Line 6 — DESIGN: no `eternia-persona` toolset is registered (the lane composite is
+    `harness_core`, `agent_runtime/harness_toolset.py`), and any seeded `toolsets:` moves
+    every persona from `lane_default` to `profile_config` in `declared_lane_toolsets`.
+  - Line 8 — DESIGN: the terminal envelope is command classes plus role/lane grants
+    (`agent_runtime/terminal_envelope/`), with no glob form; a static `approvals.deny`
+    would refuse what a grant allows.
+  - S3 — not built: each carry retirement is an upstream-footprint change of its own.
+
 ## In plain English
 
 Upstream hermes already has config switches that do most of what several of
