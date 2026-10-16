@@ -8,7 +8,6 @@
     "agent_chat_send": "agent_chat",
     "agent_chat_threads": "agent_chat",
     "annotate_preview": "desktop_ui",
-    "apply_layout": "desktop_ui",
     "board_card_add": "board",
     "board_cards": "board",
     "browser_back": "browser",
@@ -23,11 +22,7 @@
     "browser_scroll": "browser",
     "browser_snapshot": "browser",
     "browser_type": "browser",
-    "browser_vault_enter_code": "browser",
-    "browser_vault_fill": "browser",
-    "browser_vault_list": "browser",
-    "browser_vault_save_login": "browser",
-    "browser_vault_unlock": "browser",
+    "browser_vault": "browser",
     "browser_vision": "browser",
     "clarify": "clarify",
     "close_terminal": "desktop_ui",
@@ -75,12 +70,12 @@
     "read_window_below": "desktop_ui",
     "search_files": "file",
     "session_search": "session_search",
-    "setup_choose": "setup",
+    "set_theme": "desktop_ui",
+    "setup_beat": "onboarding",
     "show_tip": "desktop_ui",
     "skill_manage": "skills",
     "skill_view": "skills",
     "skills_list": "skills",
-    "start_chat": "start_chat",
     "terminal": "terminal",
     "text_to_speech": "tts",
     "todo_list": "todo",
@@ -112,9 +107,6 @@
     "annotate_preview_tool": [
       "annotate_preview"
     ],
-    "apply_layout_tool": [
-      "apply_layout"
-    ],
     "board_tool": [
       "board_card_add",
       "board_cards"
@@ -141,11 +133,7 @@
       "browser_exec"
     ],
     "browser_vault_tool": [
-      "browser_vault_enter_code",
-      "browser_vault_fill",
-      "browser_vault_list",
-      "browser_vault_save_login",
-      "browser_vault_unlock"
+      "browser_vault"
     ],
     "clarify_tool": [
       "clarify"
@@ -238,8 +226,11 @@
     "session_search_tool": [
       "session_search"
     ],
-    "setup_choose_tool": [
-      "setup_choose"
+    "set_theme_tool": [
+      "set_theme"
+    ],
+    "setup_beat_tool": [
+      "setup_beat"
     ],
     "skill_manager_tool": [
       "skill_manage"
@@ -247,9 +238,6 @@
     "skills_tool": [
       "skill_view",
       "skills_list"
-    ],
-    "start_chat_tool": [
-      "start_chat"
     ],
     "terminal_tool": [
       "terminal"

@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-15",
-  "base": "71d34bad10",
-  "files": 222,
-  "deleted_lines": 1050,
+  "base": "d923a5eb48",
+  "files": 223,
+  "deleted_lines": 1032,
   "heavy": 4,
   "reasons": [
     {
@@ -933,6 +933,21 @@
         "heavy": 4
       },
       "reason": "Exact-record predicates in native steer/interrupt require two helper signature replacements (new tools/delegate_tool_registry.py +6/-2). Existing-only HostSupervisor.control guards its existing start call (+4/-1); the compute receiver adds four lines. Reusing both native execution helpers and the existing sender avoids parallel authorities. Held hook candidates; per-seam proof and retirement conditions in docs/downstream/agent-console-subagents-controls-2026-10-15.md."
+    },
+    {
+      "change": "release merge v0.22.2 (lane rel-0222): upstream moved _managed_local_netloc out of agent/auxiliary_client.py into this new module",
+      "before": {
+        "files": 222,
+        "deleted_lines": 1050,
+        "heavy": 4
+      },
+      "after": {
+        "files": 223,
+        "deleted_lines": 1032,
+        "heavy": 4
+      },
+      "reason": "Upstream v0.22.2 split the managed-local endpoint helpers out of agent/auxiliary_client.py into agent/auxiliary_managed_local.py; the fork's existing phone-wheel guard (lane p2-hphone 7d80bad505: shipped(\"hermes_cli.local_runtime\") before importing the supervisor) moved with it, 4 added lines, 0 deletions, and auxiliary_client.py lost the same 4. Upstream candidate: _managed_local_netloc catches OSError/ValueError/AttributeError but not the ImportError a wheel without hermes_cli.local_runtime raises.",
+      "owner_ruling": "2026-10-15 \u00b7 Merging upstream.md release merge (owner: do 1-4)"
     }
   ]
 }
