@@ -23,6 +23,7 @@ from typing import Any, Callable, Final, Mapping
 
 from hermes_cli.harness_parts.serve.argv_lane import _ArgvRequest
 from hermes_cli.harness_parts.serve.lanes import accept_chat_turn, submit_accepted
+from hermes_cli.harness_parts.serve.request_pool import StreamLaneFull
 from hermes_cli.harness_parts.serve.constants import (
     _DRAIN_DEADLINE_FLOOR_SECONDS,
     DRAINING_EXIT_CODE,
@@ -990,7 +991,13 @@ class MessageHandling:
             if request.is_chat_turn:
                 request.accepted = accept_chat_turn(request)
             self.inflight[request.key] = request
-        future = submit_accepted(self.pool, self._run, request)
+        try:
+            future = submit_accepted(self.pool, self._run, request)
+        except StreamLaneFull as exc:
+            with self.inflight_lock:
+                self.inflight.pop(request.key, None)
+            sink.emit({"id": request.rid, "event": "error", "error": exc.code, "detail": str(exc)})
+            return
         with self.inflight_lock:
             # _run may already have finished and popped the request;
             # only track the future while the request is in flight so

@@ -72,7 +72,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (audit lane a1015-hrt)
 
-- [ ] **WEAKNESS: the standing-stream lane's 33rd `harness stream` queues silently** — `hermes_cli/harness_parts/serve/request_pool.py::RequestPool.submit_stream` (`c0962bfb48e`, `STREAM_LANE_WORKERS = 32`) hands work to a `ThreadPoolExecutor` that queues past its ceiling with no log or refusal, and orphaned argv readers (`b931a2de996`) can fill it; target shape: a counted lane that answers a typed `stream_lane_full` refusal and logs occupancy. **TAKEN 2026-10-15 w1015j-hermes**
 
 ### Filed on arrival — 2026-10-15 (lane w1015b-rt-h)
 
