@@ -114,3 +114,18 @@ with the SIGTERM-only `prev`) run in a child leaves `SIGTERM` restored and `SIGI
 file is upstream-owned, so the repair (save both handlers) is drafted in
 `docs/agent-runtime-harness/upstream-prs/serve-exit-flush-signal-restore-body.md`, not
 carried. No production signal-handling defect is claimed.
+
+## MSYS foreground-child probe — 16 October 2026 (lane r-isolation)
+
+Reproduced through the existing owner, natively (Windows 10, Git for Windows bash, unelevated):
+a bounded probe ran `LocalEnvironment(cwd=...).execute("sleep 3520")` on a thread and then
+`kill_live_foreground_processes(now=True)`. The owner signalled 1 process and `execute`
+returned rc 1, but `C:\Program Files\Git\usr\bin\sleep.exe 3520` survived with a dead Windows
+parent; the probe found it afterwards only by its unique argv and reaped exactly that PID. The
+graceful (`now=False`) run signalled 0 and left both the inner `usr\bin\bash.exe` and its
+`sleep.exe` alive (also reaped). The kill is `tools/environments/local.py::_kill_process_windows`
+-> `gateway.status.terminate_pid(force=True)` -> `taskkill /PID <bash> /T /F`; `/T` walks the
+Windows parent links, and the MSYS-spawned `sleep.exe`'s parent had already exited, so the tree
+walk cannot reach it. This is the earlier ancestry-scan miss with a production consequence:
+an MSYS foreground command outlives its kill on native Windows. Both files are upstream-owned;
+no fix is carried. The probe script is kept in the lane scratch (`msys_probe.keep.py`).
