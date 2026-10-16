@@ -956,6 +956,7 @@ class CheckpointManager(ReviewedRestoreMixin):
             return False
 
         self._checkpointed_dirs.add(abs_dir)
+
         try:
             from tools.checkpoint_pruning import store_lock
 
