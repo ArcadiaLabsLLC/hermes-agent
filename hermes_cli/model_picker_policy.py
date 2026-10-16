@@ -37,6 +37,7 @@ def model_picker_policy_for(slug: str) -> dict:
         return policy
 
     policy["source"] = "hermes_cli.codex_models"
+    token = None
     try:
         from hermes_cli.auth_codex import _pool_codex_credential, _read_codex_tokens
 
@@ -59,9 +60,31 @@ def model_picker_policy_for(slug: str) -> dict:
             policy["model_ids"] = list(dict.fromkeys(mid.strip() for mid in model_ids))
         else:
             policy["catalog_mode"] = "unavailable"
+            policy["error"] = _unavailable_reason(token)
     except Exception:
         policy["catalog_mode"] = "unavailable"
+        policy["error"] = "catalog_error"
     return policy
+
+
+#: Seconds of remaining life under which a stored Codex access token reads as expiring: the
+#: runtime refreshes it on its next resolve, so an ``unavailable`` answer is transient.
+_EXPIRING_SKEW_SECONDS = 120
+
+
+def _unavailable_reason(token: str | None) -> str:
+    """Why a Codex catalog is ``unavailable`` — a typed code, never a credential or account id.
+
+    ``credential_missing``: no stored token; ``credential_expiring``: the token is expired or about
+    to be (a client should probe again after the runtime refreshes it); ``catalog_unverified``: a
+    live token whose catalog could not be verified."""
+    if not token:
+        return "credential_missing"
+    from hermes_cli.auth_codex import _codex_access_token_is_expiring
+
+    if _codex_access_token_is_expiring(token, _EXPIRING_SKEW_SECONDS):
+        return "credential_expiring"
+    return "catalog_unverified"
 
 
 # Process-local only. The key is a one-way token digest; neither credentials nor

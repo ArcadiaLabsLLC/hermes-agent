@@ -274,7 +274,9 @@ def next_request_effort(params, model="gpt-5.6-luna"):
 
     instance = PersonaInstanceStore().get(params["persona_instance_id"])
     request = AgentRunRequest(profile=None, model=model, turn_id="t",
-        reasoning_effort=getattr(instance, "reasoning_effort", None),  # as chat_turn_commit.run passes it
+        # as chat_turn_commit.run passes it: the chat's effort, else the instance's
+        reasoning_effort=(next_turn(params).get("chat_reasoning_effort")
+                          or getattr(instance, "reasoning_effort", None)),
         root_chat_session_id=params["session_id"])
     with _model_profile(instance):
         config = turn_reasoning_config(request, model)
@@ -302,7 +304,7 @@ def test_effort_select_facts_and_the_next_request_agree(placed_agent, catalog, c
     set_effort(params["persona_instance_id"], reasoning_effort="low")
     agree("low", "instance")
     assert receipts(caplog, "model_selection verb=persona.instance.set_model")[-1].endswith(
-        "scope=agent_instance chosen=model=-,effort=low outcome=applied saved=persona_instance_store")
+        "scope=agent_instance chosen=provider=-,model=-,effort=low outcome=applied saved=persona_instance_store")
     set_effort(params["persona_instance_id"], use_profile_default=True)
     agree("high", "profile")
     capsys.readouterr()
@@ -335,3 +337,66 @@ def test_selected_model_facts_never_walk_inventory(placed_agent, monkeypatch):
     assert result["facts"]["reasoning_capabilities"]["model"] == result["model"]["effective_model"]
     from agent_runtime.serve_rpc.registry import method_tier
     assert method_tier("runtime.operator.conversation.model.facts") == "console"
+
+
+def effort(params, level):
+    return inspect("model.select", {**params, "scope": "conversation", "reasoning_effort": level})
+
+
+def test_a_chat_effort_runs_this_chat_only_and_survives_a_model_pick(placed_agent, catalog, caplog):
+    """One chat quick, another deep, the agent default untouched: the chat tier wins for its own
+    chat, a model pick keeps it, and only "use the agent default" resets it."""
+    caplog.set_level(logging.INFO)
+    params = target(placed_agent["persona_instance_id"])
+    opened = _call(dict(persona_id=PERSONA, persona_instance_id=params["persona_instance_id"],
+        new_session=True, idempotency_key="effort-other-chat", client_scope=OWNER))["result"]
+    other = {**params, "session_id": opened["session_id"]}
+    original = PersonaInstanceStore().get(params["persona_instance_id"])
+
+    reply = effort(params, "low")
+    assert "result" in reply, reply
+    facts = reply["result"]["facts"]
+    assert (facts["reasoning_effort"], facts["reasoning_effort_source"]) == ("low", "conversation")
+    assert next_turn(params)["chat_reasoning_effort"] == "low"
+    assert next_request_effort(params) == "low"
+    assert next_turn(other)["reasoning_effort_source"] != "conversation"
+    assert next_request_effort(other) != "low"
+    assert PersonaInstanceStore().get(original.id) == original
+    assert receipts(caplog, "model_selection verb=runtime.operator.conversation.model.select")[-1].endswith(
+        "scope=conversation chosen=-,effort=low outcome=applied saved=session_override")
+
+    assert "result" in choose(params, "second")
+    assert next_turn(params)["effective_model"] == "second"
+    assert next_turn(params)["chat_reasoning_effort"] == "low"
+    assert "result" in choose(params, "first", "agent_default")
+    assert next_turn(params)["chat_reasoning_effort"] == "low"
+    assert next_turn(params)["chat_model"] is None
+
+    assert "result" in effort(params, "")
+    assert _chat_model_override_from_config(stored(params)) is None
+    assert "result" in effort(params, "high")
+    assert "result" in inherit(params)
+    assert _chat_model_override_from_config(stored(params)) is None
+
+
+@pytest.mark.parametrize(("change", "reason"), [
+    ({"reasoning_effort": "turbo"}, "invalid_reasoning_effort"),
+    ({"reasoning_effort": "low", "model_id": "x"}, "invalid_model_selection"),
+    ({"reasoning_effort": "low", "scope": "agent_default"}, "invalid_model_selection"),
+    ({"reasoning_effort": 3}, "invalid_model_selection"),
+])
+def test_a_chat_effort_refusal_moves_nothing(placed_agent, catalog, change, reason):
+    params = target(placed_agent["persona_instance_id"])
+    before = stored(params)
+    reply = inspect("model.select", {**params, "scope": "conversation", **change})
+    assert reply["error"]["data"]["reason"] == reason, reply
+    assert stored(params) == before
+
+
+def test_a_chat_effort_cannot_change_unsettled_work(placed_agent, catalog):
+    params = target(placed_agent["persona_instance_id"])
+    before = stored(params)
+    with persona_chat_root_lease(params["session_id"]):
+        reply = effort(params, "low")
+    assert reply["error"]["data"]["reason"] == "conversation_busy", reply
+    assert stored(params) == before

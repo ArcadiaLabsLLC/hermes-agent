@@ -18,5 +18,7 @@ every case and requires the committed bytes back; regenerate rather than
 hand-edit.
 
 The Launcher commits byte-identical copies under
-`test/fixtures/hermes_responses/`. Regenerate and mirror them together; do not
-hand-author a response shape in the consumer repo.
+`test/fixtures/hermes_responses/`, and the generator writes them in the same run
+(`--launcher-root <launcher checkout or worktree>`, default `ETERNIALAUNCHER_ROOT`;
+`--no-mirror` skips it). A missing mirror directory exits 2. Commit the mirror in
+the Launcher; do not hand-author a response shape in the consumer repo.

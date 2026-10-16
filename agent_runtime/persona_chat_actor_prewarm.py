@@ -637,7 +637,8 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
         provider=runtime_provider,
         model=runtime_model,
         api_mode=getattr(persona, "api_mode", None),
-        reasoning_effort=getattr(instance, "reasoning_effort", None),
+        reasoning_effort=(model_selection.get("chat_reasoning_effort")
+                          or getattr(instance, "reasoning_effort", None)),
         terminal_envelope_scope=envelope_scope,
         mcp_admission=lane_bundle.admission,
         enabled_toolsets=list(lane_bundle.enabled_toolsets),

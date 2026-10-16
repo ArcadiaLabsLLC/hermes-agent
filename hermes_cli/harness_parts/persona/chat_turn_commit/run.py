@@ -586,10 +586,11 @@ class _RunPhases:
                 ),
                 provider_override=model_selection.get("effective_provider"),
                 model_override=model_selection.get("effective_model"),
-                # Per-instance reasoning-effort override for this turn (None =
-                # inherit the runtime default). Applied to the model call by the
-                # transport; unsupported/absent values fall back to the default.
-                reasoning_effort=getattr(self.instance, "reasoning_effort", None),
+                # This chat's effort, else the instance's (None = inherit the
+                # runtime default). Applied to the model call by the transport;
+                # unsupported/absent values fall back to the default.
+                reasoning_effort=(model_selection.get("chat_reasoning_effort")
+                                  or getattr(self.instance, "reasoning_effort", None)),
                 surface_prompt=getattr(args, "surface_prompt", "") or "",
                 max_wall_seconds=relay_wall_seconds,
                 # C8: the legacy `chat.delta` lane is RETIRED (ruling 0 — one

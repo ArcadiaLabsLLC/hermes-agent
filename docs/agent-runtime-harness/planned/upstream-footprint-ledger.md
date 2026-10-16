@@ -8,6 +8,15 @@ plan's three: `upstream`, `hook`, `carry` (§1 rule 1 of
 `carry-permanent`: a carry the operator has ruled permanent (§1 rule 6), still counted in
 `files=`, settled for the detach read.
 
+**A raise cites its ruling (owner, 2026-10-15).** A `reasons` row in
+`tests/fixtures/upstream_footprint.json` that raises the fixture carries `"owner_ruling":
+"<YYYY-MM-DD> · <where it is recorded>"` (a decision note, a queue row, a commit). Without one,
+extract the edit into a fork module instead. The 121 rows on `main` when the rule landed are
+marked `"grandfathered": true`; that count only falls (`GRANDFATHERED_REASONS`). Checked by
+`scripts/upstream_footprint.py::unruled_reasons` from
+`tests/scripts/test_upstream_footprint.py::test_every_raise_cites_an_owner_ruling`;
+`--add-row` takes `--owner-ruling`.
+
 **Subagent foundation, Step 1 (2026-10-14):** the service borrow mode,
 shared worker registration, operator RPC family, native method discovery, registry
 bridge and output projection are accounted individually in the

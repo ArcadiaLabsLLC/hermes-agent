@@ -277,7 +277,41 @@ def arrange(name: str, root: Path, *, setenv: Callable[[str, str], None] | None 
     build(root, setenv if setenv is not None else os.environ.__setitem__)
 
 
-def main() -> int:
+#: The Launcher's byte-identical copy, relative to its checkout (owner ruling 2026-10-15: one
+#: regeneration writes both, so the mirror cannot drift). Its README.md is the Launcher's own.
+LAUNCHER_MIRROR = Path("test") / "fixtures" / "hermes_responses"
+
+#: Overridable, because a committed absolute path is only right on one machine (the same rule as
+#: ``scripts/upstream_sync_gate.py``); ``--launcher-root`` wins over both.
+DEFAULT_LAUNCHER_ROOT = os.environ.get("ETERNIALAUNCHER_ROOT", r"X:\Unreal Engine\Engine\Launcher\EterniaLauncher")
+
+
+class MirrorMissing(RuntimeError):
+    """The Launcher mirror directory is not where the checkout should hold it."""
+
+
+def mirror_to(launcher_root: Path) -> list[Path]:
+    """Copy every envelope and the manifest, byte for byte, into the Launcher mirror.
+
+    Refuses (never creates) a missing mirror directory: a wrong ``--launcher-root`` must fail
+    loudly, not seed a stray tree while the real mirror drifts."""
+
+    target = Path(launcher_root) / LAUNCHER_MIRROR
+    if not target.is_dir():
+        raise MirrorMissing(f"no Launcher mirror at {target}; pass --launcher-root or --no-mirror")
+    written = []
+    for name in (*FIXTURE_CASES, "MANIFEST.sha256"):
+        (target / name).write_bytes((FIXTURE_ROOT / name).read_bytes())
+        written.append(target / name)
+    return written
+
+
+def main(argv: list[str] | None = None) -> int:
+    options = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    options.add_argument("--launcher-root", default=DEFAULT_LAUNCHER_ROOT,
+                         help="the Launcher checkout (or worktree) whose mirror is rewritten")
+    options.add_argument("--no-mirror", action="store_true", help="write the hermes fixtures only")
+    opts = options.parse_args(argv)
     FIXTURE_ROOT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         prefix="hermes-response-fixtures-", ignore_cleanup_errors=True
@@ -291,6 +325,13 @@ def main() -> int:
             arrange(name, case_root)
             _write(name, _run(parser, argv))
         _write_manifest()
+    if not opts.no_mirror:
+        try:
+            for path in mirror_to(Path(opts.launcher_root)):
+                print(f"mirrored {path}")
+        except MirrorMissing as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     return 0
 
 

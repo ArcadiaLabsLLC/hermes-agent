@@ -67,15 +67,24 @@ def _supported(extra: str) -> bool:
 
 
 def provider_dependency_report() -> dict:
-    """``{sdk_free, providers: [{provider, missing, extra, installable}]}`` — missing ones only."""
+    """``{sdk_free, providers: [{provider, missing, extra, installable, pack_available, pack}]}``.
+
+    Missing ones only. In a bundle (the Eternia Harness) nothing is installable — the
+    runtime never installs (``security.allow_lazy_installs: false``) — and a provider
+    whose extra a provider pack carries reports ``pack_available: true`` with
+    ``pack: {name, commit}``: the Launcher downloads that pack
+    (:mod:`agent_runtime.provider_packs`). Elsewhere ``pack`` is null.
+    """
     if _sdk_free():
         return {"sdk_free": True, "providers": []}
+    from agent_runtime.provider_packs import bundle_packs, pack_for_extra
     from hermes_cli.runtime_environment import (
         _PROVIDER_PACKAGE_REQUIREMENTS,
         missing_runtime_packages_for,
         runtime_environment_status_scope,
     )
 
+    bundled = bool(bundle_packs()[1])
     rows = []
     with runtime_environment_status_scope():
         for provider in sorted(_PROVIDER_PACKAGE_REQUIREMENTS):
@@ -83,11 +92,14 @@ def provider_dependency_report() -> dict:
             if not missing:
                 continue
             extra = _extra_for(missing)
+            pack = pack_for_extra(extra) if bundled else None
             rows.append({
                 "provider": provider,
                 "missing": missing,
                 "extra": extra,
-                "installable": extra is not None and _supported(extra),
+                "installable": not bundled and extra is not None and _supported(extra),
+                "pack_available": pack is not None,
+                "pack": pack,
             })
     return {"sdk_free": False, "providers": rows}
 
@@ -142,6 +154,12 @@ def install_provider_dependency(
         return {"provider": provider, "extra": None, "outcome": "already_installed",
                 "environment": "existing", "restart_required": False}
     extra = _extra_for(missing)
+    from agent_runtime.provider_packs import bundle_packs, pack_for_extra
+
+    if bundle_packs()[1]:  # a bundle never installs: the Launcher downloads the pack
+        pack = pack_for_extra(extra)
+        raise _refused("pack_required" if pack else "dependency_not_installable",
+                       provider=provider, missing=missing, **({"pack": pack["name"]} if pack else {}))
     if extra is None or not _supported(extra):
         raise _refused("dependency_not_installable", provider=provider, missing=missing)
     try:

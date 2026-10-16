@@ -97,6 +97,7 @@
   "hermes_cli/harness_parts/_upstream_doors.py|hermes_cli.status|_configured_model_label",
   "hermes_cli/harness_parts/_upstream_doors.py|hermes_cli.status|_effective_provider_label",
   "hermes_cli/harness_parts/_upstream_doors.py|hermes_cli.status|_first_env_value",
+  "hermes_cli/model_picker_policy.py|hermes_cli.auth_codex|_codex_access_token_is_expiring",
   "hermes_cli/model_picker_policy.py|hermes_cli.auth_codex|_pool_codex_credential",
   "hermes_cli/model_picker_policy.py|hermes_cli.auth_codex|_read_codex_tokens",
   "hermes_cli/model_picker_policy.py|hermes_cli.codex_models|_add_context_variants",
