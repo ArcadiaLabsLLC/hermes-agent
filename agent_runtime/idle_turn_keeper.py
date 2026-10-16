@@ -140,7 +140,7 @@ def bind_registry_live(check: Callable[[], bool] | None, resident: Callable[[], 
     _LIVE["resident"] = resident
 
 
-def _ask(name: str) -> bool:
+def _keeper_answer(name: str) -> bool:
     check = _LIVE[name]
     try:
         return bool(check()) if check is not None else False
@@ -149,7 +149,7 @@ def _ask(name: str) -> bool:
 
 
 def _enabled() -> bool:
-    return _ask("check")
+    return _keeper_answer("check")
 
 
 def arm() -> threading.Thread | None:
@@ -212,7 +212,7 @@ def tick_once(tick: int = 0) -> tuple[list[str], str]:
             logger.debug("idle refresh %s failed", key, exc_info=True)
     socket = "none"
     ref = _STATE.get("agent")
-    agent = ref() if ref is not None and _ask("resident") else None
+    agent = ref() if ref is not None and _keeper_answer("resident") else None
     if not turn_window_open():
         from agent_runtime.provider_preconnect import refresh_idle_connection, refresh_process_connection
 

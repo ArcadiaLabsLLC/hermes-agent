@@ -70,6 +70,9 @@ class _Actor:
 
 
 def test_a_serve_without_resident_chats_arms_the_keeper():
+    initialize_persona_chat_runtime_registry(enabled=False)
+    reset_persona_chat_runtime_registry()
+    idle_turn_keeper.stop()
     assert idle_turn_keeper.arm() is None, "no serve: nothing arms"
     initialize_persona_chat_runtime_registry(enabled=False)
     thread = idle_turn_keeper.arm()

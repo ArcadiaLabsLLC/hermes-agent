@@ -90,7 +90,7 @@ def _cmd_verify(args) -> int:
         packet["final_status"] = {"error": type(exc).__name__}
     if args.mode == "live-tony":
         expected = _live_store_root()
-        if not _same_path(paths.store_root(), expected):
+        if not _store_roots_match(paths.store_root(), expected):
             ok = False
             packet.setdefault("issues", []).append({"kind": "runtime_root_mismatch", "expected": str(expected)})
     print(emit_json(packet) if args.json else f"verify ok={ok} commands={len(packet['commands'])} tests={len(packet['tests'])}")
@@ -108,7 +108,7 @@ def _live_store_root() -> Path:
     return get_default_hermes_root() / "agent-runtime"
 
 
-def _same_path(left: Path, right: Path) -> bool:
+def _store_roots_match(left: Path, right: Path) -> bool:
     def norm(path: Path) -> str:
         try:
             path = path.resolve()
