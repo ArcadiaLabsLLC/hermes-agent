@@ -306,6 +306,22 @@ def admit_direct_in_scope(upstream):
     return scoped_deferrable_names
 
 
+def direct_describe_defs(current_tool_defs):
+    """name -> function schema for every tool in the session's defs, deferrable or not.
+
+    v0.22.2's ``dispatch_tool_describe`` indexes the deferrable subset only, so an in-session
+    direct tool answered "directly-listed, not deferred" and lost its full manual; the fork's
+    ``tool_describe`` serves it (tests/agent_runtime/test_launcher_app_function_discovery.py).
+    """
+    out = {}
+    for td in current_tool_defs or ():
+        fn = td.get("function") if isinstance(td, dict) else None
+        name = fn.get("name") if isinstance(fn, dict) else None
+        if name:
+            out[name] = fn
+    return out
+
+
 def mark_direct_hits(upstream):
     """``dispatch_tool_search`` that also says which EAGER tools answer a query.
 

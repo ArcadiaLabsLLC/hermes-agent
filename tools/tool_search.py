@@ -507,7 +507,9 @@ def dispatch_tool_describe(args: dict[str, Any], *, current_tool_defs: list[dict
         retry_hint="Retry with fewer names per call.")
     if err:
         return err
-    by_name = {name: _fn(td) for td, name in zip(current_tool_defs, _tool_def_names(current_tool_defs)) if name}
+    deferrable = _deferrable_in(current_tool_defs)
+    by_name = {name: _fn(td) for td, name in zip(deferrable, _tool_def_names(deferrable)) if name}
+    by_name = {**direct_describe_defs(current_tool_defs), **by_name}  # fork, additive: an in-session direct tool is described too
     remote_schemas, hosted_failure = remote_schemas_for(names, current_tool_defs, connector_describe, call=call)
 
     tools: dict[str, dict[str, Any]] = {}
@@ -632,7 +634,7 @@ __all__ = [
 ]
 
 
-from tools.tool_search_downstream import attach_hit_parameters, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # noqa: E402,F401 — fork
+from tools.tool_search_downstream import attach_hit_parameters, direct_describe_defs, ensure_tool_describe_present, never_defer_tool_names, parse_never_defer, tool_describe_schema, with_turn_defer  # noqa: E402,F401 — fork
 from tools.tool_search_downstream import admit_direct_in_resolve, admit_direct_in_scope, mark_direct_hits  # noqa: E402 — fork
 resolve_underlying_call = admit_direct_in_resolve(resolve_underlying_call)  # fork, additive: an in-scope eager name is dispatched, not refused
 scoped_deferrable_names = admit_direct_in_scope(scoped_deferrable_names)  # fork, additive: the bridge's scope is deferred OR eager, in scope
