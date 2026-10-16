@@ -55,9 +55,9 @@ ever be told which one" stops being a reachable state.
 The refusal vocabulary is the store's, one-to-one
 -------------------------------------------------
 ``PersonaInstanceRetireError.code`` is not re-spelled here. ``not_found`` maps to
-``ERR_NOT_FOUND`` and every other code — ``canonical_persona_channel``,
-``instance_active`` — to
-``ERR_CONFLICT`` with ``data.reason`` carrying the code verbatim, because the
+``ERR_NOT_FOUND``, every code in ``CONFLICT_REASONS`` — ``canonical_persona_channel``,
+``instance_active`` — to ``ERR_CONFLICT`` (any other code to ``ERR_HANDLER_FAILED``),
+with ``data.reason`` carrying the code verbatim, because the
 launcher decodes ``data.reason`` first and the numeric code second. A refusal
 this lane invented would be a second vocabulary for one set of guards.
 
@@ -97,9 +97,11 @@ ERR_HANDLER_FAILED = -32000
 REASON_INSTANCE_ID_REQUIRED = "persona_instance_id_required"
 
 #: Every ``PersonaInstanceRetireError.code`` that is a CONFLICT rather than a
-#: missing target. Not consulted as a membership test — the mapping below is
-#: "not_found, or conflict" — but recorded so the 1:1 claim in the docstring is
-#: readable beside the code it describes.
+#: missing target — the membership test the refusal mapping below reads. A code
+#: the store raises that is in neither ``not_found`` nor this tuple answers
+#: ``ERR_HANDLER_FAILED``: a guard nobody listed is not silently a conflict.
+#: ``test_the_conflict_vocabulary_is_the_stores_own_raise_sites`` holds the
+#: tuple equal to the store's raise sites.
 CONFLICT_REASONS = (
     "canonical_persona_channel",
     "instance_active",
@@ -466,7 +468,7 @@ def perform_agent_retire(
                 },
             )
         return _refused(
-            ERR_CONFLICT,
+            ERR_CONFLICT if exc.code in CONFLICT_REASONS else ERR_HANDLER_FAILED,
             exc.message,
             {
                 "reason": exc.code,
