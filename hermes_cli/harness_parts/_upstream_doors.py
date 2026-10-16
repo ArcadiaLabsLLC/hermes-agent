@@ -29,12 +29,14 @@ __all__ = [
     "configured_model_label",
     "display_source",
     "effective_provider_label",
+    "ensure_terminal_env_bridged",
     "exhausted_until",
     "fetch_anthropic_account_usage",
     "fetch_codex_account_usage",
     "fetch_openrouter_account_usage",
     "first_env_value",
     "format_exhausted_status",
+    "load_auth_store",
     "load_openai_cls",
     "status_api_keys",
 ]
@@ -140,3 +142,26 @@ def load_openai_cls() -> type:
     from agent.process_bootstrap import _load_openai_cls
 
     return _load_openai_cls()
+
+
+# ── agent_runtime readers (fork-hygiene row: two private reaches on main, 2026-10-16) ──
+
+
+def load_auth_store(auth_file: Any) -> dict:
+    """``hermes_cli.auth._load_auth_store``: the parsed ``auth.json`` at ``auth_file`` (``{}`` when absent).
+
+    Read by ``agent_runtime.persona_seed_defaults`` for the credential pool a new persona may seed from.
+    """
+    from hermes_cli.auth import _load_auth_store
+
+    return _load_auth_store(auth_file)
+
+
+def ensure_terminal_env_bridged() -> None:
+    """``tools.terminal_tool._ensure_terminal_env_bridged``: copy the terminal config into ``TERMINAL_*`` env once.
+
+    Called by ``agent_runtime.profile_runner.workdir`` before it snapshots the ``TERMINAL_*`` scope.
+    """
+    from tools.terminal_tool import _ensure_terminal_env_bridged
+
+    _ensure_terminal_env_bridged()
