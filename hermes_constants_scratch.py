@@ -130,7 +130,10 @@ def _under(path: str, root: str) -> bool:
 
 def _own_lineage() -> set[int]:
     """This process and its ancestors: never reap the shell that is running the prune."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # an install without psutil has no lineage to walk
+        return set()
 
     pids: set[int] = set()
     try:
@@ -150,8 +153,12 @@ def reap_processes_rooted_in(scratch_root: Path, doomed: list[Path], audit: logg
     Only the cwd is consulted: a process merely holding a file open inside scratch (an
     editor, a log tail) is not ours to kill, but one *living* in a directory we are
     about to delete, or in one already gone, has nothing left to run for.
+    Without psutil nothing can be inspected, so nothing is reaped (returns 0).
     """
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # an install without psutil reaps nothing; the prune still deletes
+        return 0
 
     root = os.path.realpath(str(scratch_root))
     targets = [os.path.realpath(str(p)) for p in doomed]
