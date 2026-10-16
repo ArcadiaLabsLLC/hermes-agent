@@ -1,0 +1,8 @@
+{
+  "source": "Eternia-Companion packages/monitoring/eternia_monitor_contracts/test/conformance/ (copied byte-for-byte 2026-10-16; the pins are Companion's own corpus_manifest.json values)",
+  "files": {
+    "episode_rearm_corpus.json": "b04e104acefb8b05fd92191417d34355cb08958a10f4e8f1d80118e7216928fe",
+    "evidence_corpus.json": "f45e65b2542915d6a9fa96f89302f12affcdd98cbca9d0b1792868ff186c151a",
+    "observation_corpus.json": "30e9e66f9d4271db8da9347943ad0042fce84b5814c65f5142974535d4b4ed11"
+  }
+}

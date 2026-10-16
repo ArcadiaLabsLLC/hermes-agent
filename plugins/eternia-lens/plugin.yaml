@@ -1,0 +1,13 @@
+# Eternia Lens — the ingest-and-trigger module for the Mission Control persona.
+# Fork-owned; code under agent_runtime/lens/. Plan:
+# docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md (rulings §6, 2026-10-02).
+# Ships on the desktop bundle (bundled-desktop.yaml `plugins:`) and the Developer
+# Edition by checkout; the phone bundle does not list it (ruling 4: phones run no poller).
+name: eternia-lens
+version: "1"
+description: Eternia Lens — poll / push / pull ingest whose rules raise Episodes that forge one chat turn
+author: Arcadia Labs
+# `backend` is the kind a BUNDLED general plugin auto-loads under (gate_manifest).
+kind: backend
+api_version: 1
+tags: [lens, monitoring, mission-control]

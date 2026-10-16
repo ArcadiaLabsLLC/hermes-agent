@@ -57,6 +57,8 @@ characters               lanes   ``runtime.characters.list/status/thumb/sprite``
                                  (the character-sheet read twins)
 settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
+lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
+                                 ``agent_runtime/lens/``)
 =======================  ======  ================================================
 
 Each verb family registers its handlers on import; the family import below is
@@ -107,6 +109,7 @@ from agent_runtime.serve_rpc import (
     client,
     characters,
     settles,
+    lens,
 )
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,
