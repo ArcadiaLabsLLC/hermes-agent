@@ -523,12 +523,16 @@ class ClientLifecycleMixin:
         key = self._request_anthropic_client_key()
         cached, stale = self._checkout_request_slot(_ANTHROPIC_SLOT, key)
         if cached is not None:
+            from agent_runtime.transport_phase_trace import install_transport_phase_trace  # fork seam: turn stamps
+            install_transport_phase_trace(self, cached)
             return cached
         if stale is not None:
             self._close_request_anthropic_client(stale, reason=f"reuse_evict:{reason}")
         client = self._build_anthropic_client_for_key(key)
         logger.debug("Anthropic request client created (%s, shared=False) %s", reason, self._anthropic_log_context())
         self._store_request_slot(_ANTHROPIC_SLOT, client, key)
+        from agent_runtime.transport_phase_trace import install_transport_phase_trace  # fork seam: turn stamps
+        install_transport_phase_trace(self, client)
         return client
 
     def _close_request_anthropic_client(self, client: Any, *, reason: str) -> None:
