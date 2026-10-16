@@ -632,10 +632,17 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
 8. **The fingerprint decides cache validity, full stop.** No event-tail replay, ever.
 9. **Adding a receipt to the core-cache lane means adding a ROW to the channel table**, and the
    test drives both directions (`core_cache/__init__.py:84-88`).
-10. **The serve's cwd is a per-turn value**, safe to mutate process-globally only while turns are
-    serialized by `profile_runner._WORKDIR_LOCK` (an `RLock`, `profile_runner/workdir.py:77`) held for
-    the WHOLE run. Nothing else enforces it, and widening turn concurrency starts by failing
-    `tests/agent_runtime/test_serve_cwd_serialization_invariant.py`.
+10. **Turns serialize per chat ROOT, not per process** (run-serialization S5, 2026-10-16).
+    `AgentRunExecution.scopes` holds `profile_runner.workdir.root_run_lock` for the whole
+    run; another root runs alongside, including while one waits on an operator approval.
+    That is sound because a turn writes no process state: the profile home, auth home and
+    runtime root are bound in ContextVars (`persona_profile_context(..., export_env=False)`,
+    `agent_runtime/run_context.py`, which also bridges them into every factory-built child
+    env), and the workdir is bound in the run's terminal scope, never `os.chdir`
+    (`tests/agent_runtime/test_serve_cwd_serialization_invariant.py` reds on a `chdir`).
+    The one process write left is POSIX `HOME`, serialized by `_PROCESS_HOME_LOCK`;
+    `_WORKDIR_LOCK` is now only the operator workspace writers' lock that a run passes
+    through at entry.
 11. **A frozen `snapshot.json` / `read_model.db` mtime says nothing about liveness** — a live
     serve answers from in-memory lanes and a 20 s payload cache (`_CACHEABLE_ARGV`,
     `_READ_CACHE_MAX_AGE_SECONDS = 20.0`, `serve.py:1539-1543`). Check frames, not mtimes.

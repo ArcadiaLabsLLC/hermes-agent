@@ -80,8 +80,9 @@ def restore_operator_checkpoint(params):
             or not isinstance(selected, list) or len(selected) > 1000
             or any(not isinstance(path, str) or not path for path in selected)):
         raise OperatorConversationRefused("invalid_restore_request")
-    # The current host serializes native agent runs through this existing owner.
-    # A restore must not interleave with a sibling chat's tools on this serve.
+    # A restore must not interleave with a sibling chat's tools on this serve: refuse while
+    # any run is in flight, and hold the workspace lock so no run body starts meanwhile
+    # (runs pass through it at entry, ``workdir._workspace_turnstile``).
     if not _WORKDIR_LOCK.acquire(blocking=False):
         raise OperatorConversationRefused("workspace_busy")
     try:

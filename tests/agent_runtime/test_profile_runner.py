@@ -530,7 +530,7 @@ def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     assert FakeAgent.last_kwargs["api_mode"] == "codex_responses"
 
 
-def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkeypatch):
+def test_runner_binds_the_profile_in_context_and_leaves_the_process_env_alone(tmp_path, monkeypatch):
     profile_home = tmp_path / "profiles" / "pm"
     (profile_home / "home").mkdir(parents=True)
     runtime_root = tmp_path / "runtime"
@@ -544,16 +544,26 @@ def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkey
 
     class EnvAgent(FakeAgent):
         def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["HERMES_HOME"] = os.environ.get("HERMES_HOME")
-            seen["HOME"] = os.environ.get("HOME")
-            seen["HERMES_AGENT_RUNTIME_ROOT"] = os.environ.get("HERMES_AGENT_RUNTIME_ROOT")
+            from agent_runtime.run_context import runtime_root_signal
+            from hermes_constants import get_hermes_home
+
+            seen["hermes_home"] = get_hermes_home()
+            seen["runtime_root"] = runtime_root_signal()
+            seen["env_HERMES_HOME"] = os.environ.get("HERMES_HOME")
+            seen["env_HOME"] = os.environ.get("HOME")
+            seen["env_HERMES_AGENT_RUNTIME_ROOT"] = os.environ.get("HERMES_AGENT_RUNTIME_ROOT")
             return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
 
     ProfileAgentRunner(agent_factory=EnvAgent).run(AgentRunRequest(profile="pm", runtime_root=runtime_root, user_message="hi"))
 
-    assert seen["HERMES_HOME"] == str(profile_home)
-    assert seen["HOME"] == str(profile_home / "home")
-    assert seen["HERMES_AGENT_RUNTIME_ROOT"] == str(runtime_root)
+    # Run-serialization S5: the profile, home and root reach the run through its
+    # context; the process env is never rewritten — except POSIX HOME, which has no
+    # context hook (``workdir._posix_process_home``).
+    assert seen["hermes_home"] == profile_home
+    assert seen["runtime_root"] == str(runtime_root)
+    assert seen["env_HERMES_HOME"] == "before_home"
+    assert seen["env_HERMES_AGENT_RUNTIME_ROOT"] == "before_runtime"
+    assert seen["env_HOME"] == ("before_user_home" if os.name == "nt" else str(profile_home / "home"))
     assert os.environ["HERMES_HOME"] == "before_home"
     assert os.environ["HOME"] == "before_user_home"
     assert os.environ["HERMES_AGENT_RUNTIME_ROOT"] == "before_runtime"

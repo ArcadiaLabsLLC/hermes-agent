@@ -14,6 +14,11 @@ boundary and while it waits on MCP admission.
 
 Killing mutation (recorded in the CHANGE commit): ``prewarm_yield`` left unset on the
 prewarm's request -> the turn waits out the whole slow admission.
+
+Run-serialization S5 (2026-10-16): a prewarm now holds only ITS root's lock, so a turn on
+another root does not wait on it even with ``prewarm_yield`` unset; the yield still
+matters for a turn on the prewarm's OWN root. The budget assertion below holds by either
+mechanism, so it is no longer a kill for the yield alone.
 """
 
 from __future__ import annotations
@@ -101,8 +106,12 @@ def test_a_turn_on_another_root_does_not_wait_on_a_prewarm_inside_the_run_lock(s
     assert waited_ms <= TURN_BUDGET_MS, (
         f"the root_a turn waited {waited_ms} ms on root_b's prewarm (budget {TURN_BUDGET_MS})"
     )
-    assert outcome.get("root_b") == OUTCOME_SKIPPED_TURN_ACTIVE
-    assert _Agent.constructed == constructed + 1, "only the turn built an actor; the yielded prewarm built none"
+    # Since run-serialization S5 the two roots hold different locks, so the turn never
+    # queues behind this prewarm at all; whether the prewarm still stood down is a race
+    # with the turn's admission window (it reads ``chat_turns_admitted`` at its next
+    # yield point), and either ending is correct. The bound that matters is the wait.
+    assert outcome.get("root_b") in {OUTCOME_SKIPPED_TURN_ACTIVE, "warmed"}, outcome
+    assert _Agent.constructed >= constructed + 1, "the turn built its actor"
 
 
 @pytest.mark.timeout(60)

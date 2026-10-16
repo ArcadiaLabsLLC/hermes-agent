@@ -597,6 +597,7 @@ def _metered_handler(
 def release_mcp_admission(
     servers: Iterable[str] | None,
     *,
+    budget: Any = None,
     lock_timeout_seconds: float = 5.0,
 ) -> McpTeardownOutcome:
     """The end of an admitted run: unbind its call budget, KEEP the resident scope.
@@ -609,6 +610,10 @@ def release_mcp_admission(
 
     Never raises. Every fault becomes a typed ``mcp_admission_teardown_failed``
     row: a finished turn must never be failed by its own cleanup.
+
+    ``budget`` names the releasing run (run-serialization S5): only its binding is
+    cleared, so a concurrent run of the same scope keeps its own. ``None`` clears every
+    binding (the explicit retirement path, :func:`drop_resident_scopes`).
     """
 
     names = [str(name).strip() for name in servers or () if str(name or "").strip()]
@@ -625,7 +630,7 @@ def release_mcp_admission(
     try:
         # Only a scope that no longer stands is deregistered (session gone or
         # replaced, a tool lost); a valid one is kept with its slot cleared.
-        removed = resident.release_slots(names)
+        removed = resident.release_slots(names, budget=budget)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("MCP admission release failed: %s", exc, exc_info=True)
         failures.append(_registry_fault_denial(", ".join(names), exc))
