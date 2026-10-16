@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 import sys
 
+from tests._env_gap_fence import describes_host
+
 __layer__ = "stores"
 
 _VITE8_NODE_FLOOR = "^20.19.0 || >=22.12.0"
@@ -171,6 +173,17 @@ def _no_shebang_script_execution() -> bool:
         return False
 
 
+def _interpreter_outside_checkout() -> bool:
+    """True where ``sys.executable`` is not under this checkout."""
+    root = Path(__file__).resolve().parents[3]
+    try:
+        Path(sys.executable).resolve().relative_to(root)
+    except ValueError:
+        return True
+    return False
+
+
+@describes_host(_interpreter_outside_checkout)
 def _test_python_outside_project_venv() -> bool:
     """True where ``sys.executable`` is not under this checkout.
 
@@ -178,13 +191,12 @@ def _test_python_outside_project_venv() -> bool:
     whose exe lives under the project venv (or the checkout root), and the live
     venv-holder E2Es spawn their sleepers from ``sys.executable``. A shared test
     venv outside the checkout makes every sleeper invisible to the scan.
+
+    Scoped to the host class it describes: from an in-checkout venv the probe is
+    quiet because the premise is absent, not because the rows rotted, so
+    ``stale_skip_rows`` judges them only from an interpreter outside the checkout.
     """
-    root = Path(__file__).resolve().parents[3]
-    try:
-        Path(sys.executable).resolve().relative_to(root)
-    except ValueError:
-        return True
-    return False
+    return _interpreter_outside_checkout()
 
 
 def _unelevated_windows_shell() -> bool:
