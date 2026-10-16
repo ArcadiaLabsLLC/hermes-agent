@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tools.registry import scan_registered_tools
+from tools.toolset_scan import scan_registered_tools
 
 
 def _write(tmp_path: Path, name: str, body: str) -> None:

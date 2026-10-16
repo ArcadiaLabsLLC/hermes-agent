@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
+from typing import NamedTuple, Optional
 
 _UNKNOWN = object()
 
@@ -93,3 +95,76 @@ def registration_rows(tree: ast.Module):
                 yield from walk(stmt.orelse, bindings)
 
     yield from walk(tree.body, {})
+
+
+class ToolScan(NamedTuple):
+    tools: dict[str, str]
+    modules: dict[str, list[str]]
+    unresolved: list[str]
+
+
+def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
+    """Which tools each builtin module registers, and into which toolset —
+    read STATICALLY, importing nothing.
+
+    The question "what are this install's toolset names" does not need the 38
+    registrar modules; it needs the two identifying arguments of their top-level
+    ``registry.register()`` calls, including finite literal registration
+    tables. Importing them to find out costs 3.16 s measured on this checkout
+    (2026-09-04, warm verdict cache) and is paid on every cold
+    ``perform_agent_create`` and every single-test run, because the memo it would
+    otherwise ride lives under ``get_hermes_home()`` — which the test runner
+    points at a fresh temp directory per file, so it is cold by construction.
+
+    Uses the builtin discovery text prefilter and a module-level AST reader
+    that also expands literal registration tables. The scope stays module-level (a ``registry.register`` inside a
+    function body is a helper, not a registrar, and stays invisible here exactly
+    as it does there). What is added is reading the call's arguments.
+
+    **This answers NAMES, never HANDLERS.** A handler is a live callable and
+    there is no static substitute for importing the module that defines it.
+    Anything that must CALL a tool still goes through
+    :func:`discover_builtin_tools`.
+
+    It also answers only BUILTINS. Plugin tools register into the same singleton
+    through ``hermes_cli.plugins``, and MCP tools through ``discover_mcp_tools``;
+    neither is in this tree and neither is in this scan. A caller that needs the
+    complete live set must union this with the registry it has actually
+    populated — see the note on the generated manifest.
+    """
+
+    tools_path = Path(tools_dir) if tools_dir is not None else Path(__file__).resolve().parent
+    tools: dict[str, str] = {}
+    modules: dict[str, list[str]] = {}
+    unresolved: list[str] = []
+
+    paths = list(tools_path.glob("*.py"))
+    paths.extend(path for path in tools_path.glob("*/tool.py") if (path.parent / "__init__.py").is_file())
+    for path in sorted(paths):
+        if path.name in {"__init__.py", "registry.py", "mcp_tool.py"}:
+            continue
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            unresolved.append(f"{path.stem}: unreadable ({type(exc).__name__})")
+            continue
+        if "registry" not in source or "register" not in source:
+            continue
+        try:
+            tree = ast.parse(source, filename=str(path))
+        except SyntaxError:
+            unresolved.append(f"{path.stem}: does not parse")
+            continue
+
+        for stmt, name, toolset in registration_rows(tree):
+            if not isinstance(name, str) or not isinstance(toolset, str):
+                unresolved.append(
+                    f"{path.stem}: register() at line {stmt.lineno} has a "
+                    f"{'name' if not isinstance(name, str) else 'toolset'} this reader cannot resolve"
+                )
+                continue
+            tools[name] = toolset
+            module = ".".join(path.relative_to(tools_path).with_suffix("").parts)
+            modules.setdefault(module, []).append(name)
+
+    return ToolScan(tools=tools, modules=modules, unresolved=unresolved)

@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.registry import scan_registered_tools
+from tools.toolset_scan import scan_registered_tools
 from tools.toolset_manifest import (
     MANIFEST_PATH,
     builtin_modules,

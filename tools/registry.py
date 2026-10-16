@@ -6,7 +6,6 @@ tools/*.py import it at module level; model_tools.py imports both; run_agent/cli
 model_tools."""
 
 import ast
-from contextlib import contextmanager
 import functools
 import importlib
 import inspect
@@ -17,10 +16,11 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, NamedTuple, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 from hermes_constants import hermes_home_key, normalize_scope
 from tools import mcp_progress_relay as _mcp_progress_relay  # fork: stdlib-only, cycle-safe
+from tools.registry_probe_accounting import _note_check_fn_probe, _probe_round, bump_check_fn_epoch, check_fn_epoch, probe_rounds_this_thread  # fork: probe accounting; the last two re-exported
 
 logger = logging.getLogger(__name__)
 
@@ -411,9 +411,8 @@ def _memo_check(fn: Callable, memo: dict[Callable, bool]) -> bool:
 
 def invalidate_check_fn_cache() -> None:
     """Drop all cached ``check_fn`` results (after config changes like ``hermes tools enable``)."""
-    global _check_fn_epoch
     with _check_fn_cache_lock:
-        _check_fn_epoch += 1
+        bump_check_fn_epoch()
         _check_fn_cache.clear()
         _check_fn_last_good.clear()
         _check_fn_ever_good.clear()
@@ -1058,120 +1057,6 @@ def tool_result(data=None, **kwargs) -> str:
 
 
 _CHECK_FN_GRACE_REPROBE_SECONDS = 5.0
-_check_fn_epoch = 0
-_probe_state = threading.local()
-
-
-class ToolScan(NamedTuple):
-    tools: Dict[str, str]
-    modules: Dict[str, List[str]]
-    unresolved: List[str]
-
-
-def scan_registered_tools(tools_dir: Optional[Path] = None) -> ToolScan:
-    """Which tools each builtin module registers, and into which toolset —
-    read STATICALLY, importing nothing.
-
-    The question "what are this install's toolset names" does not need the 38
-    registrar modules; it needs the two identifying arguments of their top-level
-    ``registry.register()`` calls, including finite literal registration
-    tables. Importing them to find out costs 3.16 s measured on this checkout
-    (2026-09-04, warm verdict cache) and is paid on every cold
-    ``perform_agent_create`` and every single-test run, because the memo it would
-    otherwise ride lives under ``get_hermes_home()`` — which the test runner
-    points at a fresh temp directory per file, so it is cold by construction.
-
-    Uses the builtin discovery text prefilter and a module-level AST reader
-    that also expands literal registration tables. The scope stays module-level (a ``registry.register`` inside a
-    function body is a helper, not a registrar, and stays invisible here exactly
-    as it does there). What is added is reading the call's arguments.
-
-    **This answers NAMES, never HANDLERS.** A handler is a live callable and
-    there is no static substitute for importing the module that defines it.
-    Anything that must CALL a tool still goes through
-    :func:`discover_builtin_tools`.
-
-    It also answers only BUILTINS. Plugin tools register into the same singleton
-    through ``hermes_cli.plugins``, and MCP tools through ``discover_mcp_tools``;
-    neither is in this tree and neither is in this scan. A caller that needs the
-    complete live set must union this with the registry it has actually
-    populated — see the note on the generated manifest.
-    """
-
-    tools_path = Path(tools_dir) if tools_dir is not None else Path(__file__).resolve().parent
-    tools: Dict[str, str] = {}
-    modules: Dict[str, List[str]] = {}
-    unresolved: List[str] = []
-
-    paths = list(tools_path.glob("*.py"))
-    paths.extend(path for path in tools_path.glob("*/tool.py") if (path.parent / "__init__.py").is_file())
-    for path in sorted(paths):
-        if path.name in {"__init__.py", "registry.py", "mcp_tool.py"}:
-            continue
-        try:
-            source = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            unresolved.append(f"{path.stem}: unreadable ({type(exc).__name__})")
-            continue
-        if "registry" not in source or "register" not in source:
-            continue
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
-            unresolved.append(f"{path.stem}: does not parse")
-            continue
-
-        from tools.toolset_scan import registration_rows
-        for stmt, name, toolset in registration_rows(tree):
-            if not isinstance(name, str) or not isinstance(toolset, str):
-                unresolved.append(
-                    f"{path.stem}: register() at line {stmt.lineno} has a "
-                    f"{'name' if not isinstance(name, str) else 'toolset'} this reader cannot resolve"
-                )
-                continue
-            tools[name] = toolset
-            module = ".".join(path.relative_to(tools_path).with_suffix("").parts)
-            modules.setdefault(module, []).append(name)
-
-    return ToolScan(tools=tools, modules=modules, unresolved=unresolved)
-
-
-def _note_check_fn_probe() -> None:
-    _probe_state.probes = int(getattr(_probe_state, "probes", 0)) + 1
-
-
-@contextmanager
-def _probe_round():
-    before = int(getattr(_probe_state, "probes", 0))
-    try:
-        yield
-    finally:
-        if int(getattr(_probe_state, "probes", 0)) > before:
-            _probe_state.rounds = int(getattr(_probe_state, "rounds", 0)) + 1
-
-
-def probe_rounds_this_thread() -> int:
-    """Rounds this THREAD has run since the process started.
-
-    A cumulative counter, never reset by the runtime: callers take the
-    difference across the window they care about. Resetting it here would make
-    two overlapping observers destroy each other's measurement.
-    """
-
-    return int(getattr(_probe_state, "rounds", 0))
-
-
-def check_fn_epoch() -> int:
-    """The registry's availability counter (fork addition).
-
-    Moves on every :func:`invalidate_check_fn_cache` and on nothing else. A
-    memo that keys on registry CONTENT (``agent_runtime.chat_lane_bundle``)
-    pairs this with that content instead of with ``registry.generation``,
-    which also counts a register/deregister pair that left the content as it
-    was. Compare for equality only.
-    """
-
-    return _check_fn_epoch
 
 
 def _kwargs_accepted_by(handler: Callable, kwargs: dict) -> dict:
