@@ -63,8 +63,10 @@ not, with its own `engine-pack.json`, `licenses.json` and `sbom.cdx.json`. Measu
 | `speech` | `speech-tts`, `stt-onnx` | flatbuffers, numpy, onnx-asr, onnxruntime, protobuf | 894 | 73.9 MiB | local TTS and STT (`runtime.speech.*`, [runtime-speech-methods](runtime-speech-methods.md)): `agent_runtime/speech_onnx_voice.py` and `agent_runtime/speech_stt_engines.py` import onnxruntime / onnx-asr |
 | `provider-bedrock` | `bedrock` | boto3, botocore, jmespath, s3transfer | 2,079 | 19.8 MiB | the AWS Bedrock provider: `agent/bedrock_adapter.py` imports boto3 (`_PROVIDER_PACKAGE_REQUIREMENTS["bedrock"]` in `hermes_cli/runtime_environment.py`) |
 | `provider-vertex` | `vertex` | google-auth, pyasn1, pyasn1-modules | 270 | 1.9 MiB | the Google Vertex AI provider: `agent/vertex_adapter.py` imports google.auth (`_PROVIDER_PACKAGE_REQUIREMENTS["vertex"]`) |
-| `provider-azure-identity` | `azure-identity` | azure-core | 85 | 0.7 MiB | Entra ID auth for azure-foundry: `agent/azure_identity_adapter.py` imports azure.identity. The pack does NOT carry azure-identity, msal or msal-extensions (an open row in the runtime queue) |
-| `provider-mistral` | `mistral` | eval-type-backport, jsonpath-python, mistralai, opentelemetry-semantic-conventions | 1,170 | 5.1 MiB | the Mistral cloud speech providers: `tools/transcription_cloud.py` and `tools/tts_tool.py` import mistralai |
+| `provider-azure-identity` | `azure-identity` | azure-core, azure-identity, msal, msal-extensions | 224 | 1.7 MiB | Entra ID auth for azure-foundry (`model.auth_mode: entra_id`): `agent/azure_identity_adapter.py` imports azure.identity; `runtime.provider.list` offers it on the azure-foundry row with `needed_when: {auth_mode: entra_id}` (`_PROVIDER_MODE_PACKAGE_REQUIREMENTS` in `hermes_cli/runtime_environment.py`; re-measured 2026-10-16 after the closure resolved the shared `azure` namespace by its dotted import) |
+
+There is no Mistral pack: owner ruling 2026-10-16 dropped `provider-mistral` (mistralai), which no
+`runtime.provider.list` row and no Launcher surface reached.
 
 **Owner ruling (2026-10-15): provider packs are desktop-only, and mobile works without them.** The
 phone edition is SDK-free (`agent.provider_sdks: false`; `agent_runtime/provider_dependencies.py`
