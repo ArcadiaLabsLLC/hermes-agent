@@ -74,7 +74,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 - [ ] **WEAKNESS: the standing-stream lane's 33rd `harness stream` queues silently** — `hermes_cli/harness_parts/serve/request_pool.py::RequestPool.submit_stream` (`c0962bfb48e`, `STREAM_LANE_WORKERS = 32`) hands work to a `ThreadPoolExecutor` that queues past its ceiling with no log or refusal, and orphaned argv readers (`b931a2de996`) can fill it; target shape: a counted lane that answers a typed `stream_lane_full` refusal and logs occupancy. **TAKEN 2026-10-15 w1015j-hermes**
 - [ ] **WEAKNESS: `SettlePush._push_due_settles` reads its owner check through `getattr` so a test fixture lacking it still runs** — `hermes_cli/harness_parts/serve/settle_push.py` (`e5ebdc7326c`): a production host that loses `_another_serve_owns_this_root` silently falls back to pushing every record (the L5.10 double-push); declare the method on the mixin (abstract/Protocol) and give the busy-root `_Session` fixture its own answer. **TAKEN 2026-10-15 w1015j-hermes**
-- [ ] **nit: `runtime.provider.list` (a read) now mutates pool state and may run a Codex quota probe, and swallows its failure unlogged** — `hermes_cli/harness_parts/provider_visibility.py::_lift_reopened_cooldowns` (`0e943dfb0e0`, `except Exception: return entries`); log the failure with the provider id. **TAKEN 2026-10-15 w1015j-hermes**
 
 ### Filed on arrival — 2026-10-15 (lane w1015b-rt-h)
 
