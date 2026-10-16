@@ -104,3 +104,13 @@ Fork evidence digests (SHA-256):
 - `h09-fork-gate.log`: `c0ea877f957e89e945c6b85c04cefaf18ab8ae4b212412b94d3292fe4dc30aed`
 - `h09-baseline-socket-context.log`: `2c7a0f1696bc9b96eea4b8a9f3c23612cfa93cc2cedff54bf360476bbc02a769`
 - `h09-shutdown-socket-context.log`: `f6a1f5ee40e45ed875bb7aaa7b7701b41bdbff7d2ab6e7a5e266d46d721fcaa6`
+
+## Signal-state probe — 16 October 2026 (lane r-isolation)
+
+The SIGTERM fixture's leak is confirmed by a bounded before/after probe: the test's own
+install/restore sequence (`install_exit_flush_signal_handlers`, then `_restore_signal_state`
+with the SIGTERM-only `prev`) run in a child leaves `SIGTERM` restored and `SIGINT` as
+`_handle_exit_flush_signal` (was `default_int_handler`) with its chain map cleared. The test
+file is upstream-owned, so the repair (save both handlers) is drafted in
+`docs/agent-runtime-harness/upstream-prs/serve-exit-flush-signal-restore-body.md`, not
+carried. No production signal-handling defect is claimed.
