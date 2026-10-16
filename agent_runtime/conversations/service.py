@@ -107,17 +107,25 @@ class ConversationService:
 
     @contextmanager
     def _session(self, scope: ConversationScope, session_id: str, *, existing_only=False) -> Iterator[LiveConversation]:
-        route = self.store.get(session_id, scope)
-        if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
-            raise ConversationError(Refusal.WRONG_OWNER)
+        route = self._owned_route(scope, session_id)
         with self._bindings.borrow(route, existing_only=existing_only) as live:
             yield live
 
+    def _owned_route(self, scope, session_id):
+        route = self.store.get(session_id, scope)
+        if self.profile_home(scope.profile).resolve(strict=True) != Path(route.home):
+            raise ConversationError(Refusal.WRONG_OWNER)
+        return route
+
     def subagents(self, scope: ConversationScope, session_id: str, operation: str, params: dict) -> dict:
         from .subagents import inspect_children
+        from agent_runtime.subagents.model import HISTORY_OPERATIONS, include_history_capabilities
 
+        if operation in HISTORY_OPERATIONS:
+            from .subagent_history import inspect_stored_children
+            return inspect_stored_children(self, scope, self._owned_route(scope, session_id), operation, params)
         with self._session(scope, session_id, existing_only=True) as live:
-            return inspect_children(self.install_id, scope, live, operation, params)
+            return include_history_capabilities(operation, inspect_children(self.install_id, scope, live, operation, params))
 
     def send(self, scope: ConversationScope, session_id: str, turn_id: str, prompt: dict, *, launcher_request=None) -> dict:
         from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_options_for_subject

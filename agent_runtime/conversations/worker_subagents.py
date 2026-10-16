@@ -1,7 +1,7 @@
 """Fork-owned child contracts and the single gateway registration point."""
 from functools import partial
 
-from agent_runtime.subagents.model import OPERATIONS, ERROR_CODES, SubagentError
+from agent_runtime.subagents.model import LIVE_OPERATIONS as OPERATIONS, ERROR_CODES, SubagentError
 
 __layer__ = "lanes"
 

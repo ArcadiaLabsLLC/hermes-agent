@@ -8,7 +8,7 @@ from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
 from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
-from .model import Refusal, SubagentError
+from .model import HISTORY_OPERATIONS, Refusal, SubagentError, include_history_capabilities
 from .native import has_live_ancestor, inspect_records, registry_snapshot
 
 __layer__ = "lanes"
@@ -78,8 +78,13 @@ def inspect_operator(operation: str, params: dict) -> dict:
         owner = (tuple(sorted(identity.items())), str(home), str(Path(session.db.db_path).resolve()))
 
         checked = _Owner(params, instance.id, session.db, home)
+        if operation in HISTORY_OPERATIONS:
+            from .history import inspect_history
+            data = inspect_history(operation, params, owner=owner, db=session.db,
+                                   session_id=params["session_id"], home=home, revalidate=checked.revalidate)
+            return {**identity, **data}
         with persona_profile_scope(binding, runtime_root=paths.store_root()):
             records = [record for record in registry_snapshot() if checked.visible(record)]
             data = inspect_records(operation, params, owner=owner, visible=records,
                                    exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)
-        return {**identity, **data}
+        return {**identity, **include_history_capabilities(operation, data)}

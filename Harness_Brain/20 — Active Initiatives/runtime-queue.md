@@ -7,7 +7,6 @@ tags: [queue, program/mission-control, runtime]
 
 # Runtime — the hermes half of the Mission Control queue
 
-- [ ] **Step 5: expose owned subagent results and saved history through existing native stores.** Owner approved 2026-10-15; extend the existing conversation families, reuse completion/storage authorities, and retain per-seam accounting. Launcher consumes the typed projection. Live UI smoke is deferred until after Step 6. · `agent_runtime/subagents/` · **TAKEN 2026-10-15 codex-subagent-history**
 
 ## Ownership refresh — 2026-10-08
 

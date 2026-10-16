@@ -11,7 +11,18 @@ REQUIRED_PARAMS = {
     "capabilities": (), "list": (), "tail": COMMAND_PARAMS[:2],
     "steer": (*COMMAND_PARAMS, "text"), "stop": COMMAND_PARAMS, "receipt": COMMAND_PARAMS,
 }
+LIVE_OPERATIONS = tuple(REQUIRED_PARAMS)
+HISTORY_OPERATIONS = ("history", "result", "tree")
+REQUIRED_PARAMS.update({"history": (), "result": ("expected_generation", "history_ref"),
+                        "tree": ("expected_generation", "history_ref")})
 OPERATIONS = tuple(REQUIRED_PARAMS)
+
+
+def include_history_capabilities(operation, reply):
+    """Only the public owner routes serve stored observations, not workers."""
+    if operation == "capabilities":
+        return {**reply, "operations": [*reply["operations"], *HISTORY_OPERATIONS]}
+    return reply
 
 
 class Refusal(StrEnum):
@@ -35,7 +46,7 @@ def validate_request(operation: str, params: dict) -> None:
     if operation not in OPERATIONS:
         raise SubagentError(Refusal.INVALID)
     required = REQUIRED_PARAMS[operation]
-    for key, limit in (("expected_generation", 512), ("child_ref", 512), ("request_id", 128)):
+    for key, limit in (("expected_generation", 512), ("child_ref", 512), ("request_id", 128), ("history_ref", 512)):
         value = params.get(key)
         if value is None and key not in required:
             continue
