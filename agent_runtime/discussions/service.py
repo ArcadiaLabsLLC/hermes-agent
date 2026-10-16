@@ -48,6 +48,8 @@ class DiscussionService:
         # Constructors above do no I/O; this is called only after serve ownership.
         with closing(self.runs.connect()), closing(self.attempts.connect()):
             pass
+        # The checkpoint's DDL indexes hosted_room_events: open the room store (its schema) first.
+        rooms.list_rooms(self.db_path, limit=1)
         self.checkpoints = HostedRoomPolicyCheckpoint(self.db_path, max_active_events=256)
         self.executions = Executions(context, self.attempts, self.runs, conversations)
         self.turns = self.executions.instances.turns

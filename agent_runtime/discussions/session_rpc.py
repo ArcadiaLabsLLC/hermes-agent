@@ -33,8 +33,11 @@ class NativeSessionRPC:
         self._validate(profile, source, session_id)
         return {"session_id": session_id}
 
-    def submit(self, *, profile, session_id, source, prompt, task, execution_generation, on_terminal, member_id):
+    def submit(self, *, profile, session_id, source, prompt, task, execution_generation, on_terminal, member_id,
+               attachments=None):
         self._validate(profile, source, session_id)
+        if attachments:  # no ``accepts_attachments``: the driver refuses a file-bearing turn before submit
+            raise DiscussionError("attachments_unsupported_on_route")
         if task.task_id != self.task_id or member_id != self.member["member_id"] or task.room_id != self.run["run_id"]:
             raise DiscussionError("attempt_identity_conflict")
         self.generation = execution_generation
