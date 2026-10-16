@@ -42,7 +42,8 @@ def test_settings_persist_per_chat_without_rewriting_native_history(chat):
     facts = initial["result"]["controls"]
     assert facts["approval"]["mode"] == "smart"
     assert facts["approval"]["source"] == "profile"
-    assert {row["id"] for row in facts["speed"]["options"]} == {"", "priority", "auto", "cold"}
+    # v0.22.2 lists gpt-6.1-sol on openai with an ultrafast tier, so the picker offers it.
+    assert {row["id"] for row in facts["speed"]["options"]} == {"", "priority", "ultrafast", "auto", "cold"}
     with closing(default_persona_session_db()) as db:
         before = db.get_session(chat["session_id"])
     selected = set_control(chat, "approval_mode", "manual")
