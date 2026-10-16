@@ -4099,6 +4099,27 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "builtin_modules",
         scope=("tools.toolset_manifest",),
     ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: no production caller; moved to "
+        "tests/_downstream/_seams.py (TEST SEAM), where the pipeline suites "
+        "assert colours against it (lane h5-deadcode)",
+        "palette_colors",
+        scope=("agent.charsheet.palette",),
+    ),
+    *rows(
+        "s-h5-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "plan l5-17-test-only-names bucket D: hermes ships only the registry "
+        "READER; the writer's temp-then-rename helper moved to "
+        "tests/agent_runtime/_build_rows_fixture.py, which writes the goldens "
+        "with it (lane h5-deadcode)",
+        "write_record",
+        scope=("agent_runtime.builds.registry",),
+    ),
 )
 
 

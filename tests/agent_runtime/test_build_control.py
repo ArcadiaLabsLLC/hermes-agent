@@ -17,10 +17,11 @@ import pytest
 
 from agent_runtime import serve_rpc
 from agent_runtime.builds import control
-from agent_runtime.builds.registry import new_record, write_record
+from agent_runtime.builds.registry import new_record
 from agent_runtime.machine_roots import machine_roots_cache_clear, write_machine_roots
 from agent_runtime.running_work import lanes_build, lanes_process, ownership
 from agent_runtime.store import WorkspaceStore
+from tests.agent_runtime._build_rows_fixture import write_record
 
 STARTED = "2026-10-04T12:00:00+00:00"
 DART = "C:/flutter/bin/cache/dart-sdk/bin/dart.exe"
