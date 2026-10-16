@@ -502,7 +502,7 @@ class SubscriptionLanes:
             if request.turn_request_id:
                 from agent_runtime.chat_turn_reservations import settle_chat_turn
                 from agent_runtime.profile_context import process_home_scope
-                with process_home_scope(self.serve_request_home):
+                with process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None)):
                     settle_chat_turn(turn_request_id=request.turn_request_id, exit_code=130)
             with self.inflight_lock:
                 self.inflight.pop(key, None)

@@ -420,7 +420,7 @@ def persona_profile_scope(
 
 
 @contextmanager
-def process_home_scope(home: Path | str | None) -> Iterator[None]:
+def process_home_scope(home: Path | str | None, *, head_home: Path | str | None = None) -> Iterator[None]:
     """Bind *home* as THIS task's Hermes home, context-locally. The other half.
 
     Everything above is written from the producing side — a lane that needs a
@@ -472,16 +472,25 @@ def process_home_scope(home: Path | str | None) -> Iterator[None]:
     home and must behave exactly as it does today; pinning an empty override
     would out-rank a legitimate persona binding, which is a worse fault than the
     one being fixed.
+
+    ``head_home`` is the serve's head FALLBACK (``ServeSession.serve_head_home``): recorded as
+    this task's head, set-once, when the serve booted with nothing naming one -- no
+    ``HERMES_HEAD_HOME``, no shared pointer, no config declaration. Without it every persona
+    turn of such a serve failed ``chat_session_db_unavailable``: this override is active and
+    the head had degenerated to it (``default_persona_session_db`` fails closed on exactly
+    that). It is a context-local record, never a machine-wide declaration.
     """
 
     if home is None or not str(home):
         yield
         return
+    head_token = record_hermes_head_home_if_unset(head_home) if head_home else None
     token = set_hermes_home_override(str(home))
     try:
         yield
     finally:
         reset_hermes_home_override(token)
+        reset_hermes_head_home(head_token)
 
 
 def _profile_home_for_token(token: str) -> Path | None:

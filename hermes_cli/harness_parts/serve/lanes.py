@@ -291,7 +291,9 @@ class ArgvLanes:
             # still gets its profile home. What changes is only the turn's
             # STARTING home, which is now this serve's rather than whatever
             # another lane last left in the environment.
-            with process_home_scope(self.serve_request_home), request_cancel_scope(
+            with process_home_scope(
+                self.serve_request_home, head_home=getattr(self, "serve_head_home", None)
+            ), request_cancel_scope(
                 request.cancel_event
             ), operator_interrupt_scope(request) as stopped:
                 if stopped:
@@ -391,7 +393,7 @@ class ArgvLanes:
             from agent_runtime.chat_turn_reservations import settle_chat_turn
             from agent_runtime.profile_context import process_home_scope
 
-            with process_home_scope(self.serve_request_home):
+            with process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None)):
                 settle_chat_turn(
                     turn_request_id=request.turn_request_id, exit_code=state.code
                 )
