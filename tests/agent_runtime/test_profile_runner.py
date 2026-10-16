@@ -1244,14 +1244,23 @@ def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_
 
     class CwdAgent(FakeAgent):
         def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["cwd"] = Path.cwd()
-            seen["TERMINAL_CWD"] = os.environ.get("TERMINAL_CWD")
+            from agent.runtime_cwd import resolve_agent_cwd
+            from tools.terminal_tool_config import _tenv
+
+            seen["process_cwd"] = Path.cwd()
+            seen["env_TERMINAL_CWD"] = os.environ.get("TERMINAL_CWD")
+            seen["TERMINAL_CWD"] = _tenv("TERMINAL_CWD")
+            seen["agent_cwd"] = resolve_agent_cwd()
             return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
 
     ProfileAgentRunner(agent_factory=CwdAgent).run(AgentRunRequest(profile=None, user_message="hi", workdir=repo))
 
-    assert seen["cwd"] == repo
-    assert seen["TERMINAL_CWD"] == str(repo)
+    # Run-serialization S4: the run is grounded through its terminal scope; the process
+    # cwd and the process env never move, during the run or after it.
+    assert seen["TERMINAL_CWD"] == str(repo.resolve())
+    assert seen["agent_cwd"].resolve() == repo.resolve()
+    assert seen["process_cwd"] == caller_cwd
+    assert seen["env_TERMINAL_CWD"] == "before_terminal_cwd"
     assert Path.cwd() == caller_cwd
     assert os.environ["TERMINAL_CWD"] == "before_terminal_cwd"
 

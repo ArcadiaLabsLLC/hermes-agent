@@ -19,13 +19,13 @@ instead.
 
 This test locks three things:
 
-1. Every ``os.chdir`` in ``profile_runner`` is lexically inside a ``with``
-   that holds ``_WORKDIR_LOCK``.
-2. ``_execute_agent_run`` holds ``_WORKDIR_LOCK`` for the whole run — not just
-   the instant of the ``chdir``. Guarding only the call would still let a
-   second turn chdir away *mid-run*, which is the actual hazard.
-3. ``_WORKDIR_LOCK`` is REENTRANT. The two guards nest; a plain ``Lock``
-   deadlocks the runner on the first grounded turn.
+1. Nothing in ``profile_runner`` calls ``os.chdir`` (run-serialization S4,
+   2026-10-16: ``_agent_workdir`` grounds a run through its terminal scope, so
+   the process cwd is never per-turn state again).
+2. ``AgentRunExecution.scopes`` holds ``_WORKDIR_LOCK`` for the whole run, until
+   S5 of ``docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md``
+   shrinks it.
+3. ``_WORKDIR_LOCK`` is REENTRANT.
 
 Widening turn concurrency therefore starts by failing this test — which is the
 point. The doc section that must be satisfied first:
@@ -90,15 +90,6 @@ def _holds_lock(with_node: ast.With | ast.AsyncWith) -> bool:
     return False
 
 
-def _guarded_by_lock(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
-    current = parents.get(node)
-    while current is not None:
-        if isinstance(current, (ast.With, ast.AsyncWith)) and _holds_lock(current):
-            return True
-        current = parents.get(current)
-    return False
-
-
 def _enclosing_qualname(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str:
     names: list[str] = []
     current: ast.AST | None = parents.get(node)
@@ -109,33 +100,25 @@ def _enclosing_qualname(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str:
     return ".".join(reversed(names)) or "<module>"
 
 
-def test_every_chdir_in_profile_runner_is_guarded_by_the_workdir_lock() -> None:
-    """A new unguarded ``os.chdir`` fails CI instead of silently racing."""
+def test_profile_runner_never_moves_the_process_cwd() -> None:
+    """Run-serialization S4: grounding is context-local, so ``os.chdir`` must never return.
+
+    ``_agent_workdir`` binds the run's directory in a terminal scope
+    (``tools.terminal_scope``); a process-wide ``chdir`` would ground every other run in
+    the process too. A negative guarantee, so a source walk is the right instrument.
+    """
 
     tree = _module_tree()
     parents = _parents(tree)
-
-    chdir_calls = [node for node in ast.walk(tree) if _is_chdir(node)]
-    # If this drops to zero the grounding mechanism changed shape entirely —
-    # re-read the doc section before deleting this test.
-    assert chdir_calls, (
-        "No os.chdir found in profile_runner. If process-global chdir was "
-        "replaced (e.g. by per-run resolved paths), update "
-        "docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/env-determinism-audit.md and this test "
-        "together — do not delete the guard silently."
-    )
-
-    unguarded = [
-        f"profile_runner/:{node.lineno} (package text) "
-        f"in {_enclosing_qualname(node, parents)}"
-        for node in chdir_calls
-        if not _guarded_by_lock(node, parents)
+    chdir_calls = [
+        f"profile_runner/:{node.lineno} (package text) in {_enclosing_qualname(node, parents)}"
+        for node in ast.walk(tree)
+        if _is_chdir(node)
     ]
-    assert not unguarded, (
-        "os.chdir mutates the SERVE PROCESS working directory. Every call must "
-        f"be inside a `with {LOCK_NAME}` block, or two concurrent turns will "
-        "ground each other's relative paths. Unguarded:\n  "
-        + "\n  ".join(unguarded)
+    assert not chdir_calls, (
+        "os.chdir mutates the SERVE PROCESS working directory, which every concurrent run "
+        "shares. Ground the run through its terminal scope instead (_agent_workdir). Found: "
+        + "; ".join(chdir_calls)
     )
 
 

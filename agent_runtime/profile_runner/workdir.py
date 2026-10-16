@@ -34,46 +34,58 @@ def _validate_workdir(workdir: Path | None) -> None:
 
 @contextmanager
 def _agent_workdir(workdir: Path | None):
+    """Ground this run in *workdir* CONTEXT-LOCALLY: no ``os.chdir``, no env write.
+
+    Run-serialization S4. The directory reaches the tools through upstream's own
+    per-context channel, the terminal scope (``tools.terminal_scope``): every
+    ``TERMINAL_*`` read (``terminal_env`` / ``_tenv``) and ``resolve_agent_cwd()`` answer
+    from it, so the terminal tool, the file tools' workspace anchor, context-file
+    discovery and the system prompt all see this run's directory while another run in
+    the same process sees its own. The scope is this run's current policy with
+    ``TERMINAL_CWD`` replaced: a bound scope is copied, an unbound one is the process
+    env's ``TERMINAL_*`` after upstream's one-shot config bridge — the same values the
+    tools read before, so only the directory changes. A refusal scope is kept as is
+    (the run cannot use a terminal; grounding does not lift that).
+    """
+
     if workdir is None:
         yield
         return
     path = Path(workdir).expanduser().resolve()
-    with _WORKDIR_LOCK:
-        previous_cwd = Path.cwd()
-        had_terminal_cwd = "TERMINAL_CWD" in os.environ
-        previous_terminal_cwd = os.environ.get("TERMINAL_CWD")
-        try:
-            os.chdir(path)
-            os.environ["TERMINAL_CWD"] = str(path)
-        except OSError as exc:
-            raise ProfileRunnerError("requested agent workdir could not be entered") from exc
-        try:
-            yield
-        finally:
-            os.chdir(previous_cwd)
-            if had_terminal_cwd:
-                os.environ["TERMINAL_CWD"] = previous_terminal_cwd or ""
-            else:
-                os.environ.pop("TERMINAL_CWD", None)
+    if not path.is_dir():
+        raise ProfileRunnerError("requested agent workdir could not be entered")
+    from tools.terminal_scope import (
+        TerminalPolicyRefusal,
+        get_terminal_scope,
+        reset_terminal_scope,
+        set_terminal_scope,
+    )
+
+    current = get_terminal_scope()
+    if isinstance(current, TerminalPolicyRefusal):
+        yield
+        return
+    if current is None:
+        from tools.terminal_tool import _ensure_terminal_env_bridged
+
+        _ensure_terminal_env_bridged()
+        current = {key: value for key, value in os.environ.items() if key.startswith("TERMINAL_")}
+    token = set_terminal_scope({**current, "TERMINAL_CWD": str(path)})
+    try:
+        yield
+    finally:
+        reset_terminal_scope(token)
 
 
-# Serializes every ``_execute_agent_run`` body, on purpose — NOT only the
-# ``os.chdir`` swap in ``_agent_workdir``. Two process-global mutations make the
-# wide scope load-bearing (audited 2026-08-09):
-#   1. ``persona_profile_context`` saves/mutates/restores HERMES_HOME / HOME /
-#      HERMES_AUTH_HOME / HERMES_AGENT_RUNTIME_ROOT in ``os.environ``. The
-#      restore is only correct while runs are serialized; concurrent entry is a
-#      lost-update race that leaves the process env pointing at a finished
-#      turn's profile (see the pin comment in profile_context.py for the env
-#      readers that keep those writes alive).
-#   2. ``_agent_workdir`` chdirs the process and holds this lock across its
-#      whole body (including the yield) whenever a workdir is set, so
-#      workdir-bearing runs would still serialize even if the outer
-#      acquisition were removed — removing it would only let workdir-less runs
-#      race the env mutation in (1).
-# Shrinking this lock to just the chdir swap is the desired end state, but it
-# requires first context-scoping every reader listed in profile_context.py and
-# deleting the env writes. Do not shrink it before that.
+# Serializes every ``_execute_agent_run`` body, on purpose. One process-global
+# mutation still makes the wide scope load-bearing (audited 2026-08-09; the
+# ``os.chdir`` half was retired by run-serialization S4, 2026-10-16):
+# ``persona_profile_context`` saves/mutates/restores HERMES_HOME / HOME /
+# HERMES_AUTH_HOME / HERMES_AGENT_RUNTIME_ROOT in ``os.environ``. The restore is
+# only correct while runs are serialized; concurrent entry is a lost-update race
+# that leaves the process env pointing at a finished turn's profile. S5 of
+# docs/agent-runtime-harness/planned/run-serialization-retirement-2026-10-15.md
+# deletes those writes and shrinks this lock to one per chat root.
 _WORKDIR_LOCK = RLock()
 
 
