@@ -490,3 +490,15 @@ def test_the_serve_import_probe_mounts_the_forced_tree(tmp_path: Path):
     shutil.rmtree(tmp_path / "phone_forced")
     problems = serve_import_problems(tmp_path, shipped, index, version)
     assert len(problems) == 1 and "tools.forced" in problems[0], problems
+
+
+def test_every_build_phase_prints_its_time_the_moment_it_ends(capsys):
+    """The build log (the launcher's QA bundle log) shows where the time went: one
+    ``phase <name>: <s>s`` line per phase, flushed as it ends, also kept in ``PHASE_TIMES``.
+    Killing mutation: drop the ``print`` in ``phase`` -> red."""
+    import scripts.bundle_profile_package as pkg
+
+    before = len(pkg.PHASE_TIMES)
+    with pkg.phase("plan"):
+        pass
+    assert capsys.readouterr().out.startswith("phase plan: ") and pkg.PHASE_TIMES[before][0] == "plan"

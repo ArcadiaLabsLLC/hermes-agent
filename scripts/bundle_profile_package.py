@@ -62,8 +62,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import warnings
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -117,6 +119,23 @@ ENGINE_PACKS_PTH_LINE = (
 #: Files the packaging step itself writes into a site-packages (owned by no distribution).
 PACKAGER_FILES = {ENGINE_PACKS_PTH}
 PACK_MANIFEST = "engine-pack.json"
+
+
+#: ``(phase, seconds)`` in run order: every build prints one ``phase <name>: <s>s`` line per phase and
+#: a closing ``phase total`` line, so a build log (the launcher's QA bundle log) shows where time went.
+PHASE_TIMES: list[tuple[str, float]] = []
+
+
+@contextmanager
+def phase(name: str):
+    """Time one build phase and print it the moment it ends (flushed: the log is read live)."""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        seconds = time.perf_counter() - start
+        PHASE_TIMES.append((name, seconds))
+        print(f"phase {name}: {seconds:.1f}s", flush=True)
 
 
 def marker_env(target: str, python_version: str) -> dict[str, str]:
@@ -873,11 +892,21 @@ def main(argv=None) -> int:
     if not args.target or not args.out:
         parser.error("--target and --out are required to build")
     stage = args.stage or args.out.with_name(args.out.name + ".pool")
+    started = time.perf_counter()
+    try:
+        return _build(args, manifest, index, stage, probe_python)
+    finally:
+        print(f"phase total: {time.perf_counter() - started:.1f}s", flush=True)
+
+
+def _build(args, manifest, index, stage: Path, probe_python) -> int:
     if not (args.reuse_stage and stage.is_dir()):
         pack_extras = tuple(e for extras in manifest.packaging_packs.values() for e in extras)
-        install_pool(export_requirements((*manifest.packaging_extras, *pack_extras), args.uv), stage,
-                     args.target, args.python_version, args.uv, args.offline)
-    plan = make_plan(manifest, stage, args.target, args.python_version, index=index)
+        with phase("pool"):
+            install_pool(export_requirements((*manifest.packaging_extras, *pack_extras), args.uv), stage,
+                         args.target, args.python_version, args.uv, args.offline)
+    with phase("plan core"):
+        plan = make_plan(manifest, stage, args.target, args.python_version, index=index)
     if plan.missing or plan.refusals:
         for name in sorted(plan.missing):
             print(f"the closure needs {name}; the pool does not hold it")
@@ -886,26 +915,34 @@ def main(argv=None) -> int:
         print("the pool does not satisfy the closure: ship the extra that declares it "
               "(packaging.extras), or fix the refusal")
         return 1
-    record = write_bundle(plan, manifest, read_site(stage), stage, args.out, index)
+    with phase("copy core"):
+        record = write_bundle(plan, manifest, read_site(stage), stage, args.out, index)
     if args.bake_with:
-        record["baked_pyc"] = bake(args.out, args.bake_with)
-    problems = verify_bundle(args.out, manifest, index, probe_python)
+        with phase("bake core"):
+            record["baked_pyc"] = bake(args.out, args.bake_with)
+    with phase("verify core"):
+        problems = verify_bundle(args.out, manifest, index, probe_python)
     print(f"packaged {record['first_party_files']} first-party files, "
           f"{len(record['distributions'])} distributions ({record['third_party_files']} files) -> {args.out}")
     dists = read_site(stage)
     for pack in manifest.packaging_packs:
-        names, refused = pack_distributions(manifest, pack, [stage], args.target, args.python_version)
+        with phase(f"plan pack {pack}"):
+            names, refused = pack_distributions(manifest, pack, [stage], args.target, args.python_version)
         absent = sorted(names - set(dists))
         if absent or refused:
             problems += [f"engine pack {pack}: the pool does not hold {n}" for n in absent]
             problems += [f"engine pack {pack}: closure refusal: {r}" for r in refused]
             continue
         pack_out = args.out.with_name(f"{args.out.name}-{pack}-pack")
-        pack_record = write_pack(manifest, pack, names, dists, stage, pack_out, args.target, args.python_version)
+        with phase(f"copy pack {pack}"):
+            pack_record = write_pack(manifest, pack, names, dists, stage, pack_out, args.target,
+                                     args.python_version)
         if args.bake_with:
-            bake_dir(pack_out / "site-packages", args.bake_with)
-            (pack_out / BAKED_MARKER).write_text("unchecked-hash\n", encoding="utf-8")
-        pack_problems = verify_pack(pack_out, args.out, manifest)
+            with phase(f"bake pack {pack}"):
+                bake_dir(pack_out / "site-packages", args.bake_with)
+                (pack_out / BAKED_MARKER).write_text("unchecked-hash\n", encoding="utf-8")
+        with phase(f"verify pack {pack}"):
+            pack_problems = verify_pack(pack_out, args.out, manifest)
         problems += [f"engine pack {pack}: {line}" for line in pack_problems]
         print(f"engine pack {pack}: {len(pack_record['distributions'])} distributions "
               f"({pack_record['files']} files) -> {pack_out}")
