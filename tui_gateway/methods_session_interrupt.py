@@ -69,13 +69,8 @@ def _recover_unreachable_compute_host_turn(sid: str, session: dict, inflight_at_
 
 @method("session.interrupt")
 def _(rid, params: dict) -> dict:
-    if expected := _str_param(params, "expected_execution_id"):
-        session, err = _sess_nowait(params, rid)
-        if err:
-            return err
-        from agent_runtime.gateway.session_execution import interrupt
-        applied = interrupt(str(params.get("session_id") or ""), session, expected)
-        return _ok(rid, {"status": "interrupted" if applied else "not_interrupted", "interrupted": applied})
+    from agent_runtime.gateway.session_execution import exact_interrupt_reply
+    if (reply := exact_interrupt_reply(params, rid, _sess_nowait, _ok)) is not None: return reply
     _tts_stream_stop()  # keypress barge-in also silences streaming TTS (voice is process-global)
     resume_wake = True
     try:

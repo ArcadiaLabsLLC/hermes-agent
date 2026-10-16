@@ -27,15 +27,9 @@ _WARP_LAST_BROKEN = {"stable": "v0.2026.03.25.08.24.stable_05", "preview": "v0.2
 
 def write_tty(seq: str) -> None:
     """Write raw escapes to /dev/tty, falling back to sys.stdout. Never raises."""
-    # fork (L4.04): Windows has no /dev/tty; the path resolves under the cwd drive's root, so a
-    # \dev folder there turned the escape into a FILE. stdout is the terminal on Windows.
-    if os.name == "nt":
-        try:
-            sys.stdout.write(seq)
-            sys.stdout.flush()
-        except Exception:
-            pass
-        return
+    if os.name == "nt":  # fork (L4.04): no /dev/tty on Windows
+        from hermes_cli.windows_console import write_tty_windows
+        return write_tty_windows(seq)
     try:
         with open("/dev/tty", "w", encoding="utf-8") as tty:
             tty.write(seq)

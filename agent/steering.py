@@ -87,6 +87,16 @@ def pending_steer_rows(text: str) -> list[dict[str, Any]]:
     return PendingSteer.from_text(text).rows()
 
 
+def insert_pending_steer_rows(messages: list, index: int, text: str) -> None:
+    """Insert ``text``'s rows at ``index``, past steer rows already there (arrival order)."""
+    while index < len(messages) and (
+        messages[index].get("display_kind") == "steer"
+        or (messages[index].get("display_metadata") or {}).get("steering")
+    ):
+        index += 1
+    messages[index:index] = pending_steer_rows(text)
+
+
 def requeue_pending_steer(existing: str | None, text: str) -> PendingSteer:
     """A drained batch precedes new arrivals; plain text retains append semantics."""
     if isinstance(text, PendingSteer) and existing:
