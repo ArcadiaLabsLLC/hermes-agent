@@ -70,9 +70,9 @@ def _agent_workdir(workdir: Path | None):
         yield
         return
     if current is None:
-        from tools.terminal_tool import _ensure_terminal_env_bridged
+        from hermes_cli.harness_parts._upstream_doors import ensure_terminal_env_bridged
 
-        _ensure_terminal_env_bridged()
+        ensure_terminal_env_bridged()
         current = {key: value for key, value in os.environ.items() if key.startswith("TERMINAL_")}
     token = set_terminal_scope({**current, "TERMINAL_CWD": str(path)})
     try:

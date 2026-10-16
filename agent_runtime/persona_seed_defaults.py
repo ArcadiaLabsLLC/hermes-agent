@@ -67,13 +67,13 @@ def _pooled_providers(profile_home: Path) -> list[str]:
     """Providers with at least one pooled credential this profile can select."""
 
     from agent.provider_access import provider_credential_file
-    from hermes_cli.auth import _load_auth_store
+    from hermes_cli.harness_parts._upstream_doors import load_auth_store
     from hermes_constants import get_default_hermes_root
 
     names: set[str] = set()
     homes = [Path(profile_home), get_default_hermes_root()]
     for home in homes:
-        pool = _load_auth_store(provider_credential_file("auth.json", home)).get("credential_pool")
+        pool = load_auth_store(provider_credential_file("auth.json", home)).get("credential_pool")
         if isinstance(pool, dict):
             names.update(str(name) for name, entries in pool.items() if isinstance(entries, list) and entries)
     return sorted(names)
