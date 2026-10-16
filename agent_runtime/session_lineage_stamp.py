@@ -24,7 +24,7 @@ import secrets
 import sqlite3
 from typing import Any, NamedTuple, Optional
 
-__layer__ = "policy"
+__layer__ = "stores"
 
 REVISION_TABLE = "fork_session_revision"
 EPOCH_TABLE = "fork_session_revision_epoch"
