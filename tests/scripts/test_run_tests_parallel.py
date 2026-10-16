@@ -45,6 +45,7 @@ def _probe_root(tmp_path):
     (scripts / "ci").mkdir(parents=True, exist_ok=True)
     real = Path(__file__).resolve().parents[2] / "scripts"
     shutil.copy2(real / "run_tests_parallel.py", scripts)
+    shutil.copy2(real / "_fork_runner.py", scripts)  # Fork: the runner imports it
     # The runner shares the platforms() spec resolver with the CI lane selector.
     shutil.copy2(real / "ci" / "list_os_marked_tests.py", scripts / "ci")
     return root
@@ -69,37 +70,6 @@ def _pid_alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
-
-
-@pytest.mark.platforms("windows")
-@pytest.mark.timeout(75)
-def test_windows_worker_does_not_inherit_runner_console(tmp_path):
-    """A worker's console must exclude the runner, including venv launchers."""
-    repo_root = _probe_root(tmp_path)
-    probe = repo_root / "test_console.py"
-    probe.write_text(
-        "import ctypes, os\n"
-        "def test_no_console():\n"
-        "    pids = (ctypes.c_ulong * 32)()\n"
-        "    count = ctypes.windll.kernel32.GetConsoleProcessList(pids, 32)\n"
-        "    assert count <= 32\n"
-        "    assert int(os.environ['PROBE_RUNNER_PID']) not in pids[:count]\n",
-        encoding="utf-8",
-    )
-    (repo_root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
-    startup = subprocess.STARTUPINFO()
-    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startup.wShowWindow = subprocess.SW_HIDE
-    result = subprocess.run(
-        [sys.executable, "-c",
-         "import os, runpy, sys; os.environ['PROBE_RUNNER_PID'] = str(os.getpid()); "
-         "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
-         str(repo_root / "scripts" / "run_tests_parallel.py"),
-         "--paths", str(probe), "-j", "1", "--file-timeout", "30", "--file-retries", "0"],
-        cwd=repo_root, capture_output=True, text=True, encoding="utf-8",
-        timeout=60, creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_progress_output_tolerates_legacy_stdout_encoding(tmp_path: Path) -> None:
@@ -595,33 +565,6 @@ def test_explicit_k_wins_over_node_id_inference(tmp_path: Path) -> None:
     # -k test_beta wins: one test ran, and it wasn't filtered to nothing.
     assert proc.returncode == 0, proc.stdout
     assert "1 tests passed" in proc.stdout
-
-
-def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
-    """``--paths`` accepts ``os.pathsep``-joined absolute paths.
-
-    On Windows the absolute paths contain drive-letter colons, so a naive
-    ``split(":")`` shreds them into phantom roots and only one (or neither)
-    of the two probe dirs would be discovered.
-    """
-    dir_a = _make_probe_dir(tmp_path)
-    dir_b = tmp_path / "probe_b"
-    dir_b.mkdir()
-    (dir_b / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
-    (dir_b / "test_flagprobe_b.py").write_text(
-        "def test_gamma():\n    assert True\n"
-    )
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    runner = repo_root / "scripts" / "run_tests_parallel.py"
-    proc = subprocess.run(
-        [sys.executable, str(runner),
-         "--paths", os.pathsep.join([str(dir_a), str(dir_b)]),
-         "-j", "1", "--file-timeout", "30", "-q"],
-        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        encoding="utf-8", errors="replace", timeout=60,
-    )
-    assert proc.returncode == 0, proc.stdout
-    assert "Discovered 2 test files" in proc.stdout, proc.stdout
 
 
 def test_fail_on_skip_fails_a_run_with_any_skip_even_beside_an_xfail(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ Same names, same bodies; the upstream file keeps only upstream's tests.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 
 from test_run_tests_parallel import (  # noqa: F401 — upstream names the moved tests use
     _make_probe_dir,
+    _probe_root,
 )
 
 
@@ -267,10 +269,10 @@ def test_an_untraced_run_spawns_exactly_what_it_always_did(monkeypatch) -> None:
     else's results came from.
     """
     mod = _load_runner_module()
-    monkeypatch.delenv(mod._COVERAGE_RC_ENV, raising=False)
+    monkeypatch.delenv("HERMES_TEST_COVERAGE_RC", raising=False)
 
     probe = Path("tests/agent/test_x.py")
-    assert mod._pytest_argv(probe, ["-q"]) == [
+    assert mod._fork_pytest_argv(probe, ["-q"]) == [
         sys.executable, "-m", "pytest", str(probe), "-q",
     ]
 
@@ -284,10 +286,10 @@ def test_the_config_var_wraps_each_file_in_coverage_run(monkeypatch) -> None:
     because it would simply find no data and blame the suite.
     """
     mod = _load_runner_module()
-    monkeypatch.setenv(mod._COVERAGE_RC_ENV, "/tmp/rc")
+    monkeypatch.setenv("HERMES_TEST_COVERAGE_RC", "/tmp/rc")
 
     probe = Path("tests/agent/test_x.py")
-    assert mod._pytest_argv(probe, ["-q"]) == [
+    assert mod._fork_pytest_argv(probe, ["-q"]) == [
         sys.executable, "-m", "coverage", "run", "--rcfile=/tmp/rc",
         "-m", "pytest", str(probe), "-q",
     ]
@@ -296,12 +298,70 @@ def test_the_config_var_wraps_each_file_in_coverage_run(monkeypatch) -> None:
 def test_a_blank_config_var_is_the_same_as_an_absent_one(monkeypatch) -> None:
     """An empty value must not produce ``--rcfile=``, which coverage refuses."""
     mod = _load_runner_module()
-    monkeypatch.setenv(mod._COVERAGE_RC_ENV, "   ")
+    monkeypatch.setenv("HERMES_TEST_COVERAGE_RC", "   ")
 
-    assert "coverage" not in mod._pytest_argv(Path("tests/agent/test_x.py"), [])
+    assert "coverage" not in mod._fork_pytest_argv(Path("tests/agent/test_x.py"), [])
 
 
 def test_timeout_configuration_header_does_not_trigger_timeout_retry():
     mod = _load_runner_module()
     output = "timeout: 30.0s\ntimeout method: thread\nAttributeError: renamed fixture owner"
     assert not mod._is_retryable_timeout_result(1, output, {"errors": 1})
+
+
+@pytest.mark.platforms("windows")
+@pytest.mark.timeout(75)
+def test_windows_worker_does_not_inherit_runner_console(tmp_path):
+    """A worker's console must exclude the runner, including venv launchers."""
+    repo_root = _probe_root(tmp_path)
+    probe = repo_root / "test_console.py"
+    probe.write_text(
+        "import ctypes, os\n"
+        "def test_no_console():\n"
+        "    pids = (ctypes.c_ulong * 32)()\n"
+        "    count = ctypes.windll.kernel32.GetConsoleProcessList(pids, 32)\n"
+        "    assert count <= 32\n"
+        "    assert int(os.environ['PROBE_RUNNER_PID']) not in pids[:count]\n",
+        encoding="utf-8",
+    )
+    (repo_root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = subprocess.SW_HIDE
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import os, runpy, sys; os.environ['PROBE_RUNNER_PID'] = str(os.getpid()); "
+         "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+         str(repo_root / "scripts" / "run_tests_parallel.py"),
+         "--paths", str(probe), "-j", "1", "--file-timeout", "30", "--file-retries", "0"],
+        cwd=repo_root, capture_output=True, text=True, encoding="utf-8",
+        timeout=60, creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
+    """``--paths`` accepts ``os.pathsep``-joined absolute paths.
+
+    On Windows the absolute paths contain drive-letter colons, so a naive
+    ``split(":")`` shreds them into phantom roots and only one (or neither)
+    of the two probe dirs would be discovered.
+    """
+    dir_a = _make_probe_dir(tmp_path)
+    dir_b = tmp_path / "probe_b"
+    dir_b.mkdir()
+    (dir_b / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (dir_b / "test_flagprobe_b.py").write_text(
+        "def test_gamma():\n    assert True\n"
+    )
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    runner = repo_root / "scripts" / "run_tests_parallel.py"
+    proc = subprocess.run(
+        [sys.executable, str(runner),
+         "--paths", os.pathsep.join([str(dir_a), str(dir_b)]),
+         "-j", "1", "--file-timeout", "30", "-q"],
+        cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        encoding="utf-8", errors="replace", timeout=60,
+    )
+    assert proc.returncode == 0, proc.stdout
+    assert "Discovered 2 test files" in proc.stdout, proc.stdout

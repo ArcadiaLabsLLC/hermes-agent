@@ -63,6 +63,7 @@ from typing import Dict, List, Optional, Tuple
 # "skipped on this host" note and the lanes can never disagree.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts
+from scripts._fork_runner import pytest_argv as _fork_pytest_argv
 
 
 def _sweep_killed_run_roots(root: str) -> None:
@@ -624,7 +625,7 @@ def _run_one_file_once(
     file_timeout: float,
 ) -> tuple[Path, int, str, dict[str, int], float]:
     """Single attempt of a per-file pytest subprocess (see _run_one_file)."""
-    cmd = _pytest_argv(file, pytest_args)
+    cmd = _fork_pytest_argv(file, pytest_args)  # Fork: scripts/_fork_runner.py
 
     # Give this subprocess its own pytest temp root.
     #
@@ -1064,7 +1065,6 @@ def _make_stdio_glyph_safe() -> None:
 
 
 _DEFAULT_MAX_WORKERS = 8
-_COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
 
 
 def _adaptive_default_jobs(cpu_count: int | None) -> int:
@@ -1093,24 +1093,6 @@ def _is_retryable_timeout_result(
     return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after")
 
 
-def _pytest_argv(file: Path, pytest_args: list[str]) -> list[str]:
-    """``python -m pytest <file> …``, wrapped in ``coverage run`` when asked.
-
-    The wrap is the seam ``scripts/unreachable_branch_report.py`` measures
-    through. Without it the report would have to re-implement ``run_tests.sh``'s
-    hermetic environment to trace anything, and a second spelling of that
-    environment is a second thing to keep in sync — the report would then be
-    measuring branches under pins and env the suite never runs with.
-
-    Absent-safe by construction: with the variable unset the argv is
-    byte-identical to what this runner has always spawned, so an ordinary run
-    pays nothing and cannot be traced by accident. Every other decision
-    (``branch``, ``parallel``, ``data_file``, ``source``) lives in the config
-    file the report writes, so this seam carries ONE path and no policy.
-    """
-    rcfile = os.environ.get(_COVERAGE_RC_ENV, "").strip()
-    prefix = ["-m", "coverage", "run", f"--rcfile={rcfile}"] if rcfile else []
-    return [sys.executable, *prefix, "-m", "pytest", str(file), *pytest_args]
 def _pytest_flag_error(tokens: list[str]) -> Optional[str]:
     """Return pytest's own complaint about the bare passthrough tokens, if any.
 

@@ -89,7 +89,9 @@ def test_run_tests_hands_the_gateway_fence_the_real_store_root():
     """
     script = Path("scripts/run_tests.sh").read_text(encoding="utf-8")
     assert '${REAL_HERMES_ROOT:+HERMES_TEST_REAL_ROOT="$REAL_HERMES_ROOT"}' in script
-    assert "get_default_hermes_root" in script
+    assert "fork_real_root_fence" in script
+    door = Path("scripts/_fork_test_env.sh").read_text(encoding="utf-8")
+    assert "get_default_hermes_root" in door  # the probe moved into the sourced door (lane pb-a)
     # The hermetic env must not carry HERMES_HOME through.
     exec_block = script[script.index("exec env -i") :]
     assert 'HERMES_HOME="$HERMES_HOME"' not in exec_block
