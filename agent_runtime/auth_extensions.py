@@ -196,7 +196,9 @@ def codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) ->
     from agent.credential_pool import STATUS_DEAD, PooledCredential, _exhausted_until
     try:
         credential = PooledCredential.from_dict("openai-codex", entry)
-    except Exception:
+    except Exception as exc:
+        # Served unrefused, as before — but said: an unreadable row is not a usable one by proof.
+        logger.warning("codex_pool_row_unparsable id=%s error=%s", entry.get("id") or "-", type(exc).__name__)
         return False
     if credential.last_status == STATUS_DEAD:
         return True
