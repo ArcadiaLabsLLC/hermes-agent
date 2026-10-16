@@ -2,9 +2,8 @@
 from __future__ import annotations
 __layer__ = "lanes"
 
-from tui_gateway import event_replay
 from agent_runtime.gateway import session_execution
-from agent_runtime.gateway.recovery_history import history_page
+from agent_runtime.gateway.recovery_history import checkpoint, history_page
 
 
 def recover(server, sid, session, execution_id=None):
@@ -14,7 +13,7 @@ def recover(server, sid, session, execution_id=None):
         with server._session_db(session) as db:
             key = str(session.get("session_key") or "")
             watermark = db.get_resume_message_watermark(key) if db else 0
-        page = event_replay.checkpoint(sid, 0, include_events=False)
+        page = checkpoint(sid, 0, include_events=False)
         inflight = state.get("inflight")
         if inflight and receipt and (session.get("native_execution") or {}).get("id") == receipt["id"]:
             turn = session["inflight_turn"]

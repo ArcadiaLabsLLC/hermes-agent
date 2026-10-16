@@ -1519,13 +1519,6 @@ class SessionMessagesMixin:
             f"{active_clause}{' AND id <= ?' if through_row_id is not None else ''} ORDER BY id",
             (*session_ids, *((through_row_id,) if through_row_id is not None else ())))
 
-    def get_resume_message_watermark(self, session_id: str) -> int:
-        """Durable upper bound for a display read, including compression ancestors."""
-        session_ids = self._resume_lineage_ids(session_id)
-        return int(self._read_one(
-            f"SELECT COALESCE(MAX(id), 0) FROM messages WHERE session_id IN ({_placeholders(session_ids)})",
-            tuple(session_ids))[0])
-
     def get_messages_as_conversation(self, session_id: str, include_ancestors: bool = False,
                                      include_inactive: bool = False, repair_alternation: bool = False,
                                      include_row_ids: bool = False,

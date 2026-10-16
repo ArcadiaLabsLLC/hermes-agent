@@ -80,3 +80,27 @@ def provider_credential_file(name: str, profile_home: Path) -> Path:
 def provider_configuration(profile: dict) -> dict:
     access = current_access()
     return profile if access is None else access.configuration(profile)
+
+
+def authentication_owner_stamps() -> tuple:
+    """Revision identities for native profile/shared stores used by provider resolution.
+
+    No credentials are read. Creation, rotation, replacement and sign-out all
+    change the identity; callers must not invent a separate auth-path cascade.
+    """
+    # Upstream privates, read at call time; they wait on door D (provider access,
+    # footprint-full-audit-2026-10-15.md §0).
+    from hermes_cli.auth import _auth_file_path, _global_auth_file_path
+
+    paths = [_auth_file_path()]
+    shared = _global_auth_file_path()
+    if shared is not None:
+        paths.append(shared)
+    stamps = []
+    for path in paths:
+        try:
+            stat = path.stat()
+            stamps.append((str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino))
+        except FileNotFoundError:
+            stamps.append((str(path), None, None, None))
+    return tuple(stamps)

@@ -1,6 +1,16 @@
 # A cheap SessionDB lineage stamp, and the two reads it unlocks (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed. Rows (runtime-queue),
+Status: S1–S3 BUILT 2026-10-16 (lane h1-lineage, branch `build/h1-lineage`; each
+commit records its killing mutation and red). S4 NOT BUILT: the upstream door draft
+edits upstream `hermes_state*.py` on an up/ branch, and those files are fenced for
+Phase B wave 2 — the orchestrator sequences it. Build notes: the stamp installs
+lazily on the first stamp (no hook in `hermes_state.py`) and reinstalls under a new
+epoch if a trigger or the table goes missing; updates that only re-derive display
+bookkeeping (`display_order`, `display_identity`, `message_uid`) do not bump, and a
+schema gate reds when upstream adds an unclassified `messages` column. Write cost:
+20.7 µs of trigger per insert (~0.3% of an append). Turn hand-off: 52.6 → 6.4 ms
+(`context_native_history`, 800-message two-session lineage, median of 15).
+Written 2026-10-15; owner approved as recommended 2026-10-15. Rows (runtime-queue),
 one cluster because both need the same missing piece:
 - "Windowed transcript reads scan the conversation for every requested window."
 - "Native history is re-read from SessionDB and re-filtered against the turn

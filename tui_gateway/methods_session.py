@@ -2344,7 +2344,8 @@ def _(rid, params: dict) -> dict:
     except (TypeError, ValueError):
         return _err(rid, -32602, "invalid params: last_seen must be an integer")
     from tui_gateway import event_replay as er
-    page = er.checkpoint(sid, last_seen, include_events=params.get("include_events", True))
+    from agent_runtime.gateway.recovery_history import checkpoint
+    page = checkpoint(sid, last_seen, include_events=params.get("include_events", True))
     # ``epoch``: in-process seq — clients reset watermarks when this differs from gateway.ready's.
     # ``open_requests``: server→client requests still unanswered — the ring cannot carry "a question still
     # waiting", so the reconnecting client re-delivers these to its request handlers.

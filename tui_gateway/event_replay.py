@@ -165,26 +165,6 @@ def reset_replay_state() -> None:
         _replay_total_bytes = 0
 
 
-def forget_session(sid: str) -> None:
-    """The session owner calls this only after retirement; live counters outlast rings."""
-    with _replay_lock:
-        global _replay_total_bytes
-        _replay_buffers.pop(sid, None)
-        _replay_total_bytes -= _replay_buffer_bytes.pop(sid, 0)
-        _replay_next_seq.pop(sid, None)
-        _replay_evicted_through.pop(sid, None)
-
-
-def checkpoint(sid: str, last_seen: int, *, include_events: bool = True) -> dict:
-    """Read one replay position and page under the same lock."""
-    with _replay_lock:
-        snapshots = [(seq, payload) for seq, payload, _ in _replay_buffers.get(sid, ())
-                     if seq > last_seen] if include_events else []
-        position = {"latest_seq": _replay_next_seq.get(sid, 0), "epoch": _REPLAY_EPOCH,
-                    "truncated": last_seen < _replay_evicted_through.get(sid, 0)}
-    return {"events": [_thaw_params(payload, seq) for seq, payload in snapshots], **position}
-
-
 def replay_stats() -> dict:
     """Telemetry: buffer occupancy for the ops/debug surface."""
     with _replay_lock:

@@ -20,7 +20,7 @@ def provider_probe_build_scope() -> Iterator[None]:
     per persona home (11 on the operator's store, ~2.7 s), and ``load_pool``
     rebuilds the pool from its files on every call. The answer is a function of
     the auth stores the run path reads, so it is memoised on their identities
-    (``hermes_cli.auth.authentication_owner_stamps``: the profile/shared
+    (``agent.provider_access.authentication_owner_stamps``: the profile/shared
     ``auth.json`` and the global-root fallback) for the life of the scope only;
     a credential written mid-build changes the stamp and is probed again.
     Nested scopes share the outermost memo.
@@ -106,7 +106,7 @@ def codex_credentials_resolvable_read_only() -> bool:
     memo = _BUILD_PROBE_MEMO.get()
     if memo is None:
         return _codex_credentials_resolvable_now()
-    from hermes_cli.auth import authentication_owner_stamps
+    from agent.provider_access import authentication_owner_stamps
 
     key = ("openai-codex", authentication_owner_stamps())
     if key not in memo:
