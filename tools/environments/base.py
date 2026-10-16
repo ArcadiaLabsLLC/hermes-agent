@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -56,13 +57,66 @@ _activity_callback_local = threading.local()
 # Foreground commands in flight in THIS process, across every environment. Each runs in its
 # own session/process group, so a host that exits mid-command (TUI client gone, SIGTERM) would
 # orphan the whole tree; the process-exit funnel ``cleanup_all_environments`` kills them.
-_live_foreground: "dict[int, tuple[BaseEnvironment, ProcessHandle]]" = {}
+_live_foreground: "dict[int, _LiveForeground]" = {}
 # Reentrant, and the hard-exit path only ever takes it with a timeout: a signal handler can run
 # on a thread that already holds it.
 _live_foreground_cond = threading.Condition(threading.RLock())
 _exit_fenced = False  # one-way, set by the hard-exit kill: no foreground command spawns after it
 _spawns_in_flight = 0  # past the fence check, child maybe alive, not yet in _live_foreground
 _HARD_KILL_BUDGET_S = 0.5
+_FOREGROUND_TAIL_CHARS = 4096
+
+
+class _LiveForeground:
+    """One ``_live_foreground`` entry: the exit-time kill's (env, proc) plus what an observer reads."""
+    __slots__ = ("command", "env", "output", "owner_tid", "proc", "started_at", "started_mono", "timeout")
+
+    def __init__(self, env, proc, *, command: str = "", timeout=None, owner_tid=None):
+        self.env, self.proc, self.command, self.timeout, self.owner_tid = env, proc, command, timeout, owner_tid
+        self.started_at, self.started_mono, self.output = time.time(), time.monotonic(), None
+
+
+@dataclass(frozen=True)
+class ForegroundCommand:
+    """A read-only snapshot of one in-flight foreground command (see :func:`live_foreground_commands`)."""
+    key: int
+    pid: "int | None"
+    command: str
+    started_at: float
+    elapsed_seconds: float
+    timeout_seconds: "float | None"
+    owner_tid: "int | None"
+    output_chars: int
+    seconds_since_output: "float | None"
+    tail: str  # the last output, at most _FOREGROUND_TAIL_CHARS
+
+
+def live_foreground_commands(*, owner_tid: "int | None" = None) -> "list[ForegroundCommand]":
+    """Snapshot of the foreground commands in flight in this process, oldest first; read-only —
+    nothing here signals or waits on a process (that is the owning turn's interrupt seam)."""
+    with _live_foreground_cond:
+        entries = sorted(_live_foreground.items(), key=lambda item: item[1].started_mono)
+    now = time.monotonic()
+    snapshot = []
+    for key, entry in entries:
+        if owner_tid is not None and entry.owner_tid != owner_tid:
+            continue
+        output, pid = entry.output, getattr(entry.proc, "pid", None)
+        last = output.last_append_mono if output is not None else None
+        snapshot.append(ForegroundCommand(
+            key=key, pid=pid if isinstance(pid, int) else None, command=entry.command,
+            started_at=entry.started_at, elapsed_seconds=max(0.0, now - entry.started_mono),
+            timeout_seconds=entry.timeout, owner_tid=entry.owner_tid,
+            output_chars=output.total_chars if output is not None else 0,
+            seconds_since_output=None if last is None else max(0.0, now - last),
+            tail=output.recent(_FOREGROUND_TAIL_CHARS) if output is not None else ""))
+    return snapshot
+
+
+def _attach_foreground_output(key: int, output) -> None:
+    with _live_foreground_cond:
+        if (entry := _live_foreground.get(key)) is not None:
+            entry.output = output
 
 
 def _enter_foreground_spawn() -> bool:
@@ -74,13 +128,15 @@ def _enter_foreground_spawn() -> bool:
         return True
 
 
-def _leave_foreground_spawn(env: "BaseEnvironment", spawned) -> bool:
+def _leave_foreground_spawn(env: "BaseEnvironment", spawned, *, command: str = "", timeout=None,
+                            owner_tid=None) -> bool:
     """Publish ``spawned`` (None: the spawn failed); True when the exit fence went up meanwhile."""
     global _spawns_in_flight
     with _live_foreground_cond:
         _spawns_in_flight -= 1
         if spawned is not None:
-            _live_foreground[id(spawned)] = (env, spawned)
+            _live_foreground[id(spawned)] = _LiveForeground(
+                env, spawned, command=command, timeout=timeout, owner_tid=owner_tid)
         _live_foreground_cond.notify_all()
         return _exit_fenced
 
@@ -103,7 +159,7 @@ def kill_live_foreground_processes(*, now: bool = False) -> int:
     global _exit_fenced
     if not now:
         with _live_foreground_cond:
-            live = list(_live_foreground.values())
+            live = [(e.env, e.proc) for e in _live_foreground.values()]
         for env, proc in live:
             _quiet_kill(env._kill_process, proc)
         return len(live)
@@ -112,11 +168,11 @@ def kill_live_foreground_processes(*, now: bool = False) -> int:
     if _live_foreground_cond.acquire(timeout=_HARD_KILL_BUDGET_S):
         try:
             _live_foreground_cond.wait_for(lambda: _spawns_in_flight == 0, max(0.0, deadline - time.monotonic()))
-            live = list(_live_foreground.values())
+            live = [(e.env, e.proc) for e in _live_foreground.values()]
         finally:
             _live_foreground_cond.release()
     else:  # the holder is stuck under our signal: a lock-free copy beats hanging the exit
-        live = list(_live_foreground.values())
+        live = [(e.env, e.proc) for e in _live_foreground.values()]
     remote = []
     for env, proc in live:
         if isinstance(proc, subprocess.Popen):  # killpg/kill: never blocks
@@ -698,11 +754,13 @@ class BaseEnvironment(ABC):
             try:
                 spawned = self._run_bash(wrapped, login=login, timeout=effective_timeout, stdin_data=effective_stdin)
             finally:
-                fenced = _leave_foreground_spawn(self, spawned)
+                fenced = _leave_foreground_spawn(self, spawned, command=command, timeout=effective_timeout,
+                                                 owner_tid=parent_tid)
             proc_holder.append(spawned)
             if fenced:  # the hard-exit kill may have stopped waiting for us before we registered
                 self._force_kill_process(spawned)
             output = _new_output_collector(spawned, bounded_capture)
+            _attach_foreground_output(id(spawned), output)
             output_holder.append(output)
             try:
                 return self._wait_for_process(

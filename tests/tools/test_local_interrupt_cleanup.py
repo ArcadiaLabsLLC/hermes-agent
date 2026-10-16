@@ -309,7 +309,7 @@ def test_hard_exit_kill_never_blocks_on_a_slow_remote_cancel(monkeypatch):
 
     cancelled = threading.Event()
     handle = _ThreadedProcessHandle(lambda: ("", 0), cancel_fn=lambda: (cancelled.set(), time.sleep(8)))
-    monkeypatch.setitem(base._live_foreground, id(handle), (_SdkEnv(), handle))
+    monkeypatch.setitem(base._live_foreground, id(handle), base._LiveForeground(_SdkEnv(), handle))
     t0 = time.monotonic()
     base.kill_live_foreground_processes(now=True)
     elapsed = time.monotonic() - t0

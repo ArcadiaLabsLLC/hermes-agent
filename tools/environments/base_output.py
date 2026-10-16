@@ -48,6 +48,7 @@ class _BoundedOutputCollector:
         self._spill_fh: IO[str] | None = None
         self._spill_chars = 0
         self._spill_capped = False
+        self._last_append_mono: float | None = None
 
     def _maybe_spill(self, text: str) -> None:
         """Tee ``text`` to the spill file (opened lazily on first overflow)."""
@@ -98,10 +99,22 @@ class _BoundedOutputCollector:
         with self._lock:
             return self._total_chars
 
+    @property
+    def last_append_mono(self) -> float | None:
+        """``time.monotonic()`` of the last non-empty append (None: nothing yet)."""
+        with self._lock:
+            return self._last_append_mono
+
+    def recent(self, max_chars: int) -> str:
+        """The last ``max_chars`` retained characters (no truncation notice)."""
+        with self._lock:
+            return ("".join(self._head) + "".join(self._tail))[-max_chars:] if max_chars > 0 else ""
+
     def append(self, text: str) -> None:
         if not text:
             return
         with self._lock:
+            self._last_append_mono = time.monotonic()
             text_len = len(text)
             # Spill tee activates at the first overflow, then mirrors every chunk.
             if self._spill_path is not None and (
