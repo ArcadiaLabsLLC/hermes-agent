@@ -1,7 +1,7 @@
 """Provider packs: the provider SDKs the bundled Eternia Harness downloads instead of shipping.
 
 OWNER RULING 2026-10-15: each provider SDK the wheel does not carry (``bedrock``,
-``vertex``, ``azure-identity``, ``mistral``) is built as its own engine pack per
+``vertex``, ``azure-identity``; ``mistral`` was dropped 2026-10-16) is built as its own engine pack per
 release — ``packaging.packs.provider-<extra>`` in
 ``agent_runtime/bundle_profiles/bundled-desktop.yaml`` — and the Launcher downloads
 it only when the user signs in to that provider. The runtime never downloads

@@ -129,7 +129,8 @@ packaging:
   # unshipped extra is an unavailable feature, never a download.
   extras:
     # Owner-confirmed 2026-09-28: bedrock, vertex, azure-identity and mistral stay out of the
-    # wheel; since 2026-10-15 each ships as a provider pack instead (packaging.packs below).
+    # wheel; since 2026-10-15 the first three ship as provider packs (packaging.packs below).
+    # mistral ships in no pack (owner ruling 2026-10-16): nothing offers a Mistral speech engine.
     - anthropic     # Anthropic provider (core agent: providers On)
     - mcp           # MCP over HTTP (On); stdio servers are switched off by config
     - fal           # image generation (On)
@@ -223,9 +224,7 @@ packaging:
     provider-vertex:
       extras: [vertex]           # google-auth + pyasn1, pyasn1-modules
     provider-azure-identity:
-      extras: [azure-identity]   # Entra ID auth for azure-foundry: azure-core, msal, msal-extensions
-    provider-mistral:
-      extras: [mistral]          # mistralai: the Mistral speech providers (TTS / STT)
+      extras: [azure-identity]   # Entra ID auth for azure-foundry: azure-identity, azure-core, msal, msal-extensions
   # Agent resources (scripts/build/inputs.py RESOURCE_ENV) shipped beside the code.
   resources:
     - skills
