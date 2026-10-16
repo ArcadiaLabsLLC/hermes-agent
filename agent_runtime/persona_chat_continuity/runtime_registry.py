@@ -13,6 +13,7 @@ from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Callable, Iterable
 
 from ..clock import now_iso_micro
+from ..process_state import register_process_state
 
 __layer__ = "stores"
 
@@ -433,6 +434,19 @@ def initialize_persona_chat_runtime_registry(
 
 def persona_chat_runtime_registry() -> PersonaChatRuntimeRegistry | None:
     return _REGISTRY
+
+
+def reset_persona_chat_runtime_registry() -> None:
+    """No resident-chat registry, the one a fresh import has; close what was there."""
+
+    global _REGISTRY
+    with _REGISTRY_RESET_LOCK:
+        previous, _REGISTRY = _REGISTRY, None
+    if previous is not None:
+        previous.close()
+
+
+register_process_state(__name__, reset_persona_chat_runtime_registry, holds=("_REGISTRY",))
 
 
 class RecordedRuntimeObserver:

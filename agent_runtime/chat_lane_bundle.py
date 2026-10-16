@@ -146,6 +146,7 @@ from .chat_lane_scope import (  # noqa: F401 — re-exported: the scope family l
 from .cli_format import emit_json
 from .mcp_admission.resolve import resolve_mcp_admission
 from .mcp_admission.vocabulary import LANE_MISSION_CHAT
+from .process_state import register_process_state
 
 __layer__ = "stores"
 
@@ -622,6 +623,9 @@ def invalidate_chat_lane_bundles() -> None:
 
     with _memo_lock:
         _memo.clear()
+
+
+register_process_state(__name__, invalidate_chat_lane_bundles, holds=("_memo",))
 
 
 __all__ = [

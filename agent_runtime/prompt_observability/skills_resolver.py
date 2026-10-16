@@ -14,6 +14,7 @@ import time
 from typing import Any, Iterable
 
 from .. import idle_turn_keeper
+from ..process_state import register_process_state
 from .._upstream_doors import skills_walker
 from ..persona_assignments import safe_assignment_token
 from ..skill_root_freshness import TurnRootRegistries, queue_after_request_sent
@@ -385,6 +386,13 @@ def _turn_shared_catalog() -> dict[str, dict[str, Any]] | None:
 
 
 _skill_catalog_memo: dict[str, Any] = {"at": 0.0, "rows": None, "walker": None}
+
+
+def _reset_skill_catalog_memo() -> None:
+    _skill_catalog_memo.update(rows=None, at=0.0)
+
+
+register_process_state(__name__, _reset_skill_catalog_memo, holds=("_skill_catalog_memo",))
 
 #: The one refresh in flight, if any. ``thread`` is kept for a test to join.
 _catalog_refresh_lock = threading.Lock()

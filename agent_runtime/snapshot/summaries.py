@@ -15,6 +15,7 @@ from agent_runtime import paths
 from agent_runtime.persona_assignments import persona_instance_visibility_ref
 from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.persona_profiles import effective_toolsets
+from agent_runtime.process_state import register_process_state
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
 from agent_runtime.repo_context import resolve_affected_repo_workdir
 from agent_runtime.tool_visibility import (
@@ -200,6 +201,13 @@ _PROFILE_TEMPLATE_TTL_SECONDS = 15.0
 
 
 _profile_template_memo: dict = {"at": 0.0, "rows": None, "fn": None}
+
+
+def _reset_profile_template_memo() -> None:
+    _profile_template_memo.update(rows=None, at=0.0)
+
+
+register_process_state(__name__, _reset_profile_template_memo, holds=("_profile_template_memo",))
 
 
 _profile_persona_reconcile_lock = threading.Lock()
