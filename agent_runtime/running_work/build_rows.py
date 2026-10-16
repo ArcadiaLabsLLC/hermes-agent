@@ -15,19 +15,33 @@ from typing import Any
 
 from ..builds.unknowns import UNKNOWN_SLOT_UNRESOLVED, UNKNOWN_STARTER_UNKNOWN, UnknownsIndex
 from ..builds.vocabulary import (
+    ARTIFACT_KIND_OTHER,
+    ARTIFACT_KINDS,
+    BUILD_LIVENESS,
+    BUILD_MODES,
+    BUILD_SOURCES,
+    BUILD_TOOLCHAINS,
     COMMAND_LIMIT,
     CONTROL_ALLOWED,
+    CONTROL_REASONS,
     CONTROL_REFUSED,
+    CONTROL_STATES,
     CONTROL_UNAVAILABLE,
+    ENV_SOURCE_ARMS,
     ENV_SOURCE_SLOT_PREFIX,
+    ENV_SOURCE_UNKNOWN,
     LABEL_LIMIT,
     LIVENESS_DEAD,
     LIVENESS_STALLED,
     LIVENESS_UNKNOWN,
     OUTCOME_SUCCEEDED,
     PROGRESS_SIGNAL_NONE,
+    PROGRESS_SIGNALS,
     STAGE_UNKNOWN,
     STAGE_DETAIL_LIMIT,
+    STARTED_BY_KINDS,
+    STARTED_BY_TOOL,
+    TOOLCHAIN_UNKNOWN,
 )
 from ..projection_accountant import ProjectionAccountant
 from .rows import bounded_operator_text, work_row
@@ -136,26 +150,66 @@ def _eta(facts: BuildFacts) -> tuple[int | None, float | None]:
     return max(0, facts.expected_ms - elapsed_ms), None if fraction is None else round(fraction, 3)
 
 
+def spelled(value: Any, words: tuple[str, ...], field_name: str) -> str:
+    """``value``, which hermes itself chose, checked against its vocabulary tuple.
+
+    These words are only ever written from the vocabulary's constants, so a word outside
+    the tuple is a producer bug: it raises, and the frame reports the lane as
+    ``collector_failed`` (``surface.build_running_work``) instead of shipping a word the
+    launcher cannot decode.
+    """
+
+    if value not in words:
+        raise ValueError(f"build row {field_name}={value!r} is not a word of {words}")
+    return value
+
+
+def closed_word(value: Any, words: tuple[str, ...], fallback: str) -> str:
+    """``value`` when it is a word of ``words``, else the vocabulary's unknown arm.
+
+    For the words an announced WRITER (or a restart mark) supplies: the build row says
+    ``unknown`` rather than guess, as ``stage`` and ``outcome`` already do.
+    """
+
+    return value if value in words else fallback
+
+
+def _env_source(value: Any) -> str:
+    """``slot:<name>`` is the arm named by its prefix; anything else must be a whole arm."""
+
+    text = str(value or "")
+    arm = ENV_SOURCE_SLOT_PREFIX if text.startswith(ENV_SOURCE_SLOT_PREFIX) else text
+    return text if arm in ENV_SOURCE_ARMS and text != ENV_SOURCE_SLOT_PREFIX else ENV_SOURCE_UNKNOWN
+
+
+def _artifact(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    return {**value, "kind": closed_word(value.get("kind"), ARTIFACT_KINDS, ARTIFACT_KIND_OTHER)}
+
+
 def build_extra(facts: BuildFacts, accountant: ProjectionAccountant | None) -> dict[str, Any]:
-    """Every §1 build key, in one place."""
+    """Every §1 build key, in one place — every closed word spelled from its vocabulary tuple."""
 
     eta_ms, fraction = _eta(facts)
     root = facts.project_root or ""
+    started_by = dict(facts.started_by)
+    started_by["kind"] = closed_word(started_by.get("kind"), STARTED_BY_KINDS, STARTED_BY_TOOL)
     return {
-        "source": facts.source,
+        "source": spelled(facts.source, BUILD_SOURCES, "source"),
         "project": {"root": root, "name": PurePath(root).name if root else ""},
         "workspace_id": facts.workspace_id,
         "slot_id": facts.slot_id,
-        "env_source": facts.env_source,
+        "env_source": _env_source(facts.env_source),
         "started_by_instance": facts.persona_instance_id or None,
         "unknowns": facts.unknowns.wire(accountant, entity_id=f"{KIND_BUILD}:{facts.stable_id}"),
-        "toolchain": facts.toolchain,
+        "toolchain": closed_word(facts.toolchain, BUILD_TOOLCHAINS, TOOLCHAIN_UNKNOWN),
         "target": facts.target,
-        "mode": facts.mode,
+        "mode": closed_word(facts.mode, BUILD_MODES, ""),
         "stage": facts.stage,
         "stage_detail": bounded_operator_text(facts.stage_detail, limit=STAGE_DETAIL_LIMIT),
-        "liveness": facts.liveness,
-        "progress_signal": facts.progress_signal,
+        "liveness": spelled(facts.liveness, BUILD_LIVENESS, "liveness"),
+        "progress_signal": spelled(facts.progress_signal, PROGRESS_SIGNALS, "progress_signal"),
         "seconds_since_progress": None if facts.seconds_since_progress is None else round(facts.seconds_since_progress, 1),
         "progress_fraction": fraction,
         "expected_ms": facts.expected_ms,
@@ -163,16 +217,27 @@ def build_extra(facts: BuildFacts, accountant: ProjectionAccountant | None) -> d
         "history_samples": facts.history_samples,
         "outcome": facts.outcome,
         "exit_code": facts.exit_code,
-        "artifact": facts.artifact,
+        "artifact": _artifact(facts.artifact),
         "finished_at": facts.finished_at,
-        "started_by": dict(facts.started_by),
-        "controls": {"stop": facts.stop[0], "stop_reason": facts.stop[1],
-                     "restart": facts.restart_control[0], "restart_reason": facts.restart_control[1]},
+        "started_by": started_by,
+        "controls": _controls(facts),
         "restart": facts.restart,
         "origin_work_id": facts.origin_work_id,
         "announcement": facts.announcement,
         "mcp_job": facts.mcp_job,
         "restart_of": facts.restart_of,
+    }
+
+
+_REASONS = ("", *CONTROL_REASONS)
+
+
+def _controls(facts: BuildFacts) -> dict[str, str]:
+    return {
+        "stop": spelled(facts.stop[0], CONTROL_STATES, "controls.stop"),
+        "stop_reason": spelled(facts.stop[1], _REASONS, "controls.stop_reason"),
+        "restart": spelled(facts.restart_control[0], CONTROL_STATES, "controls.restart"),
+        "restart_reason": spelled(facts.restart_control[1], _REASONS, "controls.restart_reason"),
     }
 
 
