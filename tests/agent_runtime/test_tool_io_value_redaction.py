@@ -183,7 +183,7 @@ def test_target_and_changed_paths_keep_a_file_named_for_a_secret_word():
 
 # --------------------------------------------------------------------------- #
 # the value-redactor corpus: every display lane, one table (plan S0)          #
-# docs/agent-runtime-harness/planned/redaction-one-value-redactor-2026-10-15.md
+# docs/agent-runtime-harness/archive/redaction-one-value-redactor-2026-10-15.md
 # --------------------------------------------------------------------------- #
 
 from agent_runtime import events as _events

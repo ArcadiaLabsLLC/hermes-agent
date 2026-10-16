@@ -1,6 +1,6 @@
 """No fork module decides "is this a secret?" by looking for a secret WORD.
 
-Plan ``docs/agent-runtime-harness/planned/redaction-one-value-redactor-2026-10-15.md``
+Plan ``docs/agent-runtime-harness/archive/redaction-one-value-redactor-2026-10-15.md``
 S5. A word is not a secret; a value is. Three rounds retired word lists that
 blanked ``token_budget.py`` and "the password field" while a ``ghp_`` token with
 no word beside it went through (L2.21 ``a325b7c08e``, then this plan's S1-S4).
