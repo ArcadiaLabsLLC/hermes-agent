@@ -74,3 +74,64 @@ def test_a_decorator_registered_function_is_not_a_dead_candidate(tmp_path):
     assert kinds["Card.zz_plain_method_nobody_calls"] == "method"
     assert "zz_plain_function_nobody_calls" in dead.split()
     assert "Card.zz_plain_method_nobody_calls" in dead.split()
+
+
+SEAM_MODULE = textwrap.dedent(
+    """
+    def zz_seam_by_ruling():
+        return 1
+
+
+    class Box:
+        def zz_seam_method(self):
+            return 2
+
+
+    def zz_test_only_not_a_seam():
+        return 3
+    """
+)
+
+SEAMS_FILE = 'IN_MODULE_SEAMS = (\n    "mod.py::zz_seam_by_ruling",\n    "mod.py::Box.zz_seam_method",\n)\n'
+
+TEST_FILE = "from mod import Box, zz_seam_by_ruling, zz_test_only_not_a_seam\n"
+
+
+def test_an_in_module_seam_is_counted_as_a_seam_not_a_test_only_name(tmp_path):
+    """Plan l5-17-test-only-names, bucket B: ``_seams.IN_MODULE_SEAMS`` takes a name off the DECIDE list."""
+
+    (tmp_path / "mod.py").write_text(SEAM_MODULE, encoding="utf-8")
+    (tmp_path / "files.txt").write_text("mod.py\n", encoding="utf-8")
+    (tmp_path / "tests" / "_downstream").mkdir(parents=True)
+    (tmp_path / "tests" / "_downstream" / "_seams.py").write_text(SEAMS_FILE, encoding="utf-8")
+    (tmp_path / "tests" / "test_mod.py").write_text(TEST_FILE, encoding="utf-8")
+    out = tmp_path / "out.json"
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "files.txt", str(out)],
+        cwd=tmp_path, check=True, capture_output=True, timeout=60, text=True,
+    )
+    kinds = {r["name"]: r["kind"] for r in json.loads(out.read_text(encoding="utf-8"))["dead"]["mod.py"]}
+    test_only = [line.split()[-2] for line in done.stdout.splitlines() if line.strip().startswith("TEST ")]
+
+    assert kinds["zz_seam_by_ruling"] == "seam"
+    assert kinds["Box.zz_seam_method"] == "seam"
+    assert "zz_seam_by_ruling" not in test_only and "Box.zz_seam_method" not in test_only
+    # Positive control: the same file's unlisted test-only name is still offered.
+    assert kinds["zz_test_only_not_a_seam"] == "FunctionDef"
+    assert "zz_test_only_not_a_seam" in test_only
+
+
+def test_every_in_module_seam_names_a_live_attribute():
+    """An allowlist entry that no longer resolves is a stale exemption, not a seam."""
+
+    import importlib
+
+    from tests._downstream._seams import IN_MODULE_SEAMS
+
+    assert len(IN_MODULE_SEAMS) == len(set(IN_MODULE_SEAMS))
+    for entry in IN_MODULE_SEAMS:
+        path, _, qualname = entry.partition("::")
+        target = importlib.import_module(path.removesuffix(".py").replace("/", "."))
+        for part in qualname.split("."):
+            target = getattr(target, part)
+        assert callable(target), entry

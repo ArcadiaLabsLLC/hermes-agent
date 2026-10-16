@@ -24,6 +24,7 @@ from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __all__ = [
     "BUILD_SELF_PERTURBED_CLASSES",
+    "IN_MODULE_SEAMS",
     "READ_ONLY_ALLOWLIST_PROFILE",
     "FingerprintHomeCapture",
     "RepoContextExcerpt",
@@ -42,6 +43,31 @@ __all__ = [
     "reset_unreadable_instance_rows",
 ]
 
+
+#: Test seams that STAY in their production module, by ruling (plan
+#: ``l5-17-test-only-names-2026-10-15``, bucket B, owner-approved 2026-10-15).
+#: Each one reads or resets a module PRIVATE — a cache, a per-thread counter, an
+#: in-flight table — so moving it here would need a public hook into that
+#: private, a worse seam than the one that exists. ``path::Name`` (or
+#: ``path::Class.method``): the spelling ``scripts/refactor_census.py`` reads
+#: (by AST, never by import) to stop offering them as test-only DECIDE rows.
+#: ``tests/scripts/test_refactor_census_downstream.py`` resolves every entry
+#: against the live module, so a stale one is a red.
+IN_MODULE_SEAMS = (
+    "agent_runtime/chat_root_send_runner.py::QueuedSendRunner.busy_roots",
+    "agent_runtime/demote_core_reuse.py::reset_process_state",
+    "agent_runtime/events.py::_event_view_cache_clear",
+    "agent_runtime/launcher_client_requests.py::ClientRequests.open_count",
+    "agent_runtime/parse_cache.py::clear_parse_cache",
+    "agent_runtime/profile_readiness.py::_provider_issue_cache_clear",
+    "agent_runtime/skill_resolution.py::_search_roots_cache_clear",
+    "agent_runtime/skill_resolution.py::_skill_root_registry_cache_clear",
+    "agent_runtime/skill_resolution.py::reset_skill_root_walks_for_tests",
+    "agent_runtime/skill_resolution.py::skill_root_rebuilds_this_thread",
+    "agent_runtime/skill_resolution.py::skill_root_walks_this_thread",
+    "agent_runtime/snapshot_build_ledger.py::builds_in_flight",
+    "tools/tool_defs_observability.py::tool_defs_cache_hits_this_thread",
+)
 
 #: The launcher-allowlist PROFILE ROW a ``read_only`` admission's tool set was
 #: compiled from (``agent_runtime.mcp_admission.vocabulary.READ_ONLY_INCLUDED_TOOLS``).
