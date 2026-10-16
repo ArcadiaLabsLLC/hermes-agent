@@ -800,7 +800,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (lane w1015j-hermes)
 
-- [ ] **`hermes_cli/harness_parts/verify_commands.py` (`--mode live-tony`) asserts the store root equals one machine's path — the lowered `store_root()` compared to the literal owner's `<drive>:/Eternia/.hermes/agent-runtime` → `runtime_root_mismatch` — so the verify mode fails on every other machine and passes on this one whatever the configured root** · runtime / harness CLI · compare against the resolved default root (`hermes_constants.get_default_hermes_root() / "agent-runtime"`) or delete the live-tony arm if nothing calls it · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-turnrec)**
 
 ## Filed on arrival — 2026-10-15 (backend build wave A, realms)
 
