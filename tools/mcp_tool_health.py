@@ -10,6 +10,7 @@ from typing import Iterable, Optional
 from tools.mcp_tool_errors import _is_method_not_found_error, _unwrap_exception_group
 from tools.mcp_tool_schema import mcp_prefixed_tool_name
 from tools.mcp_tool_common import _core
+from tools.mcp_plugin_hooks import emit_mcp_hook
 from tools import mcp_tool_registration as _registration
 
 logger = logging.getLogger("tools.mcp_tool")
@@ -80,6 +81,7 @@ class MCPServerHealthMixin:
         """
         async def _on_log(params):
             try:
+                emit_mcp_hook("on_mcp_notification", server_name=self.name, method="notifications/message", params=params)
                 level = _core._MCP_LOG_LEVEL_MAP.get(str(getattr(params, "level", "info")).lower(), logging.INFO)
                 data = getattr(params, "data", None)
                 if not isinstance(data, str):
@@ -108,6 +110,8 @@ class MCPServerHealthMixin:
                 # mcp 2.0 made ServerNotification a plain union (payload IS the message) instead of
                 # a RootModel (payload under ``.root``); without this unwrap refreshes silently stop.
                 payload = getattr(message, "root", message)
+                emit_mcp_hook("on_mcp_notification", server_name=self.name,
+                              method=getattr(payload, "method", ""), params=getattr(payload, "params", None))
                 if isinstance(payload, _core.ToolListChangedNotification):
                     logger.info("MCP server '%s': received tools/list_changed notification", self.name)
                     # Separate task: refreshing synchronously inside the handler can wedge the stdio

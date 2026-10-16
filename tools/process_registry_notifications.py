@@ -3,7 +3,9 @@ watch_match, watch_disabled, watch_overflow_*, async_delegation) into the
 ``[IMPORTANT: ...]`` / ``[ASYNC DELEGATION ...]`` text the CLI drain loop, gateway and
 TUI inject into the agent conversation."""
 
+import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from contextlib import suppress
 
@@ -430,9 +432,22 @@ def _completion_status(evt: dict) -> str:
     return _REASON_STATUS.get(reason) or ("completed normally" if evt.get("exit_code", "?") == 0 else "exited")
 
 
+_COMPLETION_FORMATTERS: dict[str, Callable[[dict], str | None]] = {}
+
+
+def register_completion_formatter(event_type: str, render: Callable[[dict], str | None]) -> None:
+    """Render one completion_queue event type (a plugin's own); consulted before the stock ladder.
+    Re-registering a type replaces it with a WARNING."""
+    if event_type in _COMPLETION_FORMATTERS:
+        logging.getLogger(__name__).warning("completion formatter for %r replaced", event_type)
+    _COMPLETION_FORMATTERS[event_type] = render
+
+
 def format_process_notification(evt: dict) -> str | None:
     """Format a completion_queue event into an ``[IMPORTANT: ...]`` message."""
     evt_type = evt.get("type", "completion")
+    if (render := _COMPLETION_FORMATTERS.get(evt_type)) is not None:
+        return render(evt)
     # watch_disabled and overflow events carry their own human-readable `message`;
     # otherwise overflow events would fall through to the completion formatter as a
     # phantom "process exited (exit code ?)".

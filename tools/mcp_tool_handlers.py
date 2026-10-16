@@ -16,6 +16,7 @@ from hermes_platform import declaration
 from tools.registry import invalidate_check_fn_cache, tool_error
 from tools.ansi_strip import strip_unicode_tags
 from tools.mcp_tool_common import _exc_str, _sanitize_error, mcp_field, _core
+from tools.mcp_plugin_hooks import emit_mcp_hook
 from tools import mcp_tool_loop as _loop
 from tools.mcp_tool_content import (
     _MCP_HARD_RESULT_CAP_CHARS, _cache_mcp_audio_block, _cache_mcp_image_block, _mcp_result_with_native_images,
@@ -581,6 +582,7 @@ def _make_tool_handler(server_name: str, tool_name: str, tool_timeout: float, *,
         # Only a tool annotated readOnlyHint=True is replayed after session expiry; a 401 is always
         # pre-dispatch so the auth recoverer keeps its retry for every tool.
         read_only = _tool_is_read_only(server_name, tool_name)
+        call_kwargs = dict(kwargs)  # snapshotted on the calling thread for post_mcp_call
         image_paths: list[str] = []  # the LAST attempt's cached images (a recoverer may retry _call)
 
         async def _call():
@@ -592,6 +594,8 @@ def _make_tool_handler(server_name: str, tool_name: str, tool_timeout: float, *,
                     server._pending_call_context = None
             if getattr(server, "_mark_session_proven", None) is not None:  # round-trip done: transport healthy
                 server._mark_session_proven()
+            emit_mcp_hook("post_mcp_call", server_name=server_name, tool_name=tool_name, arguments=args,
+                          result=result, call_kwargs=call_kwargs)
             image_paths.clear()
             return _render_call_tool_result(result, server_name, image_paths)
 
