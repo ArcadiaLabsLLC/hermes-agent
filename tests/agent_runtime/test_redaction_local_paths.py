@@ -17,6 +17,8 @@ from agent_runtime.redaction import has_secret_value, mask_local_paths
         ("~/proj/notes.txt", "…/notes.txt"),
         ("//server/share/alice/f.txt", "…/f.txt"),
         ("(/etc/alice/passwd)", "(…/passwd)"),
+        (r"C:\Users\Jo Smith\proj\x.txt and more", "…/x.txt and more"),
+        ("/x/Unreal Engine/Engine/private.log", "…/private.log"),
     ],
 )
 def test_an_absolute_path_is_shortened_to_its_last_segment(text, shown):

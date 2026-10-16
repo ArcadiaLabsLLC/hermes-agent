@@ -25,7 +25,7 @@ from agent_runtime.serde import (
 )
 
 from agent_runtime.mission_chat_turns.states import TURN_STATE_COMPLETED, _record_state
-from agent_runtime.redaction import has_secret_value
+from agent_runtime.redaction import has_secret_value, mask_local_paths
 
 __layer__ = "policy"
 
@@ -492,4 +492,4 @@ def _safe_file_label(value: Any) -> str | None:
     text = safe_assignment_text(value, limit=240)
     if not text:
         return None
-    return None if has_secret_value(text) else text
+    return None if has_secret_value(text) else mask_local_paths(text)

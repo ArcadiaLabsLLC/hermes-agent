@@ -73,7 +73,7 @@ ENV_SECRET_KEYS = (
 )
 TEXT_SECRET_KEYS = (
     r"api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token"
-    r"|authorization|bearer|credential|passwd|password|secret|token"
+    r"|authorization|bearer|credential|passwd|password|private[_-]?key|secret|token"
 )
 
 # ── Composed patterns ──────────────────────────────────────────────────────
@@ -463,11 +463,13 @@ def has_secret_value(text: str) -> bool:
 #: An absolute path token: a drive (``C:\``, ``C:/``), a UNC or ``//`` share, a
 #: home (``~/``), or a POSIX root with at least two segments (``/tmp`` and a
 #: ``/help`` command name in prose name no machine). The look-behind keeps a
-#: URL's ``//host/path`` and a relative ``a/b`` out.
+#: URL's ``//host/path`` and a relative ``a/b`` out. A space stays inside the
+#: path when the next word carries a separator (``C:\Users\Jo Smith\x``), so a
+#: name with a space is not cut in half and half-leaked.
 _LOCAL_PATH_RE = re.compile(
     r"(?<![\w.:/\\~-])"
     r"(?:[A-Za-z]:[\\/]|\\\\|//|~[\\/]|/(?=[^\s/\\]+/))"
-    r"[^\s'\"`<>|]*"
+    r"(?:[^\s'\"`<>|]|[ ](?=[^\s/\\'\"`<>|]*[\\/]))*"
 )
 _PATH_TRAILING_PUNCTUATION = ".,;:)]}"
 
