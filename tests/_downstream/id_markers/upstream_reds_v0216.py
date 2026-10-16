@@ -42,7 +42,6 @@ _NODES = (
         'tests/conformance/persistence/test_cell5_delivery_outbox_exactly_once.py::test_crash_between_send_and_record_never_double_delivers[recorded-unsent]',
         'tests/conformance/persistence/test_cell5_delivery_outbox_exactly_once.py::test_crash_between_send_and_record_never_double_delivers[resend-crash-attempting]',
         'tests/conformance/persistence/test_cell5_delivery_outbox_exactly_once.py::test_crash_between_send_and_record_never_double_delivers[sent-unacked]',
-        'tests/cron/test_cron_bot_chat_delivery.py::test_turn_report_books_the_delivery_while_the_child_still_lingers',
         'tests/cron/test_cron_no_agent.py::test_run_job_no_agent_uses_configured_interpreter',
         'tests/cron/test_external_worker_config_hooks.py::test_worker_registers_owning_profile_config_hooks',
         'tests/cron/test_lifecycle_guard_heredoc_walk.py::test_mentioned_data_file_that_cannot_be_scanned_is_not_a_verdict',
