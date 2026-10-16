@@ -1,7 +1,7 @@
 """Provider packs: which pack carries a missing provider SDK, and loading one without a restart.
 
 OWNER RULING 2026-10-15: the bundled Eternia Harness ships no Bedrock / Vertex / Azure
-identity / Mistral SDK; each is a pack per release the Launcher downloads only when the
+identity SDK; each is a pack per release (the Mistral pack was dropped 2026-10-16) the Launcher downloads only when the
 user signs in to that provider. The runtime reports the pack and never installs.
 """
 
@@ -79,9 +79,31 @@ def test_a_bundle_reports_the_pack_and_offers_no_install(bundled, monkeypatch):
     rows = {row["provider"]: row for row in deps.provider_dependency_report()["providers"]}
     assert rows["bedrock"] == {"provider": "bedrock", "missing": ["boto3"], "extra": "bedrock",
                                "installable": False, "pack_available": True,
-                               "pack": {"name": "provider-bedrock", "commit": COMMIT}}
+                               "pack": {"name": "provider-bedrock", "commit": COMMIT}, "needed_when": None}
     # Positive control: a missing SDK no pack carries is neither installable nor pack-backed.
     assert (rows["anthropic"]["installable"], rows["anthropic"]["pack_available"]) == (False, False)
+
+
+def test_a_bundle_offers_the_azure_identity_pack_for_entra_id(tmp_path, monkeypatch):
+    """Owner ruling 2026-10-16: the provider-azure-identity pack is reported on the azure-foundry
+    row (``needed_when: {auth_mode: entra_id}``). Killing mutation: drop the mode rows from
+    ``provider_dependencies._requirement_rows`` -> no azure-foundry row, red. Positive control:
+    the bundle record without that pack reports the row with no pack."""
+    def report(packs):
+        root = tmp_path / str(len(list(tmp_path.iterdir())))
+        monkeypatch.setattr(provider_packs, "_APP_DIR", _bundle(root, packs=packs))
+        monkeypatch.setattr(deps, "_sdk_free", lambda: False)
+        monkeypatch.setattr(runtime_environment, "missing_runtime_packages_for",
+                            lambda *, provider=None, auth_mode=None, **_:
+                            ["azure-identity"] if (provider, auth_mode) == ("azure-foundry", "entra_id") else [])
+        return {row["provider"]: row for row in deps.provider_dependency_report()["providers"]}
+
+    row = report({**PACKS, "provider-azure-identity": ["azure-identity"]})["azure-foundry"]
+    assert row == {"provider": "azure-foundry", "missing": ["azure-identity"], "extra": "azure-identity",
+                   "installable": False, "pack_available": True,
+                   "pack": {"name": "provider-azure-identity", "commit": COMMIT},
+                   "needed_when": {"auth_mode": "entra_id"}}
+    assert report(PACKS)["azure-foundry"]["pack"] is None  # positive control
 
 
 def test_a_bundle_refuses_the_install_and_names_the_pack(bundled, monkeypatch):

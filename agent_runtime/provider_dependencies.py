@@ -66,10 +66,41 @@ def _supported(extra: str) -> bool:
         return True
 
 
-def provider_dependency_report() -> dict:
-    """``{sdk_free, providers: [{provider, missing, extra, installable, pack_available, pack}]}``.
+def _requirement_rows() -> list[tuple[str, str | None]]:
+    """``(provider, auth_mode)`` per row the report walks: each hard requirement (mode None),
+    then each mode-only one (``_PROVIDER_MODE_PACKAGE_REQUIREMENTS``: azure-foundry's
+    ``entra_id`` needs azure-identity), in provider order."""
+    from hermes_cli.runtime_environment import _PROVIDER_MODE_PACKAGE_REQUIREMENTS, _PROVIDER_PACKAGE_REQUIREMENTS
 
-    Missing ones only. In a bundle (the Eternia Harness) nothing is installable — the
+    rows: list[tuple[str, str | None]] = [(provider, None) for provider in _PROVIDER_PACKAGE_REQUIREMENTS]
+    rows += [(provider, mode) for provider, modes in _PROVIDER_MODE_PACKAGE_REQUIREMENTS.items() for mode in modes]
+    return sorted(rows, key=lambda row: (row[0], row[1] or ""))
+
+
+def _missing_for(provider: str, auth_mode: str | None) -> list[str]:
+    from hermes_cli.runtime_environment import missing_runtime_packages_for
+
+    if auth_mode is None:
+        return missing_runtime_packages_for(provider=provider)
+    return missing_runtime_packages_for(provider=provider, auth_mode=auth_mode)
+
+
+def _first_missing(provider: str) -> list[str]:
+    """What ``provider`` lacks: its hard requirement first, else the first mode-only one missing."""
+    modes = [mode for name, mode in _requirement_rows() if name == provider] or [None]
+    for mode in modes:
+        missing = _missing_for(provider, mode)
+        if missing:
+            return missing
+    return []
+
+
+def provider_dependency_report() -> dict:
+    """``{sdk_free, providers: [{provider, missing, extra, installable, pack_available, pack, needed_when}]}``.
+
+    ``needed_when`` is null for a hard requirement and ``{"auth_mode": <mode>}`` for a
+    package the provider needs only in that mode (Azure Foundry's ``entra_id``): the turn
+    is never refused for it, but its pack is offered. Missing ones only. In a bundle (the Eternia Harness) nothing is installable — the
     runtime never installs (``security.allow_lazy_installs: false``) — and a provider
     whose extra a provider pack carries reports ``pack_available: true`` with
     ``pack: {name, commit}``: the Launcher downloads that pack
@@ -78,17 +109,13 @@ def provider_dependency_report() -> dict:
     if _sdk_free():
         return {"sdk_free": True, "providers": []}
     from agent_runtime.provider_packs import bundle_packs, pack_for_extra
-    from hermes_cli.runtime_environment import (
-        _PROVIDER_PACKAGE_REQUIREMENTS,
-        missing_runtime_packages_for,
-        runtime_environment_status_scope,
-    )
+    from hermes_cli.runtime_environment import runtime_environment_status_scope
 
     bundled = bool(bundle_packs()[1])
     rows = []
     with runtime_environment_status_scope():
-        for provider in sorted(_PROVIDER_PACKAGE_REQUIREMENTS):
-            missing = missing_runtime_packages_for(provider=provider)
+        for provider, auth_mode in _requirement_rows():
+            missing = _missing_for(provider, auth_mode)
             if not missing:
                 continue
             extra = _extra_for(missing)
@@ -100,6 +127,7 @@ def provider_dependency_report() -> dict:
                 "installable": not bundled and extra is not None and _supported(extra),
                 "pack_available": pack is not None,
                 "pack": pack,
+                "needed_when": {"auth_mode": auth_mode} if auth_mode else None,
             })
     return {"sdk_free": False, "providers": rows}
 
@@ -145,11 +173,9 @@ def install_provider_dependency(
     ``outcome`` is ``already_installed`` or ``installed``; ``environment`` is ``existing``
     (in place, live for this runtime) or ``new`` (a new generation: restart to load it).
     """
-    from hermes_cli.runtime_environment import missing_runtime_packages_for
-
     if _sdk_free():
         raise _refused("sdk_free_edition", provider=provider)
-    missing = missing_runtime_packages_for(provider=provider)
+    missing = _first_missing(provider)
     if not missing:
         return {"provider": provider, "extra": None, "outcome": "already_installed",
                 "environment": "existing", "restart_required": False}
