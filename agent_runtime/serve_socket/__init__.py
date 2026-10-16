@@ -25,6 +25,8 @@ target      stores  ``SocketTarget``, ``resolve_socket_target``
 server      lanes   ``ServeSocketServer``: bind, accept, admit, drain, close
 handshake   lanes   TLS wrap, the hello, authentication, rejection, read loop
 client      lanes   ``ServeSocketClient``
+cli_route   lanes   ``relay_argv``: one CLI argv relay, the typed ``RelayOutcome``,
+                    the one fallback rule (``FallbackPolicy``)
 ==========  ======  ========================================================
 
 Stores written: ``<runtime_root>/<SOCKET_LOCK_FILENAME>`` and
@@ -43,6 +45,7 @@ from agent_runtime.serve_socket import (  # noqa: F401 — every family, in the 
     server,
     target,
     client,
+    cli_route,
     wire,
 )
 from agent_runtime.serve_socket.vocabulary import (

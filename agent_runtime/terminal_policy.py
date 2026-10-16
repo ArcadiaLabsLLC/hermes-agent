@@ -43,7 +43,9 @@ _HERMES_INTERACTIVE_SUBCOMMAND_RE = re.compile(
 
 
 def _harness_safety_block(command: str) -> str | None:
-    if not os.getenv("HERMES_AGENT_RUNTIME_ROOT", "").strip():
+    from agent_runtime.run_context import runtime_root_signal
+
+    if not runtime_root_signal():  # the run's bound root, else the process env (run-serialization S3)
         return None
     normalized = " ".join(str(command or "").strip().split())
     if not normalized:

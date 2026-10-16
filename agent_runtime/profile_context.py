@@ -15,6 +15,7 @@ from hermes_constants import (
     set_hermes_home_override,
 )
 from agent_runtime import paths
+from agent_runtime.run_context import run_runtime_root_scope
 from agent_runtime.profile_home import (
     PersonaProfileBinding,
     get_hermes_auth_home,
@@ -279,7 +280,8 @@ def persona_profile_context(
         try:
             if export_env and resolved_root is not None:
                 os.environ[RUNTIME_ROOT_ENV] = str(resolved_root)
-            yield
+            with run_runtime_root_scope(resolved_root):
+                yield
         finally:
             _PROFILE_CONTEXT_ROWS.reset(rows_token)
             if export_env:
@@ -357,7 +359,11 @@ def persona_profile_context(
             # the profile home this context just diverted to.
             if resolved_root is not None:
                 os.environ[RUNTIME_ROOT_ENV] = str(resolved_root)
-        yield
+        # The context-local twin of the export above (run-serialization S2): spawns read it
+        # through ``run_context.apply_run_context_child_env``, in-process readers through
+        # ``run_context.runtime_root_signal``.
+        with run_runtime_root_scope(resolved_root):
+            yield
     finally:
         _PROFILE_CONTEXT_ROWS.reset(rows_token)
         reset_hermes_auth_home_override(auth_token)

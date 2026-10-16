@@ -74,6 +74,18 @@ def reset_hermes_auth_home_override(token: Token) -> None:
     _HERMES_AUTH_HOME_OVERRIDE.reset(token)
 
 
+def get_hermes_auth_home_override() -> str:
+    """The context-local shared-auth home a binding set, or ``""`` — never the env var.
+
+    The spawn seam (``run_context.apply_run_context_child_env``) writes only what a run
+    bound; a child of an unbound context keeps the auth home its base env carried.
+    """
+    override = _HERMES_AUTH_HOME_OVERRIDE.get()
+    if override is not _UNSET and override:
+        return str(override).strip()
+    return ""
+
+
 def get_hermes_auth_home() -> str:
     """The explicit shared-auth home: context-local override first, env second.
 

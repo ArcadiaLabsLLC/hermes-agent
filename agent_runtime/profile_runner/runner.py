@@ -275,7 +275,7 @@ class ProfileAgentRunner:
         """Unbind this run's MCP call budget; the resident scope stays. Advisory.
 
         Runs on the way out of ``_execute_agent_run`` for BOTH the completed and
-        the raised path, while the run still holds ``_WORKDIR_LOCK`` and is still
+        the raised path, while the run still holds its root lock and is still
         inside ``persona_profile_context``. Since D1.01 (owner ruling 2026-10-10)
         the admitted registry scope lives with its transport session and its
         admission content; isolation between personas is
@@ -300,7 +300,7 @@ class ProfileAgentRunner:
 
         started = time.perf_counter()
         try:
-            outcome = release_mcp_admission(servers)
+            outcome = release_mcp_admission(servers, budget=budget)
         except Exception:  # pragma: no cover - release_mcp_admission already swallows
             timing["mcp_release_ms"] = _emit_request_timing(
                 request, "mcp_release", started, status="failed"

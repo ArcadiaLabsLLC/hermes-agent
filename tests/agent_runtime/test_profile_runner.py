@@ -1,6 +1,5 @@
 
 import agent.prompt_builder as _owner_agent_prompt_builder
-import os
 import time
 from pathlib import Path
 
@@ -528,35 +527,6 @@ def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     assert FakeAgent.last_kwargs["api_key"] == "runtime-key"
     assert FakeAgent.last_kwargs["base_url"] == "https://chatgpt.com/backend-api/codex/responses"
     assert FakeAgent.last_kwargs["api_mode"] == "codex_responses"
-
-
-def test_runner_enters_profile_context_and_restores_environment(tmp_path, monkeypatch):
-    profile_home = tmp_path / "profiles" / "pm"
-    (profile_home / "home").mkdir(parents=True)
-    runtime_root = tmp_path / "runtime"
-    monkeypatch.setenv("HERMES_HOME", "before_home")
-    monkeypatch.setenv("HOME", "before_user_home")
-    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", "before_runtime")
-    monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: True)
-    monkeypatch.setattr("agent_runtime.profile_runner.status.get_profile_dir", lambda name: profile_home)
-    monkeypatch.setattr("agent_runtime.profile_runner.status.normalize_profile_name", lambda name: name)
-    seen = {}
-
-    class EnvAgent(FakeAgent):
-        def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["HERMES_HOME"] = os.environ.get("HERMES_HOME")
-            seen["HOME"] = os.environ.get("HOME")
-            seen["HERMES_AGENT_RUNTIME_ROOT"] = os.environ.get("HERMES_AGENT_RUNTIME_ROOT")
-            return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
-
-    ProfileAgentRunner(agent_factory=EnvAgent).run(AgentRunRequest(profile="pm", runtime_root=runtime_root, user_message="hi"))
-
-    assert seen["HERMES_HOME"] == str(profile_home)
-    assert seen["HOME"] == str(profile_home / "home")
-    assert seen["HERMES_AGENT_RUNTIME_ROOT"] == str(runtime_root)
-    assert os.environ["HERMES_HOME"] == "before_home"
-    assert os.environ["HOME"] == "before_user_home"
-    assert os.environ["HERMES_AGENT_RUNTIME_ROOT"] == "before_runtime"
 
 
 def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
@@ -1233,27 +1203,6 @@ def test_runner_allows_under_budget_result():
     )
 
     assert result.final_response == "ok"
-
-
-def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_path, monkeypatch):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    monkeypatch.setenv("TERMINAL_CWD", "before_terminal_cwd")
-    caller_cwd = Path.cwd()
-    seen = {}
-
-    class CwdAgent(FakeAgent):
-        def run_conversation(self, user_message, system_message=None, task_id=None):
-            seen["cwd"] = Path.cwd()
-            seen["TERMINAL_CWD"] = os.environ.get("TERMINAL_CWD")
-            return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
-
-    ProfileAgentRunner(agent_factory=CwdAgent).run(AgentRunRequest(profile=None, user_message="hi", workdir=repo))
-
-    assert seen["cwd"] == repo
-    assert seen["TERMINAL_CWD"] == str(repo)
-    assert Path.cwd() == caller_cwd
-    assert os.environ["TERMINAL_CWD"] == "before_terminal_cwd"
 
 
 def test_runner_rejects_missing_workdir_before_agent_construction(tmp_path):

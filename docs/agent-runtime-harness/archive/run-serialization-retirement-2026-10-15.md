@@ -1,8 +1,15 @@
 # Retire process-wide run serialization so an approval wait blocks only its own root (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed. Row: runtime-queue,
-"Retire process-wide run serialization before a human approval wait can be
-independent of unrelated agent roots".
+**Status, corrected 2026-10-16 on archiving: ~~PLAN — owner approval owed.~~ BUILT,
+S1–S5** on branch `build/h3-runser` (lane h3-runser; owner approved every
+recommendation 2026-10-15): S1 `197d6a5bf3b`, S2 `c95ab355f17`, S3 `7bf55ca1118`,
+S4 `76ee9cec743`, S5 `d1324ca9dd1`. The live two-root proof, the census and the
+residue are in `run-serialization-retirement-field-notes-2026-10-16.md` beside this
+file. One deviation: S5 holds POSIX runs behind `_PROCESS_HOME_LOCK` for the whole
+run (every run, bound or not), so the per-root gain is native-Windows-only until
+the decision-3 upstream door lands. Row: runtime-queue, "Retire process-wide run
+serialization before a human approval wait can be independent of unrelated agent
+roots" (deleted at this archiving).
 
 ## In plain English
 

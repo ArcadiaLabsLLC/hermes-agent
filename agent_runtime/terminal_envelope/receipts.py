@@ -72,7 +72,10 @@ def _audit_root(scope: TerminalEnvelopeScope | None) -> Path | None:
     if scope is not None:
         root = str(scope.runtime_root or "").strip()
     if not root:
-        root = str(os.getenv("HERMES_AGENT_RUNTIME_ROOT", "") or "").strip()
+        # The run's bound root first, the process env second (run-serialization S3).
+        from ..run_context import runtime_root_signal
+
+        root = runtime_root_signal()
     if not root:
         try:
             from ..paths import store_root
@@ -97,7 +100,9 @@ def audit_root_source(scope: TerminalEnvelopeScope | None) -> str:
 
     if scope is not None and str(scope.runtime_root or "").strip():
         return AUDIT_ROOT_SOURCE_SCOPE
-    if str(os.getenv("HERMES_AGENT_RUNTIME_ROOT", "") or "").strip():
+    from ..run_context import runtime_root_signal
+
+    if runtime_root_signal():
         return AUDIT_ROOT_SOURCE_ENV
     return AUDIT_ROOT_SOURCE_RESOLVER
 

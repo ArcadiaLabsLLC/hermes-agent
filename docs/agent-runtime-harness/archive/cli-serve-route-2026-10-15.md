@@ -1,9 +1,21 @@
 # One CLI-to-serve route for argv verbs that must run in the serve (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed. Row: runtime-queue,
-"No CLI-to-serve RPC client: an argv write verb that should be RPC-first can
-only read the store directly in its own process (`harness serve settles
-rearm`)".
+**Status, corrected 2026-10-16 on archiving: ~~PLAN — owner approval owed.~~ BUILT,
+S1–S3, S4 in part** on branch `build/h3-runser` (lane h3-runser; owner approved
+every recommendation 2026-10-15): S1 `c0ad5fa40ad` (`cli_route.py`; its recorded red
+lists 2 failures, one of which was a test-side token patch since fixed — the
+mutation's own red is the `argv_parse_failed` WRITE case), S2 `0c556a834ae`, S3
+`542db47b97f`. Deviations, following the tree: (1) a third policy, `TURN_HANDOFF`,
+keeps `mission-chat message`'s documented rule (local while nothing was sent) rather
+than forcing it under WRITE; (2) no `--direct` flag on `settles rearm` — inside the
+serve the request id is bound, so the CLI contract is unchanged; (3) `harness query`
+keeps dialling a serve in its own process (`refuse_self_dial=False`). S4 live
+(2026-10-16, a lane-owned temp root and serve): `harness serve settles rearm
+runser-settle-1 --session-id … --json` against a live serve answered
+`answered_by.lane = serve`, `rearmed: true`, the record back to `pending` and due.
+The push half — "the serve's outbox pushes the settle" — needs an attached listener
+(a launcher stream) to show a delivery; not exercised (row filed). Row: runtime-queue,
+"No CLI-to-serve RPC client …" (deleted at this archiving).
 
 ## In plain English
 

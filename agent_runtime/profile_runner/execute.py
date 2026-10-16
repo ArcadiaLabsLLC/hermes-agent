@@ -62,8 +62,10 @@ from agent_runtime.profile_runner.mcp_lane import (
     _steer_mcp_admission_notice,
 )
 from agent_runtime.profile_runner.workdir import (
-    _WORKDIR_LOCK,
     _agent_workdir,
+    _posix_process_home,
+    _workspace_turnstile,
+    root_run_lock,
 )
 from agent_runtime.profile_runner.status import (
     _emit_request_timing,
@@ -382,7 +384,7 @@ class AgentRunExecution:
     whose two closures (``_construct_agent``, ``interrupt_for_budget``) read six of
     its locals. Those locals are the fields here, and each phase is a method:
 
-    ``scopes`` (the whole-run scope stack, ``_WORKDIR_LOCK`` first) ->
+    ``scopes`` (the whole-run scope stack, the root lock first) ->
     ``resolve_runtime`` -> ``arm_wall_checkpoint`` -> ``admit_mcp`` ->
     ``build_turn_state`` -> ``acquire_agent`` -> ``bind_chat_root`` ->
     ``converse`` (unbounded) or ``converse_under_wall``.
@@ -458,7 +460,7 @@ class AgentRunExecution:
         stops here -- no turn-scoped attributes, no compression threshold, no MCP
         steer notice, no ``agent_ready`` callback and no conversation. The ``with``
         block still unwinds normally on the way out, so this run's admitted MCP scope
-        is torn down while it still holds ``_WORKDIR_LOCK``, exactly as a real run's is.
+        is torn down while it still holds its root lock, exactly as a real run's is.
 
         ``_finish_resident_persona_chat_agent`` detaches the (already empty)
         prewarm-local handles, so a resident actor is handed to its first real turn in
@@ -493,7 +495,7 @@ class AgentRunExecution:
             return None
 
     def yield_point(self, phase: str) -> None:
-        """h-turn-wait: a prewarm holding ``_WORKDIR_LOCK`` stands down for a turn.
+        """h-turn-wait: a prewarm holding its root lock stands down for a turn.
 
         Raises :class:`PrewarmYielded`; the scope stack unwinds (MCP teardown first)
         and the lock passes to the waiting turn. A no-op on a real run.
@@ -518,8 +520,15 @@ class AgentRunExecution:
         from ..session_controls import session_approval_scope
 
         with (
-            _WORKDIR_LOCK,
-            persona_profile_context(self.binding, runtime_root=request.runtime_root),
+            # Run-serialization S5: a run starts only between workspace writers, then
+            # holds ITS ROOT's lock — another chat root runs alongside it, including
+            # while this one waits on an operator approval. Everything below binds
+            # context-locally (export_env=False; the cwd in a terminal scope); the one
+            # process write left is POSIX ``HOME``, serialized by its own lock.
+            _workspace_turnstile(),
+            root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id),
+            _posix_process_home(self.binding),
+            persona_profile_context(self.binding, runtime_root=request.runtime_root, export_env=False),
             prewarm_scope(request),
             _agent_workdir(request.workdir),
             tool_execution_scope(request.tool_execution_scope_id),
@@ -543,7 +552,7 @@ class AgentRunExecution:
             ),
             # The admitted MCP registry scope belongs to THIS run. Entered last
             # so it unwinds FIRST — teardown therefore runs while the run still
-            # holds _WORKDIR_LOCK and is still inside persona_profile_context,
+            # holds its root lock and is still inside persona_profile_context,
             # on the raised path as well as the returned one. Using a stack
             # rather than a try/finally keeps the (large) run body unindented.
             ExitStack() as mcp_scope,
@@ -632,6 +641,12 @@ class AgentRunExecution:
                 else lambda: (call_budget.snapshot() or {}).get("spent")
             ),
         )
+        if call_budget is not None:
+            # Names this run to the metered handlers its tool threads call (S5): a
+            # concurrent run of the same MCP scope charges its own binding, not this one.
+            from ..mcp_admission.resident import run_call_budget_scope
+
+            self.mcp_scope.enter_context(run_call_budget_scope(call_budget))
         self.mcp_scope.callback(
             self.runner._release_mcp_admission,
             request,
