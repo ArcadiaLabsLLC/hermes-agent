@@ -77,8 +77,9 @@ def deferred_token_mint():
 # lazily, so its first import can happen while a test has ``hermes_cli.config.load_config`` patched
 # — a from-import would bind the MagicMock permanently and poison every later caller.
 def load_config():
+    from agent.provider_access import provider_configuration
     frozen = _FROZEN_RUNTIME_CONFIG.get()
-    return copy.deepcopy(frozen) if frozen is not None else _config_mod.load_config()
+    return provider_configuration(copy.deepcopy(frozen) if frozen is not None else _config_mod.load_config())
 
 
 def get_compatible_custom_providers(config=None):

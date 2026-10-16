@@ -122,7 +122,14 @@ def _set_model(rid, params, key, value, session):
         # the server, switch that copy, and leave the child (which handles every
         # turn) on the old model: checkmark shows the pick, requests keep the old
         # model. The stash crosses the boundary in the turn frame and the child's
-        # turn thread applies it (_apply_pending_model_switch).
+        # turn thread applies it (_apply_pending_model_switch). A bound ProviderAccess
+        # may forward an IDLE compute-host pick to the live owner instead.
+        if session.get("_compute_host_active") and not session.get("running"):
+            from agent.provider_access import current_access
+            if (access := current_access()) is not None:
+                from tui_gateway import server
+                if (out := access.forward_model_switch(server, rid, params, session)) is not None:
+                    return out
         if session.get("running") or session.get("_compute_host_active"):
             return _stash_pending_model_switch(rid, key, value, session, confirmed, parsed_flags)
         explicit_provider = parsed_flags.explicit_provider

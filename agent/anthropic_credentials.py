@@ -739,7 +739,8 @@ def run_oauth_setup_token() -> Optional[str]:
 
 
 def _get_hermes_oauth_file() -> Path:
-    return get_hermes_home() / ".anthropic_oauth.json"
+    from agent.provider_access import provider_credential_file
+    return provider_credential_file(".anthropic_oauth.json", get_hermes_home())
 
 
 def _root_hermes_oauth_file() -> Optional[Path]:
@@ -747,8 +748,9 @@ def _root_hermes_oauth_file() -> Optional[Path]:
     rotation of a grant the profile borrowed via the pool's root fallback."""
     try:
         from hermes_constants import get_default_hermes_root
-        root = get_default_hermes_root()
-        return None if root.resolve(strict=False) == get_hermes_home().resolve(strict=False) else root / ".anthropic_oauth.json"
+        from agent.provider_access import provider_credential_file
+        target = provider_credential_file(".anthropic_oauth.json", get_default_hermes_root())
+        return None if target.resolve(strict=False) == _get_hermes_oauth_file().resolve(strict=False) else target
     except Exception:
         return None
 

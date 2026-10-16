@@ -228,6 +228,9 @@ def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
     """
     if _is_global_env(name):
         return _environ_or(name, default)
+    from agent.provider_access import provider_secret
+    if (owned := provider_secret(name)) is not None:  # a bound ProviderAccess answers, "" = miss
+        return owned or default
     bound = _SECRET_SCOPE.get()
     if bound is not None:
         val = bound.mapping.get(name)
