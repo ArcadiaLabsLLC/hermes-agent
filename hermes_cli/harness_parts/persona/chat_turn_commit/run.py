@@ -110,7 +110,8 @@ def _resident_native_history(runtime_registry, session_db, root_session_id: str)
 
     try:
         stamp = lineage_stamp(session_db, root_session_id)
-    except Exception:  # noqa: BLE001 — a stamp is an optimisation; the read stays the authority
+    except Exception:  # health: allow BLE001 -- a stamp is an optimisation; the read stays the authority
+        logger.debug("lineage stamp unavailable for %s", root_session_id, exc_info=True)
         return None
     return runtime_registry.resident_native_history(root_session_id, stamp=stamp)
 
