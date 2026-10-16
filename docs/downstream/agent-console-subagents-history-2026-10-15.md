@@ -80,6 +80,10 @@ The unchanged repository-wide ruff/Windows-footgun findings remain tracked in
 the fork hygiene queue. CI contributor attribution also lacks a mapping for
 the existing configured author; that setup gap is filed separately. These
 failures are not represented as a green whole-CI run.
+The broader upstream macOS CI matrix also reports update/PM/subprocess fixture
+failures; these are outside the changed paths and require same-host baseline
+triage. The fork hygiene queue preserves the run and job identities; Windows
+fork-scope results are not presented as macOS qualification.
 
 Applied killing mutation: remove projected content from
 `References.historical`'s signature. The changed-result test fails with
