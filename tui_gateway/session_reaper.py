@@ -267,7 +267,7 @@ def _reap_idle_sessions() -> None:
     except Exception:
         logger.debug("periodic incremental session flush failed", exc_info=True)
     try:
-        from tui_gateway.recovery_history import prune_history
+        from agent_runtime.gateway.recovery_history import prune_history
         prune_history()
     except Exception:
         logger.debug("history delivery cleanup failed", exc_info=True)

@@ -50,7 +50,7 @@ CHILD = textwrap.dedent('''
     from agent.anthropic_adapter import build_anthropic_client
     from agent.auxiliary_client import _create_openai_client, _to_async_client
     from agent_runtime.conversations import in_process_peer, questions
-    from tui_gateway.contract_seam import registry
+    from agent_runtime.gateway.contract_seam import registry
     import tui_gateway.server
 
     agent = SimpleNamespace(provider="openrouter", api_mode="codex_responses", _client_log_context=lambda: "",

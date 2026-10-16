@@ -5,7 +5,8 @@ import threading
 import pytest
 
 from hermes_state import SessionDB
-from tui_gateway import server, session_execution as execution
+from tui_gateway import server
+from agent_runtime.gateway import session_execution as execution
 
 
 @pytest.fixture

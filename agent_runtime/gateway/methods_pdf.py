@@ -5,8 +5,9 @@ carry a subprocess; an embedder that cannot start ``pdftoppm`` omits this module
 ``pdf.attach``. Bodies are rebound onto server.py's globals (method_ctx.bind_module) and
 reference them bare.
 """
+__layer__ = "lanes"
 
-from .method_ctx import HandlerRegistry, bind_module
+from tui_gateway.method_ctx import HandlerRegistry, bind_module
 
 _registry = HandlerRegistry()
 method = _registry.method

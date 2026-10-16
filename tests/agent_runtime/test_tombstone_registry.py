@@ -3928,6 +3928,30 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "_LAUNCHER_QA_CORE_TOOLS",
         scope=("tools.tool_search_downstream",),
     ),
+    # -- lane pb-192: the fork modules left upstream's tui_gateway/ ------
+    *rows(
+        "s-pb-192",
+        "HEAD",
+        Form.MODULE,
+        "lane pb-192 (plan tui-gateway-fork-modules-move-2026-10-15): the fork "
+        "module moved to agent_runtime.gateway with every importer re-pointed; "
+        "a module (or shim) re-created under tui_gateway/ is fork footprint "
+        "inside upstream's package and a second door",
+        "tui_gateway.answer_receipts",
+        "tui_gateway.compute_model_selection",
+        "tui_gateway.contract_catalog",
+        "tui_gateway.contract_catalog_data",
+        "tui_gateway.contract_seam",
+        "tui_gateway.contracts.recovery",
+        "tui_gateway.execution_result",
+        "tui_gateway.inflight_recovery",
+        "tui_gateway.methods_pdf",
+        "tui_gateway.recovery_history",
+        "tui_gateway.recovery_history_delivery",
+        "tui_gateway.session_execution",
+        "tui_gateway.session_recovery",
+        "tui_gateway.session_retirement",
+    ),
 )
 
 

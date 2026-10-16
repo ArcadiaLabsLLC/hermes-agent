@@ -1,9 +1,9 @@
-"""Render ``tui_gateway/contract_catalog_data.py``: the gateway's wire contracts as plain data.
+"""Render ``agent_runtime/gateway/contract_catalog_data.py``: the gateway's wire contracts as plain data.
 
 The gateway's contracts (``tui_gateway/contracts/``) are pydantic models, and pydantic is
 ``pydantic-core`` (Rust), which a phone cannot load. Under ``tui_gateway.pydantic_contracts:
 false`` the gateway reads the same catalog from this generated module instead
-(``tui_gateway/contract_catalog.py``): every method, server request and event name, and for
+(``agent_runtime/gateway/contract_catalog.py``): every method, server request and event name, and for
 every params / result model its SHAPE — the fields it declares (by wire name and, where the
 model populates by name, by field name), which are required, which nest another model, a
 list or map of one, or a union of several (with its discriminator), and whether unknown keys
@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-TARGET = ROOT / "tui_gateway" / "contract_catalog_data.py"
+TARGET = ROOT / "agent_runtime" / "gateway" / "contract_catalog_data.py"
 
 
 def _registry():
@@ -141,6 +141,7 @@ def render() -> str:
         "name, required}; a spec is None (a value), {model, arity} or {union: [models], tags: [class names],",
         "arity, discriminator, mapping: {tag: model}, open: a non-model member exists}; arity one/list/dict.",
         '"""',
+        '__layer__ = "models"',
         "",
         "# fmt: off",
         f"METHODS = {methods!r}",

@@ -1,9 +1,10 @@
 """Bounded delivery of the native display projection, without a second history store."""
 from __future__ import annotations
+__layer__ = "stores"
 
 import json
 
-from tui_gateway.recovery_history_delivery import HistoryDeliveries
+from agent_runtime.gateway.recovery_history_delivery import HistoryDeliveries
 
 _CHUNK_CHARS = 16384
 _PAGE_BYTES = 256 * 1024

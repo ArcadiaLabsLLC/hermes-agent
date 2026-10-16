@@ -197,7 +197,7 @@ class ComputeHost:
                 self._reply("interrupt.ack", sid, request_id, applied=False)
                 return
             if expected := frame.get("expected_execution_id"):
-                from tui_gateway.session_execution import interrupt
+                from agent_runtime.gateway.session_execution import interrupt
                 applied = interrupt(sid, session, expected)
                 self._reply("interrupt.ack", sid, request_id, applied=applied, applied_ns=now_ns())
                 return
@@ -269,7 +269,7 @@ class ComputeHost:
             server._install_borrowed_lease(sid, session, frame)
             text = frame["text"] if "text" in frame else frame.get("prompt", "")
             inflight = frame["text"] if "text" in frame else frame.get("prompt")
-            from tui_gateway.session_execution import adopt, control
+            from agent_runtime.gateway.session_execution import adopt, control
             with control(session), session["history_lock"]:
                 queued_gen = frame.get("queued_prompt_generation")
                 current_gen = int(session.get("_queued_prompt_generation", 0))
@@ -520,7 +520,7 @@ class ComputeHost:
         route_name = str(frame.get("route_name") or "")
         command = str(frame.get("command") or "")
         if route_name == "config.set.model":
-            from tui_gateway.compute_model_selection import apply
+            from agent_runtime.gateway.compute_model_selection import apply
             return apply(server, frame, session)
         if route_name in {"session.save", "session.compress"}:
             params = {"session_id": sid}

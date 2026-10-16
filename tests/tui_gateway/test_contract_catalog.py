@@ -1,7 +1,7 @@
 """The contract seam: the generated catalog answers the gateway's runtime contract questions as pydantic does.
 
-``tui_gateway/contract_seam.py`` hands the gateway either the pydantic registry or, under
-``tui_gateway.pydantic_contracts: false`` (the phone), ``tui_gateway/contract_catalog.py``
+``agent_runtime/gateway/contract_seam.py`` hands the gateway either the pydantic registry or, under
+``tui_gateway.pydantic_contracts: false`` (the phone), ``agent_runtime/gateway/contract_catalog.py``
 over data rendered from the same models. Measured here, against the pydantic registry,
 never against an expectation typed in this file:
 
@@ -47,7 +47,7 @@ def test_the_committed_catalog_is_the_live_models():
 
 def _probe_values(model: str, depth: int = 0):
     """Every object that is ``model``-shaped except for ONE unknown key, placed at each nesting path."""
-    from tui_gateway import contract_catalog_data as data
+    from agent_runtime.gateway import contract_catalog_data as data
 
     yield {"zz_unknown": 1}
     if depth >= 3:
@@ -66,7 +66,7 @@ def _probe_values(model: str, depth: int = 0):
 
 
 def _contracts(table: str):
-    from tui_gateway import contract_catalog
+    from agent_runtime.gateway import contract_catalog
     from tui_gateway.contracts import registry
 
     from agent_runtime.conversations.worker_skills import declare_contracts
@@ -77,7 +77,7 @@ def _contracts(table: str):
 
 @pytest.mark.parametrize("table", ["METHODS", "SERVER_REQUESTS"])
 def test_an_unknown_key_anywhere_is_refused_with_pydantics_words(table):
-    from tui_gateway import contract_catalog
+    from agent_runtime.gateway import contract_catalog
     from tui_gateway.contracts import registry
 
     pydantic_side, catalog_side = _contracts(table)
@@ -97,7 +97,7 @@ def test_an_unknown_key_anywhere_is_refused_with_pydantics_words(table):
 def test_a_smart_union_passes_when_a_member_does():
     """Positive control for the union walk: ``RecordRepoItem | str`` takes a string; a discriminated
     owner takes its own member's keys."""
-    from tui_gateway import contract_catalog
+    from agent_runtime.gateway import contract_catalog
     from tui_gateway.contracts import registry
 
     pydantic_side, catalog_side = _contracts("METHODS")
@@ -136,8 +136,8 @@ def _switch(tmp_hermes_home: Path, on: bool) -> None:
 def test_the_seam_follows_the_switch_and_the_worker_routes_profile_identically():
     from agent_runtime.conversations import in_process_peer
     from hermes_constants import get_hermes_home
-    from tui_gateway import contract_catalog
-    from tui_gateway.contract_seam import contract_registry
+    from agent_runtime.gateway import contract_catalog
+    from agent_runtime.gateway.contract_seam import contract_registry
     from tui_gateway.contracts import registry
 
     pydantic_side, _ = _contracts("METHODS")

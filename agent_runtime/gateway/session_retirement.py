@@ -1,7 +1,8 @@
 """Release a settled native session, never infer that uncertain work has ended."""
 from __future__ import annotations
+__layer__ = "lanes"
 
-from tui_gateway import session_execution
+from agent_runtime.gateway import session_execution
 
 
 def eligible(server, sid, session, execution_id):

@@ -1,5 +1,6 @@
 """Execution evidence on native sessions; SessionDB remains the durable owner."""
 from __future__ import annotations
+__layer__ = "lanes"
 
 import json
 import threading
@@ -101,11 +102,11 @@ def stamp(session: dict, frame: dict) -> None:
         return
     params["execution_id"] = record["id"]
     payload = params.get("payload") or {}
-    from tui_gateway.inflight_recovery import record as record_inflight
+    from agent_runtime.gateway.inflight_recovery import record as record_inflight
     record_inflight(session, params.get("type"), payload)
     status = payload.get("status")
     if params.get("type") == "message.complete" and status in _TERMINAL:
-        from tui_gateway.execution_result import public_result
+        from agent_runtime.gateway.execution_result import public_result
         record = {**record, "status": status, "result": public_result(payload)}
         session["native_execution"] = _store(session, record)
 

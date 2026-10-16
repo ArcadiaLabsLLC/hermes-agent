@@ -16,7 +16,7 @@ from .method_ctx import bind_module
 def _session_turn_admission(session: dict):
     """Hold process admission until the history-locked running claim is visible to idle probes."""
     from hermes_cli.backend_retirement import retirement
-    from tui_gateway.session_execution import control
+    from agent_runtime.gateway.session_execution import control
 
     with retirement.work() as admitted, control(session), session["history_lock"]:
         yield admitted and not session.get("_closing")
@@ -585,7 +585,7 @@ def _teardown_popped_session(session: dict | None, *, end_reason: str = "tui_clo
     if end_reason != "tui_shutdown":
         _settle_isolated_turn_before_close(session)
     _teardown_session(session, end_reason=end_reason)
-    from tui_gateway.recovery_history import discard_history
+    from agent_runtime.gateway.recovery_history import discard_history
     discard_history(session)
     from tui_gateway.event_replay import forget_session
     if sid := session.get("_sid"):

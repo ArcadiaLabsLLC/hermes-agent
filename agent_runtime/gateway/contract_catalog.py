@@ -1,11 +1,11 @@
 """``tui_gateway.contracts.registry`` without pydantic: the generated catalog and a shape validator.
 
-Selected by :mod:`tui_gateway.contract_seam` under ``tui_gateway.pydantic_contracts: false``
+Selected by :mod:`agent_runtime.gateway.contract_seam` under ``tui_gateway.pydantic_contracts: false``
 (the phone profile). The tables and the names read at run time are the registry's own —
 ``METHODS`` / ``SERVER_REQUESTS`` / ``EVENTS`` of contracts carrying ``params`` / ``result``
 / ``payload`` models, a model's ``model_fields`` and ``model_validate``, and
 ``validate_params`` / ``check_params_accepted`` / ``check_result`` / ``check_payload`` — over
-``tui_gateway/contract_catalog_data.py``, which ``scripts/gen_contract_catalog.py`` renders
+``agent_runtime/gateway/contract_catalog_data.py``, which ``scripts/gen_contract_catalog.py`` renders
 from the pydantic models themselves.
 
 The validator checks SHAPE: unknown keys where the model forbids them, required keys, and
@@ -17,11 +17,12 @@ says why), and the result / payload checks — which only log in production — 
 """
 
 from __future__ import annotations
+__layer__ = "policy"
 
 from dataclasses import dataclass
 from typing import Any
 
-from tui_gateway import contract_catalog_data as _data
+from agent_runtime.gateway import contract_catalog_data as _data
 
 __all__ = [
     "EVENTS", "METHODS", "SERVER_REQUESTS", "ContractShape", "ShapeError", "check_params_accepted",

@@ -6,7 +6,8 @@ import threading
 import pytest
 
 from hermes_state import SessionDB
-from tui_gateway import server, session_execution
+from tui_gateway import server
+from agent_runtime.gateway import session_execution
 from tui_gateway.host_supervisor import HostSupervisor
 
 

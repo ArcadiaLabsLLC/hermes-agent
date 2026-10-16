@@ -1,5 +1,6 @@
 """Bounded public completion receipt, owned by the native execution journal."""
 from __future__ import annotations
+__layer__ = "models"
 
 MAX_RESULT_BYTES = 64 * 1024
 

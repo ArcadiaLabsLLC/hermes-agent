@@ -33,7 +33,7 @@ def declare_contracts():
 
 
 def install():
-    from tui_gateway.contract_seam import pydantic_contracts_enabled
+    from agent_runtime.gateway.contract_seam import pydantic_contracts_enabled
 
     if pydantic_contracts_enabled():
         declare_contracts()
