@@ -2345,7 +2345,9 @@ def test_a_terminal_build_is_reclassified_in_place_and_counted_once(home):
 
 
 def test_an_announced_build_folds_its_mcp_job_row(home):
-    from agent_runtime.builds.registry import new_record, write_record
+    from agent_runtime.builds.registry import new_record
+
+    from tests.agent_runtime._build_rows_fixture import write_record
 
     started = _self_start_time()
     now = time.time()

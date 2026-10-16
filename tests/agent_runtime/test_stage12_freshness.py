@@ -220,7 +220,8 @@ def test_scope_fingerprint_covers_announced_build_records():
 
     import time as _time
 
-    from agent_runtime.builds.registry import new_record, registry_dir, write_record
+    from agent_runtime.builds.registry import new_record, registry_dir
+    from tests.agent_runtime._build_rows_fixture import write_record
     from agent_runtime.stream import _scope_fingerprint
 
     before = _scope_fingerprint()

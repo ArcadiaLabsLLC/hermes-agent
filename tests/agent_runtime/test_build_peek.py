@@ -12,9 +12,10 @@ import types
 
 import pytest
 
-from agent_runtime.builds.registry import new_record, write_record
+from agent_runtime.builds.registry import new_record
 from agent_runtime.running_work import lanes_build, lanes_process, ownership, surface
 from agent_runtime.running_work.vocabulary import PEEK_TAIL_LIMIT
+from tests.agent_runtime._build_rows_fixture import write_record
 
 
 @pytest.fixture

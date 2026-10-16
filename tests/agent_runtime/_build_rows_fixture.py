@@ -16,6 +16,7 @@ mirrors the file into ``test/fixtures/harness_stream/build_rows.json``.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -192,6 +193,29 @@ def _seed_slots(root: Path) -> None:
                   tool_paths={"flutter": "C:/flutter/bin/flutter.bat"})
 
 
+#: The announced-job WRITER's file contract (plan ``build-running-work-2026-10-04.md`` §2):
+#: temp-then-rename one record. A writer lives outside hermes, so hermes ships only the
+#: reader; this is the test-side writer the goldens and the registry suites write with
+#: (moved out of ``agent_runtime.builds.registry``, plan l5-17-test-only-names, bucket D).
+def write_record(directory: Path, record: dict[str, Any]) -> Path:
+    """Temp-then-rename the record to ``<directory>/<job_id>.json`` (the writer's own file)."""
+
+    job_id = str(record.get("job_id") or "").strip()
+    if not job_id or any(sep in job_id for sep in ("/", "\\", "..")):
+        raise ValueError(f"invalid job_id {job_id!r}")
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"{job_id}.json"
+    fd, temp = tempfile.mkstemp(prefix=f".{job_id}.", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(record, handle, sort_keys=True)
+        os.replace(temp, target)
+    except BaseException:
+        Path(temp).unlink(missing_ok=True)
+        raise
+    return target
+
+
 def _redact(value: Any, root: Path) -> Any:
     text = json.dumps(value, sort_keys=True)
     for spelling in {str(root), str(root).replace("\\", "/")}:
@@ -203,7 +227,6 @@ def _redact(value: Any, root: Path) -> Any:
 def _seeded(root: Path) -> Iterator[None]:
     from agent_runtime.builds import detect
     from agent_runtime.builds.liveness import PROGRESS
-    from agent_runtime.builds.registry import write_record
     from agent_runtime.running_work import lanes_build, lanes_process
     from agent_runtime.workspace_slots import BoundSlot, SlotCensus
 

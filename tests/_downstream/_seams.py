@@ -35,6 +35,7 @@ __all__ = [
     "fingerprint_home_capture",
     "isolated_repo_context_for_run",
     "iter_fingerprint_paths",
+    "palette_colors",
     "remove_harness_worktree_for_repo",
     "repo_execution_context_for_task",
     "reset_core_cache_process_state",
@@ -54,7 +55,10 @@ __all__ = [
 #: ``tests/scripts/test_refactor_census_downstream.py`` resolves every entry
 #: against the live module, so a stale one is a red.
 IN_MODULE_SEAMS = (
+    "agent_runtime/builds/detect.py::detection_enabled",
     "agent_runtime/chat_root_send_runner.py::QueuedSendRunner.busy_roots",
+    "agent_runtime/chat_root_send_runner.py::run_queued_sends_once",
+    "agent_runtime/chat_turn_settles.py::read_settle",
     "agent_runtime/demote_core_reuse.py::reset_process_state",
     "agent_runtime/events.py::_event_view_cache_clear",
     "agent_runtime/launcher_client_requests.py::ClientRequests.open_count",
@@ -66,6 +70,7 @@ IN_MODULE_SEAMS = (
     "agent_runtime/skill_resolution.py::skill_root_rebuilds_this_thread",
     "agent_runtime/skill_resolution.py::skill_root_walks_this_thread",
     "agent_runtime/snapshot_build_ledger.py::builds_in_flight",
+    "hermes_cli/charsheet_payload_contract.py::build_flag_inventory",
     "tools/tool_defs_observability.py::tool_defs_cache_hits_this_thread",
 )
 
@@ -765,3 +770,28 @@ def reset_core_cache_process_state() -> None:
     _reset_core_cache_convergence_state()
     _lane._drop_consult_memo()
     reset_fingerprint_home()
+
+
+# ── The charsheet palette reader, from ``agent.charsheet.palette`` ───────────
+# Plan l5-17-test-only-names (bucket D, lane h5-deadcode): no production caller;
+# the pipeline suites assert the locked image's colours against it.
+
+
+def palette_colors(palette) -> list[tuple[int, int, int]]:
+    """The RGB triples a palette image can produce, in palette-index order."""
+    if getattr(palette, "mode", "") != "P":
+        raise ValueError(f"expected a 'P'-mode palette image, got mode {getattr(palette, 'mode', None)!r}")
+    raw = palette.getpalette() or []
+    # Empty, not None, when there is no palette object: the unfiltered fallback
+    # this used to carry was a branch no input could distinguish. `getpalette()`
+    # answers out of the SAME palette object, so bytes here imply a non-empty
+    # `.colors` and no bytes imply an empty `triples` — the two arms returned
+    # the identical list for every reachable image, and the false one only ever
+    # returned `[]` the long way round. Measured 2026-09-05 against the
+    # one-armed-branch report; the equivalence is pinned in
+    # the w16 branch triage.
+    used = palette.palette.colors if getattr(palette, "palette", None) else {}
+    triples = [tuple(raw[i : i + 3]) for i in range(0, len(raw), 3)]
+    # Pillow pads the palette out to 256 entries; keep only the ones the
+    # quantizer actually assigned so callers can assert set membership.
+    return [triple for triple in triples if triple in used]
