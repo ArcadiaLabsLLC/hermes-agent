@@ -8,8 +8,11 @@ UNSORTED = 'version = 1\n\n[options.exclude-newer-package]\nzeta = false\nalpha 
 
 
 def test_the_committed_lock_table_is_sorted():
+    # Upstream v0.22.2 (abbc2ba35c8) dropped the per-package exemptions: a "3 days"
+    # exclude-newer with no [tool.uv.exclude-newer-package], so the lock carries no
+    # table. Where the table is present it is sorted; test_sort_orders_only_the_table
+    # keeps the sorter's own red.
     text = sorter.LOCK.read_text(encoding="utf-8")
-    assert sorter.TABLE in text
     assert sorter.sort_table(text) == text, "run python scripts/sort_uv_lock_options.py after uv lock"
 
 
