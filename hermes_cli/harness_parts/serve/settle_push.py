@@ -110,6 +110,15 @@ class SettlePush:
             self.settle_wake.wait(SETTLE_PUSH_TICK_SECONDS)
             self.settle_wake.clear()
 
+    def _another_serve_owns_this_root(self) -> bool:
+        """Whether another serve owns the socket over this store (L5.10: one writer).
+
+        Every host answers: ``ServeSession`` from the socket owner record, a test fixture
+        for itself. A host that forgets is a loud failure here, never a silent fallback to
+        pushing every record (the double-push this question exists to stop)."""
+
+        raise NotImplementedError(f"{type(self).__name__} must answer _another_serve_owns_this_root (L5.10)")
+
     def _push_due_settles(self) -> int:
         """One pass: push every due pending settle. Returns how many were pushed."""
 
@@ -123,8 +132,7 @@ class SettlePush:
         # Owner ruling 2026-10-10 (L5.10): one writer. Two serves over one store
         # both run this loop; only the socket owner pushes records it did not
         # write, so a non-owner pushes its own and the retry budget is not halved.
-        owner_check = getattr(self, "_another_serve_owns_this_root", None)
-        mine_only = bool(owner_check()) if callable(owner_check) else False
+        mine_only = bool(self._another_serve_owns_this_root())
         with self._settle_store_scope():
             for record in due_settles():
                 if mine_only and record.recorded_by != self.boot_id:
