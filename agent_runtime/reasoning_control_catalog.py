@@ -31,7 +31,7 @@ def _control_catalog_key(provider: str) -> str:
     Model/effort preference changes do not invalidate a provider's catalog.
     """
     from agent.secret_scope import get_secret
-    from hermes_cli.auth import authentication_owner_stamps
+    from agent.provider_access import authentication_owner_stamps
     from hermes_constants import get_hermes_home
     from providers import get_provider_profile
     from hermes_cli.config import load_config_readonly

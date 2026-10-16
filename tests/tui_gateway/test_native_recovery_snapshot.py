@@ -7,7 +7,7 @@ import pytest
 
 from hermes_state import SessionDB
 from tui_gateway import event_replay, server, server_requests
-from agent_runtime.gateway import session_execution, session_recovery
+from agent_runtime.gateway import recovery_history, session_execution, session_recovery
 from agent_runtime.gateway.contracts_recovery import RecoveryHistoryPage, RecoverySnapshot
 
 
@@ -31,11 +31,11 @@ def test_checkpoint_returns_detached_json_events_from_frozen_replay(owner):
         "session_id": "live", "type": "message.delta", "payload": {"text": "original"}}}
     event_replay._stamp_event(frame)
     frame["params"]["payload"]["text"] = "caller mutation"
-    page = event_replay.checkpoint("live", 0)
+    page = recovery_history.checkpoint("live", 0)
     assert json.loads(json.dumps(page))["events"][0]["payload"]["text"] == "original"
     assert page["events"][0]["seq"] == page["latest_seq"] == 1
     page["events"][0]["payload"]["text"] = "reader mutation"
-    assert event_replay.checkpoint("live", 0)["events"][0]["payload"]["text"] == "original"
+    assert recovery_history.checkpoint("live", 0)["events"][0]["payload"]["text"] == "original"
 
 
 def test_snapshot_restores_the_exact_live_question_and_execution(owner):

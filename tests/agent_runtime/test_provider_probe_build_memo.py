@@ -6,7 +6,7 @@ asked ``codex_credentials_resolvable_read_only`` 11 times, and ``load_pool``
 rebuilt the pool from ``auth.json`` on each (~2.7 s on the operator's store,
 plan ``design-sweep-d1-2026-10-10.md`` § D1.05). Inside
 ``provider_probes.provider_probe_build_scope`` (entered by the snapshot build)
-the answer is memoised on ``hermes_cli.auth.authentication_owner_stamps()``.
+the answer is memoised on ``agent.provider_access.authentication_owner_stamps()``.
 
 Killing mutation: drop the memo (always call ``_codex_credentials_resolvable_now``)
 -> 11 pool loads for 11 personas, not 1.

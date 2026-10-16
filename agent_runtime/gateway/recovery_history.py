@@ -38,6 +38,27 @@ def history_page(server, session, params):
     return result
 
 
+def forget_session(sid: str) -> None:
+    """The session owner calls this only after retirement; live counters outlast rings."""
+    from tui_gateway import event_replay as replay  # private ring state; no upstream door yet (lane H)
+    with replay._replay_lock:
+        replay._replay_buffers.pop(sid, None)
+        replay._replay_total_bytes -= replay._replay_buffer_bytes.pop(sid, 0)
+        replay._replay_next_seq.pop(sid, None)
+        replay._replay_evicted_through.pop(sid, None)
+
+
+def checkpoint(sid: str, last_seen: int, *, include_events: bool = True) -> dict:
+    """Read one replay position and page under the same lock."""
+    from tui_gateway import event_replay as replay  # private ring state; no upstream door yet (lane H)
+    with replay._replay_lock:
+        snapshots = [(seq, payload) for seq, payload, _ in replay._replay_buffers.get(sid, ())
+                     if seq > last_seen] if include_events else []
+        position = {"latest_seq": replay._replay_next_seq.get(sid, 0), "epoch": replay._REPLAY_EPOCH,
+                    "truncated": last_seen < replay._replay_evicted_through.get(sid, 0)}
+    return {"events": [replay._thaw_params(payload, seq) for seq, payload in snapshots], **position}
+
+
 def discard_history(session):
     _deliveries.discard(session.get("_history_delivery_owner"))
 

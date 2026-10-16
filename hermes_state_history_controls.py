@@ -92,6 +92,22 @@ def write_history_receipt(conn, receipt: tuple[str, str] | None) -> None:
 
 
 class SessionHistoryControlsMixin:
+    def update_meta(self, key: str, update) -> str:
+        """Atomically transform one metadata value across threads and processes."""
+        def apply(conn):
+            row = conn.execute("SELECT value FROM state_meta WHERE key = ?", (key,)).fetchone()
+            value = update(row[0] if row else None)
+            self.set_meta(key, value, cursor=conn.cursor())
+            return value
+        return self._execute_write(apply)
+
+    def get_resume_message_watermark(self, session_id: str) -> int:
+        """Durable upper bound for a display read, including compression ancestors."""
+        session_ids = self._resume_lineage_ids(session_id)
+        return int(self._read_one(
+            f"SELECT COALESCE(MAX(id), 0) FROM messages WHERE session_id IN ({','.join('?' for _ in session_ids)})",
+            tuple(session_ids))[0])
+
     def history_control_snapshot(self, session_id: str) -> dict:
         """References and revision only; the native rows retain all message bytes."""
         with self._read_ctx() as conn:
