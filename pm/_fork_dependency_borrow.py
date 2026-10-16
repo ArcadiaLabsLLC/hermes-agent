@@ -5,7 +5,7 @@ Edition environment to a QA HERMES_HOME"): QA's Developer Edition side runs unde
 ``HERMES_HOME`` but on the owner's installed environment — never a second environment of its own,
 which drifted (no provider-SDK extras while the owner's had them). The caller names the lender:
 
-    HERMES_DEPENDENCY_ROOT=<data root whose installs/ to use>   (e.g. X:/Eternia/.hermes)
+    HERMES_DEPENDENCY_ROOT=<data root whose installs/ to use>   (e.g. <hermes root>, the parent of profiles/)
 
 Unset, every function here is upstream's own (the per-home rule of #123238 is untouched). Set:
 
