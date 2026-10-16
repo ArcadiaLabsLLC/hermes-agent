@@ -310,3 +310,61 @@ def test_a_handler_the_harness_parser_binds_by_name_is_an_import(tmp_path):
     )
     reached = {(dotted, eager) for dotted, eager, _guarded, _line in _imports(path, "pkg.wiring", False)}
     assert reached == {("pkg.doctor_commands", False)}
+
+
+def test_planning_the_core_and_every_pack_over_two_site_sets_is_one_walk_and_one_parse_per_file(tmp_path):
+    """Lane h-bundle-speed (2026-10-16): the packager plans the core and every engine pack with
+    ``plan_jobs`` — ONE walk and one parse per file however many selections and site sets it
+    answers (the build used to walk the tree 22 times, ~3 min each on a busy box). Positive control:
+    the selections really differ — ``boto3`` ships only in the ``bedrock`` selection — so the single
+    walk is not answering one selection for all of them.
+
+    Killing mutation: build ``WalkFacts`` inside ``plan_jobs``' job loop (a walk per site set, the
+    old per-call recompute) -> ``walks`` is 2, red."""
+    from types import SimpleNamespace
+
+    import scripts.bundle_profile_closure as closure_script
+
+    (tmp_path / "keep.py").write_text("import httpx\n\ndef f():\n    import boto3\n", encoding="utf-8")
+    (tmp_path / "helper.py").write_text("import keep\n", encoding="utf-8")
+    index = module_index(tmp_path)
+    manifest = SimpleNamespace(profile="t", packaging_roots=("keep", "helper"), packaging_plugins=(),
+                               switched_off_modules=(), placeholder_distributions={}, omitted_distributions=(),
+                               dynamic_distributions={}, packaging_extras=())
+    jobs = [{"sites": [], "selections": {"": [], "bedrock": ["bedrock"], "vertex": ["vertex"]}},
+            {"sites": [], "selections": {"": [], "bedrock": ["bedrock"]}}]
+    import sys
+
+    import packaging.markers  # noqa: F401 — loaded before the venv leaves sys.path
+    import packaging.requirements  # noqa: F401
+
+    # No installed metadata at all: every fact comes from uv.lock, so the answer cannot depend on
+    # what the test interpreter happens to have installed (or on a broken dist-info in it).
+    bare = [p for p in sys.path if "site-packages" not in p.lower()]
+    before = dict(closure_script.COUNTS)
+    out = closure_script.plan_jobs(manifest, jobs, closure_script.TARGET_ENV, index=index, base_path=bare)
+    assert closure_script.COUNTS["walks"] - before["walks"] == 1
+    assert closure_script.COUNTS["parses"] - before["parses"] == 2  # keep.py and helper.py, once each
+    core, bedrock = set(out[0][""]["needed"]), set(out[0]["bedrock"]["needed"])
+    assert "httpx" in core and "boto3" not in core and "boto3" in bedrock  # positive control
+    assert out[1] == {key: out[0][key] for key in ("", "bedrock")}  # same metadata, same answers
+
+
+def test_a_file_rewritten_between_walks_is_parsed_again(tmp_path):
+    """The parse cache keys on the file's size and mtime: a test (or a tool) that edits a module
+    between two walks in one process sees the edit. Positive control: an unchanged file is not
+    re-parsed."""
+    import os
+
+    import scripts.bundle_profile_closure as closure_script
+
+    path = tmp_path / "mod.py"
+    path.write_text("import alpha\n", encoding="utf-8")
+    first = {row[0] for row in closure_script._imports(path, "mod", False)}
+    parses = closure_script.COUNTS["parses"]
+    assert {row[0] for row in closure_script._imports(path, "mod", False)} == first
+    assert closure_script.COUNTS["parses"] == parses  # positive control: served from the cache
+    path.write_text("import beta_gamma\n", encoding="utf-8")
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    assert {row[0] for row in closure_script._imports(path, "mod", False)} == {"beta_gamma"}
