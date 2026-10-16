@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import threading
@@ -55,6 +56,12 @@ class ResidentPersonaChatRuntime:
     #: enabled list), so a ``tool_contract`` rebuild can NAME the toolsets that
     #: entered or left it. ``None`` when the caller supplied none.
     toolsets: tuple[str, ...] | None = None
+    #: ``(lineage stamp, tip, history)`` read at the end of the last turn, stamp
+    #: FIRST (``persona_chat_session._persona_chat_native_read``). The next turn
+    #: takes ``history`` instead of re-reading SessionDB only when the store's
+    #: stamp is still EQUAL — SessionDB stays the authority, the stamp is the
+    #: guard (owner ruling 2026-10-10; lineage-stamp plan S3). ``None``: no stamp.
+    native_snapshot: tuple[Any, str, list] | None = None
 
 
 #: One line per rebuild whose cause is a moved signature component. Component
@@ -272,6 +279,24 @@ class PersonaChatRuntimeRegistry:
             return None
         return entry.agent
 
+    def resident_native_history(self, root_session_id: str, *, stamp: Any) -> tuple[str, list] | None:
+        """``(tip, history)`` the resident actor last read, when ``stamp`` still equals its stamp.
+
+        The WHOLE stamp is compared — epoch, tip, lineage AND every session's revision:
+        an in-place repair of an ancestor moves only that session's revision. A deep
+        copy is handed out, so the turn may mutate it freely. Lock-free, like
+        :meth:`resident_agent`: one ``dict.get`` and an attribute read of a tuple that
+        is replaced whole, never mutated.
+        """
+
+        if stamp is None:
+            return None
+        entry = self._entries.get(root_session_id)
+        snapshot = entry.native_snapshot if entry is not None else None
+        if snapshot is None or snapshot[0] != stamp:
+            return None
+        return snapshot[1], copy.deepcopy(snapshot[2])
+
     def take_prewarm_discard(self, root_session_id: str) -> tuple[str, ...] | None:
         """The components of the prewarmed actor the last acquire discarded, once.
 
@@ -282,7 +307,14 @@ class PersonaChatRuntimeRegistry:
         with self._lock:
             return self._prewarm_discards.pop(root_session_id, None)
 
-    def finish(self, root_session_id: str, *, active_session_id: str, revision: str) -> None:
+    def finish(
+        self,
+        root_session_id: str,
+        *,
+        active_session_id: str,
+        revision: str,
+        native_snapshot: tuple[Any, str, list] | None = None,
+    ) -> None:
         with self._lock:
             entry = self._entries.get(root_session_id)
             if entry is None:
@@ -290,6 +322,7 @@ class PersonaChatRuntimeRegistry:
             tip_advanced = entry.active_session_id != active_session_id
             entry.active_session_id = active_session_id
             entry.revision = revision
+            entry.native_snapshot = native_snapshot if native_snapshot and native_snapshot[0] is not None else None
             entry.last_used_at = time.monotonic()
             entry.turn_count += 1
             self._entries.move_to_end(root_session_id)

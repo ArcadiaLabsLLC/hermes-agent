@@ -55,7 +55,7 @@ from ..chat_request import (
     _mission_chat_clarify_request_payload,
     _settle_mission_chat_clarify_binding,
 )
-from agent_runtime.persona_chat_session import _persona_chat_native_revision, _persona_chat_native_tip
+from agent_runtime.persona_chat_session import _persona_chat_native_read, _persona_chat_native_revision_of_read
 from ..chat_target import _maybe_auto_title_persona_chat
 
 __layer__ = "lanes"
@@ -276,8 +276,11 @@ class _SettlePhases:
         runtime_registry = self.runtime_registry
         stream_emitter = self.stream_emitter
         reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "")
-        active_session_id = _persona_chat_native_tip(session_db, session_id)
-        native_revision = _persona_chat_native_revision(session_db, session_id)
+        # Stamp, then read (lineage-stamp S3): the read is the revision's input AND the
+        # history the resident actor hands the next turn while the stamp holds.
+        native_stamp, active_session_id, native_history = _persona_chat_native_read(session_db, session_id)
+        native_revision = _persona_chat_native_revision_of_read(
+            session_db, session_id, active_session_id, native_history)
         self.reply_text = reply_text
         self.active_session_id = active_session_id
         self.native_revision = native_revision
@@ -287,6 +290,7 @@ class _SettlePhases:
                 session_id,
                 active_session_id=active_session_id,
                 revision=native_revision,
+                native_snapshot=(native_stamp, active_session_id, native_history),
             )
         self.turn_phases.mark("native_committed")
         _settled = transition_mission_chat_turn(

@@ -125,7 +125,10 @@ def lineage_stamp(db: Any, root_session_id: str) -> Optional[LineageStamp]:
     ``None`` when the store cannot carry a stamp (read-only and not installed, or not a
     canonical SessionDB): the caller then reads as it always did.
     """
-    if not callable(getattr(db, "_read_ctx", None)) or not callable(getattr(db, "_resume_lineage_ids", None)):
+    from .chat_session_scope import is_canonical_session_persistence
+
+    if (not is_canonical_session_persistence(db) or not callable(getattr(db, "_read_ctx", None))
+            or not callable(getattr(db, "_resume_lineage_ids", None))):
         return None
     epoch = ensure_installed(db)
     if epoch is None:
