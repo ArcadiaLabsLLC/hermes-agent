@@ -5,7 +5,7 @@ from providers.base import ProviderProfile
 
 class CodexProfile(ProviderProfile):
     def supported_reasoning_efforts(self, model, *, base_url=None):
-        from hermes_cli.models_reasoning_caps import cached_control_efforts
+        from agent_runtime.reasoning_control_catalog import cached_control_efforts
         return cached_control_efforts(self.name, model, base_url=base_url)
 
 

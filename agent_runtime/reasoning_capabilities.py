@@ -78,7 +78,7 @@ def reasoning_capabilities(
             metadata = get_model_capabilities(canonical, model, allow_network=False, config=config)
         support = metadata.supports_reasoning if metadata is not None else None
         source = "model_metadata" if support is not None else "not_reported"
-        from hermes_cli.models_reasoning_caps import cached_control_capabilities
+        from agent_runtime.reasoning_control_catalog import cached_control_capabilities
         catalog = cached_control_capabilities(canonical, model, base_url=base_url)
         if catalog is not None:
             support = catalog.get("supports_reasoning")
@@ -103,7 +103,6 @@ def reasoning_capabilities(
             base["default_effort"] = None
             return ReasoningCapabilities(**base, state=ReasoningSupport.UNSUPPORTED, levels=(), source=source)
 
-        from agent.transports.codex import declared_reasoning_efforts
         declared = declared_reasoning_efforts(provider, model, base_url)
         if declared is not None:
             levels, unrecognised = _levels(declared)
@@ -141,3 +140,71 @@ def reasoning_capabilities(
         # Capability inspection must not break the existing model/effort read path.
         logger.debug("Reasoning capability inspection unavailable", exc_info=True)
         return ReasoningCapabilities(**base, source="lookup_unavailable")
+
+
+# ── provider-declared efforts (lane pb-r: moved out of the upstream ``agent/transports/codex.py``,
+# ``agent/reasoning_effort.py`` and ``hermes_cli/models.py``; each keeps one import + one call) ──
+
+
+def read_declared_efforts(profile: Any, model: str | None, base_url: Any = None, allow_warm: bool = True) -> Any:
+    """``profile.supported_reasoning_efforts(model)``, threading ``allow_warm=False`` and ``base_url``
+    only to a hook whose signature takes them. ``None`` profile -> ``None``.
+
+    Called by ``agent/transports/codex.py::_profile_declared_efforts`` for the endpoint-inferred
+    profile and the named one.
+    """
+    if profile is None:
+        return None
+    hook = profile.supported_reasoning_efforts
+    options = {}
+    if not allow_warm or base_url:
+        import inspect
+        parameters = inspect.signature(hook).parameters
+        if not allow_warm and "allow_warm" in parameters:
+            options["allow_warm"] = False
+        if base_url and "base_url" in parameters:
+            options["base_url"] = base_url
+    return hook(model, **options)
+
+
+def declared_reasoning_efforts(provider: str, model: str, base_url: str | None = None) -> tuple | None:
+    """Read-only public projection of the transport's endpoint-first declaration (never warms)."""
+    from agent_runtime._upstream_doors import codex_profile_declared_efforts
+
+    return codex_profile_declared_efforts(provider, model, base_url, allow_warm=False)
+
+
+def codex_declared_or_static_efforts(model: str | None) -> tuple[str, ...]:
+    """The openai-codex profile's declared vocabulary, else the static Codex ladder.
+
+    Called by ``agent/reasoning_effort.py::route_supported_efforts`` for ``openai-codex``.
+    """
+    from agent.reasoning_effort import codex_supported_efforts
+    from providers import get_provider_profile
+
+    profile = get_provider_profile("openai-codex")
+    declared = profile.supported_reasoning_efforts(model) if profile is not None else None
+    return tuple(declared) if declared is not None else codex_supported_efforts(model)
+
+
+def widen_github_reasoning_efforts(model_id: str, upstream: list[str]) -> list[str]:
+    """Upstream's ``_github_reasoning_efforts_for_model_id`` answer, widened to the GPT-6 tiers.
+
+    O-series and Astra keep upstream's answer; a GPT-6 / no-disable tier answers the Codex
+    tier ladder (shared vocabulary with the transport); everything else is upstream's.
+    Called by ``hermes_cli/models.py::github_model_reasoning_efforts``.
+    """
+    raw = (model_id or "").strip().lower()
+    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
+        return upstream
+    from hermes_cli.models import is_astra_model, normalize_copilot_model_id
+
+    normalized = normalize_copilot_model_id(model_id).lower()
+    if is_astra_model(normalized):
+        return upstream
+    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
+
+    bare = normalized.rsplit("/", 1)[-1]
+    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
+        return list(codex_supported_efforts(bare))
+    return upstream

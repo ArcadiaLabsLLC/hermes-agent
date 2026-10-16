@@ -15,7 +15,7 @@ class CopilotProfile(ProviderProfile):
     """GitHub Copilot / GitHub Models — editor headers + reasoning."""
 
     def supported_reasoning_efforts(self, model):
-        from hermes_cli.models_reasoning_caps import cached_control_efforts
+        from agent_runtime.reasoning_control_catalog import cached_control_efforts
         return cached_control_efforts(self.name, model)
 
     def build_api_kwargs_extras(

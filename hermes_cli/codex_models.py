@@ -181,7 +181,7 @@ def _fetch_models_from_api(access_token: str, base_url: Optional[str] = None) ->
         logger.debug("Failed to fetch Codex models from API: %s", exc)
         return []
 
-    from hermes_cli.models_reasoning_caps import record_control_catalog
+    from agent_runtime.reasoning_control_catalog import record_control_catalog
     record_control_catalog("openai-codex", entries, base_url=catalog_base)
     return _finalize_codex_models(_ranked_slugs(entries))
 

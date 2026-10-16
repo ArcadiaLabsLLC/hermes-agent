@@ -2373,7 +2373,7 @@ def fetch_github_model_catalog(
             # checks still apply).
             models = _copilot_text_models(items, ignore_picker_flag=True)
         if models:
-            from hermes_cli.models_reasoning_caps import record_control_catalog
+            from agent_runtime.reasoning_control_catalog import record_control_catalog
             record_control_catalog("copilot", models)
             _github_model_catalog_cache = copy.deepcopy(models)
             _github_model_catalog_cache_key = api_key
@@ -2473,6 +2473,18 @@ def normalize_copilot_model_id(
         if stripped and "/" not in stripped:
             return stripped
     return raw
+
+
+def _github_reasoning_efforts_for_model_id(model_id: str) -> list[str]:
+    raw = (model_id or "").strip().lower()
+    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
+        return list(COPILOT_REASONING_EFFORTS_O_SERIES)
+    normalized = normalize_copilot_model_id(model_id).lower()
+    if is_astra_model(normalized):
+        return list(CODEX_ASTRA_EFFORTS)
+    if normalized.startswith("gpt-5"):
+        return list(COPILOT_REASONING_EFFORTS_GPT5)
+    return []
 
 
 def _should_use_copilot_responses_api(model_id: str) -> bool:
@@ -2615,8 +2627,8 @@ def github_model_reasoning_efforts(
         # Legacy list-shaped capabilities: only a "reasoning" tag unlocks the pattern defaults.
         if "reasoning" not in {str(c).strip().lower() for c in catalog_entry.get("capabilities", [])}:
             return []
-    from hermes_cli.models_reasoning_caps import github_default_reasoning_efforts
-    return github_default_reasoning_efforts(str(model_id or normalized))
+    from agent_runtime.reasoning_capabilities import widen_github_reasoning_efforts
+    return widen_github_reasoning_efforts(str(model_id or normalized), _github_reasoning_efforts_for_model_id(str(model_id or normalized)))
 
 
 # Negative cache: monotonic timestamp of the last timed-out probe, keyed

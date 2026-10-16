@@ -8,6 +8,9 @@
   "wiring"
  ],
  "private_upstream_attributes": [
+  "agent_runtime/_upstream_doors.py|hermes_cli.models_reasoning_caps|_REASONING_CAPS_DISK_TTL_SECONDS",
+  "agent_runtime/_upstream_doors.py|hermes_cli.models_reasoning_caps|_load_reasoning_caps_disk",
+  "agent_runtime/_upstream_doors.py|hermes_cli.models_reasoning_caps|_save_reasoning_caps_disk",
   "agent_runtime/_upstream_doors.py|hermes_state_sessions.SessionSessionsMixin|_NON_CONTINUATION_CHILD_FILTER_SQL",
   "agent_runtime/_upstream_doors.py|tools.process_registry.ProcessRegistry|_terminate_host_pid",
   "agent_runtime/_upstream_doors.py|tui_gateway.server|_compute_host_supervisor",
@@ -42,6 +45,7 @@
   "agent_runtime/_upstream_doors.py|agent.transports.codex|_bounded_prompt_cache_key",
   "agent_runtime/_upstream_doors.py|agent.transports.codex|_cache_scope_from_session_id",
   "agent_runtime/_upstream_doors.py|agent.transports.codex|_content_cache_key",
+  "agent_runtime/_upstream_doors.py|agent.transports.codex|_profile_declared_efforts",
   "agent_runtime/_upstream_doors.py|agent.turn_api_call|_should_stream",
   "agent_runtime/_upstream_doors.py|gateway.run|_AGENT_PENDING_SENTINEL",
   "agent_runtime/_upstream_doors.py|gateway.session_context|_SESSION_ASYNC_DELIVERY",

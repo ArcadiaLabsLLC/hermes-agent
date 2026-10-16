@@ -447,20 +447,7 @@ def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any
     """
     try:
         from providers import get_provider_profile
-
-        def read(profile):
-            if profile is None:
-                return None
-            hook = profile.supported_reasoning_efforts
-            options = {}
-            if not allow_warm or base_url:
-                import inspect
-                parameters = inspect.signature(hook).parameters
-                if not allow_warm and "allow_warm" in parameters:
-                    options["allow_warm"] = False
-                if base_url and "base_url" in parameters:
-                    options["base_url"] = base_url
-            return hook(model, **options)
+        from agent_runtime.reasoning_capabilities import read_declared_efforts
 
         name = str(provider or "").strip().lower()
         declared = None
@@ -471,19 +458,14 @@ def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any
             if inferred and inferred != name:
                 inferred_profile = get_provider_profile(inferred)
                 if inferred_profile is not None:
-                    declared = read(inferred_profile)
+                    declared = read_declared_efforts(inferred_profile, model, base_url, allow_warm)
         if declared is None:
             profile = get_provider_profile(name) if name else None
-            declared = read(profile)
+            declared = read_declared_efforts(profile, model, base_url, allow_warm)
     except Exception as exc:
         logger.debug("profile-declared efforts lookup failed: %s", exc)
         return None
     return None if declared is None else tuple(declared)
-
-
-def declared_reasoning_efforts(provider: str, model: str, base_url: str | None = None) -> Optional[tuple]:
-    """Read-only public projection of the transport's endpoint-first declaration."""
-    return _profile_declared_efforts(provider, model, base_url, allow_warm=False)
 
 
 def _is_azure_foundry_responses(params: dict[str, Any]) -> bool:
