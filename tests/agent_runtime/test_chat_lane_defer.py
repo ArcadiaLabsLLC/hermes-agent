@@ -18,10 +18,10 @@ import pytest
 from tests.tools.test_tool_search import _td
 from tests.tools.test_tool_search_downstream import _launcher_qa_registration
 
-#: The 27 non-MCP, non-bridge tools of the recorded request, plus two curated deferrals.
+#: The 27 non-MCP, non-bridge tools of the recorded request, plus two curated deferrals —
+#: re-spelt for upstream v0.22.2, which folded the five ``browser_vault_*`` verbs into one.
 _BUILTINS = (
-    "agent_chat_dispatches", "agent_chat_send", "browser_exec", "browser_vault_enter_code",
-    "browser_vault_fill", "browser_vault_list", "browser_vault_save_login", "browser_vault_unlock",
+    "agent_chat_dispatches", "agent_chat_send", "browser_exec", "browser_vault",
     "clarify", "delegate_task", "execute_code", "memory", "patch", "read_file", "search_files",
     "skill_manage", "skill_search", "skill_view", "skills_list", "terminal", "vision_analyze",
     "web_extract", "web_search", "write_file", "process_manage", "todo_list",
@@ -34,8 +34,7 @@ _MCP_VERBS = (
 
 #: R1: what the supervisor's chat lane never calls (§0.3), and the dev persona's subset.
 NEKO_DEFER = (
-    "delegate_task", "skill_manage", "browser_exec", "browser_vault_list", "browser_vault_unlock",
-    "browser_vault_fill", "browser_vault_save_login", "browser_vault_enter_code", "memory",
+    "delegate_task", "skill_manage", "browser_exec", "browser_vault", "memory",
     "execute_code", "web_extract", "web_search", "write_file", "patch", "vision_analyze",
 )
 DEV_DEFER = tuple(n for n in NEKO_DEFER if n not in {"patch", "write_file", "execute_code", "web_search", "web_extract"})
@@ -88,10 +87,11 @@ def lane(monkeypatch):
 
 def test_the_recorded_lane_carries_thirty_tools_before_the_defer(lane):
     """Anti-vacuity: the fixture reproduces the recorded request's 31 eager tools, less the one
-    launcher_qa promotion R2 retired."""
+    launcher_qa promotion R2 retired, less the four the v0.22.2 vault fold removed, less ``browser_vault`` itself (the curated
+    default defers it)."""
     _raw, build_agent = lane
     agent = build_agent()
-    assert len(agent.tools) == 30, sorted(_names(agent.tools))
+    assert len(agent.tools) == 25, sorted(_names(agent.tools))
     assert "mcp__launcher_qa__mcp_launcher_qa_capture_screenshot" not in _names(agent.tools), (
         "R2: capture_screenshot rides the listing, not the eager array")
 
@@ -177,6 +177,40 @@ def test_the_knob_is_read_per_persona_from_the_root_config(tmp_path):
     assert chat_lane_defer_tools("neko_supervisor", cfg) == ["memory", "delegate_task"]
     assert chat_lane_defer_tools("dev", cfg) == []
     assert chat_lane_defer_tools("", cfg) == []
+
+
+#: The live root config's spelling, written before v0.22.2 folded the vault verbs.
+_PRE_FOLD_VAULT = ("browser_vault_list", "browser_vault_unlock", "browser_vault_fill",
+                   "browser_vault_save_login", "browser_vault_enter_code")
+
+
+def test_a_pre_fold_vault_defer_list_still_defers_the_folded_vault(lane, tmp_path, monkeypatch):
+    """A persona whose config still names the five pre-v0.22.2 vault verbs defers
+    ``browser_vault`` — read literally, the list matches no tool and the vault rides eager.
+
+    The profile carries an explicit ``tools.tool_search.defer`` without the vault (an explicit
+    list replaces the curated default wholesale), so only the persona list can defer it."""
+    import tools.tool_search as ts
+    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
+    from agent_runtime.config.knobs import chat_lane_defer_tools
+    from agent_runtime.config.loader import load_agent_runtime_config
+
+    path = tmp_path / "config.yaml"
+    path.write_text("agent_runtime:\n  personas:\n    neko_supervisor:\n"
+                    f"      chat_lane_defer_tools: [{', '.join(_PRE_FOLD_VAULT)}, memory]\n",
+                    encoding="utf-8")
+    defer = chat_lane_defer_tools("neko_supervisor", load_agent_runtime_config(path))
+    raw, _build_agent = lane
+    profile = ts.ToolSearchConfig.from_raw({"defer": ["todo_list", "process_manage"]})
+    monkeypatch.setattr(ts, "load_config", lambda: profile)
+    monkeypatch.setattr(ts, "_profile_config_readonly", lambda: profile)
+    tools = ts.assemble_tool_defs(list(raw), context_length=272_000, config=profile).tool_defs
+    agent = SimpleNamespace(tools=tools, valid_tool_names=_names(tools), enabled_toolsets=["harness_core"],
+                            disabled_toolsets=None, context_compressor=SimpleNamespace(context_length=272_000))
+    assert "browser_vault" in agent.valid_tool_names, "control: the vault is eager before the defer"
+    apply_chat_lane_defer(agent, defer)
+    assert "browser_vault" not in agent.valid_tool_names, f"persona list read as {defer}"
+    assert defer == ["browser_vault", "memory"]
 
 
 def test_the_bundle_carries_the_list_in_the_tool_contract(monkeypatch):

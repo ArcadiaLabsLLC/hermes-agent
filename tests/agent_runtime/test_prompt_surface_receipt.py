@@ -234,5 +234,5 @@ def test_the_safe_view_keeps_reasons_and_counts_only(harness_lane):  # noqa: F81
     assert "SECRET" not in repr(surface) and "per_tool_chars" not in surface
     assert surface["counts"] == receipt["counts"]
     # Positive control: the reasons themselves survive the whitelist.
-    assert surface["deferred"]["browser_vault_list"]["reason"] == "persona_defer"
+    assert surface["deferred"]["memory"]["reason"] == "persona_defer"
     assert safe["resolution_id"] == receipt["resolution_id"]

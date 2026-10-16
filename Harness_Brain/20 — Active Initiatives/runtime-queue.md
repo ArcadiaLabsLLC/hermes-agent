@@ -518,7 +518,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - [ ] **`gateway/hosted_room_limits.py` is import-order fragile: it is entered only via `gateway.hosted_room_discussion` (a cycle on the `MAX_DISCUSSION_*` dataclass defaults), and a direct first import raises ImportError; give the constants one owner both modules import** · seams · pb-g `912eb11b0b2` body · next lane touching hosted_room_discussion **TAKEN 2026-10-16 claude (q-hosted)**
 
-- [ ] **v0.22.2 folded `browser_vault_{list,unlock,fill,save_login,enter_code}` into one `browser_vault`; persona chat-lane defer lists and `test_chat_lane_defer` / `test_chat_lane_cache_hit_downstream` / `test_tool_surface*` still name the five, so the vault loads eagerly for personas that deferred it** · seams · rel-0222 toolset manifest diff · after the v0.22.2 landing **TAKEN 2026-10-16 claude (q-vault)**
 
 ### Filed on arrival — 2026-10-15 (door PR lanes doors-a, doors-b)
 

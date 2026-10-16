@@ -26,8 +26,7 @@ import pytest
 from tests.agent_runtime.test_chat_lane_defer import _names, lane  # noqa: F401 — the fixture
 from tests.tools.test_tool_search import _td
 
-VAULT = ("browser_vault_list", "browser_vault_unlock", "browser_vault_fill",
-         "browser_vault_save_login", "browser_vault_enter_code")
+VAULT = ("browser_vault",)  # upstream v0.22.2 folded the five ``browser_vault_*`` verbs into one
 #: A deferred tool that registers AFTER the prewarm built the actor (the live case: the
 #: Launcher's ten app functions, absent from the 22:51:19 prewarm's 43/48 catalog).
 LATE_TOOL = "session_search"
