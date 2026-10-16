@@ -121,11 +121,13 @@ def _terminal_base_dir(args: dict[str, Any], task_id: str) -> str:
             return str(recorded)
     except Exception:
         logger.debug("terminal cwd unavailable for the flutter build guard", exc_info=True)
-    try:  # the run's terminal scope first (a grounded turn binds its workdir there), env second
-        from agent.runtime_cwd import scope_terminal_cwd
+    # The run's terminal scope first (a grounded turn binds its workdir there), env second.
+    from agent.runtime_cwd import scope_terminal_cwd
+    from tools.terminal_scope import TerminalPolicyUnavailable
 
+    try:
         configured = scope_terminal_cwd().strip()
-    except Exception:
+    except TerminalPolicyUnavailable:  # a refusal scope: the terminal itself will refuse
         configured = ""
     return configured or os.getcwd()
 

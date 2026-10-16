@@ -20,6 +20,7 @@ decided for itself when a failure meant "run it here instead". Now there is one 
 
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import uuid
@@ -29,6 +30,8 @@ from enum import Enum
 from typing import Any, Callable
 
 __layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "FallbackPolicy",
@@ -139,7 +142,8 @@ def relay_argv(
             # 2026-10-01); the serve answers ``None`` (not comparable) for a client
             # that names none.
             hello = connection.hello(token=token, client=client)
-        except Exception as exc:  # noqa: BLE001 - every dial failure is a typed outcome
+        except Exception as exc:  # health: allow BLE001 -- a dial/hello failure of any kind is the UNREACHED outcome, logged with its traceback
+            logger.debug("cli route: dial/hello to the serve failed", exc_info=True)
             return RelayOutcome(RelayKind.UNREACHED, f"transport_failed:{type(exc).__name__}",
                                 request_id=rid, pid=pid, boot_id=boot_id)
         if not isinstance(hello, dict) or hello.get("event") != "hello_ok":
@@ -148,7 +152,8 @@ def relay_argv(
             connection.set_timeout(read_lap_seconds)
         try:
             connection.send({"id": rid, "argv": [str(item) for item in argv]})
-        except Exception as exc:  # noqa: BLE001 - a send that may have landed is not "unreached"
+        except Exception as exc:  # health: allow BLE001 -- a send failure of any kind is the REFUSED outcome (it may have landed), logged with its traceback
+            logger.debug("cli route: send to the serve failed", exc_info=True)
             return RelayOutcome(RelayKind.REFUSED, f"transport_failed:{type(exc).__name__}",
                                 request_id=rid, pid=pid, boot_id=boot_id)
         if on_sent is not None:
@@ -183,7 +188,8 @@ def _read_to_end(
             return refused(f"transport_failed:{type(exc).__name__}")
         except KeyboardInterrupt:
             raise
-        except Exception as exc:  # noqa: BLE001 - a broken lane after the send
+        except Exception as exc:  # health: allow BLE001 -- a broken lane after the send is the REFUSED outcome, logged with its traceback
+            logger.debug("cli route: the serve lane broke mid-request", exc_info=True)
             return refused(f"transport_failed:{type(exc).__name__}")
         if frame is None:
             return refused("serve_closed_connection")
