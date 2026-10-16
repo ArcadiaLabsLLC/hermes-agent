@@ -14,7 +14,7 @@ from tools.checkpoint_manager import (
     _project_meta_path, _ref_name, _resolve_checkpoint_base, _run_git, _store_has_head,
     _store_path,
 )
-from tools.checkpoint_manager import release_expired_restore_checkpoints
+from agent_runtime.checkpoint_reviewed_restore import release_expired_restore_checkpoints
 
 logger = logging.getLogger(__name__)
 

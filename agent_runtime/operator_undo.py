@@ -268,5 +268,5 @@ def _recover_undo_files(params, record, *, rollback):
             return manager.restore_preview(workdir, restore["checkpoint"], revision=restore["revision"],
                 selected_paths=[row["path"] for row in record["plan"]["files"]], operation_id=key,
                 **({"recovery_operation_id": restore["recovery_operation_id"]} if "recovery_operation_id" in restore else {}))
-        from tools.checkpoint_manager import restore_revision
+        from agent_runtime.checkpoint_reviewed_restore import restore_revision
         return manager.resume_restore(key, revision=restore_revision(result), rollback=rollback)

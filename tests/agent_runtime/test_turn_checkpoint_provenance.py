@@ -77,7 +77,7 @@ def test_partial_recovery_refuses_stale_choice_and_preserves_later_edit(tmp_path
 
 def test_recovery_backup_survives_native_snapshot_retention(tmp_path, monkeypatch):
     from tools.checkpoint_manager import _run_git, _store_path
-    from tools.checkpoint_manager import restore_revision
+    from agent_runtime.checkpoint_reviewed_restore import restore_revision
     from tests.tools.test_checkpoint_reviewed_restore_downstream import workspace
     manager, work, checkpoint = workspace(tmp_path, monkeypatch)
     plan = manager.preview_restore(str(work), checkpoint)
