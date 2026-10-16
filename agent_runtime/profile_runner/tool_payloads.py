@@ -10,7 +10,7 @@ from typing import Any, Callable
 import re
 
 from agent_runtime._upstream_doors import terminal_foreground_timeouts
-from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels
+from agent_runtime.redaction import looks_sensitive_or_pathish, safe_file_labels, scrub_secret_values
 from agent_runtime.serde import strict_int
 from agent_runtime.profile_runner.dispatch_payloads import (
     _agent_chat_dispatch_fields,
@@ -20,7 +20,6 @@ from agent_runtime.profile_runner.dispatch_payloads import (
 )
 from agent_runtime.profile_runner.operator_redaction import (
     _attach_tool_io,
-    _line_has_secret,
     _patch_paths_from_invocation,
     _safe_operator_command,
     _safe_operator_output,
@@ -520,7 +519,7 @@ def _safe_reasoning_summary(args: tuple[Any, ...], kwargs: dict[str, Any]) -> st
     ``("_thinking", first_line)`` and the structured emission
     ``("reasoning.available", "_thinking", text, None)`` — ``"_thinking"`` is
     the channel placeholder in both, never content. Paths are allowed
-    (operator console); secret-bearing lines are masked in place.
+    (operator console); secret VALUES are scrubbed in place.
     """
 
     candidates: list[Any] = [
@@ -532,11 +531,7 @@ def _safe_reasoning_summary(args: tuple[Any, ...], kwargs: dict[str, Any]) -> st
     for value in candidates:
         if not isinstance(value, str):
             continue
-        masked = " ".join(
-            "[redacted line — contained a secret]" if _line_has_secret(line) else line
-            for line in value.strip().splitlines()
-        )
-        text = " ".join(masked.split())
+        text = " ".join(scrub_secret_values(value).split())
         if not text:
             continue
         if len(text) > 500:

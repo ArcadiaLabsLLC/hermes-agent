@@ -17,7 +17,6 @@ __all__ = [
     "_OPERATOR_COMMAND_MAX",
     "_OPERATOR_OUTPUT_MAX_CHARS",
     "_OPERATOR_OUTPUT_MAX_LINES",
-    "_OPERATOR_SECRET_MARKERS",
     "_OPERATOR_TARGET_MAX",
     "_OPERATOR_TARGET_PATH_KEYS",
     "_OPERATOR_TARGET_QUERY_KEYS",
@@ -29,7 +28,6 @@ __all__ = [
     "TOOL_INPUT_NO_ARGUMENTS",
     "_attach_tool_io",
     "_is_error_result",
-    "_line_has_secret",
     "_patch_paths_from_invocation",
     "_render_kv_line_token",
     "_render_operator_kv_block",
@@ -48,26 +46,9 @@ __all__ = [
 # operator chat (the v2 stream + persisted turn elements) and are deliberately
 # LESS strict than `_safe_command_label` (which is path-stripped for Telegram and
 # other surfaces): the operator wants to see the real command and its output,
-# including paths. Secrets are still scrubbed line-by-line and everything is
-# bounded. Do NOT route these into untrusted surfaces.
-_OPERATOR_SECRET_MARKERS = (
-    "password",
-    "passwd",
-    "api_key",
-    "apikey",
-    "api-key",
-    "authorization",
-    "bearer ",
-    "credential",
-    "secret",
-    "private_key",
-    "private-key",
-    "access_key",
-    "session_token",
-    " token=",
-    "x-api-key",
-    "sk-",
-)
+# including paths. Secret VALUES are still scrubbed (``redaction.
+# scrub_secret_values``) and everything is bounded. Do NOT route these into
+# untrusted surfaces.
 
 
 _OPERATOR_COMMAND_MAX = 1000
@@ -92,11 +73,6 @@ _OPERATOR_TERMINAL_TOOLS = {
     "execute",
     "exec",
 }
-
-
-def _line_has_secret(line: str) -> bool:
-    lowered = line.lower()
-    return any(marker in lowered for marker in _OPERATOR_SECRET_MARKERS)
 
 
 def _safe_operator_command(invocation: Any) -> str | None:
@@ -328,9 +304,8 @@ _PATCH_HEADER_RE = re.compile(
 )
 
 
-# Bare-word markers for operator path/target scrubbing: stricter than
-# _OPERATOR_SECRET_MARKERS (bare "token", not just " token=") because a path
-# named private_token.dart must never surface, even relative.
+# An absolute path's root: the operator target trims these to their trailing
+# segments (a secret WORD in a file name is not a secret).
 _ABSOLUTE_PATHISH_RE = re.compile(r"^([A-Za-z]:/|//|/|~)")
 
 
