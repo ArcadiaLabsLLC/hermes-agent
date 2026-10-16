@@ -44,6 +44,7 @@ __all__ = [
     "reset_fingerprint_home",
     "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
+    "run_queued_sends_once",
 ]
 
 
@@ -59,7 +60,6 @@ __all__ = [
 IN_MODULE_SEAMS = (
     "agent_runtime/builds/detect.py::detection_enabled",
     "agent_runtime/chat_root_send_runner.py::QueuedSendRunner.busy_roots",
-    "agent_runtime/chat_root_send_runner.py::run_queued_sends_once",
     "agent_runtime/chat_turn_settles.py::read_settle",
     "agent_runtime/demote_core_reuse.py::reset_process_state",
     "agent_runtime/events.py::_event_view_cache_clear",
@@ -815,3 +815,30 @@ def is_credential_key(key: object) -> bool:
     """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
 
     return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
+
+
+# ── One waited-out pass of the queued-send runner ────────────────────────────
+# Fork-hygiene row (lane r-deadcode): production's ``run_queued_sends_once`` was
+# a synchronous copy of ``QueuedSendRunner.dispatch_once``'s loop that no serve
+# ran. The suites now drive the REAL dispatcher and wait its workers out.
+
+
+def run_queued_sends_once(policy, *, timeout: float = 30.0) -> dict[str, int]:
+    """``QueuedSendRunner(policy).dispatch_once()``, then wait until every worker it started ended.
+
+    Returns the dispatcher's own tally (``dispatched`` / ``busy`` / ``occupied``).
+    """
+
+    from agent_runtime.chat_root_send_runner import QueuedSendRunner
+
+    runner = QueuedSendRunner(policy)
+    try:
+        tally = runner.dispatch_once()
+        deadline = time.monotonic() + timeout
+        while runner.busy_roots():
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"queued-send workers still running: {sorted(runner.busy_roots())}")
+            time.sleep(0.01)
+    finally:
+        runner.shutdown(wait=True)
+    return tally

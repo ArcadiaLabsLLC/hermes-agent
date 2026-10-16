@@ -15,11 +15,12 @@ import pytest
 
 from agent.steering import PendingSteer, join_pending_steer
 from agent_runtime import chat_root_send_queue
-from agent_runtime.chat_root_send_runner import RunnerPolicy, run_queued_sends_once
+from agent_runtime.chat_root_send_runner import RunnerPolicy
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 from hermes_cli.harness_parts.persona.chat_turn_commit.leftover_steer import (
     leftover_steer_client_message_id,
 )
+from tests._downstream._seams import run_queued_sends_once
 from tests.agent_runtime.test_chat_lease_finalization_tail import ROOT, _args, _install_chat_lane
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
@@ -70,7 +71,7 @@ def test_a_leftover_steer_runs_as_the_roots_next_turn(monkeypatch, isolate_agent
     assert entry.args["new_session"] is False and entry.args["session_id"] == ROOT
 
     ran: list[str] = []
-    assert run_queued_sends_once(_door(handler, ran))["ran"] == 1
+    assert run_queued_sends_once(_door(handler, ran))["dispatched"] == 1
     assert ran == ["steer-next-cm-steer-late"]
     assert calls == ["do the thing", "also check the logs"]
     assert chat_root_send_queue.find(ROOT, "steer-next-cm-steer-late") is None

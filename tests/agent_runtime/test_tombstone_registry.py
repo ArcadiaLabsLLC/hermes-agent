@@ -4139,6 +4139,16 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "CREDENTIAL_KEYS",
         scope=("agent_runtime.redaction",),
     ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "fork-hygiene: a synchronous copy of QueuedSendRunner.dispatch_once's "
+        "loop that no serve ran; the suites drive the real runner through "
+        "tests/_downstream/_seams.py (lane r-deadcode)",
+        "run_queued_sends_once",
+        scope=("agent_runtime.chat_root_send_runner",),
+    ),
 )
 
 

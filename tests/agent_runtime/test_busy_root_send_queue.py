@@ -15,9 +15,10 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime import chat_root_send_queue, chat_turn_settles
-from agent_runtime.chat_root_send_runner import RunnerPolicy, run_queued_sends_once
+from agent_runtime.chat_root_send_runner import RunnerPolicy
 from agent_runtime.persona_chat_continuity import persona_chat_root_lease
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
+from tests._downstream._seams import run_queued_sends_once
 from tests.agent_runtime.test_chat_lease_finalization_tail import (
     ROOT,
     _args,
@@ -95,7 +96,7 @@ def test_a_busy_root_queues_the_send_then_runs_and_settles_it(
 
     tally = run_queued_sends_once(_door(handler, ran))
 
-    assert tally["ran"] == 1, tally
+    assert tally["dispatched"] == 1, tally
     assert ran == ["cm-busy-1"] and len(calls) == 1
     assert chat_root_send_queue.find(ROOT, "cm-busy-1") is None, "the entry outlived its turn"
     settles = [s for s in chat_turn_settles.list_settles() if s.client_message_id == "cm-busy-1"]
@@ -119,7 +120,7 @@ def test_a_queued_send_survives_a_restart_and_still_runs(
 
     # A fresh runner (nothing in memory, only the store) picks it up.
     ran: list[str] = []
-    assert run_queued_sends_once(_door(handler, ran))["ran"] == 1
+    assert run_queued_sends_once(_door(handler, ran))["dispatched"] == 1
     assert ran == ["cm-restart"] and len(calls) == 1
     assert not chat_root_send_queue.has_entries(ROOT)
 
@@ -270,7 +271,7 @@ def test_a_queued_turn_streams_the_same_frames_a_sent_turn_does_to_a_subscriber(
     with pytest.MonkeyPatch.context() as patched:
         # The serve's stdout IS the line proxy; the turn's prints reach the sink through it.
         patched.setattr(sys, "stdout", session.stdout_proxy)
-        assert run_queued_sends_once(policy)["ran"] == 1
+        assert run_queued_sends_once(policy)["dispatched"] == 1
 
     subscriber = session.socket_server.frames
     assert subscriber, "no frame of the queued turn reached a stream subscriber"
@@ -380,7 +381,7 @@ def test_a_queued_send_gets_the_same_app_function_tools_as_a_direct_send(
         return door(args)
 
     policy = dataclasses.replace(queued_turn_runner_policy(session), run_turn=run_turn)
-    assert run_queued_sends_once(policy)["ran"] == 1
+    assert run_queued_sends_once(policy)["dispatched"] == 1
     queued = seen[0]
     if expect_sink is None:
         assert queued is None and direct is None and refreshed == []
@@ -418,7 +419,7 @@ def test_a_queued_send_from_a_paired_device_receives_its_frames_and_settle(
     )
     with pytest.MonkeyPatch.context() as patched:
         patched.setattr(sys, "stdout", session.stdout_proxy)
-        assert run_queued_sends_once(policy)["ran"] == 1
+        assert run_queued_sends_once(policy)["dispatched"] == 1
     assert session._push_due_settles() == 1
     monkeypatch.setattr(chat_turn_settles, "due_settles",
                         lambda at=None: chat_turn_settles.list_settles(state="pending"))

@@ -12,11 +12,11 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime import chat_root_send_queue
-from agent_runtime.chat_root_send_runner import run_queued_sends_once
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.journal import persist_mission_chat_turn
 from agent_runtime.persona_chat_continuity import persona_chat_root_lease
+from tests._downstream._seams import run_queued_sends_once
 from tests.agent_runtime.test_busy_root_send_queue import _count_provider_calls, _door
 from tests.agent_runtime.test_chat_lease_finalization_tail import (
     ROOT,
@@ -103,7 +103,7 @@ def test_a_retry_queued_behind_a_busy_root_keeps_its_retry_of(
     assert entry is not None and entry.args.get("retry_of") == "cm-orig"
 
     ran: list[str] = []
-    assert run_queued_sends_once(_door(handler, ran))["ran"] == 1
+    assert run_queued_sends_once(_door(handler, ran))["dispatched"] == 1
     assert len(calls) == 1
     record = mission_chat_turn_record(session_id=ROOT, client_message_id="cm-retry")
     assert record["retry_of"] == "cm-orig"
