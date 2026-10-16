@@ -27,15 +27,14 @@ from tools.downstream_schema import (
 
 #: The recorded persona-chat lane's built-ins and fork plugin tools that stay eager under the
 #: amended R1 (both personas carry the same set; ``process_manage``/``todo_list`` are curated
-#: deferrals and the five vault tools are the persona defer).
+#: deferrals and the vault tool is the persona defer).
 _EAGER_BUILTINS = (
     "agent_chat_dispatches", "agent_chat_send", "browser_exec", "clarify", "delegate_task",
     "execute_code", "memory", "patch", "read_file", "search_files", "skill_manage", "skill_search",
     "skill_view", "skills_list", "terminal", "vision_analyze", "web_extract", "web_search",
     "write_file",
 )
-_VAULT = ("browser_vault_list", "browser_vault_unlock", "browser_vault_fill",
-          "browser_vault_save_login", "browser_vault_enter_code")
+_VAULT = ("browser_vault",)  # v0.22.2 folded the five browser_vault_* tools into one
 _BRIDGE = ("tool_search", "tool_call", "tool_describe")
 
 

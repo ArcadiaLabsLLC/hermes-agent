@@ -150,7 +150,7 @@ def test_shell_policy_left_the_terminal_wire_but_stays_in_full_docs():
     wire = _wire("terminal")
     assert "Do NOT use cat/head/tail" not in wire
     full = _full("terminal")
-    assert "Do NOT use cat/head/tail" in full
+    assert "instead of cat/head/tail" in full  # v0.22.2 rewording of upstream's policy line
 
 
 def test_tool_describe_injected_into_resolved_lane():
@@ -171,6 +171,6 @@ def test_terminal_wire_brief_states_persistence_full_docs_keep_the_detail():
     wire = _wire("terminal")
     assert "cwd/exported env persist" in wire
     full = _full("terminal")
-    assert "exported environment variables persist between calls" in full
+    assert "exported variables persist between calls" in full  # v0.22.2 rewording
     assert "activate a virtualenv" in full
-    assert "once per session" in full
+    assert "once, not before every command" in full  # v0.22.2 rewording

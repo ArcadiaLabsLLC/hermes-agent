@@ -507,8 +507,7 @@ def dispatch_tool_describe(args: dict[str, Any], *, current_tool_defs: list[dict
         retry_hint="Retry with fewer names per call.")
     if err:
         return err
-    deferrable = _deferrable_in(current_tool_defs)
-    by_name = {name: _fn(td) for td, name in zip(deferrable, _tool_def_names(deferrable)) if name}
+    by_name = {name: _fn(td) for td, name in zip(current_tool_defs, _tool_def_names(current_tool_defs)) if name}
     remote_schemas, hosted_failure = remote_schemas_for(names, current_tool_defs, connector_describe, call=call)
 
     tools: dict[str, dict[str, Any]] = {}
