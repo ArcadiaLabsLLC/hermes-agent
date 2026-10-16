@@ -22,7 +22,7 @@ from .persona_chat_session import (
     _chat_model_override_from_config, _persist_chat_model_override, _session_model_config,
     log_model_selection, reasoning_effort_label,
 )
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 from .session_model_catalog import choices, facts, model_key
 
 __layer__ = "lanes"
@@ -34,7 +34,7 @@ def _model_profile(instance):
     binding = resolve_persona_profile(persona)
     if binding.readiness != "ready":
         raise OperatorConversationRefused("profile_unavailable")
-    with persona_profile_scope(binding, runtime_root=paths.store_root()):
+    with persona_profile_context(binding, runtime_root=paths.store_root()):
         yield
 
 

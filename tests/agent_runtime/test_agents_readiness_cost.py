@@ -50,7 +50,7 @@ def _skill(root: Path, rel: str, *, declared: str | None = None) -> Path:
 
 
 class _home:
-    """Bind a Hermes home context-locally, as ``persona_profile_scope`` does."""
+    """Bind a Hermes home context-locally, as ``persona_profile_context`` does."""
 
     def __init__(self, path: Path) -> None:
         self.path = path

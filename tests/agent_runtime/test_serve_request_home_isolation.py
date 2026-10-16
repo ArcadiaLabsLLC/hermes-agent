@@ -2,14 +2,13 @@
 
 THE DEFECT THESE TESTS PLANT
 ----------------------------
-``agent_runtime.profile_context.persona_profile_context`` mirrors a persona's
-``HERMES_HOME`` / ``HOME`` / ``HERMES_AUTH_HOME`` into **process-global**
-``os.environ`` (``export_env=True``, the default). That mirror is deliberate and
-still load-bearing — it is the only channel a spawned subprocess or a raw-env
-in-process plugin can see, and ContextVars never cross either boundary. What it
-is NOT is thread-scoped: for the width of that binding, EVERY other thread in
-the process that resolves ``hermes_constants.get_hermes_home()`` without a
-binding of its own answers the bound persona's home.
+``agent_runtime.profile_context.persona_profile_context`` used to mirror a
+persona's ``HERMES_HOME`` / ``HOME`` / ``HERMES_AUTH_HOME`` into
+**process-global** ``os.environ``. That mirror retired after run-serialization S5
+(the binding is ContextVar-only now), but ANY ambient ``HERMES_HOME`` write is the
+same hazard: it is not thread-scoped, so for its width EVERY other thread that
+resolves ``hermes_constants.get_hermes_home()`` without a binding of its own
+answers the written home. ``_env_flip`` below stands in for such a write.
 
 Measured on the operator's screen, 2026-08-27. The launcher's serve child was
 booted onto ``profiles\\alice`` and ran its boot actor prewarm
@@ -57,6 +56,7 @@ a re-read of ``os.environ`` at request entry would not.
 from __future__ import annotations
 
 import io
+import contextlib
 import json
 import os
 import threading
@@ -110,6 +110,21 @@ def homes(tmp_path, monkeypatch):
     return process_home, persona_home
 
 
+@contextlib.contextmanager
+def _env_flip(home):
+    """A lane writing the ambient ``HERMES_HOME`` — what the retired persona mirror did."""
+
+    previous = os.environ.get("HERMES_HOME")
+    os.environ["HERMES_HOME"] = str(home)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("HERMES_HOME", None)
+        else:
+            os.environ["HERMES_HOME"] = previous
+
+
 def _persona_binding(persona_home) -> PersonaProfileBinding:
     """The binding the prewarm builds: a real profile with its own home."""
 
@@ -139,21 +154,12 @@ def test_argv_request_answers_the_serve_home_while_a_persona_bind_holds_the_env(
     library: list[str] = []
 
     def _hold_persona_bind() -> None:
-        """Stand in for the prewarm's ``_execute_agent_run`` scope stack.
-
-        It binds through ``persona_profile_context`` with the env mirror ON,
-        which is what ``ProfileAgentRunner._execute_agent_run`` does for a
-        prewarm and a real turn alike — the prewarm has no bind site of its own,
-        it rides that body.
-        """
+        """Stand in for the incident's prewarm: a lane holding an ambient env flip."""
 
         try:
-            with persona_profile_context(
-                _persona_binding(persona_home), runtime_root=tmp_path / "runtime"
-            ):
-                # The mirror is live and global from here. Assert it, so a
-                # future change that quietly stops mirroring turns this test
-                # into a loud failure instead of a silent pass.
+            with _env_flip(persona_home):
+                # The flip is live and global from here. Assert it, so the probe
+                # below is known to run inside the bled window.
                 assert os.environ["HERMES_HOME"] == str(persona_home)
                 bind_live.set()
                 assert probe_done.wait(_WAIT_SECONDS), "probe never finished"
@@ -218,13 +224,11 @@ def test_process_home_scope_beats_a_concurrently_mirrored_env_var(homes, tmp_pat
     """
 
     process_home, persona_home = homes
-    binding = _persona_binding(persona_home)
-    runtime_root = tmp_path / "runtime"
 
     # Flip first, then scope: the scope pins the home it was HANDED, not a
     # re-read of whatever the environment says at entry. That distinction is the
     # whole point — a re-read would inherit the flip.
-    with persona_profile_context(binding, runtime_root=runtime_root):
+    with _env_flip(persona_home):
         assert os.environ["HERMES_HOME"] == str(persona_home)
         with process_home_scope(process_home):
             assert get_hermes_home() == process_home
@@ -237,7 +241,7 @@ def test_process_home_scope_beats_a_concurrently_mirrored_env_var(homes, tmp_pat
 
     def _flip() -> None:
         try:
-            with persona_profile_context(binding, runtime_root=runtime_root):
+            with _env_flip(persona_home):
                 flipped.set()
                 release.wait(_WAIT_SECONDS)
         finally:

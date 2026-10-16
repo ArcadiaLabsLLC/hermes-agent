@@ -347,8 +347,9 @@ the cold boot (pid 30588) and `walk_ms=769 tool_visibility_ms=26` warm
 (pid 32164).
 
 **The walk binds each persona's profile CONTEXT-LOCALLY.**
-`profile_readiness_for_persona` enters `profile_context.persona_profile_scope`,
-not the env-exporting `persona_profile_context`: it installs the ContextVars
+`profile_readiness_for_persona` enters `profile_context.persona_profile_context`
+(context-local only since its env mirror retired after run-serialization S5; the
+walk's old `persona_profile_scope` entry point folded into it): it installs the ContextVars
 (`set_hermes_home_override`, `set_hermes_auth_home_override`, the head-home
 recording) and writes **no** `os.environ`. That matters because this walk runs
 on the snapshot builder thread every 2–4 s in the same `harness serve` process

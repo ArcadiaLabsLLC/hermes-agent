@@ -9,7 +9,7 @@ from .operator_session_inspection import (
 )
 from .operator_session_models import _require_idle
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 from .session_control_store import SessionControlStore
 from .session_controls import pending_session_approvals, resolved_session_controls
 
@@ -23,7 +23,7 @@ def operator_control_facts(params: dict) -> dict:
         binding = resolve_persona_profile(persona)
         if binding.readiness != "ready":
             raise OperatorConversationRefused("profile_unavailable")
-        with persona_profile_scope(binding, runtime_root=paths.store_root()):
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
             from hermes_cli.config import load_config_readonly
             config_model = load_config_readonly().get("model") or {}
             base_url = getattr(instance, "base_url", None) or (config_model.get("base_url") if isinstance(config_model, dict) else None)
@@ -66,7 +66,7 @@ def operator_approval_facts(params: dict) -> dict:
     with operator_session_read(params) as (instance, session):
         persona = _inspection_persona(instance, load_agent_runtime_config())
         binding = resolve_persona_profile(persona)
-        with persona_profile_scope(binding, runtime_root=paths.store_root()):
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
             approvals = pending_session_approvals(params["session_id"])
         return {**inspection_identity(params, session.owner),
                 "approvals": approvals}

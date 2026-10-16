@@ -7,7 +7,7 @@ from agent_runtime.live_turns import conversation_agents
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity, _inspection_persona
-from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
+from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
 from .model import HISTORY_OPERATIONS, Refusal, SubagentError, include_history_capabilities
 from .native import has_live_ancestor, inspect_records, registry_snapshot
 
@@ -83,7 +83,7 @@ def inspect_operator(operation: str, params: dict) -> dict:
             data = inspect_history(operation, params, owner=owner, db=session.db,
                                    session_id=params["session_id"], home=home, revalidate=checked.revalidate)
             return {**identity, **data}
-        with persona_profile_scope(binding, runtime_root=paths.store_root()):
+        with persona_profile_context(binding, runtime_root=paths.store_root()):
             records = [record for record in registry_snapshot() if checked.visible(record)]
             data = inspect_records(operation, params, owner=owner, visible=records,
                                    exact=checked.exact, revalidate=checked.revalidate, controllable=checked.controllable)

@@ -128,7 +128,7 @@ def _readiness_row(monkeypatch, home):
             profile_home=home, hermes_profile="base", readiness="ready", summary="ready"
         ),
     )
-    monkeypatch.setattr(profile_readiness, "persona_profile_scope", _null_scope)
+    monkeypatch.setattr(profile_readiness, "persona_profile_context", _null_scope)
     monkeypatch.setattr(profile_readiness, "_runtime_dependency_issue", lambda _p: None)
     monkeypatch.setattr(profile_readiness, "_provider_issue", lambda _p: None)
     return profile_readiness.profile_readiness_for_persona(
@@ -204,7 +204,7 @@ def _bind_ready(monkeypatch, home):
             profile_home=home, hermes_profile="base", readiness="ready", summary="ready"
         ),
     )
-    monkeypatch.setattr(profile_readiness, "persona_profile_scope", _null_scope)
+    monkeypatch.setattr(profile_readiness, "persona_profile_context", _null_scope)
     monkeypatch.setattr(profile_readiness, "_runtime_dependency_issue", lambda _p: None)
     monkeypatch.setattr(profile_readiness, "_provider_issue", lambda _p: None)
 

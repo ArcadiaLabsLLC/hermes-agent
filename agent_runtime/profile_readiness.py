@@ -13,7 +13,7 @@ from .machine_roots import (
     path_token_issues,
 )
 from .parse_cache import cached_yaml_file
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 from .skill_install import SKILL_HASH_MISMATCH, harness_skill_hash_states
 
 __layer__ = "stores"
@@ -139,8 +139,8 @@ def profile_readiness_for_persona(
             # or an explicit path, and the ONE raw-env reader it does reach —
             # ``hermes_cli.auth._auth_file_path`` on the provider probe
             # below — now reads ``get_hermes_auth_home()``, which this mode
-            # binds context-locally. See ``persona_profile_scope``.
-            with persona_profile_scope(binding):
+            # binds context-locally. See ``persona_profile_context``.
+            with persona_profile_context(binding):
                 skill_resolutions = _resolve_skill_names(
                     list(persona.skills), skill_resolver=skill_resolver
                 )
@@ -288,7 +288,7 @@ def _dominant_issue(issues: list[tuple[str, str]]) -> tuple[str, str]:
 # immediately (same pattern as ``_profile_template_memo``/``_installed_skill_catalog``).
 #
 # The key MUST carry the active profile/auth scope, not just (provider, model):
-# ``_provider_issue`` runs inside ``persona_profile_scope``, which diverts the
+# ``_provider_issue`` runs inside ``persona_profile_context``, which diverts the
 # Hermes home and the shared-auth home context-locally so
 # ``resolve_runtime_provider`` reads PER-PROFILE config and secrets. Keyed on
 # (provider, model) alone, the first profile's verdict leaks to every other
@@ -327,7 +327,7 @@ def _provider_issue(persona) -> tuple[str, str] | None:
     from agent_runtime.profile_home import get_hermes_auth_home
 
     # BOTH components are ContextVar-aware resolvers, never raw env reads. Under
-    # ``persona_profile_scope`` there IS no env mirror to read — the binding is
+    # ``persona_profile_context`` there IS no env mirror to read — the binding is
     # context-local — and under the env-exporting mode the two channels agree,
     # so the resolvers are correct in both and the raw reads were correct in
     # only one. The rule the auth component was always written to: the key must

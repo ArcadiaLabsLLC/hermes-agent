@@ -5,6 +5,8 @@ import pytest
 from hermes_constants import get_hermes_home
 
 import agent_runtime.paths as paths_module
+from agent_runtime.profile_home import get_hermes_auth_home
+from agent_runtime.run_context import bound_runtime_root
 from agent_runtime.profile_context import (
     PROFILE_CONTEXT_NO_PROFILE_BINDING,
     PROFILE_CONTEXT_RUNTIME_ROOT_UNRESOLVED,
@@ -14,7 +16,6 @@ from agent_runtime.profile_context import (
     RUNTIME_ROOT_SOURCE_UNRESOLVED,
     PersonaProfileBinding,
     persona_profile_context,
-    persona_profile_scope,
 )
 
 
@@ -29,7 +30,7 @@ def _profile_less() -> PersonaProfileBinding:
     )
 
 
-def test_persona_profile_context_enters_and_restores_env(tmp_path, monkeypatch):
+def test_persona_profile_context_binds_context_locally_and_restores(tmp_path, monkeypatch):
     profile = tmp_path / "profiles" / "qa"
     profile.mkdir(parents=True)
     runtime_root = tmp_path / "runtime"
@@ -49,16 +50,21 @@ def test_persona_profile_context_enters_and_restores_env(tmp_path, monkeypatch):
 
     with persona_profile_context(binding, runtime_root=runtime_root):
         assert get_hermes_home() == profile
-        assert os.environ["HERMES_HOME"] == str(profile)
-        assert os.environ["HERMES_AGENT_RUNTIME_ROOT"] == str(runtime_root)
-        assert os.environ["HERMES_AUTH_HOME"] == str(head_home)
+        assert bound_runtime_root() == str(runtime_root)
+        assert get_hermes_auth_home() == str(head_home)
+        # Context-local: the process environment is untouched mid-scope.
+        assert os.environ.get("HERMES_HOME") == original_home
+        assert os.environ.get("HERMES_AGENT_RUNTIME_ROOT") == original_runtime
+        assert os.environ.get("HERMES_AUTH_HOME") == original_auth_home
 
+    assert get_hermes_home() == head_home
+    assert bound_runtime_root() == ""
     assert os.environ.get("HERMES_HOME") == original_home
     assert os.environ.get("HERMES_AGENT_RUNTIME_ROOT") == original_runtime
     assert os.environ.get("HERMES_AUTH_HOME") == original_auth_home
 
 
-# ── audit Q1: the runtime root is exported for EVERY persona ─────────────────
+# ── audit Q1: the runtime root is bound for EVERY persona ────────────────────
 #
 # ``profile_home is None`` used to take an early ``yield`` that skipped every
 # environment export, including the runtime root — which needs no profile at
@@ -73,23 +79,25 @@ def test_a_profile_less_persona_still_gets_the_runtime_root(tmp_path, monkeypatc
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     with persona_profile_context(_profile_less()):
-        assert os.environ[RUNTIME_ROOT_ENV] == str(tmp_path / "resolved")
+        assert bound_runtime_root() == str(tmp_path / "resolved")
+        assert RUNTIME_ROOT_ENV not in os.environ
 
-    assert RUNTIME_ROOT_ENV not in os.environ
+    assert bound_runtime_root() == ""
 
 
-def test_a_profile_less_persona_restores_a_prior_value(tmp_path, monkeypatch):
+def test_a_profile_less_persona_leaves_a_prior_env_value_alone(tmp_path, monkeypatch):
     monkeypatch.setenv(RUNTIME_ROOT_ENV, str(tmp_path / "outer"))
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     with persona_profile_context(_profile_less()):
-        assert os.environ[RUNTIME_ROOT_ENV] == str(tmp_path / "resolved")
+        assert bound_runtime_root() == str(tmp_path / "resolved")
+        assert os.environ[RUNTIME_ROOT_ENV] == str(tmp_path / "outer")
 
     assert os.environ[RUNTIME_ROOT_ENV] == str(tmp_path / "outer")
 
 
 def test_a_profile_less_persona_leaves_the_profile_home_alone(tmp_path, monkeypatch):
-    """Only the runtime root is exported — redirection still needs a binding."""
+    """Only the runtime root is bound — redirection still needs a binding."""
 
     head_home = tmp_path / "profiles" / "alice"
     head_home.mkdir(parents=True)
@@ -102,7 +110,7 @@ def test_a_profile_less_persona_leaves_the_profile_home_alone(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("preexisting", [None, "outer"])
-def test_the_exported_root_is_identical_whether_or_not_the_env_was_already_set(
+def test_the_bound_root_is_identical_whether_or_not_the_env_was_already_set(
     preexisting, tmp_path, monkeypatch
 ):
     """The whole audit in one assertion, for this reader.
@@ -119,12 +127,12 @@ def test_the_exported_root_is_identical_whether_or_not_the_env_was_already_set(
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     with persona_profile_context(_profile_less()):
-        assert os.environ[RUNTIME_ROOT_ENV] == str(tmp_path / "resolved")
+        assert bound_runtime_root() == str(tmp_path / "resolved")
 
 
 # ── the CONTEXT-LOCAL mode: same binding, no process-global writes ───────────
 #
-# ``persona_profile_scope`` exists because the snapshot readiness walk enters a
+# ``persona_profile_context`` exists because the snapshot readiness walk enters a
 # profile binding per persona every 2-4 s, on the builder thread, in the same
 # ``harness serve`` process that hosts chat turns — and takes no
 # ``_WORKDIR_LOCK``. With the env mirror on, every ambient ``get_hermes_home()``
@@ -144,8 +152,8 @@ def test_the_context_local_scope_binds_the_home_without_touching_the_process(
 ):
     """The whole point in one assertion: bound here, unchanged everywhere else.
 
-    *Killing mutation:* re-enable the ``os.environ`` block for
-    ``export_env is False``. *Probed fields:* the four variables, mid-scope.
+    *Killing mutation:* reintroduce an ``os.environ`` write in
+    ``persona_profile_context``. *Probed fields:* the four variables, mid-scope.
     """
 
     profile = tmp_path / "profiles" / "qa"
@@ -158,13 +166,12 @@ def test_the_context_local_scope_binds_the_home_without_touching_the_process(
     monkeypatch.delenv(RUNTIME_ROOT_ENV, raising=False)
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
-    with persona_profile_scope(_bound(profile)):
+    with persona_profile_context(_bound(profile)):
         # Bound, context-locally.
         assert get_hermes_home() == profile
         # ...and the process is exactly where it was. ``HOME`` is included
-        # because the env mode WOULD have redirected it here (``profile/home``
-        # exists) — that write is this mode's one named residue, and this is
-        # where "it does not happen" is stated.
+        # because the retired env mirror redirected it here (``profile/home``
+        # exists); this is where "it does not happen" is stated.
         assert os.environ["HERMES_HOME"] == str(head_home)
         assert "HERMES_AUTH_HOME" not in os.environ
         assert "HOME" not in os.environ
@@ -210,15 +217,12 @@ def test_the_context_local_scope_resolves_the_SAME_shared_auth_store(
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     with persona_profile_context(_bound(profile)):
-        env_mode = _auth_file_path()
-    with persona_profile_scope(_bound(profile)):
-        scope_mode = _auth_file_path()
+        resolved = _auth_file_path()
 
-    assert env_mode == head_home / "auth.json"
-    assert scope_mode == env_mode, (
-        "the context-local binding resolved a different shared auth store than "
-        "the env-exporting one; the readiness provider probe would judge this "
-        "persona against another profile's credentials"
+    assert resolved == head_home / "auth.json", (
+        "the context-local binding resolved the persona's own auth store, not the "
+        "head's; the readiness provider probe would judge this persona against "
+        "another profile's credentials"
     )
 
 
@@ -294,7 +298,7 @@ def test_the_context_local_scope_is_invisible_to_other_threads(tmp_path, monkeyp
     monkeypatch.setattr(paths_module, "store_root", lambda: tmp_path / "resolved")
 
     seen: list = []
-    with persona_profile_scope(_bound(profile)):
+    with persona_profile_context(_bound(profile)):
         other = threading.Thread(target=lambda: seen.append(get_hermes_home()))
         other.start()
         other.join(10)

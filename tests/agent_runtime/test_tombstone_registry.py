@@ -4149,6 +4149,25 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "run_queued_sends_once",
         scope=("agent_runtime.chat_root_send_runner",),
     ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "runtime-queue: persona_profile_context is context-local only (its "
+        "export_env os.environ mirror had no production caller after "
+        "run-serialization S5), so the context-local alias folded into it "
+        "(lane r-deadcode)",
+        "persona_profile_scope",
+        scope=("agent_runtime.profile_context",),
+    ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.CODE,
+        "runtime-queue: the env-writing mode of persona_profile_context is "
+        "deleted; no production code may pass or read the flag (lane r-deadcode)",
+        "export_env",
+    ),
 )
 
 
