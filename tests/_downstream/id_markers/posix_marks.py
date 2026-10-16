@@ -40,6 +40,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
                 "test_unresolvable_system_unit_user_is_unknown_principal_not_directory_owner",
                 "test_known_bringup_refusal_is_rejected_before_any_secondary_is_touched",
                 "test_unknown_default_system_principal_blocks_the_update_hook",
+                # systemd's mask (a unit symlinked to /dev/null): on Windows realpath() of a link
+                # to "nul" is "<dir>\nul", never os.devnull; red on the pure upstream tip
+                # e6899c8090d (lane r-sync, 2026-10-16).
+                "test_update_hook_reads_a_masked_default_unit_as_an_opt_out",
             )),
             ("tests/hermes_cli/test_kanban_worktree_teardown.py", (
                 "test_cleanup_proceeds_when_cwd_was_deleted",
