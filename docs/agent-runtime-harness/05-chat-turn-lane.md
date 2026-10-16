@@ -342,7 +342,7 @@ inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner
 `first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
 turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
-flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
+flag (`agent_init_cold`, `:92`), one closed-set label (`context_native_history_source`: `resident` when the resident actor handed over its lineage-stamped history, `read` when SessionDB was read; `PHASE_LABELS`, 2026-10-16) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
 closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
 (§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm

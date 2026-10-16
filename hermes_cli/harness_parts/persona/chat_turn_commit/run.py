@@ -138,6 +138,7 @@ class _RunPhases:
         # lineage-stamp S3: a resident actor whose stamped history is still current
         # hands that history over; any write to the lineage since moves the stamp.
         reused = _resident_native_history(runtime_registry, session_db, session_id)
+        self.turn_phases.label("context_native_history_source", "read" if reused is None else "resident")
         if reused is not None:
             active_session_id, native_history = reused
         else:

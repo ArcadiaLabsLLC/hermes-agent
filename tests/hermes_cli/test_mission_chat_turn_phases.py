@@ -290,9 +290,33 @@ def test_the_block_carries_the_wall_anchor_as_a_STRING(streamed_turn):
     for key, value in phases.items():
         if key == "anchored_at":
             continue
+        if key in mission_chat_phases.PHASE_LABELS:
+            assert value in mission_chat_phases.PHASE_LABELS[key], f"{key} is a closed-set label, got {value!r}"
+            continue
         assert isinstance(value, (int, bool)), (
             f"{key} must be an elapsed-ms int (or a bool flag), got {value!r}"
         )
+
+
+def test_the_record_names_where_the_native_history_came_from(streamed_turn):
+    # lineage-stamp S3: a resident hand-over and a SessionDB read differed on the record
+    # only by ``context_native_history_ms``; the source is now its own closed-set label.
+    assert streamed_turn[TURN_PHASES_KEY]["context_native_history_source"] == "read"
+
+
+def test_the_native_history_source_label_admits_only_its_closed_set():
+    marks = TurnPhaseMarks()
+    marks.label("context_native_history_source", "cached")
+    assert "context_native_history_source" not in marks.snapshot()
+    marks.label("context_native_history_source", "resident")
+    marks.label("context_native_history_source", "read")
+    assert marks.snapshot()["context_native_history_source"] == "resident", "first label wins"
+    with pytest.raises(ValueError):
+        marks.label("not_a_label", "read")
+    assert mission_chat_phases.safe_turn_phases(
+        {"context_native_history_source": "resident", "request_received": 0}
+    ) == {"request_received": 0, "context_native_history_source": "resident"}
+    assert mission_chat_phases.safe_turn_phases({"context_native_history_source": "elsewhere"}) is None
 
 
 def test_request_received_is_the_anchor_and_is_always_zero(streamed_turn):
