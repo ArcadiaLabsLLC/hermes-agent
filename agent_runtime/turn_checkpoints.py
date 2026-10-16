@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 
 from utils import atomic_json_write
-from tools.checkpoint_manager import CheckpointManager, checkpoint_metadata_directory
+from agent_runtime.checkpoint_reviewed_restore import checkpoint_metadata_directory
+from tools.checkpoint_manager import CheckpointManager
 
 __layer__ = "stores"
 

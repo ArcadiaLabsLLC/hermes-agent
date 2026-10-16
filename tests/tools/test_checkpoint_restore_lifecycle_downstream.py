@@ -1,6 +1,7 @@
 """Reviewed restore shares native writes and keeps only recoverable retention."""
 import pytest
 
+from agent_runtime import checkpoint_reviewed_restore as reviewed_restore
 from tools import checkpoint_manager as checkpoints
 from tests.tools.test_checkpoint_reviewed_restore_downstream import workspace
 
@@ -64,7 +65,7 @@ def test_status_retires_orphan_pins_only_when_no_write_receipt_exists(tmp_path, 
     from tools.checkpoint_pruning import store_lock
     manager, work, checkpoint = workspace(tmp_path, monkeypatch)
     with store_lock(checkpoints._resolve_checkpoint_base()):
-        assert checkpoints.pin_restore_checkpoints(str(work), "c" * 64, checkpoint, checkpoint)
+        assert reviewed_restore.pin_restore_checkpoints(str(work), "c" * 64, checkpoint, checkpoint)
     assert len(_pins(work)) == 2
     assert manager.restore_receipt("c" * 64) is None
     assert _pins(work) == []
