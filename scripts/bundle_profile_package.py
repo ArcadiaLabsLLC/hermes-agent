@@ -346,7 +346,7 @@ CORE = ""
 #: :data:`PLAN_STALL_SECONDS`, or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
 #: are RETRYABLE (exit :data:`EXIT_RETRYABLE`): a slow child on a busy machine still parses, so it
 #: is never stopped for being slow, only for standing still. Sized from the 2026-10-16
-#: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (Stage 0).
+#: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (the bundled-desktop build).
 PROGRESS_INTERVAL_SECONDS = 5
 PLAN_STALL_SECONDS = 300
 PLAN_TIMEOUT_SECONDS = 1800

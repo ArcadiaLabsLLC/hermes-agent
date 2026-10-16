@@ -32,6 +32,92 @@ These records are routing evidence, never a second transcript store.
 
 ---
 
+## Before Stage 1 — the bundled-desktop build: what the interpreter is given
+
+The Eternia Harness (bundled Hermes inside the Launcher) runs from a build, not a checkout. The
+build is `scripts/bundle_profile_package.py --profile bundled-desktop --target <target>`, driven by
+the Launcher's release stage step (`EterniaLauncher/scripts/ci/bundled_hermes/layout.py`) and by
+its QA bundle cache (`EterniaLauncher/tool/stagec_qa_mcp_server/lib/qa_harness_bundle.dart`). The
+measured closure and its owner rulings of 2026-09-28 are in
+[`docs/downstream/bundled-desktop-closure-2026-09-28.md`](../downstream/bundled-desktop-closure-2026-09-28.md);
+this section is the build as it stands.
+
+**What the profile ships.** `agent_runtime/bundle_profiles/bundled-desktop.yaml` names the walk's
+`packaging.roots` (the serve entry `hermes_cli.main`, `hermes_cli.harness`, `run_agent`,
+`model_tools`, `agent_runtime`, `cron.scheduler`, `hermes_cli.local_runtime`, and the local speech
+roots), the switched-off modules the walk never enters, the bundled plugin directories, the
+resources (`skills`, `locales`, `docs/agent-runtime-harness/harness-skills`) and the extras the
+core carries (`anthropic`, `mcp`, `fal`). The core output holds `app/` (first-party modules the
+closure keeps, their package data and the resources), `site-packages/` (only the third-party
+distributions the closure needs), `bundle-manifest.json`, `licenses.json` and `sbom.cdx.json`.
+Measured 2026-10-16 (win32-x64, the commit this section landed with): 2,816 first-party modules in
+3,328 files, 76 distributions in 6,049 files; 9,387 files, 152.9 MiB on disk in all.
+
+**Engine packs.** `packaging.packs` names extras the core does NOT carry. Each is built beside the
+core as `<out>-<pack>-pack/` holding only the distributions its selection ships and the core's does
+not, with its own `engine-pack.json`, `licenses.json` and `sbom.cdx.json`. Measured 2026-10-16
+(win32-x64, files and bytes on disk of the whole pack directory):
+
+| pack | extras | distributions | files | size | why it exists, and the code path that imports it |
+|---|---|---|---:|---:|---|
+| `speech` | `speech-tts`, `stt-onnx` | flatbuffers, numpy, onnx-asr, onnxruntime, protobuf | 894 | 73.9 MiB | local TTS and STT (`runtime.speech.*`, [runtime-speech-methods](runtime-speech-methods.md)): `agent_runtime/speech_onnx_voice.py` and `agent_runtime/speech_stt_engines.py` import onnxruntime / onnx-asr |
+| `provider-bedrock` | `bedrock` | boto3, botocore, jmespath, s3transfer | 2,079 | 19.8 MiB | the AWS Bedrock provider: `agent/bedrock_adapter.py` imports boto3 (`_PROVIDER_PACKAGE_REQUIREMENTS["bedrock"]` in `hermes_cli/runtime_environment.py`) |
+| `provider-vertex` | `vertex` | google-auth, pyasn1, pyasn1-modules | 270 | 1.9 MiB | the Google Vertex AI provider: `agent/vertex_adapter.py` imports google.auth (`_PROVIDER_PACKAGE_REQUIREMENTS["vertex"]`) |
+| `provider-azure-identity` | `azure-identity` | azure-core | 85 | 0.7 MiB | Entra ID auth for azure-foundry: `agent/azure_identity_adapter.py` imports azure.identity. The pack does NOT carry azure-identity, msal or msal-extensions (an open row in the runtime queue) |
+| `provider-mistral` | `mistral` | eval-type-backport, jsonpath-python, mistralai, opentelemetry-semantic-conventions | 1,170 | 5.1 MiB | the Mistral cloud speech providers: `tools/transcription_cloud.py` and `tools/tts_tool.py` import mistralai |
+
+**Owner ruling (2026-10-15): provider packs are desktop-only, and mobile works without them.** The
+phone edition is SDK-free (`agent.provider_sdks: false`; `agent_runtime/provider_dependencies.py`
+answers `sdk_free: true` and never names a pack).
+
+**How the Launcher fetches a pack.** The release seal step
+(`EterniaLauncher/scripts/ci/bundled_hermes/seal.py`) archives each pack and writes
+`engine-packs.json` beside the core (archive, size, SHA-256, URL); the publish step
+(`EterniaLauncher/scripts/deploy/publish_engine_packs.py`) uploads the archives behind the
+backend's gated download route. The Launcher downloads a pack through its Download Center, unpacks
+it into its own engine-packs folder and writes a `.ready` marker carrying the archive's SHA-256
+(`EterniaLauncher/lib/core/services/hermes/hermes_bundled_engine_packs.dart`): the speech pack the
+first time speech is enabled, a provider pack when the user signs in to a provider whose row in
+`runtime.provider.list` `dependencies` says `pack_available`
+(`EterniaLauncher/lib/core/services/hermes/hermes_provider_packs.dart`). A runtime started after the
+unpack finds every ready pack through `HERMES_ENGINE_PACKS`, which the core's
+`site-packages/hermes-engine-packs.pth` adds to the import path; a runtime already up takes one with
+`runtime.provider.pack.activate` ([runtime-provider-methods](runtime-provider-methods.md),
+`agent_runtime/provider_packs.py`). No pack = the engine's imports fail = that provider or engine
+reports unavailable, never a crash and never a download by the runtime.
+
+**The build phases, measured.** Every phase prints `phase <name>: <s>s` into the build log, flushed
+as it ends, and the build closes with `phase total` (`phase` in `scripts/bundle_profile_package.py`),
+so the QA bundle log says where its time went. The closure step plans the core and every pack in
+ONE child interpreter over one walk of the profile (`distribution_plans` →
+`scripts/bundle_profile_closure.py` `plan_jobs`: `WalkFacts` once, then one `GraphFacts` per set of
+site directories, each file parsed once per process), and re-plans the written core and packs from
+their OWN metadata in one more child (`verify_jobs`). Measured 2026-10-16, win32-x64, both runs on
+the same box with other lanes' work on it (CPU 60-100%), so the absolute seconds are load-inflated
+and the ratio is the claim:
+
+| phase | before (22 closure children) | after (2 children) |
+|---|---:|---:|
+| `pool` (uv install of the pins) | 40.4 s | 18.2 s (uv cache warm) |
+| `plan` (core; before: `plan core`) | 243.1 s | 81.0 s — one child for the core and all five packs, 47.2 s |
+| `copy core` | 53.9 s | 54.6 s |
+| `plan pack <p>` ×5 | 252–291 s each | folded into `plan` |
+| `copy pack <p>` ×5 | 1–18 s each | 1–18 s each |
+| `verify plan` (one child, six site sets) | — | 46.0 s |
+| `verify core` (incl. the serve import probe) | 315.7 s | 55.3 s |
+| `verify pack <p>` ×5 | 207–303 s each | 0.1–0.9 s each |
+| `total` | **3,384 s** | **297 s** |
+
+Both builds' outputs are identical file for file except the commit stamps (proof in `68e1b687bae`,
+the commit that landed the one-walk planner).
+
+The planning child reports progress (its step and its parse count) every 5 s; it is stopped when
+that report stands still for `PLAN_STALL_SECONDS` (300 s) or runs past `PLAN_TIMEOUT_SECONDS`
+(1,800 s), and the build then exits `EXIT_RETRYABLE` (75) with a `RETRYABLE:` line — a stop on a
+loaded machine is not a verdict on the inputs.
+
+---
+
 ## Stage 1 — interpreter and import tax (`interpreter_ms` and its segments)
 
 `_cmd_serve` starts a `BootTimeline` as its first instruction (`serve.py:6280-6286`).
