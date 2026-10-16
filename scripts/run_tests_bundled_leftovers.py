@@ -24,6 +24,10 @@ from typing import Iterable, List, Sequence
 _SLACK_SECONDS = 1.0
 
 
+#: create_time is rounded per platform; a parent is never created after its child by more than this
+_PID_CLOCK_SLACK = 0.5
+
+
 @dataclass(frozen=True)
 class Proc:
     pid: int
@@ -55,6 +59,17 @@ def match(procs: Iterable[Proc], run_started: float) -> list[Proc]:
     )
 
 
+def parent_alive(ppid: int | None, child_started: float, created: dict[int, float]) -> bool:
+    """Whether the child's PARENT still runs: a live process at ``ppid`` that was created
+    no later than the child. Windows recycles PIDs, so a bare ``pid_exists(ppid)`` reads a
+    newer process that took the dead parent's PID as the parent — in a busy test process
+    that is exactly when an orphan goes unreported."""
+
+    if not ppid or ppid not in created:
+        return False
+    return created[ppid] <= child_started + _PID_CLOCK_SLACK
+
+
 def scan(run_started: float) -> list[Proc]:
     """The box's processes through psutil, matched; [] when psutil is unavailable."""
 
@@ -62,15 +77,25 @@ def scan(run_started: float) -> list[Proc]:
         import psutil
     except ImportError:
         return []
-    rows = []
+    infos = []
     for proc in psutil.process_iter(["pid", "create_time", "cmdline", "ppid"]):
         try:
-            info = proc.info
-            cmdline = info.get("cmdline") or []
-            ppid = info.get("ppid")
-            alive = bool(ppid) and psutil.pid_exists(ppid)
-            rows.append(Proc(int(info["pid"]), float(info.get("create_time") or 0.0), cmdline, alive))
-        except (psutil.Error, OSError, KeyError, TypeError, ValueError):
+            infos.append(dict(proc.info))
+        except (psutil.Error, OSError):
+            continue
+    created = {}
+    for info in infos:
+        try:
+            created[int(info["pid"])] = float(info.get("create_time") or 0.0)
+        except (KeyError, TypeError, ValueError):
+            continue
+    rows = []
+    for info in infos:
+        try:
+            started = float(info.get("create_time") or 0.0)
+            alive = parent_alive(info.get("ppid"), started, created)
+            rows.append(Proc(int(info["pid"]), started, info.get("cmdline") or [], alive))
+        except (KeyError, TypeError, ValueError):
             continue
     return match(rows, run_started)
 
