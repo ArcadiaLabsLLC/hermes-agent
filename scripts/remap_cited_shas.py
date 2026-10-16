@@ -34,7 +34,7 @@ DEFAULT_DEPTH = 400
 
 def _git(repo: Path, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], input=stdin, capture_output=True,
-                          text=True, encoding="utf-8", check=False)
+                          text=True, encoding="utf-8", check=False, timeout=120)
 
 
 def _commits(repo: Path, tokens: list[str]) -> dict[str, str]:
@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--depth", type=int, default=DEFAULT_DEPTH)
     parser.add_argument("--check", action="store_true", help="report only; exit 1 when a cited SHA is off --onto")
     args = parser.parse_args(argv)
-    texts = [path.read_text(encoding="utf-8") for path in args.files]
+    texts = [path.read_text(encoding="utf-8-sig") for path in args.files]
     mapping = plan(args.repo, args.onto, texts, args.depth)
     for token, landed in sorted(mapping.remapped.items()):
         print(f"REMAP {token} -> {landed} (same author, date and subject on {args.onto})")

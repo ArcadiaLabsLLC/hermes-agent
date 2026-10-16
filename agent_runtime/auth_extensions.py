@@ -198,7 +198,8 @@ def codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) ->
         credential = PooledCredential.from_dict("openai-codex", entry)
     except Exception as exc:
         # Served unrefused, as before — but said: an unreadable row is not a usable one by proof.
-        logger.warning("codex_pool_row_unparsable id=%s error=%s", entry.get("id") or "-", type(exc).__name__)
+        logger.warning("codex_pool_row_unparsable id=%s error=%s", entry.get("id") or "-", type(exc).__name__,
+                       exc_info=True)
         return False
     if credential.last_status == STATUS_DEAD:
         return True

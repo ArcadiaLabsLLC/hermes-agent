@@ -187,7 +187,8 @@ def _lift_reopened_cooldowns(pool, entries: list, provider: str = "") -> list:
         pool.lift_reopened_cooldowns()
         return pool.entries()
     except Exception as exc:
-        logger.warning("provider_cooldown_lift_failed provider=%s error=%s", provider or "-", type(exc).__name__)
+        logger.warning("provider_cooldown_lift_failed provider=%s error=%s", provider or "-", type(exc).__name__,
+                       exc_info=True)
         return entries
 
 
