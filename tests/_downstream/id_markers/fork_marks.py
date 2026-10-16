@@ -311,6 +311,48 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_plugins_downstream.py",
         ),
     ),
+    # Daily branch at upstream e6899c8090d (lane r-sync, 2026-10-16): upstream's new
+    # session_policy.build_policy discovers plugins, so the bundled eternia-harness plugin's
+    # pre_tool_call refuse_tool_call (blocked tools + the flutter-build guard) sits in the hook
+    # list these tests expect to hold only shell hooks. All three green on the pure upstream tip.
+    **{
+        f"tests/gateway/test_shell_hook_resync.py::{name}": (
+            _fork_replaces(
+                "eternia-harness pre_tool_call hook refuse_tool_call (plugins/eternia-harness)",
+                "tests/agent_runtime/test_native_worker_permissions.py",
+            ),
+        )
+        for name in (
+            "test_gateway_resync_follows_config_and_allowlist_without_prompting",
+            "test_resync_keeps_in_memory_consent_and_never_disarms_on_bad_input",
+        )
+    },
+    # Same branch: a session narrowed to toolsets=['terminal'] keeps the eternia-harness
+    # default-on plugin toolset "skills" (skill_search), as on the v0.21.6 row above.
+    "tests/gateway/test_canonical_session_inventory.py::"
+    "test_created_session_snapshot_carries_inventory_for_frozen_toolsets": (
+        _fork_replaces(
+            "plugins/eternia-harness skill_search toolset 'skills' (a default-on plugin toolset)",
+            "tests/agent_runtime/test_chat_lane_toolsets.py",
+        ),
+    ),
+    # Same branch: upstream's test drives a completion into a CLOSING session and expects the
+    # claim to reach _run_prompt_submit (whose admission refuses and refunds). The fork fences a
+    # closing session at the claim itself (d5aae459f2d); dropping the fence reds
+    # test_retirement_releases_replay_not_transcript_or_execution_evidence, so it is kept.
+    "tests/tui_gateway/test_notification_admission_refusal.py::"
+    "test_refused_notification_retains_result_without_spending_attempts[completion]": (
+        _fork_replaces(
+            "tui_gateway.session_lifecycle._session_turn_admission closing fence (d5aae459f2d)",
+            "tests/tui_gateway/test_native_session_retirement.py",
+        ),
+    ),
+    # Same branch: a real daemon + CLI subprocess turn against a fake provider; 50 s alone on
+    # main 3c4c2cd3aca and 86 s on the daily tip, both past the fork's --timeout=30 (red bare
+    # on main too; the row's "green on main" was a runner pass).
+    "tests/tools/test_completed_process_results.py::test_headless_terminal_result_survives_cli_exit": (
+        pytest.mark.timeout(240),
+    ),
     # Lane REDS3 (wave-close gate): the pool's round-robin position is a sidecar
     # cursor (agent_runtime.pool_rotation, MCF-44), so select() leaves auth.json.
     "tests/hermes_cli/test_oauth_status_pool_observation.py::"
