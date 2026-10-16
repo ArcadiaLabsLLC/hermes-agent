@@ -14,6 +14,7 @@ import time
 import uuid
 from agent_runtime.cli_format import emit_json
 from agent_runtime.clock import elapsed_ms
+from agent_runtime.conversation_observability import compaction_state
 from agent_runtime.events import EventLog
 from agent_runtime.mission_chat_phases import safe_handler_anchor
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
@@ -352,6 +353,7 @@ class _ChatProtocolV2Emitter:
         self._segment_count = 0
         self._tool_count = 0
         self._reasoning_count = 0
+        self._compaction_state: str | None = None
         self._active_tools: dict[str, list[dict[str, object]]] = {}
         self.elements: list[dict[str, object]] = []
         # RW3: `tool.progress` beats while a tool runs — streamed turns only.
@@ -430,6 +432,9 @@ class _ChatProtocolV2Emitter:
             # segment here would split one reply into two.
             self._reasoning_summary(payload)
             return
+        if event_type == "run.progress" and compaction_state(payload) is not None:
+            self._compaction(compaction_state(payload))
+            return
         handler = _PROGRESS_EVENTS.get(event_type)
         if handler is None:
             return
@@ -480,6 +485,25 @@ class _ChatProtocolV2Emitter:
                 "index": index,
                 "after_seq": self._seq,
                 "text": text,
+            }
+        )
+
+    def _compaction(self, state: str | None) -> None:
+        """One ``context.compaction`` v2 frame per lifecycle edge (``compacting`` once per
+        pause, however many heartbeats repeat it; then ``compacted``). Presentation-only,
+        like ``reasoning.summary``: no element seq, no segment end. It says the model's
+        context was summarised, never that the visible transcript changed."""
+
+        if state is None or state == self._compaction_state:
+            return
+        self._compaction_state = state
+        self._emit_chat_frame(
+            {
+                "type": "context.compaction",
+                "protocol_version": 2,
+                "turn_id": self.turn_id,
+                "state": state,
+                "after_seq": self._seq,
             }
         )
 

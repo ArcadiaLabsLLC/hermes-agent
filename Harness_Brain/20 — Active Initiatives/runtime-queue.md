@@ -804,7 +804,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - **Map backend `409 realms.git_host_binding_lost` like `realms.git_host_unbound` (stop retrying), not to `sync_remote_unreachable`** · `hermes` · the backend's realm sync used to answer a permanent 503 when the GitHub App binding vanished mid-sync; since backend `0543d8b6` (REALM-SYNC-PERMANENT-503-1) it is a typed 409 that will not heal on retry · backend `docs/architecture/contracts/nexus/FRONTEND_STAGES.md` realms errors. · READY 2026-10-16
 
-- [ ] **Compaction never reaches the native conversation lane: `agent/conversation_compression.py` `_emit_compaction_done` calls `status_callback("compacted", COMPACTION_DONE_STATUS)` with two arguments into the profile runner's one-argument `StatusEmitter.emit` (`agent_runtime/profile_runner/status.py`), so it raises inside `_swallow` and is dropped; `agent/compaction_events.py` publishes telemetry only. Forward compacting/compacted as a frame the launcher's conversation lane receives (launcher MC row D03 waits on it)** · found 2026-10-15 w1015j-mcshell · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-turnrec)**
 
 
 ## Filed on arrival — 2026-10-16 (backend build wave B, realms)

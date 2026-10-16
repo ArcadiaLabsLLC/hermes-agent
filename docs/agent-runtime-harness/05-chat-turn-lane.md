@@ -873,6 +873,18 @@ an IDLE bound that each progress report restarts, and the call's absolute cap is
 an error naming both numbers. The agent's own per-call deadline (`timeouts.tools.sequential_call`,
 420 s default) is separate and still applies.
 
+### 5b. Compaction on the `context.compaction` frame (2026-10-16)
+
+A streamed turn whose context is auto-compacted mid-turn carries one `context.compaction` v2 frame
+per lifecycle edge: `{"type": "context.compaction", "protocol_version": 2, "turn_id", "state",
+"after_seq"}`, `state` `compacting` (once per pause, however many heartbeats upstream repeats) then
+`compacted`. Like `reasoning.summary` it is presentation-only: no element `seq`, no segment end, no
+EventLog row, no text — the launcher writes its own copy, and that copy says the model's context
+was summarised, never that the visible transcript changed. The path: upstream's two-argument
+`status_callback(kind, text)` → `profile_runner.status.StatusEmitter.emit` (only the compaction
+kinds cross; `conversation_observability.compaction_progress_payload`) → `ChatProgressSink`
+(`_forward_compaction_state`, `step` alone) → `_ChatProtocolV2Emitter._compaction`.
+
 ## 6. Terminal envelope grants
 
 `agent_runtime/terminal_envelope/` is the ONE deterministic answer to "may this command run on
