@@ -57,3 +57,20 @@ def test_check_mode_reports_and_leaves_the_file(tmp_path, capsys):
     assert branch_sha[:11] in queue.read_text(encoding="utf-8")
     assert remap.main(["--repo", str(repo), "--onto", "main", str(queue)]) == 0
     assert branch_sha[:11] not in queue.read_text(encoding="utf-8")
+
+
+def test_a_held_tag_pins_unlanded_work_and_check_passes(tmp_path, capsys):
+    repo, _base, _branch_sha, held = _repo(tmp_path)
+    queue = tmp_path / "queue.md"
+    queue.write_text(f"HELD `{held[:11]}`\n", encoding="utf-8")
+    assert remap.main(["--repo", str(repo), "--onto", "main", "--check", str(queue)]) == 1
+    _git(repo, "tag", f"held/lane/{held[:11]}", held)
+    assert remap.main(["--repo", str(repo), "--onto", "main", "--check", str(queue)]) == 0
+    assert f"PINNED {held[:11]}: no landed equivalent; kept reachable by tag held/lane/{held[:11]}" in capsys.readouterr().out
+
+
+def test_a_pre_rewrite_citation_is_left_alone(tmp_path):
+    repo, _base, _branch_sha, held = _repo(tmp_path)
+    mapping = remap.plan(repo, "main", [f"landed at `{held[:11]}` (pre-rewrite)\n"])
+    assert mapping.held == {} and mapping.remapped == {} and mapping.pinned == {}
+    assert list(remap.plan(repo, "main", [f"landed at `{held[:11]}`\n"]).held) == [held[:11]]
