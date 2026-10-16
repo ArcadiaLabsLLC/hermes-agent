@@ -38,6 +38,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.agent_runtime._no_window import no_window
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOT_TIMEOUT_SECONDS = 180.0
 REQUEST_TIMEOUT_SECONDS = 180.0
@@ -158,6 +160,7 @@ def serve(tmp_path):
     process = subprocess.Popen(
         [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "--ndjson", "--service"],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,

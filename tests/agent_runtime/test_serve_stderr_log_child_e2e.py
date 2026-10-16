@@ -44,6 +44,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.agent_runtime._no_window import no_window
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOOT_TIMEOUT_SECONDS = 180.0
 CLI_TIMEOUT_SECONDS = 180.0
@@ -110,6 +112,7 @@ def _spawn(
             *extra_args,
         ],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         stdin=subprocess.DEVNULL,
         stdout=stdout,
@@ -171,6 +174,7 @@ def _connect(env: dict[str, str], *args: str) -> int:
     completed = subprocess.run(
         [sys.executable, "-m", "hermes_cli.main", "harness", "serve", "connect", *args],
         cwd=str(REPO_ROOT),
+        creationflags=no_window(),
         env=env,
         capture_output=True,
         text=True,
