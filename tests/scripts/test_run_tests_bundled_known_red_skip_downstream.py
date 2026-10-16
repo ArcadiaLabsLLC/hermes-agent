@@ -147,3 +147,19 @@ def test_a_red_key_older_than_the_max_age_runs(repo, tmp_path):
     _red_run(repo, store_root)
     gate = _start(repo, store_root, cache_max_age=1e-9)
     assert gate.to_run == [repo / T] and gate.red_decision.reasons == {T: "max-age"}
+
+
+def test_the_skip_lists_deselects_are_keyed_and_never_turn_the_cache_off(repo):
+    """Every gate passes the skip list's node rows as ``--deselect``: as plain passthrough
+    args they turned the cache, and so this skip, off on every run (gate-pb2.log)."""
+
+    snap = cache.TreeSnapshot.take(repo, bundled.scope._scope_git)
+    deselect = ["--deselect", "tests/x.py::test_flaky"]
+
+    def collect(args, keyed=()):
+        return cache.FixedInputs.collect(snap, args, {}, interp=["interp\tpinned"], keyed_args=keyed)
+
+    assert collect(["-q", *deselect], deselect).disabled == ""
+    assert collect(deselect, deselect).digest != collect([]).digest, "the deselects are in the key"
+    assert collect(["-k", "x", *deselect], deselect).disabled == "pytest args -k x"
+    assert collect(deselect).disabled, "a deselect the runner did not append still turns the cache off"

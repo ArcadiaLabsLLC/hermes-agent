@@ -116,7 +116,7 @@ class GateRun:
     @classmethod
     def start(
         cls, args, repo_root: Path, files: Sequence[Path], roots: Sequence[Path], pytest_args: Sequence[str],
-        environ: Mapping[str, str] = os.environ,
+        environ: Mapping[str, str] = os.environ, keyed_args: Sequence[str] = (),
     ) -> "GateRun":
         enabled = not getattr(args, "no_cache", False) and environ.get(CACHE_ENV, "1") != "0"
         override = getattr(args, "cache_dir", None) or environ.get(cache.STORE_ENV)
@@ -132,7 +132,7 @@ class GateRun:
         if getattr(args, "cache_reset", False):
             print(f"Green-result cache: --cache-reset, generation now {store.bump_generation()}", flush=True)
         if enabled:
-            gate._decide(files, [r for r in roots if Path(r).is_file()], pytest_args, environ)
+            gate._decide(files, [r for r in roots if Path(r).is_file()], pytest_args, environ, keyed_args)
             dry = getattr(args, "cache_dry_run", False)
             if not dry and gate.writes:
                 gate._skip(files, getattr(args, "cache_seed", None))
@@ -141,14 +141,16 @@ class GateRun:
             gate._print_decision(dry)
         return gate
 
-    def _decide(self, files, named, pytest_args, environ) -> None:
+    def _decide(self, files, named, pytest_args, environ, keyed_args=()) -> None:
         try:
             snapshot = cache.TreeSnapshot.take(self.repo_root, scope._scope_git)
         except (OSError, RuntimeError) as exc:
             self.disabled = f"git: {exc}"
             snapshot = None
         if snapshot is not None:
-            fixed = cache.FixedInputs.collect(snapshot, pytest_args, environ, strip_paths=[_PLUGIN_DIR])
+            fixed = cache.FixedInputs.collect(
+                snapshot, pytest_args, environ, strip_paths=[_PLUGIN_DIR], keyed_args=keyed_args,
+            )
             self.disabled = fixed.disabled
             deps = self.store.load_deps()
             modsets = self.store.load_modsets({d for entry in deps.values() for d in entry.mods})

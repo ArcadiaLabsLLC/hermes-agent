@@ -610,8 +610,12 @@ class FixedInputs:
     @classmethod
     def collect(
         cls, snapshot: TreeSnapshot, pytest_args: Sequence[str], environ: Mapping[str, str], *,
-        strip_paths: Iterable[str] = (), interp: Optional[List[str]] = None,
+        strip_paths: Iterable[str] = (), interp: Optional[List[str]] = None, keyed_args: Sequence[str] = (),
     ) -> "FixedInputs":
+        """``keyed_args`` — the TAIL of ``pytest_args`` the runner itself appended from a
+        keyed input (the skip list's ``--deselect`` node rows): in the key, never a
+        reason to turn the cache off. Any other passthrough arg turns it off."""
+
         lines = [f"schema\t{CACHE_SCHEMA}"]
         lines += [
             f"runner\t{rel}\t{snapshot.blobs[rel]}"
@@ -622,7 +626,9 @@ class FixedInputs:
         lines += env_lines(environ, strip_paths)
         extra = [a for a in pytest_args if a not in OUTPUT_ONLY_ARGS]
         lines.append(f"pytest\t{' '.join(extra)}")
-        return cls(lines, f"pytest args {' '.join(extra)}" if extra else "")
+        keyed = list(keyed_args)
+        free = extra[: len(extra) - len(keyed)] if keyed and extra[len(extra) - len(keyed):] == keyed else extra
+        return cls(lines, f"pytest args {' '.join(free)}" if free else "")
 
 
 # ── Keys ────────────────────────────────────────────────────────────────────
