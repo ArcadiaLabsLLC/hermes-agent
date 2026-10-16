@@ -368,3 +368,55 @@ def test_a_file_rewritten_between_walks_is_parsed_again(tmp_path):
     stat = path.stat()
     os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
     assert {row[0] for row in closure_script._imports(path, "mod", False)} == {"beta_gamma"}
+
+
+def _dist(site, name: str, files: list[str], requires: tuple[str, ...] = ()) -> None:
+    """An installed distribution ``name`` in ``site``: its files and a dist-info listing them."""
+    for file in files:
+        (site / file).parent.mkdir(parents=True, exist_ok=True)
+        (site / file).write_text("", encoding="utf-8")
+    info = site / f"{name.replace('-', '_')}-1.0.dist-info"
+    info.mkdir()
+    meta = [f"Metadata-Version: 2.1\nName: {name}\nVersion: 1.0"] + [f"Requires-Dist: {r}" for r in requires]
+    (info / "METADATA").write_text("\n".join(meta) + "\n", encoding="utf-8")
+    (info / "RECORD").write_text("".join(f"{f},,\n" for f in files), encoding="utf-8")
+
+
+def test_a_namespace_top_two_distributions_share_resolves_by_its_dotted_import(tmp_path):
+    """Lane h-packs (2026-10-16): ``import azure.identity`` reached ``packages_distributions()["azure"][0]``
+    — azure-core — so the provider-azure-identity pack shipped azure-core alone. Two distributions
+    share the namespace top ``nsx`` here; the site that imports ``nsx.ident`` must ship
+    ``nsx-ident`` (and its requirement ``nsx-core``). Positive control: the site that imports
+    ``nsx.core`` alone ships ``nsx-core`` alone.
+
+    Killing mutation: ``dist_for_import`` returns ``self.dist_for_top(top)`` first (the old
+    first-entry answer) -> ``nsx-ident`` missing from the plan, red."""
+    from types import SimpleNamespace
+
+    import scripts.bundle_profile_closure as closure_script
+
+    site = tmp_path / "site"
+    _dist(site, "nsx-core", ["nsx/core/__init__.py"])
+    _dist(site, "nsx-ident", ["nsx/ident/__init__.py"], requires=("nsx-core",))
+    code = tmp_path / "code"
+    code.mkdir()
+    (code / "uses_ident.py").write_text("def f():\n    import nsx.ident\n", encoding="utf-8")
+    (code / "uses_core.py").write_text("def f():\n    import nsx.core\n", encoding="utf-8")
+    index = module_index(code)
+    import sys
+
+    import packaging.markers  # loaded before the venv leaves sys.path
+    import packaging.requirements
+
+    bare = [p for p in sys.path if "site-packages" not in p.lower()]
+
+    def plan(root: str) -> set[str]:
+        manifest = SimpleNamespace(profile="t", packaging_roots=(root,), packaging_plugins=(),
+                                   switched_off_modules=(), placeholder_distributions={},
+                                   omitted_distributions=(), dynamic_distributions={}, packaging_extras=())
+        out = closure_script.plan_jobs(manifest, [{"sites": [str(site)], "selections": {"": []}}],
+                                       closure_script.TARGET_ENV, index=index, base_path=bare)
+        return {d for d in out[0][""]["needed"] if d.startswith("nsx")}
+
+    assert plan("uses_ident") == {"nsx-ident", "nsx-core"}
+    assert plan("uses_core") == {"nsx-core"}  # positive control

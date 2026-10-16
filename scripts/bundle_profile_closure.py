@@ -504,6 +504,40 @@ class Graph:
                 return _norm(candidate)
         return None
 
+    def dist_for_import(self, dotted: str) -> str | None:
+        """The distribution providing the import ``dotted``. A namespace top that several
+        distributions share (``azure``: azure-core, azure-identity) resolves by its next
+        component — the distribution whose files hold ``azure/identity`` — never by the
+        mapping's first entry, which shipped azure-core alone for ``import azure.identity``."""
+        top, _, rest = dotted.partition(".")
+        names = self.mapping.get(top) or []
+        if len(set(names)) > 1 and rest:
+            sub = rest.partition(".")[0]
+            for name in names:
+                if sub in self._subpackages(top, name):
+                    return _norm(name)
+        return self.dist_for_top(top)
+
+    def dists_for_sites(self, top: str, sites) -> set[str]:
+        """Every distribution the import ``sites`` of ``top`` reach (one per site's dotted
+        name); ``top`` alone when no site names it (a pinned module's eager import)."""
+        dists = {self.dist_for_import(site["dotted"]) for site in sites if site.get("dotted")}             or {self.dist_for_top(top)}
+        return {d for d in dists if d}
+
+    def _subpackages(self, top: str, name: str) -> set[str]:
+        """The names directly under ``top/`` among distribution ``name``'s installed files."""
+        cache = self.__dict__.setdefault("_subpackage_cache", {})
+        key = (top, _norm(name))
+        if key not in cache:
+            dist = self.installed.get(_norm(name))
+            subs = set()
+            for file in (dist.files or []) if dist is not None else []:
+                parts = str(file).replace("\\", "/").split("/")
+                if len(parts) > 1 and parts[0] == top:
+                    subs.add(parts[1].split(".")[0])
+            cache[key] = subs
+        return cache[key]
+
     def requires(self, name: str) -> list[str]:
         envs = [self.env, *({**self.env, "extra": e} for e in sorted(self.extras.get(name, ())))]
         dist = self.installed.get(name)
@@ -790,14 +824,15 @@ class GraphFacts:
         self.direct: dict[str, list[str]] = {}
         self.unresolved = {}
         for top, via in walk.tops.items():
-            dist = self.graph.dist_for_top(top)
-            if dist is None:
+            dists = self.graph.dists_for_sites(top, walk.result.import_sites.get(top, ()))
+            if not dists:
                 self.unresolved[top] = via
-            else:
+            for dist in sorted(dists):
                 self.direct.setdefault(dist, via)
         self.not_for_target = declared_anywhere() - self.declared_base - set().union(*self.declared_extras.values())
-        unguarded = {self.graph.dist_for_top(top) for top, sites in walk.result.import_sites.items()
-                     if any(not site["guarded"] for site in sites)}
+        unguarded = set().union(*(self.graph.dists_for_sites(top, [site for site in sites if not site["guarded"]])
+                                  for top, sites in walk.result.import_sites.items()
+                                  if any(not site["guarded"] for site in sites)))
         unguarded |= {self.graph.dist_for_top(top) for top in walk.pinned_tops}
         self.guarded_only = set(self.direct) - unguarded
 
@@ -882,7 +917,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
 
     # Excludable: what the switched-off modules alone would add.
     everything = Walk(tuple(walk.roots) + tuple(walk.pruned), (), index, walk.first_party)
-    all_direct = {d for d in (graph.dist_for_top(t) for t in everything.tops) if d}
+    all_direct = set().union(*(graph.dists_for_sites(t, everything.import_sites.get(t, ())) for t in everything.tops))
     all_classes = classify({d: [] for d in all_direct}, facts.base, facts.extras, selected, walk.omitted)
     reachable = graph.closure(d for d, row in all_classes.items() if row["status"].startswith("ship"))
 
