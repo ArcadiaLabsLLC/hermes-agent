@@ -2084,18 +2084,9 @@ def check_compression_model_feasibility(agent: Any) -> None:
                 provider=_aux_provider, custom_providers=agent._custom_providers,
             )
         # Aux model must meet MINIMUM_CONTEXT_LENGTH like the main model, else it cannot summarise a full window.
-        from agent.agent_init import _managed_local_marker  # fork seam: the marker's one owner
-        _marker = _managed_local_marker()
-        managed_local_same_model = (
-            _marker is not None
-            and getattr(agent, "requested_provider", None) == _marker
-            and getattr(agent, "provider", None) == "custom"
-            and aux_model == agent.model
-            and aux_context == agent.context_compressor.context_length
-            and aux_context >= 4096
-            and _aux_inherits_main_route(agent, aux_model, aux_base_url)
-        )
-        if aux_context and aux_context < MINIMUM_CONTEXT_LENGTH and not managed_local_same_model:
+        from agent_runtime.managed_local_floor import allows_aux_floor  # fork seam: managed-local floor
+        if aux_context and aux_context < MINIMUM_CONTEXT_LENGTH and not allows_aux_floor(
+                agent, aux_model, aux_context, aux_base_url, _aux_inherits_main_route):
             raise ValueError(
                 f"Auxiliary compression model {aux_model} has a context "
                 f"window of {aux_context:,} tokens, which is below the "

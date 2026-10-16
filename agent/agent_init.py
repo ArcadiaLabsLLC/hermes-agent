@@ -12,6 +12,7 @@ from __future__ import annotations
 from agent_runtime.init_observability import (
     _tool_defs_cache_misses, _emit_tool_defs_receipt, init_timing_callback,
 )
+from agent_runtime.managed_local_floor import allows_main_context
 import logging
 import os
 import re
@@ -2049,16 +2050,6 @@ def _build_context_engine(agent, _agent_cfg, cs, _custom_providers, _effective_c
     agent.compression_idle_compact_after_seconds = cs.idle_compact_after_seconds
 
 
-def _managed_local_marker():
-    # Fork seam: the managed local llama turn marker, read from its one owner (the adapter). A
-    # wheel without the adapter (the bundled phone) has no managed local turn: None, never imported.
-    from agent_runtime.loop_tool_lifecycles import shipped
-    if not shipped("agent_runtime.local_llama_adapter"):
-        return None
-    import agent_runtime.local_llama_adapter as _lla
-    return _lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER
-
-
 def _enforce_minimum_context(agent):
     # Reject windows below the 64K floor needed for reliable tool-calling; an explicit
     # positive model.context_length on LM Studio is allowed below the floor.
@@ -2074,16 +2065,7 @@ def _enforce_minimum_context(agent):
         and not isinstance(agent._config_context_length, bool)
         and agent._config_context_length > 0
     )
-    _marker = _managed_local_marker()
-    _allow_managed_local_context = (
-        _marker is not None and agent.requested_provider == _marker and agent.provider == "custom"
-        and isinstance(agent._config_context_length, int)
-        and not isinstance(agent._config_context_length, bool)
-        and agent._config_context_length >= 4096 and _ctx == agent._config_context_length
-    )
-    if _ctx and _ctx < MINIMUM_CONTEXT_LENGTH and not (
-        _allow_lmstudio_explicit_below_floor or _allow_managed_local_context
-    ):
+    if _ctx and _ctx < MINIMUM_CONTEXT_LENGTH and not _allow_lmstudio_explicit_below_floor and not allows_main_context(agent, _ctx):
         floor_k = MINIMUM_CONTEXT_LENGTH // 1000
         if agent.base_url and is_local_endpoint(agent.base_url):
             # Any OpenAI-compatible local server (llama.cpp, vLLM, Ollama, ...) — the window is the

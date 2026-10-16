@@ -6,9 +6,8 @@ from agent_runtime.reasoning_capabilities import reasoning_capabilities
 from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_summary
 from agent_runtime.persona_chat_session import _chat_effective_model_payload
 from agent_runtime.state_patches.persona_instance import project_persona_instance_wire_fields
-from hermes_cli.models_reasoning_caps import (
-    cached_control_capabilities, record_control_catalog, _seed_reasoning_caps,
-)
+from agent_runtime.reasoning_control_catalog import cached_control_capabilities, record_control_catalog
+from hermes_cli.models_reasoning_caps import _seed_reasoning_caps
 from tests.agent_runtime.test_persona_set_model import _persona, _cfg, _two_instances
 
 
@@ -118,7 +117,7 @@ def test_session_override_and_inherited_model_use_the_existing_cascade():
 def test_provider_hook_inspection_never_starts_a_catalog_warmer(monkeypatch):
     import sys
     from providers import get_provider_profile
-    from agent.transports.codex import declared_reasoning_efforts
+    from agent_runtime.reasoning_capabilities import declared_reasoning_efforts
     profile = get_provider_profile("router")
     module = sys.modules[profile.__class__.__module__]
     attempted = []
@@ -131,7 +130,7 @@ def test_provider_hook_inspection_never_starts_a_catalog_warmer(monkeypatch):
 
 
 def test_explicit_endpoint_does_not_borrow_another_serving_catalog():
-    from agent.transports.codex import declared_reasoning_efforts
+    from agent_runtime.reasoning_capabilities import declared_reasoning_efforts
     record_control_catalog("openai-codex", [{
         "slug": "endpoint-model", "supported_reasoning_levels": ["low", "max"],
     }], base_url="https://serving-a.example/v1")
@@ -143,7 +142,7 @@ def test_explicit_endpoint_does_not_borrow_another_serving_catalog():
 def test_router_disk_cache_is_readable_and_inspection_does_not_warm(monkeypatch):
     import sys
     from providers import get_provider_profile
-    from agent.transports.codex import declared_reasoning_efforts
+    from agent_runtime.reasoning_capabilities import declared_reasoning_efforts
     module = sys.modules[get_provider_profile("router").__class__.__module__]
     monkeypatch.setattr(module, "_efforts_cache", None)
     monkeypatch.setattr(module, "_disk_checked", False)

@@ -27,6 +27,7 @@ __all__ = [
     "codex_bounded_prompt_cache_key",
     "codex_cache_scope_from_session_id",
     "codex_content_cache_key",
+    "codex_profile_declared_efforts",
     "compression_threshold_for_model",
     "cron_pools_present",
     "default_hermes_home",
@@ -47,6 +48,9 @@ __all__ = [
     "piper_engine_importable",
     "piper_voice_for_config",
     "profiles_root",
+    "reasoning_caps_disk_load",
+    "reasoning_caps_disk_save",
+    "reasoning_caps_disk_ttl",
     "sanitize_surrogates",
     "session_async_delivery_unset",
     "session_async_delivery_var",
@@ -450,3 +454,39 @@ def subagent_compute_supervisor():
     from tui_gateway import server
 
     return server._compute_host_supervisor
+
+
+# ── lane pb-r (footprint audit 2026-10-15, row R): the reasoning control catalog left the
+# upstream ``hermes_cli/models_reasoning_caps.py`` for ``agent_runtime/reasoning_control_catalog.py``
+# and shares upstream's disk cache; the Codex declared-effort read left
+# ``agent/transports/codex.py`` for ``agent_runtime/reasoning_capabilities.py``. Each name is a
+# held door row in ``upstream-footprint-ledger.md`` ("Stock files a fork module reads by
+# private name"); each is read at CALL time so a test stub on the upstream module still lands. ──
+
+
+def reasoning_caps_disk_load(key: str):
+    """``hermes_cli.models_reasoning_caps._load_reasoning_caps_disk`` — ``(caps | None, age_seconds)``."""
+    from hermes_cli import models_reasoning_caps
+
+    return models_reasoning_caps._load_reasoning_caps_disk(key)
+
+
+def reasoning_caps_disk_save(key: str, caps) -> None:
+    """``hermes_cli.models_reasoning_caps._save_reasoning_caps_disk`` — the atomic, home-guarded write."""
+    from hermes_cli import models_reasoning_caps
+
+    models_reasoning_caps._save_reasoning_caps_disk(key, caps)
+
+
+def reasoning_caps_disk_ttl() -> float:
+    """``hermes_cli.models_reasoning_caps._REASONING_CAPS_DISK_TTL_SECONDS``."""
+    from hermes_cli import models_reasoning_caps
+
+    return models_reasoning_caps._REASONING_CAPS_DISK_TTL_SECONDS
+
+
+def codex_profile_declared_efforts(provider, model, base_url=None, *, allow_warm: bool = True):
+    """``agent.transports.codex._profile_declared_efforts`` — endpoint-first profile declaration."""
+    from agent.transports.codex import _profile_declared_efforts
+
+    return _profile_declared_efforts(provider, model, base_url, allow_warm=allow_warm)
