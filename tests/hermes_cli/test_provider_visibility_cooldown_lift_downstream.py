@@ -58,3 +58,19 @@ def test_a_healthy_pool_is_never_probed(monkeypatch):
     pool = _Pool(credential_pool.STATUS_OK)
     assert _codex_health(monkeypatch, pool) == {"state": "healthy"}
     assert pool.lifts == 0
+
+
+def test_a_failed_lift_keeps_the_rows_and_logs_the_provider(monkeypatch, caplog):
+    import logging
+
+    pool = _Pool(credential_pool.STATUS_EXHAUSTED)
+
+    def _boom(*, model=None):
+        raise RuntimeError("quota probe failed")
+
+    pool.lift_reopened_cooldowns = _boom
+    with caplog.at_level(logging.WARNING, logger=provider_visibility.__name__):
+        health = _codex_health(monkeypatch, pool)
+    assert health != {"state": "healthy"}  # the cooldown stays as read
+    assert any("provider_cooldown_lift_failed provider=openai-codex error=RuntimeError" in r.getMessage()
+               for r in caplog.records)

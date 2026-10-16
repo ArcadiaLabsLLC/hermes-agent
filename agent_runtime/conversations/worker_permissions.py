@@ -8,9 +8,9 @@ permission_options_for_subject``, the operator lane's resolver) and, before
 catalog registered in the process it runs in, and binds it for the turn through the
 existing ``worker_app_functions.bind`` / ``reset`` seam.
 
-Owner ruling 2026-10-15: read-only unless allowed. A serve-admitted turn whose mode
-never arrived (or arrived for another execution) binds the ``read_only`` block and
-logs ``permission_bind_missing``; a turn with something to block refuses to run when
+Owner ruling 2026-10-15: read-only unless allowed. A turn the serve did not admit (no
+execution id) or whose mode never arrived (or arrived for another execution) binds the
+``read_only`` block and logs ``permission_bind_missing``; a turn with something to block refuses to run when
 the eternia-harness doors (the ``llm_request`` middleware and the ``pre_tool_call``
 hook) are not installed, rather than running unfiltered.
 """
@@ -98,15 +98,17 @@ def _doors_installed() -> bool:
     return bool(has_middleware("llm_request")) and bool(has_hook("pre_tool_call"))
 
 
-def turn_permission(session: dict) -> TurnPermission | None:
-    """This serve-admitted turn's mode; ``None`` for a turn the serve did not admit."""
+def turn_permission(session: dict) -> TurnPermission:
+    """This turn's mode. A turn the serve did not admit (no execution id) or whose mode
+    never arrived is ``read_only`` and logged — read-only unless allowed."""
 
     from agent_runtime.permission_modes import PERMISSION_MODE_READ_ONLY
 
     execution = (session or {}).get("native_execution") or {}
     execution_id = str(execution.get("id") or "").strip()
     if not execution_id:
-        return None
+        logger.warning("permission_bind_missing execution_id=- reason=not_admitted mode=%s", PERMISSION_MODE_READ_ONLY)
+        return TurnPermission("", PERMISSION_MODE_READ_ONLY, missing=True)
     mode = _take(execution_id)
     if mode is None:
         logger.warning("permission_bind_missing execution_id=%s mode=%s", execution_id, PERMISSION_MODE_READ_ONLY)
@@ -125,8 +127,6 @@ def bind(sid, session):
     if not enabled(session):
         return None  # a direct TUI session is never touched
     permission = turn_permission(session)
-    if permission is None:
-        return None
     block = extra_blocked_tools_for_permission_mode(permission.mode)
     if block and not _doors_installed():
         raise RuntimeError("tool-block doors are not installed")

@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import stat
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -183,3 +184,26 @@ def codex_auth_store_credentials_present() -> bool:
     # divergence.
     return False
 
+
+def codex_pool_row_refused(entry: dict[str, Any], rows: list[dict[str, Any]]) -> bool:
+    """Whether the pool's own selection would refuse ``entry`` right now.
+
+    ``_available_entries`` skips a DEAD row and an EXHAUSTED row until ``_exhausted_until``
+    (``last_error_reset_at`` or ``last_status_at`` + the status TTL). The fallback used to read only
+    ``last_error_reset_at``, so a row the pool had just declared exhausted without a reset stamp was
+    served anyway. Same rule, same sole-credential TTL, read from the persisted row.
+    """
+    from agent.credential_pool import STATUS_DEAD, PooledCredential
+    from hermes_cli.harness_parts._upstream_doors import exhausted_until
+    try:
+        credential = PooledCredential.from_dict("openai-codex", entry)
+    except Exception as exc:
+        # Served unrefused, as before — but said: an unreadable row is not a usable one by proof.
+        logger.warning("codex_pool_row_unparsable id=%s error=%s", entry.get("id") or "-", type(exc).__name__,
+                       exc_info=True)
+        return False
+    if credential.last_status == STATUS_DEAD:
+        return True
+    sole = sum(1 for row in rows if row.get("last_status") != STATUS_DEAD) <= 1
+    until = exhausted_until(credential, sole_credential=sole)
+    return until is not None and until > time.time()

@@ -10,7 +10,7 @@ scene, board, serve read model.
 
 Run ONLY while the serve is down (no concurrent writers). A full backup of the
 touched files already exists at
-  X:/Eternia/.hermes/agent-runtime/migration_backups/2026-08-29-codex-id-cleanup
+  <hermes root>/agent-runtime/migration_backups/2026-08-29-codex-id-cleanup
 
 Historical stores (events_archive, deleted_archive, prompt_observability*,
 persona_instances_archive, agent_create_reservations) are records of the past
@@ -23,7 +23,12 @@ import os
 import shutil
 from pathlib import Path
 
-root = Path(r"X:/Eternia/.hermes/agent-runtime")
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from hermes_constants import get_default_hermes_root
+
+root = Path(get_default_hermes_root()) / "agent-runtime"
 OLD_R, NEW_R = "realm_codex-test-realm_cad6d4", "realm_default"
 OLD_W, NEW_W = "ws_codex-test-workspace_28d285", "ws_default"
 

@@ -36,7 +36,7 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
                      lambda r: "Child public progress." in r["text"])
         assert len(tail["text"].encode()) <= 16384 and "PRIVATE_KICKOFF_CONTEXT" not in tail["text"]
         assert tail["subagent_id"] == child["subagent_id"]
-        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt"]
+        assert service.subagents(scope, sid, "capabilities", {})["operations"] == ["list", "tail", "steer", "stop", "receipt", "history", "result", "tree"]
         if mode != "isolated-compute":
             assert service.subagents(scope, sibling, "list", {})["children"] == []
         else:
@@ -60,7 +60,23 @@ def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
         with pytest.raises(SubagentError) as stale:
             service.subagents(scope, sid, "tail", guard)
         assert stale.value.reason == Refusal.STALE
+        history = until(lambda: service.subagents(scope, sid, "history", {}), lambda r: bool(r["results"]))
+        persisted = service.subagents(scope, sid, "result", {"expected_generation": history["generation"],
+            "history_ref": history["results"][0]["history_ref"]})["result"]
+        assert persisted["model"] == "test-model"
+        assert persisted["status"] in {"completed", "interrupted"}
+        # An unused native chat has no durable session yet; it cannot borrow
+        # this parent's results or create a worker merely to answer history.
+        with pytest.raises(SubagentError) as unused:
+            service.subagents(scope, sibling, "history", {})
+        assert unused.value.reason == Refusal.UNAVAILABLE
     finally:
         provider.release.set()
         service.close()
         provider.close()
+    reopened = ConversationService(tmp_path / "runtime", "proof-install", profile_home=lambda _: home,
+        worker_factory=lambda *args, **kwargs: pytest.fail("history recreated an execution worker"))
+    try:
+        assert reopened.subagents(scope, sid, "history", {})["results"]
+    finally:
+        reopened.close()

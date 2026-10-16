@@ -214,7 +214,8 @@ def _serve_session():
     from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
     class _Session(SettlePush):
-        pass
+        def _another_serve_owns_this_root(self) -> bool:
+            return False  # this fixture is the only serve over its store
 
     session = _Session()
     session.service = False
@@ -306,7 +307,8 @@ def _origin_session(monkeypatch, *, answerers: set[str], connections: list[_Conn
                         lambda owners: next((o for o in reversed(list(owners)) if o in answerers), None))
 
     class _Session(SettlePush, lanes.ArgvLanes):
-        pass
+        def _another_serve_owns_this_root(self) -> bool:
+            return False  # this fixture is the only serve over its store
 
     base = _serve_session()
     session = _Session()

@@ -43,6 +43,10 @@ lane fetches mid-run and the code-health ratchet reports false `FILE_LINES`/`BLE
 (up-sync-2, 2026-10-08). The shared uv cache locks under concurrent lanes (`os error 32`), hence the
 per-lane `UV_CACHE_DIR`; if `uvx ruff@0.15.10` still fails on it, use the test venv's `ruff`.
 
+**A sync lane runs `scripts/check --base <sha>` on EVERY branch it merges, not only the conflicted ones.**
+A clean merge is not a clean check: upstream's ruff selection moves (RUF022/RUF100/UP006/RUF013/PIE807/PLW1510 at the
+v0.21.7 sync), and four clean-merged branches carried reds only the check caught (up-sync-1015-c, follow-up up-check-1015).
+
 **The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
 conftest. Given `tests/agent_runtime tests/hermes_cli tests/hermes_state` it only searches those

@@ -6,6 +6,7 @@ every probe here is failure-isolated.
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from agent_runtime.cli_format import emit_json
@@ -33,6 +34,8 @@ __all__ = [
     "_record_visibility_block",
     "build_provider_visibility",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def _credential_health(entry) -> dict:
@@ -164,7 +167,7 @@ def _provider_visibility_catalog() -> list[dict]:
     ]
 
 
-def _lift_reopened_cooldowns(pool, entries: list) -> list:
+def _lift_reopened_cooldowns(pool, entries: list, provider: str = "") -> list:
     """Clear a cooldown that has elapsed or (Codex) reopened early before reporting it.
 
     Live 2026-10-15: Connections showed a ChatGPT/Codex credential "Temporarily
@@ -173,7 +176,8 @@ def _lift_reopened_cooldowns(pool, entries: list) -> list:
     ``_available_entries(clear_expired=True)``, with its throttled quota probe); this read
     never selected, so it reported a stale window for days. The same public lift
     ``select()`` performs (``CredentialPool.lift_reopened_cooldowns``), run only when an
-    entry is in cooldown; a failure keeps the rows as read.
+    entry is in cooldown; a failure keeps the rows as read and is logged with the provider
+    id (``provider_cooldown_lift_failed``) — this read may run a Codex quota probe.
     """
     from agent.credential_pool import STATUS_EXHAUSTED
 
@@ -182,7 +186,9 @@ def _lift_reopened_cooldowns(pool, entries: list) -> list:
     try:
         pool.lift_reopened_cooldowns()
         return pool.entries()
-    except Exception:
+    except Exception as exc:
+        logger.warning("provider_cooldown_lift_failed provider=%s error=%s", provider or "-", type(exc).__name__,
+                       exc_info=True)
         return entries
 
 
@@ -210,7 +216,7 @@ def build_provider_visibility() -> dict:
         entries = pool.entries()
         if not entries:
             continue
-        entries = _lift_reopened_cooldowns(pool, entries)
+        entries = _lift_reopened_cooldowns(pool, entries, provider)
         current = pool.peek()
         credentials = []
         for idx, entry in enumerate(entries, start=1):

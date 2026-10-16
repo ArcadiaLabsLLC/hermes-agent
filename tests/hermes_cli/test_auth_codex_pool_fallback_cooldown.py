@@ -5,7 +5,7 @@
 status TTL). The pool-only fallback used to read ``last_error_reset_at`` alone,
 so a row the pool had just declared exhausted without a reset stamp was served.
 
-Killing mutation: drop ``_codex_pool_row_refused`` from ``_pool_codex_credential``
+Killing mutation: drop ``codex_pool_row_refused`` (agent_runtime.auth_extensions) from ``_pool_codex_credential``
 -> ``test_a_row_exhausted_without_a_reset_stamp_is_not_served`` reds.
 """
 
@@ -58,3 +58,19 @@ def test_a_dead_row_is_not_served(tmp_path, monkeypatch):
     dead = {"last_status": "dead", "last_status_at": time.time(), "last_error_code": 401}
     rows = [_row("revoked", "tok-revoked", 0, **dead), _row("spare", "tok-spare", 1)]
     assert _resolve(tmp_path, monkeypatch, rows)["api_key"] == "tok-spare"
+
+
+def test_an_unparsable_pool_row_is_logged_not_silently_served(caplog, monkeypatch):
+    import logging
+
+    from agent import credential_pool
+    from agent_runtime import auth_extensions
+
+    def _unreadable(provider, payload):
+        raise ValueError("unreadable row")
+
+    monkeypatch.setattr(credential_pool.PooledCredential, "from_dict", staticmethod(_unreadable))
+    with caplog.at_level(logging.WARNING, logger=auth_extensions.__name__):
+        refused = auth_extensions.codex_pool_row_refused({"id": "row-x"}, [])
+    assert refused is False
+    assert any("codex_pool_row_unparsable id=row-x" in r.getMessage() for r in caplog.records)

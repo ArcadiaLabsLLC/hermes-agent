@@ -43,11 +43,15 @@ __all__ = [
 # ── credential health (`hermes auth list`'s own classification) ────────────
 
 
-def exhausted_until(entry: Any) -> Optional[float]:
-    """``agent.credential_pool._exhausted_until``: when an exhausted credential retries."""
+def exhausted_until(entry: Any, *, sole_credential: bool = False) -> Optional[float]:
+    """``agent.credential_pool._exhausted_until``: when an exhausted credential retries.
+
+    ``sole_credential`` is the pool's own sole-row TTL switch; ``agent_runtime.auth_extensions``
+    passes it so its Codex pool-row refusal reads the selection rule through this door too.
+    """
     from agent.credential_pool import _exhausted_until
 
-    return _exhausted_until(entry)
+    return _exhausted_until(entry, sole_credential=sole_credential)
 
 
 def classify_exhausted_status(entry: Any) -> tuple[str, bool]:

@@ -39,7 +39,20 @@ def _skipped_by_the_runner(list_path: Path) -> tuple[set[str], set[str]]:
     rows = plan.load_skip_list(list_path)
     files = bundled.rtp._discover_files([_REPO_ROOT / "tests"])
     sel = bundled.select_scope(files, _REPO_ROOT, bundled.load_manifest(MANIFEST), set(), skipped=rows)
-    return {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}, set(rows)
+    return {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}, {rel for rel, row in rows.items() if not row.node}
+
+
+def file_rows_naming_a_node(list_path: Path) -> list[str]:
+    """File rows whose ``why`` names one of that file's own tests: those are node rows."""
+
+    offenders = []
+    for rel, row in plan.load_skip_list(list_path).items():
+        if row.node:
+            continue
+        defined = set(re.findall(r"def (test_\w+)", (_REPO_ROOT / rel).read_text(encoding="utf-8")))
+        if defined & set(re.findall(r"\btest_\w+", row.why)):
+            offenders.append(rel)
+    return offenders
 
 
 def fork_files_skipped(list_path: Path) -> list[str]:
@@ -62,8 +75,12 @@ def test_the_runner_skips_every_listed_file_and_nothing_else():
 
 def test_every_row_is_an_existing_upstream_file_with_a_class_and_a_sha():
     inherited = bundled.load_manifest(MANIFEST)
-    for rel, row in plan.load_skip_list(SKIP_LIST).items():
+    for key, row in plan.load_skip_list(SKIP_LIST).items():
+        rel = row.file
         assert (_REPO_ROOT / rel).is_file(), f"{rel}: listed but not in the tree — drop the row"
+        if row.node:
+            name = row.node.rsplit("::", 1)[-1].split("[", 1)[0]
+            assert f"def {name}(" in (_REPO_ROOT / rel).read_text(encoding="utf-8"), f"{key}: no such test"
         assert rel in inherited, f"{rel}: not in the upstream manifest — a fork file is fixed, never listed"
         assert row.klass in plan.SKIP_CLASSES, f"{rel}: why must start with one of {plan.SKIP_CLASSES}: {row.why!r}"
         assert _SHA.match(row.sha), f"{rel}: the third field must be the upstream SHA it was recorded at: {row.sha!r}"
@@ -84,3 +101,33 @@ def test_a_fork_path_on_a_copy_of_the_list_is_refused(tmp_path):
         encoding="utf-8",
     )
     assert fork_files_skipped(planted) == ["tests/agent_runtime/test_config.py"]
+
+
+def test_a_file_row_never_names_one_of_its_tests():
+    offenders = file_rows_naming_a_node(SKIP_LIST)
+    assert not offenders, f"cut these to `path::node` rows — the file runs, the one node is deselected: {offenders}"
+
+
+def test_a_file_row_naming_a_node_on_a_copy_of_the_list_is_refused(tmp_path):
+    """The control: a planted file row whose why names one of its tests is caught."""
+
+    planted = tmp_path / "upstream_skip_list.txt"
+    planted.write_text(
+        SKIP_LIST.read_text(encoding="utf-8")
+        + "tests/agent/test_skill_commands.py · upstream: test_scan_never_publishes_a_partially_built_map flakes"
+        " · 71d34bad10\n",
+        encoding="utf-8",
+    )
+    assert file_rows_naming_a_node(planted) == ["tests/agent/test_skill_commands.py"]
+
+
+def test_a_node_row_runs_its_file_and_deselects_only_the_node():
+    rows = plan.load_skip_list(SKIP_LIST)
+    nodes = {key for key, row in rows.items() if row.node}
+    assert nodes, "the list carries at least one node row"
+    skipped, _listed = _skipped_by_the_runner(SKIP_LIST)
+    assert not {rows[key].file for key in nodes} & skipped, "a node row's file must still run"
+    args = plan.deselect_args(rows)
+    assert args[1::2] == sorted(nodes, key=list(rows).index) and set(args[0::2]) == {"--deselect"}
+    named = next(iter(nodes))
+    assert named not in plan.deselect_args(rows, named={rows[named].file}), "a named file runs whole (O1)"

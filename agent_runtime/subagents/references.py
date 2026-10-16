@@ -34,6 +34,10 @@ class References:
             raise SubagentError(Refusal.STALE)
         return actual
 
+    def historical(self, owner: tuple, kind: str, key: str, content: dict) -> str:
+        """Bind a stored observation, never an executable child reference."""
+        return self._sign((owner, kind, key, content))
+
     def _sign(self, values) -> str:
         payload = json.dumps(values, ensure_ascii=True, separators=(",", ":")).encode()
         return hmac.new(self._key, payload, hashlib.sha256).hexdigest()

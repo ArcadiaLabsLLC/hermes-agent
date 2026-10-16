@@ -341,3 +341,14 @@ def test_the_socket_owner_pushes_every_due_settle():
     push, pushed = _pusher(boot_id="boot-owner", non_owner=False)
     push()
     assert sorted(pushed) == ["rid-other", "rid-own"]
+
+
+def test_a_host_that_does_not_answer_the_owner_question_fails_loudly():
+    """L5.10: a SettlePush host with no owner answer must not fall back to pushing every record."""
+    from hermes_cli.harness_parts.serve.settle_push import SettlePush
+
+    class _Host(SettlePush):
+        boot_id = "boot-x"
+
+    with pytest.raises(NotImplementedError, match="_another_serve_owns_this_root"):
+        _Host()._push_due_settles()

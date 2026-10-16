@@ -41,6 +41,7 @@ def test_operator_children_remain_private_to_exact_conversation(placed_agent, tm
             assert "owned output" in tail["text"]
             capture = {"capabilities": inspect("subagents.capabilities", params)["result"],
                        "list": roster, "tail": tail}
+            assert {"history", "result", "tree"} <= set(capture["capabilities"]["operations"])
             (tmp_path / "subagent-read-capture.json").write_text(json.dumps(capture, indent=2), encoding="utf-8")
             for key, value in (("install_id", "other"), ("workspace_id", "other"),
                                ("persona_id", "other"), ("persona_instance_id", "other"),
@@ -59,9 +60,10 @@ def test_operator_children_remain_private_to_exact_conversation(placed_agent, tm
 def test_manifest_discovers_only_implemented_console_private_operations():
     manifest = serve_rpc.manifest()
     for family in ("runtime.conversation", "runtime.operator.conversation"):
-        for operation in ("capabilities", "list", "tail", "steer", "stop", "receipt"):
+        for operation in ("capabilities", "list", "tail", "steer", "stop", "receipt", "history", "result", "tree"):
             name = f"{family}.subagents.{operation}"
             assert name in manifest["methods"]
             assert manifest["tiers"][name] == "console"
             assert "expected_generation" in manifest["params"][name]
-        assert f"{family}.subagents.history" not in manifest["methods"]
+        for operation in ("result", "tree"):
+            assert "history_ref" in manifest["params"][f"{family}.subagents.{operation}"]
