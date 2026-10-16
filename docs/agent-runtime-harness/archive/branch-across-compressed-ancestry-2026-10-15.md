@@ -1,7 +1,16 @@
 # Branching a chat whose history was compressed (design, refreshed)
 
-Status: PLAN — written 2026-10-15; owner approval owed (one owner question,
-open since 2026-10-10). Row: runtime-queue, "Extend lossless prefix branching
+Status: BUILT 2026-10-16 (lane h1-lineage, branch `build/h1-lineage`; archived on
+build) — S1–S4 in one door commit ("feat(history controls): branch door copies the
+visible prefix across compressed ancestry"), S5 in the next ("feat(operator history):
+offer branch on compressed chats"); each commit records its killing mutation and red.
+Two notes from the build: (1) the door takes the chat ROOT, not the tip, so the
+child's `parent_session_id` equals its `_branched_from` marker — with the tip as
+parent the marker stops naming the parent and SessionDB no longer treats the child
+as an explicit fork; (2) the branch target check reuses the repaired-lineage view, so
+a target whose repaired view merges with an adjacent user row (user;user across the
+compression seam) refuses `target_requires_compaction_review`, as on one session.
+Written 2026-10-15; owner approved as recommended 2026-10-15. Row: runtime-queue, "Extend lossless prefix branching
 across native compressed ancestry". Refreshes
 `docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md` § D2.03,
 which was gated on PR #7 — that code is now on `main`.

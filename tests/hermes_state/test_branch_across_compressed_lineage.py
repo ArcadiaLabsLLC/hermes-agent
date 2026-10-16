@@ -1,6 +1,6 @@
 """``branch_before_message`` copies the whole visible prefix across native compressed ancestry.
 
-Plan: docs/agent-runtime-harness/planned/branch-across-compressed-ancestry-2026-10-15.md (S1-S4).
+Plan: docs/agent-runtime-harness/archive/branch-across-compressed-ancestry-2026-10-15.md (S1-S4).
 """
 from __future__ import annotations
 
