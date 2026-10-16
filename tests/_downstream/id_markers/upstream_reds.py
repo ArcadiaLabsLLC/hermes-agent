@@ -38,7 +38,7 @@ __layer__ = "models"
 #: (XFAIL) there, and the XPASS, platform-skipped and upstream-deleted rows were removed.
 #: The `_up_red_skip` rows (process-killers) and the install.ps1 suite row (it writes the
 #: user PATH unfenced, D3.15) were not run and carry no stamp.
-QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-10)"
+QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-15)"
 
 _up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
 

@@ -23,8 +23,6 @@ __layer__ = "models"
 _REASON = "red on pure upstream tag v0.21.6 818c13be1d on Windows (2026-10-10 release merge)"
 
 _NODES = (
-        'tests/agent/lsp/test_client_e2e.py::test_reader_failure_retires_client_and_rejects_later_work[clean_eof]',
-        'tests/agent/lsp/test_service.py::test_service_replaces_client_after_reader_failure[clean_eof]',
         'tests/agent/test_aux_progress_streaming.py::TestAggregateChatStream::test_silent_stream_fails_fast_through_the_real_transport[primary]',
         'tests/agent/test_aux_progress_streaming.py::TestAggregateChatStream::test_silent_stream_fails_fast_through_the_real_transport[recovery_rung]',
         'tests/agent/test_context_references.py::test_blocks_canonical_read_denylist_credential_stores',
@@ -130,8 +128,6 @@ _NODES = (
         'tests/hermes_cli/test_web_server_files.py::test_dangling_symlink_does_not_break_directory_listing',
         'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_clean_merged_tree_reaps',
         'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_patch_equivalent_commits_reap',
-        'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_unique_commits_without_a_remote_keep_tree_and_branch',
-        'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_unique_unpushed_commits_keep',
         'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_untracked_only_is_reap_archive',
         'tests/hermes_cli/test_worktree_gc.py::TestAuditVerdicts::test_without_a_remote_local_trunk_is_the_baseline',
         'tests/hermes_cli/test_worktree_gc.py::TestCmdWorktreeJson::test_prune_dry_run_json',
@@ -215,8 +211,6 @@ _NODES = (
         'tests/tools/test_mcp_tool_issue_948.py::test_bare_python3_keeps_the_managed_hit_when_the_user_has_none',
         'tests/tools/test_mcp_tool_issue_948.py::test_bare_python3_steps_past_the_managed_runtime_to_the_user_hit',
         'tests/tools/test_modal_sandbox_fixes.py::TestHostPrefixList::test_all_common_host_paths_flagged_unusable',
-        'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_keyless_disabled_falls_through_to_key_error',
-        'tests/tools/test_web_keyless_fallback.py::TestProviderRouting::test_tier_paid_forces_keyed_without_key',
         'tests/tui_gateway/test_bot_relay_methods.py::test_reported_turn_still_lingering_at_the_cap_is_booked_from_its_latest_report_not_killed',
         'tests/tui_gateway/test_desktop_session_workspace_persistence.py::test_desktop_inherited_cwd_persists_only_when_the_resolution_adopted_it',
         'tests/tui_gateway/test_display_methods.py::test_install_sudo_card_ignores_a_client_supplied_session_id',
