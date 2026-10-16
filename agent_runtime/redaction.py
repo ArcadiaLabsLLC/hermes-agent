@@ -454,3 +454,56 @@ def _decoded_json_container(text: str) -> dict | list | None:
     except ValueError:
         return None
     return decoded if isinstance(decoded, (dict, list)) else None
+
+
+def has_secret_value(text: str) -> bool:
+    """Does ``text`` carry a secret VALUE -- would :func:`scrub_secret_values`
+    change it? The one test a lane asks before refusing an opaque id or a label,
+    where a scrubbed copy would be a wrong id rather than a safe one."""
+
+    text = str(text)
+    return scrub_secret_values(text) != text
+
+
+# ── local paths (the "pathish" half of the old word lists) ────────────────────
+#
+# A path is not a secret, but an absolute one names the operator's machine
+# (``/home/<user>``, ``C:\Users\<user>``). The display lanes used to drop the
+# whole field when one appeared -- or when anything had a slash in it. One
+# policy instead: an absolute path is shortened to a root-relative label (or,
+# outside every root, to its last segment); a relative path is already a label.
+
+#: An absolute path token: a drive (``C:\``, ``C:/``), a UNC or ``//`` share, a
+#: home (``~/``), or a POSIX root with at least two segments (``/tmp`` and a
+#: ``/help`` command name in prose name no machine). The look-behind keeps a
+#: URL's ``//host/path`` and a relative ``a/b`` out.
+_LOCAL_PATH_RE = re.compile(
+    r"(?<![\w.:/\\~-])"
+    r"(?:[A-Za-z]:[\\/]|\\\\|//|~[\\/]|/(?=[^\s/\\]+/))"
+    r"[^\s'\"`<>|]*"
+)
+_PATH_TRAILING_PUNCTUATION = ".,;:)]}"
+
+
+def mask_local_paths(text: str, *, roots: tuple[str, ...] = ()) -> str:
+    """``text`` with every absolute path shortened: under one of ``roots`` it
+    becomes the path relative to that root, anywhere else ``…/<last segment>``.
+    Relative paths and everything else are kept. Idempotent."""
+
+    normalized_roots = tuple(
+        str(root).replace("\\", "/").rstrip("/").lower() + "/" for root in roots if str(root).strip()
+    )
+
+    def _label(match: re.Match[str]) -> str:
+        token = match.group(0)
+        trailing = len(token) - len(token.rstrip(_PATH_TRAILING_PUNCTUATION))
+        path, tail = (token[:-trailing], token[-trailing:]) if trailing else (token, "")
+        posix = path.replace("\\", "/")
+        for root in normalized_roots:
+            if posix.lower().startswith(root) and len(posix) > len(root):
+                return posix[len(root):] + tail
+        segments = [segment for segment in posix.split("/") if segment and not segment.endswith(":")]
+        name = segments[-1] if segments and segments[-1] != "~" else ""
+        return (f"…/{name}" if name else "…") + tail
+
+    return _LOCAL_PATH_RE.sub(_label, str(text))
