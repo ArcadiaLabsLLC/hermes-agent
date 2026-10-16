@@ -60,6 +60,14 @@ _CLIENT_MESSAGE_ID_FLAG = "--client-message-id"
 #: Threads the standing-stream lane may grow to. Streams are infinite, so this
 #: bounds how many may run at once; a closed connection's are reclaimed.
 STREAM_LANE_WORKERS = 32
+#: The typed refusal a 33rd standing stream gets (never a silent queue behind 32 infinite ones).
+STREAM_LANE_FULL = "stream_lane_full"
+
+
+class StreamLaneFull(RuntimeError):
+    """The standing-stream lane already runs :data:`STREAM_LANE_WORKERS` streams."""
+
+    code = STREAM_LANE_FULL
 
 
 class RequestPool:
@@ -72,6 +80,8 @@ class RequestPool:
         self.turns = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="harness-serve-turn")
         self.streams = ThreadPoolExecutor(
             max_workers=STREAM_LANE_WORKERS, thread_name_prefix="harness-serve-stream")
+        self._stream_lock = threading.Lock()
+        self._streams_running = 0
 
     def submit(self, fn: Callable[..., Any], *args: Any) -> Future:
         return self.shared.submit(fn, *args)
@@ -80,7 +90,31 @@ class RequestPool:
         return self.turns.submit(fn, *args)
 
     def submit_stream(self, fn: Callable[..., Any], *args: Any) -> Future:
-        return self.streams.submit(fn, *args)
+        """A standing stream, counted: past :data:`STREAM_LANE_WORKERS` it is REFUSED
+        (:class:`StreamLaneFull`), because a stream never returns and a queued one would
+        wait forever behind the 32 that hold the threads."""
+
+        with self._stream_lock:
+            if self._streams_running >= STREAM_LANE_WORKERS:
+                logger.warning("stream_lane_full running=%d ceiling=%d", self._streams_running, STREAM_LANE_WORKERS)
+                raise StreamLaneFull(f"{self._streams_running} standing streams already run")
+            self._streams_running += 1
+            running = self._streams_running
+        logger.info("stream_lane_occupancy running=%d ceiling=%d", running, STREAM_LANE_WORKERS)
+
+        def _counted() -> Any:
+            try:
+                return fn(*args)
+            finally:
+                with self._stream_lock:
+                    self._streams_running -= 1
+
+        try:
+            return self.streams.submit(_counted)
+        except BaseException:
+            with self._stream_lock:
+                self._streams_running -= 1
+            raise
 
     def shutdown(self, wait: bool = True) -> None:
         """Stop every lane taking work, then (``wait``) join them all."""
