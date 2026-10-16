@@ -444,8 +444,6 @@ if _WIN:
                 # qualified here); the test expects the unresolved str(Path("/approved/path")).
                 "tests/agent/test_tool_call_guardrail_runtime.py::"
                 "test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch",
-                "tests/tools/test_bot_mode_dm.py::"
-                "test_delivery_pins_the_hermes_entrypoint_beside_this_interpreter",
                 "tests/tools/test_bot_relay.py::"
                 "test_waiter_is_a_runner_entrypoint_the_approval_gate_lets_through",
                 "tests/tools/test_browser_pm.py::"
