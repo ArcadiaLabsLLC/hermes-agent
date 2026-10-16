@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import sqlite3
 from typing import Any, NamedTuple, Optional
 
 __layer__ = "policy"
@@ -94,7 +95,7 @@ def _installed_epoch(conn) -> Optional[str]:
         return None
     try:
         row = conn.execute(f"SELECT epoch FROM {EPOCH_TABLE} WHERE singleton = 0").fetchone()
-    except Exception:  # noqa: BLE001 — the epoch table is missing: not installed
+    except sqlite3.OperationalError:  # no such table: not installed
         return None
     return row[0] if row else None
 
