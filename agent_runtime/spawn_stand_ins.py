@@ -139,7 +139,8 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
             returns="[inline-shell error: no shell on the phone]"),
     *_stand("gateway.platforms.base", "transcode_to_ogg_opus", "_detect_macos_system_proxy", returns=None),
     StandIn("gateway.run", "_probe_audio_duration", returns=None),
-    StandIn("gateway.run_inbound", "GatewayInboundMixin._hm_run_exec_quick_command", answer=_quick_command_error),
+    StandIn("gateway.run_inbound_hooks", "GatewayInboundHooksMixin._hm_run_exec_quick_command",
+            answer=_quick_command_error),
     *_stand("gateway.run_shutdown", "GatewayShutdownMixin._spawn_windows_restart_watcher",
             "GatewayShutdownMixin._launch_detached_restart_command"),
     StandIn("gateway.slash_commands", "_spawn_detached_update"),
@@ -176,7 +177,7 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("hermes_constants_scratch", "release_git_worktrees", returns=None),
     StandIn("pm.extras", "_evaluate_in_runtime", returns=True),  # its own fallback: the resolver decides
     StandIn("pm.package", "Runner.run"),
-    *_stand("tools.bot_mode_dm", "_run_local_turn", "_run_delivery"),
+    StandIn("tools.bot_mode_dm", "_run_delivery"),
     StandIn("tools.checkpoint_manager", "_run_git",
             returns=(False, "", "git is not available on the phone: it cannot start a process")),
     StandIn("tools.checkpoint_manager", "_init_store",
