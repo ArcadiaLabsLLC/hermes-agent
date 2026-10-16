@@ -149,7 +149,9 @@ lifts 120 to 180 in the plan). Its failure output ends with the cap and, when it
 since the record, `failing set changed: +N −M` with the ids; a capped timeout prints
 `known-red timeout cap <N>s; run alone: scripts/run_tests.sh <file>`. A NEW red still runs bundle →
 re-run alone, and an isolation leak is still named. To see a known red at full time:
-`scripts/run_tests.sh <file>`.
+`scripts/run_tests.sh <file>`. A known red whose file and recorded dependencies (the green cache's key) are
+unchanged since its red is not run at all: it prints `known-red, skipped` and still counts red;
+`--rerun-known-reds` runs every one (row q-gate, 2026-10-16: 24 known reds were Σ 2,958 s).
 
 **Bare `pytest` over a directory is forbidden.** It runs the updater tests in-process, and those run
 `git branch -f main origin/main`: it detached 11 unpushed commits from the primary checkout on

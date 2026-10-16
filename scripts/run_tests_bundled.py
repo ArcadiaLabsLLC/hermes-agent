@@ -584,6 +584,7 @@ def _known_red_output(index: int, rel: str, tally: FileTally, bundle_output: str
 
 cache = _load_sibling("run_tests_bundled_cache")  # the green-result cache's store (fast-gate §1)
 _fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys of fixture modules
+_reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is unchanged are not re-run
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 
