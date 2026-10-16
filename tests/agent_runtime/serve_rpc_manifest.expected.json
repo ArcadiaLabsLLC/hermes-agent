@@ -44,11 +44,14 @@
     "runtime.conversation.skills.list",
     "runtime.conversation.stop",
     "runtime.conversation.subagents.capabilities",
+    "runtime.conversation.subagents.history",
     "runtime.conversation.subagents.list",
     "runtime.conversation.subagents.receipt",
+    "runtime.conversation.subagents.result",
     "runtime.conversation.subagents.steer",
     "runtime.conversation.subagents.stop",
     "runtime.conversation.subagents.tail",
+    "runtime.conversation.subagents.tree",
     "runtime.default_model.set",
     "runtime.discussion.capabilities",
     "runtime.discussion.preset.delete",
@@ -150,11 +153,14 @@
     "runtime.operator.conversation.status",
     "runtime.operator.conversation.stop",
     "runtime.operator.conversation.subagents.capabilities",
+    "runtime.operator.conversation.subagents.history",
     "runtime.operator.conversation.subagents.list",
     "runtime.operator.conversation.subagents.receipt",
+    "runtime.operator.conversation.subagents.result",
     "runtime.operator.conversation.subagents.steer",
     "runtime.operator.conversation.subagents.stop",
     "runtime.operator.conversation.subagents.tail",
+    "runtime.operator.conversation.subagents.tree",
     "runtime.operator.conversation.turn.changes",
     "runtime.operator.conversation.undo.apply",
     "runtime.operator.conversation.undo.preview",
@@ -348,6 +354,14 @@
       "expected_generation",
       "child_ref"
     ],
+    "runtime.conversation.subagents.history": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "expected_generation",
+      "child_ref"
+    ],
     "runtime.conversation.subagents.list": [
       "install_id",
       "session_id",
@@ -364,6 +378,15 @@
       "expected_generation",
       "child_ref",
       "request_id"
+    ],
+    "runtime.conversation.subagents.result": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "expected_generation",
+      "child_ref",
+      "history_ref"
     ],
     "runtime.conversation.subagents.steer": [
       "install_id",
@@ -392,8 +415,27 @@
       "expected_generation",
       "child_ref"
     ],
+    "runtime.conversation.subagents.tree": [
+      "install_id",
+      "session_id",
+      "client_scope",
+      "profile",
+      "expected_generation",
+      "child_ref",
+      "history_ref"
+    ],
     "runtime.health": [],
     "runtime.operator.conversation.subagents.capabilities": [
+      "install_id",
+      "workspace_id",
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "client_scope",
+      "expected_generation",
+      "child_ref"
+    ],
+    "runtime.operator.conversation.subagents.history": [
       "install_id",
       "workspace_id",
       "persona_id",
@@ -423,6 +465,17 @@
       "expected_generation",
       "child_ref",
       "request_id"
+    ],
+    "runtime.operator.conversation.subagents.result": [
+      "install_id",
+      "workspace_id",
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "client_scope",
+      "expected_generation",
+      "child_ref",
+      "history_ref"
     ],
     "runtime.operator.conversation.subagents.steer": [
       "install_id",
@@ -456,6 +509,17 @@
       "client_scope",
       "expected_generation",
       "child_ref"
+    ],
+    "runtime.operator.conversation.subagents.tree": [
+      "install_id",
+      "workspace_id",
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "client_scope",
+      "expected_generation",
+      "child_ref",
+      "history_ref"
     ],
     "runtime.persona.chat.delete": [
       "persona_id",
@@ -595,11 +659,14 @@
     "runtime.conversation.skills.list": "console",
     "runtime.conversation.stop": "console",
     "runtime.conversation.subagents.capabilities": "console",
+    "runtime.conversation.subagents.history": "console",
     "runtime.conversation.subagents.list": "console",
     "runtime.conversation.subagents.receipt": "console",
+    "runtime.conversation.subagents.result": "console",
     "runtime.conversation.subagents.steer": "console",
     "runtime.conversation.subagents.stop": "console",
     "runtime.conversation.subagents.tail": "console",
+    "runtime.conversation.subagents.tree": "console",
     "runtime.default_model.set": "console",
     "runtime.discussion.capabilities": "read",
     "runtime.discussion.preset.delete": "console",
@@ -701,11 +768,14 @@
     "runtime.operator.conversation.status": "console",
     "runtime.operator.conversation.stop": "console",
     "runtime.operator.conversation.subagents.capabilities": "console",
+    "runtime.operator.conversation.subagents.history": "console",
     "runtime.operator.conversation.subagents.list": "console",
     "runtime.operator.conversation.subagents.receipt": "console",
+    "runtime.operator.conversation.subagents.result": "console",
     "runtime.operator.conversation.subagents.steer": "console",
     "runtime.operator.conversation.subagents.stop": "console",
     "runtime.operator.conversation.subagents.tail": "console",
+    "runtime.operator.conversation.subagents.tree": "console",
     "runtime.operator.conversation.turn.changes": "console",
     "runtime.operator.conversation.undo.apply": "console",
     "runtime.operator.conversation.undo.preview": "console",

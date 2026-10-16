@@ -25,6 +25,13 @@ The approved compute-host observer changes its existing row from +46/-5 to +52/-
 all other feature paths are fork-owned. No new upstream-file row or ratchet
 increase is needed. Private callers have explicit replacement conditions there.
 
+**Subagent results/history, Step 5 (2026-10-15):** service no-borrow history,
+unchanged worker registration, operator RPC, native result-store reads, lineage,
+saved-tree containment and observation references each have a row in the
+[history seam register](../../downstream/agent-console-subagents-history-2026-10-15.md#per-seam-footprint-register).
+All additions are fork-owned; upstream file counts and private-import allowances
+are unchanged. No invented upstream-file row or ratchet increase is needed.
+
 | path | added | deleted | disposition | reason | stage |
 |---|---|---|---|---|---|
 | `.gitattributes` | 7 | 0 | carry-permanent | RULED 2026-09-24 (lane META): only the root `* text=auto eol=lf` rule is left (root-only, not movable). Upstream PR #78571 (open, third-party) adds the same root rule; ours (#123874) was closed as its duplicate 2026-09-27 and is not reopened (up-prs 2026-10-02). #78571 merging retires the row. The fixture `-text` pins moved to `tests/fixtures/{office_layout,response_envelopes,stream_frames}/.gitattributes`, the hook rule to `.githooks/.gitattributes` | - |

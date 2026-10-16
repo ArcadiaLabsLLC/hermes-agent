@@ -10,7 +10,7 @@ from pathlib import Path
 
 from agent_runtime import _upstream_doors as upstream
 from agent_runtime.redaction import scrub_secret_values
-from .model import VERSION, TAIL_BYTES, OPERATIONS, MUTATIONS, Refusal, SubagentError, validate_request
+from .model import VERSION, TAIL_BYTES, LIVE_OPERATIONS, MUTATIONS, Refusal, SubagentError, validate_request
 from .output import read_public_tail
 from .references import references
 
@@ -58,7 +58,7 @@ def revalidate_reply(operation, revalidate):
 
 
 def _child_capabilities(**_):
-    return {"operations": [op for op in OPERATIONS if op != "capabilities"], "tail_bytes": TAIL_BYTES}
+    return {"operations": [op for op in LIVE_OPERATIONS if op != "capabilities"], "tail_bytes": TAIL_BYTES}
 
 
 def _child_roster(*, owner, records, exact, controllable, **_):
