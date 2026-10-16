@@ -2362,8 +2362,8 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
         """Close a running process's stdin / send EOF without killing the process."""
         session = self.get(session_id)
         msg = "EOF sent" if session is not None and session._pty else "stdin closed"
-        return self._stdin_op(
-            session_id, lambda pty: pty.sendeof(), lambda stdin: stdin.close(), {"status": "ok", "message": msg})
+        eof = (lambda pty: pty.write("\x1a\r\n")) if _IS_WINDOWS else (lambda pty: pty.sendeof())  # ConPTY: Ctrl-Z+Enter
+        return self._stdin_op(session_id, eof, lambda stdin: stdin.close(), {"status": "ok", "message": msg})
 
     def count_running(self) -> int:
         """O(1) running count for status-bar polling; dict ``len()`` is atomic, no lock."""
