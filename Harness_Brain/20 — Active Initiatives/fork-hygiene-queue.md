@@ -33,7 +33,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-15 (audit lane a1015-hrt)
 
-- [ ] **The `scripts/run_tests.sh` footprint ledger row is stale and contradicts the tree** — `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` says 160 added / and "the shared-test-venv probe RETIRED"; the tree is 181/1 after `e90048a2f8f`, `4b34f8ca1b8` (re-adds a shared-test-venv fallback and a refusal), `b100650cac8` and `39dc323f491`, none of which rewrote the row. Re-measure with `upstream_footprint.py --add-row scripts/run_tests.sh`, and move the interpreter fallback/refusal blocks into the sourced `scripts/_fork_test_env.sh` door so the upstream hunk shrinks to the source line. **TAKEN 2026-10-15 w1015j-hermes**
 - [ ] **`39dc323f491` ("stop naming one machine's paths") missed two** — `scripts/migrate_codex_scope_ids.py` hard-codes its store root (`root = Path(r"X:/…/.hermes/agent-runtime")`, lines 13/26; resolve from `HERMES_HOME` or delete the one-shot migration as dead) and `pm/_fork_dependency_borrow.py`'s docstring example names the owner's data root. **TAKEN 2026-10-15 w1015j-hermes**
 
 ## Filed on arrival — 2026-10-15 (lane w1015h-rt-h)
