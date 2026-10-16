@@ -2,7 +2,24 @@
 
 from typing import Any
 
+from agent.api_error_summary import ApiErrorSummaryMixin
 from agent.error_classifier import ClassifiedError
+
+
+class _ProviderBody(Exception):
+    """A provider's raw error text with its status, for the shared one-line summariser."""
+
+    def __init__(self, text: str, status_code: int | None) -> None:
+        super().__init__(text)
+        self.status_code = status_code
+
+
+def _block_message(value: str, status_code: int | None) -> str:
+    """The block's ``message``: an HTML error page becomes the summary the serve logs
+    (``HTTP 404 — Not Found``); the page itself stays in the log, never on the wire."""
+    if "<!DOCTYPE" in value or "<html" in value:
+        return ApiErrorSummaryMixin._summarize_api_error(_ProviderBody(value, status_code))
+    return value
 
 
 def attach_provider_failure(
@@ -23,5 +40,5 @@ def attach_provider_failure(
     for key in ("reason", "message", "reset_at"):
         value = evidence.get(key)
         if isinstance(value, (str, int, float)) and not isinstance(value, bool):
-            block[key] = value
+            block[key] = _block_message(value, classified.status_code) if key == "message" and isinstance(value, str) else value
     result["provider_error"] = block

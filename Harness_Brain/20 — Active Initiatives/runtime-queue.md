@@ -59,7 +59,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015i-mc)
 
-- [ ] **The serve's chat_turn_provider_refused block carries the provider's raw response body as `message`** — a 404 web page reached the launcher as "<!DOCTYPE html>…"; send the typed summary the serve already logs (`summary=HTTP 404 — Not Found`) as `message` and keep the body in the log · launcher side fixed in `EterniaLauncher` 79bdf72fb1 · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-turnrec)**
 
 ### Filed on arrival — 2026-10-15 (orchestrator: QA bundle build under load)
 

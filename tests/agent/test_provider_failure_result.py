@@ -67,3 +67,16 @@ def test_recovered_error_never_labels_a_later_failure_or_turn(agent):
     result = agent.run_conversation("second turn")
     assert result["failure_reason"] == "interpreter_shutdown"
     assert "provider_error" not in result
+
+
+def test_an_html_error_page_reaches_the_block_as_its_typed_summary_not_the_body(agent):
+    # A proxy's 404 page reached the launcher as "<!DOCTYPE html>…" in the refusal block's
+    # `message`; the block carries the one-line summary the serve logs, the body stays in the log.
+    page = "<!DOCTYPE html><html><head><title>Not Found</title></head><body>" + "x" * 400 + "</body></html>"
+    error = Exception(page)
+    error.status_code = 404
+    agent.client.chat.completions.create.side_effect = error
+    result = agent.run_conversation("test")
+    block = result["provider_error"]
+    assert block["status_code"] == 404
+    assert block["message"] == "HTTP 404 — Not Found"
