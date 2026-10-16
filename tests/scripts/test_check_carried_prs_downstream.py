@@ -322,3 +322,40 @@ def test_fetch_commands_cover_origin_branches_and_refuse_unknown_refs():
         ['git', 'fetch', 'origin', '+refs/heads/fix/x:refs/remotes/origin/fix/x']]
     with pytest.raises(ValueError, match='no fetch source'):
         fetch_commands({'prs': {'7': {'head_ref': 'refs/carried-prs/8/head'}}})
+
+
+def _pr_adds_file(history):
+    """Advance the PR head with a file upstream lacks; the ledger does not list it."""
+    repo, _source, manifest = history
+    (repo / 'added.py').write_text('def switch():\n    return True\n')
+    git(repo, 'add', 'added.py')
+    git(repo, 'commit', '-m', 'PR adds a fork-owned file')
+    git(repo, 'branch', '-f', 'pr-head')
+    manifest['prs']['12']['reviewed_head'] = git(repo, 'rev-parse', 'HEAD')
+    manifest['prs']['12']['files']['added.py'] = {'mode': 'hunks'}
+    save(history)
+    return repo
+
+
+def test_pr_added_file_absent_from_upstream_is_checked_not_error(history):
+    _pr_adds_file(history)
+    code, output = run(history)
+    assert code == 0, output
+    assert any(line.startswith('OK PR #12 added.py (PR-added)') for line in output)
+    assert '1 ledger pairs + 1 PR-added; 2 checked' in output[-1]
+
+
+def test_pr_added_file_drift_is_reported(history):
+    repo = _pr_adds_file(history)
+    (repo / 'added.py').write_text('def switch():\n    return False\n')
+    code, output = run(history)
+    assert code == 1
+    assert any(line.startswith('DRIFT PR #12 added.py (PR-added)') for line in output)
+
+
+def test_unlisted_file_upstream_already_has_stays_an_error(history):
+    repo = _pr_adds_file(history)
+    git(repo, 'branch', '-f', 'upstream', 'HEAD')
+    code, output = run(history)
+    assert code == 2
+    assert any('added.py: manifest pair absent' in line for line in output)
