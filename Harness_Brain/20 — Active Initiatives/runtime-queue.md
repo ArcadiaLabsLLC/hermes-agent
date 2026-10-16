@@ -28,6 +28,14 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-16 (release merge v0.22.2, daily branch at upstream acc3cada0da)
+
+- [ ] **v0.22.2 puts `tools.connectors.gateway.wire` (pydantic) on the phone turn path: upstream's new `tools/connectors/gateway/files.py` imports it at module scope for two plain values (`CONNECTOR_FILE_MAX_BYTES`, `execute_error_family`) via `tool_search` → `connectors/search` → `bridge` → `files`; `test_embedded_phone_session.py[phone]` is red (merge-caused, the only one left at landing). Recommended: an upstream PR moving the two values out of `wire.py` (or importing lazily); a fork guard in `files.py` would raise the footprint to 223 and needs an owner ruling** · fork-owned (`agent_runtime/bundle_profiles/bundled-phone.yaml`) · rel-0222-reds report; `scripts/bundle_profile_closure.py --profile bundled-phone` tip vs `e829d753e12` · UNCLAIMED
+- [ ] **Daily branch at upstream acc3cada0da: the discussion checkpoint DDL runs before the `hosted_room_events` table exists (`test_discussion_rpc_refusals.py`, 6 errors)** · fork-owned · `integration/upstream-daily` 5d89b1c66c5 · next release merge
+- [ ] **Daily branch at upstream acc3cada0da: the fork reads `config.yaml` inside a safe-worker agent build (`agent/agent_init.py` seam; `test_safe_worker_policy[config]` red on the daily tip, green on upstream)** · seams · `integration/upstream-daily` 5d89b1c66c5 · next release merge
+- [ ] **Daily branch at upstream acc3cada0da: upstream tool changes move the harness_core ratchet again (≈7780 tokens, +1 tool on the hygiene/discord paths); re-measure at the next release merge** · fork-owned · `test_harness_core_ratchet` on 5d89b1c66c5 · next release merge
+
+
 
 ### Filed on arrival — 2026-10-15 (launcher lane w1015i-mc)
 
