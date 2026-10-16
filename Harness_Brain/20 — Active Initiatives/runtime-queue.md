@@ -496,6 +496,11 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Seams
 
+### Filed on arrival — 2026-10-15 (door PR lanes doors-a, doors-b)
+
+- [ ] **J2 hosted-room host limits needs a re-design against upstream acc3cada0da: upstream added attachments, a frozen `input_context` and `_bounded_task_delta` to `hosted_room_discussion.py`; the conclusion round and the wider turn-id coordinates must be redesigned, and the checkpoint budget needs a per-instance transcript bound (~230–270 lines, at the cap)** · seams · doors-b lane report 2026-10-15; sheet `upstream-doors-2026-10-06.md` on `h-doors-2` §J2 · design lane, then build on `fix/hosted-room-driver-settlement`
+- [ ] **Doors sheet §C part B (gh/Qwen `adopt_external_logins` bug fix) has no prepared branch; part A shipped as `feat/secret-file-store` (634f2ab083)** · seams · doors-a lane report 2026-10-15; sheet on `h-doors-2` §C · build a branch from upstream/main with a body in `pr-bodies`
+
 - [ ] **WEAKNESS: `_codex_pool_row_refused` is a 20-line fork helper living inside upstream `hermes_cli/auth_codex.py`, with a silent `except Exception: return False`** (`8059b23fa3c`, runtime R596) — a seam is one import and one call; move the helper to a fork-owned module (e.g. `agent_runtime/auth_extensions.py`), keep one call in the upstream loop, and log an unparsable pool row instead of serving it unrefused. **TAKEN 2026-10-15 w1015j-hermes**
 
 
