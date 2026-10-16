@@ -679,9 +679,9 @@ def normalize_skill_lookup_name(identifier: str) -> str:
     # resolving first would turn that trusted path into one skill_view rejects.
     for root in trusted_roots:
         if identifier_path.is_relative_to(root):
-            return str(identifier_path.relative_to(root))
+            return identifier_path.relative_to(root).as_posix()
     try:
-        return str(identifier_path.resolve().relative_to(primary_root.resolve()))
+        return identifier_path.resolve().relative_to(primary_root.resolve()).as_posix()
     except Exception:
         logger.debug("Skill identifier %r is an absolute path outside trusted skills "
                      "roots — passing through unchanged (skill_view will reject it)", raw_identifier)

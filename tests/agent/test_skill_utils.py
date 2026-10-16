@@ -251,6 +251,17 @@ class TestNormalizeSkillLookupName:
         monkeypatch.setattr("tools.skills_tool.SKILLS_DIR", skills_dir)
         assert normalize_skill_lookup_name(str(link)) == "my-skill"
 
+    def test_absolute_nested_path_is_a_posix_lookup_name(self, tmp_path, monkeypatch):
+        """Lookup names are ``/``-separated on every OS; ``str(relative_to(...))`` gave a
+        backslash-separated name on Windows."""
+        from agent.skill_utils import normalize_skill_lookup_name
+
+        skills_dir = tmp_path / "skills"
+        nested = skills_dir / "mlops" / "axolotl"
+        nested.mkdir(parents=True)
+        monkeypatch.setattr("tools.skills_tool.SKILLS_DIR", skills_dir)
+        assert normalize_skill_lookup_name(str(nested)) == "mlops/axolotl"
+
 
 
 # ── parse_frontmatter: UTF-8 BOM tolerance ─────────────────────────────────
