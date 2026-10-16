@@ -211,6 +211,53 @@ def test_an_interpreter_does_not_launder_an_argument_naming_the_store(argv):
     _assert_real_store_refusal(argv)
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock"],
+        ["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock", "--python",
+         "{root}/installs/abc/test-environment/gen-1/venv/Scripts/python.exe"],
+    ],
+    ids=["pm-uv-lock", "pm-uv-lock-with-gate-python"],
+)
+def test_a_pm_provisioned_tool_as_argv0_is_not_the_store(argv):
+    """Hosted Windows run 38426498916: 264 refusals of PM's own ``uv lock``.
+
+    Killing mutation: drop the ``_is_provisioned_tool`` term in ``classify`` ->
+    both ids red with "REAL store".
+    """
+    real_root = _gateway_fence.real_root()
+    if real_root is None:
+        pytest.skip("no default hermes root resolvable on this host")
+    root = str(real_root).replace("\\", "/")
+    assert _gateway_fence.classify([tok.replace("{root}", root) for tok in argv]) is None
+
+
+@pytest.mark.parametrize(
+    "argv, env_key",
+    [
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "sync", "--directory", "{root}/profiles/alice"], None),
+        (["bash", "-c", "{root}/tools/uv-0.12.3-win32-x64/uv.EXE lock"], None),
+        (["{root}/tools/uv-0.12.3-win32-x64/nested/uv.EXE", "lock"], None),
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "lock"], "UV_CACHE_DIR"),
+        (["{root}/tools/uv-0.12.3-win32-x64/uv.EXE", "sync"], "UV_PROJECT_ENVIRONMENT"),
+    ],
+    ids=["tool-plus-store-arg", "tool-not-argv0", "tool-not-directly-provisioned",
+         "uv-cache-on-store", "uv-project-env-on-store"],
+)
+def test_a_pm_tool_still_cannot_write_the_store(argv, env_key):
+    """The argv[0] exemption is the binary only: an argument, a wrapper, or a uv cache /
+    project venv on the store is still refused. Killing mutation: drop ``UV_CACHE_DIR`` and
+    ``UV_PROJECT_ENVIRONMENT`` from ``_STORE_ENV_KEYS`` -> the two env ids red."""
+    real_root = _gateway_fence.real_root()
+    if real_root is None:
+        pytest.skip("no default hermes root resolvable on this host")
+    root = str(real_root).replace("\\", "/")
+    env = {env_key: str(real_root / "cache" / "uv")} if env_key else None
+    reason = _gateway_fence.classify([tok.replace("{root}", root) for tok in argv], env)
+    assert reason is not None and "REAL store" in reason
+
+
 def _assert_real_store_refusal(argv):
     """ANTI-VACUITY for the row above, and the older regression it replaced.
 
