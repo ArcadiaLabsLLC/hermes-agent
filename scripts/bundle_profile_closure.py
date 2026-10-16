@@ -60,6 +60,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.bundles.closure_report import _mib, render_markdown
+
 NATIVE_SUFFIXES = (".pyd", ".so", ".dll", ".dylib")
 _SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__"}
 #: The repo's non-Python trees (the dashboard frontends, the website), skipped at the TOP LEVEL only:
@@ -242,8 +244,32 @@ def _literal_import_module(node: ast.AST) -> str | None:
     return None
 
 
-def _imports(path: Path, module: str, is_pkg: bool):
-    """Yield ``(dotted, eager, guarded, lineno)`` for every import in the file; eager = at module level."""
+#: Every file's imports, parsed once per process: ``(path, mtime_ns, size, module, is_pkg)`` -> rows.
+#: The packager plans the core and every engine pack in one process and walks the same files many
+#: times (the profile walk, the pinned modules' eager imports, the serve probe's table); each walk
+#: reads this instead of re-parsing. A rewritten file has a new key, so an edit between walks is seen.
+_IMPORTS_CACHE: dict[tuple, tuple] = {}
+#: ``parses``: the ``ast.parse`` calls :func:`_imports` made (the cache's misses); ``walks``: the
+#: :class:`Walk` objects built in this process. The packager's planning child reports both as its
+#: progress, and a test counts the walks: the core plus N engine packs is ONE walk, never N + 1.
+COUNTS = {"parses": 0, "walks": 0}
+
+
+def _imports(path: Path, module: str, is_pkg: bool) -> tuple:
+    """``(dotted, eager, guarded, lineno)`` for every import in the file; eager = at module level.
+
+    Parsed once per process per file version (:data:`_IMPORTS_CACHE`)."""
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size, module, is_pkg)
+    rows = _IMPORTS_CACHE.get(key)
+    if rows is None:
+        COUNTS["parses"] += 1
+        rows = _IMPORTS_CACHE[key] = tuple(_parse_imports(path, module, is_pkg))
+    return rows
+
+
+def _parse_imports(path: Path, module: str, is_pkg: bool):
+    """Yield :func:`_imports`'s rows from one parse of ``path``."""
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", SyntaxWarning)
@@ -304,6 +330,7 @@ class Walk:
         eager). Off by default — the desktop closure's recorded figures were taken without it; the
         packaging step (``scripts/bundle_profile_package.py``) and the profile gate walk with it,
         because what they ship is what the bundle imports."""
+        COUNTS["walks"] += 1
         self.kept: set[str] = set()
         self.tops: dict[str, list[str]] = {}
         self.pinned: set[str] = set()
@@ -726,6 +753,112 @@ def shipped_distributions(graph, classes: dict[str, dict], dynamic, declared_bas
                           *(set(dynamic) & set(declared_base))})
 
 
+class WalkFacts:
+    """A closure's first-party half: the profile's one walk, which depends on neither the extras
+    selected nor the site directories distribution metadata is read from. Built once per process;
+    every :class:`GraphFacts` and every selection of extras reads it."""
+
+    def __init__(self, manifest, *, parents: bool = False, index: dict[str, Path] | None = None):
+        self.manifest = manifest
+        self.result, self.index = profile_walk(manifest, index, parents=parents)
+        self.first_party = {m.split(".")[0] for m in self.index}
+        self.roots = (*manifest.packaging_roots, *plugin_roots(manifest))
+        self.pruned = manifest.switched_off_modules
+        self.pinned_tops = eager_tops(self.result.pinned, self.index, self.first_party)
+        self.tops = dict(self.result.tops)
+        for top in self.pinned_tops:
+            self.tops.setdefault(top, ["(pinned module)"])
+        self.placeholders = {_norm(d) for d in manifest.placeholder_distributions}
+        self.omitted = {_norm(r["distribution"]) for r in manifest.omitted_distributions}
+        self.dynamic = {_norm(d) for d in manifest.dynamic_distributions}
+        sites = omitted_import_sites(manifest, self.result)
+        self.unguarded_sites = {d: [s for s in ss if not s["guarded"]] for d, ss in sites.items()}
+        self.answered = stand_in_answered(manifest, self.unguarded_sites)
+
+
+class GraphFacts:
+    """A closure's distribution half for one marker environment, from the metadata visible on
+    ``sys.path`` when it is built (the packager's child points that at the pool or the bundle)."""
+
+    def __init__(self, walk: WalkFacts, env: dict):
+        self.walk, self.env = walk, env
+        self.graph = Graph(_lock(), without_dropped_extras(requested_extras(env=env), walk.manifest),
+                           walk.placeholders, env=env)
+        self.declared_base, self.declared_extras = declared(env=env)
+        self.base = self.graph.closure(self.declared_base - walk.omitted)
+        self.extras = {extra: self.graph.closure(dists) for extra, dists in self.declared_extras.items()}
+        self.direct: dict[str, list[str]] = {}
+        self.unresolved = {}
+        for top, via in walk.tops.items():
+            dist = self.graph.dist_for_top(top)
+            if dist is None:
+                self.unresolved[top] = via
+            else:
+                self.direct.setdefault(dist, via)
+        self.not_for_target = declared_anywhere() - self.declared_base - set().union(*self.declared_extras.values())
+        unguarded = {self.graph.dist_for_top(top) for top, sites in walk.result.import_sites.items()
+                     if any(not site["guarded"] for site in sites)}
+        unguarded |= {self.graph.dist_for_top(top) for top in walk.pinned_tops}
+        self.guarded_only = set(self.direct) - unguarded
+
+    def select(self, extra_extras=()) -> tuple[tuple[str, ...], dict[str, dict], set[str]]:
+        """-> (the extras shipped, the direct distributions' classes, every distribution that ships)."""
+        selected = (*self.walk.manifest.packaging_extras, *extra_extras)
+        classes = classify(self.direct, self.base, self.extras, selected, self.walk.omitted,
+                           self.not_for_target, self.guarded_only)
+        return selected, classes, shipped_distributions(self.graph, classes, self.walk.dynamic, self.declared_base)
+
+    def refusal_facts(self, selected, shipped: set[str]) -> dict:
+        """The result keys :func:`refusals` reads, for one selection."""
+        walk = self.walk
+        return {
+            "unknown_extras": sorted(set(selected) - set(self.declared_extras)),
+            "omitted_but_required": sorted(walk.omitted & shipped),
+            # A dynamic distribution declared for other targets only (tzdata off Windows) is skipped.
+            "dynamic_not_base": sorted(walk.dynamic - self.declared_base - self.not_for_target),
+            # A placeholder stands in for a REQUIREMENT only: kept code importing it, or base code
+            # (which may assume a base dependency), would get the placeholder.
+            "placeholder_imported": sorted(walk.placeholders & set(self.direct)),
+            "placeholder_is_base": sorted(walk.placeholders & self.declared_base),
+            "omitted_unguarded_import_sites": {d: [s for s in ss if s.get("dotted") not in walk.answered.get(d, ())]
+                                               for d, ss in walk.unguarded_sites.items()},
+            "dropped_extra_failures": dropped_extra_failures(walk.manifest, self.graph, shipped),
+        }
+
+    def plan(self, extra_extras=()) -> dict:
+        """``{needed: [distribution…], refusals: [line…]}``: what the packager ships for one selection."""
+        selected, _classes, shipped = self.select(extra_extras)
+        return {"needed": sorted(shipped), "refusals": refusals(self.refusal_facts(selected, shipped))}
+
+
+def plan_jobs(manifest, jobs, env: dict, *, root: Path = ROOT, base_path: list[str] | None = None,
+              index: dict[str, Path] | None = None, progress=None) -> list[dict[str, dict]]:
+    """The packager's planning (``scripts/bundle_profile_package.distribution_plans``), in process.
+
+    ``jobs``: ``[{"sites": [dir…], "selections": {key: [extra…]}}]``. ONE walk of ``manifest``
+    (:class:`WalkFacts`); then per job the distribution metadata of its ``sites`` alone — they lead
+    ``sys.path`` (before ``root`` and ``base_path``) while its :class:`GraphFacts` is read — and
+    :meth:`GraphFacts.plan` for each selection. ``progress(step)`` is told each step.
+    """
+    tell = progress or (lambda _step: None)
+    walk = WalkFacts(manifest, parents=True, index=index)
+    base = list(sys.path) if base_path is None else list(base_path)
+    saved, out = list(sys.path), []
+    try:
+        for number, job in enumerate(jobs):
+            sys.path[:] = [*job["sites"], str(root), *base]
+            tell(f"graph {number}")
+            facts = GraphFacts(walk, env)
+            plans = {}
+            for key, extras in job["selections"].items():
+                tell(f"select {number} {key or 'core'}")
+                plans[key] = facts.plan(tuple(extras))
+            out.append(plans)
+    finally:
+        sys.path[:] = saved
+    return out
+
+
 def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | None = None,
             parents: bool = False) -> dict:
     """``extra_extras``: extras shipped on top of ``packaging.extras`` (an engine pack's).
@@ -733,51 +866,29 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
     ``target``: a :data:`TARGETS` key; markers are evaluated for it (default: the desktop
     installer's :data:`TARGET_ENV`). ``parents``: the walk also enters every kept module's
     enclosing packages (their ``__init__`` runs on import) — see :class:`Walk`.
+
+    The full report. The packager reads :meth:`GraphFacts.plan` instead: the same walk and the
+    same selection, without the excludable walk, the boot probe and the size facts.
     """
     from agent_runtime.bundle_profiles.manifest import load_profile
 
     env = TARGETS[target] if target is not None else TARGET_ENV
     manifest = load_profile(profile, validate=False)
-    selected = (*manifest.packaging_extras, *extra_extras)
-    result, index = profile_walk(manifest, parents=parents)
-    first_party = {m.split(".")[0] for m in index}
-    roots, pruned = (*manifest.packaging_roots, *plugin_roots(manifest)), manifest.switched_off_modules
-    tops = dict(result.tops)
-    for top in eager_tops(result.pinned, index, first_party):
-        tops.setdefault(top, ["(pinned module)"])
-
-    placeholders = {_norm(d) for d in manifest.placeholder_distributions}
-    graph = Graph(_lock(), without_dropped_extras(requested_extras(env=env), manifest), placeholders, env=env)
-    declared_base, declared_extras = declared(env=env)
-    omitted = {_norm(r["distribution"]) for r in manifest.omitted_distributions}
-    base = graph.closure(declared_base - omitted)
-    extras = {extra: graph.closure(dists) for extra, dists in declared_extras.items()}
-    direct: dict[str, list[str]] = {}
-    unresolved = {}
-    for top, via in tops.items():
-        dist = graph.dist_for_top(top)
-        if dist is None:
-            unresolved[top] = via
-        else:
-            direct.setdefault(dist, via)
-    not_for_target = declared_anywhere() - declared_base - set().union(*declared_extras.values())
-    unguarded = {graph.dist_for_top(top) for top, sites in result.import_sites.items()
-                 if any(not site["guarded"] for site in sites)}
-    unguarded |= {graph.dist_for_top(top) for top in eager_tops(result.pinned, index, first_party)}
-    guarded_only = set(direct) - unguarded
-    classes = classify(direct, base, extras, selected, omitted, not_for_target, guarded_only)
-    dynamic = {_norm(d) for d in manifest.dynamic_distributions}
-    shipped = shipped_distributions(graph, classes, dynamic, declared_base)
+    walk = WalkFacts(manifest, parents=parents)
+    facts = GraphFacts(walk, env)
+    graph, result, index = facts.graph, walk.result, walk.index
+    selected, classes, shipped = facts.select(extra_extras)
+    dynamic = walk.dynamic
 
     # Excludable: what the switched-off modules alone would add.
-    everything = Walk(tuple(roots) + tuple(pruned), (), index, first_party)
+    everything = Walk(tuple(walk.roots) + tuple(walk.pruned), (), index, walk.first_party)
     all_direct = {d for d in (graph.dist_for_top(t) for t in everything.tops) if d}
-    all_classes = classify({d: [] for d in all_direct}, base, extras, selected, omitted)
+    all_classes = classify({d: [] for d in all_direct}, facts.base, facts.extras, selected, walk.omitted)
     reachable = graph.closure(d for d, row in all_classes.items() if row["status"].startswith("ship"))
 
     booted: set[str] = set()
     if boot:
-        booted = graph.closure({d for d in (graph.dist_for_top(t) for t in boot_tops(manifest.packaging_roots, first_party)) if d})
+        booted = graph.closure({d for d in (graph.dist_for_top(t) for t in boot_tops(manifest.packaging_roots, walk.first_party)) if d})
 
     rows = [{**graph.facts(n), "loaded_at_boot": n in booted,
              "direct": classes.get(n, {}).get("status", "dynamic" if n in dynamic else "requirement"),
@@ -789,29 +900,23 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
     omitted_rows = [{**graph.facts(_norm(r["distribution"])), "degrades": r.get("degrades", "")}
                     for r in manifest.omitted_distributions]
     excl = [graph.facts(n) for n in sorted(reachable - shipped)]
-    sites = omitted_import_sites(manifest, result)
-    unguarded_sites = {d: [s for s in ss if not s["guarded"]] for d, ss in sites.items()}
-    answered = stand_in_answered(manifest, unguarded_sites)
+    refused = facts.refusal_facts(selected, shipped)
     return {
         "profile": manifest.profile, "interpreter": sys.version.split()[0], "venv": sys.prefix,
         "target": env, "extras_shipped": list(selected),
-        "unknown_extras": sorted(set(selected) - set(declared_extras)),
+        "unknown_extras": refused["unknown_extras"],
         "first_party_modules_kept": len(result.kept),
         "pinned_switched_off_modules": sorted(result.pinned),
         "unguarded_switched_off_imports": sorted(result.unguarded_into_pruned,
                                                  key=lambda r: (r["target"], r["module"], r["line"])),
         "needed": rows, "optional_not_shipped": optional, "omitted": omitted_rows,
-        "omitted_but_required": sorted(omitted & shipped),
-        # A dynamic distribution declared for other targets only (tzdata off Windows) is skipped.
-        "dynamic_not_base": sorted(dynamic - declared_base - not_for_target),
-        # A placeholder stands in for a REQUIREMENT only: kept code importing it, or base code
-        # (which may assume a base dependency), would get the placeholder.
-        "placeholder_imported": sorted(placeholders & set(direct)),
-        "placeholder_is_base": sorted(placeholders & declared_base),
-        "omitted_unguarded_import_sites": {d: [s for s in ss if s.get("dotted") not in answered.get(d, ())]
-                                           for d, ss in unguarded_sites.items()},
-        "stand_in_answered": answered,
-        "dropped_extra_failures": dropped_extra_failures(manifest, graph, shipped),
+        "omitted_but_required": refused["omitted_but_required"],
+        "dynamic_not_base": refused["dynamic_not_base"],
+        "placeholder_imported": refused["placeholder_imported"],
+        "placeholder_is_base": refused["placeholder_is_base"],
+        "omitted_unguarded_import_sites": refused["omitted_unguarded_import_sites"],
+        "stand_in_answered": walk.answered,
+        "dropped_extra_failures": refused["dropped_extra_failures"],
         "excludable": excl,
         "needed_measured_bytes": sum(r.get("size_bytes", 0) for r in rows),
         "needed_estimated_bytes": sum(r.get("wheel_bytes_estimate") or 0 for r in rows if not r["installed"]),
@@ -819,7 +924,7 @@ def closure(profile: str, *, boot: bool = True, extra_extras=(), target: str | N
         "needed_wheel_bytes": sum(_wheel_size(graph.lock.get(r["name"], {})) or 0 for r in rows),
         "needed_without_wheel": sorted(r["name"] for r in rows if not _wheel_size(graph.lock.get(r["name"], {}))),
         "excludable_total_bytes": sum(r.get("size_bytes", 0) for r in excl),
-        "unresolved_import_names": unresolved,
+        "unresolved_import_names": facts.unresolved,
         "reached_via": {d: row["via"] for d, row in sorted(classes.items())},
         "loaded_at_boot_not_in_static": sorted(booted - shipped),
     }
@@ -838,64 +943,6 @@ def refusals(result: dict) -> list[str]:
     out += [f"placeholder distribution {d} is a base dependency" for d in result.get("placeholder_is_base", [])]
     out += [f"dropped extra {reason}" for reason in result.get("dropped_extra_failures", [])]
     return out
-
-
-# -- rendering ------------------------------------------------------------------------------------------
-
-
-def _mib(n) -> str:
-    return f"{(n or 0) / 2**20:.2f}"
-
-
-def _version(row) -> str:
-    lock, inst = row.get("lock_version"), row.get("installed_version")
-    if lock and inst and lock != inst:
-        return f"{lock} (venv {inst})"
-    return lock or (f"— (venv {inst})" if inst else "—")
-
-
-def render_markdown(result: dict) -> str:
-    rows = result["needed"]
-    measured = [r for r in rows if r["installed"]]
-    estimated = [r for r in rows if not r["installed"]]
-    boot = [r for r in measured if r["loaded_at_boot"]]
-    optional_bytes = sum((r.get("size_bytes") if r["installed"] else r.get("wheel_bytes_estimate")) or 0
-                         for r in result["optional_not_shipped"])
-    out = ["| | distributions | size |", "|---|---:|---:|",
-           f"| Shipped, installed (measured) | {len(measured)} | **{_mib(result['needed_measured_bytes'])} MiB** |",
-           f"| — of which loaded at boot | {len(boot)} | {_mib(sum(r['size_bytes'] for r in boot))} MiB |",
-           f"| Shipped, not installed locally (uv.lock wheel bytes, **estimate**) | {len(estimated)} | "
-           f"~{_mib(result['needed_estimated_bytes'])} MiB |",
-           f"| **All shipped, as uv.lock wheels (compressed — the installer-ceiling view)** | {len(rows)} | "
-           f"**~{_mib(result['needed_wheel_bytes'])} MiB** |",
-           f"| Optional extras reached but not shipped | {len(result['optional_not_shipped'])} | "
-           f"{_mib(optional_bytes)} MiB (direct only) |",
-           f"| Omitted base distributions | {len(result['omitted'])} | "
-           f"{_mib(sum(r.get('size_bytes', 0) for r in result['omitted']))} MiB |",
-           f"| Excludable (reached only by switched-off features) | {len(result['excludable'])} | "
-           f"{_mib(result['excludable_total_bytes'])} MiB |", ""]
-    out += ["### Shipped, installed (measured)", "",
-            "| distribution | version | declared | pure/native | MiB | loaded at boot |", "|---|---|---|---|---:|---|"]
-    for r in measured:
-        out.append(f"| {r['name']} | {_version(r)} | {r['declared']} | {'native' if r['native'] else 'pure'} | "
-                   f"{_mib(r['size_bytes'])} | {'yes' if r['loaded_at_boot'] else 'no'} |")
-    out += ["", "### Shipped, not installed locally (estimate: uv.lock wheel bytes)", "",
-            "| distribution | version | MiB (wheel) |", "|---|---|---:|"]
-    for r in sorted(estimated, key=lambda r: -(r.get("wheel_bytes_estimate") or 0)):
-        out.append(f"| {r['name']} | {_version(r)} | {_mib(r.get('wheel_bytes_estimate'))} |")
-    out += ["", "### Optional extras reached but not shipped", "",
-            "| distribution | extras | MiB (installed, else wheel) | first reached via |", "|---|---|---:|---|"]
-    for r in result["optional_not_shipped"]:
-        size = r.get("size_bytes") if r["installed"] else r.get("wheel_bytes_estimate")
-        homes = ", ".join(r["extras"][:4]) + (", …" if len(r["extras"]) > 4 else "")
-        out.append(f"| {r['name']} | {homes} | {_mib(size)} | `{' → '.join(r['via'])}` |")
-    out += ["", "### Omitted base distributions", "", "| distribution | MiB | what degrades |", "|---|---:|---|"]
-    for r in result["omitted"]:
-        out.append(f"| {r['name']} | {_mib(r.get('size_bytes'))} | {r['degrades']} |")
-    out += ["", "### Excludable", "", "| distribution | version | MiB |", "|---|---|---:|"]
-    for r in result["excludable"]:
-        out.append(f"| {r['name']} | {_version(r)} | {_mib(r.get('size_bytes'))} |")
-    return "\n".join(out) + "\n"
 
 
 def main(argv=None) -> int:

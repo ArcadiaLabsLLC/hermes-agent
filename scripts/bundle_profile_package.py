@@ -31,7 +31,9 @@ Phases:
    (roots, switched-off modules, pinned modules) plus the pinned modules' own
    module-level first-party imports; every third-party import is resolved to
    the distribution that owns that module path in the pool, and requirements
-   are followed with the TARGET's markers.
+   are followed with the TARGET's markers. The core and EVERY engine pack are planned by one
+   child interpreter over one walk (:func:`distribution_plans`); a pack is what its selection
+   ships and the core's does not.
 3. **Copy** — tracked first-party files only (``git ls-files``); each needed
    distribution's RECORD files minus ``__pycache__``, test directories and the
    manifest's ``packaging.excluded_data``.
@@ -62,8 +64,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import warnings
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -74,6 +79,8 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, licence_problems, write_licence_records  # noqa: E402
 from scripts.bundle_profile_closure import _imports, _norm, _owner, module_index, profile_walk  # noqa: E402
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR, sibling_modules  # noqa: E402
+from scripts.bundles.serve_probe import (
+    named_timezone_problems, serve_import_problems, serve_import_table)
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
 
 #: pm/lock.json target name -> (uv --python-platform, PEP 508 marker environment)
@@ -117,6 +124,23 @@ ENGINE_PACKS_PTH_LINE = (
 #: Files the packaging step itself writes into a site-packages (owned by no distribution).
 PACKAGER_FILES = {ENGINE_PACKS_PTH}
 PACK_MANIFEST = "engine-pack.json"
+
+
+#: ``(phase, seconds)`` in run order: every build prints one ``phase <name>: <s>s`` line per phase and
+#: a closing ``phase total`` line, so a build log (the launcher's QA bundle log) shows where time went.
+PHASE_TIMES: list[tuple[str, float]] = []
+
+
+@contextmanager
+def phase(name: str):
+    """Time one build phase and print it the moment it ends (flushed: the log is read live)."""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        seconds = time.perf_counter() - start
+        PHASE_TIMES.append((name, seconds))
+        print(f"phase {name}: {seconds:.1f}s", flush=True)
 
 
 def marker_env(target: str, python_version: str) -> dict[str, str]:
@@ -317,43 +341,141 @@ def split_forced_tree(rels: list[str], sibling: set[str], index: dict[str, Path]
     return app, tree
 
 
+#: The selection key of the core bundle itself (its own extras, no engine pack).
+CORE = ""
+#: The planning child reports progress (its step and its parse count) every
+#: :data:`PROGRESS_INTERVAL_SECONDS`; it is stopped when that report has not changed for
+#: :data:`PLAN_STALL_SECONDS`, or when it has run :data:`PLAN_TIMEOUT_SECONDS` in all. Both stops
+#: are RETRYABLE (exit :data:`EXIT_RETRYABLE`): a slow child on a busy machine still parses, so it
+#: is never stopped for being slow, only for standing still. Sized from the 2026-10-16
+#: measurement in ``docs/agent-runtime-harness/04-boot-and-lifecycle.md`` (the bundled-desktop build).
+PROGRESS_INTERVAL_SECONDS = 5
+PLAN_STALL_SECONDS = 300
+PLAN_TIMEOUT_SECONDS = 1800
+#: ``EX_TEMPFAIL``: the build did not fail on its inputs; the same inputs may pass on a quieter box.
+EXIT_RETRYABLE = 75
+
+
+class PlanStalled(RuntimeError):
+    """The planning child stood still (or ran past its cap): retryable, never a verdict on the inputs."""
+
+
 _DISTRIBUTION_DRIVER = r"""
-import json, sys
-root, sites, profile, env, extra = sys.argv[1:6]
-sys.path[:0] = [*json.loads(sites), root]
+import json, sys, threading, time
+root, jobs, profile, env, interval = (sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], json.loads(sys.argv[4]),
+                                      float(sys.argv[5]))
+base_path = list(sys.path)
+sys.path[:0] = [*jobs[0]["sites"], root]
 import scripts.bundle_profile_closure as closure_script
+from agent_runtime.bundle_profiles.manifest import load_profile
 closure_script.TARGET_ENV.clear()
-closure_script.TARGET_ENV.update(json.loads(env))
-result = closure_script.closure(profile, boot=False, extra_extras=tuple(json.loads(extra)), parents=True)
-print(json.dumps({"needed": [r["name"] for r in result["needed"]],
-                  "refusals": closure_script.refusals(result)}))
+closure_script.TARGET_ENV.update(env)
+step = ["walk"]
+def beat():
+    while True:
+        print(f"progress {step[0]} parses={closure_script.COUNTS['parses']}", file=sys.stderr, flush=True)
+        time.sleep(interval)
+threading.Thread(target=beat, daemon=True).start()
+out = closure_script.plan_jobs(load_profile(profile, validate=False), jobs, closure_script.TARGET_ENV, root=root,
+                               base_path=base_path, progress=lambda name: step.__setitem__(0, name))
+print(json.dumps({"jobs": out, "counts": closure_script.COUNTS}))
 """
+
+
+def _run_planner(cmd: list[str], stall: float, cap: float) -> str:
+    """Run the planning child; stdout on success. :class:`PlanStalled` when its progress report
+    stops changing for ``stall`` seconds or it runs ``cap`` seconds; CalledProcessError on a crash."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            stdin=subprocess.DEVNULL)
+    seen = {"token": None, "at": time.monotonic()}
+    tail: deque[str] = deque(maxlen=40)
+    out: list[str] = []
+
+    def read_err() -> None:
+        for line in proc.stderr:
+            line = line.rstrip("\n")
+            if line.startswith("progress "):
+                if line != seen["token"]:
+                    seen["token"], seen["at"] = line, time.monotonic()
+            else:
+                tail.append(line)
+
+    readers = [threading.Thread(target=read_err, daemon=True),
+               threading.Thread(target=lambda: out.append(proc.stdout.read()), daemon=True)]
+    for reader in readers:
+        reader.start()
+    started = time.monotonic()
+    while proc.poll() is None:
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        now = time.monotonic()
+        why = (f"no progress for {stall:.0f}s (last: {seen['token']})" if now - seen["at"] > stall else
+               f"ran past its {cap:.0f}s cap (last: {seen['token']})" if now - started > cap else None)
+        if why and proc.poll() is None:
+            proc.kill()
+            proc.wait()
+            raise PlanStalled(f"closure planning child {why}")
+    for reader in readers:
+        reader.join()
+    stdout = "".join(out)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, "\n".join(tail))
+    return stdout
+
+
+def distribution_plans(profile: str, jobs, target: str, python_version: str, *,
+                       stall: float = PLAN_STALL_SECONDS, cap: float = PLAN_TIMEOUT_SECONDS
+                       ) -> list[dict[str, tuple[set[str], list[str]]]]:
+    """``jobs``: ``[(sites, {key: extras})]`` -> per job ``{key: (the distributions it ships, refusals)}``.
+
+    The closure script is the one authority for what ships (its declaration-
+    aware model: base dependencies, the manifest's extras — plus a selection's
+    extras for an engine pack — and omissions). ONE child interpreter answers
+    every job: one walk of the profile (each file parsed once), then per job the
+    distribution metadata of ITS ``sites`` alone (``-I -S``: the pool's or the
+    bundle's own), with the target environment set to ``target``, writing no
+    bytecode into them (``-B``).
+    """
+    payload = [{"sites": [str(site) for site in sites], "selections": {k: list(v) for k, v in selections.items()}}
+               for sites, selections in jobs]
+    cmd = [sys.executable, "-I", "-S", "-B", "-c", _DISTRIBUTION_DRIVER, str(ROOT), json.dumps(payload), profile,
+           json.dumps(marker_env(target, python_version)), str(PROGRESS_INTERVAL_SECONDS)]
+    out = json.loads(_run_planner(cmd, stall, cap).strip().splitlines()[-1])
+    counts = out["counts"]
+    print(f"closure plan: {len(jobs)} site set(s), "
+          f"{sum(len(selections) for _, selections in jobs)} selection(s), {counts['walks']} walk(s), "
+          f"{counts['parses']} file(s) parsed", flush=True)
+    return [{key: (set(plan["needed"]), plan["refusals"]) for key, plan in job.items()} for job in out["jobs"]]
 
 
 def distribution_plan(profile: str, sites: list[Path], target: str, python_version: str,
                       extra_extras=()) -> tuple[set[str], list[str]]:
-    """-> (the distributions the closure ships, its refusals).
+    """-> (the distributions the closure ships, its refusals): one selection, see :func:`distribution_plans`."""
+    return distribution_plans(profile, [(sites, {CORE: tuple(extra_extras)})], target, python_version)[0][CORE]
 
-    The closure script is the one authority for what ships (its declaration-
-    aware model: base dependencies, the manifest's extras — plus
-    ``extra_extras`` for an engine pack — and omissions). It runs in a child
-    interpreter whose ONLY site directories are ``sites`` (``-I -S``), so the
-    metadata it reads is the pool's or the bundle's own, with its target
-    environment set to ``target``, writing no bytecode into them (``-B``).
-    """
-    args = [json.dumps([str(site) for site in sites]), profile,
-            json.dumps(marker_env(target, python_version)), json.dumps(list(extra_extras))]
-    done = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", _DISTRIBUTION_DRIVER, str(ROOT), *args],
-                          capture_output=True, text=True, timeout=600, check=True)
-    out = json.loads(done.stdout.strip().splitlines()[-1])
-    return set(out["needed"]), out["refusals"]
+
+def pack_selections(manifest, packs=None) -> dict[str, tuple[str, ...]]:
+    """The core's selection plus one per engine pack (``packs``: a subset; default every pack)."""
+    names = manifest.packaging_packs if packs is None else packs
+    return {CORE: (), **{pack: tuple(manifest.packaging_packs[pack]) for pack in names}}
+
+
+def pack_from_plans(plans: dict, pack: str) -> tuple[set[str], list[str]]:
+    """An engine pack: what its selection ships and the core's does not (``plans``: one job's answer)."""
+    core, refused = plans[CORE]
+    full, refused_full = plans[pack]
+    return full - core, [*refused, *refused_full]
 
 
 def make_plan(manifest, site: Path, target: str, python_version: str,
-              index: dict[str, Path] | None = None) -> Plan:
-    """The CORE bundle: the profile's closure with its own extras (no engine pack)."""
+              index: dict[str, Path] | None = None,
+              distributions: tuple[set[str], list[str]] | None = None) -> Plan:
+    """The CORE bundle: the profile's closure with its own extras (no engine pack). ``distributions``:
+    the core's answer from a :func:`distribution_plans` run over ``site``, when the caller has one."""
     first_party, loaded, _ = first_party_plan(manifest, index)
-    needed, refused = distribution_plan(manifest.profile, [site], target, python_version)
+    needed, refused = distributions or distribution_plan(manifest.profile, [site], target, python_version)
     return Plan(profile=manifest.profile, target=target, python_version=python_version,
                 first_party=first_party, pinned=loaded, distributions=needed,
                 missing=needed - set(read_site(site)), refusals=refused,
@@ -363,10 +485,9 @@ def make_plan(manifest, site: Path, target: str, python_version: str,
 def pack_distributions(manifest, pack: str, sites: list[Path], target: str,
                        python_version: str) -> tuple[set[str], list[str]]:
     """An engine pack: what the closure ships WITH the pack's extras and the core does not."""
-    core, refused = distribution_plan(manifest.profile, sites, target, python_version)
-    full, refused_full = distribution_plan(manifest.profile, sites, target, python_version,
-                                           manifest.packaging_packs[pack])
-    return full - core, [*refused, *refused_full]
+    plans = distribution_plans(manifest.profile, [(sites, pack_selections(manifest, [pack]))], target,
+                               python_version)[0]
+    return pack_from_plans(plans, pack)
 
 
 # -- phase 3: copy ---------------------------------------------------------------------------
@@ -532,12 +653,24 @@ def write_pack(manifest, pack: str, names: set[str], dists: dict[str, Dist], sta
     return record
 
 
-def verify_pack(pack_dir: Path, core_dir: Path, manifest) -> list[str]:
-    """The pack holds exactly what the closure ships with its extras and the core bundle lacks."""
+def verify_jobs(core_dir: Path, packs: list[tuple[str, Path]], manifest) -> list:
+    """:func:`distribution_plans` jobs that re-plan a built core and its packs from their OWN
+    metadata: the core over its site-packages, each pack over its own plus the core's."""
+    core_site = core_dir / "site-packages"
+    return [([core_site], {CORE: ()}),
+            *(([pack_dir / "site-packages", core_site], pack_selections(manifest, [pack])) for pack, pack_dir in packs)]
+
+
+def verify_pack(pack_dir: Path, core_dir: Path, manifest, plans: dict | None = None) -> list[str]:
+    """The pack holds exactly what the closure ships with its extras and the core bundle lacks.
+    ``plans``: this pack's job from a :func:`verify_jobs` run, when the caller has one."""
     record = json.loads((pack_dir / PACK_MANIFEST).read_text(encoding="utf-8"))
     site, core_site = pack_dir / "site-packages", core_dir / "site-packages"
-    names, refused = pack_distributions(manifest, record["pack"], [site, core_site], record["target"],
-                                        record["python_version"])
+    if plans is None:
+        names, refused = pack_distributions(manifest, record["pack"], [site, core_site], record["target"],
+                                            record["python_version"])
+    else:
+        names, refused = pack_from_plans(plans, record["pack"])
     plan = Plan(profile=manifest.profile, target=record["target"], python_version=record["python_version"],
                 first_party=set(), pinned=set(), distributions=names, refusals=refused)
     site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
@@ -635,136 +768,6 @@ def compare(plan: Plan, app_modules: set[str], site_dists: dict[str, Dist], site
     return problems
 
 
-#: A named zone the bundle must resolve. Windows has no system timezone database, so stdlib
-#: ``zoneinfo`` reads the ``tzdata`` distribution (``hermes_time``, cron's named timezones).
-NAMED_TIMEZONE = "America/New_York"
-_TIMEZONE_PROBE = (
-    "import sys, zoneinfo; sys.path.insert(0, sys.argv[1]); zoneinfo.reset_tzpath(()); "
-    "zoneinfo.ZoneInfo(sys.argv[2])")
-
-
-def named_timezone_problems(site: Path, python: Path | str = sys.executable) -> list[str]:
-    """``zoneinfo`` resolves :data:`NAMED_TIMEZONE` from ``site`` alone (``-I -S``, no TZPATH)."""
-    done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _TIMEZONE_PROBE, str(site), NAMED_TIMEZONE],
-                          capture_output=True, text=True, timeout=120)
-    if done.returncode == 0:
-        return []
-    last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]
-    return [f"named timezone {NAMED_TIMEZONE} does not resolve inside the bundle: {last}"]
-
-
-#: The argv bundled Hermes starts with (``python -I -m hermes_cli.main harness serve --ndjson``,
-#: the manifest's serve entry). The probe resolves its handler from the bundle's OWN parser.
-SERVE_ARGV = ("harness", "serve", "--ndjson")
-
-_SERVE_IMPORT_PROBE = r"""
-import argparse, importlib, json, sys
-app, site, table_path, argv, tree = sys.argv[1], sys.argv[2], sys.argv[3], json.loads(sys.argv[4]), sys.argv[5]
-sys.path[:0] = [app, site]
-if tree:  # the sibling tree, mounted as the embedded entry mounts it (forced_tree.mount_forced_tree)
-    import os
-    for package in ("tools", "plugins"):
-        if os.path.isdir(os.path.join(tree, package)):
-            importlib.import_module(package).__path__.append(os.path.join(tree, package))
-with open(table_path, encoding="utf-8") as handle:
-    table = json.load(handle)
-lazy, spawned, packages_known = table["lazy"], table["spawned"], set(table["packages"])
-failures, tried = [], []
-def load(name):
-    if name in tried:
-        return
-    tried.append(name)
-    try:
-        importlib.import_module(name)
-    except BaseException as exc:
-        failures.append(f"{name}: {type(exc).__name__}: {exc}")
-from hermes_cli.harness_parts.parser import build_parser
-root = argparse.ArgumentParser(prog="hermes")
-build_parser(root.add_subparsers(dest="command"))
-entry = root.parse_args(argv).func.__module__
-load(entry)
-# The handler's own lazy imports (the serve command module), then every lazy import of the
-# modules loaded under those packages (the serve loop's runtime.* lane, ...).
-first = lazy.get(entry, [])
-for name in first:
-    load(name)
-packages = {n if n in packages_known else n.rpartition(".")[0] for n in first} - {""}
-for module in sorted(m for m in list(sys.modules) if any(m.startswith(p + ".") for p in packages)):
-    for name in lazy.get(module, []):
-        load(name)
-for name in spawned:  # the ``python -m <module>`` children a shipped module starts
-    load(name)
-print(json.dumps({"entry": entry, "tried": tried, "failures": failures}))
-"""
-
-
-def _spawned_modules(path: Path) -> list[str]:
-    """``"-m", "<literal>"`` adjacent in a list/tuple literal: a ``python -m`` child process."""
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", SyntaxWarning)
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (SyntaxError, UnicodeDecodeError):
-        return []
-    found = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.List, ast.Tuple)):
-            for flag, name in zip(node.elts, node.elts[1:]):
-                if (isinstance(flag, ast.Constant) and flag.value == "-m" and isinstance(name, ast.Constant)
-                        and isinstance(name.value, str)):
-                    found.append(name.value)
-    return found
-
-
-def serve_import_table(modules: set[str], index: dict[str, Path]) -> dict:
-    """What the probe imports, read from the code: each shipped module's lazy unguarded
-    first-party imports, and every ``-m <module>`` a shipped module spawns."""
-    lazy: dict[str, list[str]] = {}
-    spawned: set[str] = set()
-    for module in sorted(modules):
-        path = index.get(module)
-        if path is None:
-            continue
-        targets: list[str] = []
-        for dotted, eager, guarded, _line in _imports(path, module, path.name == "__init__.py"):
-            owner = _owner(dotted, index)
-            if not eager and not guarded and owner in modules and owner != module and owner not in targets:
-                targets.append(owner)
-        if targets:
-            lazy[module] = targets
-        spawned.update(m for m in _spawned_modules(path) if m in modules)
-    packages = sorted(m for m in modules if index.get(m) is not None and index[m].name == "__init__.py")
-    return {"lazy": lazy, "spawned": sorted(spawned), "packages": packages}
-
-
-def serve_import_problems(out: Path, first_party: set[str], index: dict[str, Path], python_version: str,
-                          python: Path | str = sys.executable) -> list[str]:
-    """The bundle's interpreter, isolated (``-I -S -B``, only ``app`` + ``site-packages``), imports
-    what ``hermes harness serve`` loads: its handler (from the bundle's own parser), that handler's
-    lazy imports and theirs, and the ``-m`` children a shipped module spawns (conversation workers)."""
-    done = subprocess.run([str(python), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
-                          capture_output=True, text=True, timeout=60)
-    have, want = done.stdout.strip(), ".".join(python_version.split(".")[:2])
-    if have != want:
-        return [f"serve import probe needs a CPython {want} interpreter (--python); {python} is {have or '?'}"]
-    with tempfile.TemporaryDirectory(prefix="hermes-serve-probe-") as scratch:
-        table = Path(scratch) / "table.json"
-        table.write_text(json.dumps(serve_import_table(first_party, index)), encoding="utf-8")
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("HERMES", "PYTHON"))}
-        env["HERMES_HOME"] = str(Path(scratch) / "home")
-        done = subprocess.run([str(python), "-I", "-S", "-B", "-c", _SERVE_IMPORT_PROBE, str(out / "app"),
-                               str(out / "site-packages"), str(table), json.dumps(list(SERVE_ARGV)),
-                               str(out / FORCED_TREE_DIR) if (out / FORCED_TREE_DIR).is_dir() else ""],
-                              capture_output=True, text=True, timeout=300, env=env, cwd=scratch,
-                              stdin=subprocess.DEVNULL)
-    lines = done.stdout.strip().splitlines()
-    if done.returncode != 0 or not lines:
-        last = (done.stderr.strip().splitlines() or ["(no output)"])[-1]
-        return [f"serve import probe did not run: {last}"]
-    result = json.loads(lines[-1])
-    return [f"serve entrypoint does not import inside the bundle: {line}" for line in result["failures"]]
-
-
 def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> set[str]:
     """The bundle's modules, named by the same indexer the walk uses. A resource's ``.py``
     (a skill script) is a shipped file, not a module, so it is not compared to the closure."""
@@ -773,13 +776,16 @@ def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> 
 
 
 def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
-                  python: Path | str | None = sys.executable) -> list[str]:
+                  python: Path | str | None = sys.executable,
+                  distributions: tuple[set[str], list[str]] | None = None) -> list[str]:
     """Recompute the plan from the source tree and the bundle's OWN site-packages; compare.
     Then import the serve entrypoints with ``python`` (the bundle's interpreter), from the bundle alone;
-    ``python=None`` skips that probe (a cross-target build on a host with no target interpreter)."""
+    ``python=None`` skips that probe (a cross-target build on a host with no target interpreter).
+    ``distributions``: the core's answer from a :func:`verify_jobs` run, when the caller has one."""
     record = json.loads((out / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
     site, app = out / "site-packages", out / "app"
-    plan = make_plan(manifest, site, record["target"], record["python_version"], index=index)
+    plan = make_plan(manifest, site, record["target"], record["python_version"], index=index,
+                     distributions=distributions)
     site_files = {p.relative_to(site).as_posix() for p in site.rglob("*") if p.is_file()}
     app_files = {p.relative_to(app).as_posix() for p in app.rglob("*") if p.is_file()}
     app_modules = app_module_names(app, manifest.packaging_plugins, manifest.packaging_resources)
@@ -873,11 +879,26 @@ def main(argv=None) -> int:
     if not args.target or not args.out:
         parser.error("--target and --out are required to build")
     stage = args.stage or args.out.with_name(args.out.name + ".pool")
+    started = time.perf_counter()
+    try:
+        return _build(args, manifest, index, stage, probe_python)
+    except PlanStalled as exc:
+        print(f"RETRYABLE: {exc}", flush=True)
+        return EXIT_RETRYABLE
+    finally:
+        print(f"phase total: {time.perf_counter() - started:.1f}s", flush=True)
+
+
+def _build(args, manifest, index, stage: Path, probe_python) -> int:
     if not (args.reuse_stage and stage.is_dir()):
         pack_extras = tuple(e for extras in manifest.packaging_packs.values() for e in extras)
-        install_pool(export_requirements((*manifest.packaging_extras, *pack_extras), args.uv), stage,
-                     args.target, args.python_version, args.uv, args.offline)
-    plan = make_plan(manifest, stage, args.target, args.python_version, index=index)
+        with phase("pool"):
+            install_pool(export_requirements((*manifest.packaging_extras, *pack_extras), args.uv), stage,
+                         args.target, args.python_version, args.uv, args.offline)
+    with phase("plan"):  # the core and every engine pack: one child, one walk
+        built = distribution_plans(manifest.profile, [([stage], pack_selections(manifest))], args.target,
+                                   args.python_version)[0]
+        plan = make_plan(manifest, stage, args.target, args.python_version, index=index, distributions=built[CORE])
     if plan.missing or plan.refusals:
         for name in sorted(plan.missing):
             print(f"the closure needs {name}; the pool does not hold it")
@@ -886,29 +907,45 @@ def main(argv=None) -> int:
         print("the pool does not satisfy the closure: ship the extra that declares it "
               "(packaging.extras), or fix the refusal")
         return 1
-    record = write_bundle(plan, manifest, read_site(stage), stage, args.out, index)
+    with phase("copy core"):
+        record = write_bundle(plan, manifest, read_site(stage), stage, args.out, index)
     if args.bake_with:
-        record["baked_pyc"] = bake(args.out, args.bake_with)
-    problems = verify_bundle(args.out, manifest, index, probe_python)
+        with phase("bake core"):
+            record["baked_pyc"] = bake(args.out, args.bake_with)
     print(f"packaged {record['first_party_files']} first-party files, "
           f"{len(record['distributions'])} distributions ({record['third_party_files']} files) -> {args.out}")
     dists = read_site(stage)
+    pack_problems: dict[str, list[str]] = {}
+    written: list[tuple[str, Path]] = []
     for pack in manifest.packaging_packs:
-        names, refused = pack_distributions(manifest, pack, [stage], args.target, args.python_version)
+        names, refused = pack_from_plans(built, pack)
         absent = sorted(names - set(dists))
         if absent or refused:
-            problems += [f"engine pack {pack}: the pool does not hold {n}" for n in absent]
-            problems += [f"engine pack {pack}: closure refusal: {r}" for r in refused]
+            pack_problems[pack] = [*(f"engine pack {pack}: the pool does not hold {n}" for n in absent),
+                                   *(f"engine pack {pack}: closure refusal: {r}" for r in refused)]
             continue
         pack_out = args.out.with_name(f"{args.out.name}-{pack}-pack")
-        pack_record = write_pack(manifest, pack, names, dists, stage, pack_out, args.target, args.python_version)
+        with phase(f"copy pack {pack}"):
+            pack_record = write_pack(manifest, pack, names, dists, stage, pack_out, args.target,
+                                     args.python_version)
         if args.bake_with:
-            bake_dir(pack_out / "site-packages", args.bake_with)
-            (pack_out / BAKED_MARKER).write_text("unchecked-hash\n", encoding="utf-8")
-        pack_problems = verify_pack(pack_out, args.out, manifest)
-        problems += [f"engine pack {pack}: {line}" for line in pack_problems]
+            with phase(f"bake pack {pack}"):
+                bake_dir(pack_out / "site-packages", args.bake_with)
+                (pack_out / BAKED_MARKER).write_text("unchecked-hash\n", encoding="utf-8")
         print(f"engine pack {pack}: {len(pack_record['distributions'])} distributions "
               f"({pack_record['files']} files) -> {pack_out}")
+        written.append((pack, pack_out))
+    with phase("verify plan"):  # the built core and packs, re-planned from their own metadata: one child
+        checked = distribution_plans(manifest.profile, verify_jobs(args.out, written, manifest), args.target,
+                                     args.python_version)
+    with phase("verify core"):
+        problems = verify_bundle(args.out, manifest, index, probe_python, distributions=checked[0][CORE])
+    for (pack, pack_out), plans in zip(written, checked[1:]):
+        with phase(f"verify pack {pack}"):
+            pack_problems[pack] = [f"engine pack {pack}: {line}"
+                                   for line in verify_pack(pack_out, args.out, manifest, plans)]
+    for pack in manifest.packaging_packs:
+        problems += pack_problems.get(pack, [])
     for line in problems:
         print(line)
     print(f"verify: {len(problems)} problem(s)")
