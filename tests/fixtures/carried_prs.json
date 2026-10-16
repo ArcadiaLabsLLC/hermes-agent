@@ -810,6 +810,22 @@
       },
       "reviewed_base": "ee8dd6c886326db4b468c2ba18d9409f123da827"
     },
+    "129411": {
+      "head_ref": "origin/fix/secret-prompt-termios-guard",
+      "reviewed_head": "5a4db61ed707f2f1579dc03a3419fbc1a8b05464",
+      "base_ref": "upstream/main",
+      "files": {
+        "hermes_cli/secret_prompt.py": {
+          "mode": "lines",
+          "fragments": [
+            "    try:\n        import termios\n        import tty",
+            "        return getpass.getpass(prompt)"
+          ],
+          "reason": "The PR's termios/tty ImportError guard is the fork's hunk line for line; only the trailing comment on the except line differs (fork: phone wording), so hunks mode would reverse-apply-fail on the comment alone."
+        }
+      },
+      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
+    },
     "129412": {
       "head_ref": "origin/fix/process-identity-psutil-guard",
       "reviewed_head": "1c69dcdb799ca4ee053474ef8ddebfc0085aa9e7",

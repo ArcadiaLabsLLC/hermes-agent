@@ -38,7 +38,7 @@ heavy=4` (heavy = added+deleted > 200, `scripts/upstream_footprint.py`).
 | `hermes_state_rewind.py` | 4/1 | upstream | upstream | HELD reviewed-restore PR (with lane C's residue); `tests/agent_runtime/test_operator_history_controls.py` | — |
 | `plugins/model-providers/copilot/__init__.py` | 7/1 | carry | upstream | PR candidate "provider-declared reasoning efforts" (one PR for the three profiles + `reasoning_effort.py`); lane R re-points its import | — |
 | `plugins/model-providers/openai-codex/__init__.py` | 7/1 | carry | upstream | same PR | — |
-| `plugins/model-providers/router/__init__.py` | 7/5 | carry | upstream | TWO PRs: `_DISK_TTL_SECONDS = 24 * 3600` is a one-line upstream NameError fix (`v0.21.7` AND `v0.22.2` use the name in `_efforts_cache_only` and the disk-mirror read and never define it) — its own PR; the `allow_warm` threading rides the efforts PR | — |
+| `plugins/model-providers/router/__init__.py` | 7/5 | carry | upstream | TWO PRs: `_DISK_TTL_SECONDS = 24 * 3600` is a one-line upstream NameError fix (`v0.21.7` AND `v0.22.2` use the name in `_efforts_cache_only` and the disk-mirror read and never define it) — already upstream as PR #120136 (devorun, open, `fix/router-disk-ttl-nameerror`) with issue #133926, not a fork PR to open; the `allow_warm` threading rides the efforts PR | — |
 | `plugins/plugin_loader.py` | 3/0 | upstream | upstream | PR #128651 (open); `carried_prs.json` defers the path | — |
 | `pm/client.py` | 10/0 | upstream | extract | grace wait → `pm/_fork_worker_exit.py::wait_for_slow_exit(process)`; one call line before the 5 s wait; 10 → 3; the PR candidate in the row stays | P |
 | `pm/environment.py` | 25/0 | upstream | extract | `_retry_sync_on_sharing_violation` + markers → `pm/_fork_uv_retry.py`; one call line after `self._run`; 25 → 2; `tests/pm/test_uv_sync_sharing_violation.py` | P |
@@ -119,7 +119,9 @@ added lines across the 48 files ≈ 1,030 → ≈ 300.
   file with no fork module named; lane R's row names `agent_runtime/reasoning_capabilities.py`.
 - `plugins/model-providers/router/__init__.py` — the row folds a one-line upstream NameError
   fix (`_DISK_TTL_SECONDS` undefined in `v0.21.7` and `v0.22.2`) into the efforts carry; it is
-  its own PR and should be the first one opened when `nekwo` can open PRs again.
+  its own PR, and that PR already exists: #120136 (devorun, open, `fix/router-disk-ttl-nameerror`,
+  issue #133926) defines the same `24 * 60 * 60` constant, so the fork opens none — the ledger row
+  cites #120136 and the line drops when it merges (checked 2026-10-15, lane leftovers-1015).
 - `hermes_cli/_launchers.py` — disposition `upstream` with no PR named; the PR is the Windows twin
   of the POSIX launcher-ownership guard.
 - `agent/interrupt_control.py` — the row cites `test_steer_provenance_downstream.py` without a
