@@ -278,7 +278,8 @@ def test_relay_trace_carries_target_and_briefing_excerpt():
     assert finished["target_label"].startswith("→ neko_supervisor")
 
 
-def test_relay_trace_drops_secret_bearing_briefings():
+def test_relay_trace_scrubs_the_secret_value_and_keeps_the_briefing():
+    """A secret VALUE goes, the briefing stays (plan redaction-one-value-redactor S2)."""
     from agent_runtime.profile_runner import _tool_started_payload
 
     started = _tool_started_payload(
@@ -286,7 +287,7 @@ def test_relay_trace_drops_secret_bearing_briefings():
         "agent_chat_send",
         invocation={"persona_id": "dev", "message": "use API_KEY=sk-123456789 for the deploy"},
     )
-    assert started["target_label"] == "→ dev"
+    assert started["target_label"] == "→ dev: use API_KEY=[REDACTED] for the deploy"
     assert "sk-123456789" not in str(started)
 
 

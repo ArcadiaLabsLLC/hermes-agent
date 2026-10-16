@@ -1,8 +1,19 @@
 # One owner for process-global state between tests (design)
 
-Status: PLAN — written 2026-10-15; owner approval owed (owner ruled 2026-10-15:
-"yes, after the current wave lands"). Row: fork-hygiene-queue, "Process-global
-state, the CLASS".
+Status: PARTLY BUILT 2026-10-16 (lane h2-redact, branch `build/h2-redact`); approved by the
+owner 2026-10-15 (all recommendations). Row: fork-hygiene-queue, "Process-global state, the
+CLASS".
+
+- Built: S1's declarations (`agent_runtime/process_state.py` and the five owners' registrations),
+  S2 (`builds.detect` registers its reset), S4 (the census, REPORT mode, allowlist seeded with
+  162 rows "reason owed"), S5's PR body
+  (`docs/agent-runtime-harness/upstream-prs/registry-snapshot-restore-body.md`).
+- BLOCKED on Phase B (upstream-sync session), all fenced files: S1's fixture swap
+  (`tests/_downstream/conftest_plugin.py::_reset_snapshot_catalog_memos` →
+  `reset_all_process_state()`, which also retires that fixture's no-op profile-template arm),
+  S3's tool-registry fixture (a `tests/_downstream/` fixture), and S5's code and tests
+  (`tools/registry.py`). The plan's in-process killing mutations for S1/S2 need the fixture and
+  are owed with it.
 
 ## In plain English
 

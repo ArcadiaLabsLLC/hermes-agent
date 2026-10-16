@@ -227,6 +227,7 @@ def test_legacy_proof_event_uses_generic_display_but_keeps_safe_quality_fields()
             "duration_ms": 467,
             "proof_id": "proof_1",
             "next_expected": "request_qa_review",
+            "detail": "…/private.log",
         }
     ]
     encoded = json.dumps(obs, default=str)
@@ -285,18 +286,22 @@ def test_recent_events_project_historical_run_closed_display_metadata():
     assert summary["display_summary"] == "handoff complete"
 
 
-def test_recent_events_drop_path_and_credential_like_summaries():
+def test_recent_events_shorten_home_paths_and_scrub_credential_values():
+    """A summary keeps its words; a home path is shortened to its name and a
+    credential VALUE is replaced (plan redaction-one-value-redactor S3/S4)."""
     ts = now()
-    unsafe_values = [
-        "/home/user/project/.env",
-        "/c/Users/beast/AppData/Local/run.log",
-        "/x/Unreal Engine/Engine/private.log",
-        "api" + "_key=abc123",
-        "auth" + "orization header present",
-        "bear" + "er credential marker",
-        "cred" + "ential=abc123",
-        "coo" + "kie=sessionid",
-    ]
+    values_and_shown = {
+        "/home/user/project/.env": "…/.env",
+        "/c/Users/beast/AppData/Local/run.log": "…/run.log",
+        "/x/Unreal Engine/Engine/private.log": "…/private.log",
+        "api" + "_key=abc123": "api_key=[REDACTED]",
+        "auth" + "orization header present": "authorization header present",
+        # "bearer <word>" is the Bearer-credential SHAPE: the value goes, case-folded.
+        "bear" + "er credential marker": "Bearer [REDACTED] marker",
+        "cred" + "ential=abc123": "credential=[REDACTED]",
+        "coo" + "kie=sessionid": "cookie: [REDACTED]",
+    }
+    unsafe_values = list(values_and_shown)
 
     obs = build_observability(
         runs=[],
@@ -315,13 +320,14 @@ def test_recent_events_drop_path_and_credential_like_summaries():
         reference_time=ts,
     )
 
-    assert all("summary" not in event for event in obs["recent_events"])
+    shown = sorted(event["summary"] for event in obs["recent_events"])
+    assert shown == sorted(values_and_shown.values())
     encoded = json.dumps(obs, default=str)
-    for value in unsafe_values:
-        assert value not in encoded
+    for leaked in ("/home/user", "Users/beast", "Unreal Engine", "abc123", "sessionid"):
+        assert leaked not in encoded
 
 
-def test_recent_events_drop_unsafe_values_from_new_dev_work_fields():
+def test_recent_events_shorten_paths_in_new_dev_work_fields():
     ts = now()
     obs = build_observability(
         runs=[],
@@ -350,12 +356,13 @@ def test_recent_events_drop_unsafe_values_from_new_dev_work_fields():
     assert event["phase"] == "proof"
     assert event["step"] == "command_proof"
     assert event["proof_id"] == "proof_safe"
-    assert "detail" not in event
-    assert "next_expected" not in event
-    assert "error_class" not in event
+    # Shortened, not dropped; a secret WORD is not a secret.
+    assert event["detail"] == "…/private.log"
+    assert event["next_expected"] == "…/plan.md"
+    assert event["error_class"] == "Bearer [REDACTED] marker"  # the Bearer shape
     encoded = json.dumps(obs, default=str)
     assert "/home/user" not in encoded
-    assert "bearer" not in encoded
+    assert "~/private" not in encoded
 
 
 

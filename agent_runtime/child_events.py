@@ -9,6 +9,7 @@ from hermes_time import now
 from .events import EventLog
 from .models import Event, PersonaInstance
 from .persona_assignments import safe_assignment_text
+from .redaction import scrub_display_text
 
 __layer__ = "stores"
 
@@ -58,10 +59,4 @@ def _bounded_refs(values: list[str]) -> list[str]:
 
 
 def _safe_text(value: Any, *, limit: int = 240) -> str:
-    text = " ".join(str(value or "").split())
-    lowered = text.lower()
-    if any(marker in lowered for marker in ("secret", "token", "password", "credential", "api_key", "bearer")):
-        return "[redacted]"
-    if ":/" in text or "\\" in text:
-        return "[redacted-path]"
-    return text[:limit]
+    return scrub_display_text(" ".join(str(value or "").split()))[:limit]

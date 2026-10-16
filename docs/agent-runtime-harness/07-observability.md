@@ -535,6 +535,21 @@ the frame went 56,627 → 36,990 bytes and `prompt_observability` 32,459 → 12,
 (57.3% → 34.6% of the frame). Deliberately NOT a preview: a rendered prefix of a
 body is the truncate option the ruling declined.
 
+## Display redaction: values, never words
+
+Every lane that decides what an operator or a channel reader sees of a free-text
+field asks one owner, `agent_runtime/redaction.py`: `scrub_secret_values` replaces
+a secret VALUE in place (an assignment, a bearer/header credential, a signed URL,
+a token shape) and keeps every word around it; `has_secret_value` is the test a
+lane asks before refusing an opaque id or a label (a scrubbed id is a wrong id);
+`mask_local_paths` shortens an absolute path to a root-relative label or
+`…/<name>`; `scrub_display_text` is the two together. No lane withholds a field
+because a word like "token" or "password" appears in it, and none drops a field
+for a slash (2026-10-16, plan `docs/agent-runtime-harness/archive/redaction-one-value-redactor-2026-10-15.md`).
+Observe mode (`HERMES_REDACTION_MODE=observe`) marks `would_redact` where the value
+redactor changed a field. `tests/tooling/test_no_secret_word_decisions.py` refuses
+a secret-word tuple used as a decision in any fork module.
+
 ## The consumers
 
 A timeline with no consumer is a file, not observability: the boot receipts were

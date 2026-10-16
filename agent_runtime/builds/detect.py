@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
 from agent_runtime.builds.flutter_argv import COMMAND_OTHER, recognize_argv
+from agent_runtime.process_state import register_process_state
 from agent_runtime.builds.unknowns import (
     UNKNOWN_CWD_UNREADABLE,
     UNKNOWN_ENV_UNOBSERVED,
@@ -73,6 +74,14 @@ def enable_detection() -> None:
 
 def detection_enabled() -> bool:
     return _ENABLED
+
+
+def _reset_detection() -> None:
+    global _ENABLED
+    _ENABLED = False
+
+
+register_process_state(__name__, _reset_detection, holds=("_ENABLED",))
 
 
 @dataclass
