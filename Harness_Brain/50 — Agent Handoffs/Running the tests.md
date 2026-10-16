@@ -243,6 +243,8 @@ five habits cost about 390 minutes a day.
 lane, then runs the gate once. A lane that finishes while a gate is running joins the next batch unless it
 touches nothing the running batch touches.
 
+**Gate once, at the end, with main still** (owner 2026-10-16: "best to only run it at the end"). Start the gate only when every lane of the batch is merged; send peer sessions "freeze" first so `main` cannot move under it; merge `main` once, gate once, push, "main open". A peer batch that lands mid-gate never restarts the gate: the next batch picks it up. Phase B (2026-10-16) paid three ~75-minute passes on one batch by gating before its last lane and re-gating after each peer landing; a batch that edits hub files (`tools/registry.py`, `hermes_state.py`, `tui_gateway/server.py`) selects ~2,600 files, so each wasted pass is over an hour.
+
 Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh tests` in the one heavy slot;
 (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
 `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`, the
