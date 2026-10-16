@@ -94,4 +94,8 @@ def test_an_interpreter_inside_the_store_root_is_refused(tmp_path):
 def test_run_tests_calls_both_moved_policies():
     script = (REPO / "scripts" / "run_tests.sh").read_text(encoding="utf-8")
     assert script.index(". \"$SCRIPT_DIR/_fork_test_env.sh\"") < script.index("fork_shared_test_venv_fallback")
-    assert "fork_refuse_live_home_interpreter" in script
+    # The refusal runs inside fork_real_root_fence, after REAL_HERMES_ROOT is known (lane pb-a).
+    assert "fork_real_root_fence" in script
+    door = (REPO / "scripts" / "_fork_test_env.sh").read_text(encoding="utf-8")
+    fence = door[door.index("fork_real_root_fence() {"):]
+    assert fence.index("REAL_HERMES_ROOT=") < fence.index("fork_refuse_live_home_interpreter")
