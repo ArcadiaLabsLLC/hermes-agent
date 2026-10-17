@@ -4303,8 +4303,29 @@ _CODE_CACHE: dict[Path, str] = {}
 # a different Python (``ast.unparse`` output differs by version) or a changed
 # renderer misses and re-renders. ~40 s of the file's 65 s wall was this render
 # (lane h-suite-tail-a, 2026-10-05); a warm checkout pays a JSON load instead.
-# Git-ignored, per checkout; written atomically; any I/O failure means "no cache".
-_RENDER_CACHE_FILE = HERMES_ROOT / ".pytest_cache" / "tombstone_render_cache.json"
+# Git-ignored, in the PRIMARY checkout's ``.pytest_cache`` (beside the gate store), so a fresh
+# worktree starts warm: per-checkout, every new lane and landing worktree paid the cold ~100 s
+# render (r-perf, 2026-10-16: 83% of the file's CPU in a fresh worktree). The key is content,
+# so worktrees on different trees share it safely. Written atomically; any I/O failure means
+# "no cache".
+
+
+def _shared_checkout_root() -> Path:
+    """The primary checkout of this clone, read from ``.git`` files (no git process)."""
+
+    try:
+        marker = HERMES_ROOT / ".git"
+        if marker.is_file():
+            gitdir = Path(marker.read_text(encoding="utf-8").split("gitdir:", 1)[1].strip())
+            common = (gitdir / (gitdir / "commondir").read_text(encoding="utf-8").strip()).resolve()
+            if common.name == ".git" and common.is_dir():
+                return common.parent
+    except (OSError, IndexError):
+        pass
+    return HERMES_ROOT
+
+
+_RENDER_CACHE_FILE = _shared_checkout_root() / ".pytest_cache" / "tombstone_render_cache.json"
 _RENDER_CACHE_HEADER = f"{sys.version}|{hashlib.sha1(_code_only.__code__.co_code).hexdigest()}"
 
 
