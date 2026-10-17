@@ -509,6 +509,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-09-25 (lane B4, filed by the orchestrator)
 
 
+### Filed on arrival — 2026-10-17 (lane r-perf)
+
+- [ ] **`agent_runtime/store_file_io.write_secure_json` spawns `icacls` up to three times per write on Windows (~150 ms each): 92 spawns in one e2e test file, ~0.45 s per pairing/credential write; set the protected DACL in-process (`SetNamedSecurityInfoW`) with the same single `(R,W,D)` grant** · fork-owned / stores · [[r-perf-2026-10-17]] · pinned by `tests/agent_runtime/test_store_file_io_secure_write.py` · READY
+
 ## Seams
 
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
@@ -643,6 +647,12 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Upstream-owned
+
+### Filed on arrival — 2026-10-17 (lane r-perf)
+
+- [ ] **Every hermes process resolves git version info at import and again at boot: `plugins/model-providers/*/__init__.py` build a User-Agent from `get_version_info()` (7 git spawns), and `update_cmd_fleet._current_checkout_sha` calls `get_code_identity(refresh=True)` (7 more); 0.9–3.6 s per process start on this clone, `harness gateway peers` 11–12 s a call** · upstream / boot · [[r-perf-2026-10-17]] · upstream PR candidate (base_version without git, or a cross-process cache keyed on HEAD); never an edit here · READY
+- [ ] **`tools/checkpoint_manager._run_git` calls `pm.client.ensure` per git call (a store-root walk each time): ~20% of `test_operator_redo` profiled** · upstream / checkpoints · [[r-perf-2026-10-17]] · upstream issue or a caller-side memo · READY
+- [ ] **Every SQLite open re-resolves the journal mode (config read + header probe + the 3.50.4 DELETE path in `hermes_state_wal.apply_wal_with_fallback`): ~10k opens in `test_discussion_runtime`, whose driver `stop` then waits ~12 s per test** · upstream / state · [[r-perf-2026-10-17]] · upstream issue (resolve once per process per path) · READY
 
 
 ### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
