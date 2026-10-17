@@ -51,6 +51,7 @@ def test_a_session_chain_change_reaches_every_inherited_file(tmp_path, changed):
     sel = bundled.select_scope(files, tmp_path, set(_INHERITED), {changed})
 
     assert _rels(tmp_path, sel.chain) == sorted(_INHERITED)
+    assert not sel.chain_sampled
     assert _rels(tmp_path, sel.selected) == sorted(["tests/pkg/test_fork.py", *_INHERITED])
     assert sel.excluded == []
 
@@ -171,6 +172,7 @@ def test_an_ordinary_landing_runs_the_contract_and_one_sample_per_empty_folder(t
     sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {changed, "pkg/mod.py"}, chain_sample=True)
 
     assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_a_small.py"], "the smallest, in the empty folder only"
+    assert sel.chain_sampled, "the run must not call itself a whole-tree run"
     assert _rels(tmp_path, sel.importer) == ["tests/third/test_reached.py"]
     assert "tests/tooling/test_session_chain_contract.py" in _rels(tmp_path, sel.fork_only)
     assert _rels(tmp_path, sel.excluded) == ["tests/other/deep/test_up2.py", "tests/pkg/test_up.py",

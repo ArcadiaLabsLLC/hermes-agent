@@ -719,7 +719,7 @@ def _print_expected_wall(to_run, repo_root: Path, durations: dict[str, float], j
         jobs, _UNCACHED_ESTIMATE_SECONDS,
     )
     print(line, flush=True)
-    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain else None
+    hint = plan.chain_split_hint(wall, sel.chain_paths) if sel.chain and not sel.chain_sampled else None
     if hint:
         print(hint, flush=True)
 

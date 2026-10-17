@@ -282,6 +282,7 @@ class ScopeSelection:
     skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
     idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
     chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
+    chain_sampled: bool = False  # ``chain`` is the contract's sample, not the whole tree
 
     @property
     def selected(self) -> List[Path]:
@@ -386,6 +387,7 @@ def _sample_folders(sel: ScopeSelection, repo_root: Path, size_of) -> None:
             best[key] = min(best.get(key, entry), entry)
     picked = {entry[2] for entry in best.values()}
     sel.chain = sorted(picked, key=str)
+    sel.chain_sampled = True
     sel.excluded = [p for p in sel.excluded if p not in picked]
 
 
