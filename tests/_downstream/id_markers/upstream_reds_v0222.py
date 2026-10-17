@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests._downstream.id_markers.reasons import _up_red, _WIN
+from tests._downstream.id_markers.reasons import _up_red, _up_red_skip, _WIN
 
 __layer__ = "models"
 
@@ -25,6 +25,19 @@ _NODES = (
         'tests/tools/test_connector_files.py::test_a_docker_path_is_read_through_its_volume_mount',
 )
 
+# Every host, a skip not a strict xfail: the red rides on LIVE models.dev data, so a host that
+# cannot reach models.dev passes. models.dev now lists ``commandcode`` with env ``CMD_API_KEY``;
+# ``get_provider`` prefers the models.dev entry over the plugin profile's ``COMMANDCODE_API_KEY``.
+# No fork code is on the path (providers.py and models_dev.py match upstream). Retire when
+# upstream's test stops reading the live catalogue (r-reds-a 2026-10-16).
+_LIVE_CATALOGUE = {
+    'tests/plugins/model_providers/test_commandcode_profile.py::'
+    'TestCommandCodeFetchModelsPickerContract::test_resolve_provider_full': (
+        _up_red_skip("reads live models.dev, which names commandcode's key CMD_API_KEY; "
+                     "the test pins the plugin's COMMANDCODE_API_KEY"),
+    ),
+}
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
     {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
-)
+) | _LIVE_CATALOGUE

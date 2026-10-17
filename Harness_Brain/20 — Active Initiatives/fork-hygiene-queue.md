@@ -30,7 +30,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-16 (landing land-h5, reds proven on `origin/main` `b11585e6424` by `scripts/run_tests.sh` alone)
 
-- [ ] **`tests/plugins/model_providers/test_commandcode_profile.py::TestCommandCodeFetchModelsPickerContract::test_resolve_provider_full` red on main: `assert 'COMMANDCODE_API_KEY' in ('CMD_API_KEY',)` — the commandcode ProviderDef's `api_key_env_vars` and the test disagree on the key name** · upstream-owned file (`tests/fixtures/upstream_manifest.txt`); run it bare on the upstream tag before choosing a fork fix vs an `upstream` skip-list row · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-reds-a)**
 - [ ] **`tests/tools/test_read_file_utf8_binary_regression.py::TestReadFileBinaryClassification::test_nul_byte_in_text_stays_binary` red on main: the ReadResult comes back `not_found=True, is_binary=False` for the NUL-byte fixture file** · upstream-owned file; a Windows path/write probe first (the file is reported not found, not misclassified) · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-reds-a)**
 
 ## Filed on arrival — 2026-10-16 (build lane h-bundle-speed, reds proven on `origin/main` `aba5fec098c`)
