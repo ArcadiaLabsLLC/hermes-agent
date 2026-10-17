@@ -141,8 +141,9 @@ def test_a_dirty_edit_misses_and_committing_it_unchanged_keeps_the_key(repo, sto
     assert _reason(repo, store) == "changed"
 
 
-@pytest.mark.parametrize("rel", ["uv.lock", "scripts/run_tests_bundled.py"])
+@pytest.mark.parametrize("rel", ["uv.lock", "scripts/run_tests_parallel.py", "scripts/_bundle_plugin/hermes_dep_record.py"])
 def test_the_interpreter_lock_and_the_runners_own_files_change_every_key(repo, store, rel):
+    """What builds a test process; the bundled runner's scheduling is not (r-fastgate, 2026-10-16)."""
     _green(repo, store)
     _write(repo, rel, "changed\n")
     _commit(repo)
