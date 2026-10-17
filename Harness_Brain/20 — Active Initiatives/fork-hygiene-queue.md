@@ -510,3 +510,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-16 (lane h5-deadcode)
 
+
+## Filed on arrival — 2026-10-17 (footprint audit)
+
+- [ ] **Footprint owner-ruling check accepts a new unapproved grandfathered reason after an old exemption leaves.** On main `0bea7e062b`, `scripts/upstream_footprint.py::grandfathered_count` reads 120 while `GRANDFATHERED_REASONS` remains 121; appending an in-memory reason with `grandfathered: true`, no `owner_ruling`, and raising the fixture by one gives count 121 and `unruled_reasons == []`, so both assertions in `tests/scripts/test_upstream_footprint.py::test_every_raise_cites_an_owner_ruling` accept it. The current footprint tests pass (18 tests in the footprint and add-row files, 2026-10-17). Pin the identities of grandfathered rows to the original approved set, allowing only removal; a count alone also permits swapping an old exemption for a new one. Add controls for reuse of the vacant slot and same-count substitution; retain the owner-ruling requirement for every new row. · fork / upstream footprint · audit 2026-10-17, in-memory control only; no fixture changed · READY
