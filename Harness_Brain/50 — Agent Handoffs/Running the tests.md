@@ -57,14 +57,18 @@ whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test
 whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
 ran 908 files / 13,621 tests in minutes.
 
-**A session-chain edit runs the whole tree** (fast-gate §5, owner ruling Q3). The fork's root
-`conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
-`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded
-by every test process, so `--scope fork` reaches every inherited file when one of them changes: the
-scope line counts them as `chain N` and prints `chain: <paths>`. Dry selection on 2026-10-10: a
-root-`conftest.py` change went from 983 files (fork only) to 6,440. **A batch with a session-chain edit
-waits for the release-merge landing, which pays the tree anyway, or lands alone** (owner ruling 2026-10-16:
-the 105-minute gates of that day were chain edits riding ordinary batches); a release merge whose only
+**A session-chain edit runs the chain's contract plus a sample; the whole tree runs at the release
+merge** (owner ruling 2026-10-16, replacing fast-gate §5's whole-tree reach for ordinary landings). The
+fork's root `conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
+`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded by
+every test process. On an ordinary landing such a change reaches no file by itself: the gate runs
+`tests/tooling/test_session_chain_contract.py` (one test per promise those files make — home isolation,
+env scrub, process-state reset, the timeout, the `test-tmp` root, the dependency recorder, the root
+conftest's git lock), everything else `--scope fork` selects, and the smallest inherited file of every test
+folder nothing else reached, and prints `chain: contract + sample — N contract file(s) + M sample(s)`. On
+land/q2 (9 chain paths) that is 1,158 files where the whole tree was 6,675. A new promise the chain makes
+gets its test there, with its killing mutation. The release merge (`--since-merge`) still reaches every
+file on a chain edit: it is the backstop for an interaction no promise names, and a release merge whose only
 touch on a chain path is re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does
 not count it.
 
