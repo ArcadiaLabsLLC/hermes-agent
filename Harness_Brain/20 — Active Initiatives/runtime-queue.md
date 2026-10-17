@@ -30,6 +30,12 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
+
+- [ ] **Lens L0 remainder: the §6a rule additions (`changed`, `moved_by`, `best_of`, `ends_within`) and the W2/W5 typed values (money with currency, instants, plausible range, confirm-on-second-read) are not in `agent_runtime/lens/rules.py` / `feed.py`; L0 shipped the four Companion forms the corpus pins** · fork / lens · plan `eternia-lens-in-hermes.md` §6a, §6b W2 W5 W7 · READY 2026-10-16
+
+- [ ] **The Lens fold rides the method lane only (`runtime.lens.fold`); carrying it on the push-lane snapshot is a new top-level key in `agent_runtime/snapshot/sections.py` plus a regen of the cross-stack `tests/fixtures/stream_frames/` — do it in the same sitting as the launcher's fold painter** · fork / lens + snapshot · `agent_runtime/lens/snapshot_fold.py` docstring; launcher `mission-control-queue.md` L1 fold row · hermes moves first, launcher consumes · READY 2026-10-16
+
 ### Filed on arrival — 2026-10-16 (build lane h-bundle-speed, branch `build/h-bundle-speed`)
 
 
@@ -46,7 +52,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 - [ ] **A turn that reuses the resident actor's stamped native history (lineage-stamp S3) leaves no mark on the turn record: only `context_native_history_ms` drops, so "reused or read" is inferred from a duration. Add a typed `context_native_history_source` (`resident` / `read`) beside it — `_PRE_ADMIT_TIMING_KEYS` only admits ints, so it needs its own field on the phases/timing receipt** · fork / `hermes_cli/harness_parts/persona/chat_turn_commit/run.py::_build_context`, `hermes_cli/harness_parts/persona/chat_admission.py::_PRE_ADMIT_TIMING_KEYS` · evidence lands with `build/h1-lineage` S3 (`PersonaChatRuntimeRegistry.resident_native_history`) · S3 is on main (`PersonaChatRuntimeRegistry.resident_native_history`, landed with fc3350d3044) · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-turnrec)**
 
 ### Filed on arrival — 2026-10-16 (build lane h4-seeds)
-- [ ] **`realm sync revert --to <version>` cannot move a LEVEL whose published copy changed between versions** · fork / realm sync · `agent_runtime/realm_revert_version.py::_upstream_moved_rows` walks office, boards, instances, canvases, persona defs and skills but no levels, so only a locally drifted level is restored; add a `_pair_rows(SyncFamily.LEVEL, …)` over `read_remote_levels` of both subtrees (found while landing the level arm, plan `realm-level-revert-arm-2026-10-15` S2) · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-realm-lens)**
 
 ### Filed on arrival — 2026-10-16 (release merge v0.22.2, daily branch at upstream acc3cada0da)
 
@@ -317,7 +322,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Owner asks — 2026-10-01 (Eternia Lens in hermes)
 
-- [ ] **Build Eternia Lens as a fork-owned plugin (`plugins/eternia-lens/`, code under `agent_runtime/lens/`): a poll / push / pull ingest module whose rules raise Episodes that forge ONE chat turn of the selected persona (ADR 0008), on both the bundled profile and the Developer Edition; a Python port of Companion's Monitoring contracts, everything Lens-presentation / Work / repair cut. Stages L0–L4, four owner rulings owed before L0** · `fork / runtime` · plan [eternia-lens-in-hermes.md](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md) · launcher half: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` (the L1 fold row) · RULED 2026-10-02 owner: accept all four plan §6 rulings as written (eternia-lens / runtime.lens.*; per-manifest persona defaulting to the selected one; no act level; phones run no poller) · plan `docs/agent-runtime-harness/planned/eternia-lens-program-cut-2026-10-15.md` approved by owner 2026-10-15 · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-realm-lens)**
+- [ ] **Eternia Lens L2–L4 (exit door, push door, pull door): L0 + L1 are built (branch `q/r-realm-lens`, lane r-realm-lens 2026-10-16); next is L2 — `trigger`, `artifacts`, `tool` opening block, daily cap, pause, receipts, `runtime.lens.receipt`** · `fork / runtime` · plan [eternia-lens-in-hermes.md](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md) §5 and the cut `docs/agent-runtime-harness/planned/eternia-lens-program-cut-2026-10-15.md` (one lane per stage, sequential) · launcher half: `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` (the L1 fold row) · RULED 2026-10-02 owner (plan §6, all four) · READY 2026-10-16
 
 
 ### Filed on arrival — 2026-10-01 (lane w3-turn)
@@ -510,6 +515,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams
+
+### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
+
+- [ ] **Lens source credentials live in the credential pool's `lens` slice, and upstream's dashboard `GET /api/credentials/pool` (`hermes_cli/web_routers/ops.py::list_credential_pool`) lists that slice with a `redact_key` token preview — the Lens ruling is write-only (set / not set / rotated, never any part of the value); wants a caller-side door (hide a slice by source `manual:lens`) or an upstream issue, never an edit** · seam / credential pool · `agent_runtime/lens/credentials.py` · READY 2026-10-16
 
 
 
@@ -816,4 +825,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 - [ ] **The operator chat send (`persona.chat.send` / the chat turn) accepts text only, so a pasted image never reaches a vision model: accept bounded image content parts (PNG/JPEG; the launcher converts BMP/clipboard formats), pass them to the provider as image parts for a vision-capable model, and refuse with a typed error for a model without vision** · seam / operator chat send · launcher `mission-control-queue.md` "A pasted image never reaches the model" (launcher half: `lib/features/agent_console/panel/agent_console_pasted_image_policy.dart` `messageWithPastedImages` sends a text manifest only) · owner sitting 2026-10-15 · NEEDS PLAN 2026-10-16 (lane r-chatsend): the send reaches the model through four text-only seams — `AgentRunRequest.user_message: str` (`agent_runtime/profile_runner/models.py`), `persona_runtime._mission_chat_user_message` (HUD + skill preload fold onto a string), the pre-persisted operator row a pending turn REUSES (`chat_turn_commit/run.py` `reuse_current_user_message`, so a retry would drop the image) and `model_input_observability`; upstream `agent/image_routing.py` (`build_native_content_parts`, `decide_image_input_mode`) is the door. The plan decides: the RPC param shape and bounds (count, bytes, PNG/JPEG magic check), where attachments are stored durably so replay and the launcher bubble can read them, and the refusal when `decide_image_input_mode` answers `text` because an `auxiliary.vision` backend is configured for a vision model
 
-- [ ] **Lens L1: manifests carry `credential_ref`, resolved from the hermes credential pool per read (persona home); redaction test on every evidence path** · plan launcher `EterniaLauncher/docs/companion/planned/MONITORING_CREDENTIALS_SEPARATION_2026-10-15.md` S2 (owner-approved 2026-10-15) · killing mutation: inline the resolved value into the stored evidence row → the redaction test reds · unblocks launcher companion-queue row "Separate ordinary feature-vault migration…" (S3) · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-realm-lens)**

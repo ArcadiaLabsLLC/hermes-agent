@@ -1,0 +1,38 @@
+[
+  {
+    "id": "exact-three-observations",
+    "startMs": 0,
+    "endMs": 15000,
+    "sequences": [
+      1,
+      2,
+      3
+    ],
+    "values": [
+      10,
+      20,
+      30
+    ],
+    "gapCount": 0
+  },
+  {
+    "id": "half-open-end-excludes-boundary",
+    "startMs": 5000,
+    "endMs": 10000,
+    "sequences": [
+      2
+    ],
+    "values": [
+      20
+    ],
+    "gapCount": 0
+  },
+  {
+    "id": "empty-range-preserves-no-coverage",
+    "startMs": 15000,
+    "endMs": 20000,
+    "sequences": [],
+    "values": [],
+    "gapCount": 1
+  }
+]

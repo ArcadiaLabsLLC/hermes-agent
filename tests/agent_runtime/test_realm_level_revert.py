@@ -97,3 +97,36 @@ def test_a_held_level_offers_no_revert_row(isolate_agent_runtime_root, tmp_path)
 
     assert _level_rows(realm.id) == []
     assert realm_sync_status(realm.id)["levels"]["held"] == [token]
+
+
+def test_revert_to_a_version_moves_a_level_whose_published_copy_changed(isolate_agent_runtime_root, tmp_path):
+    """``revert --to X`` over a level the store still holds at the NEWER published
+    copy: no store drift exists, so only the upstream-moved walk can select it."""
+
+    from agent_runtime.realm_revert_version import revert_realm_sync_to_version
+    from tests.agent_runtime.test_realm_sync_level_artifact import _git_in
+
+    old, new = _document(prop_x=1.0), _document(prop_x=5.0)
+    realm, repo, workspace = _realm_with_workspace_and_level(tmp_path, old)
+    token = runtime_paths.safe_path_token(workspace.id)
+    _git_in(repo, "config", "user.email", "t@example.invalid")
+    _git_in(repo, "config", "user.name", "t")
+    _git_in(repo, "config", "core.autocrlf", "false")
+    _publish_by_hand(repo, realm.id, token, old)
+    _git_in(repo, "add", "-A")
+    _git_in(repo, "commit", "-q", "-m", "X")
+    version_x = _git_in(repo, "rev-parse", "HEAD").stdout.strip()
+    LevelStore().write(workspace.id, new)
+    _publish_by_hand(repo, realm.id, token, new)
+    _git_in(repo, "add", "-A")
+    _git_in(repo, "commit", "-q", "-m", "HEAD")
+    write_level_baseline(realm.id, {level_baseline_key(token): level_document_hash(new)})
+    assert _level_rows(realm.id) == []  # the store matches HEAD: plain drift has no row
+
+    result = revert_realm_sync_to_version(realm.id, to=version_x, revert_all=True)
+
+    assert [(row["family"], row["item_key"], row["outcome"]) for row in result["items"]] == [
+        ("level", token, "reverted_to_upstream")
+    ]
+    assert LevelStore().read(workspace.id) == old
+    assert [row["kind"] for row in _level_rows(realm.id)] == ["changed"]  # no baseline written

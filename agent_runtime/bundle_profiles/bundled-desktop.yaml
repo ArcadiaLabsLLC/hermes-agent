@@ -238,6 +238,7 @@ packaging:
   # google_meet (meeting bot, needs playwright), teams_pipeline (Teams messaging, off).
   plugins:
     - eternia-harness     # `harness serve` — the Launcher's wire
+    - eternia-lens        # Lens: poll/push/pull ingest (plan eternia-lens-in-hermes.md); phones run no poller
     - model-providers
     - memory
     - context_engine

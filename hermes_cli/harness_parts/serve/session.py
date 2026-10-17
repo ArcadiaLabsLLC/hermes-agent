@@ -752,6 +752,15 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
                 "queued-send runner did not start; sends queued behind a busy root wait for "
                 "the next serve", exc_info=True,
             )
+        # Same owner again: one watcher writes the home's Lens store (plan eternia-lens L1).
+        try:
+            from agent_runtime.lens.poller import start_lens_poller
+
+            start_lens_poller(stop_event=self.liveness_stop)
+        except Exception:
+            import logging as _lens_logging
+
+            _lens_logging.getLogger(__name__).warning("lens poller did not start", exc_info=True)
 
     def _bind_subscription_lanes(self) -> None:
 

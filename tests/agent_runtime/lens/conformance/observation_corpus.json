@@ -1,0 +1,739 @@
+[
+  {
+    "id": "threshold-hysteresis-recovered-open",
+    "rules": [
+      {}
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 0,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 75,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 2,
+              "firstMs": 0,
+              "lastMs": 5000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 65,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 2,
+              "firstMs": 0,
+              "lastMs": 10000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 3,
+              "firstMs": 0,
+              "lastMs": 15000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "sustained-threshold",
+    "rules": [
+      {
+        "form": "forDuration",
+        "windowMs": 10000
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 10000,
+              "lastMs": 10000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 2,
+              "firstMs": 10000,
+              "lastMs": 15000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "one-sample-spike",
+    "rules": [
+      {
+        "form": "forDuration",
+        "windowMs": 10000
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "consecutive-samples",
+    "rules": [
+      {
+        "form": "consecutiveSamples",
+        "samples": 3
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 10000,
+              "lastMs": 10000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 2,
+              "firstMs": 10000,
+              "lastMs": 15000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 20000,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 3,
+              "firstMs": 10000,
+              "lastMs": 20000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 25000,
+        "value": 60,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 3,
+              "firstMs": 10000,
+              "lastMs": 25000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "delta-window",
+    "rules": [
+      {
+        "form": "delta",
+        "windowMs": 10000
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 0,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 40,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 10000,
+              "lastMs": 10000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 110,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 10000,
+              "lastMs": 15000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "simultaneous-independent-rules",
+    "rules": [
+      {},
+      {
+        "id": "lower",
+        "direction": "below",
+        "threshold": 20,
+        "recoveryThreshold": 30
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing",
+            "lower": "healthy"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 0,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 10,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy",
+            "lower": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 5000,
+              "decision": null
+            },
+            {
+              "rule": "lower",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 5000,
+              "lastMs": 5000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 40,
+        "oracle": {
+          "verdicts": {
+            "high": "healthy",
+            "lower": "healthy"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 10000,
+              "decision": null
+            },
+            {
+              "rule": "lower",
+              "state": "recovered",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 5000,
+              "lastMs": 10000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "ordinary-ten-millisecond-latency",
+    "rules": [
+      {
+        "form": "forDuration",
+        "windowMs": 15000
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 10,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5010,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10010,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15010,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 15010,
+              "lastMs": 15010,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "missing-sampling-tick",
+    "rules": [
+      {
+        "form": "consecutiveSamples",
+        "samples": 3
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 5000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 15000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 20000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "irregular-supported-cadence",
+    "rules": [
+      {
+        "form": "consecutiveSamples",
+        "samples": 3
+      }
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 6000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 12000,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 12000,
+              "lastMs": 12000,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "stale-without-new-observation",
+    "rules": [
+      {}
+    ],
+    "frames": [
+      {
+        "atMs": 0,
+        "value": 90,
+        "oracle": {
+          "verdicts": {
+            "high": "firing"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 0,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      },
+      {
+        "atMs": 10000,
+        "value": 90,
+        "sample": false,
+        "oracle": {
+          "verdicts": {
+            "high": "unknown"
+          },
+          "episodes": [
+            {
+              "rule": "high",
+              "state": "active",
+              "ordinal": 1,
+              "count": 1,
+              "firstMs": 0,
+              "lastMs": 0,
+              "decision": null
+            }
+          ],
+          "workWrites": 0
+        }
+      }
+    ]
+  }
+]
