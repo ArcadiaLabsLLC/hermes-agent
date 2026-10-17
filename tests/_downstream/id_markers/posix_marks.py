@@ -89,6 +89,13 @@ if _WIN:
         "test_plain_linux_host_passes_platform_check": (
             _posix_only("install.sh refuses MINGW/MSYS; Windows installs via install.ps1"),
         ),
+        # Lane r-reds-a (2026-10-16): the worker-log stub opens the literal "/dev/null",
+        # which Windows resolves to <drive>:\dev\null (PermissionError).
+        "tests/gateway/test_kanban_multiplex_served_profile_parity.py::"
+        "test_worker_for_served_profile_gets_its_own_env_and_toolset_pin": (
+            _posix_xfail('stubs _open_worker_log with open("/dev/null", "w"); '
+                         "Windows has no /dev/null (os.devnull is nul)"),
+        ),
         "tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp": (
             pytest.mark.skip(reason=_POSIX_ONLY),
         ),
