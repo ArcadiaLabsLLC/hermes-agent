@@ -148,7 +148,7 @@ junction only once `tests/tooling` passes on it.
 
 Weakness escalation per domain — what a lane records when work reveals architecture below the bar, and which queue the row goes to — is [`CLAUDE.md`](../CLAUDE.md) § "Weakness escalation"; the god-file program that applies it is `docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`.
 
-`scripts/run_tests_bundled.sh tests` — over the whole tree, never three directories (a three-directory form misses the upstream tests of an upstream file the change edits; `Harness_Brain/50 — Agent Handoffs/Running the tests.md` measures it). `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; the weekly upstream merge lane runs `--scope full`, every discovered file. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+`scripts/run_tests_bundled.sh tests` — once per batch, at its landing (when and what runs is `Harness_Brain/50 — Agent Handoffs/Running the tests.md`'s) — over the whole tree, never three directories (a three-directory form misses the upstream tests of an upstream file the change edits; `Harness_Brain/50 — Agent Handoffs/Running the tests.md` measures it). `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; `--scope full`, every discovered file, runs only at an upstream release merge. Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
 `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
 
 ### Unattended reporting
@@ -165,7 +165,8 @@ a refactor that silently moves a claimed line off its claimed source spelling
 present at the claimed symbol — see the mutation-gate rows in the Mission
 Control queue).
 
-`scripts/unattended_suite_run.ps1` is a REPORT, not a gate — nothing consumes
+`scripts/unattended_suite_run.ps1` is a REPORT, not a gate, and a long run: it runs on an idle box,
+never beside other work (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`) — nothing consumes
 its exit code besides Task Scheduler's own run history and whoever reads the
 file it writes. It runs three things and writes one dated Markdown report to
 `qa-artifacts/unattended-suite-<UTC timestamp>.md` (git-ignored; the
@@ -251,7 +252,7 @@ its README.
 
 **Full-suite default (ruled 2026-09-01, hermes-suite-perf R3):** the per-file
 parallel runner at its adaptive default of **8 workers** IS the full-suite
-lane; plain serial `python -m pytest <dirs>` is the exception, kept for
+lane (a full run happens only at a release merge: `Harness_Brain/50 — Agent Handoffs/Running the tests.md`); plain serial `python -m pytest <dirs>` is the exception, kept for
 single-file debugging and for the `tests/integration` / `tests/e2e` /
 `tests/docker` suites the runner deliberately skips (they need real external
 services and run in their own dedicated jobs — name them explicitly, e.g.

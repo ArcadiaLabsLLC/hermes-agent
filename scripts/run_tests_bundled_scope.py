@@ -7,7 +7,10 @@ reaches (``select_scope``): the file itself changed, its convention-mapped
 source (``tests/<pkg>/test_<mod>.py`` → ``<pkg>/<mod>.py``) changed, it imports
 a changed module, a ``conftest.py`` above it changed, or a path of the session
 chain every process loads changed (``scripts/run_tests_bundled_chain.py``,
-fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config). The change is
+fast-gate §5: the root ``conftest.py``, the plugin chain, pytest's config) — at a
+release merge (``--since-merge``) by reaching every file; at an ordinary landing by
+the chain's contract (``tests/tooling/test_session_chain_contract*.py``) plus a
+sample (owner ruling 2026-10-16, ``chain_sample``). The change is
 ``git diff --name-only <--since>...HEAD`` (default ``origin/main``) plus
 working-tree edits; after a release merge it is ``--since-merge <merge>``
 (``merge_change``: what the merge itself produced, plus what came after it,
@@ -23,6 +26,7 @@ only on an idle box: ``scripts/run_tests_idle.sh``).
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import sys
 from dataclasses import dataclass, field
@@ -271,13 +275,14 @@ class ScopeSelection:
     source: List[Path] = field(default_factory=list)  # its convention-mapped source changed
     importer: List[Path] = field(default_factory=list)  # it imports a changed module
     conftest: List[Path] = field(default_factory=list)  # a conftest.py above it changed
-    chain: List[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5)
+    chain: List[Path] = field(default_factory=list)  # a session-chain path changed (fast-gate §5): all, or the sample
     named: List[Path] = field(default_factory=list)  # named explicitly on the command line
     full: List[Path] = field(default_factory=list)  # --scope full: every other discovered file
     excluded: List[Path] = field(default_factory=list)
     skipped_red: List[Path] = field(default_factory=list)  # on the upstream skip list, not named
     idle_box: List[Path] = field(default_factory=list)  # on the idle-box list, not named
     chain_paths: list[str] = field(default_factory=list)  # the changed session-chain paths (the printed reason)
+    chain_sampled: bool = False  # ``chain`` is the contract's sample, not the whole tree
 
     @property
     def selected(self) -> List[Path]:
@@ -297,6 +302,8 @@ def select_scope(
     skipped: Iterable[str] = (),
     full: bool = False,
     idle_box: Iterable[str] = (),
+    chain_sample: bool = False,
+    size_of=None,
 ) -> ScopeSelection:
     """The ``fork`` scope: every file NOT in ``inherited`` (the upstream
     manifest), plus each inherited file the change could reach — the file
@@ -311,12 +318,24 @@ def select_scope(
     wins over reach). A file on the idle-box list (``idle_box``) goes to
     ``idle_box`` the same way: it runs only when named, or on an idle box
     through ``scripts/run_tests_idle.sh`` (owner ruling 2026-10-10). ``full=True``
-    puts every other file in ``full``."""
+    puts every other file in ``full``.
+
+    ``chain_sample=True`` (an ordinary landing, owner ruling 2026-10-16): a chain
+    change reaches no file by itself, not even through a chain conftest's directory
+    rule. The fork-owned files then run only as the inherited ones do — touched,
+    convention source, a conftest above, an importer of a changed module — bar the
+    chain's contract, which always runs; ``chain`` takes the smallest file (ties by
+    path) of every test folder the selection would otherwise leave empty, fork and
+    inherited alike."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
-    changed_conftest_dirs = {rel.rsplit("/", 1)[0] for rel in changed if rel.endswith("/conftest.py")}
-    chain_hit = bool(chain.chain_changed(changed))
+    changed_conftest_dirs = {
+        rel.rsplit("/", 1)[0] for rel in changed
+        if rel.endswith("/conftest.py") and not (chain_sample and chain.in_chain(rel))
+    }
+    chain_hit = bool(chain.chain_changed(changed)) and not chain_sample
+    sampling = chain_sample and bool(chain.chain_changed(changed))  # fork files reached, not all of them
     skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
     for path in files:
@@ -327,7 +346,7 @@ def select_scope(
             (sel.named if path.resolve() in named_real else sel.idle_box).append(path)
         elif full:
             (sel.named if path.resolve() in named_real else sel.full).append(path)
-        elif rel not in inherited:
+        elif rel not in inherited and (not sampling or fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB)):
             sel.fork_only.append(path)
         elif path.resolve() in named_real:
             sel.named.append(path)
@@ -347,7 +366,32 @@ def select_scope(
             sel.importer.append(path)
         else:
             sel.excluded.append(path)
+    if chain_sample and sel.chain_paths:
+        _sample_folders(sel, repo_root, size_of or (lambda rel: (Path(repo_root) / rel).stat().st_size))
     return sel
+
+
+#: the chain's contract: what a change to a file every test loads must keep (owner ruling 2026-10-16)
+CHAIN_CONTRACT_GLOB = "tests/tooling/test_session_chain_contract*.py"
+
+
+def _sample_folders(sel: ScopeSelection, repo_root: Path, size_of) -> None:
+    """Move the smallest excluded file (fork or inherited) of every folder with nothing selected into ``chain``."""
+
+    def folder(path: Path) -> str:
+        return _rel_posix(path, repo_root).rsplit("/", 1)[0]
+
+    covered = {folder(p) for p in sel.selected}
+    best: dict = {}
+    for path in sel.excluded:
+        key = folder(path)
+        if key not in covered:
+            entry = (size_of(_rel_posix(path, repo_root)), _rel_posix(path, repo_root), path)
+            best[key] = min(best.get(key, entry), entry)
+    picked = {entry[2] for entry in best.values()}
+    sel.chain = sorted(picked, key=str)
+    sel.chain_sampled = True
+    sel.excluded = [p for p in sel.excluded if p not in picked]
 
 
 def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], skip_rows) -> Optional[ScopeSelection]:
@@ -376,7 +420,8 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
                 file=sys.stderr,
             )
             return None
-        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows, idle_box=idle_box)
+        sel = select_scope(files, repo_root, inherited, changed, named=named, skipped=skip_rows, idle_box=idle_box,
+                           chain_sample=not args.since_merge)
         print(
             f"Scope fork (since {since}, {len(changed)} changed path(s)): {len(sel.fork_only)} fork-only + "
             f"{len(sel.selected) - len(sel.fork_only)} inherited reached by the change "
@@ -385,8 +430,12 @@ def select_for_run(args, files: List[Path], repo_root: Path, roots: List[Path], 
             f"{len(sel.excluded)} inherited left to --scope full",
             flush=True,
         )
-        if chain.chain_changed(changed):  # why a landing pays the whole tree (owner ruling Q3)
+        if chain.chain_changed(changed) and args.since_merge:  # a release merge pays the whole tree (owner ruling Q3)
             print(f"  chain: {', '.join(chain.chain_changed(changed))} — loaded by every test process", flush=True)
+        elif chain.chain_changed(changed):  # an ordinary landing: the contract and a sample (owner ruling 2026-10-16)
+            contract = [p for p in sel.selected if fnmatch.fnmatchcase(_rel_posix(p, repo_root), CHAIN_CONTRACT_GLOB)]
+            print(f"  chain: contract + sample — {len(contract)} contract file(s) + {len(sel.chain)} sample(s), one per "
+                  f"folder nothing else reached; {', '.join(chain.chain_changed(changed))}", flush=True)
     for path in sel.skipped_red:  # a run says what it did not run, and why
         rel = _rel_posix(path, repo_root)
         print(f"  skipped (upstream skip list; name the file to run it): {rel}  # {skip_rows[rel].why}")

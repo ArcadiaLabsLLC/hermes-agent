@@ -428,8 +428,8 @@ landing gate, not 115 minutes.
 **Size.** S–M: ~90 script lines, ~80 test lines, one runbook step.
 
 **Risks.** Upstream changes to files the fork never edits are not re-tested by the fork's
-gate — by design: upstream tested the tag, and `--scope full` remains the weekly lane's
-instrument (P0 row). A fix(merge) commit after the merge is covered by `<merge>..HEAD`.
+gate — by design: upstream tested the tag, and `--scope full` remains the release merge's
+instrument, and runs nowhere else (P0 row; `Harness_Brain/50 — Agent Handoffs/Running the tests.md`). A fix(merge) commit after the merge is covered by `<merge>..HEAD`.
 **Owner question.** None.
 
 ## D3.08 = L7.20 — test and lane runs leave copied homes, runtimes and venvs in `%TEMP%`

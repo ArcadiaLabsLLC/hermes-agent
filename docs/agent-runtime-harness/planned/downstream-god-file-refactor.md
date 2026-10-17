@@ -102,7 +102,7 @@ Production imports from `hermes_cli.harness`, the whole list: `build_parser` (3 
 8. **A guard, an error state or a designed empty state is not bloat.** LOC is not the objective (the launcher retired its 30 % target on 2026-09-20 with numbers: decomposition RAISES the total by construction). The objectives are: grandfathered units **41 → 0**, one authority per helper (§5), and the §4 deletions with their tombstones.
 9. **Keep out of upstream — mechanically.** W0-G2 reds any refactor commit that touches a file present in `upstream/main`. A duplicate whose second copy lives in an upstream file (§5 lists them) is folded on the DOWNSTREAM side only; the upstream copy is left alone and named in the baseline with `upstream_copy_left` as its reason. *Departure 2: the launcher had no upstream; this rule is new.*
 10. **Nothing waits on the operator except §7.** Design questions inside a lane are answered by the lane's layout sheet and reviewed by a separate Opus agent before the MOVE commit; that review replaces owner sign-off. *Departure 3: the launcher's per-file design notes were retired for layout sheets on 2026-09-20 late; this plan starts there — one sheet per lane, §2 already carries the layout for every file, so a sheet is a confirmation against the tree, not a design from scratch.*
-11. **Landing protocol** (§6) — full suite green on the rebased tree, no baselining, the G1 row rides the commit that crosses 800, push after every commit, one worktree per lane cut from a neutral cwd, never a checkout switch in the primary.
+11. **Landing protocol** (§6) — the batch's one landing gate green on the rebased tree (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`), no baselining, the G1 row rides the commit that crosses 800, push after every commit, one worktree per lane cut from a neutral cwd, never a checkout switch in the primary.
 
 ---
 
@@ -135,7 +135,7 @@ Commit: `test(tooling): W0 — downstream size ceiling, upstream fence, widened 
   - Flip W0-G4 from `xfail(strict=True)` to a plain test in this commit — the gate that makes a silent no-op patch impossible from here on.
 - **CHANGE 2 — `refactor(harness): argv fallback lanes marked for delete are deleted`** — the §4.2 rows that live in harness.py / persona_commands (the argv paths the R-C4 manifest lane superseded), with their tombstones. Lands only if §4.2's grep census (run by the H1 builder first) proves no caller; otherwise the rows go back to §4.2 with the caller named.
 
-Gate: full suite; contract fixture byte-identical; W0-G4 green; `[ds-size]` unchanged (41 — H1 shrinks nothing, by design).
+Gate: the batch's one landing gate (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`); contract fixture byte-identical; W0-G4 green; `[ds-size]` unchanged (41 — H1 shrinks nothing, by design).
 
 ### Wave 2 — the parallel lanes (any order, any parallelism the box allows; each lane = one worktree, one builder)
 
@@ -310,7 +310,7 @@ Standing ruling (`feedback_rpc_route_first`, 2026-09-05, cited as R-C4 in `remot
 
 ### 4.3 Branches no test reaches (W0-D's reach census; the second half of the list)
 
-W0-D lists every function/method ≥ 10 lines and branch arm ≥ 10 lines in the 41 files with zero hits under the full suite. The lane that owns the file rules each row into one of: **delete** (no field path either — deleted with tombstone in the lane's CHANGE commit), **field-only** (Windows/service/peer path; kept, and the row names the field proof that exercises it), **untested live code** (kept; a test is owed, rowed in the queue, NOT written in the refactor lane). The reach census is re-run at Wave 3 and the delete arm must be empty.
+W0-D lists every function/method ≥ 10 lines and branch arm ≥ 10 lines in the 41 files with zero hits under the full suite. The lane that owns the file rules each row into one of: **delete** (no field path either — deleted with tombstone in the lane's CHANGE commit), **field-only** (Windows/service/peer path; kept, and the row names the field proof that exercises it), **untested live code** (kept; a test is owed, rowed in the queue, NOT written in the refactor lane). The reach census is re-run at Wave 3 and the delete arm must be empty; that run follows `Harness_Brain/50 — Agent Handoffs/Running the tests.md` (the full tree runs only at a release merge, never beside other work).
 
 ### 4.4 Kept with a named reason
 
@@ -369,8 +369,8 @@ A branch that finishes after a landing has started waits for the next landing, u
 
 - **Exec lanes while working:** `python -m pyflakes`/`ruff` on the touched modules (foreground, explicit timeout). Nothing heavier.
 - **Exec lanes at the end:** ONLY the test files that import a touched module (`grep -l` the module paths under `tests/`), as one `pytest -q -p no:cacheprovider <files>` **run directly**, in the background with a log and the exit code captured unpiped (`; rc=$?; exit $rc`). Never the full suite, never the tooling gates, never `| tail`.
-- **The landing, once, concurrently:** (a) the full `pytest` (the one heavy slot), (b) W0-G1..G4 + `test_duplicate_helper_bodies` + `test_cli_contract_dump`, (c) `scripts/changed_line_mutation_check.py` for any new gate, (d) the docs gates (`tests/test_docket_stage_claims.py` — note its `test_every_stage_that_says_it_shipped_names_a_commit_that_landed_here` is RED on today's `main` for `duplicate-implementation-retirement.md`, a pre-existing failure this program does not own; the lander names it as tolerated, not baselined). (b)–(d) need no slot and do not wait on (a).
-- **After a forced re-rebase:** re-run only the tooling gates (b). The full suite runs again only if an incoming commit touches a file the batch touches.
+- **The landing, once, concurrently:** (a) the landing gate as `Harness_Brain/50 — Agent Handoffs/Running the tests.md` defines it (the one heavy slot), (b) W0-G1..G4 + `test_duplicate_helper_bodies` + `test_cli_contract_dump`, (c) `scripts/changed_line_mutation_check.py` for any new gate, (d) the docs gates (`tests/test_docket_stage_claims.py` — note its `test_every_stage_that_says_it_shipped_names_a_commit_that_landed_here` is RED on today's `main` for `duplicate-implementation-retirement.md`, a pre-existing failure this program does not own; the lander names it as tolerated, not baselined). (b)–(d) need no slot and do not wait on (a).
+- **After a forced re-rebase:** re-run only the tooling gates (b). The landing gate runs again only if an incoming commit touches a file the batch touches.
 - A serial gate chain under exec-lane load cost the launcher's first landing 40 minutes; this is why (a)–(d) launch together.
 
 ### 6.3 `EXEC_CARD` — the one page an exec lane reads (due in Wave 0 as `downstream-god-file-refactor-EXEC_CARD.md`; not written as of 2026-10-11)

@@ -272,6 +272,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_oauth_status_pool_observation_downstream.py",
         ),
     ),
+    # Lane r-reds-a (2026-10-16): the test's premise is a REAL hermes console-script
+    # install, found through the operator's PATH; on a fork workstation that install is
+    # <real store>/bin, inside the root run_tests.sh hands the home I/O guard
+    # (HERMES_TEST_REAL_ROOT), so shutil.which() probing it is refused as real-home I/O.
+    "tests/tools/test_build_subprocess_env.py::"
+    "test_e2e_scrubbed_env_resolves_bare_hermes_under_minimal_parent_path": (
+        pytest.mark.skip(reason="probes the real hermes install, which the fork keeps under "
+                                "the guarded real store root (<root>/bin/hermes.exe)"),
+    ),
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{

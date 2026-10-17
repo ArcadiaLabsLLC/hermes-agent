@@ -147,6 +147,10 @@ fork_test_tmp_root() {
 # the per-test timeout (fork-hygiene-queue, 2026-09-26 row).
 fork_win_env_extend() {
   [ -z "${SYSTEMDRIVE:-}" ] || WIN_ENV+=("SYSTEMDRIVE=$SYSTEMDRIVE")
+  # Git Bash spells the command interpreter COMSPEC, so run_tests.sh's `ComSpec` entry
+  # forwards nothing; without it npm's run-script has no shell and exits 1 silently
+  # (tests/scripts/test_bundle_npm.py, r-reds-a 2026-10-16).
+  [ -n "${ComSpec:-}" ] || [ -z "${COMSPEC:-}" ] || WIN_ENV+=("COMSPEC=$COMSPEC")
 }
 
 # ── The operator's REAL store root, named for the fence ─────────────────────
