@@ -13,7 +13,8 @@ House rules every PLAN below inherits: fork-owned files first; an upstream file 
 additively or not at all, with its row named in
 [`upstream-footprint-ledger.md`](upstream-footprint-ledger.md); one MOVE commit and one
 CHANGE commit per lane; a gate lands with its killing mutation named and its red recorded in
-the commit body; the landing gate is `scripts/run_tests_bundled.sh tests`, never bare pytest.
+the commit body; a lane runs only the test files that import a module it touched and the batch
+gets one gate, at its landing (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`); never bare pytest.
 
 ## Cluster A — the tool registry moves every turn (D1.01, D1.02, D1.03)
 

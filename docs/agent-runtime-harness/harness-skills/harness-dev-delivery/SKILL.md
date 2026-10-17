@@ -37,7 +37,8 @@ in the stage/docs/deep-audit loop and never replaces them.
   broad repo audit.
 - Run the narrowest self-test that proves the claim, while context is hot. Never run an
   unbounded full suite (`pytest` over a whole repo, bare `flutter test`, `manage.py test
-  --noinput`) unless the operator asked for it.
+  --noinput`) unless the operator asked for it. In hermes-agent, what a lane, a landing and a
+  release merge run is `Harness_Brain/50 — Agent Handoffs/Running the tests.md`.
 - Report the command, its exit status, and a short failure excerpt. Preserve raw logs in
   artifacts; do not paste noisy logs into the chat.
 - Never claim you ran something you did not run, and never claim a result you did not see.
@@ -215,7 +216,7 @@ For product edits:
    (`git rev-parse --short HEAD`, `git rev-parse --abbrev-ref HEAD`).
 3. Run the repo's deploy-check yourself when it is cheap and relevant — EterniaBackend
    `manage.py check`; EterniaLauncher focused `flutter analyze <changed paths>`; hermes-agent
-   focused `pytest` for the changed modules.
+   the test files that import a module you touched (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`).
 4. Bound the verification tail. After a small change, one post-commit `git show --stat HEAD`
    (or `git show HEAD` when the diff itself is the proof) is the commit receipt — report it and
    stop. Do not re-run `git diff --check`, `git status`, link checks, or a second focused test
