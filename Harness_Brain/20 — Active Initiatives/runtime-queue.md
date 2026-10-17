@@ -32,6 +32,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-16 (lane r-realm-lens, branch `q/r-realm-lens`)
 
+- [ ] **Lens L1 has no live proof: a real HTTP feed polled by a running serve, an Episode raised, and the stored evidence row read back redacted** · fork / runtime · r-realm-lens `13cf04f76fa` (no serve started) · BLOCKED live: needs an operator serve with `plugins/eternia-lens` shipped
 - [ ] **Lens L0 remainder: the §6a rule additions (`changed`, `moved_by`, `best_of`, `ends_within`) and the W2/W5 typed values (money with currency, instants, plausible range, confirm-on-second-read) are not in `agent_runtime/lens/rules.py` / `feed.py`; L0 shipped the four Companion forms the corpus pins** · fork / lens · plan `eternia-lens-in-hermes.md` §6a, §6b W2 W5 W7 · READY 2026-10-16
 
 - [ ] **The Lens fold rides the method lane only (`runtime.lens.fold`); carrying it on the push-lane snapshot is a new top-level key in `agent_runtime/snapshot/sections.py` plus a regen of the cross-stack `tests/fixtures/stream_frames/` — do it in the same sitting as the launcher's fold painter** · fork / lens + snapshot · `agent_runtime/lens/snapshot_fold.py` docstring; launcher `mission-control-queue.md` L1 fold row · hermes moves first, launcher consumes · READY 2026-10-16
