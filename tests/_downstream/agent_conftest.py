@@ -183,11 +183,22 @@ def _model_catalog_is_offline(monkeypatch):
     seam both paths share; ``fetch_model_metadata`` catches the refusal and answers its
     cache, so the behaviour under test is unchanged and nothing waits on a socket. A test
     that exercises the HTTP path itself patches ``model_metadata_http.get`` after this and
-    wins.
+    wins. A LOOPBACK URL, or an RFC 2606 ``.invalid`` host (it never resolves, so only a
+    configured proxy can answer it), is not the live catalog and passes through: upstream's
+    transport tests serve their own 127.0.0.1 server and proxy (test_model_metadata_http) or
+    mock the httpx transport under ``get`` for a local llama.cpp ``/props`` follow-up
+    (test_probe_cache_followups).
     """
+    from urllib.parse import urlsplit
+
     from agent import model_metadata_http
 
+    live_get = model_metadata_http.get
+
     def _offline(url, **kwargs):
+        host = urlsplit(str(url)).hostname or ""
+        if host in ("127.0.0.1", "localhost", "::1") or host.endswith(".invalid"):
+            return live_get(url, **kwargs)
         raise ConnectionError(f"tests/agent is offline: live model catalog refused ({url})")
 
     monkeypatch.setattr(model_metadata_http, "get", _offline)
