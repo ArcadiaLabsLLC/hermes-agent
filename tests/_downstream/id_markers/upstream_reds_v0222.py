@@ -9,9 +9,11 @@ retires it. Register the table in ``hooks._merge`` and the map
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from tests._downstream.id_markers.reasons import _up_red, _up_red_skip, _WIN
+from tests._downstream.id_markers.reasons import _up_red, _up_red_skip, _up_red_when, _WIN
 
 __layer__ = "models"
 
@@ -38,6 +40,18 @@ _LIVE_CATALOGUE = {
     ),
 }
 
+# Windows 10 (build < 22000) maps ``nul.<ext>`` to the NUL device: upstream's fixture file
+# ``nul.txt`` is never written and read_file reports ``not_found``. Windows 11 dropped the
+# extension rule, so the row is keyed on the build (r-reds-a 2026-10-16).
+_NUL_IS_A_DEVICE = _WIN and sys.getwindowsversion().build < 22000
+_RESERVED_NAME = {
+    'tests/tools/test_read_file_utf8_binary_regression.py::'
+    'TestReadFileBinaryClassification::test_nul_byte_in_text_stays_binary': (
+        _up_red_when(_NUL_IS_A_DEVICE, "the fixture file is named nul.txt, a reserved device "
+                     "name on Windows 10; the write goes to NUL and read_file reports not_found"),
+    ),
+}
+
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = (
     {node: (_up_red(_REASON),) for node in _NODES} if _WIN else {}
-) | _LIVE_CATALOGUE
+) | _LIVE_CATALOGUE | _RESERVED_NAME
