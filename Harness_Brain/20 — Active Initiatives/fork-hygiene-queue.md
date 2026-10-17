@@ -505,4 +505,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-16 (lane h5-deadcode)
 
-- [ ] **`tests/agent_runtime/test_build_rows_fixture.py::test_the_golden_is_the_producers_bytes` reds when `test_build_sweep.py` runs first in the same process (detected sub reason `not_in_process` vs `slots_unbound_here`): a process-global build-detect state leaks out of the sweep's boot test; passes alone** · fork / suite isolation · reproduced on `origin/main` b5f7c6d90cc with `pytest tests/agent_runtime/test_build_sweep.py tests/agent_runtime/test_build_rows_fixture.py` (1 failed, 15 passed) · lane: find the leaked state (`builds.detect._ENABLED` / `REGISTRY_DIR_ENV`), reset it in the fixture · READY 2026-10-16 **TAKEN 2026-10-16 claude (r-reds-a)**
