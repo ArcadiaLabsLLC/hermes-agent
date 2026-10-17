@@ -9,7 +9,10 @@ subject (the landed equivalent: a rebase or cherry-pick keeps all three, and com
 reads no tree, which matters in the shared clone's treeless partial clone) and rewrites it in place, keeping the cited length. A cited commit with no
 landed equivalent is HELD work: it is reported with the remote branches that hold it, so
 the landing pins it (``git tag held/<lane>/<sha> <sha>`` and pushes the tag) and names
-the branch beside it.
+the branch beside it. A cited commit a ``held/*`` tag points at is reported PINNED and no
+longer fails ``--check``; a citation written as ``<sha>` (pre-rewrite)`` names history from
+before the 2026-09-15 reconstruction (``ed9ac406be``), which no ``main`` can contain, and is
+left alone.
 
     python scripts/remap_cited_shas.py --onto origin/main "Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md"
     python scripts/remap_cited_shas.py --onto origin/main --check <files>   # report only, exit 1 on anything stale
@@ -23,13 +26,15 @@ import argparse
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 #: a backticked or bare hex token a queue cites as a commit (10–40 hex digits)
 _SHA = re.compile(r"(?<![0-9a-f])[0-9a-f]{10,40}(?![0-9a-f])")
 #: how far back on ``--onto`` a landed equivalent is searched
-DEFAULT_DEPTH = 400
+DEFAULT_DEPTH = 5000  # 400 missed 3 of 7 landed equivalents on 2026-10-16
+#: a citation marked as pre-2026-09-15 history: unrecoverable by construction, never checked
+_PRE_REWRITE = re.compile(r"(?<![0-9a-f])([0-9a-f]{10,40})`? \(pre-rewrite\)")
 
 
 def _git(repo: Path, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
@@ -74,6 +79,19 @@ def _keys(repo: Path, *revs: str, walk: bool = False) -> dict[str, str]:
 class Mapping:
     remapped: dict[str, str]  # cited token -> landed token (same length)
     held: dict[str, list[str]]  # cited token -> remote branches holding it
+    pinned: dict[str, str] = field(default_factory=dict)  # cited token -> the held/* tag keeping it
+
+
+def _held_tags(repo: Path) -> dict[str, str]:
+    """commit -> the first ``refs/tags/held/*`` tag naming it (lightweight or annotated)."""
+
+    out = _git(repo, "for-each-ref", "--format=%(objectname) %(*objectname) %(refname:short)", "refs/tags/held/").stdout
+    tags: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if parts:
+            tags.setdefault(parts[1] if len(parts) == 3 else parts[0], parts[-1])
+    return tags
 
 
 def landed_index(repo: Path, onto: str, depth: int) -> dict[str, str]:
@@ -86,7 +104,8 @@ def landed_index(repo: Path, onto: str, depth: int) -> dict[str, str]:
 
 
 def plan(repo: Path, onto: str, texts: list[str], depth: int = DEFAULT_DEPTH) -> Mapping:
-    tokens = sorted({t for text in texts for t in _SHA.findall(text)})
+    marked = {t for text in texts for t in _PRE_REWRITE.findall(text)}
+    tokens = sorted({t for text in texts for t in _SHA.findall(text)} - marked)
     commits = _commits(repo, tokens)
     on_main = _reachable(repo, onto)
     off_main = {token: full for token, full in commits.items() if full not in on_main}
@@ -96,10 +115,13 @@ def plan(repo: Path, onto: str, texts: list[str], depth: int = DEFAULT_DEPTH) ->
     upstream = _reachable(repo, "--remotes=upstream")  # cited as upstream's: never the fork's to land
     index = landed_index(repo, onto, depth)
     cited = _keys(repo, *off_main.values())
+    pins = _held_tags(repo)
     for token, full in off_main.items():
         landed = index.get(cited.get(full, ""))
         if landed:
             result.remapped[token] = landed[: len(token)]
+        elif full in pins:
+            result.pinned[token] = pins[full]
         elif full not in upstream:
             result.held[token] = _git(repo, "branch", "-r", "--format=%(refname:short)", "--contains", full).stdout.split()
     return result
@@ -121,6 +143,8 @@ def main(argv: list[str] | None = None) -> int:
     mapping = plan(args.repo, args.onto, texts, args.depth)
     for token, landed in sorted(mapping.remapped.items()):
         print(f"REMAP {token} -> {landed} (same author, date and subject on {args.onto})")
+    for token, tag in sorted(mapping.pinned.items()):
+        print(f"PINNED {token}: no landed equivalent; kept reachable by tag {tag}")
     for token, branches in sorted(mapping.held.items()):
         print(f"HELD {token}: no landed equivalent; only on {', '.join(branches) or 'no remote branch'} — pin it with a tag")
     if args.check:

@@ -4,8 +4,10 @@
 Fetch the manifest's refs before running; this command is read-only and offline.
 ``--fetch-commands`` prints the fetches that cover every ``head_ref``: the ``origin/<branch>``
 PR heads from origin, and each ``refs/carried-prs/<N>/head`` from upstream's ``pull/<N>/head``.
-Every open-PR ledger file must be classified. Deferred references are printed, not
-counted as checked. A changed fetched head requires a fresh applicability review.
+Every open-PR ledger file must be classified. A manifest file the ledger does not list is an
+error unless the PR itself adds it and upstream has none (a fork-owned file the PR creates is no
+upstream footprint, so the ledger cannot list it); such a file is checked like a ledger pair.
+Deferred references are printed, not counted as checked. A changed fetched head requires a fresh applicability review.
 """
 from __future__ import annotations
 
@@ -248,6 +250,19 @@ def _reviewed_pin(repo, entry):
     return head, reviewed_base
 
 
+def _pr_added(repo, entry, path):
+    """True when the PR adds ``path`` and upstream has none at its reviewed base or its base ref."""
+    pr_path = entry['files'][path].get('pr_path', path)
+    try:
+        def present(ref, name):
+            return bool(git(repo, 'ls-tree', '--name-only', ref, '--', name).strip())
+        return (present(entry['reviewed_head'], pr_path)
+                and not present(entry['reviewed_base'], path)
+                and not present(entry['base_ref'], path))
+    except (KeyError, ValueError, OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def fetch_commands(manifest_data):
     """The ``git fetch`` argv lists that bring every manifest ``head_ref`` up to date."""
     branches, pulls = [], []
@@ -277,7 +292,11 @@ def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
     pins = {}
     configured = {(str(number), path) for number, entry in data['prs'].items()
                   for path in entry['files']}
+    added = set()
     for number, path in sorted(configured - pairs):
+        if _pr_added(repo, data['prs'][number], path):
+            added.add((number, path))
+            continue
         output.append(f'ERROR PR #{number} {path}: manifest pair absent from open-PR ledger')
         errors += 1
     if fork_ref:
@@ -285,8 +304,8 @@ def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
             git(repo, 'rev-parse', '--verify', fork_ref + '^{tree}')
         except ValueError as exc:
             return 2, [f'ERROR: invalid fork ref: {exc}']
-    for number, path in sorted(pairs, key=lambda pair: (int(pair[0]), pair[1])):
-        label = f'PR #{number} {path}'
+    for number, path in sorted(pairs | added, key=lambda pair: (int(pair[0]), pair[1])):
+        label = f'PR #{number} {path}' + (' (PR-added)' if (number, path) in added else '')
         try:
             entry = data['prs'][number]
             if number not in pins:
@@ -321,7 +340,8 @@ def check(repo, ledger=LEDGER, manifest=MANIFEST, fork_ref=None):
         except (KeyError, ValueError, OSError, subprocess.TimeoutExpired, SyntaxError) as exc:
             errors += 1
             output.append(f'ERROR {label}: {exc}')
-    output.append(f'Summary: {len(pairs)} ledger pairs; {checked} checked; {deferred} deferred; '
+    output.append(f'Summary: {len(pairs)} ledger pairs' + (f' + {len(added)} PR-added' if added else '')
+                  + f'; {checked} checked; {deferred} deferred; '
                   f'{drift} drift; {errors} errors' + (f' (partial coverage: {partial} fragment selections)' if deferred or partial else ''))
     return (2 if errors else 1 if drift else 0), output
 
