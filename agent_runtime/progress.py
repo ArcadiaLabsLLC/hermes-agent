@@ -211,6 +211,8 @@ class ChatProgressSink:
             payload = payload or {}
             if event_type == "run.progress" and self._forward_phase_timing_marker(payload):
                 return None
+            if event_type == "run.progress" and self._forward_compaction_state(payload):
+                return None
             if event_type == "run.progress" and not _chat_progress_has_signal(payload):
                 return None
             safe_payload = _safe_progress_payload(event_type, payload)
@@ -334,6 +336,22 @@ class ChatProgressSink:
         if isinstance(status, str) and _MARKER_STATUS_RE.fullmatch(status):
             marker["status"] = status
         self.on_trace(marker)
+        return True
+
+    def _forward_compaction_state(self, payload: dict[str, Any]) -> bool:
+        """Pass a compaction lifecycle edge to the live stream only (True when it was one).
+
+        Like the timing marker above: no EventLog row, no first-trace latch, and only
+        the closed-set ``step`` crosses, so the redaction boundary holds.
+        """
+
+        from .conversation_observability import COMPACTION_PHASE, compaction_state
+
+        state = compaction_state(payload)
+        if state is None:
+            return False
+        if self.on_trace is not None:
+            self.on_trace({"type": "run.progress", "phase": COMPACTION_PHASE, "step": state})
         return True
 
     def _mirror_tool_line(self, event_type: str, safe_payload: dict[str, Any]) -> None:

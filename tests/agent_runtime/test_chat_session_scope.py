@@ -726,3 +726,32 @@ def test_opening_the_chat_db_deletes_retired_scratch_rows_and_reports_them(
         db.close()
     assert "retired_scratch_sessions_purged" in caplog.text
     assert "count=1" in caplog.text
+
+
+# ── a serve nothing names a head for (runtime-queue row, h3-runser 2026-10-16) ──
+
+
+def test_a_serve_request_with_no_head_authority_takes_the_serves_home_as_head(runtime_root):
+    """A hand-started serve on a fresh root (no HERMES_HEAD_HOME, no pointer, no declaration)
+    runs every request under ``process_home_scope(serve home)``; the head degenerated to that
+    override and ``default_persona_session_db`` failed closed, so every persona turn read
+    ``chat_session_db_unavailable``. The boot's fallback head is recorded per request."""
+
+    from agent_runtime.persona_chat_durability import (
+        PersonaChatPersistenceError,
+        default_persona_session_db,
+    )
+    from agent_runtime.profile_context import process_home_scope
+
+    home = runtime_root["head_home"]
+    assert resolve_process_chat_scope().authoritative is False
+    with process_home_scope(home):
+        with pytest.raises(PersonaChatPersistenceError):
+            default_persona_session_db()
+    with process_home_scope(home, head_home=home):
+        scope = resolve_process_chat_scope()
+        assert scope.authoritative and str(scope.head_home) == str(home)
+        db = default_persona_session_db()
+        assert db is not None
+        db.close()
+    assert resolve_process_chat_scope().source is ChatHeadSource.AMBIENT_HOME, "context-local only"

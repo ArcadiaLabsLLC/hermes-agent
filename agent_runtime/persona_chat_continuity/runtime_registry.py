@@ -443,25 +443,32 @@ class PersonaChatRuntimeRegistry:
 
 _REGISTRY: PersonaChatRuntimeRegistry | None = None
 _REGISTRY_RESET_LOCK = threading.Lock()
+#: The serve set the registry up (resident chats on or off); the idle keeper arms on it.
+_INITIALIZED = False
 
 
 def initialize_persona_chat_runtime_registry(
     *, enabled: bool = True, max_entries: int = 8, ttl_seconds: float = 1800.0
 ) -> PersonaChatRuntimeRegistry | None:
-    global _REGISTRY
+    global _REGISTRY, _INITIALIZED
     with _REGISTRY_RESET_LOCK:
         previous, _REGISTRY = _REGISTRY, None
         if previous is not None:
             previous.close()
+        _INITIALIZED = True
         _REGISTRY = (
             PersonaChatRuntimeRegistry(max_entries=max_entries, ttl_seconds=ttl_seconds)
             if enabled
             else None
         )
-        # h-idle-turn: the idle keeper (policy) asks this store whether resident chats are on.
+        # h-idle-turn: the idle keeper (policy) asks this store whether the serve set it up.
+        # Resident chats on or off (owner ruling 2026-10-16): a serve without them pays a
+        # handshake after every 20 s pause otherwise.
         from agent_runtime import idle_turn_keeper
 
-        idle_turn_keeper.bind_registry_live(lambda: persona_chat_runtime_registry() is not None)
+        idle_turn_keeper.bind_registry_live(
+            lambda: _INITIALIZED, resident=lambda: persona_chat_runtime_registry() is not None
+        )
         return _REGISTRY
 
 
@@ -472,14 +479,15 @@ def persona_chat_runtime_registry() -> PersonaChatRuntimeRegistry | None:
 def reset_persona_chat_runtime_registry() -> None:
     """No resident-chat registry, the one a fresh import has; close what was there."""
 
-    global _REGISTRY
+    global _REGISTRY, _INITIALIZED
     with _REGISTRY_RESET_LOCK:
         previous, _REGISTRY = _REGISTRY, None
+        _INITIALIZED = False
     if previous is not None:
         previous.close()
 
 
-register_process_state(__name__, reset_persona_chat_runtime_registry, holds=("_REGISTRY",))
+register_process_state(__name__, reset_persona_chat_runtime_registry, holds=("_REGISTRY", "_INITIALIZED"))
 
 
 class RecordedRuntimeObserver:

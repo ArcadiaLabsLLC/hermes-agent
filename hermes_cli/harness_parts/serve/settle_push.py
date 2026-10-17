@@ -47,7 +47,7 @@ class SettlePush:
     def _settle_store_scope(self) -> Any:
         from agent_runtime.profile_context import process_home_scope
 
-        return process_home_scope(self.serve_request_home)
+        return process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None))
 
     def _record_turn_settle(self, request: Any, lines: Any, exit_code: int) -> None:
         """Durable BEFORE the exit frame; never raises (worker ``finally``)."""

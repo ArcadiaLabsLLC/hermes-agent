@@ -112,6 +112,14 @@ PHASE_ORDER: tuple[str, ...] = (
 #: Booleans. Absent when the turn could not establish the fact honestly.
 PHASE_FLAGS: tuple[str, ...] = ("agent_init_cold",)
 
+#: Closed-set labels: name -> the values it may take. Absent when the turn did not establish it.
+#: ``context_native_history_source`` says where ``_build_context`` got the native history:
+#: ``resident`` (the resident actor's lineage-stamped copy, lineage-stamp S3) or ``read``
+#: (SessionDB). Before it, "reused or read" was inferred from ``context_native_history_ms``.
+PHASE_LABELS: dict[str, frozenset[str]] = {
+    "context_native_history_source": frozenset({"resident", "read"}),
+}
+
 #: Non-negative counts (Stage 4 attribution). Absent when unobservable — see
 #: the field notes in :meth:`TurnPhaseMarks.count`.
 #:
@@ -147,6 +155,7 @@ PHASE_COUNTERS: tuple[str, ...] = (
 _BLOCK_ORDER: tuple[str, ...] = (
     "request_received",
     "context_built",
+    "context_native_history_source",
     "observability_built",
     "emitter_created",
     "write_ahead",
@@ -194,6 +203,7 @@ def _notify_request_sent() -> None:
         except Exception:
             logging.getLogger(__name__).debug("request_sent listener failed", exc_info=True)
 _KNOWN_FLAGS = frozenset(PHASE_FLAGS)
+_KNOWN_LABELS = PHASE_LABELS
 _KNOWN_COUNTERS = frozenset(PHASE_COUNTERS)
 
 #: A turn is bounded by its wall budget (240 s by default, minutes at worst). A
@@ -225,6 +235,7 @@ class TurnPhaseMarks:
         "_anchored_at",
         "_marks",
         "_flags",
+        "_labels",
         "_counters",
         "_baselines",
         "_lock",
@@ -244,6 +255,7 @@ class TurnPhaseMarks:
         self._anchored_at = str(wall_now())
         self._marks: dict[str, int] = {"request_received": 0}
         self._flags: dict[str, bool] = {}
+        self._labels: dict[str, str] = {}
         self._counters: dict[str, int] = {}
         self._baselines: dict[str, int] = {}
         # Marks are taken from the turn thread with ONE exception —
@@ -335,6 +347,17 @@ class TurnPhaseMarks:
         with self._lock:
             self._flags.setdefault(name, bool(value))
 
+    def label(self, name: str, value: str | None) -> None:
+        """Record a closed-set label (``PHASE_LABELS``), or NOTHING for ``None`` or a value outside it."""
+
+        allowed = _KNOWN_LABELS.get(name)
+        if allowed is None:
+            raise ValueError(f"unknown turn phase label {name!r}")
+        if value not in allowed:
+            return
+        with self._lock:
+            self._labels.setdefault(name, value)
+
     def count(self, name: str, value: int | None) -> None:
         """Record a Stage 4 count, or record NOTHING when it is unobservable.
 
@@ -410,6 +433,7 @@ class TurnPhaseMarks:
         with self._lock:
             marks = dict(self._marks)
             flags = dict(self._flags)
+            labels = dict(self._labels)
             counters = dict(self._counters)
         block: dict[str, Any] = {_ANCHORED_AT_KEY: self._anchored_at}
         for key in _BLOCK_ORDER:
@@ -417,6 +441,8 @@ class TurnPhaseMarks:
                 block[key] = marks[key]
             elif key in flags:
                 block[key] = flags[key]
+            elif key in labels:
+                block[key] = labels[key]
             elif key in counters:
                 block[key] = counters[key]
         return block
@@ -570,6 +596,10 @@ def safe_turn_phases(value: Any) -> dict[str, Any] | None:
         raw = value[key]
         if key in _KNOWN_FLAGS:
             if isinstance(raw, bool):
+                block[key] = raw
+            continue
+        if key in _KNOWN_LABELS:
+            if isinstance(raw, str) and raw in _KNOWN_LABELS[key]:
                 block[key] = raw
             continue
         ceiling = _MAX_ELAPSED_MS if key in _KNOWN_MARKS else _MAX_COUNT

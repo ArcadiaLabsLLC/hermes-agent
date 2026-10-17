@@ -342,7 +342,7 @@ inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner
 `first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
 turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
-flag (`agent_init_cold`, `:92`) and four counters (`registry_probe_rounds`,
+flag (`agent_init_cold`, `:92`), one closed-set label (`context_native_history_source`: `resident` when the resident actor handed over its lineage-stamped history, `read` when SessionDB was read; `PHASE_LABELS`, 2026-10-16) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
 closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
 (§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm
@@ -872,6 +872,18 @@ an IDLE bound that each progress report restarts, and the call's absolute cap is
 (`DEFAULT_MAX_TOTAL_TIMEOUT_S`; `0` turns it off). A silent call still times out at the base, with
 an error naming both numbers. The agent's own per-call deadline (`timeouts.tools.sequential_call`,
 420 s default) is separate and still applies.
+
+### 5b. Compaction on the `context.compaction` frame (2026-10-16)
+
+A streamed turn whose context is auto-compacted mid-turn carries one `context.compaction` v2 frame
+per lifecycle edge: `{"type": "context.compaction", "protocol_version": 2, "turn_id", "state",
+"after_seq"}`, `state` `compacting` (once per pause, however many heartbeats upstream repeats) then
+`compacted`. Like `reasoning.summary` it is presentation-only: no element `seq`, no segment end, no
+EventLog row, no text — the launcher writes its own copy, and that copy says the model's context
+was summarised, never that the visible transcript changed. The path: upstream's two-argument
+`status_callback(kind, text)` → `profile_runner.status.StatusEmitter.emit` (only the compaction
+kinds cross; `conversation_observability.compaction_progress_payload`) → `ChatProgressSink`
+(`_forward_compaction_state`, `step` alone) → `_ChatProtocolV2Emitter._compaction`.
 
 ## 6. Terminal envelope grants
 

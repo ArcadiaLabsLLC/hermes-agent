@@ -88,11 +88,35 @@ def _cmd_verify(args) -> int:
     except Exception as exc:
         ok = False
         packet["final_status"] = {"error": type(exc).__name__}
-    if args.mode == "live-tony" and str(paths.store_root()).replace("/", "\\").lower() != r"x:\eternia\.hermes\agent-runtime":
-        ok = False
-        packet.setdefault("issues", []).append({"kind": "runtime_root_mismatch", "expected": r"X:\Eternia\.hermes\agent-runtime"})
+    if args.mode == "live-tony":
+        expected = _live_store_root()
+        if not _store_roots_match(paths.store_root(), expected):
+            ok = False
+            packet.setdefault("issues", []).append({"kind": "runtime_root_mismatch", "expected": str(expected)})
     print(emit_json(packet) if args.json else f"verify ok={ok} commands={len(packet['commands'])} tests={len(packet['tests'])}")
     return 0 if ok else 2
+
+
+def _live_store_root() -> Path:
+    """The store root a live serve on THIS machine resolves by default.
+
+    ``--mode live-tony`` asserts the configured store is this machine's default
+    live store, never one owner's literal drive path.
+    """
+    from hermes_constants import get_default_hermes_root
+
+    return get_default_hermes_root() / "agent-runtime"
+
+
+def _store_roots_match(left: Path, right: Path) -> bool:
+    def norm(path: Path) -> str:
+        try:
+            path = path.resolve()
+        except OSError:
+            pass
+        return os.path.normcase(os.path.normpath(str(path)))
+
+    return norm(left) == norm(right)
 
 
 def _run_verify_command(label: str, command: list[str], *, cwd: Path) -> dict:

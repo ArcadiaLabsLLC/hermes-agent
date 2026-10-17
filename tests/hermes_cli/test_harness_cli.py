@@ -661,6 +661,26 @@ def test_harness_verify_skip_tests_emits_proof_packet(tmp_path, monkeypatch, cap
     assert all(command[1:3] == ["-m", "hermes_cli.main"] for command in spawned)
 
 
+def test_harness_verify_live_mode_compares_against_this_machines_default_root(tmp_path, monkeypatch, capsys):
+    # The live mode once compared against one owner's literal drive path, so it failed on
+    # every other machine; it asserts the resolved default root instead.
+    from hermes_cli.harness_parts import verify_commands
+
+    native = tmp_path / "native-home"
+    monkeypatch.setattr(verify_commands, "_run_verify_command", lambda label, command, *, cwd: {"label": label, "exit_code": 0})
+    monkeypatch.setattr(verify_commands, "_live_store_root", lambda: native / "agent-runtime")
+
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(native / "agent-runtime"))
+    args = parser().parse_args(["harness", "verify", "--mode", "live-tony", "--skip-tests", "--json"])
+    assert args.func(args) == 0
+    assert "issues" not in json.loads(capsys.readouterr().out)
+
+    monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "elsewhere"))
+    assert args.func(args) == 2
+    issues = json.loads(capsys.readouterr().out)["issues"]
+    assert issues == [{"kind": "runtime_root_mismatch", "expected": str(native / "agent-runtime")}]
+
+
 def test_harness_burn_in_commands_are_removed():
     with pytest.raises(SystemExit):
         parser().parse_args(["harness", "burn-in", "summarize", "missing_burn", "--json"])

@@ -479,6 +479,22 @@ class ServeSession(BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, Dr
         from agent_runtime.chat_session_scope import publish_chat_head_home
 
         publish_chat_head_home()
+        # A serve nothing names a head for (no HERMES_HEAD_HOME, no pointer, no
+        # declaration -- a hand-started serve on a fresh root) takes its own home as the
+        # head of its requests (``process_home_scope(head_home=...)``), context-locally:
+        # the boot frame still reports ``head.outcome = no_explicit_head`` and nothing is
+        # declared machine-wide. Captured here, like ``serve_request_home``.
+        from agent_runtime.chat_session_scope import resolve_process_chat_scope
+
+        self.serve_head_home = (
+            None if resolve_process_chat_scope().authoritative else self.serve_request_home
+        )
+        if self.serve_head_home is not None:
+            import logging as _head_logging
+
+            _head_logging.getLogger(__name__).info(
+                "serve_head_fallback head_home=%s reason=no_head_authority", self.serve_head_home
+            )
         self.timeline.mark("head_publish_ms")
 
     def _boot_anchor_and_skills(self) -> None:

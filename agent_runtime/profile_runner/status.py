@@ -58,7 +58,15 @@ class StatusEmitter:
         self.request = request
         self.timing = timing
 
-    def emit(self, payload: Any) -> None:
+    def emit(self, payload: Any, text: Any = None) -> None:
+        if isinstance(payload, str):
+            # Upstream's two-argument ``status_callback(kind, text)``. Only the
+            # compaction lifecycle crosses; every other kind stays a CLI line.
+            from agent_runtime.conversation_observability import compaction_progress_payload
+
+            payload = compaction_progress_payload(payload, text)
+            if payload is None:
+                return
         if isinstance(payload, dict):
             self._record_timing_key(payload)
             self._record_timing_values(payload.get("timing_values"))

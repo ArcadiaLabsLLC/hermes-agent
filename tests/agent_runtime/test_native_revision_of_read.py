@@ -140,7 +140,7 @@ def test_build_context_reads_the_lineage_once_and_keeps_the_revision(
         relay_deadline=None,
         turn_relay_chain=(),
         message="hello",
-        turn_phases=types.SimpleNamespace(mark=marks.append),
+        turn_phases=types.SimpleNamespace(mark=marks.append, label=lambda name, value: None),
     )
 
     run_module._RunPhases._build_context(commit)
