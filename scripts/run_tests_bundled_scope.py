@@ -322,9 +322,11 @@ def select_scope(
 
     ``chain_sample=True`` (an ordinary landing, owner ruling 2026-10-16): a chain
     change reaches no file by itself, not even through a chain conftest's directory
-    rule; ``chain`` then takes the smallest inherited file (ties by path) of every
-    test folder the selection would otherwise leave empty. The contract the chain
-    keeps is fork-owned, so it is selected already."""
+    rule. The fork-owned files then run only as the inherited ones do — touched,
+    convention source, a conftest above, an importer of a changed module — bar the
+    chain's contract, which always runs; ``chain`` takes the smallest file (ties by
+    path) of every test folder the selection would otherwise leave empty, fork and
+    inherited alike."""
 
     named_real = {Path(p).resolve() for p in named}
     changed_modules = {m for m in (module_of(rel) for rel in changed) if m}
@@ -333,6 +335,7 @@ def select_scope(
         if rel.endswith("/conftest.py") and not (chain_sample and chain.in_chain(rel))
     }
     chain_hit = bool(chain.chain_changed(changed)) and not chain_sample
+    sampling = chain_sample and bool(chain.chain_changed(changed))  # fork files reached, not all of them
     skipped, idle_box = set(skipped), set(idle_box)
     sel = ScopeSelection(chain_paths=chain.chain_changed(changed))
     for path in files:
@@ -343,7 +346,7 @@ def select_scope(
             (sel.named if path.resolve() in named_real else sel.idle_box).append(path)
         elif full:
             (sel.named if path.resolve() in named_real else sel.full).append(path)
-        elif rel not in inherited:
+        elif rel not in inherited and (not sampling or fnmatch.fnmatchcase(rel, CHAIN_CONTRACT_GLOB)):
             sel.fork_only.append(path)
         elif path.resolve() in named_real:
             sel.named.append(path)
@@ -373,7 +376,7 @@ CHAIN_CONTRACT_GLOB = "tests/tooling/test_session_chain_contract*.py"
 
 
 def _sample_folders(sel: ScopeSelection, repo_root: Path, size_of) -> None:
-    """Move the smallest excluded file of every folder with nothing selected into ``chain``."""
+    """Move the smallest excluded file (fork or inherited) of every folder with nothing selected into ``chain``."""
 
     def folder(path: Path) -> str:
         return _rel_posix(path, repo_root).rsplit("/", 1)[0]

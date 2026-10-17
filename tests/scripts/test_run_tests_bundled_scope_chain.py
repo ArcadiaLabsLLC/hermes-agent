@@ -151,6 +151,7 @@ def _sample_tree(root: Path) -> list[Path]:
         "tests/other/deep/test_a_small.py": "x\n",
         "tests/third/test_reached.py": "import pkg.mod\n",
         "tests/third/test_sibling.py": "x\n",
+        "tests/third/test_fork_unreached.py": "x\n",
         "tests/tooling/test_session_chain_contract.py": "x\n",
     }
     for rel, text in texts.items():
@@ -171,12 +172,13 @@ def test_an_ordinary_landing_runs_the_contract_and_one_sample_per_empty_folder(t
 
     sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {changed, "pkg/mod.py"}, chain_sample=True)
 
-    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_a_small.py"], "the smallest, in the empty folder only"
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_a_small.py", "tests/pkg/test_fork.py"], (
+        "the smallest of every empty folder, fork files included")
     assert sel.chain_sampled, "the run must not call itself a whole-tree run"
     assert _rels(tmp_path, sel.importer) == ["tests/third/test_reached.py"]
-    assert "tests/tooling/test_session_chain_contract.py" in _rels(tmp_path, sel.fork_only)
+    assert _rels(tmp_path, sel.fork_only) == ["tests/tooling/test_session_chain_contract.py"], "never every fork file"
     assert _rels(tmp_path, sel.excluded) == ["tests/other/deep/test_up2.py", "tests/pkg/test_up.py",
-                                             "tests/third/test_sibling.py"]
+                                             "tests/third/test_fork_unreached.py", "tests/third/test_sibling.py"]
 
 
 def test_without_a_chain_change_nothing_is_sampled(tmp_path):
@@ -185,6 +187,7 @@ def test_without_a_chain_change_nothing_is_sampled(tmp_path):
     sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"pkg/mod.py"}, chain_sample=True)
 
     assert sel.chain == [] and len(sel.excluded) == 4
+    assert len(sel.fork_only) == 3, "no chain edit: every fork-owned file runs, as --scope fork always did"
 
 
 def test_the_skip_list_wins_over_the_sample(tmp_path):
@@ -193,4 +196,5 @@ def test_the_skip_list_wins_over_the_sample(tmp_path):
     sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"conftest.py"}, chain_sample=True,
                                skipped={"tests/other/deep/test_a_small.py"})
 
-    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/third/test_sibling.py"]
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/pkg/test_fork.py",
+                                          "tests/third/test_fork_unreached.py"]
