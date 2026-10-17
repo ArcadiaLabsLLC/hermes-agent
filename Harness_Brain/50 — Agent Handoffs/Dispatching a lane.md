@@ -74,9 +74,9 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
    footprint ledger takes, per row, the side that changed it against the merge base. Validate JSON
    after.
 3. Lower the footprint fixture; run its two gates.
-4. Send peer sessions **"freeze"**; merge `origin/main` once; run the gate once — `--affected
-   origin/main`, the whole tree only at a release merge, and a lane that changes the session chain in a
-   batch of its own (owner ruling 2026-10-16; [[Running the tests]] § "What a landing runs, once"). Never gate before the last lane is merged, and
+4. Send peer sessions **"freeze"**; merge `origin/main` once; run the gate once
+   ([[Running the tests]] § "What a landing runs, once"). A lane with a session-chain edit waits for the
+   release-merge landing or lands alone ([[Running the tests]], owner ruling 2026-10-16). Never gate before the last lane is merged, and
    never restart the gate because a peer landed — Phase B paid three ~75-minute passes for both.
 5. Triage each named red with `scripts/run_tests_bundled.sh --confirm-red <file>` (pre-existing / load /
    caused); fix a caused red (`fix(<lane>):`), red-before/green-after in the body. Regenerate generated files a move touched

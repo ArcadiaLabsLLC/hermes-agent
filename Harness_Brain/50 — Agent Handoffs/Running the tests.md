@@ -14,10 +14,9 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 
 ```bash
 $HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
-scripts/run_tests_bundled.sh --affected origin/main tests      # THE LANDING GATE: what the change reaches (--select-only lists it)
+scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
 scripts/run_tests_bundled.sh --confirm-red <file>               # one named red: alone on HEAD and on origin/main → caused / pre-existing / load
-scripts/run_tests_bundled.sh tests                              # --scope fork over the whole tree: a release merge only
-scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
+scripts/run_tests_bundled.sh --scope full tests                 # a release merge only (skip list applies; P0 row)
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
@@ -49,18 +48,7 @@ per-lane `UV_CACHE_DIR`; if `uvx ruff@0.15.10` still fails on it, use the test v
 A clean merge is not a clean check: upstream's ruff selection moves (RUF022/RUF100/UP006/RUF013/PIE807/PLW1510 at the
 v0.21.7 sync), and four clean-merged branches carried reds only the check caught (up-sync-1015-c, follow-up up-check-1015).
 
-**The landing gate is `--affected`; the whole tree runs only at a release merge** (owner ruling
-2026-10-16). `--affected <base>` (`scripts/run_tests_bundled_affected.py`) runs only the files the change
-`<base>...HEAD` plus the working tree can reach, and prints one reason per file: `touched` (the test file
-itself), `importer` (its static import closure, a `conftest.py` above it, or a path its dependency record
-says it opened), `gate` (a changed path under a glob the gate declares in `scripts/affected_gate_paths.txt`),
-`sample` (a session-chain change: the smallest fork-owned file of every test folder) and `named`. The
-skip list and the idle-box list apply as in every scope; the green-result cache still skips what it can.
-Over the land/q2 batch (146 paths, one of them `agent/client_lifecycle.py`, which `cli.py` reaches) it
-still selected 6,319 of 6,675 files: a change to a hub module is honestly most of the tree. A lane that
-changes the session chain lands in its own batch, so its samples are the only price it adds.
-
-**The whole tree runs over `tests`, not over three directories.** `--scope fork` (the default)
+**The landing gate runs over `tests`, not over three directories.** `--scope fork` (the default)
 runs every fork-owned test file plus each upstream test file the change reaches by name, import or
 conftest. Given `tests/agent_runtime tests/hermes_cli tests/hermes_state` it only searches those
 three, and misses the upstream tests of an upstream file the change edits: on 2026-10-05 (landing
@@ -74,11 +62,14 @@ ran 908 files / 13,621 tests in minutes.
 `scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded
 by every test process, so `--scope fork` reaches every inherited file when one of them changes: the
 scope line counts them as `chain N` and prints `chain: <paths>`. Dry selection on 2026-10-10: a
-root-`conftest.py` change went from 983 files (fork only) to 6,440. Under `--affected` such a change
-selects one sample per test folder instead (above); a release merge whose only touch on a chain path is
-re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does not count it.
+root-`conftest.py` change went from 983 files (fork only) to 6,440. **A batch with a session-chain edit
+waits for the release-merge landing, which pays the tree anyway, or lands alone** (owner ruling 2026-10-16:
+the 105-minute gates of that day were chain edits riding ordinary batches); a release merge whose only
+touch on a chain path is re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does
+not count it.
 
-**`--scope full` (every file, upstream's included) belongs to the weekly upstream merge lane, and is
+**`--scope full` (every file, upstream's included) runs at a release merge only** (owner ruling
+2026-10-16), **and is
 not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
 hard-froze the operator's PC twice with the same four upstream files in flight
 (`tests/hermes_cli/test_source_check.py`, `test_source_launcher_publication.py`,
@@ -254,14 +245,14 @@ five habits cost about 390 minutes a day.
 
 ## What a landing runs, once
 
-**One gate per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a
+**One whole-tree gate per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a
 15–18 minute gate for a single lane). A finished lane waits for the batch; the landing merges every ready
 lane, then runs the gate once. A lane that finishes while a gate is running joins the next batch unless it
 touches nothing the running batch touches.
 
 **Gate once, at the end, with main still** (owner 2026-10-16: "best to only run it at the end"). Start the gate only when every lane of the batch is merged; send peer sessions "freeze" first so `main` cannot move under it; merge `main` once, gate once, push, "main open". A peer batch that lands mid-gate never restarts the gate: the next batch picks it up. Phase B (2026-10-16) paid three ~75-minute passes on one batch by gating before its last lane and re-gating after each peer landing; a batch that edits hub files (`tools/registry.py`, `hermes_state.py`, `tui_gateway/server.py`) selects ~2,600 files, so each wasted pass is over an hour.
 
-Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh --affected origin/main tests` in the one heavy slot;
+Concurrently: (a) the landing gate `scripts/run_tests_bundled.sh tests` in the one heavy slot;
 (b) the tooling gates — `test_no_frozen_hermes_home`, `test_tombstone_registry`,
 `test_duplicate_helper_bodies`, `test_cli_contract_dump`, `test_payload_contract_dump`, the
 legibility floor, the upstream footprint and the namespace gates (the whole-tree gate already
@@ -324,7 +315,7 @@ groups are Decision 0014.
 `main` is not green: on 2026-10-05 the whole-tree gate read 70 failing tests in 35 files on `main`
 itself. A red is pre-existing only when it is PROVEN so, one file at a time and never by the suite (owner
 ruling 2026-10-16): `scripts/run_tests_bundled.sh --confirm-red <file>` runs the file alone on HEAD and in
-a detached worktree of `origin/main` cut beside the primary checkout (removed after), compares node by
+a detached worktree of `origin/main` cut under `worktrees/` beside the clone (removed after), compares node by
 node and prints `caused` (with the nodes red only on the branch), `pre-existing` or `load` (green alone:
 the bundle or the box, never the branch). By hand, for a launcher file:
 
