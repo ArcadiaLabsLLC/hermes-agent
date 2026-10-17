@@ -106,7 +106,8 @@ python scripts/refactor_census.py <files.txt> <out.json>        # code-line coun
 `Harness_Brain/50 — Agent Handoffs/Running the tests.md`.** It owns the commands, the landing
 gate, what a lane runs, how a red is proven pre-existing, and the heavy-command habits. The one
 rule that cannot wait for the page: never run bare `pytest` over a directory (it detached 11
-unpushed commits on 2026-08-01); the landing gate is `scripts/run_tests_bundled.sh tests`.
+unpushed commits on 2026-08-01); the landing gate, `scripts/run_tests_bundled.sh tests`, runs once per
+batch at its landing, never per lane.
 
 ## Git discipline
 
