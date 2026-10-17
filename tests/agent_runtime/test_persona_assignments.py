@@ -21,7 +21,7 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 
-from tests.plugin_manifest_memo import memoized_plugin_manifests  # noqa: F401  (fixture)
+from tests.plugin_manifest_memo import memoized_plugin_manifests  # the fixture, used by name
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples", "memoized_plugin_manifests")
 

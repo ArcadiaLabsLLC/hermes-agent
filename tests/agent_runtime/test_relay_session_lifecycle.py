@@ -55,6 +55,9 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 from tests._downstream.persona_source import package_source
+from tests.plugin_manifest_memo import memoized_plugin_manifests  # the fixture, used by name
+
+pytestmark = pytest.mark.usefixtures("memoized_plugin_manifests")
 
 
 @pytest.fixture(autouse=True)
