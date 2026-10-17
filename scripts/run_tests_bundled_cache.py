@@ -32,19 +32,21 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 #: bumped when the key's shape changes; part of every key
-CACHE_SCHEMA = 1
+CACHE_SCHEMA = 2
 STORE_SUBDIR = Path(".pytest_cache") / "hermes_gate"
 STORE_ENV = "HERMES_GATE_CACHE_DIR"
 #: tracked prefixes a file that spawned an unrecorded process may ignore (owner ruling Q1)
 ALL_EXCLUDED_PREFIXES = ("Harness_Brain/", "docs/")
-#: the runner's own inputs: a change to any of them changes every key
+#: what a test PROCESS is built from — its argv, environment and in-process plugins: a
+#: change to any of them changes every key. The bundled runner's own scheduling
+#: (``scripts/run_tests_bundled*.py``, its lists, the scope's manifest) decides which
+#: file runs where, never what a file's tests do, and is not here (r-fastgate, owner
+#: ruling 2026-10-16: key each file on the chain modules it loaded, not the whole
+#: chain); the skip list's node rows reach the key as ``keyed_args``.
 RUNNER_GLOBS = (
-    "scripts/run_tests_bundled*.py", "scripts/_bundle_plugin/*", "scripts/run_tests_bundled.sh",
-    "scripts/run_tests.sh", "scripts/run_tests_parallel.py", "scripts/_activation.sh",
-    "scripts/_fork_runner.py", "scripts/ci/list_os_marked_tests.py",
-    "scripts/_fork_test_env.sh", "scripts/fork_test_env.txt",
-    "scripts/ensure_fork_dev_deps.py", "scripts/test_*.txt",
-    "tests/fixtures/upstream_skip_list.txt", "tests/fixtures/upstream_manifest.txt",
+    "scripts/_bundle_plugin/*", "scripts/run_tests.sh", "scripts/run_tests_parallel.py",
+    "scripts/_activation.sh", "scripts/_fork_runner.py", "scripts/ci/list_os_marked_tests.py",
+    "scripts/_fork_test_env.sh", "scripts/fork_test_env.txt", "scripts/ensure_fork_dev_deps.py",
 )
 #: the interpreter's lock inputs
 LOCK_FILES = ("uv.lock", "pyproject.toml", "requirements-fork-dev.txt")
@@ -697,14 +699,14 @@ class Keyer:
             found = self._modset_hash[digest] = h.hexdigest()
         return found
 
-    def _path_line(self, p: str, fx: Optional[Sequence[str]], keep: frozenset) -> str:
+    def _path_line(self, p: str, fx: Optional[Sequence[str]], keep: frozenset, test: str = "") -> str:
         if fx is not None and p not in keep and self.shapes.is_fixture_module(p):
             shape = self.shapes.shape(p)
             if shape is not None:
-                return shape.line(p, fx)
+                return shape.line(p, fx, test)
         return f"path\t{p}\t{self.snapshot.blob(p)}"
 
-    def _mods_split(self, digest: str, fx: Sequence[str], keep: frozenset) -> str:
+    def _mods_split(self, digest: str, fx: Sequence[str], keep: frozenset, test: str = "") -> str:
         """``_mods`` for a record that names its fixtures: the non-fixture modules
         hashed once per set, each fixture module by :meth:`_path_line`."""
 
@@ -723,7 +725,7 @@ class Keyer:
             found = self._modset_rest[digest] = (h.hexdigest(), fixture_modules)
         h = hashlib.sha256(found[0].encode())
         for rel in found[1]:
-            h.update((self._path_line(rel, fx, keep) + "\n").encode())
+            h.update((self._path_line(rel, fx, keep, test) + "\n").encode())
         return h.hexdigest()
 
     def key(
@@ -737,9 +739,9 @@ class Keyer:
             lines += [f"mods\t{self._mods(m)}" for m in sorted(set(mods))]
         else:  # the file's own source and what it opened itself always key by blob
             kept = frozenset(keep) | {rel}
-            lines = [self._path_line(p, fx, kept) for p in sorted(set(paths) | {rel})]
+            lines = [self._path_line(p, fx, kept, rel) for p in sorted(set(paths) | {rel})]
             lines += [f"dir\t{d}\t{snap.dir_names(d)}" for d in sorted(set(dirs))]
-            lines += [f"mods\t{self._mods_split(m, fx, kept)}" for m in sorted(set(mods))]
+            lines += [f"mods\t{self._mods_split(m, fx, kept, rel)}" for m in sorted(set(mods))]
             lines.append("fx\t1")
         if uncovered:
             lines.append(f"ALL\t{snap.all_digest()}")

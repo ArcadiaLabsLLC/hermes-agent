@@ -72,7 +72,7 @@ Order: **L1 → L2 → L3**, PRs serial (seams §3). L1 has no dependency and la
 
 Not this lane: `auth.py` 13/1 (HOME hook) → 0 when PR #124190 merges and the fork adopts `get_store_home("auth")` (ledger row, HOME-PR); `auth_nous.py` 2/1 (G6). After all four: `files 172 → 170`.
 
-Landing gates per lane (once, at the landing, not per commit): `tests/hermes_cli/test_provider_browser_login.py`, `tests/hermes_cli/test_auth_noninteractive.py`, `tests/hermes_cli/test_provider_visibility_identity.py`, `tests/tooling/test_plugin_imports_public_surface.py`, `tests/scripts/test_upstream_footprint.py`, `scripts/check_compat_pointers.py`, `scripts/dump_cli_contract.py --check`. The launcher is read-only for all three lanes; no adapter change.
+No lane has a gate of its own: a lane runs only the test files that import a module it touched, and the batch gets one gate at its landing (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`). The checks that pin this plan, for that landing: `tests/hermes_cli/test_provider_browser_login.py`, `tests/hermes_cli/test_auth_noninteractive.py`, `tests/hermes_cli/test_provider_visibility_identity.py`, `tests/tooling/test_plugin_imports_public_surface.py`, `tests/scripts/test_upstream_footprint.py`, `scripts/check_compat_pointers.py`, `scripts/dump_cli_contract.py --check`. The launcher is read-only for all three lanes; no adapter change.
 
 ## 4. Open questions — decided
 

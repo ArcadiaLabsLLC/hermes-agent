@@ -75,10 +75,11 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
    after.
 3. Lower the footprint fixture; run its two gates.
 4. Send peer sessions **"freeze"**; merge `origin/main` once; run the gate once
-   ([[Running the tests]] § "What a landing runs, once"). Never gate before the last lane is merged, and
+   ([[Running the tests]] § "What a landing runs, once"); a session-chain edit runs the chain's contract
+   plus a sample, and the release merge's whole tree is its backstop (owner ruling 2026-10-16). Never gate before the last lane is merged, and
    never restart the gate because a peer landed — Phase B paid three ~75-minute passes for both.
-5. Triage the reds: red on `origin/main` too → pre-existing; green alone at `-j 1` → load; else fix
-   (`fix(<lane>):`), red-before/green-after in the body. Regenerate generated files a move touched
+5. Triage each named red with `scripts/run_tests_bundled.sh --confirm-red <file>` (pre-existing / load /
+   caused); fix a caused red (`fix(<lane>):`), red-before/green-after in the body. Regenerate generated files a move touched
    (`scripts/gen_gateway_contracts.py`).
 6. Push `HEAD:main` (fast-forward), send **"main open"**, delete the landed rows, update memory.
 

@@ -15,7 +15,8 @@ opens a page (never bare `pytest` over a directory). The fork's gate definition 
 ```bash
 $HERMES_PYTHON -m pytest -q -p no:cacheprovider <file>          # ONE file, debugging only (the test venv's python; see below)
 scripts/run_tests_bundled.sh tests                              # THE LANDING GATE: --scope fork over the whole tree
-scripts/run_tests_bundled.sh --scope full tests                 # the weekly merge lane only (skip list applies; P0 row)
+scripts/run_tests_bundled.sh --confirm-red <file>               # one named red: alone on HEAD and on origin/main → caused / pre-existing / load
+scripts/run_tests_bundled.sh --scope full tests                 # a release merge only (skip list applies; P0 row)
 scripts/run_tests_bundled.sh --since-merge <merge-sha> tests   # a release merge's landing gate (Merging upstream.md step 7)
 scripts/run_tests.sh <file>                                     # the per-file authority: one file, a leak, a disagreement
 scripts/run_tests_idle.sh                                       # the timing files, ONLY on an idle box (refuses otherwise)
@@ -56,16 +57,24 @@ whole tree 908 — 176 more fork files and the 42 `tests/agent/` files that test
 whole tree on that day: 865 fork files (~9,400 test functions), 5,201 upstream (~43,200); the gate
 ran 908 files / 13,621 tests in minutes.
 
-**A session-chain edit runs the whole tree** (fast-gate §5, owner ruling Q3). The fork's root
-`conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
-`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded
-by every test process, so `--scope fork` reaches every inherited file when one of them changes: the
-scope line counts them as `chain N` and prints `chain: <paths>`. Dry selection on 2026-10-10: a
-root-`conftest.py` change went from 983 files (fork only) to 6,440. Batch such edits into the
-release-merge landing, which pays the tree anyway; a release merge whose only touch on a chain path is
-re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does not count it.
+**A session-chain edit runs the chain's contract plus a sample; the whole tree runs at the release
+merge** (owner ruling 2026-10-16, replacing fast-gate §5's whole-tree reach for ordinary landings). The
+fork's root `conftest.py`, `tests/conftest.py`, anything under `tests/_downstream/`, `tests/_fixtures/` or
+`scripts/_bundle_plugin/` (docs excepted), `pyproject.toml` and `requirements-fork-dev.txt` are loaded by
+every test process. On an ordinary landing such a change reaches no file by itself: the gate runs
+`tests/tooling/test_session_chain_contract.py` (one test per promise those files make — home isolation,
+env scrub, process-state reset, the timeout, the `test-tmp` root, the dependency recorder, the root
+conftest's git lock), the files fork-owned or inherited that the rest of the change reaches (touched,
+source, conftest, importer), and the smallest file of every test folder nothing else reached, and prints
+`chain: contract + sample — N contract file(s) + M sample(s)`. On land/q2 (9 chain paths) that is 333 files
+where the whole tree was 6,675. A new promise the chain makes
+gets its test there, with its killing mutation. The release merge (`--since-merge`) still reaches every
+file on a chain edit: it is the backstop for an interaction no promise names, and a release merge whose only
+touch on a chain path is re-applying the standing fork hunk (`pyproject.toml`, `tests/conftest.py`) does
+not count it.
 
-**`--scope full` (every file, upstream's included) belongs to the weekly upstream merge lane, and is
+**`--scope full` (every file, upstream's included) runs at a release merge only** (owner ruling
+2026-10-16), **and is
 not run on a workstation** until the fork-hygiene P0 row closes: on 2026-10-05 the full scope
 hard-froze the operator's PC twice with the same four upstream files in flight
 (`tests/hermes_cli/test_source_check.py`, `test_source_launcher_publication.py`,
@@ -112,8 +121,9 @@ pass `0` to either flag to switch it off.
 (fast-gate §1; owner rulings Q1, Q2, Q6). Every pytest process of a bundled run loads
 `-p hermes_dep_record`, which records what each test file imported, opened, listed and spawned; a
 green writes that record and a key (the blobs of every recorded path against the tree the run started
-from, the runner's own files, `uv.lock`/`pyproject.toml`, the interpreter and its packages, the
-`HERMES_*`/`TZ`/`LANG` environment) to the GATE STORE: `<primary checkout>/.pytest_cache/hermes_gate/`,
+from, what builds a test process — `scripts/_bundle_plugin/`, `run_tests.sh`, `run_tests_parallel.py`,
+`_fork_runner.py`; never the bundled runner's own scheduling — `uv.lock`/`pyproject.toml`, the
+interpreter and its packages, the `HERMES_*`/`TZ`/`LANG` environment) to the GATE STORE: `<primary checkout>/.pytest_cache/hermes_gate/`,
 per clone, shared by every worktree, git-ignored, never committed. A file that spawned a process
 depends on every tracked file outside `docs/` and `Harness_Brain/`. The start-up line says
 `Green-result cache: N of M file(s) skipped as cached green; audit re-runs S hit(s) (seed X, 5%,
@@ -308,11 +318,15 @@ groups are Decision 0014.
 ## Calling a red pre-existing
 
 `main` is not green: on 2026-10-05 the whole-tree gate read 70 failing tests in 35 files on `main`
-itself. A red is pre-existing only when it is PROVEN so:
+itself. A red is pre-existing only when it is PROVEN so, one file at a time and never by the suite (owner
+ruling 2026-10-16): `scripts/run_tests_bundled.sh --confirm-red <file>` runs the file alone on HEAD and in
+a detached worktree of `origin/main` cut under `worktrees/` beside the clone (removed after), compares node by
+node and prints `caused` (with the nodes red only on the branch), `pre-existing` or `load` (green alone:
+the bundle or the box, never the branch). By hand, for a launcher file:
 
 1. Cut a detached worktree at the merge-base (`git merge-base HEAD origin/main`) — never in the
    primary checkout.
-2. Run the SAME failing files there (`scripts/run_tests.sh <files>`, or `flutter test <files>`).
+2. Run the SAME failing files there (`flutter test <files>`).
 3. Compare test node by test node. A node red only on the branch is the branch's.
 4. **For the drift gates, compare the violation lists, not the verdict.** The legibility floor,
    duplicate helpers, doc-cite adjacency, the upstream footprint and the method-lane chokepoint are

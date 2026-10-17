@@ -164,7 +164,8 @@ edited additively or not at all.
   comparison → `test_active_policy_event_budget_bounds_the_projection_it_is_given` extended with a thread
   whose transcript exceeds 1584 rows under `max_active_events=256` reds with "thread policy transcript
   exceeded its bound".
-- **A4 — gate.** `scripts/run_tests_bundled.sh tests` once for the batch (one gate per batch); the
+- **A4 — gate.** None of its own: Half A rides the release merge's one landing gate, and the lane runs only
+  the test files that import a module it touched (`Harness_Brain/50 — Agent Handoffs/Running the tests.md`); the
   import-layers fixture loses the `_conclude` → `_thread_messages` / `_build_prompt` reaches only when the
   q-hosted lane's constant owner lands, not here.
 
