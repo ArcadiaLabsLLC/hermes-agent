@@ -102,6 +102,9 @@ hermes harness serve                                            # the runtime th
 python scripts/refactor_census.py <files.txt> <out.json>        # code-line counter + dead/duplicate census
 ```
 
+Upstream's area guides (`tests/AGENTS.md`, `agent/AGENTS.md`, …) are upstream's, not this fork's;
+the fork's test guide is `tests/CLAUDE.md`, and `tests/AGENTS.md` is not read (owner 2026-10-16).
+
 **Before you run any test, gate or suite — or brief a lane that will — read
 `Harness_Brain/50 — Agent Handoffs/Running the tests.md`.** It owns the commands, the landing
 gate, what a lane runs, how a red is proven pre-existing, and the heavy-command habits. The one
