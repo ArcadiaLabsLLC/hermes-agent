@@ -824,3 +824,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-10-16 (launcher lane w1016c-mc)
 
 - [ ] **`mission.chat.message` takes reviewed files and publishes their limits** — the launcher Agent Console composer can attach files only once the chat send carries `prompt.files`-style reviewed files and the console can read their count/size/type limits; today the console sends text-only `mission.chat.message`, so its Attach button would do nothing · fork / serve chat send · launcher row: Agent Console Attach file in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md` (BLOCKED hermes), plan `EterniaLauncher/docs/mission_control/planned/CONSOLE_ATTACH_FILE_2026-10-16.md` · NEEDS PLAN 2026-10-16: the send shape for reviewed files, where the limits are published (ready/hello_ok like `rpc.limits.operator_text`), and the review/redaction path
+
+### Filed at the launcher w1016 wrap-up — 2026-10-16
+
+- [ ] **`eternia.skills.*` lends skills to a Work task or worker** — the calls take only the parent session (no `child_ref`), so a worker cannot be given skills; the launcher's skills-expansion row (owner ruling 2026-10-16: the Work/worker journey first) waits on this · fork / skills seam · launcher row: skills expansion in `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/companion-queue.md` · NEEDS PLAN 2026-10-16: the child reference shape, who lends the skills port (parent or worker), and how a worker's skill set is bounded by its parent's
