@@ -17,6 +17,15 @@ import ast
 import re
 import shlex
 
+# The upstream guard imports ``gateway.status`` lazily, inside its subprocess wrapper.
+# Its first import there can run under a test that patched ``sys.platform`` to a POSIX
+# value on Windows, where ``gateway.status``'s module-level ``import fcntl`` raises and
+# reds the spawn (bundle #50, 2026-10-15: test_linux_desktop_entry's five legacy-entry
+# tests red alone, green after any file that had imported gateway.status). The guard
+# fixture imports this module at its setup, under the real platform, so loading
+# gateway.status here makes the guard's lazy import a cache hit in every test.
+import gateway.status  # noqa: E402,F401
+
 
 def strip_shell_comments(script: str) -> str:
     """*script* with each ``#`` comment removed, the way sh reads one: a ``#``

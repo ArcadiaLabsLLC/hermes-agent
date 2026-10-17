@@ -37,6 +37,7 @@ import run_tests_bundled_fixtures as fixtures
 import run_tests_bundled_plan as plan  # noqa: E402
 import run_tests_bundled_reds as reds  # noqa: E402
 import run_tests_bundled_scope as scope  # noqa: E402
+import run_tests_bundled_via as vias
 import run_tests_parallel as rtp  # noqa: E402
 
 FLAGS = frozenset({
@@ -46,9 +47,9 @@ CACHE_ENV = "HERMES_GATE_CACHE"
 PLUGIN_NAME = "hermes_dep_record"
 _PLUGIN_DIR = Path(__file__).resolve().parent / "_bundle_plugin"
 #: a via whose green is a first-attempt whole-file pass (not a re-run, a retry or a known red)
-GREEN_VIAS = frozenset({"bundle", "solo"})
+GREEN_VIAS = frozenset({vias.ViaKind.BUNDLE, vias.ViaKind.SOLO})
 #: a via whose outcome is never cached, and the reason its next run prints
-NEVER_CACHED_VIAS = {"retry": "straggler", "rerun": "rerun"}
+NEVER_CACHED_VIAS = {vias.ViaKind.RETRY: "straggler", vias.ViaKind.RERUN: "rerun"}
 _LISTED = 50
 
 
@@ -240,7 +241,7 @@ class GateRun:
 
         for path, entry in self.cached:
             note = f"cached green {entry.t} ({entry.seconds:.1f}s, run {entry.run}); key unchanged, not run"
-            on_outcome(outcome_type(path, 0, note, {}, 0.0, f"cached; green {entry.t} {entry.seconds:.1f}s", None))
+            on_outcome(outcome_type(path, 0, note, {}, 0.0, vias.Via.cached(f"green {entry.t} {entry.seconds:.1f}s"), None))
         for path, line in self.red_decision.skipped if self.red_decision is not None else ():
             ids = sorted(self.known_reds.get(cache.rel_of(path, self.repo_root), ()))
             outcome = outcome_type(path, 1, reds.note(line, ids), {"failed": len(ids)} if ids else {},
@@ -262,9 +263,10 @@ class GateRun:
             return "red"
         if any(Path(p) == Path(outcome.file) for p, _out in rtp._FLAKY_RESULTS):
             return "flaky"
-        if outcome.via in GREEN_VIAS:
+        kind = vias.kind_of(outcome.via)
+        if kind in GREEN_VIAS:
             return ""
-        return NEVER_CACHED_VIAS.get(outcome.via, f"via {outcome.via}")
+        return NEVER_CACHED_VIAS.get(kind, f"via {outcome.via}")
 
     def on_outcome(self, outcome) -> None:
         """A first-attempt whole-file green writes the file's record and key now,
@@ -337,7 +339,7 @@ class GateRun:
             index, outcome = last[rel]
             banner = "⚠ FLAKY (cache audit): red in the run, green alone. Fix the flake — do not ignore this.\n"
             result.outcomes[index] = type(outcome)(
-                outcome.file, 0, banner + outcome.output, outcome.summary, outcome.seconds, "audit-flaky",
+                outcome.file, 0, banner + outcome.output, outcome.summary, outcome.seconds, vias.AUDIT_FLAKY,
                 outcome.bundle_index,
             )
             rtp._FLAKY_RESULTS.append((outcome.file, banner + outcome.output))

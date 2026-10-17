@@ -1,19 +1,20 @@
 # One owner for process-global state between tests (design)
 
-Status: PARTLY BUILT 2026-10-16 (lane h2-redact, branch `build/h2-redact`); approved by the
-owner 2026-10-15 (all recommendations). Row: fork-hygiene-queue, "Process-global state, the
-CLASS".
+Status: BUILT 2026-10-16 except S5's posting; approved by the owner 2026-10-15 (all
+recommendations). Row: fork-hygiene-queue, "Process-global state, the CLASS" (closed by lane
+r-isolation).
 
-- Built: S1's declarations (`agent_runtime/process_state.py` and the five owners' registrations),
-  S2 (`builds.detect` registers its reset), S4 (the census, REPORT mode, allowlist seeded with
-  162 rows "reason owed"), S5's PR body
-  (`docs/agent-runtime-harness/upstream-prs/registry-snapshot-restore-body.md`).
-- BLOCKED on Phase B (upstream-sync session), all fenced files: S1's fixture swap
-  (`tests/_downstream/conftest_plugin.py::_reset_snapshot_catalog_memos` →
-  `reset_all_process_state()`, which also retires that fixture's no-op profile-template arm),
-  S3's tool-registry fixture (a `tests/_downstream/` fixture), and S5's code and tests
-  (`tools/registry.py`). The plan's in-process killing mutations for S1/S2 need the fixture and
-  are owed with it.
+- S1: `agent_runtime/process_state.py`, the owners' registrations (lane h2-redact) and the
+  fixture swap (`tests/_downstream/conftest_plugin.py::_reset_snapshot_catalog_memos` calls
+  `reset_all_process_state()`, lane r-isolation; killing mutation recorded in its commit).
+- S2: `builds.detect` registers its reset (h2-redact).
+- S3: `tests/_downstream/tool_registry_scope.py`, autouse through the plugin; tested by
+  `tests/tooling/test_tool_registry_scope.py` (killing mutation named in that file, recorded
+  in its commit).
+- S4: the census, REPORT mode, allowlist seeded with 162 rows "reason owed" (h2-redact).
+- S5: the PR body (`docs/agent-runtime-harness/upstream-prs/registry-snapshot-restore-body.md`)
+  is drafted; the code lands upstream, never as a fork edit to `tools/registry.py`. Posting
+  waits with the idle PR branches; S3's fixture switches to the door when it merges.
 
 ## In plain English
 

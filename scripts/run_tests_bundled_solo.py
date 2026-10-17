@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
+import run_tests_bundled_via as vias  # registered by run_tests_bundled._load_sibling
+
 # ── §2: known reds ──────────────────────────────────────────────────────────
 
 #: a known red with no green duration on this box (owner ruling Q5, 2026-10-10;
@@ -59,9 +61,9 @@ def known_red_timeout(rel: str, durations: Mapping[str, float], flat: float) -> 
 
 
 #: ``FileOutcome.via`` (and the ledger's process kind) of a known red's one run
-KNOWN_RED_VIA = "known-red"
+KNOWN_RED_VIA = vias.KNOWN_RED
 #: the default single-file process (``run``'s first-pass solos)
-SOLO_VIA = "solo"
+SOLO_VIA = vias.SOLO
 #: the per-file runner's exit code for a process killed by its timeout
 TIMEOUT_RC = 124
 
@@ -99,11 +101,11 @@ class SoloPolicy:
     def _shard_vias(self, path: Path) -> List[Tuple[str, List[str]]]:
         return self.shards.vias(self.rel_of(path)) if self.shards is not None else []
 
-    def jobs(self, solo_order: Sequence[Path]) -> List[Tuple[Path, str]]:
+    def jobs(self, solo_order: Sequence[Path]) -> List[Tuple[Path, vias.Via]]:
         """``(path, via)`` for each first-pass process, in the given order: one per
         shard of a sharded file, one for any other solo."""
 
-        out: List[Tuple[Path, str]] = []
+        out: List[Tuple[Path, vias.Via]] = []
         for path in solo_order:
             whole = KNOWN_RED_VIA if self.rel_of(path) in self.known else SOLO_VIA
             out += [(path, via) for via, _args in self._shard_vias(path)] or [(path, whole)]
@@ -120,14 +122,14 @@ class SoloPolicy:
             return self.flat_timeout
         return known_red_timeout(rel, self.durations, self.flat_timeout)
 
-    def budget(self, path: Path, via: str) -> Tuple[float, int, List[str]]:
+    def budget(self, path: Path, via: vias.Via) -> Tuple[float, int, List[str]]:
         """``(timeout, flake retries, extra pytest args)`` for one process."""
 
-        if via == KNOWN_RED_VIA:
+        if vias.kind_of(via) is vias.ViaKind.KNOWN_RED:
             return self.cap(self.rel_of(path)), 0, []
         return self.default_timeout(path), self.retries, dict(self._shard_vias(path)).get(via, [])
 
-    def is_shard(self, path: Path, via: str) -> bool:
+    def is_shard(self, path: Path, via: vias.Via) -> bool:
         return via in dict(self._shard_vias(path))
 
     def join(self, outcome, run_solo) -> list:
@@ -138,12 +140,12 @@ class SoloPolicy:
     def closing_lines(self) -> List[str]:
         return [] if self.joiner is None else self.joiner.closing_lines()
 
-    def note(self, rel: str, via: str, rc: int, output: str, tally) -> str:
+    def note(self, rel: str, via: vias.Via, rc: int, output: str, tally) -> str:
         """A known red's output, followed by why it ran once and how its failing set
         moved since the record (``tally`` is the recorder's, or None). A trailer,
         so the output still starts the way the per-file runner wrote it."""
 
-        if via != KNOWN_RED_VIA:
+        if vias.kind_of(via) is not vias.ViaKind.KNOWN_RED:
             return output
         cap = self.cap(rel)
         tail = [f"known red (last recorded run): ran once, alone, no retry, timeout cap {cap:g}s (fast-gate §2)"]

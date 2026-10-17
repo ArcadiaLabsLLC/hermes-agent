@@ -95,6 +95,7 @@ def _load_sibling(name: str):
 
 
 rtp = _load_sibling("run_tests_parallel")
+vias = _load_sibling("run_tests_bundled_via")  # the typed via, first: every sibling imports it
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
 shard = _load_sibling("run_tests_bundled_shard")  # slow files split by node id on a tail-bound run (fast-gate §3)
@@ -203,7 +204,7 @@ class FileOutcome:
     output: str
     summary: dict[str, int]
     seconds: float
-    via: str  # "bundle" | "solo" | "rerun"
+    via: vias.Via
     bundle_index: Optional[int] = None
 
 
@@ -348,7 +349,7 @@ class _Run:
             if self.on_outcome is not None:
                 self.on_outcome(done)
 
-    def solo(self, path: Path, via: str, bundle_index: Optional[int], leak_info=None) -> None:
+    def solo(self, path: Path, via: vias.Via, bundle_index: Optional[int], leak_info=None) -> None:
         policy, repo_root = self.policy, self.repo_root
         timeout, tries, extra = policy.budget(path, via)
         events_path = self.scratch / f"solo-{next(self.solo_seq):05d}.jsonl"
@@ -360,7 +361,7 @@ class _Run:
         with self.lock:
             self.ledger.record_solo(via, rel, t0, first.session_start, tally, add=policy.is_shard(path, via))
         output = policy.note(rel, via, rc, output, tally)
-        if via == "rerun" and rc == 0 and leak_info is not None:
+        if vias.kind_of(via) is vias.ViaKind.RERUN and rc == 0 and leak_info is not None:
             with self.lock:
                 self.leaks.append(leak_info)
         self.record(FileOutcome(fpath, rc, output, summary, wall, via, bundle_index))
@@ -382,7 +383,7 @@ class _Run:
         stopped_in, unreached = _where_it_died(members, rels, events, rc)
         with lock:
             self.bundle_walls.append((index, wall, rc))
-            ledger.processes.append(plan.Process("bundle", rels, started, time.time(), startup))
+            ledger.processes.append(plan.Process(vias.BUNDLE, rels, started, time.time(), startup))
             ledger.record_bundle_diagnostic(index, rels, rc, events, output, stopped_in)
         startup_share = (startup or 0.0) / len(members)
         rerun = set(members_to_rerun(rels, events, rc))
@@ -399,7 +400,7 @@ class _Run:
                     if known:
                         ledger.known_red.append(rel)
                 note = _known_red_output(index, rel, tally, output) if known else ""
-                via = "known-red" if known else "bundle"
+                via = vias.KNOWN_RED if known else vias.BUNDLE
                 self.record(FileOutcome(member, 1 if known else 0, note, tally.summary(), startup_share + work, via, index))
                 continue
             if member in unreached:
@@ -417,7 +418,7 @@ class _Run:
             )
             with lock:
                 self.reruns += 1
-                self.futures.append(executor.submit(self.solo, member, "rerun", index, leak))
+                self.futures.append(executor.submit(self.solo, member, vias.RERUN, index, leak))
         # The process died in ``stopped_in`` (which goes solo above); the members
         # queued behind it never started, so nothing about them needs a process
         # of its own — they go back out as one bundle. Each re-bundle is shorter
@@ -430,7 +431,7 @@ class _Run:
         elif unreached:
             with lock:
                 self.reruns += 1
-                self.futures.append(executor.submit(self.solo, unreached[0], "rerun", index, None))
+                self.futures.append(executor.submit(self.solo, unreached[0], vias.RERUN, index, None))
 
 def _solo_policy(
     repo_root: Path,
@@ -545,12 +546,12 @@ def _retry_timeout_stragglers(
     for position, outcome in enumerate(list(outcomes)):
         if outcome.rc == 0 or not rtp._is_retryable_timeout_result(1, outcome.output, outcome.summary):
             continue
-        if outcome.via == solo.KNOWN_RED_VIA:  # ran once, capped, final on its own exit (fast-gate §2)
+        if vias.kind_of(outcome.via) is vias.ViaKind.KNOWN_RED:  # ran once, capped, final on its own exit (fast-gate §2)
             continue
         t0 = time.time()
         fpath, rc, output, summary, wall = solo_runner(outcome.file, pytest_args, repo_root, flat_timeout, 0)
-        ledger.processes.append(plan.Process("retry", [_rel(outcome.file, repo_root)], t0, time.time()))
-        outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, "retry", outcome.bundle_index)
+        ledger.processes.append(plan.Process(vias.RETRY, [_rel(outcome.file, repo_root)], t0, time.time()))
+        outcomes[position] = FileOutcome(fpath, rc, output, summary, wall, vias.RETRY, outcome.bundle_index)
         if on_outcome is not None:
             on_outcome(outcomes[position])
 

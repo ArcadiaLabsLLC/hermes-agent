@@ -30,6 +30,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+import run_tests_bundled_via as vias  # registered by run_tests_bundled._load_sibling
+
 if TYPE_CHECKING:
     from scripts.run_tests_bundled_events import BundleEvents
 
@@ -165,9 +167,12 @@ def chain_split_hint(wall: float, chain_paths: Sequence[str]) -> Optional[str]:
 
 # ── Stage 0: the run ledger ─────────────────────────────────────────────────
 
-#: the process kinds the ledger counts, by a kind's first word (fast-gate §2 adds
+#: the process kinds the ledger counts, by each process's typed via (fast-gate §2 adds
 #: the known red's one run; §3 a slow file's ``shard i/k`` and its ``whole-check``)
-PROCESS_KINDS = ("bundle", "solo", "known-red", "shard", "whole-check", "rerun", "retry")
+PROCESS_KINDS = (
+    vias.ViaKind.BUNDLE, vias.ViaKind.SOLO, vias.ViaKind.KNOWN_RED, vias.ViaKind.SHARD,
+    vias.ViaKind.WHOLE_CHECK, vias.ViaKind.RERUN, vias.ViaKind.RETRY,
+)
 
 #: Retain the beginning and end of large diagnostics; scrub BEFORE cutting so
 #: truncation cannot split a credential away from its identifying field name.
@@ -232,7 +237,7 @@ def render_bundle_diagnostics(diagnostics: Sequence[BundleDiagnostic]) -> List[s
 class Process:
     """One pytest process the run spawned."""
 
-    kind: str  # "bundle" | "solo" | "known-red" | "rerun" | "retry"
+    kind: vias.Via
     members: List[str]
     started: float
     ended: float
@@ -276,7 +281,7 @@ class RunLedger:
             self.bundle_diagnostics, key=lambda entry: entry.bundle_index,
         )]}
     def record_solo(
-        self, kind: str, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
+        self, kind: vias.Via, rel: str, started: float, session_start: Optional[float], tally, *, add: bool = False
     ) -> None:
         """One single-file process: its wall and start-up, and the file's seconds and
         failing ids from its recorder ``tally`` (None when the recorder wrote nothing).
@@ -296,12 +301,12 @@ class RunLedger:
         worker_seconds = jobs * elapsed
         busy = sum(p.wall for p in self.processes)
         work = sum(self.file_seconds.values())
-        reruns = [p for p in self.processes if p.kind == "rerun"]
+        reruns = [p for p in self.processes if vias.kind_of(p.kind) is vias.ViaKind.RERUN]
         critical = max(self.processes, key=lambda p: p.wall, default=None)
         return {
             "elapsed": round(elapsed, 1),
             "jobs": jobs,
-            "processes": {k: sum(1 for p in self.processes if p.kind.split(" ", 1)[0] == k) for k in PROCESS_KINDS},
+            "processes": {k.value: sum(1 for p in self.processes if vias.kind_of(p.kind) is k) for k in PROCESS_KINDS},
             "worker_seconds": round(worker_seconds, 1),
             "busy_seconds": round(busy, 1),
             "utilization": round(busy / worker_seconds, 3),
@@ -313,7 +318,7 @@ class RunLedger:
             "known_red": sorted(self.known_red),
             "idle_tail_seconds": round(idle_tail(self.processes, jobs, self.started, ended), 1),
             "critical": None if critical is None else {
-                "kind": critical.kind, "wall": round(critical.wall, 1),
+                "kind": str(critical.kind), "wall": round(critical.wall, 1),
                 "first": critical.members[0], "last": critical.members[-1], "files": len(critical.members),
             },
             "slowest": [

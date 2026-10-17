@@ -34,6 +34,7 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 # registered below, read by the consumer fixtures.
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
+from tests._downstream.tool_registry_scope import _tool_registry_scope  # noqa: F401 — autouse (plan S3)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
@@ -431,50 +432,26 @@ def _shared_monkeypatch_pin_tripwire(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _reset_snapshot_catalog_memos():
-    """The snapshot core's TTL memos (installed-skill catalog, profile
-    templates) must never leak rows across tests — tests monkeypatch the
-    underlying fetchers (`skills_tool._find_all_skills`,
-    `snapshot.available_profile_templates`) and a warm memo would mask the
-    patch. Start every test cold."""
-    for module_name, attr in (
-        ("agent_runtime.prompt_observability.skills_resolver", "_skill_catalog_memo"),
-        ("agent_runtime.snapshot", "_profile_template_memo"),
-    ):
-        module = sys.modules.get(module_name)
-        memo = getattr(module, attr, None) if module else None
-        if isinstance(memo, dict):
-            memo["rows"] = None
-            memo["at"] = 0.0
-    # Same rule, different shape: the chat-lane visibility bundle
-    # (``agent_runtime.chat_lane_bundle``) is keyed on persona/permission/config
-    # identity, and a test's hermetic HERMES_HOME normally makes that key unique
-    # per test anyway. "Normally" is not a guarantee, and a bundle surviving into
-    # the next test would serve it another test's toolset answer. Start cold.
-    #
-    # This does NOT cover a single test that monkeypatches a resolver BETWEEN two
-    # turn-path calls — the memo cannot see a function patch. Such a test calls
-    # ``invalidate_chat_lane_bundles()`` itself, which is real API.
-    bundle_module = sys.modules.get("agent_runtime.chat_lane_bundle")
-    if bundle_module is not None:
-        bundle_module.invalidate_chat_lane_bundles()
-    # The resident-chat registry is process-global (serve boot's
-    # ``initialize_persona_chat_runtime_registry``); one a test left enabled made every later
-    # history row in the process answer as ``serve:<pid>`` with a fresh observed_at, so the
-    # stream goldens and the overlay compare went red after its importers (lane h-turn1-title).
-    # Start every test with none; close what the last test left.
-    registry_module = sys.modules.get("agent_runtime.persona_chat_continuity.runtime_registry")
-    leftover = getattr(registry_module, "_REGISTRY", None)
-    if leftover is not None:
-        registry_module._REGISTRY = None
-        leftover.close()
-    # h-idle-turn: the idle keeper's open turn windows and registered refreshes are process
-    # state; a window another test left open would defer this test's catalog refresh.
-    keeper_module =sys.modules.get("agent_runtime.idle_turn_keeper")
-    if keeper_module is not None:
-        keeper_module.reset_for_tests()
+    """Every declared process-global state starts each test the way a fresh import left it.
+
+    A fork module that keeps state for the whole process (the skill-catalog and
+    profile-template memos, the chat-lane bundle, the resident-chat registry, the
+    idle keeper, ``builds.detect``) declares its reset beside the global with
+    ``agent_runtime.process_state.register_process_state``; this fixture runs them
+    all (plan ``process-global-state-reset-2026-10-15.md`` S1). A new leak is
+    retired by a declaration in the owning module, never by a line here. Only
+    modules already imported have registered, which is exactly the state a test
+    could see.
+
+    A test that monkeypatches a resolver BETWEEN two turn-path calls still calls
+    ``invalidate_chat_lane_bundles()`` itself: the memo cannot see a function patch.
+    """
+    from agent_runtime.process_state import reset_all_process_state
+
+    reset_all_process_state()
     yield
-    if keeper_module is None:
-        keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
+    # The idle keeper's thread must not outlive the test that armed it.
+    keeper_module = sys.modules.get("agent_runtime.idle_turn_keeper")
     if keeper_module is not None:
         keeper_module.stop()
 

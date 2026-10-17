@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
+import run_tests_bundled_via as typed_via  # registered by run_tests_bundled._load_sibling
+
 #: files that need intra-file order: one per line, ``#`` starts the observed diff
 UNSHARDED_LIST = Path("scripts") / "test_files_unsharded.txt"
 SHARD_PLUGIN = "hermes_shard"
@@ -40,7 +42,7 @@ MAX_SHARDS = 4
 #: a shard is worth its repeated collection only with at least this many tests
 TESTS_PER_SHARD = 2
 #: ``FileOutcome.via`` of the one whole run after a red shard
-WHOLE_CHECK_VIA = "whole-check"
+WHOLE_CHECK_VIA = typed_via.WHOLE_CHECK
 
 
 def tail_bound(estimates: Sequence[float], jobs: int) -> bool:
@@ -76,13 +78,13 @@ class ShardPlan:
 
         return {"tests": tests_after(self.tests, ran)}
 
-    def vias(self, rel: str) -> List[Tuple[str, List[str]]]:
+    def vias(self, rel: str) -> List[Tuple[typed_via.Via, List[str]]]:
         """``(via, extra pytest args)`` per shard of ``rel``; ``[]`` when it runs whole."""
 
         k = self.counts.get(rel, 1)
         if k < 2:
             return []
-        return [(f"shard {i}/{k}", ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
+        return [(typed_via.Via.shard(i, k), ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
 
 
 def plan_shards(
@@ -136,9 +138,10 @@ class ShardJoin:
 
         rel = self._rel_of(outcome.file)
         k = self._plan.counts.get(rel, 1)
-        if outcome.via == WHOLE_CHECK_VIA:
+        kind = typed_via.kind_of(outcome.via)
+        if kind is typed_via.ViaKind.WHOLE_CHECK:
             return [self._after_whole(rel, outcome)]
-        if outcome.via not in {via for via, _args in self._plan.vias(rel)}:
+        if kind is not typed_via.ViaKind.SHARD or outcome.via not in {via for via, _args in self._plan.vias(rel)}:
             return [outcome]
         with self._lock:
             shards = self._pending.setdefault(rel, [])
@@ -162,7 +165,7 @@ class ShardJoin:
                 summary[key] = summary.get(key, 0) + value
         output = "\n".join(s.output for s in sorted(shards, key=lambda s: s.via) if s.output)
         return dataclasses.replace(
-            shards[0], rc=0, output=output, summary=summary, seconds=sum(s.seconds for s in shards), via=f"{k} shards"
+            shards[0], rc=0, output=output, summary=summary, seconds=sum(s.seconds for s in shards), via=typed_via.Via.shards(k)
         )
 
     def _after_whole(self, rel: str, outcome):
