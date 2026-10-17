@@ -476,7 +476,7 @@ def test_a_shared_map_is_keyed_by_root_so_lanes_with_different_roots_are_safe(
 ):
     """CP-5a: the two lanes may enumerate DIFFERENT root lists.
 
-    ``mission_chat_prompt_observability`` runs inside ``persona_profile_scope``
+    ``mission_chat_prompt_observability`` runs inside ``persona_profile_context``
     and the context builder does not, so for a persona whose profile is not the
     ambient one the lists can differ. The map is keyed by RESOLVED ROOT PATH,
     which is what makes the hand-off safe without the lanes having to agree: a

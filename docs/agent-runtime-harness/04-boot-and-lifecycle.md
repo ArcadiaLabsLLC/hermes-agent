@@ -386,7 +386,7 @@ The readiness section publishes its own split. Same cold boot:
 `snapshot_agents_readiness walk_ms=2133 tool_visibility_ms=2232`; warm, same day,
 `walk_ms=769 tool_visibility_ms=26`.
 
-The walk's per-persona profile binding is `persona_profile_scope` —
+The walk's per-persona profile binding is `persona_profile_context` —
 context-local, no `os.environ` writes, and therefore no `_WORKDIR_LOCK`. On this
 lane that is not a nicety: the walk runs on the builder thread every 2–4 s in the
 process that also serves chat turns, so the env-exporting binding rebound
@@ -724,7 +724,7 @@ that is unchanged behaviour, not a regression, and its parent still has the exit
     `AgentRunExecution.scopes` holds `profile_runner.workdir.root_run_lock` for the whole
     run; another root runs alongside, including while one waits on an operator approval.
     That is sound because a turn writes no process state: the profile home, auth home and
-    runtime root are bound in ContextVars (`persona_profile_context(..., export_env=False)`,
+    runtime root are bound in ContextVars (`persona_profile_context`,
     `agent_runtime/run_context.py`, which also bridges them into every factory-built child
     env), and the workdir is bound in the run's terminal scope, never `os.chdir`
     (`tests/agent_runtime/test_serve_cwd_serialization_invariant.py` reds on a `chdir`).
@@ -758,8 +758,6 @@ Nothing below is implemented. Each links to a plan carrying its own evidence and
   aimed at it. → [`planned/cold-first-core-build-cost.md`](planned/cold-first-core-build-cost.md)
 - **The boot resubscribe still buys a fourth full core** — HY-L2, the one stage of its plan that
   did not ship. → [`planned/boot-resubscribe-fourth-core.md`](planned/boot-resubscribe-fourth-core.md)
-- **Turn concurrency is capped by a process-global `chdir`** (Invariant 10); retiring it is
-  designed, unscheduled. → [`planned/serve-cwd-per-run-paths.md`](planned/serve-cwd-per-run-paths.md)
 
 ## Supersedes
 

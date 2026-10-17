@@ -103,32 +103,7 @@ class RunnerPolicy:
 DEFAULT_RUNNER_POLICY = RunnerPolicy()
 
 
-def run_queued_sends_once(policy: RunnerPolicy | None = None) -> dict[str, int]:
-    """One pass: the head of every idle root, once. Never raises; returns a tally."""
-
-    policy = policy or DEFAULT_RUNNER_POLICY
-    tally = {"ran": 0, "busy": 0, "requeued": 0, "failed": 0}
-    try:
-        roots = queue.roots_with_entries()
-    except Exception:
-        logger.warning("queued-send runner could not read the queue", exc_info=True)
-        return tally
-    for root in roots:
-        try:
-            entry = queue.head(root)
-            if entry is None:
-                continue
-            if not policy.root_is_idle(root):
-                tally["busy"] += 1
-                continue
-            tally[_run_entry(entry, policy)] += 1
-        except Exception:
-            logger.warning("queued send on root %s could not run", root, exc_info=True)
-            tally["failed"] += 1
-    return tally
-
-
-def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> str:
+def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> None:
     root, cmid = entry.root_session_id, entry.client_message_id
     queue.mark(root, cmid, state=queue.STATE_RUNNING)
     try:
@@ -138,7 +113,7 @@ def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> str:
         logger.warning("queued send %s raised (attempt %d)", cmid, attempts, exc_info=True)
         if attempts < MAX_RUN_EXCEPTIONS:
             queue.mark(root, cmid, state=queue.STATE_QUEUED, attempts=attempts)
-            return "failed"
+            return
         _settle(entry, 2, TurnOutcome(
             session_id=root,
             turn_id=cmid,
@@ -146,15 +121,14 @@ def _run_entry(entry: queue.QueuedSend, policy: RunnerPolicy) -> str:
             summary=f"the queued turn raised {attempts} times: {type(exc).__name__}",
         ))
         queue.remove(root, cmid)
-        return "failed"
+        return
     if (payload or {}).get("queued") is True:
         # A newer turn took the lease between the probe and the run; the enqueue
         # converged on this entry, which stays the head for the next pass.
         queue.mark(root, cmid, state=queue.STATE_QUEUED)
-        return "requeued"
+        return
     _settle(entry, int(exit_code), outcome_from_payload(payload))
     queue.remove(root, cmid)
-    return "ran"
 
 
 def _run_streamed(entry: queue.QueuedSend, policy: RunnerPolicy) -> tuple[int, dict | None]:

@@ -278,7 +278,7 @@ def _chat_effective_model_payload(
     """
     default_provider = getattr(persona, "provider", None) or getattr(config, "default_provider", None)
     default_model = getattr(persona, "model", None) or getattr(config, "default_model", None)
-    from agent_runtime.profile_context import resolve_persona_profile, persona_profile_scope
+    from agent_runtime.profile_context import resolve_persona_profile, persona_profile_context
     # An instance whose persona left the roster still gets a summary; it has no
     # profile to scope into, so only the instance and config tiers apply.
     binding = resolve_persona_profile(persona) if persona is not None else None
@@ -286,7 +286,7 @@ def _chat_effective_model_payload(
     effort = chat_effort or getattr(instance, "reasoning_effort", None)
     reasoning = None
     if binding is not None and binding.readiness == "ready":
-        with persona_profile_scope(binding):
+        with persona_profile_context(binding):
             if not default_model or not default_provider:
                 from agent_runtime.config import load_agent_runtime_config
                 profile_config = load_agent_runtime_config()
@@ -308,7 +308,7 @@ def _chat_effective_model_payload(
 
     capabilities = ReasoningCapabilities(provider, model)
     if binding is not None and binding.readiness == "ready":
-        with persona_profile_scope(binding):
+        with persona_profile_context(binding):
             from hermes_cli.config import load_config
 
             profile_config = load_config() or {}

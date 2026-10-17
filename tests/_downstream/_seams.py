@@ -24,6 +24,7 @@ from agent_runtime.redaction import TEXT_SECRET_VALUE_ASSIGNMENT_RE
 
 __all__ = [
     "BUILD_SELF_PERTURBED_CLASSES",
+    "CREDENTIAL_KEYS",
     "IN_MODULE_SEAMS",
     "READ_ONLY_ALLOWLIST_PROFILE",
     "FingerprintHomeCapture",
@@ -33,6 +34,7 @@ __all__ = [
     "chat_live_log_failures",
     "existing_run_worktrees",
     "fingerprint_home_capture",
+    "is_credential_key",
     "isolated_repo_context_for_run",
     "iter_fingerprint_paths",
     "palette_colors",
@@ -42,6 +44,7 @@ __all__ = [
     "reset_fingerprint_home",
     "reset_runtime_resolve_cache",
     "reset_unreadable_instance_rows",
+    "run_queued_sends_once",
 ]
 
 
@@ -57,7 +60,6 @@ __all__ = [
 IN_MODULE_SEAMS = (
     "agent_runtime/builds/detect.py::detection_enabled",
     "agent_runtime/chat_root_send_runner.py::QueuedSendRunner.busy_roots",
-    "agent_runtime/chat_root_send_runner.py::run_queued_sends_once",
     "agent_runtime/chat_turn_settles.py::read_settle",
     "agent_runtime/demote_core_reuse.py::reset_process_state",
     "agent_runtime/events.py::_event_view_cache_clear",
@@ -795,3 +797,48 @@ def palette_colors(palette) -> list[tuple[int, int, int]]:
     # Pillow pads the palette out to 256 entries; keep only the ones the
     # quantizer actually assigned so callers can assert set membership.
     return [triple for triple in triples if triple in used]
+
+
+# ── The credential-key oracle, from ``agent_runtime.redaction`` ──────────────
+# Dead-code queue row (lane r-deadcode): its last production reader was the
+# ``_transport`` arm of ``redact_transport_tree`` (deleted ``73afa773143``); the
+# workspace-clone suite asserts a spawn env carries no credential key with it.
+
+#: Mapping keys whose value is a credential, spelled with ``-`` (``_`` folds).
+CREDENTIAL_KEYS = frozenset({
+    "authorization", "proxy-authorization", "api-key", "apikey", "x-api-key",
+    "cookie", "set-cookie", "access-token", "refresh-token",
+})
+
+
+def is_credential_key(key: object) -> bool:
+    """Is ``key`` a credential-bearing header or field name (``_`` and ``-`` alike)?"""
+
+    return str(key).strip().lower().replace("_", "-") in CREDENTIAL_KEYS
+
+
+# ── One waited-out pass of the queued-send runner ────────────────────────────
+# Fork-hygiene row (lane r-deadcode): production's ``run_queued_sends_once`` was
+# a synchronous copy of ``QueuedSendRunner.dispatch_once``'s loop that no serve
+# ran. The suites now drive the REAL dispatcher and wait its workers out.
+
+
+def run_queued_sends_once(policy, *, timeout: float = 30.0) -> dict[str, int]:
+    """``QueuedSendRunner(policy).dispatch_once()``, then wait until every worker it started ended.
+
+    Returns the dispatcher's own tally (``dispatched`` / ``busy`` / ``occupied``).
+    """
+
+    from agent_runtime.chat_root_send_runner import QueuedSendRunner
+
+    runner = QueuedSendRunner(policy)
+    try:
+        tally = runner.dispatch_once()
+        deadline = time.monotonic() + timeout
+        while runner.busy_roots():
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"queued-send workers still running: {sorted(runner.busy_roots())}")
+            time.sleep(0.01)
+    finally:
+        runner.shutdown(wait=True)
+    return tally

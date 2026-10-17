@@ -206,7 +206,7 @@ class _RunPhases:
         # instead of re-walking.
         #
         # Keyed by RESOLVED ROOT PATH, which is what makes the hand-off safe: the
-        # observability row runs inside ``persona_profile_scope`` and this builder
+        # observability row runs inside ``persona_profile_context`` and this builder
         # does not, so the two lanes can legitimately enumerate different root
         # LISTS. A per-path key needs no agreement about the list — a root both
         # lanes see is walked once, a root only one lane sees is walked by that

@@ -7,7 +7,7 @@ import pytest
 
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from agent_runtime.profile_context import persona_profile_scope, process_home_scope
+from agent_runtime.profile_context import persona_profile_context, process_home_scope
 from agent_runtime.profile_home import (
     PersonaProfileBinding,
     get_hermes_head_home,
@@ -101,7 +101,7 @@ def _send(target, **kwargs):
 
 
 def _sender_scope(name, homes):
-    return persona_profile_scope(
+    return persona_profile_context(
         PersonaProfileBinding(
             persona_id=f"profile:{name}",
             hermes_profile=name,

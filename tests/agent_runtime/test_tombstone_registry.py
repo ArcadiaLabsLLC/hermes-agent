@@ -4127,6 +4127,47 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "write_record",
         scope=("agent_runtime.builds.registry",),
     ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "dead-code queue TEST SEAM: the last production reader was "
+        "redact_transport_tree's _transport arm (deleted 73afa773143); moved to "
+        "tests/_downstream/_seams.py, where the workspace-clone suite uses it as "
+        "its oracle (lane r-deadcode)",
+        "is_credential_key",
+        "CREDENTIAL_KEYS",
+        scope=("agent_runtime.redaction",),
+    ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "fork-hygiene: a synchronous copy of QueuedSendRunner.dispatch_once's "
+        "loop that no serve ran; the suites drive the real runner through "
+        "tests/_downstream/_seams.py (lane r-deadcode)",
+        "run_queued_sends_once",
+        scope=("agent_runtime.chat_root_send_runner",),
+    ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.ATTR,
+        "runtime-queue: persona_profile_context is context-local only (its "
+        "export_env os.environ mirror had no production caller after "
+        "run-serialization S5), so the context-local alias folded into it "
+        "(lane r-deadcode)",
+        "persona_profile_scope",
+        scope=("agent_runtime.profile_context",),
+    ),
+    *rows(
+        "s-r-deadcode",
+        "HEAD",
+        Form.CODE,
+        "runtime-queue: the env-writing mode of persona_profile_context is "
+        "deleted; no production code may pass or read the flag (lane r-deadcode)",
+        "export_env",
+    ),
 )
 
 

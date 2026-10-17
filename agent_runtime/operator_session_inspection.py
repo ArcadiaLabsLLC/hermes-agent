@@ -18,7 +18,7 @@ from .persona_chat_session import (
     _chat_effective_model_payload, _chat_model_override_from_config,
     _persona_chat_native_history, _persona_chat_native_tip, _session_model_config,
 )
-from .profile_context import persona_profile_scope, resolve_persona_profile
+from .profile_context import persona_profile_context, resolve_persona_profile
 
 __layer__ = "lanes"
 
@@ -91,7 +91,7 @@ def _operator_skill_document(persona: AgentPersona, params: dict[str, Any], *, c
     binding = resolve_persona_profile(persona)
     if binding.readiness != "ready":
         raise OperatorConversationRefused("profile_unavailable")
-    with persona_profile_scope(binding, runtime_root=paths.store_root()):
+    with persona_profile_context(binding, runtime_root=paths.store_root()):
         options = permission_options_for_chat(persona, session_id=params["session_id"])
         options = apply_chat_lane_tool_scope(persona, options, session_id=params["session_id"])
         visibility = resolve_tool_visibility(persona, options, include_readiness=False)

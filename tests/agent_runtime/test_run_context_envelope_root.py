@@ -2,7 +2,7 @@
 
 Plan: ``docs/agent-runtime-harness/archive/run-serialization-retirement-2026-10-15.md`` S3.
 
-Two runs bound at once on two threads, both with ``export_env=False`` (nothing is
+Two runs bound at once on two threads, both context-local (nothing is
 written into ``os.environ``). Each must see its own runtime root through the three
 in-process readers that used to key on the raw env var: the harness safety block's
 activation, the envelope's audit-root ladder, and ``paths.store_root()``.
@@ -50,7 +50,7 @@ def test_two_overlapping_runs_each_resolve_their_own_root(tmp_path, no_process_r
     def run(name: str) -> None:
         try:
             root = tmp_path / f"root-{name}"
-            with persona_profile_context(_binding(tmp_path, name), runtime_root=root, export_env=False):
+            with persona_profile_context(_binding(tmp_path, name), runtime_root=root):
                 both_inside.wait()
                 view = {
                     "block": _harness_safety_block("git push origin main"),

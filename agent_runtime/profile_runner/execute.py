@@ -523,12 +523,12 @@ class AgentRunExecution:
             # Run-serialization S5: a run starts only between workspace writers, then
             # holds ITS ROOT's lock — another chat root runs alongside it, including
             # while this one waits on an operator approval. Everything below binds
-            # context-locally (export_env=False; the cwd in a terminal scope); the one
+            # context-locally (the profile binding; the cwd in a terminal scope); the one
             # process write left is POSIX ``HOME``, serialized by its own lock.
             _workspace_turnstile(),
             root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id),
             _posix_process_home(self.binding),
-            persona_profile_context(self.binding, runtime_root=request.runtime_root, export_env=False),
+            persona_profile_context(self.binding, runtime_root=request.runtime_root),
             prewarm_scope(request),
             _agent_workdir(request.workdir),
             tool_execution_scope(request.tool_execution_scope_id),

@@ -833,7 +833,7 @@ def test_selection_profile_fallback_and_effort_are_one_authority(tmp_path, monke
     from agent_runtime import profile_context, config
     monkeypatch.setattr(profile_context, "resolve_persona_profile",
         lambda persona: SimpleNamespace(readiness="ready"))
-    monkeypatch.setattr(profile_context, "persona_profile_scope", lambda binding: nullcontext())
+    monkeypatch.setattr(profile_context, "persona_profile_context", lambda binding: nullcontext())
     patch_where_bound(monkeypatch, config, "load_agent_runtime_config",
         lambda *a, **k: SimpleNamespace(default_model="profile-model", default_provider="profile-provider"))
     persona = SimpleNamespace(model=None, provider=None)
