@@ -137,3 +137,58 @@ def test_a_chain_path_edited_after_the_merge_still_reaches(tmp_path):
     assert change.standing == [] and "pyproject.toml" in change.paths
     sel = bundled.select_scope([repo / "tests/pkg/test_a.py"], repo, {"tests/pkg/test_a.py"}, change.paths)
     assert _rels(repo, sel.chain) == ["tests/pkg/test_a.py"]
+
+
+# ── an ordinary landing: the chain's contract plus a sample (owner ruling 2026-10-16) ──
+
+
+def _sample_tree(root: Path) -> list[Path]:
+    texts = {
+        "tests/pkg/test_fork.py": "x\n",
+        "tests/pkg/test_up.py": "x\n",
+        "tests/other/deep/test_up2.py": "xxxxxxxx\n",
+        "tests/other/deep/test_a_small.py": "x\n",
+        "tests/third/test_reached.py": "import pkg.mod\n",
+        "tests/third/test_sibling.py": "x\n",
+        "tests/tooling/test_session_chain_contract.py": "x\n",
+    }
+    for rel, text in texts.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    return [root / rel for rel in texts]
+
+
+_SAMPLE_INHERITED = {
+    "tests/pkg/test_up.py", "tests/other/deep/test_up2.py", "tests/other/deep/test_a_small.py",
+    "tests/third/test_reached.py", "tests/third/test_sibling.py",
+}
+
+
+@pytest.mark.parametrize("changed", ["conftest.py", "tests/conftest.py", "tests/_downstream/conftest_plugin.py"])
+def test_an_ordinary_landing_runs_the_contract_and_one_sample_per_empty_folder(tmp_path, changed):
+    files = _sample_tree(tmp_path)
+
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {changed, "pkg/mod.py"}, chain_sample=True)
+
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_a_small.py"], "the smallest, in the empty folder only"
+    assert _rels(tmp_path, sel.importer) == ["tests/third/test_reached.py"]
+    assert "tests/tooling/test_session_chain_contract.py" in _rels(tmp_path, sel.fork_only)
+    assert _rels(tmp_path, sel.excluded) == ["tests/other/deep/test_up2.py", "tests/pkg/test_up.py",
+                                             "tests/third/test_sibling.py"]
+
+
+def test_without_a_chain_change_nothing_is_sampled(tmp_path):
+    files = _sample_tree(tmp_path)
+
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"pkg/mod.py"}, chain_sample=True)
+
+    assert sel.chain == [] and len(sel.excluded) == 4
+
+
+def test_the_skip_list_wins_over_the_sample(tmp_path):
+    files = _sample_tree(tmp_path)
+
+    sel = bundled.select_scope(files, tmp_path, _SAMPLE_INHERITED, {"conftest.py"}, chain_sample=True,
+                               skipped={"tests/other/deep/test_a_small.py"})
+
+    assert _rels(tmp_path, sel.chain) == ["tests/other/deep/test_up2.py", "tests/third/test_sibling.py"]
