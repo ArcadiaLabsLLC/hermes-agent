@@ -26,8 +26,7 @@ contract, by calling its helpers rather than re-spelling them:
   ``scripts/test_bundles_unbundled.txt`` must carry.
 
 Scope (``--scope``) decides which discovered files run at all:
-``scripts/run_tests_bundled_scope.py`` owns it. ``--affected BASE``, the landing
-gate, selects only what the change can reach: ``scripts/run_tests_bundled_affected.py``.
+``scripts/run_tests_bundled_scope.py`` owns it.
 
 Membership is mechanical: files are grouped by their top-level test directory
 (``tests/<dir>``), sorted by path, and cut into consecutive bundles of at most
@@ -47,7 +46,7 @@ The runner's core (``assign_bundles``, ``tally_events``, ``effective_bundle_rc``
 ``run_tests_parallel.py`` as a ``--bundle-size`` flag.
 
 Usage:
-    python scripts/run_tests_bundled.py [--scope fork|full] [--affected BASE | --since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
+    python scripts/run_tests_bundled.py [--scope fork|full] [--since REF | --since-merge SHA] [--bundle-size N] [-j N] [PATH ...] [pytest args]
     scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate (fork scope)
     scripts/run_tests_bundled.sh --scope full tests/agent_runtime tests/hermes_cli tests/hermes_state  # weekly merge lane
 
@@ -588,13 +587,12 @@ _fixtures = _load_sibling("run_tests_bundled_fixtures")  # fixture-scoped keys o
 _reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is unchanged are not re-run
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
-affected = _load_sibling("run_tests_bundled_affected")  # --affected: the landing gate's selection
 _confirm = _load_sibling("run_tests_bundled_confirm")  # --confirm-red: one named red, alone, on HEAD and the base
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *affected.FLAGS, *_confirm.FLAGS,
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *_confirm.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -767,7 +765,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--since-merge", metavar="SHA", help="--scope fork after a release merge: the change is what the merge "
         "produced (its combined diff) plus <SHA>..HEAD and working-tree edits (Merging upstream.md step 7)",
     )
-    affected.add_arguments(parser, change)
     parser.add_argument("--manifest", type=Path, default=None, help="upstream manifest (default tests/fixtures/upstream_manifest.txt)")
     parser.add_argument(
         "--git-audit", action="store_true",
@@ -800,19 +797,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: cannot read the upstream skip list: {exc}", file=sys.stderr)
         return 2
-    if args.affected and args.scope == SCOPE_FULL:
-        parser.error("--affected selects its own files; it does not combine with --scope full")
-    if args.affected:
-        store = cache.GateStore(cache.gate_store_dir(
-            repo_root, plan.primary_checkout(repo_root), args.cache_dir or os.environ.get(cache.STORE_ENV)))
-        sel = affected.select_for_run(args, files, repo_root, roots, skip_rows, store)
-    else:
-        sel = scope.select_for_run(args, files, repo_root, roots, skip_rows)
+    sel = scope.select_for_run(args, files, repo_root, roots, skip_rows)
     if sel is None:
         return 2
     files = sel.selected
-    if args.select_only:
-        return 0
     if not files:
         print("No test files in scope", file=sys.stderr)
         return 1
