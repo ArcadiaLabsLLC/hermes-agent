@@ -589,11 +589,12 @@ _reds = _load_sibling("run_tests_bundled_reds")  # known reds whose key is uncha
 _leftovers = _load_sibling("run_tests_bundled_leftovers")  # processes a run started that outlive it
 _gate = _load_sibling("run_tests_bundled_gate")  # ... and its wiring into a run
 affected = _load_sibling("run_tests_bundled_affected")  # --affected: the landing gate's selection
+_confirm = _load_sibling("run_tests_bundled_confirm")  # --confirm-red: one named red, alone, on HEAD and the base
 
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *affected.FLAGS,
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *affected.FLAGS, *_confirm.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
 
@@ -773,6 +774,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="record every git a test runs against this checkout to .pytest_cache/hermes_git_in_checkout.jsonl",
     )
     _gate.add_arguments(parser)
+    _confirm.add_arguments(parser)
     parser.add_argument("paths", nargs="*", metavar="PATH")
     args = parser.parse_args(ours)
     if args.git_audit:  # every bundle child inherits it (tests/_downstream/git_audit.py)
@@ -782,6 +784,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error("node ids are not supported here; run the file with scripts/run_tests.sh")
 
     repo_root = _SCRIPTS_DIR.parent
+    if args.confirm_red:
+        primary = plan.primary_checkout(repo_root) or repo_root
+        return _confirm.main(args, repo_root, Path(primary), lambda p: _rel(p, repo_root))
     roots = [repo_root / p for p in (args.paths or rtp._DEFAULT_ROOTS)]
     missing = [str(r) for r in roots if not r.exists()]
     if missing:
