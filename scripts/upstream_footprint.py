@@ -289,10 +289,12 @@ def ledger_add_row(text: str, row: FileDelta, *, disposition: str, reason: str, 
 
 # A reason row that raises the fixture cites the owner's ruling (owner, 2026-10-15): the date and
 # where it is recorded, e.g. "2026-10-15 · Harness_Brain/30 — Decisions/0015". The rows already on
-# main when the rule landed carry ``"grandfathered": true`` instead; there are exactly
-# GRANDFATHERED_REASONS of them and the number only falls, so a new row cannot borrow the marker.
+# main when the rule landed carry ``"grandfathered": true`` instead. Each one's IDENTITY (a digest
+# of the row) is pinned in GRANDFATHERED_PINS, which may only lose lines: a count alone let a new
+# row take an old exemption's vacant slot, or swap in for one at the same count (audit 2026-10-17).
 OWNER_RULING_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\b\W*\w.*")
-GRANDFATHERED_REASONS = 121
+GRANDFATHERED_REASONS = 120
+GRANDFATHERED_PINS = ROOT / "tests" / "fixtures" / "upstream_footprint_grandfathered.txt"
 
 
 def unruled_reasons(fixture: dict) -> list[str]:
@@ -308,6 +310,29 @@ def unruled_reasons(fixture: dict) -> list[str]:
 
 def grandfathered_count(fixture: dict) -> int:
     return sum(1 for row in fixture.get("reasons", []) if row.get("grandfathered") is True)
+
+
+def reason_identity(row: dict) -> str:
+    """A grandfathered row's identity: any edit to the row makes a different row."""
+    import hashlib
+
+    canonical = json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def grandfathered_pins(path: Path = GRANDFATHERED_PINS) -> list[str]:
+    """The pinned identities, one ``<digest> <change>`` line each (the change is for a reader)."""
+    return [line.split()[0] for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def unpinned_grandfathered(fixture: dict, pins: Iterable[str]) -> list[str]:
+    """``change`` of every row marked grandfathered whose identity is not pinned."""
+    pinned = set(pins)
+    return [
+        str(row.get("change", "?"))
+        for row in fixture.get("reasons", [])
+        if row.get("grandfathered") is True and reason_identity(row) not in pinned
+    ]
 
 
 def fixture_add_reason(fixture: dict, tree: Footprint, *, change: str, reason: str, today: str,
