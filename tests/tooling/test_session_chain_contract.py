@@ -277,3 +277,24 @@ def test_every_test_starts_with_an_empty_bash_memo(request):
     re-export from ``conftest_plugin``."""
 
     assert "_bash_resolution_reset" in request.fixturenames
+
+
+def test_teardown_delivers_hooks_without_a_cold_plugin_discovery(request, monkeypatch):
+    """``tests/_downstream/teardown_plugin_delivery.py``: for the whole teardown phase a lifecycle hook
+    reaches the plugins the test loaded and never triggers a discover-and-load of a manager that never ran
+    (the leaked-TUI-session cleanup paid a cold load of every bundled plugin per test). Mutation: drop the
+    ``pytest_runtest_teardown_plugin_delivery`` re-export from ``conftest_plugin``."""
+
+    from tests._downstream.teardown_plugin_delivery import no_cold_discovery
+
+    hooked = [impl.function.__name__ for impl in request.config.pluginmanager.hook.pytest_runtest_teardown.get_hookimpls()]
+    assert "pytest_runtest_teardown_plugin_delivery" in hooked
+    plugins._reset_plugin_managers_for_tests()
+    manager = plugins.get_plugin_manager()
+    loads: list = []
+    monkeypatch.setattr(manager, "discover_and_load", lambda *a, **k: loads.append(a))
+    with no_cold_discovery():
+        assert plugins.invoke_hook("on_session_finalize", session_id="s", platform="tui") == []
+    assert loads == []
+    plugins.invoke_hook("on_session_finalize", session_id="s", platform="tui")
+    assert len(loads) == 1  # outside teardown the lazy discovery is untouched
