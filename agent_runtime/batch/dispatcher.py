@@ -45,8 +45,8 @@ from .machine import (
     LaneState, automation_allows, move, ready_to_land, startable,
 )
 from .manifest import (
-    BATCH_SUBJECT, LANE_PREFIX, STOP_REQUESTED, ManifestStore, automation_of, brief_path, entry_line, fold, head,
-    manifest_path,
+    BATCH_SUBJECT, LANE_PREFIX, STOP_REQUESTED, ManifestStore, automation_of, brief_path, entry_line, find_batch,
+    fold, head, manifest_path,
 )
 from .planner import LANDING_ID, Budget, LaneKind, Member, Plan, plan as make_plan
 
@@ -268,7 +268,7 @@ class BatchDispatcher:
         batch_id, _sep, request = run.request_id.partition(":")
         if not batch_id.startswith("BATCH-") or not request:
             return
-        found = self._find(batch_id)
+        found = find_batch(self.manifests, self._workspaces(), batch_id)
         if found is None:
             logger.warning("batch %s settled a run but no manifest names it", batch_id)
             return
@@ -401,12 +401,6 @@ class BatchDispatcher:
                         self.advance(workspace_id, batch_id)
             except Exception:
                 logger.warning("batch tick could not advance workspace %s", workspace_id, exc_info=True)
-
-    def _find(self, batch_id: str) -> tuple[str, Batch] | None:
-        for workspace_id in self._workspaces():
-            if batch_id in self.manifests.texts(workspace_id, fresh=False):
-                return workspace_id, self.load(workspace_id, batch_id)
-        return None
 
     def _landing_elsewhere(self, batch_id: str) -> str | None:
         """Another batch this machine is landing, in any workspace (one landing at a time, plan §3.3)."""

@@ -39,14 +39,14 @@ from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
 logger = logging.getLogger(__name__)
-__all__ = ["BRIEF_MAX_LINES", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
+__all__ = ["BRIEF_MAX_LINES", "REPORT_CLOSING", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
 
 REPORT_INFO = "work_report"
 BRIEF_MAX_LINES = 40
 _REPORT_FENCE = re.compile(r"^[ \t]*```[ \t]*work_report[ \t]*\r?\n(.*?)^[ \t]*```", re.MULTILINE | re.DOTALL)
 _VERDICTS = {"done": Verdict.DONE, "blocked": Verdict.BLOCKED, "stopped": Verdict.STOPPED}
 _REPORT_TAIL = 4000
-_CLOSING = (
+REPORT_CLOSING = (
     "",
     f"When you finish, END your reply with a fenced code block whose info string is `{REPORT_INFO}`:",
     f"```{REPORT_INFO}",
@@ -97,7 +97,7 @@ def render_brief(a: Assignment) -> str:
         body += ["", "Constraints:", *_clip([f"- {item}" for item in brief.constraints], 3)]
     if brief.acceptance:
         body += ["", f"Done when: {' '.join(brief.acceptance.split())[:500]}"]
-    return "\n".join([*head, *body][:BRIEF_MAX_LINES - len(_CLOSING)] + list(_CLOSING))
+    return "\n".join([*head, *body][:BRIEF_MAX_LINES - len(REPORT_CLOSING)] + list(REPORT_CLOSING))
 
 
 def _norm(value: Any) -> str:

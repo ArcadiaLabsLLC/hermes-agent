@@ -31,6 +31,7 @@ from typing import Any, Protocol
 from ..work_store.board import Board, has_brain_here
 from ..work_store.grammar import Op, RowRef
 from ..work_store.models import Verdict
+from ..work_store.reasons import Reason, WorkRefused
 from .machine import LIVE, Automation, Batch, BatchState, LaneRecord, LaneState
 from .planner import Plan
 
@@ -45,6 +46,7 @@ __all__ = [
     "automation_of",
     "brief_path",
     "entry_line",
+    "find_batch",
     "fold",
     "head",
     "held_refs",
@@ -275,6 +277,19 @@ class ManifestStore(Protocol):
     def append(self, workspace_id: str, batch_id: str, lines: Sequence[str], request_id: str, *,
                files: Mapping[str, str] | None = None) -> None:
         """Append ``lines`` to the manifest (and write ``files``, brain-root relative) in ONE commit."""
+
+
+def find_batch(manifests: ManifestStore, workspace_ids: Iterable[str], batch_id: str) -> tuple[str, Batch] | None:
+    """The workspace whose manifests name ``batch_id`` and the batch folded fresh, or None when none does."""
+
+    for workspace_id in workspace_ids:
+        if batch_id in manifests.texts(workspace_id, fresh=False):
+            text = manifests.texts(workspace_id).get(batch_id)
+            batch = fold(text) if text is not None else None
+            if batch is None:
+                raise WorkRefused(Reason.BATCH_MISSING, batch_id)
+            return workspace_id, batch
+    return None
 
 
 class BrainManifestStore:
