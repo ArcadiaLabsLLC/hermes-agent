@@ -640,6 +640,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Upstream-owned
 
+### Filed on arrival — 2026-10-18 (land w8)
+
+- **`RT-NATIVE-WORKER-ENGINE-CPU` — A native conversation worker spends ~5 s of upstream engine CPU before its first reply: ~2.3 s boot (`tui_gateway.server` import ~1.7 s), ~2.2 s agent build (`run_agent`/`model_tools` import, builtin tool discovery, plugins), ~0.9 s `model.options` per open (credential-pool walk racing `picker-cache-prewarm`), and `hermes_constants_scratch._prune_idle_entries` reading every process's cwd via psutil (~416 procs, 0.4–1.5 s) once per fresh home even when nothing is idle** · upstream-owned / turn latency + suite speed · w8-slow-a profile (sampled worker stacks; commit 091bfba3e7 body) · lane: caller-side memo or upstream issue, never an edit · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (lane r-state, branch `q/r-state`)
 
 
@@ -648,7 +652,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (lane r-perf)
 
-- **`RT-CHECKPOINT-PM-ENSURE` — `tools/checkpoint_manager._run_git` calls `pm.client.ensure` per git call (a store-root walk each time): ~20% of `test_operator_redo` profiled** · upstream / checkpoints · [[r-perf-2026-10-17]]; also 34 s of `test_checkpoint_gitlinks.py`'s 54 s setup (lane h1-setup, `q/h1-setup`) · upstream issue or a caller-side memo · BLOCKED 2026-10-18: upstream — issue text: "`pm.client.ensure('git')` costs ~31 ms a call on Windows, and `tools/checkpoint_manager._git_env` (via `hermes_cli._subprocess_compat.selected_git_env`) pays it once per git spawn (1,954 calls = 31.9 s of `test_operator_redo`'s 150 s alone). cProfile: 82% is `pm.environments.store_root` <- `pm.paths.store_root` / `install_stamp_path` / `repo_root`, ~118 `Path.resolve` per call. `repo_root()` and `lockfile_path()` resolve `__file__` on every call: caching those two takes a call to 18 ms; caching `store_root(root)` per (root, `HERMES_RUNTIME_DIR`) to 3.7 ms." A memo above `pm.ensure` is ruled out by upstream's own contract (`tests/tools/test_git_consumer_environment.py`: "A changed PM selection must affect this same process"), and `pm/paths.py` is not in the footprint — q-pm 2026-10-18
+- **`RT-CHECKPOINT-PM-ENSURE` — `tools/checkpoint_manager._run_git` calls `pm.client.ensure` per git call (a store-root walk each time): ~20% of `test_operator_redo` profiled** · upstream / checkpoints · [[r-perf-2026-10-17]]; also 34 s of `test_checkpoint_gitlinks.py`'s 54 s setup (lane h1-setup, `q/h1-setup`) · upstream issue or a caller-side memo · w8-slow-b 133892f92b: ~11 ms per `_run_git` child in `selected_git_env` → `pm.ensure("git")` (970 `pm.environments.store_root` / 6,402 `pm.paths.repo_root` calls for 193 children) plus a double spawn through PM's `cmd\git.exe` shim (29 ms vs 18 ms for `mingw64\bin\git.exe`) — about half of each git call on Windows · BLOCKED 2026-10-18: upstream — issue text: "`pm.client.ensure('git')` costs ~31 ms a call on Windows, and `tools/checkpoint_manager._git_env` (via `hermes_cli._subprocess_compat.selected_git_env`) pays it once per git spawn (1,954 calls = 31.9 s of `test_operator_redo`'s 150 s alone). cProfile: 82% is `pm.environments.store_root` <- `pm.paths.store_root` / `install_stamp_path` / `repo_root`, ~118 `Path.resolve` per call. `repo_root()` and `lockfile_path()` resolve `__file__` on every call: caching those two takes a call to 18 ms; caching `store_root(root)` per (root, `HERMES_RUNTIME_DIR`) to 3.7 ms." A memo above `pm.ensure` is ruled out by upstream's own contract (`tests/tools/test_git_consumer_environment.py`: "A changed PM selection must affect this same process"), and `pm/paths.py` is not in the footprint — q-pm 2026-10-18
 
 
 ### Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
