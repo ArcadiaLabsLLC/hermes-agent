@@ -1448,6 +1448,13 @@ terminal and code-kernel spelling of "no process exit") is `-1` on every lane, n
 on one and `-1` on another. Gate: every integer-named key in a built hydrate frame and in
 every committed stream golden is a JSON integer.
 
+**11.2 An empty realm-adopt reply is a failure (RT-TWO-RESOLVERS-ANSWER-HARNESS).**
+`harness realm adopt` succeeds with exit 0 and a non-empty `kind: list` envelope, even
+when nothing was adopted (`count: 0`); it fails with a non-zero exit and an error
+envelope. A reply with exit 0 and no payload, or a null payload, is therefore never
+success, and every reader of the verb treats it as a failure. Gate: a successful adopt
+of nothing still answers the list envelope.
+
 ## Invariants
 
 1. **Parse per line, branch on `type`, ignore unknown fields.** Hub-vs-argv

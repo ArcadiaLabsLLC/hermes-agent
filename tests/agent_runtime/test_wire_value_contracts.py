@@ -71,3 +71,20 @@ def test_every_committed_stream_golden_carries_every_integer_as_a_json_integer()
     assert seen_total > 100
     assert offenders == []
 
+
+# ── RT-TWO-RESOLVERS-ANSWER-HARNESS: an empty realm-adopt reply is a failure ─
+
+
+def test_a_successful_realm_adopt_never_answers_empty(monkeypatch):
+    """Success is a non-empty list envelope even when nothing was adopted, so a
+    reader may treat an empty or null reply as a failure."""
+
+    from agent_runtime import realm_membership, realm_verbs
+
+    monkeypatch.setattr(realm_membership, "adopt_realms", lambda *_a, **_k: [])
+    data = realm_verbs.realm_adopt(object(), dry_run=True)
+
+    assert isinstance(data, dict) and data
+    assert data["kind"] == "list"
+    assert data["item_kind"] == "realm"
+    assert data["count"] == 0
