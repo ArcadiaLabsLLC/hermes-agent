@@ -32,7 +32,7 @@ def test_real_read_tool_binaries_confirm_option_ownership(
     # different grammar, exit 1) while the skip guard had approved Git's GNU
     # coreutils sort. The test was pinning the wrong program's CLI.
     completed = subprocess.run(
-        [resolved, *argv[1:]], input=stdin, text=True, capture_output=True
+        [resolved, *argv[1:]], input=stdin, text=True, capture_output=True, check=False
     )
 
     assert completed.returncode == expected_returncode
