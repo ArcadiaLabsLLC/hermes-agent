@@ -202,6 +202,29 @@ def test_a_module_only_the_session_loaded_falls_back_to_the_reach_rules(tmp_path
     assert set(sel.picks) == {T_CHAIN}
 
 
+def test_a_module_the_file_loaded_that_imports_the_change_selects_it_when_an_earlier_member_loaded_the_change(tmp_path):
+    """q-runner 2026-10-18 (r-recorder ``1bf2272916`` row): T_CHAIN loaded MOD first, so T_VIA's own
+    set names only the intermediate it loaded (helper imports MOD); T_FAR loaded outer, two hops out."""
+
+    store = cache.GateStore(tmp_path / "gate")
+    session = {MOD, "agent_runtime/helper.py", "agent_runtime/outer.py"}
+    own = {T_CHAIN: {MOD}, T_DIRECT: {"agent_runtime/helper.py"}, T_FAR: {"agent_runtime/outer.py"}}
+    store.write_deps({
+        rel: cache.FileDeps(paths={rel}, mods=set(session), mods_own=loaded | {rel}, mods_ref=set(),
+                            own_records=1, deps_records=1)
+        for rel, loaded in own.items()
+    }, "run-1")
+    imports = {**IMPORTS, T_DIRECT: {"agent_runtime.helper"}}
+    sel = affected.select_affected(
+        [T_DIRECT, T_CHAIN, T_FAR], affected.Change({MOD}), store.load_deps(), store.load_modsets(),
+        affected.ImportGraph(imports),
+    )
+
+    assert sel.picks[T_DIRECT].why == f"loaded agent_runtime/helper.py (recorded), which reaches {MOD}"
+    assert T_FAR not in sel.picks, "an intermediate counts one hop out, never two"
+    assert set(sel.picks) == {T_CHAIN, T_DIRECT}
+
+
 def test_fail_fast_runs_edited_and_direct_importers_first_and_the_slowest_last():
     picks = [affected.Pick("e", "edited", affected.EDITED), affected.Pick("d", "x", affected.DIRECT),
              affected.Pick("r", "y", affected.REST)]

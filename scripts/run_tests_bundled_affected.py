@@ -8,7 +8,10 @@ when (``select_affected``):
 * its LATEST record in the gate store (``deps.jsonl`` / ``modsets.jsonl``) names a
   changed path: a module the FILE loaded or named itself (``mown``: ``loaded <path>
   (recorded)`` / ``imports <path> (recorded)`` — the recorder's ``mods_own`` and
-  ``mods_ref``, exact), or, for a record written before the recorder kept those, a
+  ``mods_ref``, exact) or a module of that set which imports a changed path directly
+  (``loaded <m> (recorded), which reaches <path>``: an earlier bundle member loaded
+  the changed module, so no event named it for this file), or, for a record written
+  before the recorder kept those, a
   module its process imported that the file's own import chain also reaches
   (``imports <path>`` / ``reaches <path> (import chain)``; a recorded module set is
   the whole process's, see ``ImportGraph``), a non-``.py`` file it opened
@@ -314,6 +317,8 @@ def select_affected(
             why = hit and (f"imports {hit} (recorded)" if hit in named else f"loaded {hit} (recorded)")
             if hit in named:
                 direct.add(rel)
+            if why is None:  # a module it loaded or named reaches the change, which an earlier member loaded
+                why = _via_recorded(record, modsets, reached, changed)
         else:
             in_mods = set().union(*(digest_hits.get(d, set()) for d in record.mods))
             covered.update(in_mods)
@@ -356,6 +361,17 @@ def select_affected(
         if pick.group == REST and (pick.rel in direct or rel_direct(reached, pick.rel)):
             pick.group = DIRECT
     return sel
+
+
+def _via_recorded(record, modsets, reached: Mapping[str, Tuple[str, bool]], changed: set) -> Optional[str]:
+    """A module the file loaded or named itself whose import chain reaches a changed module
+    within ``REACH_DEPTH`` hops: CPython fires ``import`` once per process, so when an earlier
+    bundle member already loaded the changed module, the file's own set names only the
+    intermediate (r-recorder ``1bf2272916``; q-runner 2026-10-18)."""
+
+    mine = set().union(*(modsets.get(d, ()) for d in record.mown))
+    via = min((p for p in mine - changed - {record.rel} if p in reached and reached[p][1]), default=None)
+    return via and f"loaded {via} (recorded), which reaches {reached[via][0]}"
 
 
 def _listing_counts(records: Iterable["cache.StoredDeps"], dirs: Mapping[str, str]) -> Dict[str, int]:

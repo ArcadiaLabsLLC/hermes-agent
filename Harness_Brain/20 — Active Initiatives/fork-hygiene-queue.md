@@ -517,7 +517,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 land/q6
 
-- [ ] **--affected misses a file that reaches a changed module only through an intermediate an earlier bundle member loaded** · fork / suite · r-recorder 1bf2272916 · READY **TAKEN 2026-10-18 q-runner**
 - [ ] **--affected is tail-bound on 70–177 s files (test_operator_redo 140–177 s); the runner's path-ordered bundles put them in series** · fork / suite · r-recorder locks run: 32 files, 364 s · shard for --affected · READY **TAKEN 2026-10-18 q-runner**
 - [ ] **test_bundled_plugin_discovery_is_kept_between_tests red in its first bundle on a fresh worktree, green alone** · fork / suite · r-recorder run1 log · READY **TAKEN 2026-10-18 q-chain**
 - [ ] **pm install deletion: a hardlinked `.pyd` (730 links into the uv cache) cannot be unlinked while any live Python maps the same file, so `shutil.rmtree` of an orphan install state leaves those links; the pruner (080735728c row) must skip-and-continue, not abort** · fork / box · installs cleanup 2026-10-18, 335/335 aborted on the first locked `.pyd` · READY **TAKEN 2026-10-18 q-pm**
