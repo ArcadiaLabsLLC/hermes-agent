@@ -14,7 +14,8 @@ enable / pause         {monitor_id} -> monitor (polling of the sealed revision o
 retire                 {monitor_id} -> monitor (stopped for good; its data stays)
 get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, set, rotated_at}]
 preview                {manifest} -> {feeds: [{feed_id, status, number, reason, http_status}]}
-                       (one read per feed; NOTHING is written)
+                       (one read per feed, typed as the poller would store it;
+                       NOTHING is written)
 latest                 {monitor_id} -> {latest: [row per feed]}
 range                  {monitor_id, feed_id, start_ms, end_ms} -> {series, observations, rollups}
 episodes               {monitor_id?, state?} -> {episodes}
@@ -136,11 +137,13 @@ def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None)
 def _runtime_lens_preview(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
         from agent_runtime.lens.manifest import read_manifest
-        from agent_runtime.lens.sources import read_feed_source
+        from agent_runtime.lens.sources import read_feed_source, typed_result
 
         manifest = read_manifest((params or {}).get("manifest"))
+        # The value the poller would store, not the raw read (W2: a refused read is a gap).
         return {"monitor_id": manifest["monitor_id"],
-                "feeds": [{"feed_id": feed["id"], **read_feed_source(feed).to_json()} for feed in manifest["feeds"]]}
+                "feeds": [{"feed_id": feed["id"], **typed_result(feed, read_feed_source(feed)).to_json()}
+                          for feed in manifest["feeds"]]}
 
     return _lens_call(rid, body)
 

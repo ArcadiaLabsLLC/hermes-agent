@@ -131,14 +131,13 @@ class LensPoller:
 
     def _record(self, store: LensStore, monitor_id: str, manifest: dict[str, Any], feed: dict[str, Any],
                 result: ReadResult, *, observed: datetime, received: datetime) -> None:
-        from .feed import typed_reading
+        from .sources import typed_result
 
         received = max(observed, received)
         # W2: a read the feed's type or plausible range refuses is a gap with its reason.
-        value, refusal = typed_reading(feed, result.value)
-        reason = result.reason.value if refusal is None else refusal.value
+        typed = typed_result(feed, result)
         store.record(monitor_id, feed["id"], observed_at=observed, received_at=received,
-                     value=value, reason=reason, http_status=result.http_status)
+                     value=typed.value, reason=typed.reason.value, http_status=typed.http_status)
         for rule in manifest["rules"]:
             if feed["id"] in rule_feed_ids(rule):
                 # Evaluated at the RECEIVE time: an observation is never later than its verdict.
