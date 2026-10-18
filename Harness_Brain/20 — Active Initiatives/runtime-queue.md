@@ -511,7 +511,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-17 (lane r-perf)
 
-- [ ] **`agent_runtime/store_file_io.write_secure_json` spawns `icacls` up to three times per write on Windows (~150 ms each): 92 spawns in one e2e test file, ~0.45 s per pairing/credential write; set the protected DACL in-process (`SetNamedSecurityInfoW`) with the same single `(R,W,D)` grant** · fork-owned / stores · [[r-perf-2026-10-17]] · pinned by `tests/agent_runtime/test_store_file_io_secure_write.py` · READY
+- [ ] **`agent_runtime/store_file_io.write_secure_json` spawns `icacls` up to three times per write on Windows (~150 ms each): 92 spawns in one e2e test file, ~0.45 s per pairing/credential write; set the protected DACL in-process (`SetNamedSecurityInfoW`) with the same single `(R,W,D)` grant** · fork-owned / stores · [[r-perf-2026-10-17]] · pinned by `tests/agent_runtime/test_store_file_io_secure_write.py` · READY **TAKEN 2026-10-17 claude (q-boot)**
 
 ## Seams
 
