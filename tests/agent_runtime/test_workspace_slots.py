@@ -295,3 +295,27 @@ def test_a_tombstoned_slot_leaves_the_snapshot_row(workspace):
     _declare(workspace, [_slot("launcher"), _slot("backend")])
     _declare(workspace, [_slot("launcher")], issued_at=LATER)
     assert list(_snapshot_row(workspace)["slots"]) == ["launcher"]
+
+
+def test_a_local_slot_round_trips_normalize_declaration(workspace):
+    """A ``repo.local`` slot (the Work default brain, work-on-markdown §4) needs no clone URL and keeps ``local``."""
+
+    from agent_runtime.workspace_slots import SlotRefused, normalize_declaration
+
+    entry = {"name": "brain", "repo": {"clone_url": None, "default_branch": "main", "local": True},
+             "context": {"role": "brain", "brain_dir": "Work_Brain/20 — Active Initiatives"}}
+    name, body = normalize_declaration(entry)
+    assert name == "brain" and body["repo"] == {"clone_url": None, "default_branch": "main", "local": True}
+    assert body["context"]["brain_dir"] == "Work_Brain/20 — Active Initiatives"
+    assert normalize_declaration({**entry, **body, "name": name}) == (name, body)  # the launcher's re-declare
+    assert "result" in _declare(workspace, [entry])
+    assert load_document(workspace)["slots"]["brain"]["repo"]["local"] is True
+    # A clone URL makes the slot an ordinary one; no URL and no ``local`` is still refused.
+    named = normalize_declaration({**entry, "repo": {"clone_url": CLONE_URL, "local": True}})[1]["repo"]
+    assert "local" not in named and named["clone_url"] == CLONE_URL
+    with pytest.raises(SlotRefused) as refused:
+        normalize_declaration({"name": "brain", "repo": {"clone_url": None}})
+    assert refused.value.reason == "invalid_clone_url"
+    with pytest.raises(SlotRefused) as escaping:
+        normalize_declaration({**entry, "context": {"brain_dir": "../outside"}})
+    assert escaping.value.reason == "invalid_declaration"

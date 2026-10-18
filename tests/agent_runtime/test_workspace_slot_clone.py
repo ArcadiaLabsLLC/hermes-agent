@@ -307,3 +307,18 @@ def test_the_runs_file_never_travels_with_the_realm():
 
     assert _is_hard_excluded_path(MACHINE_SLOT_RUNS_FILENAME)
     assert not _is_hard_excluded_path("store/workspace_slots/ws.json")  # positive control: the document travels
+
+
+def test_a_local_slot_is_never_cloned(workspace, registry, tmp_path):
+    """A ``repo.local`` slot has no remote (work-on-markdown §4): clone refuses ``slot_local_only``."""
+
+    from agent_runtime.workspace_slots import declare_local_slot
+
+    home = tmp_path / "brain"
+    home.mkdir()
+    declare_local_slot(workspace, "brain", path=str(home), issued_at=LATER, machine="m1")
+    write_machine_roots({}, dry_run=False)
+    with pytest.raises(SlotRefused) as refused:
+        clone_slot(workspace, "brain", str(tmp_path / "elsewhere"), issued_at=LATEST, registry=registry, watch=False)
+    assert refused.value.reason == "slot_local_only"
+    assert registry.spawned == []

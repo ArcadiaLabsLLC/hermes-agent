@@ -43,6 +43,8 @@ __layer__ = "stores"
 SLOTS_SCHEMA_VERSION = 1
 #: ``context.files`` when a declaration names none (owner correction 2026-10-04: BOTH).
 DEFAULT_CONTEXT_FILES = ("CLAUDE.md", "AGENTS.md")
+#: The queue directory of a local brain slot (the Work default brain's skeleton, work-on-markdown §4).
+LOCAL_BRAIN_DIR = "Work_Brain/20 — Active Initiatives"
 
 REASON_INVALID_SLOT_NAME = "invalid_slot_name"
 REASON_INVALID_CLONE_URL = "invalid_clone_url"
@@ -207,10 +209,21 @@ def _toolchain(value: Any) -> dict[str, Any]:
 def _context(value: Any) -> dict[str, Any]:
     value = value or {}
     files = value.get("files") if isinstance(value, dict) and value.get("files") is not None else list(DEFAULT_CONTEXT_FILES)
-    if not isinstance(files, list) or not all(isinstance(f, str) and f and ".." not in f.replace("\\", "/").split("/")
-                                              and not Path(f).is_absolute() for f in files):
+    if not isinstance(files, list) or not all(_inside_checkout(f) for f in files):
         raise SlotRefused(REASON_INVALID_DECLARATION, "context.files are relative paths inside the checkout")
-    return {"role": str((value or {}).get("role") or ""), "files": list(files)}
+    held = {"role": str((value or {}).get("role") or ""), "files": list(files)}
+    brain_dir = value.get("brain_dir") if isinstance(value, dict) else None
+    if brain_dir is not None:
+        # The Work board's pinned queue directory (work-on-markdown §6.1).
+        if not _inside_checkout(brain_dir):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "context.brain_dir is a relative path inside the checkout")
+        held["brain_dir"] = brain_dir
+    return held
+
+
+def _inside_checkout(value: Any) -> bool:
+    return (isinstance(value, str) and bool(value) and ".." not in value.replace("\\", "/").split("/")
+            and not Path(value).is_absolute())
 
 
 def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
@@ -223,6 +236,13 @@ def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
         raise SlotRefused(REASON_INVALID_SLOT_NAME, f"{name!r} is not a root name ([A-Za-z0-9_]+)")
     repo = entry.get("repo") or {}
     clone_url = str(repo.get("clone_url") or "") if isinstance(repo, dict) else ""
+    if not clone_url and isinstance(repo, dict) and repo.get("local") is True:
+        # A LOCAL slot (the Work default brain, work-on-markdown §4): no remote until one is declared.
+        return name, {
+            "repo": {"clone_url": None, "default_branch": str(repo.get("default_branch") or "main"), "local": True},
+            "toolchain": _toolchain(entry.get("toolchain")),
+            "context": _context(entry.get("context")),
+        }
     if not _CLONE_URL_RE.match(clone_url):
         raise SlotRefused(REASON_INVALID_CLONE_URL, f"{clone_url!r} is not an http(s) or ssh clone URL")
     if url_carries_credential(clone_url):
@@ -291,6 +311,32 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
     dropped_from = drop_removed_slots(workspace_id, frozenset(tombstoned))
     return {"document": document, "declared": sorted(declared), "tombstoned": sorted(tombstoned),
             "assignments_dropped": dropped_from}
+
+
+def declare_local_slot(workspace_id: str, name: str, *, path: str, issued_at: str, machine: str) -> dict[str, Any]:
+    """Declare ONE local slot without touching the others, then bind it here (work-on-markdown §4).
+
+    :func:`declare` REPLACES the declared set, so the default brain cannot go through it; this
+    writes the one slot body (``repo.local``, ``context.role: brain`` and the pinned ``brain_dir``)
+    and leaves the document's ``issued_at`` alone, so a later operator declare is never stale
+    against it. A re-declared tombstone keeps its recipe, revision advanced, so the realm merge
+    ranks it above the removal.
+    """
+
+    if not _ROOT_NAME_RE.match(name):
+        raise SlotRefused(REASON_INVALID_SLOT_NAME, f"{name!r} is not a root name ([A-Za-z0-9_]+)")
+    document = load_document(workspace_id)
+    held = (document.get("slots") or {}).get(name) or {}
+    document.setdefault("slots", {})[name] = {
+        "repo": {"clone_url": None, "default_branch": "main", "local": True},
+        "toolchain": _toolchain(None),
+        "context": {**_context(None), "role": "brain", "brain_dir": LOCAL_BRAIN_DIR},
+        "recipe": _revised(held.get("recipe"), bump=bool(held)),
+        "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None,
+    }
+    document["workspace_id"] = workspace_id
+    write_document(workspace_id, document)
+    return {"document": document, "declared": [name], "bind": bind(workspace_id, name, path, issued_at=issued_at)}
 
 
 # ── this machine's fill ──────────────────────────────────────────────────────
@@ -441,6 +487,7 @@ __all__ = [
     "bind",
     "bound_path",
     "declare",
+    "declare_local_slot",
     "live_slots",
     "load_document",
     "machine_id",
