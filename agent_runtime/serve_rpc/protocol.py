@@ -149,7 +149,9 @@ __all__ = [
     "JSONRPC_VERSION",
     "PEER_REQUESTED_BY_PREFIX",
     "RPC_CONTRACT_VERSION",
+    "RUNTIME_STOPPING",
     "RpcContext",
+    "defer_or_refuse",
     "deferred_reply",
     "err",
     "is_deferred",
@@ -289,6 +291,27 @@ def deferred_reply(
             )
 
     return _run
+
+
+#: The ``data.reason`` of a deferral the transport would not take (draining, pool shut down).
+RUNTIME_STOPPING = "runtime_stopping"
+
+
+def defer_or_refuse(
+    rid: Any, context: RpcContext, build: Callable[[], dict], *,
+    message: str = "The runtime is unavailable.",
+) -> dict:
+    """Hand ``build`` to the worker lane and answer :data:`DEFERRED`, else refuse ``runtime_stopping``.
+
+    The one door for a method that must never run on the reader lane (a board read, a git write, a
+    native conversation turn): where :func:`deferred_reply`'s other callers fall back to answering
+    inline, these refuse, because their work is unbounded at its source. ``message`` is the caller's
+    own sentence; the code (4090) and the reason are the door's.
+    """
+
+    if context.spawn_reply is None or not context.spawn_reply(build):
+        return err(rid, ERR_CONFLICT, message, {"reason": RUNTIME_STOPPING})
+    return DEFERRED
 
 
 @dataclass(frozen=True)

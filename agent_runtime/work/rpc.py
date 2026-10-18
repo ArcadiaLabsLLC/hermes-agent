@@ -2,7 +2,7 @@
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.work.model import Reason, WorkRefused
 from agent_runtime.work.service import execute
-from agent_runtime.serve_rpc.protocol import DEFERRED, err, ok
+from agent_runtime.serve_rpc.protocol import defer_or_refuse, err, ok
 
 __layer__ = "lanes"
 
@@ -18,12 +18,9 @@ def _work_reply(rid, operation, params, caller):
         return err(rid, -32000, "The work outcome could not be verified.", {"reason": Reason.UNKNOWN})
 
 
-def _handler(operation):
+def _work_method(operation):
     def handle(rid, params, context):
-        reply = lambda: _work_reply(rid, operation, params, context.caller)
-        if context.spawn_reply is None or not context.spawn_reply(reply):
-            return err(rid, 4090, "The runtime is unavailable.", {"reason": "runtime_stopping"})
-        return DEFERRED
+        return defer_or_refuse(rid, context, lambda: _work_reply(rid, operation, params, context.caller))
     return handle
 
 
@@ -33,4 +30,4 @@ OPERATIONS = ("capabilities", "context", "list", "inspect", "start", "assign", "
 
 def register(method):
     for operation in OPERATIONS:
-        method("runtime.work." + operation, tier=TIER_CONSOLE)(_handler(operation))
+        method("runtime.work." + operation, tier=TIER_CONSOLE)(_work_method(operation))

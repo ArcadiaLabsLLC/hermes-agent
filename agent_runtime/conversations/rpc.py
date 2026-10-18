@@ -5,7 +5,7 @@ import logging
 from functools import partial
 
 from agent_runtime.call_authorization import TIER_CONSOLE
-from agent_runtime.serve_rpc.protocol import DEFERRED
+from agent_runtime.serve_rpc.protocol import defer_or_refuse
 
 from .binding import get_service
 from .model import ConversationError, Refusal, caller_scope, identifier
@@ -113,10 +113,7 @@ def register(method, ok, err) -> None:
                                {"reason": Refusal.UNKNOWN})
             if operation == "capabilities":
                 return run()
-            if context.spawn_reply is None or not context.spawn_reply(run):
-                return err(rid, 4090, "The runtime cannot accept this request.",
-                           {"reason": Refusal.RUNTIME_STOPPING})
-            return DEFERRED
+            return defer_or_refuse(rid, context, run, message="The runtime cannot accept this request.")
         # Transcripts, tool arguments and server questions are console-private,
         # not a read-tier monitoring projection. Execution also requires console.
         method(PREFIX + operation, tier=TIER_CONSOLE)(handler)
