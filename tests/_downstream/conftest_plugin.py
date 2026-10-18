@@ -35,6 +35,10 @@ from tests._downstream.id_markers import (  # noqa: F401 — hook re-exports
 from tests._downstream.real_browser_fence import _no_real_browser_spawn  # noqa: F401 — autouse fence
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # noqa: F401 — id-marked
 from tests._downstream.tool_registry_scope import _tool_registry_scope  # noqa: F401 — autouse (plan S3)
+from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse + reset fixture (ruling 2026-10-10)
+    _plugin_discovery_cache,
+    cold_plugin_discovery,
+)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
@@ -934,9 +938,10 @@ def pytest_configure(config):  # noqa: D401 — pytest hook
     pytest-timeout installed (``requirements-fork-dev.txt``) the options do not
     exist and nothing is set.
     """
-    from tests._downstream import reserved_dns
+    from tests._downstream import closed_loopback, reserved_dns
 
     reserved_dns.install()  # a fixture host fails fast, not after the 12 s resolver wait
+    closed_loopback.install()  # a closed loopback port refuses at once, not after Windows' SYN retries
     if config.pluginmanager.hasplugin("timeout"):
         if getattr(config.option, "timeout", None) is None:
             config.option.timeout = FORK_TEST_TIMEOUT_SECONDS
