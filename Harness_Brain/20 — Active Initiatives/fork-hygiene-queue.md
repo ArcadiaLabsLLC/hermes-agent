@@ -516,4 +516,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 (land w6)
 
-- **`FORK-FRESH-DB-CENSUS-INTERNALERROR` — the `fresh_db_census` test-chain wrapper raises pytest INTERNALERROR (`hermes_state` has no `SessionDB`) — 152 times in the land-w5 gate log; a census that crashes the session hides real reds** · fork / suite · land-w6 gate report (`test_serve_rpc_chat_turn.py` neighbour) · READY 2026-10-18 · **TAKEN 2026-10-18 w7**

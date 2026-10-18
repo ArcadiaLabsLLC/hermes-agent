@@ -58,6 +58,11 @@ def install() -> bool:
     module = sys.modules.get("hermes_state")
     if module is None or _installed.get("module") is module:
         return False
+    if getattr(getattr(module, "__spec__", None), "_initializing", False):
+        # Another thread (a serve's settle worker, say) is still executing the module: it is in
+        # ``sys.modules`` before ``SessionDB`` is bound. The next test's protocol installs. A module
+        # that FINISHED importing without ``SessionDB`` still raises: that is a real break.
+        return False
     original = module.SessionDB._open_writer
 
     def counted_open_writer(self, *args, **kwargs):
