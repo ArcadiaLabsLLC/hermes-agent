@@ -51,6 +51,8 @@ from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse
     _plugin_discovery_cache,
     cold_plugin_discovery,
 )
+from tests._downstream.plugin_load_memo import _plugin_load_memo  # noqa: F401 — autouse (suite speed, h3-plugins)
+from tests._downstream.plugin_module_keep import _plugin_module_keep  # noqa: F401 — autouse, opt-in env, OFF (h3-plugins)
 from tests._downstream.version_info_scope import _version_info_scope  # noqa: F401 — autouse (q-chain)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
