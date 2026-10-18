@@ -158,6 +158,20 @@ def roots_with_entries() -> list[str]:
     return [item.root_session_id for item in heads]
 
 
+def entries_from(origin_key: str) -> list[QueuedSend]:
+    """Every entry, on any root, whose :data:`ORIGIN_ARG` names ``origin_key`` (a scheduled fire's ``schedule``)."""
+
+    base = paths.chat_root_send_queue_dir()
+    if not base.is_dir():
+        return []
+    found: list[QueuedSend] = []
+    for directory in sorted(base.iterdir()):
+        if directory.is_dir():
+            found += [entry for entry in _entries_in(directory)
+                      if isinstance(entry.args.get(ORIGIN_ARG), dict) and entry.args[ORIGIN_ARG].get(origin_key)]
+    return found
+
+
 def mark(root_session_id: str, client_message_id: str, *, state: str, attempts: int | None = None) -> QueuedSend | None:
     """Move an entry to *state* (and record *attempts*). ``None`` if it is gone."""
 

@@ -1730,6 +1730,29 @@ operator send already waiting wins the slot (the run holds and is judged again a
 of `blocked`/`stopped`, a failed turn, or a judge decision other than continue ends the run; the goal is
 paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hold | goal_end`.
 
+### Schedule methods — the serve's scheduler
+
+`runtime.schedule.arm | disarm | list` (`agent_runtime/serve_rpc/schedule.py` over
+`work_store/schedule_ops.py::OPS`) drive `work_store/serve_scheduler.py::ServeTickScheduler`, the desktop
+runtime's scheduler (dispatcher plan §2.3, §4; upstream cron is not run, `Trigger.from_cron_job` is the
+one door from an upstream job record). `arm` takes `key`, `trigger` (`{kind: manual|at|every|cron|when_idle,
+at, minutes, expr, tz, root, settle_ticks}`) or `cron_job` (+ `tz`), and `action` (`{type: persona_prompt,
+persona_instance_id, prompt}` | `{type: run_assignment, assignment}` | `{type: start_batch, workspace_id,
+plan_id}`), joins an existing key, and answers `{"schedule": <record>}`; `list` answers `{"schedules":
+[<record>]}`; `disarm` `{key, disarmed}`. A record is `store/schedules/<key>.json` (`{key, trigger, action,
+next_fire, last_fire, enabled, owner_machine, armed_at, armed_by, idle_ticks, held_since}`) — the files are
+the whole state. Console tier, deferred through `spawn_reply`. Refusals: `invalid_request` /
+`schedule_invalid` (-32602), `automation_off` (a `start_batch` while the workspace's `batch_automation` is
+not `start`) and `machine_identity_unavailable` (4090).
+
+The serve ticks it every 60 s beside the Work engine (`queued_turns.start_serve_scheduler`); nothing fires
+during a drain, and only the owning machine fires a record. A fire is a QUEUED send on the instance's
+chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming `schedule: <key>`; at most
+4 scheduled turns are in flight (an over-cap fire stays due and logs `schedule.queued`, its fire carries
+`waited_s`); `when_idle` fires after `settle_ticks` consecutive idle ticks or gives up after 15 minutes.
+The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
+`schedule.arm | disarm | fire | queued | abandoned`.
+
 ### Conversation-scoped Work
 
 `agent_runtime/work/context.py` resolves optional `conversation` references through existing

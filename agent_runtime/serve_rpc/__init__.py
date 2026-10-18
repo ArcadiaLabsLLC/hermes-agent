@@ -53,6 +53,8 @@ chat_verbs               lanes   the chat-family argv twins (history, instance
                                  create, turn resolve, queue skill, delete)
 chat_goal                lanes   ``runtime.chat.goal.*`` (upstream's goal engine on a
                                  chat root; ``agent_runtime/chat_goal.py``)
+schedule                 lanes   ``runtime.schedule.arm/disarm/list`` (the serve's
+                                 scheduler; ``work_store/serve_scheduler.py``)
 realm                    lanes   ``runtime.realm.sync.*`` / ``.skills.*`` /
                                  ``.agents.*`` / ``.adopt`` (the realm argv twins)
 characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
@@ -108,6 +110,7 @@ from agent_runtime.serve_rpc import (
     health,
     chat_verbs,
     chat_goal,
+    schedule,
     realm,
     client,
     characters,

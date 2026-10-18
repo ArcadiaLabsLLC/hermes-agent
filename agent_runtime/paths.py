@@ -714,6 +714,12 @@ def work_runs_dir(workspace_id: str) -> Path:
     return work_workspace_dir(workspace_id) / "runs"
 
 
+def schedules_dir() -> Path:
+    """Armed schedules (dispatcher plan §2.3, B4): one JSON file per key, ``next_fire`` written on every advance."""
+
+    return store_root() / "schedules"
+
+
 def realm_path(realm_id: str) -> Path:
     return realms_dir() / f"{safe_path_token(realm_id)}.json"
 
