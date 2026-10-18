@@ -156,13 +156,7 @@ _CHARSHEET_REASON = (
     "tests/fixtures/charsheet_payload_contract.json and mirrored by the launcher, so "
     "a resolution key is a contract change owed with the launcher; until it lands an "
     "empty library is indistinguishable from a wrong root - runtime-queue row "
-    "'charsheet and workspace-slot JSON verbs state no root' (D3.17)"
-)
-_WORKSPACE_SLOTS_REASON = (
-    "repo-slot verb (emits through _run_workspace_slot_verb -> _print_stage42): the "
-    "envelope names the workspace_id it read, but a slot document read from a wrong "
-    "root is an empty document, not a refusal - runtime-queue row 'charsheet and "
-    "workspace-slot JSON verbs state no root' (D3.17)"
+    "'charsheet JSON verbs state no root' (D3.17)"
 )
 _PERSONA_SLOTS_REASON = (
     "persona slot verb (emits through _run_slot_verb -> _print_stage42): the instance "
@@ -176,10 +170,6 @@ LEDGER.update({name: _CHARSHEET_REASON for name in (
     "_cmd_characters_reopen", "_cmd_characters_reroll_direction", "_cmd_characters_reroll_row",
     "_cmd_characters_rows", "_cmd_characters_sprite", "_cmd_characters_start",
     "_cmd_characters_status", "_cmd_characters_thumb", "_cmd_characters_turnaround",
-)})
-LEDGER.update({name: _WORKSPACE_SLOTS_REASON for name in (
-    "_cmd_workspace_slots_bind", "_cmd_workspace_slots_clone", "_cmd_workspace_slots_declare",
-    "_cmd_workspace_slots_env_set", "_cmd_workspace_slots_report", "_cmd_workspace_slots_show",
 )})
 LEDGER.update({name: _PERSONA_SLOTS_REASON for name in ("_cmd_persona_slots_set", "_cmd_persona_slots_show")})
 LEDGER.update(

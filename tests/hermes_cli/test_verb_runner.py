@@ -39,8 +39,8 @@ def test_a_payload_prints_its_kind_envelope_and_exits_zero(capsys):
     "runner, exc",
     [
         (slots_commands._run_slot_verb, SlotAssignmentRefused("slot_unknown", "no slot 'x'")),
-        (workspace_slots_commands._run_workspace_slot_verb, SlotRefused("slot_unknown", "no slot 'x'")),
-        (workspace_slots_commands._run_workspace_slot_verb, SlotEnvRefused("slot_unknown", "no slot 'x'")),
+        (workspace_slots_commands._emit_workspace_slot_verb, SlotRefused("slot_unknown", "no slot 'x'")),
+        (workspace_slots_commands._emit_workspace_slot_verb, SlotEnvRefused("slot_unknown", "no slot 'x'")),
     ],
 )
 def test_each_listed_refusal_is_invalid_payload_with_reason_and_detail(capsys, runner, exc):
@@ -53,7 +53,7 @@ def test_each_listed_refusal_is_invalid_payload_with_reason_and_detail(capsys, r
 
 
 def test_a_plain_input_error_keeps_its_own_text_on_the_workspace_verbs(capsys):
-    code = workspace_slots_commands._run_workspace_slot_verb(ARGS, "k", _raise(ValueError("--env expects KEY=VALUE")))
+    code = workspace_slots_commands._emit_workspace_slot_verb(ARGS, "k", _raise(ValueError("--env expects KEY=VALUE")))
 
     assert code != 0
     assert _envelope(capsys)["error"]["message"] == "--env expects KEY=VALUE"
@@ -68,3 +68,16 @@ def test_an_unlisted_exception_propagates():
     # A ValueError the persona lane does not list is not its refusal either.
     with pytest.raises(ValueError, match="bad"):
         slots_commands._run_slot_verb(ARGS, "k", _raise(ValueError("bad")))
+
+
+def test_a_workspace_slot_envelope_states_its_root_and_a_persona_slot_one_does_not(capsys):
+    """Killing mutation: drop ``stamp=`` from ``_emit_workspace_slot_verb`` -> no
+    ``resolution`` on the slot envelope, red (the root-observability scan alone only
+    proves a call site is spelled)."""
+
+    assert workspace_slots_commands._emit_workspace_slot_verb(ARGS, "workspace_slots", lambda: {"slots": []}) == 0
+    envelope = _envelope(capsys)
+    assert envelope["kind"] == "workspace_slots" and "resolution" in envelope
+    assert "error_kind" not in envelope["resolution"], envelope["resolution"]
+    assert slots_commands._run_slot_verb(ARGS, "persona_slots", lambda: {"slots": []}) == 0
+    assert "resolution" not in _envelope(capsys)
