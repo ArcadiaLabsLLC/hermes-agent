@@ -51,6 +51,14 @@ Work tracking (adopted from the launcher's ADR 0025):
 - `Harness_Brain/TODO.md` is the master pointer list and holds no items, counts or
   statuses. Work is filed by the SURFACE it serves, never the layer it lives in and never
   the lane that found it.
+- **Every queue row is in the launcher's grammar**, because the launcher's Mission Control
+  Queues tab reads these notes from the checkout: `- **`<ID>` — <title>** · … · <status>`,
+  one line, a unique ID, EXACTLY ONE of `READY <date>` / `BLOCKED <date>: <reason> — …` /
+  `DEFERRED <date>: …` / `NEEDS PLAN <date>: …`; a `backend` / `hermes` / `launcher` / `another lane`
+  block opens its detail with the blocking row's `ID` (no limbo); an open owner question is
+  `BLOCKED <date>: owner decision — … · Recommend: …`, an answer a `RULED <date>:` record;
+  `VERDICT` is retired. The grammar's one home is `Harness_Brain/30 — Decisions/0011`
+  § Row grammar; `tests/tooling/test_work_queue_row_grammar.py` enforces it.
 - **Claim a row before you start it:** fetch, append `**TAKEN <date> <who>**` to the row's
   line, commit that alone, push, then cut the worktree. A row already marked `TAKEN` is
   someone else's. The landing commit deletes the row.
