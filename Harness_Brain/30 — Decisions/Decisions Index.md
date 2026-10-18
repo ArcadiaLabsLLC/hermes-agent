@@ -35,3 +35,4 @@ Pointers, in case Dataview is off:
 - [[0012 — The hermes half of Mission Control is queued here, split by ownership]] — 2026-09-22
 - [[0013 — Seams before the god-file refactor, and main's reds classified first]] — 2026-09-22
 - [[0014 — Live chat latency is checked against committed budgets]] — 2026-10-07
+- [[0015 — Upstream features the fork does not ship leave the suite and the boot path]] — 2026-10-17
