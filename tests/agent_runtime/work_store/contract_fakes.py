@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 from agent_runtime.work_store.board import Board
@@ -127,3 +128,59 @@ class FakeExecutor:
         self.statuses[run.run_id] = RunStatus.SETTLED
         if self._callback is not None:
             self._callback(run, outcome)
+
+
+class FakeGoal:
+    """One root's goal with upstream ``GoalManager``'s surface; decisions are scripted by the test."""
+
+    def __init__(self, session_id: str) -> None:
+        self.session_id = session_id
+        self.state: Any = None
+        self.gates: list[str] = []
+        self.decisions: list[dict[str, Any]] = []
+        self.evaluated: list[tuple[str, bool]] = []
+
+    def set(self, goal: str, *, max_turns: int | None = None, contract: Any = None) -> Any:
+        self.state = SimpleNamespace(goal=goal, status="active", contract=contract, max_turns=max_turns,
+                                     paused_reason=None)
+        self.gates = []
+        return self.state
+
+    def add_gate(self, command: str) -> None:
+        self.gates.append(command)
+
+    def is_active(self) -> bool:
+        return self.state is not None and self.state.status == "active"
+
+    def has_goal(self) -> bool:
+        return self.state is not None and self.state.status in {"active", "paused"}
+
+    def pause(self, reason: str = "user-paused") -> Any:
+        self.state.status, self.state.paused_reason = "paused", reason
+        return self.state
+
+    def evaluate_after_turn(self, last_response: str, *, user_initiated: bool = True) -> dict[str, Any]:
+        self.evaluated.append((last_response, user_initiated))
+        decision = self.decisions.pop(0)
+        if decision.get("verdict") == "done":
+            self.state.status = "done"
+        return decision
+
+    def next_continuation_prompt(self) -> str:
+        return f"[Continuing toward your standing goal]\nGoal: {self.state.goal}"
+
+
+class FakeGoals:
+    """``goals(session_id)`` → that root's one :class:`FakeGoal` (the executor's ``goals`` seam)."""
+
+    def __init__(self) -> None:
+        self.by_root: dict[str, FakeGoal] = {}
+
+    def __call__(self, session_id: str) -> FakeGoal:
+        return self.by_root.setdefault(session_id, FakeGoal(session_id))
+
+
+def decision(verdict: str, *, go_on: bool = False, reason: str = "judge said so") -> dict[str, Any]:
+    prompt = "continue please" if go_on else None
+    return {"status": "active" if go_on else verdict, "should_continue": go_on, "continuation_prompt": prompt,
+            "verdict": verdict, "reason": reason, "message": reason}

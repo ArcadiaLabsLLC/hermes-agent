@@ -52,6 +52,8 @@ class Reason(StrEnum):
     SCHEDULE_INVALID = "schedule_invalid"
     AUTOMATION_OFF = "automation_off"
     NOT_OWNER_MACHINE = "not_owner_machine"
+    # The goal door's (dispatcher plan §5; B3): a verb that needs a goal on a root holding none.
+    NO_GOAL = "no_goal"
 
 
 class WorkRefused(ValueError):

@@ -10,8 +10,11 @@ through the mission-chat door exactly as a queued operator send does. The entry 
 
 The ending is the LAST fenced ``work_report`` block of the reply (:func:`parse_work_report`); no block,
 an unknown verdict, or a ``blocked`` with no question is ``FAILED``. ``stop`` removes a send that has
-not begun and waits on a running turn (RULED on ``RT-DISPATCH-B2-BATCH``). ``goal_mode=UNTIL_DONE``
-is refused until the dispatcher's B3.
+not begun and waits on a running turn (RULED on ``RT-DISPATCH-B2-BATCH``).
+
+``goal_mode=UNTIL_DONE`` (dispatcher B3): ``start`` sets a goal on the root and binds the root to the
+run (``goal_turns.arm_run``); every terminal settle on a bound root goes to ``goal_turns.after_turn``,
+which continues the run as further queued sends until upstream's gates and judge end it.
 """
 
 from __future__ import annotations
@@ -22,10 +25,11 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
+from .. import chat_goal
 from .. import chat_root_send_queue as send_queue
 from .. import paths
 from ..chat_turn_settles import outcome_from_payload, read_settle, settle_id_for
-from . import receipts
+from . import goal_turns, receipts
 from .executor import (
     Assignment, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
 )
@@ -122,6 +126,8 @@ class PersonaTurnExecutor:
         instances: Any = None,
         root_of: Callable[..., str | None] | None = None,
         draining: Callable[[], bool] = lambda: False,
+        goals: Callable[[str], Any] = chat_goal.manager,
+        workdir_of: Callable[[Any], str | None] | None = None,
     ) -> None:
         self._enqueue = enqueue
         self._wake = wake
@@ -129,6 +135,8 @@ class PersonaTurnExecutor:
         self._instances = instances
         self._root_of = root_of
         self._draining = draining
+        self._goals = goals
+        self._workdir_of = workdir_of or _persona_workdir
         self._callback: Callable[[Run, Outcome], None] | None = None
 
     # ── the seams, resolved on first use (the serve builds this before the door is bound) ──
@@ -176,8 +184,6 @@ class PersonaTurnExecutor:
     # ── the contract ─────────────────────────────────────────────────────
 
     def can_start(self, a: Assignment) -> Reason | None:
-        if a.goal_mode is GoalMode.UNTIL_DONE:
-            return Reason.GOAL_MODE_UNSUPPORTED
         if self._draining():
             return Reason.DRAIN_BEGUN
         instance = self._instance(a.persona_instance_id)
@@ -191,11 +197,14 @@ class PersonaTurnExecutor:
             raise WorkRefused(refusal, a.persona_instance_id)
         instance = self._instance(a.persona_instance_id)
         root = self._root(instance) or self._open(instance, a)
-        cmid = f"work-{a.request_id}"
+        cmid = goal_turns.first_cmid(a.request_id)
+        until_done = a.goal_mode is GoalMode.UNTIL_DONE
         origin = {"owner": None, "gateway": False, "work": a.request_id,
-                  "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows]}
-        entry, _position, _replay = self._enqueue(
-            root, cmid, send_queue.persistable_args(_turn_args(instance, root, cmid, a), origin=origin))
+                  "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done}
+        args = send_queue.persistable_args(_turn_args(instance, root, cmid, a), origin=origin)
+        if until_done:
+            goal_turns.arm_run(root, a, args, cwd=self._workdir_of(instance), goals=self._goals)
+        entry, _position, _replay = self._enqueue(root, cmid, args)
         (self._wake or _wake_runner)()
         receipts.emit("work.exec_start", run_id=_run_id(root, cmid), request_id=a.request_id,
                       persona_instance_id=a.persona_instance_id, rows=[ref.id for ref in a.rows],
@@ -204,6 +213,9 @@ class PersonaTurnExecutor:
 
     def status(self, run_id: str) -> RunStatus:
         root, _sep, cmid = run_id.partition("/")
+        bound = chat_goal.binding(root)
+        if bound is not None and goal_turns.first_cmid(bound.request_id) == cmid:
+            return goal_turns.run_status(bound)
         if read_settle(settle_id_for(root, cmid)) is not None:
             return RunStatus.SETTLED
         entry = send_queue.find(root, cmid)
@@ -213,8 +225,12 @@ class PersonaTurnExecutor:
 
     def stop(self, run_id: str, reason: StopReason) -> dict[str, Any]:
         root, _sep, cmid = run_id.partition("/")
-        entry = send_queue.find(root, cmid)
-        stopped = entry is not None and entry.state == send_queue.STATE_QUEUED and send_queue.remove(root, cmid)
+        bound = chat_goal.binding(root)
+        if bound is not None and goal_turns.first_cmid(bound.request_id) == cmid:
+            stopped = goal_turns.stop_run(bound, goals=self._goals)
+        else:
+            entry = send_queue.find(root, cmid)
+            stopped = entry is not None and entry.state == send_queue.STATE_QUEUED and send_queue.remove(root, cmid)
         detail = "" if stopped else "the turn ends on its own"
         return receipts.emit("work.exec_stop", run_id=run_id, reason=StopReason(reason).value, stopped=bool(stopped),
                              detail=detail)
@@ -225,16 +241,36 @@ class PersonaTurnExecutor:
     # ── the runner's hook ────────────────────────────────────────────────
 
     def settled(self, entry: send_queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
-        """``RunnerPolicy.on_settle``: a queued send ended; report it when it was a Work run."""
+        """``RunnerPolicy.on_settle``: a queued send ended; report it when it ended a Work run.
 
+        On a root bound to an ``UNTIL_DONE`` run every settle — the run's own or an operator's — is the
+        goal's after-turn hook; the run is reported only when the hook ends it.
+        """
+
+        bound = chat_goal.binding(entry.root_session_id)
+        if bound is not None:
+            ending = goal_turns.after_turn(bound, entry, payload, goals=self._goals, enqueue=self._enqueue,
+                                           wake=self._wake or _wake_runner, parse_report=parse_work_report)
+            if ending is not None:
+                rows = tuple(RowRef(*row) for row in bound.rows)
+                outcome = Outcome(ending.verdict, {ref: ending for ref in rows},
+                                  report=str((payload or {}).get("reply") or "")[-_REPORT_TAIL:])
+                self._report(bound.request_id, bound.root_session_id, goal_turns.first_cmid(bound.request_id),
+                             entry.queued_at, rows, outcome)
+            return
         origin = entry.args.get(send_queue.ORIGIN_ARG)
         request_id = origin.get("work") if isinstance(origin, dict) else None
-        if not request_id or self._callback is None:
+        if not request_id:
             return
         rows = tuple(RowRef(*map(str, item)) for item in origin.get("rows") or [] if len(item) == 3)
-        outcome = outcome_of(exit_code, payload, rows)
-        run = Run(_run_id(entry.root_session_id, entry.client_message_id), str(request_id), None,
-                  entry.root_session_id, entry.client_message_id, entry.queued_at, RunStatus.SETTLED)
+        self._report(str(request_id), entry.root_session_id, entry.client_message_id, entry.queued_at, rows,
+                     outcome_of(exit_code, payload, rows))
+
+    def _report(self, request_id: str, root: str, cmid: str, queued_at: str, rows: tuple[RowRef, ...],
+                outcome: Outcome) -> None:
+        if self._callback is None:
+            return
+        run = Run(_run_id(root, cmid), request_id, None, root, cmid, queued_at, RunStatus.SETTLED)
         receipts.emit("work.exec_settle", run_id=run.run_id, request_id=run.request_id, rows=[r.id for r in rows],
                       executor=self.kind.value, verdict=outcome.verdict.value, tool_calls=outcome.tool_calls)
         self._callback(run, outcome)
@@ -250,6 +286,14 @@ def outcome_of(exit_code: int, payload: dict | None, rows: tuple[RowRef, ...]) -
         detail = f"the turn ended {refusal}" if refusal else f"no readable {REPORT_INFO} block (exit {exit_code})"
         ending = RowEnding(Verdict.FAILED, reason=detail)
     return Outcome(ending.verdict, {ref: ending for ref in rows}, report=reply[-_REPORT_TAIL:])
+
+
+def _persona_workdir(instance: Any) -> str | None:
+    """Where the instance's persona works — the cwd its goal gates run in."""
+
+    from ..mission_chat_workdir import mission_chat_workdir_for_persona
+
+    return mission_chat_workdir_for_persona(SimpleNamespace(id=instance.persona_id)).path
 
 
 def _wake_runner() -> None:

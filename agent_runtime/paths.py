@@ -111,6 +111,19 @@ def chat_root_send_queue_dir() -> Path:
     return store_root() / "chat_root_send_queue"
 
 
+def chat_goal_bindings_dir() -> Path:
+    """Which Work run owns a chat root's goal (``chat_goal.GoalBinding``), one JSON file per root.
+
+    The goal itself lives in upstream's SessionDB (``hermes_cli.goals.save_goal``); this records only
+    the run it belongs to, so the after-turn hook can continue or settle it after a restart.
+    """
+    return store_root() / "chat_goal_bindings"
+
+
+def chat_goal_binding_path(root_session_id: str) -> Path:
+    return chat_goal_bindings_dir() / f"{safe_path_token(root_session_id)}.json"
+
+
 def runtime_instances_dir() -> Path:
     return store_root() / "runtime_instances"
 

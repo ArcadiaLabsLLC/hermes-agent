@@ -106,7 +106,7 @@ def test_no_root_opens_a_chat_through_the_door(no_direct_turns):
     assert refused.value.reason is Reason.DOOR_UNBOUND
 
 
-def test_can_start_refuses_missing_instance_other_root_drain_and_until_done():
+def test_can_start_refuses_missing_instance_other_root_and_drain():
     draining = [False]
     executor, _ = _executor(_instance(), _instance("inst-far", runtime_root="Z:/another/machine/store"),
                             _instance("inst-blank", runtime_root=""), draining=lambda: draining[0])
@@ -114,7 +114,7 @@ def test_can_start_refuses_missing_instance_other_root_drain_and_until_done():
     assert executor.can_start(_assignment(persona_instance_id="inst-gone")) is Reason.PERSONA_UNAVAILABLE
     assert executor.can_start(_assignment(persona_instance_id="inst-far")) is Reason.PERSONA_UNAVAILABLE
     assert executor.can_start(_assignment(persona_instance_id="inst-blank")) is Reason.PERSONA_UNAVAILABLE
-    assert executor.can_start(_assignment(goal_mode=GoalMode.UNTIL_DONE)) is Reason.GOAL_MODE_UNSUPPORTED
+    assert executor.can_start(_assignment(goal_mode=GoalMode.UNTIL_DONE)) is None  # B3: UNTIL_DONE runs
     draining[0] = True
     assert executor.can_start(_assignment()) is Reason.DRAIN_BEGUN
     with pytest.raises(WorkRefused) as refused:
