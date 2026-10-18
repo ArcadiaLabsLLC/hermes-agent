@@ -43,6 +43,13 @@ QUALIFIED = "CPython 3.14.5 / SQLite 3.50.4 (2026-10-15)"
 _up_red = functools.partial(_up_red_unqualified, qualified=QUALIFIED)
 
 ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
+    # Every host: the test stubs ``subprocess.run`` but upstream ``ea665a911d`` moved
+    # ``checkout_contains`` onto ``update_custody.run_git``, so the stub never answers and the
+    # probe fails closed. Code and test are byte-identical to upstream/main 9e01b44dd2. The file
+    # is also an `unused` skip-list row (ADR 0015); this row keeps a named run honest.
+    "tests/hermes_cli/test_update_fleet_checkout_build_stamp.py::test_git_checkout_still_walks_ancestry": (
+        _up_red("test stubs subprocess.run after the custody move to update_custody.run_git"),
+    ),
 }
 
 if _WIN:
