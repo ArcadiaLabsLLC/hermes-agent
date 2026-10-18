@@ -242,15 +242,7 @@ def test_a_test_server_notices_shutdown_within_the_short_poll():
     assert took < 0.4, f"shutdown took {took:.3f} s; the poll is not {server_shutdown_poll.TEST_POLL_INTERVAL}"
 
 
-def test_bundled_plugin_modules_are_not_kept_without_the_opt_in(monkeypatch):
-    """``tests/_downstream/plugin_module_keep.py`` is OFF unless ``HERMES_TEST_KEEP_PLUGIN_MODULES`` is set
-    (owner ruling pending): two discoveries import each bundled plugin twice. Mutation: make
-    ``plugin_module_keep.enabled()`` return True."""
-
-    from tests._downstream import plugin_module_keep as keep
-
-    monkeypatch.delenv(keep.ENV, raising=False)
-    keep.install_if_imported()
+def _two_discoveries():
     plugins._reset_plugin_managers_for_tests()
     plugins.discover_plugins()
     first = {k: p.module for k, p in plugins.get_plugin_manager()._plugins.items() if p.module is not None}
@@ -258,7 +250,32 @@ def test_bundled_plugin_modules_are_not_kept_without_the_opt_in(monkeypatch):
     plugins.discover_plugins()
     second = {k: p.module for k, p in plugins.get_plugin_manager()._plugins.items() if p.module is not None}
     shared = set(first) & set(second)
-    assert shared and all(first[k] is not second[k] for k in shared)
+    assert shared
+    return [first[k] is second[k] for k in shared]
+
+
+def test_bundled_plugin_modules_are_kept_by_default(monkeypatch):
+    """``tests/_downstream/plugin_module_keep.py`` is ON by default (owner ruling 2026-10-18): a second
+    discovery re-uses at least one bundled plugin module. Mutation: make ``plugin_module_keep.enabled()``
+    return False."""
+
+    from tests._downstream import plugin_module_keep as keep
+
+    monkeypatch.delenv(keep.ENV, raising=False)
+    keep.install_if_imported()
+    assert any(_two_discoveries())
+    keep.clear()
+
+
+def test_bundled_plugin_modules_are_not_kept_when_switched_off(monkeypatch):
+    """``HERMES_TEST_KEEP_PLUGIN_MODULES=0`` switches the keep off: two discoveries import each bundled
+    plugin twice. Mutation: make ``plugin_module_keep.enabled()`` return True."""
+
+    from tests._downstream import plugin_module_keep as keep
+
+    monkeypatch.setenv(keep.ENV, "0")
+    keep.install_if_imported()
+    assert not any(_two_discoveries())
 
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="macOS keeps synchronous=FULL (its btree floor is a subject)")

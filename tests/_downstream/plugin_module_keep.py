@@ -1,7 +1,7 @@
-"""OPT-IN (``HERMES_TEST_KEEP_PLUGIN_MODULES=1``): keep bundled plugin MODULES loaded between tests.
+"""ON by default (off switch ``HERMES_TEST_KEEP_PLUGIN_MODULES=0``): keep bundled plugin MODULES loaded between tests.
 
-OFF by default — the owner has not ruled that plugin modules may outlive a test (fork-hygiene row
-"Per-test plugin LOAD is what is left of plugin rediscovery"). With it on, a bundled directory plugin's
+Owner ruling 2026-10-18 (row FORK-PER-TEST-PLUGIN-LOAD, deleted at landing land-w2): plugin modules
+may outlive a test, because the fork gate with the keep ON matched the OFF gate file by file. With it on, a bundled directory plugin's
 package is executed once per process; every later load hands the kept module back and upstream runs
 ``register()`` against the fresh, reset managers exactly as before. Registries are untouched by this
 module: only the import is skipped.
@@ -59,7 +59,8 @@ _ENV_NAME = re.compile(r"[A-Z][A-Z0-9]*_[A-Z0-9_]+")
 
 
 def enabled() -> bool:
-    return os.environ.get(ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    """ON unless the environment switches it off (``0`` / ``false`` / ``no`` / ``off``)."""
+    return os.environ.get(ENV, "").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def stats() -> dict[str, Any]:
@@ -339,7 +340,7 @@ def install_if_imported() -> bool:
 
 @pytest.fixture(autouse=True)
 def _plugin_module_keep():
-    """Autouse: install the (opt-in, default OFF) bundled-module keep once the plugin stack is imported."""
+    """Autouse: install the (default ON) bundled-module keep once the plugin stack is imported."""
 
     if enabled():
         install_if_imported()

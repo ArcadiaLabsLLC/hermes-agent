@@ -100,10 +100,19 @@ def test_a_module_holding_the_test_home_is_never_kept(toy):
     assert toy.load() is not first
 
 
-def test_keep_is_off_by_default(toy, monkeypatch):
-    """Killing mutation: make ``enabled()`` return True."""
+def test_keep_is_on_by_default(toy, monkeypatch):
+    """Killing mutation: make ``enabled()`` return False when the variable is unset."""
 
     monkeypatch.delenv(keep.ENV)
+    first = toy.load()
+    assert toy.load() is first
+
+
+@pytest.mark.parametrize("value", ["0", "false", "off"])
+def test_the_variable_switches_the_keep_off(toy, monkeypatch, value):
+    """Killing mutation: make ``enabled()`` return True."""
+
+    monkeypatch.setenv(keep.ENV, value)
     first = toy.load()
     assert toy.load() is not first
 
@@ -133,6 +142,7 @@ def test_kept_bundled_modules_register_what_a_cold_load_registers(monkeypatch):
     Killing mutation: in ``_reinstall`` hand back the module without putting it in ``sys.modules``."""
 
     keep.install_if_imported()
+    monkeypatch.setenv(keep.ENV, "0")
     cold = _registered()
     monkeypatch.setenv(keep.ENV, "1")
     keep.clear()
