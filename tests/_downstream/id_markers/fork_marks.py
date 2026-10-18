@@ -99,6 +99,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # (~15 s apiece): 36.97 s green on pure tag v0.21.6 818c13be1d, 2026-10-10.
     "tests/pm/test_plugin_survival_contract.py::"
     "test_update_sync_retries_a_fetch_failure_once_before_disabling": (pytest.mark.timeout(90),),
+    # The carried PR #125263 test waits its 30 s scaled bound out by design (the pool
+    # attempt hangs and is killed at 30 s), then a ~15 s retry: 31 s Timeout alone at
+    # load 16, 2026-10-17. 180 s sits above the test's own subprocess bound (170 s), so
+    # a real hang fails that assertion instead of killing the file's process.
+    "tests/scripts/test_run_tests_parallel.py::"
+    "test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips": (pytest.mark.timeout(180),),
     # MCF-66: reads the real ~/.claude/.credentials.json via the fixture's
     # redirected Path.home() (gate: tests/test_claude_code_credentials_file_gate.py).
     "tests/hermes_cli/test_codex_cli_model_picker.py::"

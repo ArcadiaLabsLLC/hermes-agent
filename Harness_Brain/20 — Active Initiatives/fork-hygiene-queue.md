@@ -415,10 +415,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-10 (fast-gate design, guard fix, build batch 2 C1–C4, filed by the orchestrator)
 
 
-## Filed on arrival — 2026-10-10 (build batch 2 C5–C6, fast gate FG2–FG3, landing 1011-batch2, filed by the orchestrator)
-
-- [ ] **A carried-PR test in an upstream file hits the 30 s cap: `tests/scripts/test_run_tests_parallel.py::test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips` times out in its bundle and alone; not in v0.21.6, so no upstream table can mark it** · fork / suite · build-1011-C6 D3.13 run, `7625cb7dad` · lane: carried-PR owner · still red alone 2026-10-15 (`+++ Timeout +++`): the test waits a 30 s scaled bound by design, so it needs `@pytest.mark.timeout(90)`, and as a carried hunk of PR #125263 the decorator goes on the PR branch first · the same node's q-suite-reds row is below · DEFERRED 2026-10-16: owner "pr branches should remain idle" — until upstream accepts the owner's PRs again **TAKEN 2026-10-17 claude (r-runner)**
-
 ## Filed on arrival — 2026-10-10 (fast gate FG1, filed by the orchestrator)
 
 
@@ -505,7 +501,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 - [ ] **#128648's PR branch now lives in `hermes_cli/main_plugin_cli.py` / `plugins_declared_cli.py` while the fork carries an older shape in `plugins_manifest_cli_commands.py`; converge one onto the other, then re-map the carried-PR manifest** · fork / upstream PR tooling · q/carried `5692a35290f` · BLOCKED 2026-10-16: owner decision — converge the fork onto #128648's PR-branch shape, or the PR branch onto the fork's? · Recommend: the fork adopts the PR's shape, so the idle PR branch needs no push
 - [ ] **Flake: `tests/tui_gateway/test_hosted_room_driver_runtime.py::test_peer_terminal_status_acknowledges_durable_stop_on_retry` printed FAILED then passed on retry (q-hosted run)** · fork / suite · q/hosted report · with q-suite-reds · READY 2026-10-16 **BLOCKED quiet box** (r-reds-a 2026-10-16: flake)
 - [ ] **Test files still red on main `e829d753e12` (rel-0222-reds; r-reds-a closed the other 8 on 2026-10-16): channel_build_publication (host Node 20.17 is below the `engines` ^22.22: `require()` of `scripts/msix-shared.mjs` throws ERR_REQUIRE_ESM — upgrade the box, no code fix), build_operations (`test_frozen_export_preserves_git_commit_pin`: offline `uv lock` cannot build the no-build-system git-dep, setuptools not in the find-links; pm lock path is upstream code — run on the pure tag before marking); timeouts desktop_bundle_smoke, kanban_boards, nous_recommendation_disk_cache, plugin_uninstall_windows_live, child_notice_profile_admission, gitspawn_config_injection, kanban_descendant_scope** · fork / suite · release gate log `worktrees/rel-0222-scratch/gate-1.log`, rel-0222-reds report · **BLOCKED quiet box** (timeouts; r-reds-a 2026-10-16) · READY 2026-10-16
-- [ ] **`tests/scripts/test_run_tests_parallel.py::test_isolation_retry_keeps_the_scaled_timeout_and_counts_skips` times out even alone at -j 1 on `2d1123ea84c` and stops the rest of the file from running** · fork / runner · pb-a run logs · **BLOCKED quiet box** (r-reds-a 2026-10-16: timeout) · READY 2026-10-16
 
 
 
