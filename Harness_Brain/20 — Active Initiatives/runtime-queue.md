@@ -558,7 +558,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
-- [ ] **The gateway's `_drain_gateway_watch_events` and `_async_delegation_watcher` discard or requeue by a hard-coded event-type list, so every new fork completion-queue type needs another upstream hunk** · seam / gateway · `a7ac57819b` (M2.01) · waits on the held door PR "route unknown completion_queue types" · DEFERRED 2026-10-16: owner — prepared PR branches stay idle while upstream is not taking the owner's PRs **TAKEN 2026-10-18 r-agent**
 
 ### Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 
