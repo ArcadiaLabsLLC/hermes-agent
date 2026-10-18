@@ -51,9 +51,14 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-@pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
+@pytest.mark.parametrize("compute", [False], ids=["inline"])
 @pytest.mark.parametrize("shared", [False, True], ids=["private-provider", "shared-provider"])
 def test_real_profile_a_b_a_native_turns_and_persistent_sessions(tmp_path, compute, shared):
+    """The compute-child half runs from ``test_native_conversation_compute_roundtrip.py``."""
+    run_profile_a_b_a(tmp_path, compute, shared)
+
+
+def run_profile_a_b_a(tmp_path, compute, shared):
     Provider.requests = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
