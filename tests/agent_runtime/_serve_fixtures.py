@@ -8,7 +8,7 @@ two e2e files and the media one now take both from here.
 Measured 2026-09-24 (``docs/agent-runtime-harness/planned/
 suite-cost-centres-2026-09-24.md`` §2): these files pay 5-6 s of setup per
 TEST, which is the two serve boots run one after the other. They now boot side
-by side (:func:`boot_together`). The boots are NOT shared across tests; the
+by side (:func:`boot_together`) and end side by side (:func:`stop_together`). The boots are NOT shared across tests; the
 fixture's docstring records why for the pair, and the lifecycle files
 (``test_serve_socket_child_e2e.py``, ``test_serve_ended_sidecar_child_e2e.py``)
 say so at their own boot helper — in those, the boot and its ending are the
@@ -186,17 +186,38 @@ class _Install:
         return completed.returncode, (completed.stdout or "") + (completed.stderr or "")
 
     def stop(self) -> None:
+        stop_together([self])
+
+    def _close_stdin(self) -> None:
+        """EOF on stdin is the serve's shutdown request."""
         if self.process is None:
             return
         try:
             self.process.stdin.close()
         except OSError:
             pass
+
+    def _await_exit(self) -> None:
+        if self.process is None:
+            return
         try:
             self.process.wait(timeout=30)
         except subprocess.TimeoutExpired:
             self.process.kill()
 
+
+def stop_together(installs: list[_Install]) -> None:
+    """Ask every serve to end, then wait for each.
+
+    A serve's shutdown (drain, store flush, listener close) takes ~0.6 s on
+    this box. The children share nothing, so asking them one after another
+    only queued those waits; every child still gets its 30 s before a kill.
+    """
+
+    for install in installs:
+        install._close_stdin()
+    for install in installs:
+        install._await_exit()
 
 
 def boot_together(installs: list[_Install]) -> None:
@@ -216,8 +237,7 @@ def boot_together(installs: list[_Install]) -> None:
         for install in installs:
             install.await_ready()
     except BaseException:
-        for install in installs:
-            install.stop()
+        stop_together(installs)
         raise
 
 
@@ -241,7 +261,6 @@ def two_installs(tmp_path):
     try:
         yield installs
     finally:
-        for install in installs:
-            install.stop()
+        stop_together(installs)
 
 

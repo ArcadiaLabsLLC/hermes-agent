@@ -46,12 +46,10 @@ from agent_runtime.errors import (
     WorkspaceDeleteBlocked,
     WorkspaceUnresolved,
 )
-from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from agent_runtime.realm_sync import RealmSyncError
 
 __all__ = [
     "ERROR_EXIT_CODES",
-    "PERSONA_CHAT_SESSION_SOURCE",
     "STAGE42_SCHEMA_VERSION",
     "emit_harness_error",
     "harness_repo_root",

@@ -188,3 +188,21 @@ def test_review_refuses_a_linked_directory_even_with_matching_authored_bytes(tmp
                                       selected_paths=["tracked/note.txt"], operation_id="3" * 64)
     assert not refused["success"]
     assert (outside / "note.txt").read_text() == "authored"
+
+
+def test_a_file_where_the_checkpoint_held_a_directory_is_planned_from_the_directory_entry(tmp_path, monkeypatch):
+    # One batched ls-tree naming "tracked" and "tracked/note.txt" lists only the
+    # deeper path; the plan must still see "tracked" as a directory in the commit.
+    manager, work, _ = workspace(tmp_path, monkeypatch)
+    (work / "tracked").mkdir()
+    (work / "tracked" / "note.txt").write_text("before")
+    manager.new_turn()
+    assert manager.ensure_checkpoint(str(work))
+    checkpoint = manager.list_checkpoints(str(work))[0]["hash"]
+    (work / "tracked" / "note.txt").unlink()
+    (work / "tracked").rmdir()
+    (work / "tracked").write_text("now a file")
+    manager.record_agent_write(str(work / "tracked"))
+    files = {row["path"]: row for row in manager.preview_restore(str(work), checkpoint)["files"]}
+    assert files["tracked"]["reason"] == "unsupported_file_type", files
+    assert files["tracked/note.txt"]["change"] == "restore", files
