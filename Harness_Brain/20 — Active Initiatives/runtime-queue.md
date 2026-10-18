@@ -35,7 +35,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (lane w4-fold, branch `w4/fold`)
 
-- **`RT-LENS-WATCHER-ON-CACHED-CORE` — The snapshot's `lens.watcher` is process memory (`poller.WATCHER`), not a core-cache input: a core served from the cache (boot, stale-first hydrate) carries the watcher state of the build that persisted it, so a stopped or restarted poller reads as it was until a Lens store write or another input moves the key** · fork / lens + core_cache · `agent_runtime/lens/snapshot_fold.py::watcher_state`; `agent_runtime/core_cache/fingerprint.py::INPUT_CLASSES` · overlay the live watcher on the served core in the serve (as `running_work` is overlaid), or drop `watcher` from the pushed section and keep it method-lane only · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
 
 ### Filed on arrival — 2026-10-18 (landing land-w2)
 

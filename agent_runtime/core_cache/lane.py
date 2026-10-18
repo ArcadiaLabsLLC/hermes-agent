@@ -52,6 +52,7 @@ __all__ = [
     "lane_armed",
     "note_full_build_completed",
     "pre_build_fingerprint",
+    "served_cached_core",
     "shadow_build_scope",
     "take_stale_first_core",
 ]
@@ -402,7 +403,27 @@ def take_stale_first_core(*, caller: str) -> dict | None:
         caller,
         read.reason,
     )
-    return label_core(read.core, source=CORE_SOURCE_CACHE, stale=True)
+    return served_cached_core(read.core, stale=True)
+
+
+def served_cached_core(core: dict, *, stale: bool) -> dict:
+    """A persisted core labeled for serving, with the live state no fingerprint covers re-read NOW.
+
+    ``RT-LENS-WATCHER-ON-CACHED-CORE``: the ``lens`` section's ``watcher`` is process memory
+    (``lens.poller.WATCHER``), not a core-cache input, so a served core carried the watcher of the build
+    that persisted it — a stopped or restarted poller read as it was until a Lens store write moved the
+    key. It is overlaid here from this process (``snapshot_fold.watcher_state``, what a build here folds),
+    the way ``label_core`` re-stamps the profile identity. Both serving paths (the stale-first paint and
+    the matched consult) come through this one door.
+    """
+
+    label_core(core, source=CORE_SOURCE_CACHE, stale=stale)
+    lens = core.get("lens")
+    if isinstance(lens, dict):
+        from agent_runtime.lens.snapshot_fold import watcher_state
+
+        lens["watcher"] = watcher_state()
+    return core
 
 
 def claim_shadow_slot() -> bool:
