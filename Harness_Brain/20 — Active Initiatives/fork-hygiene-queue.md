@@ -517,7 +517,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 (lane h6-collect)
 - **`FORK-TEST-PRECOMPILE-ARGV` — `scripts/run_tests.sh`'s bytecode pre-compile never runs on Windows: `compileall -- $(git ls-files '*.py')` passes 10,800 paths (456 KB) and dies "Argument list too long" (rc 126), hidden by `>/dev/null 2>&1 || true`; feed the list on stdin (`git ls-files -z` / `compileall -i -`) — upstream line, so an upstream PR or a fork-side pre-compile in the bundled runner** · fork-hygiene / suite runner · h6-collect 2026-10-18: one tiny file cold 3.5 CPU-s vs warm 2.0; `compileall -i <list>` once costs 34 CPU-s cold, 2.2 warm · READY 2026-10-18 · **TAKEN 2026-10-18 w2-speed-a**
-- **`FORK-TEST-LIFESPAN-TEARDOWN` — a `TestClient(web_server.app)` teardown waits on the hosted-room worker's state store (schema init + fsync) and the eager-reconcile join: 0.5 s per test alone, ~12 s per test under 8-way load (`tests/hermes_cli/test_mcp_catalog_env_boundary.py` 108 s teardown, first in its bundle); `tests/pm/_fixtures.py::threaded_server` adds 0.42 s per test (`socketserver` 0.5 s poll on shutdown)** · fork-hygiene / session chain (both files upstream: a chain seam, e.g. the hosted-room store's fsync like `state_db_no_fsync`) · h6-collect teardown profiles 2026-10-18 · READY 2026-10-18 · **TAKEN 2026-10-18 w2-speed-b**
 
 ## Filed on arrival — 2026-10-18 (land h1018)
 
