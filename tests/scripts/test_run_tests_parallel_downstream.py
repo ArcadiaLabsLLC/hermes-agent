@@ -273,7 +273,7 @@ def test_an_untraced_run_spawns_exactly_what_it_always_did(monkeypatch) -> None:
 
     probe = Path("tests/agent/test_x.py")
     assert mod._fork_pytest_argv(probe, ["-q"]) == [
-        sys.executable, "-m", "pytest", str(probe), "-q",
+        *_job_prefix(), sys.executable, "-m", "pytest", str(probe), "-q",
     ]
 
 
@@ -290,9 +290,70 @@ def test_the_config_var_wraps_each_file_in_coverage_run(monkeypatch) -> None:
 
     probe = Path("tests/agent/test_x.py")
     assert mod._fork_pytest_argv(probe, ["-q"]) == [
-        sys.executable, "-m", "coverage", "run", "--rcfile=/tmp/rc",
+        *_job_prefix(), sys.executable, "-m", "coverage", "run", "--rcfile=/tmp/rc",
         "-m", "pytest", str(probe), "-q",
     ]
+
+
+def _job_prefix() -> list[str]:
+    from scripts import _fork_runner
+
+    return _fork_runner.job_prefix()
+
+
+_ORPHANING_CHILD = '''
+import subprocess, sys
+# the middle process starts a sleeper and exits at once: the sleeper's parent is gone,
+# so a parent-chain walk (taskkill /T) can no longer reach it, as with docker.exe/buildx
+middle = "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); print(p.pid)"
+out = subprocess.run([sys.executable, "-c", middle], capture_output=True, text=True, check=True).stdout
+print(out.strip(), flush=True)
+'''
+
+
+def _alive(pid: int) -> bool:
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32")
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        return code.value == 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the Job Object is the Windows tree kill")
+def test_the_windows_wrapper_kills_an_orphaned_grandchild_when_the_file_exits(tmp_path) -> None:
+    """Row "tests/docker/test_license_file_present.py leaks a docker build": every process a
+    test file starts dies with the file's wrapper, even one whose parent already exited."""
+
+    import subprocess
+    import time
+
+    script = tmp_path / "orphaning_child.py"
+    script.write_text(_ORPHANING_CHILD, encoding="utf-8")
+    proc = subprocess.run([*_job_prefix(), sys.executable, str(script)], capture_output=True, text=True,
+                          timeout=60, check=False)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    sleeper = int(proc.stdout.split()[-1])
+    deadline = time.monotonic() + 10
+    while _alive(sleeper) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if _alive(sleeper):
+        subprocess.run(["taskkill", "/F", "/PID", str(sleeper)], capture_output=True, check=False)
+        pytest.fail("the orphaned grandchild outlived its test file's wrapper")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the Job Object is the Windows tree kill")
+def test_the_windows_wrapper_passes_the_exit_code_through(tmp_path) -> None:
+    import subprocess
+
+    rc = subprocess.run([*_job_prefix(), sys.executable, "-c", "import sys; sys.exit(3)"], timeout=60, check=False)
+    assert rc.returncode == 3
 
 
 def test_a_blank_config_var_is_the_same_as_an_absent_one(monkeypatch) -> None:
