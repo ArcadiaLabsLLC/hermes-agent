@@ -213,6 +213,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
+    # Upstream's live uninstall starts a real gateway and four `hermes` CLI children, each under
+    # its own 180 s budget: 32.4 s (killed by the 30 s cap) and 42.8 s green alone at 1 worker on
+    # this box, 2026-10-17 (lane r-plugins).
+    "tests/hermes_cli/test_plugin_uninstall_windows_live.py::"
+    "test_uninstall_while_gateway_has_plugin_loaded": (pytest.mark.timeout(180),),
+    # Upstream's bootstrap repair runs a real `uv lock` and a real bootstrap child per case (own
+    # budgets 60-90 s): 16.2-17.3 s per case alone on this box, 2026-10-17, so the 30 s cap kills
+    # a case once the box is loaded (lane r-plugins).
+    "tests/pm/test_startup_recovery.py::test_bootstrap_repairs_before_dependency_activation": (
+        pytest.mark.timeout(120),
+    ),
     # v0.22.2's PowerShell clone-failure case runs install.ps1 under its own 240 s child
     # budget and takes 29.2 s alone on this box (2026-10-16), so the 30 s cap killed it
     # under load (release lane rel-0222-reds).
