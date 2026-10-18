@@ -128,3 +128,33 @@ def test_gateway_never_advertises_or_accepts_local_maintenance(rig):
     assert "drain_if_idle" not in ops_manifest(transport="gateway")["ops"]
     assert request(rig, connection=SimpleNamespace(transport="gateway"))["error"] == "op_not_available_on_gateway"
     assert rig[0].drain_state is None
+
+
+def test_a_cron_job_running_in_this_process_holds_the_idle_drain(rig, tmp_path, monkeypatch):
+    # RL-20 x cron (audit D4): a manual `cronjob_manage run` finishes on the
+    # scheduler's pool after its turn ends; a pull then must not kill it.
+    # MUTATION: drop the `_cron_job_hold` call and the first request drains.
+    from cron import scheduler
+
+    session, owner, *_ = rig
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    marker = object()
+    assert scheduler.try_register_running_job("brief", owner=marker)
+    try:
+        refusal = request(rig)
+        assert (refusal["reason"], refusal["held_by"]) == ("busy", "cron_job")
+        assert session.drain_state is None and owner.capabilities()["accepting"]
+    finally:
+        scheduler.release_running_job("brief", owner=marker)
+    assert request(rig)["event"] == "draining"
+
+
+def test_unreadable_cron_registry_is_not_idle(rig, monkeypatch):
+    from cron import scheduler
+
+    session, owner, *_ = rig
+    def unreadable():
+        raise RuntimeError("registry")
+    monkeypatch.setattr(scheduler, "get_running_job_ids", unreadable)
+    assert request(rig)["held_by"] == "unreadable"
+    assert session.drain_state is None and owner.capabilities()["accepting"]

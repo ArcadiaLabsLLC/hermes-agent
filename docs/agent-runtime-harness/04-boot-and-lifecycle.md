@@ -238,7 +238,11 @@ know (`serve.py:1419-1632`):
    (`not_git:<source>` for a Docker image or an unresolvable checkout; a `git_*` token for a
    probe that failed). The launcher's RL-20 build-behind restart compares `code_tree`, not
    `commit`: on 2026-09-07 at 16:25:09Z a **docs-only** hermes landing moved the commit, drained
-   a healthy runtime, and the replacement lost the socket lock for the rest of the session. All
+   a healthy runtime, and the replacement lost the socket lock for the rest of the session. The
+   restart asks `drain_if_idle`; a refusal names its hold in `held_by`
+   (`hermes_cli/harness_parts/serve/idle_drain.py::IdleDrainHold`), and a cron job running in this
+   process (`cron.scheduler.get_running_job_ids()`, the set upstream's gateway drain reads) holds
+   it as `cron_job`. All
    of it is `agent_runtime/build_identity.py`, and the two implementations — this one and the
    launcher's Dart — are held to one answer by a byte-equal fixture hashed on both sides:
    `tests/fixtures/build_identity/code_tree_parity_tree.txt` and

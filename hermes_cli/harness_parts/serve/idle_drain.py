@@ -6,12 +6,16 @@ a read, a status call, a prewarm or the very request whose arrival made the
 launcher attach do not. Those finish inside the drain — it closes admission
 and waits for every in-flight request before the process exits — so refusing
 them only deferred a stale-code restart by the launcher's whole recheck
-interval (2026-10-08: attach at 04:25:14, drain at 04:26:05). The refusal
+interval (2026-10-08: attach at 04:25:14, drain at 04:26:05). A cron job
+running in this process holds it too: it runs on the scheduler's own pool,
+outside every turn table, so only ``cron.scheduler.get_running_job_ids()``
+sees it (upstream's gateway drain reads the same set). The refusal
 names WHICH hold answered, so the launcher reads the reason and never guesses
 at idleness from a ``work`` count.
 """
 from __future__ import annotations
 
+import sys
 from contextlib import nullcontext
 from enum import Enum
 from typing import Any
@@ -28,6 +32,7 @@ class IdleDrainHold(str, Enum):
     LONG_RUN = "long_run"
     CONVERSATION_TURN = "conversation_turn"
     DISCUSSION = "discussion"
+    CRON_JOB = "cron_job"
     UNREADABLE = "unreadable"
 
     @property
@@ -47,6 +52,9 @@ def claim_idle_drain(session: Any) -> IdleDrainHold | None:
         return IdleDrainHold.CHAT_TURN
     if any(getattr(item, "is_long_run", False) for item in items):
         return IdleDrainHold.LONG_RUN
+    cron_hold = _cron_job_hold()
+    if cron_hold is not None:
+        return cron_hold
     try:
         discussion = session.discussion_owner
         # Lock order: serve admission -> discussions -> conversations.
@@ -62,6 +70,19 @@ def claim_idle_drain(session: Any) -> IdleDrainHold | None:
     except Exception:
         return IdleDrainHold.UNREADABLE
     return None
+
+
+def _cron_job_hold() -> IdleDrainHold | None:
+    """A cron run in THIS process (a manual ``cronjob_manage run`` on its background pool, or an
+    in-process ticker) holds the drain. Never imports the scheduler: unloaded, no run can exist."""
+    scheduler = sys.modules.get("cron.scheduler")
+    if scheduler is None:
+        return None
+    try:
+        running = scheduler.get_running_job_ids()
+    except Exception:
+        return IdleDrainHold.UNREADABLE
+    return IdleDrainHold.CRON_JOB if running else None
 
 
 def native_pending_count(owner: Any) -> int:
