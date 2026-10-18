@@ -205,6 +205,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_stale_served_turn_never_recreates_archived_profile": (_STATE_DB_THROUGH_SCOPE,),
     "tests/gateway/test_multiplex_routing_authz.py::"
     "test_completion_preflight_runs_in_target_profile_scope": (_STATE_DB_THROUGH_SCOPE,),
+    # Each probe spawns twelve children through spawn_local (bash + python per child,
+    # ~0.3 s apiece on Windows): 3.5-4 s a probe measured outside pytest, nine probes in the
+    # first test and six in the second -> 35.96 s and 24.51 s alone with --timeout=0
+    # (lane r-gateway, 2026-10-17); the fork's 30 s cap killed the first every run.
+    "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120),),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
