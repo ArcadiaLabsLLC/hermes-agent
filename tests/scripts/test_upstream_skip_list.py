@@ -11,12 +11,18 @@ every listed file is in it, and no file outside the upstream manifest is.
 Killing mutation (recorded in the landing commit): append the fork-owned
 ``tests/agent_runtime/test_config.py`` to the list → "fork files are fixed,
 never skipped".
+
+An ``unused`` row (a feature the fork does not ship, ADR 0015) may keep any
+upstream file out, and must cite "ADR 0015"; a fork file is refused under
+``unused`` exactly as under every other class.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+import pytest
 
 from scripts import run_tests_bundled as bundled
 
@@ -53,6 +59,12 @@ def file_rows_naming_a_node(list_path: Path) -> list[str]:
         if defined & set(re.findall(r"\btest_\w+", row.why)):
             offenders.append(rel)
     return offenders
+
+
+def unused_rows_without_the_adr(list_path: Path) -> list[str]:
+    """``unused`` rows whose ``why`` does not cite the ruling that made the feature unused."""
+
+    return [key for key, row in plan.load_skip_list(list_path).items() if row.klass == "unused" and "ADR 0015" not in row.why]
 
 
 def fork_files_skipped(list_path: Path) -> list[str]:
@@ -131,3 +143,69 @@ def test_a_node_row_runs_its_file_and_deselects_only_the_node():
     assert args[1::2] == sorted(nodes, key=list(rows).index) and set(args[0::2]) == {"--deselect"}
     named = next(iter(nodes))
     assert named not in plan.deselect_args(rows, named={rows[named].file}), "a named file runs whole (O1)"
+
+
+def test_every_unused_row_cites_adr_0015():
+    offenders = unused_rows_without_the_adr(SKIP_LIST)
+    assert not offenders, f"an `unused` row cites the ruling: add \"(ADR 0015)\" to its why: {offenders}"
+
+
+def test_an_unused_row_without_the_adr_on_a_copy_of_the_list_is_refused(tmp_path):
+    """The control: a planted `unused` row with no ADR citation is caught."""
+
+    planted = tmp_path / "upstream_skip_list.txt"
+    planted.write_text(
+        SKIP_LIST.read_text(encoding="utf-8") + "tests/hermes_cli/test_kanban_cli.py · unused: kanban · e6899c8090\n",
+        encoding="utf-8",
+    )
+    assert unused_rows_without_the_adr(planted) == ["tests/hermes_cli/test_kanban_cli.py"]
+
+
+def test_a_fork_file_marked_unused_on_a_copy_of_the_list_is_refused(tmp_path):
+    """`unused` widens the file-row rule for upstream files only: a fork file stays refused."""
+
+    planted = tmp_path / "upstream_skip_list.txt"
+    planted.write_text(
+        SKIP_LIST.read_text(encoding="utf-8")
+        + "tests/agent_runtime/test_config.py · unused: planted fork file (ADR 0015) · e6899c8090\n",
+        encoding="utf-8",
+    )
+    assert fork_files_skipped(planted) == ["tests/agent_runtime/test_config.py"]
+    assert "unused" in plan.SKIP_CLASSES
+
+
+_UNUSED_FILE = "tests/hermes_cli/test_kanban_cli.py"  # imports hermes_cli.kanban_db; tests/hermes_cli/conftest.py above it
+_REACHES_IT = {
+    "an edit to a source module it imports": {"hermes_cli/kanban_db.py"},
+    "an edit to its conftest": {"tests/hermes_cli/conftest.py"},
+}
+
+
+def _select(rows, changed, *, since_merge, named=()):
+    files = bundled.rtp._discover_files([_REPO_ROOT / "tests" / "hermes_cli"])
+    sel = bundled.select_scope(
+        files, _REPO_ROOT, bundled.load_manifest(MANIFEST), changed, named=named, skipped=rows,
+        chain_sample=not since_merge,  # select_for_run: --scope fork samples the chain, --since-merge does not
+    )
+    return {bundled._rel(p, _REPO_ROOT) for p in sel.selected}, {bundled._rel(p, _REPO_ROOT) for p in sel.skipped_red}
+
+
+@pytest.mark.parametrize("since_merge", [False, True], ids=["scope-fork", "since-merge"])
+@pytest.mark.parametrize("reach", sorted(_REACHES_IT))
+def test_a_change_that_reaches_an_unused_file_does_not_select_it(reach, since_merge, tmp_path):
+    """Landings never include an unused feature (owner, ADR 0015): skip wins over reach; naming the file runs it."""
+
+    planted = tmp_path / "upstream_skip_list.txt"
+    planted.write_text(
+        SKIP_LIST.read_text(encoding="utf-8") + f"{_UNUSED_FILE} · unused: kanban (ADR 0015) · e6899c8090\n",
+        encoding="utf-8",
+    )
+    rows = plan.load_skip_list(planted)
+    assert rows[_UNUSED_FILE].klass == "unused"
+    changed = _REACHES_IT[reach]
+    unlisted = {key: row for key, row in rows.items() if key != _UNUSED_FILE}
+    assert _UNUSED_FILE in _select(unlisted, changed, since_merge=since_merge)[0], f"control: {reach} reaches the file"
+    selected, skipped = _select(rows, changed, since_merge=since_merge)
+    assert _UNUSED_FILE not in selected and _UNUSED_FILE in skipped, f"{reach} selected an unused file"
+    named, _ = _select(rows, changed, since_merge=since_merge, named=[_REPO_ROOT / _UNUSED_FILE])
+    assert _UNUSED_FILE in named, "a named unused file runs"
