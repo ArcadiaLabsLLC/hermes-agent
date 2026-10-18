@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import socket
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ import pytest
 
 from hermes_cli import plugins  # imported here so the chain installs the discovery cache
 import hermes_constants
+import hermes_state  # imported here so the chain's state-db fixture finds it at setup
 
 #: the platform-native Hermes home, read at import — before any autouse fixture patches it
 _NATIVE_HOME = hermes_constants._get_platform_default_hermes_home()
@@ -168,3 +170,17 @@ def test_bundled_plugin_discovery_is_kept_between_tests():
     plugins._reset_plugin_managers_for_tests()
     plugins.discover_plugins()
     assert cache.stats()["hits"] > hits
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS keeps synchronous=FULL (its btree floor is a subject)")
+def test_a_session_db_commits_without_fsync(tmp_path):
+    """``tests/_downstream/state_db_no_fsync.py``: a ``SessionDB`` the test opens runs ``PRAGMA synchronous=OFF``
+    (the test venv's SQLite forces journal_mode=DELETE, where every autocommitted statement is an fsync).
+    Mutation: drop the ``_state_db_no_fsync`` re-export from ``conftest_plugin``."""
+
+    db = hermes_state.SessionDB(db_path=tmp_path / "state.db")
+    try:
+        assert db._conn.execute("PRAGMA synchronous").fetchone()[0] == 0
+    finally:
+        db.close()
+
