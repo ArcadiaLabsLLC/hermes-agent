@@ -197,6 +197,36 @@ def test_bundled_plugin_discovery_is_kept_between_tests():
     assert cache.stats()["hits"] > hits
 
 
+def test_a_discovery_sweep_reads_the_load_deadline_once():
+    """``tests/_downstream/plugin_load_memo.py``: once the plugin stack is imported, the per-plugin load
+    deadline is resolved once per discovery sweep (lane h3-plugins). Mutation: drop the
+    ``_plugin_load_memo`` re-export from ``conftest_plugin``."""
+
+    import hermes_cli.plugins_loader as loader
+
+    assert getattr(loader._resolve_plugin_load_timeout, "_fork_sweep_timeout_memo", False)
+    assert getattr(plugins.PluginManager._discover_and_load_inner, "_fork_sweep_timeout_memo", False)
+
+
+def test_bundled_plugin_modules_are_not_kept_without_the_opt_in(monkeypatch):
+    """``tests/_downstream/plugin_module_keep.py`` is OFF unless ``HERMES_TEST_KEEP_PLUGIN_MODULES`` is set
+    (owner ruling pending): two discoveries import each bundled plugin twice. Mutation: make
+    ``plugin_module_keep.enabled()`` return True."""
+
+    from tests._downstream import plugin_module_keep as keep
+
+    monkeypatch.delenv(keep.ENV, raising=False)
+    keep.install_if_imported()
+    plugins._reset_plugin_managers_for_tests()
+    plugins.discover_plugins()
+    first = {k: p.module for k, p in plugins.get_plugin_manager()._plugins.items() if p.module is not None}
+    plugins._reset_plugin_managers_for_tests()
+    plugins.discover_plugins()
+    second = {k: p.module for k, p in plugins.get_plugin_manager()._plugins.items() if p.module is not None}
+    shared = set(first) & set(second)
+    assert shared and all(first[k] is not second[k] for k in shared)
+
+
 @pytest.mark.skipif(sys.platform == "darwin", reason="macOS keeps synchronous=FULL (its btree floor is a subject)")
 def test_a_session_db_commits_without_fsync(tmp_path):
     """``tests/_downstream/state_db_no_fsync.py``: a ``SessionDB`` the test opens runs ``PRAGMA synchronous=OFF``
