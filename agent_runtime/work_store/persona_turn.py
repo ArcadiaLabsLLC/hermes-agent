@@ -30,6 +30,7 @@ from .. import chat_goal
 from .. import chat_root_send_queue as send_queue
 from .. import paths
 from ..chat_turn_settles import outcome_from_payload, read_settle, settle_id_for
+from ..mission_chat_workdir import RUN_WORKDIR_ARG
 from . import goal_turns, receipts
 from .executor import (
     Assignment, Brief, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
@@ -39,14 +40,14 @@ from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
 logger = logging.getLogger(__name__)
-__all__ = ["BRIEF_MAX_LINES", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
+__all__ = ["BRIEF_MAX_LINES", "REPORT_CLOSING", "REPORT_INFO", "PersonaTurnExecutor", "parse_work_report", "render_brief"]
 
 REPORT_INFO = "work_report"
 BRIEF_MAX_LINES = 40
 _REPORT_FENCE = re.compile(r"^[ \t]*```[ \t]*work_report[ \t]*\r?\n(.*?)^[ \t]*```", re.MULTILINE | re.DOTALL)
 _VERDICTS = {"done": Verdict.DONE, "blocked": Verdict.BLOCKED, "stopped": Verdict.STOPPED}
 _REPORT_TAIL = 4000
-_CLOSING = (
+REPORT_CLOSING = (
     "",
     f"When you finish, END your reply with a fenced code block whose info string is `{REPORT_INFO}`:",
     f"```{REPORT_INFO}",
@@ -97,7 +98,7 @@ def render_brief(a: Assignment) -> str:
         body += ["", "Constraints:", *_clip([f"- {item}" for item in brief.constraints], 3)]
     if brief.acceptance:
         body += ["", f"Done when: {' '.join(brief.acceptance.split())[:500]}"]
-    return "\n".join([*head, *body][:BRIEF_MAX_LINES - len(_CLOSING)] + list(_CLOSING))
+    return "\n".join([*head, *body][:BRIEF_MAX_LINES - len(REPORT_CLOSING)] + list(REPORT_CLOSING))
 
 
 def _norm(value: Any) -> str:
@@ -196,8 +197,13 @@ class PersonaTurnExecutor:
     def start(self, a: Assignment) -> Run:
         return self.start_from(a, {})
 
-    def start_from(self, a: Assignment, origin: Mapping[str, Any]) -> Run:
-        """:meth:`start`, with ``origin`` added to the queued entry's origin (a scheduled fire names itself there)."""
+    def start_from(self, a: Assignment, origin: Mapping[str, Any], *, message: str | None = None,
+                   workdir: str | None = None) -> Run:
+        """:meth:`start`, with ``origin`` added to the queued entry's origin (a scheduled fire names itself there).
+
+        ``message`` replaces the rendered brief and ``workdir`` is the run's own working directory (the
+        turn's ``run_workdir``, on top of the persona's ladder): a batch lane's brief and worktree (B5).
+        """
 
         refusal = self.can_start(a)
         if refusal is not None:
@@ -208,10 +214,12 @@ class PersonaTurnExecutor:
         until_done = a.goal_mode is GoalMode.UNTIL_DONE
         origin = {**dict(origin), "owner": None, "gateway": False, "work": a.request_id,
                   "rows": [[ref.slot, ref.note, ref.id] for ref in a.rows], "goal": until_done}
-        turn = _turn_args(instance, root, cmid, render_brief(a), f"work:{a.request_id}")
+        turn = _turn_args(instance, root, cmid, message or render_brief(a), f"work:{a.request_id}")
+        if workdir:
+            setattr(turn, RUN_WORKDIR_ARG, workdir)
         args = send_queue.persistable_args(turn, origin=origin)
         if until_done:
-            goal_turns.arm_run(root, a, args, cwd=self._workdir_of(instance), goals=self._goals)
+            goal_turns.arm_run(root, a, args, cwd=workdir or self._workdir_of(instance), goals=self._goals)
         entry, _position, _replay = self._enqueue(root, cmid, args)
         (self._wake or _wake_runner)()
         receipts.emit("work.exec_start", run_id=_run_id(root, cmid), request_id=a.request_id,

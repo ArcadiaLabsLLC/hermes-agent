@@ -36,7 +36,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-18 (land w5)
 
-- **`RT-BATCH-LAYER-TYPES` — `agent_runtime/batch/{planner,machine,manifest,board_source}` declared policy/stores but import value types from lanes modules (`work_store.executor.Verdict`/`Brief`, `work_store.source.Domain`/`Claimant`); land w5 re-declared all four `lanes` to green W0-G6** · fork / batch · `tests/tooling/test_fork_import_layers.py::test_declared_layers_are_bound_at_runtime_and_point_down`; move the value types to a `models` module of `work_store` and restore the four layers · READY 2026-10-18 · **TAKEN 2026-10-18 w6-lane**
 
 ### Filed on arrival — 2026-10-18 (land w4)
 
@@ -854,7 +853,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-18 (design: dispatcher and libraries)
 
-- **`RT-DISPATCH-B5-LANE-EXECUTOR` — `BatchLaneExecutor`: worktree beside the clone via `run_git`, brief file from the skeleton (≤ 40 lines), per-run workdir override, the landing lane, push to `main` only behind `approve`** · fork / Work · `docs/agent-runtime-harness/planned/dispatcher-and-libraries-2026-10-18.md` §2.2, §3.2 · the push door is `agent_runtime/batch/dispatcher.py::Lander` (approve refuses `not_built` until it lands) · READY 2026-10-18 · **TAKEN 2026-10-18 w6-lane**
 - **`RT-WORK-DEFAULT-BRAIN-REMOTE` — when a git host account is connected, the default brain gets a remote automatically: create a private repo on the host, add it as `origin`, push, and turn the machine-local default brain into a normal declared slot so it syncs across machines like any repo brain** · fork / Work · upstream `hermes_cli/git_credentials.py` + `github_api.py` already resolve a GitHub token (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`) · RULED 2026-10-18: owner — a connected git account means the default brain's remote is created automatically · NEEDS PLAN 2026-10-18: which account counts as connected (the upstream token chain vs a realm git-host binding), the repo name and visibility, who publishes the slot declaration in a server-bound realm (hermes has no publish credential; the Launcher's next declare carries it), and a second machine adopting the remote instead of creating its own default brain
 
 ### Filed on arrival — 2026-10-18 (lane w2-phone, branch `w2/phone`)

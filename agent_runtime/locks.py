@@ -158,6 +158,13 @@ def task_lock(task_id: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def batch_landing_lock() -> Iterator[None]:
+    """One batch landing at a time on this machine (dispatcher plan §3.3): never waits, refuses at once."""
+    with _file_lock(paths.lock_dir() / "batch_landing.lock", timeout_seconds=0.0):
+        yield
+
+
+@contextlib.contextmanager
 def board_lock(board_id: str) -> Iterator[None]:
     with _file_lock(paths.lock_dir() / "boards" / f"{paths.safe_path_token(board_id)}.lock"):
         yield

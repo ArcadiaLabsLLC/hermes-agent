@@ -18,11 +18,11 @@ from typing import Any
 from ..work_store import board as boards_store
 from ..work_store.board import Board
 from ..work_store.grammar import OWNER_DECISION, Op, Row, RowRef, Status, render_status, segment_text
+from ..work_store.models import Claimant
 from ..work_store.reasons import Reason, WorkRefused
-from ..work_store.source import Claimant
 from ..work_store.writer import Receipt, RowOp
 
-__layer__ = "lanes"  # imports work_store.source.Claimant (a lanes module); RT-BATCH-LAYER-TYPES
+__layer__ = "stores"
 __all__ = ["BoardSource"]
 
 

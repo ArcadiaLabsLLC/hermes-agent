@@ -8,6 +8,9 @@ planner (policy): ``plan`` — ready rows → thick lanes by ``Domain``, budgete
 machine (policy): the batch and lane state tables, the budget rule, the land rule;
 manifest (stores): the manifest note — render, parse, fold — and its store over the W2 writer;
 board_source (stores): ``BoardSource``, the production ``WorkSource`` over the boards and the writer;
+lane_git (stores): where a lane works in git — worktrees beside the clone, ``--no-ff`` merges, the ff push (B5);
+lane_executor (lanes): ``BatchLaneExecutor`` — a lane as one persona turn in its own worktree (B5);
+lander (lanes): ``GitLander`` — ``approve``'s fast-forward push of the landing (B5);
 dispatcher (lanes): ``BatchDispatcher`` — plan / start / status / stop / land / approve, settles, the tick;
 rpc (lanes): ``runtime.batch.plan|start|status|stop|land|approve``, console tier.
 """

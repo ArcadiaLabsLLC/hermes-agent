@@ -19,6 +19,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from .grammar import RowRef
+from .models import Brief, Verdict
 from .reasons import Reason
 
 __layer__ = "lanes"
@@ -62,28 +63,10 @@ class RunStatus(StrEnum):
     STOPPED = "stopped"
 
 
-class Verdict(StrEnum):
-    DONE = "done"
-    BLOCKED = "blocked"
-    STOPPED = "stopped"
-    FAILED = "failed"
-
-
 class StopReason(StrEnum):
     OPERATOR = "operator"
     DRAIN = "drain"
     CAP = "cap"
-
-
-@dataclass(frozen=True)
-class Brief:
-    title: str
-    objective: str
-    inputs: tuple[str, ...] = ()
-    constraints: tuple[str, ...] = ()
-    acceptance: str = ""
-    #: The test commands the brief names; with ``goal_mode=UNTIL_DONE`` each becomes a goal gate.
-    tests: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

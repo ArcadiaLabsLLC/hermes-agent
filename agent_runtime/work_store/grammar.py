@@ -20,6 +20,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
 
+from .models import PERSONA_PREFIX, Domain
 from .reasons import Reason, WorkRefused
 
 __layer__ = "policy"
@@ -31,6 +32,7 @@ __all__ = [
     "RowRef",
     "Status",
     "apply",
+    "domain_of",
     "find",
     "is_queue",
     "mint_id",
@@ -61,7 +63,6 @@ _SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 OWNER_DECISION = BLOCKED_REASONS[0]
-PERSONA_PREFIX = "persona:"
 SEPARATOR = " · "
 
 
@@ -124,6 +125,11 @@ class Row:
     line_no: int
     raw: str
     defects: tuple[str, ...] = ()
+
+
+def domain_of(row: Row) -> Domain:
+    """The row's batching key (dispatcher plan §3.1): its slot, note and queue heading."""
+    return Domain(row.ref.slot, row.ref.note, row.heading)
 
 
 def split_segments(line: str) -> list[str]:

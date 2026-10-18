@@ -31,12 +31,11 @@ from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Any
 
-from ..work_store.executor import Brief
-from ..work_store.grammar import Row, RowRef
+from ..work_store.grammar import Row, RowRef, domain_of
+from ..work_store.models import Brief, Domain
 from ..work_store.reasons import Reason, WorkRefused
-from ..work_store.source import Domain, domain_of
 
-__layer__ = "lanes"  # imports work_store.executor.Brief and work_store.source.Domain (a lanes module); RT-BATCH-LAYER-TYPES
+__layer__ = "policy"
 __all__ = [
     "LANDING_ID",
     "Budget",

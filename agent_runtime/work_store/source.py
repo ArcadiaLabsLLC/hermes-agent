@@ -15,13 +15,13 @@ string, wrapped as :class:`Claimant`; the receipt kinds are the writer's ``work.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol
 
 from .board import Board
-from .grammar import PERSONA_PREFIX, Op, Row, RowRef, Status
+from .grammar import Op, Row, RowRef, Status, domain_of
+from .models import Claimant, Domain
 from .reasons import Reason
-from .writer import OPERATOR, Receipt
+from .writer import Receipt
 
 __layer__ = "lanes"
 __all__ = ["RECEIPT_KINDS", "REFUSALS", "Claimant", "Domain", "WorkSource", "domain_of"]
@@ -40,38 +40,6 @@ RECEIPT_KINDS: dict[str, tuple[str, ...]] = {
     "done": (f"work.row_{Op.DELETE.value}",),
     "append": (f"work.row_{Op.APPEND.value}",),
 }
-
-
-@dataclass(frozen=True)
-class Domain:
-    """The batching key (plan §3.1): one thick lane per (slot, note, heading)."""
-
-    slot: str
-    note: str
-    heading: str
-
-
-def domain_of(row: Row) -> Domain:
-    return Domain(row.ref.slot, row.ref.note, row.heading)
-
-
-@dataclass(frozen=True)
-class Claimant:
-    """Who writes a claim mark: ``persona:<instance_id>`` for a persona, ``operator`` for the console."""
-
-    who: str
-
-    @classmethod
-    def persona(cls, instance_id: str) -> Claimant:
-        return cls(f"{PERSONA_PREFIX}{instance_id}")
-
-    @classmethod
-    def operator(cls) -> Claimant:
-        return cls(OPERATOR)
-
-    @property
-    def persona_instance_id(self) -> str | None:
-        return self.who[len(PERSONA_PREFIX):] if self.who.startswith(PERSONA_PREFIX) else None
 
 
 class WorkSource(Protocol):

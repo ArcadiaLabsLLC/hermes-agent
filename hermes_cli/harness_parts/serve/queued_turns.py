@@ -104,16 +104,15 @@ def queued_turn_runner_policy(session: Any) -> Any:
 
 
 def _batch_hooks(session: Any) -> dict[str, Any]:
-    """The batch dispatcher on the serve's executor (dispatcher plan §3, B2): it hears every settle,
+    """The batch dispatcher over the serve's executor (dispatcher plan §3, B2; lanes in worktrees, B5): its
+    lane executor hears every settle of the serve's persona-turn executor and reports the batch's,
     the engine skips the rows a batch lane holds, and the engine's tick advances owned batches. Kept on
     ``session.batch_dispatcher`` for the scheduler's ``StartBatch`` door (:func:`_start_batch_door`)."""
 
     from agent_runtime.batch.dispatcher import default_dispatcher
     from agent_runtime.batch.manifest import held_refs
 
-    executor = session.work_executor
-    dispatcher = session.batch_dispatcher = default_dispatcher(executor=executor)
-    executor.on_settle(dispatcher.settled)
+    dispatcher = session.batch_dispatcher = default_dispatcher(persona=session.work_executor)
     return {"held": held_refs, "after_tick": dispatcher.tick}
 
 
