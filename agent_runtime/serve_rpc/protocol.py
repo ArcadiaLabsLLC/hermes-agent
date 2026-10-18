@@ -392,6 +392,12 @@ class RpcContext:
     this seam does not have to refuse the way ``spawn_chat_turn`` does: the work
     it defers is bounded at its own source, so the fallback is a bad latency
     rather than an unbounded hold. It returns True when the work was accepted.
+
+    ``batch_dispatcher`` is the serve session's own ``BatchDispatcher`` door: a zero-argument
+    callable answering the dispatcher the session built over its persona-turn executor
+    (``queued_turns._batch_hooks``), or None before that build. ``None`` as the field means no
+    serve session stands behind the caller (a test, a direct call), and ``runtime.batch.*``
+    refuses ``door_unbound`` rather than building a dispatcher of its own.
     """
 
     connection_key: str | None = None
@@ -402,6 +408,7 @@ class RpcContext:
     spawn_reply: Callable[[Callable[[], dict]], bool] | None = None
     interrupt_operator: Callable[[str], bool] | None = None
     launcher_request: Callable[[str, dict], dict] | None = None
+    batch_dispatcher: Callable[[], Any] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

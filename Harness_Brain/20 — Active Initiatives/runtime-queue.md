@@ -31,7 +31,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 
 ### Filed on arrival — 2026-10-18 (land w6)
-- **`RT-BATCH-RPC-OWN-DISPATCHER` — `runtime.batch.*` builds a fresh `default_dispatcher()` per call (a new persona executor with no drain probe and no settle listeners) instead of the serve's `session.batch_dispatcher` (land w6: `RpcContext` has no door to the serve session; the fix is that door, not a few lines)** · fork / batch · `agent_runtime/batch/rpc.py::execute` · READY 2026-10-18 · **TAKEN 2026-10-18 w7**
 - **`RT-BATCH-GATE-RECEIPT` — the landing's green is the persona's `work_report` verdict; no code-run gate result is recorded for `approve` to check** · fork / batch · `agent_runtime/batch/dispatcher.py::_landing_settled`, `lander.py::GitLander` · NEEDS PLAN 2026-10-18: who runs the gate (the persona, or the executor off-thread)
 
 ### Filed on arrival — 2026-10-18 (lane w6-misc, branch `w6/misc`)

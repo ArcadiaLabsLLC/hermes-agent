@@ -8,7 +8,8 @@ opaque ``owner`` (``work.model.WorkScope``). A refusal is error 4090 ``{"reason"
 Params beyond scope: ``plan`` none; ``start`` ``batch_id`` (the plan's id) and ``personas?``
 (``{lane_id: instance_id}``, the operator's answer to ``asks``); ``status`` ``batch_id?``; ``stop``
 ``batch_id``, ``lane?`` (omitted: abort the batch); ``land`` ``batch_id``, ``persona?``; ``approve``
-``batch_id``. These calls are the operator's: a scheduler fire reaches ``start`` / ``plan`` through
+``batch_id``. The dispatcher is the serve session's (``RpcContext.batch_dispatcher``); with no serve
+session behind the call every method refuses ``door_unbound``. These calls are the operator's: a scheduler fire reaches ``start`` / ``plan`` through
 ``BatchDispatcher`` with ``scheduled=True`` (the ``batch_automation`` gate), never through here.
 """
 
@@ -82,16 +83,15 @@ def execute(operation: str, params: Mapping[str, Any], caller: Any, *, dispatche
     if scope is None:
         raise WorkRefused(Reason.OWNER_CHANGED)
     if dispatcher is None:
-        from agent_runtime.batch.dispatcher import default_dispatcher
-
-        dispatcher = default_dispatcher()
+        raise WorkRefused(Reason.DOOR_UNBOUND, "no serve session holds a batch dispatcher")
     body = _OPS[operation](dispatcher, scope.workspace_id, params)
     return {"version": VERSION, "install_id": install, "owner": scope.owner, **body}
 
 
-def _batch_reply(rid: Any, operation: str, params: Mapping[str, Any], caller: Any) -> dict[str, Any]:
+def _batch_reply(rid: Any, operation: str, params: Mapping[str, Any], context: Any) -> dict[str, Any]:
+    door = context.batch_dispatcher
     try:
-        return ok(rid, execute(operation, params, caller))
+        return ok(rid, execute(operation, params, context.caller, dispatcher=door() if door else None))
     except WorkRefused as refusal:
         return err(rid, 4090, "This batch request could not be accepted.",
                    {"reason": refusal.reason.value, "detail": refusal.detail})
@@ -104,7 +104,7 @@ def _batch_reply(rid: Any, operation: str, params: Mapping[str, Any], caller: An
 def _batch_method(operation: str) -> Callable[[Any, dict, Any], dict]:
     def handle(rid: Any, params: dict, context: Any) -> dict:
         return defer_or_refuse(rid, "runtime.batch." + operation, context,
-                               lambda: _batch_reply(rid, operation, dict(params or {}), context.caller))
+                               lambda: _batch_reply(rid, operation, dict(params or {}), context))
     return handle
 
 
