@@ -21,7 +21,34 @@ def own_protocol_input() -> None:
     sys.stdin = os.fdopen(private, encoding="utf-8")
 
 
+def exit_without_finalization(clean: list[bool]) -> None:
+    """After every exit handler, end a cleanly stopped worker without interpreter teardown.
+
+    Registered first, so it runs last. Tearing down the engine's module graph costs ~0.45 s
+    per worker on Windows (measured 0.61-0.66 s -> 0.18-0.23 s from stdin EOF to process
+    end) and persists nothing; the one handler registered before it, ``logging.shutdown``,
+    runs here. A worker that did not return from its loop exits the ordinary way.
+    """
+    if not clean:
+        return
+    import logging
+    import os
+    import sys
+
+    logging.shutdown()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except (OSError, ValueError):
+            pass
+    os._exit(0)
+
+
 def main() -> None:
+    import atexit
+
+    clean: list[bool] = []
+    atexit.register(exit_without_finalization, clean)
     own_protocol_input()
     from agent_runtime.host_store.desktop_binding import bind_desktop_host_store_or_exit
 
@@ -38,6 +65,7 @@ def main() -> None:
 
     write_json(worker_ready_frame())
     serve_native()
+    clean.append(True)
 
 
 if __name__ == "__main__":
