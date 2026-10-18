@@ -8,8 +8,9 @@ the id-marker tables), ``tests/_fixtures/`` (imported by ``tests/conftest.py``
 at import time), the runner's ``scripts/_bundle_plugin/``, and the config pytest
 reads (``pyproject.toml``'s ``addopts`` and markers, the fork's dev pins) — are
 loaded by every process, so a change to any of them reaches every test file.
-Owner ruling Q3 (2026-10-10): it does, the whole tree, batched into the
-release-merge landing; no sampled discount.
+Owner rulings 2026-10-16 and 2026-10-17 (ADR 0016, superseding Q3's whole-tree
+run at the release merge): a chain edit runs the chain's contract plus a sample,
+at every landing and at a release merge alike; nothing runs the whole tree.
 
 A document under a chain prefix (``.md``) is read by nothing at session time
 and does not count. Generic data: no import, no I/O.

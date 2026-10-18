@@ -109,7 +109,7 @@ floor for the full four-directory scope, not a budget for it, and expect the
 number to move with the box's core count.
 
 That four-directory scope is **the 4 directories R3 was proven on**,
-deliberately not the runner's whole-tree default: a whole-tree run on a green
+deliberately not a whole-tree run (nothing runs the whole tree, ADR 0016): a whole-tree run on a green
 `main` reads ~142 failed, every one triaged environmental or pre-existing (see
 [`planned/hermes-suite-perf.md`](docs/agent-runtime-harness/planned/hermes-suite-perf.md)
 §Follow-ups). Two things sit OUTSIDE it and are named nowhere in it:
@@ -148,7 +148,7 @@ junction only once `tests/tooling` passes on it.
 
 Weakness escalation per domain — what a lane records when work reveals architecture below the bar, and which queue the row goes to — is [`CLAUDE.md`](../CLAUDE.md) § "Weakness escalation"; the god-file program that applies it is `docs/agent-runtime-harness/planned/god-file-program-2026-09-24.md`.
 
-`scripts/run_tests_bundled.sh tests` — once per batch, at its landing (when and what runs is `Harness_Brain/50 — Agent Handoffs/Running the tests.md`'s) — over the whole tree, never three directories (a three-directory form misses the upstream tests of an upstream file the change edits; `Harness_Brain/50 — Agent Handoffs/Running the tests.md` measures it). `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; a release merge runs `--since-merge <merge>`; `--scope full` is retired and exits 2 over a directory (`Harness_Brain/30 — Decisions/0016 — No whole-tree run, ever.md`). Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
+`scripts/run_tests_bundled.sh tests` — once per batch, at its landing (when and what runs is `Harness_Brain/50 — Agent Handoffs/Running the tests.md`'s) — over `tests`, never three directories (a three-directory form misses the upstream tests of an upstream file the change edits; `Harness_Brain/50 — Agent Handoffs/Running the tests.md` measures it). `--scope fork` (the default): the files absent from `tests/fixtures/upstream_manifest.txt` plus the inherited files the change (`git diff origin/main...HEAD`, or `--since <ref>`) reaches by name, import or conftest; a release merge runs `--since-merge <merge>`; `--scope full` is retired and exits 2 over a directory (`Harness_Brain/30 — Decisions/0016 — No whole-tree run, ever.md`). Same hermetic env, up to 20 files per pytest process (`--bundle-size`); a red bundle re-runs its red members one file per process and names any ISOLATION LEAK (red bundled, green alone → `scripts/test_bundles_unbundled.txt`, with the observed diff).
 `scripts/run_tests.sh` stays the per-file authority: a single file, a leak or any disagreement between the two is settled there.
 
 ### Unattended reporting
@@ -174,7 +174,7 @@ directory itself is kept via `qa-artifacts/.gitkeep`), plus the raw stdout of
 each command beside it:
 
 1. `scripts/run_tests.sh` on the validated four-directory scope (see above —
-   never the whole-tree default).
+   never a whole-tree run).
 2. `scripts/changed_line_mutation_check.py --list --base origin/main` — the
    inventory lane. `--list` never mutates the tree (it returns before the
    mutating section of that script runs), so this is safe to run unattended
