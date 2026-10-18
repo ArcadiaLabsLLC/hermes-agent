@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,8 +10,9 @@ from agent.charsheet import pipeline
 from agent.charsheet._support import safe_segment, slugify, utc_now, write_bytes_atomic, write_json_atomic
 from agent.pet.constants import DEFAULT_SCALE, LOOP_MS
 
-from .installed import _row_json
+from .installed import _row_json, read_installed_manifest
 from .layout import MANIFEST_FILENAME, PALETTE_FILENAME, SCHEMA, SHEET_FILENAME, Stage, characters_dir, row_item, spec_to_dict, turnaround_item
+from .recolour import replay
 
 __layer__ = "lanes"
 
@@ -24,6 +24,7 @@ class Composer:
 
     def __init__(self, draft) -> None:
         self.draft = draft
+        self.replayed: list[dict] = []
 
     def reopen(self) -> dict:
         """Reopen a composed draft for fixes; returns to stage ``rows``.
@@ -83,6 +84,7 @@ class Composer:
             "manifest": str(directory / MANIFEST_FILENAME),
             "validation": validation,
             "rows": rows,
+            "paletteOps": self.replayed,
             "stage": draft.stage,
         }
 
@@ -120,7 +122,9 @@ class Composer:
         """Compose the sheet and validate it; a failed validation refuses, scope first."""
         draft = self.draft
         cells = pipeline.compose_draft_frames(spec, strips, palette_sources)
-        sheet = pipeline.compose_sheet(spec, cells)
+        # The palette op log, replayed in order BEFORE validation so the validated
+        # sheet is the installed one (`recolour.py` owns the log and its rules).
+        sheet, self.replayed = replay(pipeline.compose_sheet(spec, cells), draft.palette_ops)
         validation = pipeline.validate_sheet(
             spec, sheet, accept_handedness=accept_handedness
         )
@@ -149,19 +153,13 @@ class Composer:
         directory = characters_dir() / safe_segment(slugify(draft.slug))
         # Clobber guard: re-composing THIS draft may overwrite its own install,
         # but a colliding slug from a different draft is a different character.
-        existing_manifest = directory / MANIFEST_FILENAME
-        if existing_manifest.is_file():
-            try:
-                prior = json.loads(existing_manifest.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                prior = {}
-            prior_draft = str(prior.get("draftId", "")) if isinstance(prior, dict) else ""
-            if prior_draft and prior_draft != draft.id:
-                raise ValueError(
-                    f"slug {slugify(draft.slug)!r} is already installed from draft "
-                    f"{prior_draft}; composing draft {draft.id} over it would replace "
-                    "a different character — pick another slug"
-                )
+        prior_draft = str(read_installed_manifest(directory).get("draftId", ""))
+        if prior_draft and prior_draft != draft.id:
+            raise ValueError(
+                f"slug {slugify(draft.slug)!r} is already installed from draft "
+                f"{prior_draft}; composing draft {draft.id} over it would replace "
+                "a different character — pick another slug"
+            )
         return directory
 
     def _write_sheet(self, directory: Path, sheet) -> Path:

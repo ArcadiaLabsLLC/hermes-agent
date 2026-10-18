@@ -40,6 +40,9 @@ built inside this package rather than on ``agent_runtime.locks`` because
 :mod:`agent.charsheet` opens with — and the lock module records the rest of that
 argument.
 
+``recolour`` takes the same lock: it rewrites the installed sheet, and two
+interleaved recolours would each write a sheet missing the other's edit.
+
 The verbs that do NOT generate (the approvals, ``add_state``, ``reopen``,
 ``status``, ``list``) stay lock-free and last-writer-wins per item: each is one
 small write an operator makes by hand, and refusing a click because a batch is
@@ -60,12 +63,13 @@ five objects it composes.
                               characters_dir, drafts_dir, stamp_recorded_home; the spec round-trip;
                               the revision keys; path_or_none, read_palette
       migration.py   lanes    migrate_characters_home (+ _migration_entry_id)
-      installed.py   stores   sprite_payload, sheet_revision, _handedness_accepted — the installed readers
+      installed.py   stores   sprite_payload, sheet_revision, read_installed_manifest, _handedness_accepted — the installed readers
       draft.py       lanes    CharacterDraft: identity, create/load/list, properties, lock, guards, delegators
       directions.py  lanes    DirectionStage: base image, turnaround, re-roll/approve directions
       rows.py        lanes    RowStage: run_rows, reroll_row, add_state
       thumbs.py      lanes    Thumbs: row_thumb, direction_thumb, _finish_thumb
       compose.py     lanes    Composer: compose (collect -> validate -> guard_slug -> write_sheet -> manifest), reopen
+      recolour.py    lanes    PaletteOps: the palette op log (draft.json `palette_ops`), recolour, replay
       status.py      lanes    StatusReport: status_payload, _item_status
       payloads.py    lanes    the read rows the argv verbs and runtime.characters.* share: draft_summary,
                               installed_rows, draftsman, thumb_result
@@ -75,7 +79,8 @@ five objects it composes.
     run_turnaround / reroll_direction / approve_*   draft -> directions -> layout
     run_rows / reroll_row / add_state               draft -> rows -> layout
     row_thumb / direction_thumb                     draft -> thumbs -> layout
-    compose / reopen                                draft -> compose -> installed
+    compose / reopen                                draft -> compose -> installed, recolour
+    recolour / palette_ops                          draft -> recolour -> palette, installed
     status_payload                                  draft -> status -> layout
     migrate_characters_home                         migration -> layout -> _support
     sprite_payload                                  installed -> layout
@@ -85,7 +90,7 @@ from __future__ import annotations
 
 from agent.charsheet._support import slugify
 
-from . import compose, directions, draft, installed, layout, migration, rows, status, thumbs
+from . import compose, directions, draft, installed, layout, migration, recolour, rows, status, thumbs
 from .compose import (
     Composer,
 )
@@ -108,6 +113,7 @@ from .layout import (
     DRAFT_FILENAME,
     MANIFEST_FILENAME,
     PALETTE_FILENAME,
+    PALETTE_OPS_KEY,
     REVISIONS_DIRNAME,
     SCHEMA,
     SHEET_FILENAME,
@@ -129,6 +135,9 @@ from .layout import (
 from .migration import (
     _migration_entry_id,
     migrate_characters_home,
+)
+from .recolour import (
+    PaletteOps,
 )
 from .rows import (
     RowStage,

@@ -52,6 +52,7 @@ VERB_STAGES: Final[Mapping[str, Stage]] = MappingProxyType({
     "add_state": Stage.ROWS,
     "compose": Stage.ROWS,
     "reopen": Stage.COMPOSED,
+    "recolour": Stage.COMPOSED,
 })
 
 DRAFTS_DIRNAME = ".drafts"
@@ -66,6 +67,9 @@ SHEET_FILENAME = "sheet.webp"
 # `compose`), so neither one can answer for the other. Absent means a character
 # composed before 2026-09-04; see `read_palette`.
 PALETTE_FILENAME = "palette.json"
+# The draft.json key holding the palette op log (`recolour.py`): optional and
+# draft-only, so SCHEMA does not move for it (the rule above).
+PALETTE_OPS_KEY = "palette_ops"
 REVISIONS_DIRNAME = "revisions"
 THUMBS_DIRNAME = "thumbs"
 
