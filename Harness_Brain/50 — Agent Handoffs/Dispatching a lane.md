@@ -46,7 +46,7 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
 | shared thing | hazard | rule |
 |---|---|---|
 | git index, stash, rerere cache | one lane's `stash pop` applied another's entry (2026-09-29); a merge records rerere preimages every worktree then sees | never stash; check any rerere answer by hand; a stopped merge is `--abort`ed |
-| worktree paths | `git -C <clone> worktree add worktrees/x` resolves INSIDE the clone (2026-10-15) | always an ABSOLUTE path beside the clone: `X:/Eternia/worktrees/<lane>` |
+| worktree paths | `git -C <clone> worktree add worktrees/x` resolves INSIDE the clone (2026-10-15) | always an ABSOLUTE path beside the clone under a `.worktrees` parent: `X:/Eternia/.worktrees/<lane>` (pm reclaims install states only there; owner 2026-10-18) |
 | `.git` packs | interrupted concurrent fetches left `.idx` without `.pack` | fetch once at setup; no background `git log --all` (it triggers partial-clone fetches) |
 | the test venv `~/.venvs/hermes-test` | an install while a gate ran half-removed a package; a held `.pyd` blocks uv | never change the venv while any test runs; install at a landing, on a quiet box |
 | the uv cache | `os error 32` under concurrent lanes | each lane sets `UV_CACHE_DIR=<scratch>/uv-cache` |
@@ -113,8 +113,8 @@ branch with `--force-with-lease=integration/upstream-daily:<old tip>`.
 
 ```
 <Lane name>: <one sentence of the outcome>. Never push main.
-Setup (cwd X:/Eternia): fetch; worktree add X:/Eternia/worktrees/hermes-<lane> -b <branch> <base>.
-Scratch X:/Eternia/worktrees/<lane>-scratch/, own UV_CACHE_DIR there.
+Setup (cwd X:/Eternia): fetch; worktree add X:/Eternia/.worktrees/hermes-<lane> -b <branch> <base>.
+Scratch X:/Eternia/.worktrees/<lane>-scratch/, own UV_CACHE_DIR there.
 Read: <one page> + <plan section / queue row>.
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the plan, follow the tree and say so in the commit")
 Run: per `Running the tests.md` § "What a lane runs" (name it; do not restate it). `scripts/run_tests.sh -j 4` while other lanes are live; never `-n`.

@@ -130,8 +130,11 @@ batch at its landing, never per lane.
   counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
 - Cut worktrees from a NEUTRAL cwd (the directory beside the clone, never inside the checkout):
-  `git -C <clone> worktree add <beside the clone>/worktrees/<lane> -b <branch> origin/main`. The
+  `git -C <clone> worktree add <beside the clone>/.worktrees/<lane> -b <branch> origin/main`. The
   clone's location differs per workstation; read it off `git worktree list`, never from this file.
+  The parent is named `.worktrees` because pm reclaims a removed worktree's install state only under
+  such a parent (`pm/install_states.py::_provably_deleted`); the old `worktrees/` parent leaked 335
+  install states, 278 GB (owner ruling 2026-10-18).
   A `fetch` + `worktree add` run inside the primary checkout yanked `main` back to its
   pre-merge tip once (2026-08-31) and both usual tells lied.
 - Never `git stash`. The stash stack and the rerere cache are shared by every worktree of
