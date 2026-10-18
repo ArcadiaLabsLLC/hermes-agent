@@ -5,6 +5,7 @@
 #   scripts/run_tests_bundled.sh tests/agent_runtime tests/hermes_cli tests/hermes_state  # landing gate: --scope fork (default)
 #   scripts/run_tests_bundled.sh --since-merge <merge> tests  # release merge
 #   scripts/run_tests_bundled.sh --bundle-size 10 tests/hermes_cli -q
+#   scripts/run_tests_bundled.sh --affected [--fail-fast]  # fast loop: the tests your edits can break; never a gate
 #
 # --scope fork runs the files absent from tests/fixtures/upstream_manifest.txt
 # plus the inherited files the change (git diff <--since, default origin/main>...HEAD)
