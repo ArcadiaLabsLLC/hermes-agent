@@ -1183,7 +1183,12 @@ everything that is not an HTTP status, because a bare status code leaks nothing.
 A workspace's todo board is the union of the `type: queue` notes of every repo slot the workspace
 binds — `<bound path>/<brain dir>/*.md`, the brain dir pinned in the slot's `context.brain_dir` or
 discovered as `*_Brain/20 — Active Initiatives` — plus, when no bound slot carries a brain, the
-auto-created local default brain (slot `brain`, `Work_Brain/`, no remote). A row in the ADR 0011 grammar
+auto-created local default brain (listed as slot `brain`, `Work_Brain/`, no remote). The default brain is a
+machine-local binding (`<store_root>/work/<ws>/default_brain.json`, which also carries `remote_url` for the
+later promotion lane `RT-WORK-DEFAULT-BRAIN-REMOTE`), never a declared slot, so it works the same in
+every realm (owner ruling 2026-10-18). When a repo slot with a brain is bound (the first by slot name — the
+slot document records no declaration order), the default board's rows move into that brain's `work-queue.md` in one commit with their IDs
+kept, the default board drops from the list, and new rows land in the repo brain. A row in the ADR 0011 grammar
 IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
 [work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §4; the wire is doc 03 §
 Native Work methods).
@@ -1206,7 +1211,7 @@ The write path (plan §5), in six lines:
    answers as the gone row's `ending`.
 
 Receipts are log lines, one per write: `work.row_append | row_claim | row_release | row_set_status |
-row_delete | row_assign` and `work.brain_create` (`agent_runtime/work_store/receipts.py`).
+row_delete | row_assign`, `work.brain_create` and `work.default_brain_move` (`agent_runtime/work_store/receipts.py`).
 
 ## The board — method twins on the hermes side, argv on the launcher
 

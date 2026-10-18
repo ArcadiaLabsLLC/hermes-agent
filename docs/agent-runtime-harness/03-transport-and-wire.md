@@ -1616,7 +1616,10 @@ recovery and pending discovery serve both directions.
 [work-on-markdown-2026-10-18.md](planned/work-on-markdown-2026-10-18.md) §2, §5, §6.2). An owner is a
 WORKSPACE; its board is the `type: queue` notes of every repo slot it binds (plus the auto-created
 default brain when none carries a brain); a row in the ADR 0011 grammar IS a task, keyed `(slot, ID)`.
-There is no task database: reads come from hermes's own worktree of each slot after a fetch, and every
+The default brain is a MACHINE-LOCAL binding
+(`<store_root>/work/<ws>/default_brain.json`), never a declared slot, so it needs no realm publish right
+(owner ruling 2026-10-18); once a repo slot with a brain is bound, its rows move into that brain's
+`work-queue.md` in one commit and the default board drops from `boards[]`. There is no task database: reads come from hermes's own worktree of each slot after a fetch, and every
 write is ONE row operation committed and pushed fast-forward by `agent_runtime/work_store/writer.py`.
 Upstream's kanban is not read or written. All methods are console-tier and deferred through
 `spawn_reply`; replies carry `version: 2`, `install_id` and (owner calls) `owner`; a refusal is error 4090
@@ -1625,7 +1628,7 @@ omit the module and never advertise the methods.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| needs_publish_right \| unavailable}}`, `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
+| `runtime.work.capabilities` | none | `owners[] {owner, workspace_id, label, operations}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`)}}`, `limitations[]`, `chat_scopes`, `execution_identity_guard` | `scope_denied`, `work_unavailable` |
 | `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
 | `runtime.work.list` | `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?` | `boards[] {slot, brain_dir, bound_here, local, is_default, default_branch, committed_at}`, `rows[]`, `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
 | `runtime.work.inspect` | `slot`, `task_id` | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
@@ -1635,7 +1638,7 @@ omit the module and never advertise the methods.
 | `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
 | `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
 | `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
-| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain), `credential?` | `board`, `receipt` | `needs_publish_right`, `slot_unbound`, git reasons |
+| `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain) | `board`, `receipt` | `slot_unbound`, git reasons |
 
 Scope is `install_id` plus the opaque `owner` = `fingerprint([install, workspace_id])`; every call
 re-derives the owner set and a missing or changed owner refuses. The idempotency key is `request_id`

@@ -43,8 +43,6 @@ __layer__ = "stores"
 SLOTS_SCHEMA_VERSION = 1
 #: ``context.files`` when a declaration names none (owner correction 2026-10-04: BOTH).
 DEFAULT_CONTEXT_FILES = ("CLAUDE.md", "AGENTS.md")
-#: The queue directory of a local brain slot (the Work default brain's skeleton, work-on-markdown §4).
-LOCAL_BRAIN_DIR = "Work_Brain/20 — Active Initiatives"
 
 REASON_INVALID_SLOT_NAME = "invalid_slot_name"
 REASON_INVALID_CLONE_URL = "invalid_clone_url"
@@ -313,32 +311,6 @@ def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> d
             "assignments_dropped": dropped_from}
 
 
-def declare_local_slot(workspace_id: str, name: str, *, path: str, issued_at: str, machine: str) -> dict[str, Any]:
-    """Declare ONE local slot without touching the others, then bind it here (work-on-markdown §4).
-
-    :func:`declare` REPLACES the declared set, so the default brain cannot go through it; this
-    writes the one slot body (``repo.local``, ``context.role: brain`` and the pinned ``brain_dir``)
-    and leaves the document's ``issued_at`` alone, so a later operator declare is never stale
-    against it. A re-declared tombstone keeps its recipe, revision advanced, so the realm merge
-    ranks it above the removal.
-    """
-
-    if not _ROOT_NAME_RE.match(name):
-        raise SlotRefused(REASON_INVALID_SLOT_NAME, f"{name!r} is not a root name ([A-Za-z0-9_]+)")
-    document = load_document(workspace_id)
-    held = (document.get("slots") or {}).get(name) or {}
-    document.setdefault("slots", {})[name] = {
-        "repo": {"clone_url": None, "default_branch": "main", "local": True},
-        "toolchain": _toolchain(None),
-        "context": {**_context(None), "role": "brain", "brain_dir": LOCAL_BRAIN_DIR},
-        "recipe": _revised(held.get("recipe"), bump=bool(held)),
-        "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None,
-    }
-    document["workspace_id"] = workspace_id
-    write_document(workspace_id, document)
-    return {"document": document, "declared": [name], "bind": bind(workspace_id, name, path, issued_at=issued_at)}
-
-
 # ── this machine's fill ──────────────────────────────────────────────────────
 
 
@@ -487,7 +459,6 @@ __all__ = [
     "bind",
     "bound_path",
     "declare",
-    "declare_local_slot",
     "live_slots",
     "load_document",
     "machine_id",

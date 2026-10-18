@@ -4,24 +4,38 @@ A board is a slot plus where its brain's queue notes live. The rows are read str
 ``type: queue`` notes under ``<read root>/<brain dir>/``; nothing is copied. Tasks are keyed by
 ``(slot, ID)``, so two repos may each carry an ``RT-A``. ``read_roots`` lets W2 point a board at
 hermes's own worktree of the slot (§5 steps 1–3) instead of the operator's checkout.
+
+The default brain is NOT a declared slot (owner ruling 2026-10-18, ``RT-WORK-DEFAULT-BRAIN-REALM``):
+it is a machine-local binding, ``<work_workspace_dir(ws)>/default_brain.json``, listed as slot
+``brain`` until the move into a repo brain retires it (``agent_runtime/work/store.py::
+normalize_default_brain``). The record carries ``remote_url`` (null) for the later promotion lane.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .. import paths
 from ..workspace_slots import bound_path, live_slots, load_document
 from .grammar import Row, Status, is_queue, parse_note
 
 __layer__ = "stores"
 __all__ = [
+    "BINDING_FILE",
+    "DEFAULT_BRAIN_QUEUE_DIR",
     "DEFAULT_BRAIN_SLOT",
     "Board",
+    "binding_path",
     "boards",
     "brain_dir_of",
+    "declared_boards",
+    "default_board",
+    "first_repo_brain",
+    "read_binding",
     "has_brain_here",
     "ids_in_brain",
     "needs_default_brain",
@@ -30,8 +44,10 @@ __all__ = [
     "rows",
 ]
 
-#: The slot name the auto-created default brain is declared under (§4).
+#: The slot name the machine-local default brain is listed under (§4, ruling 2026-10-18).
 DEFAULT_BRAIN_SLOT = "brain"
+DEFAULT_BRAIN_QUEUE_DIR = "Work_Brain/20 — Active Initiatives"
+BINDING_FILE = "default_brain.json"
 _BRAIN_GLOBS = ("*_Brain/20 — Active Initiatives", "*_brain/20 — Active Initiatives")
 
 
@@ -46,6 +62,8 @@ class Board:
     local: bool
     bound_here: bool
     is_default: bool
+    #: The checkout git runs against: the slot's bound path, or the default brain's directory.
+    checkout: Path | None = None
 
 
 def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
@@ -75,15 +93,72 @@ def _board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mappi
         clone_url=repo.get("clone_url") or None,
         local=local,
         bound_here=bound_here,
-        is_default=local and name == DEFAULT_BRAIN_SLOT,
+        is_default=False,
+        checkout=path if bound_here else None,
+    )
+
+
+def declared_boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Board]:
+    """One board per live DECLARED slot, sorted by name, bound here or not (an unbound one is never read)."""
+
+    slots = live_slots(load_document(workspace_id))
+    return [_board(workspace_id, name, slots[name], read_roots or {}) for name in sorted(slots)]
+
+
+def first_repo_brain(workspace_id: str) -> Board | None:
+    """The first declared slot BY NAME whose bound checkout carries a brain.
+
+    The owner's rule is "the first bound slot in declaration order", but the slot document is keyed by
+    name and stored sorted, and every ``declare`` stamps one ``declared_at`` on the whole set, so the
+    name order is the only order the store records.
+    """
+
+    return next((board for board in declared_boards(workspace_id) if has_brain_here(board)), None)
+
+
+def binding_path(workspace_id: str) -> Path:
+    return paths.work_workspace_dir(workspace_id) / BINDING_FILE
+
+
+def read_binding(workspace_id: str) -> dict[str, Any] | None:
+    """The machine-local default-brain record, or None when there is none (or it is unreadable)."""
+
+    try:
+        record = json.loads(binding_path(workspace_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return record if isinstance(record, dict) and record.get("path") else None
+
+
+def default_board(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> Board | None:
+    """The default brain's board while its binding is live (not retired into a repo brain)."""
+
+    record = read_binding(workspace_id)
+    if record is None or record.get("retired_into"):
+        return None
+    root = Path(str(record["path"]))
+    if not (root / ".git").exists():
+        return None
+    return Board(
+        workspace_id=workspace_id,
+        slot=DEFAULT_BRAIN_SLOT,
+        read_root=(read_roots or {}).get(DEFAULT_BRAIN_SLOT) or root,
+        brain_dir=str(record.get("brain_dir") or DEFAULT_BRAIN_QUEUE_DIR),
+        default_branch=str(record.get("default_branch") or "main"),
+        clone_url=record.get("remote_url") or None,
+        local=True,
+        bound_here=True,
+        is_default=True,
+        checkout=root,
     )
 
 
 def boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Board]:
-    """One board per live slot of the workspace, bound here or not (an unbound one is listed, never read)."""
+    """The declared boards, then the default brain's while its binding is live."""
 
-    slots = live_slots(load_document(workspace_id))
-    return [_board(workspace_id, name, slots[name], read_roots or {}) for name in sorted(slots)]
+    found = declared_boards(workspace_id, read_roots=read_roots)
+    default = default_board(workspace_id, read_roots=read_roots)
+    return [*found, default] if default is not None else found
 
 
 def notes(board: Board) -> list[Path]:
@@ -144,6 +219,6 @@ def has_brain_here(board: Board) -> bool:
 
 
 def needs_default_brain(found: list[Board]) -> bool:
-    """True when no live slot's bound checkout has a brain directory — the §4 trigger."""
+    """True when no board bound here has a brain directory — the §4 trigger (pass ``declared_boards``)."""
 
     return not any(has_brain_here(board) for board in found)

@@ -1,10 +1,12 @@
-"""The default brain: a workspace with no repo brain still gets a board (plan §4, §6.1 W1).
+"""The default brain: a workspace with no repo brain still gets a board (plan §4, §6.1 W1), as a
+MACHINE-LOCAL binding — never a declared slot (owner ruling 2026-10-18).
 
 Real ``git`` in the test's own store root; the machine id is this test home's install id.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 import pytest
@@ -13,7 +15,7 @@ from agent_runtime import paths, workspace_slots
 from agent_runtime.work_store import board, default_brain
 from agent_runtime.work_store.grammar import is_queue
 from agent_runtime.work_store.reasons import Reason, WorkRefused
-from agent_runtime.workspace_slots import declare_local_slot, live_slots, load_document, machine_id
+from agent_runtime.workspace_slots import load_document, machine_id
 from work_store_support import ISSUED, LATER, bind_here, checkout, declare_slots, slot_decl
 
 
@@ -34,23 +36,23 @@ def test_skeleton_writes_todo_and_queue_with_frontmatter(tmp_path):
     assert "WORK-AAAAAA" in queue.read_text(encoding="utf-8")
 
 
-def test_ensure_default_brain_inits_commits_declares_and_binds(workspace):
+def test_ensure_default_brain_inits_commits_and_records_a_machine_local_binding(workspace):
     made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     root = paths.default_brain_dir(workspace)
     assert made.slot == "brain" and made.is_default and made.local and made.bound_here
-    assert made.read_root == root and made.brain_dir == "Work_Brain/20 — Active Initiatives"
+    assert made.read_root == root == made.checkout and made.brain_dir == "Work_Brain/20 — Active Initiatives"
     assert made.clone_url is None and made.default_branch == "main"
     assert _git(root, "log", "--format=%an <%ae>|%s").strip() == (
         f"Eternia Harness <harness+{machine_id()}@eternia.local>|work: default brain for {workspace}")
     assert _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
     assert _git(root, "remote").strip() == "" and _git(root, "status", "--porcelain") == ""
-    slot = live_slots(load_document(workspace))["brain"]
-    assert slot["repo"] == {"clone_url": None, "default_branch": "main", "local": True}
-    assert slot["context"]["role"] == "brain" and slot["declared_by_machine"] == machine_id()
-    here = workspace_slots.show(workspace)["here"]["brain"]
-    assert here["bound_here"] and here["path"] == str(root)
-    report = load_document(workspace)["machines"][machine_id()]["slots"]["brain"]
-    assert report["checkout"] == "local" and report["status"] == "ready"
+    assert "brain" not in (load_document(workspace).get("slots") or {})
+    assert "brain" not in workspace_slots.show(workspace)["here"]
+    record = json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))
+    assert record == {"slot": "brain", "path": str(root), "brain_dir": "Work_Brain/20 — Active Initiatives",
+                      "default_branch": "main", "created_at": ISSUED, "machine": machine_id(),
+                      "remote_url": None, "retired_into": None}
+    assert [b.slot for b in board.boards(workspace)] == ["brain"]
     assert not board.needs_default_brain(board.boards(workspace))
 
 
@@ -59,7 +61,7 @@ def test_ensure_is_idempotent(workspace):
     head = _git(first.read_root, "rev-parse", "HEAD")
     again = default_brain.ensure_default_brain(workspace, issued_at=LATER)
     assert again == first and _git(first.read_root, "rev-parse", "HEAD") == head
-    assert load_document(workspace)["slots"]["brain"]["issued_at"] == ISSUED
+    assert json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))["created_at"] == ISSUED
 
 
 def test_a_workspace_with_a_brain_slot_gets_none(workspace, tmp_path):
@@ -71,23 +73,7 @@ def test_a_workspace_with_a_brain_slot_gets_none(workspace, tmp_path):
     assert not paths.default_brain_dir(workspace).exists()
 
 
-def test_declare_local_slot_keeps_the_other_slots(workspace, tmp_path):
-    declare_slots(workspace, slot_decl("hermes"), slot_decl("launcher"))
-    before = load_document(workspace)
-    target = tmp_path / "local"
-    target.mkdir()
-    declare_local_slot(workspace, "brain", path=str(target), issued_at=LATER, machine="m1")
-    after = load_document(workspace)
-    assert sorted(live_slots(after)) == ["brain", "hermes", "launcher"]
-    assert {k: after["slots"][k] for k in ("hermes", "launcher")} == {k: before["slots"][k] for k in ("hermes", "launcher")}
-    # The document's declare stamp is untouched: an operator declare stamped between the two is not stale.
-    assert after["issued_at"] == before["issued_at"] == ISSUED
-    with pytest.raises(workspace_slots.SlotRefused) as bad:
-        declare_local_slot(workspace, "no-dash", path=str(target), issued_at=LATER, machine="m1")
-    assert bad.value.reason == "invalid_slot_name"
-
-
-def test_server_bound_realm_without_credential_refuses_needs_publish_right(monkeypatch):
+def test_a_server_bound_realm_builds_its_brain_without_the_publish_right(monkeypatch):
     from agent_runtime.machine_roots import machine_roots_cache_clear
     from agent_runtime.realm_sync.models import MembershipDecision, RealmMembershipProvider
     from agent_runtime.store import RealmStore, WorkspaceStore
@@ -97,11 +83,20 @@ def test_server_bound_realm_without_credential_refuses_needs_publish_right(monke
     gated = WorkspaceStore().create(name="In realm", realm_id=realm.id).id
     monkeypatch.setattr(RealmMembershipProvider, "authorize",
                         lambda self, realm, action: MembershipDecision(False, "membership_denied", "no credential"))
+    made = default_brain.ensure_default_brain(gated, issued_at=ISSUED)
+    assert made.is_default and (paths.default_brain_dir(gated) / ".git").is_dir()
+    assert "brain" not in (load_document(gated).get("slots") or {})
+
+
+def test_promote_default_brain_is_not_built_and_the_binding_can_carry_a_remote(workspace):
+    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     with pytest.raises(WorkRefused) as refused:
-        default_brain.ensure_default_brain(gated, issued_at=ISSUED)
-    assert refused.value.reason is Reason.NEEDS_PUBLISH_RIGHT
-    assert "brain" not in load_document(gated)["slots"]
-    assert not paths.default_brain_dir(gated).exists()
+        default_brain.promote_default_brain(workspace, remote_url="https://example.invalid/brain.git")
+    assert refused.value.reason is Reason.NOT_BUILT and "RT-WORK-DEFAULT-BRAIN-REMOTE" in refused.value.detail
+    record = json.loads(board.binding_path(workspace).read_text(encoding="utf-8"))
+    board.binding_path(workspace).write_text(json.dumps({**record, "remote_url": "https://example.invalid/b.git"}),
+                                             encoding="utf-8")
+    assert board.default_board(workspace).clone_url == "https://example.invalid/b.git"
 
 
 def test_a_server_less_realm_gets_its_brain(monkeypatch):

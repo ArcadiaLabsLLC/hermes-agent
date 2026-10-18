@@ -182,7 +182,7 @@ class Writer:
 
         if self.board.brain_dir is None:
             raise WorkRefused(Reason.NO_BRAIN, self.board.slot)
-        clone = bound_path(self.board.slot)
+        clone = self.board.checkout or bound_path(self.board.slot)
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         return clone
@@ -268,18 +268,36 @@ class Writer:
         return written
 
     def _append(self, op: RowOp) -> list[str]:
-        row_line = str(op.payload.get("row") or "")
+        """``payload.row`` (one line) or ``payload.rows`` (several, one commit) under the note's end."""
+
+        lines = [str(line) for line in op.payload.get("rows") or [op.payload.get("row") or ""] if line]
         written = self._write_files(op.payload.get("files") or {})
-        if not row_line:
+        if not lines:
             return written
-        defects = row_defects(row_line)
-        if defects or f"`{op.ref.id}` — " not in row_line:
-            raise WorkRefused(Reason.GRAMMAR_INVALID, "; ".join(defects) or "payload.row does not carry ref.id")
+        defects = [d for line in lines for d in row_defects(line)]
+        if defects or not any(f"`{op.ref.id}` — " in line for line in lines):
+            raise WorkRefused(Reason.GRAMMAR_INVALID, "; ".join(defects) or "payload rows do not carry ref.id")
         path, text, _rows = self._note_rows(op.ref)
-        if op.ref.id in ids_in_brain(replace(self.board, read_root=self.worktree)):
-            raise WorkRefused(Reason.ID_EXISTS, op.ref.id)
-        _write_atomic(path, text + ("" if text.endswith("\n") or not text else "\n") + row_line + "\n")
+        new_ids = [parse_note(line, slot=op.ref.slot, note=op.ref.note)[0].ref.id for line in lines]
+        clash = (set(new_ids) & ids_in_brain(replace(self.board, read_root=self.worktree))) or (
+            {i for i in new_ids if new_ids.count(i) > 1})
+        if clash:
+            raise WorkRefused(Reason.ID_EXISTS, ",".join(sorted(clash)))
+        body = "".join(line + "\n" for line in lines)
+        _write_atomic(path, text + ("" if text.endswith("\n") or not text else "\n") + body)
         return [op.ref.note, *written]
+
+    def _bulk_delete(self, op: RowOp) -> list[str]:
+        """DELETE with ``payload.ids``: every named row gone from the note in one commit (the move out)."""
+
+        path, text, rows = self._note_rows(op.ref)
+        ids = [str(i) for i in op.payload["ids"]]
+        for row_id in ids:
+            _present(replace(op, ref=replace(op.ref, id=row_id)), find(rows, row_id))
+        drop = {row.line_no - 1 for row in rows if row.ref.id in ids}
+        kept = [line for i, line in enumerate(text.split("\n")) if i not in drop]
+        _write_atomic(path, "\n".join(kept))
+        return [op.ref.note] if drop else []
 
     def _line_edit(self, op: RowOp) -> list[str]:
         path, text, rows = self._note_rows(op.ref)
@@ -341,6 +359,11 @@ class Writer:
         return self._receipt(replace(op, ref=ref), hit[0], replays=replays, pushed=not self.board.local,
                              replayed=True)
 
+    def _edit(self, op: RowOp) -> list[str]:
+        if op.op is Op.APPEND:
+            return self._append(op)
+        return self._bulk_delete(op) if op.op is Op.DELETE and "ids" in op.payload else self._line_edit(op)
+
     def _validate(self, op: RowOp) -> None:
         if not REQUEST_ID.match(op.request_id):
             raise WorkRefused(Reason.INVALID, "request_id is [A-Za-z0-9_.:-]{1,200}")
@@ -357,7 +380,7 @@ class Writer:
             hit = self._replayed(op.request_id)
             if hit is not None:
                 return self._replay_receipt(op, hit, replays)
-            changed = self._append(op) if op.op is Op.APPEND else self._line_edit(op)
+            changed = self._edit(op)
             if not changed:
                 return self._receipt(op, None, replays=replays, pushed=False, replayed=False)
             commit = self._commit(op, changed)

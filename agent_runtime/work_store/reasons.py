@@ -38,8 +38,8 @@ class Reason(StrEnum):
     GIT_UNAVAILABLE = "git_unavailable"
     MACHINE_UNIDENTIFIED = "machine_identity_unavailable"
     NO_BRAIN = "no_brain"
-    NEEDS_PUBLISH_RIGHT = "needs_publish_right"
     ASSIGNEE_UNKNOWN = "assignee_unknown"
+    NOT_BUILT = "not_built"
 
 
 class WorkRefused(ValueError):

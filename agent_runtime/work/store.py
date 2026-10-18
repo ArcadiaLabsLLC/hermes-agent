@@ -4,9 +4,15 @@ Reads come from hermes's own worktree of each slot after ``Writer.sync`` (steps 
 write is one ``Writer.apply`` of a row operation keyed by ID. A row in the ADR 0011 grammar IS a
 task; ``project`` is its wire shape. The operator's console writes as ``who="operator"``; a paired
 device writes as ``device:<id>`` and may not claim the operator's override.
+
+The default brain is machine-local (ruling 2026-10-18): once a repo slot with a brain is bound,
+``normalize_default_brain`` moves the default board's rows into that brain's ``work-queue.md`` in ONE
+commit (IDs kept), removes them from the default brain in one local commit, and retires the binding,
+so the default board drops from the list and new rows land in the repo brain.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -16,7 +22,9 @@ from typing import Any
 from agent_runtime.work_store import board as boards_store
 from agent_runtime.work_store import receipts
 from agent_runtime.work_store.board import Board
-from agent_runtime.work_store.default_brain import QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE
+from agent_runtime.work_store.default_brain import (
+    QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, retire_binding,
+)
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, STATUS, Assignee, Op, Row, RowRef, find, mint_id, parse_note,
 )
@@ -57,7 +65,57 @@ def writer_for(board: Board) -> Writer:
     return Writer(board, machine_id=machine)
 
 
+def _token_of(workspace_id: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "-", workspace_id)[:120]
+
+
+def _default_rows(default: Board) -> tuple[Writer, dict[str, list[Row]]]:
+    source = writer_for(default)
+    source.sync()
+    view = replace(default, read_root=source.worktree)
+    by_note = {path.relative_to(source.worktree).as_posix(): parse_note(
+        path.read_bytes().decode("utf-8"), slot=default.slot, note=path.relative_to(source.worktree).as_posix())
+        for path in boards_store.notes(view)}
+    return source, {note: rows for note, rows in by_note.items() if rows}
+
+
+def _move_in(target: Board, rows: list[Row], request: str) -> str | None:
+    writer = writer_for(target)
+    writer.sync()
+    note = f"{target.brain_dir}/{QUEUE_NOTE}"
+    files = {} if (writer.worktree / note).is_file() else {
+        f"{PurePosixPath(target.brain_dir or '').name}/{QUEUE_NOTE}": QUEUE_TEMPLATE}
+    payload = {"rows": [row.raw for row in rows], "files": files}
+    return writer.apply(RowOp(RowRef(target.slot, note, rows[0].ref.id), Op.APPEND, OPERATOR, request, payload)).commit
+
+
+def normalize_default_brain(workspace_id: str) -> dict[str, Any] | None:
+    """Move a live default brain's rows into the first bound repo brain, once; then retire it.
+
+    The target is ``board.first_repo_brain`` (the first declared slot by name whose checkout has a brain).
+    Every request id is derived from the workspace, so a move interrupted half way replays.
+    """
+
+    default = boards_store.default_board(workspace_id)
+    target = boards_store.first_repo_brain(workspace_id) if default is not None else None
+    if default is None or target is None:
+        return None
+    source, by_note = _default_rows(default)
+    moved = [row for rows in by_note.values() for row in rows]
+    base = f"move-default-brain:{_token_of(workspace_id)}"
+    commit = _move_in(target, moved, f"{base}:in") if moved else None
+    for note, rows in by_note.items():
+        ids = [row.ref.id for row in rows]
+        source.apply(RowOp(RowRef(default.slot, note, ids[0]), Op.DELETE, OPERATOR, f"{base}:out:{_token_of(note)}",
+                           {"ids": ids}))
+    ids = [row.ref.id for row in moved]
+    retire_binding(workspace_id, into=target.slot, at=_now().isoformat(timespec="seconds"), moved=ids)
+    return receipts.emit("work.default_brain_move", workspace_id=workspace_id, into=target.slot, ids=ids,
+                         commit=commit)
+
+
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
+    normalize_default_brain(workspace_id)
     writers: dict[str, Writer] = {}
     for board in boards_store.boards(workspace_id):
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
@@ -213,7 +271,7 @@ def _target(view: Synced, slot: Any) -> Board:
     if slot is not None:
         return _board(view, slot)
     readable = [b for b in view.boards if b.slot in view.writers]
-    chosen = next((b for b in readable if b.is_default), readable[0] if readable else None)
+    chosen = next((b for b in readable if not b.is_default), readable[0] if readable else None)
     if chosen is None:
         raise WorkRefused(Reason.NO_BRAIN, "the workspace has no board with a brain on this machine")
     return chosen
@@ -327,8 +385,7 @@ def done(scope, params, actor, *, context=None):
 def _create_default(scope, params, actor):
     from agent_runtime.work_store.default_brain import ensure_default_brain
 
-    made = ensure_default_brain(scope.workspace_id, issued_at=_now().isoformat(timespec="seconds"),
-                                credential=params.get("credential"))
+    made = ensure_default_brain(scope.workspace_id, issued_at=_now().isoformat(timespec="seconds"))
     record = receipts.emit("work.brain_create", workspace_id=scope.workspace_id, slot=made.slot, who=actor,
                            request_id=params.get("request_id"))
     return {"board": board_wire(made, None), "receipt": record}

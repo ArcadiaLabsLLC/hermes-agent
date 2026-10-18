@@ -1,8 +1,9 @@
 """Resolve the current runtime's work authority on each call.
 
 An owner is a workspace (``WorkScope(install, workspace_id)``); ``capabilities`` lists every
-workspace with an office plus the default one, and gives a workspace whose repos carry no brain
-its default brain (plan §4) — a server-bound realm answers ``needs_publish_right`` instead.
+workspace with an office plus the default one, gives a workspace whose repos carry no brain its
+machine-local default brain (plan §4, ruling 2026-10-18), and moves a default brain's rows into a
+repo brain once one is bound (``store.normalize_default_brain``).
 """
 from __future__ import annotations
 
@@ -69,18 +70,21 @@ def _label(workspace_id):
 
 
 def _default_brain_state(workspace_id):
-    from agent_runtime.work_store.board import boards, needs_default_brain
+    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
     from agent_runtime.work_store.default_brain import ensure_default_brain
 
     try:
-        if not needs_default_brain(boards(workspace_id)):
+        if not needs_default_brain(declared_boards(workspace_id)):
+            _require_git()
+            moved = store.normalize_default_brain(workspace_id)
+            return {"state": "moved", "into": moved["into"]} if moved else {"state": "absent"}
+        if default_board(workspace_id) is not None:
             return {"state": "present"}
         _require_git()
         ensure_default_brain(workspace_id, issued_at=store._now().isoformat(timespec="seconds"))
         return {"state": "created"}
     except WorkRefused as refusal:
-        state = "needs_publish_right" if refusal.reason is Reason.NEEDS_PUBLISH_RIGHT else "unavailable"
-        return {"state": state, "reason": refusal.reason.value}
+        return {"state": "unavailable", "reason": refusal.reason.value}
     except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):
         return {"state": "unavailable", "reason": Reason.UNAVAILABLE.value}
 
