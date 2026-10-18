@@ -53,6 +53,12 @@ from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse
 )
 from tests._downstream.plugin_load_memo import _plugin_load_memo  # noqa: F401 — autouse (suite speed, h3-plugins)
 from tests._downstream.plugin_module_keep import _plugin_module_keep  # noqa: F401 — autouse, opt-in env, OFF (h3-plugins)
+from tests._downstream.teardown_plugin_delivery import (  # noqa: F401 — teardown hook (suite speed, h6-collect)
+    pytest_runtest_teardown_plugin_delivery,
+)
+from tests._downstream.named_files_collect import (  # noqa: F401 — collect hook (suite speed, h6-collect)
+    pytest_ignore_collect_named_files,
+)
 from tests._downstream.version_info_scope import _version_info_scope  # noqa: F401 — autouse (q-chain)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
