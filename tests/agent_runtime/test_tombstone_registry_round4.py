@@ -331,6 +331,40 @@ def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: t
     return then is not None and test_name in then and (now is None or test_name not in now)
 
 
+_SKIP_LIST = HERMES_ROOT / "tests" / "fixtures" / "upstream_skip_list.txt"
+
+
+@functools.lru_cache(maxsize=1)
+def _unused_feature_subjects() -> frozenset[tuple[str, str]]:
+    """Every ``(module, symbol)`` a test file on an ``unused:`` skip-list row references.
+
+    Owner ruling 2026-10-18 (FORK-ROUND4-UNUSED-FEATURE): an ADR 0015 unused feature's
+    upstream subject is not the fork's loss — the fork does not ship the feature, so it
+    owes it no test. ``from pkg import module as alias`` counts here too (the upstream
+    kanban tests reach ``hermes_cli.kanban_db`` that way). A skip-list row is upstream-only
+    (``tests/scripts/test_upstream_skip_list.py``, whose row shape this reads), so every
+    subject here is upstream's.
+    """
+
+    subjects: set[tuple[str, str]] = set()
+    for line in _SKIP_LIST.read_text(encoding="utf-8").splitlines():
+        fields = [part.strip() for part in line.split(" · ")]
+        if line.startswith("#") or len(fields) != 3 or not fields[1].startswith("unused"):
+            continue
+        path = HERMES_ROOT / fields[0].split("::", 1)[0]
+        if not path.is_file():
+            continue
+        tree = _parsed(path.read_text(encoding="utf-8", errors="replace"))
+        if tree is None:
+            continue
+        direct, modules = _production_imports(tree)
+        for alias, (package, name) in direct.items():
+            if (HERMES_ROOT / package.replace(".", "/") / f"{name}.py").is_file():
+                modules.setdefault(alias, f"{package}.{name}")
+        subjects.update(_production_references(tree, direct, modules))
+    return frozenset(subjects)
+
+
 @functools.lru_cache(maxsize=1)
 def _round4_uncovered_subjects() -> tuple[str, ...]:
     """Live production symbols whose last direct test reference a deletion took.
@@ -349,6 +383,7 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
             f"Cannot read the frozen round-4 base ({_ROUND4_COVERAGE_BASE}): {exc}"
         )
         return ()
+    unused = _unused_feature_subjects()
     uncovered: list[str] = []
     for relative, base_tests in historical.items():
         current_path = HERMES_ROOT / relative
@@ -371,6 +406,7 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
                 if (
                     _live_production_symbol(subject)
                     and subject not in covered
+                    and subject not in unused
                     and not _upstream_retired_its_own_coverage(relative, test_name, subject)
                 ):
                     uncovered.append(
@@ -424,6 +460,16 @@ def test_a_fork_authored_subject_is_never_upstreams_loss():
         "test_gateway_version_command_returns_release_line",
         ("agent_runtime.profile_home", "configured_head_home"),
     )
+
+
+def test_an_unused_features_upstream_subject_is_not_the_forks_loss():
+    """The ADR 0015 exemption (owner 2026-10-18): kanban is an ``unused:`` feature, so the
+    subject its skip-listed upstream test reaches through a module alias is exempt, and
+    a subject no ``unused:`` file references stays counted."""
+
+    unused = _unused_feature_subjects()
+    assert ("hermes_cli.kanban_db", "worker_logs_dir") in unused
+    assert ("agent_runtime.profile_home", "configured_head_home") not in unused
 
 
 def test_a_test_upstream_still_carries_is_the_forks_loss():
