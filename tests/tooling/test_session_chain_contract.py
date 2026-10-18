@@ -242,6 +242,27 @@ def test_a_test_server_notices_shutdown_within_the_short_poll():
     assert took < 0.4, f"shutdown took {took:.3f} s; the poll is not {server_shutdown_poll.TEST_POLL_INTERVAL}"
 
 
+def test_teardown_delivery_stand_in_is_restored_when_get_plugin_manager_is_unpatched():
+    """``tests/_downstream/teardown_plugin_delivery.py``: a ``get_plugin_manager`` patch undone DURING the
+    teardown (``monkeypatch``'s own finalizer) must still hand ``_delivery_manager`` back, or the next test
+    delivers to the previous test's manager (TestDeliveryParity x4 + TestForceReloadSymmetry x2 red).
+    Mutation: bind the stand-in to ``plugins.get_plugin_manager`` as it was when the teardown opened."""
+
+    from tests._downstream.teardown_plugin_delivery import no_cold_discovery
+
+    real = plugins._delivery_manager
+    patch = pytest.MonkeyPatch()
+    patch.setattr(plugins, "get_plugin_manager", lambda: "the test's manager")
+    try:
+        with no_cold_discovery():
+            patch.undo()
+    finally:
+        patch.undo()
+        stuck = plugins._delivery_manager is not real
+        plugins._delivery_manager = real
+    assert not stuck
+
+
 def _two_discoveries():
     plugins._reset_plugin_managers_for_tests()
     plugins.discover_plugins()

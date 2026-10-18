@@ -34,11 +34,16 @@ def no_cold_discovery():
     if real is None:
         yield
         return
-    plugins._delivery_manager = plugins.get_plugin_manager
+    def manager_as_it_stands():
+        # Looked up per call: a ``monkeypatch`` of ``get_plugin_manager`` undone during this teardown
+        # must not leave a stand-in bound to the test's manager (the next test would deliver to it).
+        return plugins.get_plugin_manager()
+
+    plugins._delivery_manager = manager_as_it_stands
     try:
         yield
     finally:
-        if plugins._delivery_manager is plugins.get_plugin_manager:
+        if plugins._delivery_manager is manager_as_it_stands:
             plugins._delivery_manager = real
 
 
