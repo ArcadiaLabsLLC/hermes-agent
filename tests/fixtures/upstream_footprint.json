@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-10-18",
   "base": "d923a5eb48",
-  "files": 229,
-  "deleted_lines": 1032,
+  "files": 230,
+  "deleted_lines": 1035,
   "heavy": 1,
   "reasons": [
     {
@@ -1023,6 +1023,21 @@
       },
       "reason": "One additive line (`winner = None` at the loop top) in list_context_file_sources so the /context manifest stops calling files the fork's prompt loads \"shadowed\". Marked in docs/agent-runtime-harness/planned/upstream-footprint-ledger.md.",
       "owner_ruling": "2026-10-18, owner: a one-line additive carry in agent/context_file_sources.py; raise the footprint for it"
+    },
+    {
+      "change": "lane w3-misc: RT-PHONE-HISTORY-IMAGE-IMPORT (tui_gateway/session_history.py)",
+      "before": {
+        "files": 229,
+        "deleted_lines": 1032,
+        "heavy": 1
+      },
+      "after": {
+        "files": 230,
+        "deleted_lines": 1035,
+        "heavy": 1
+      },
+      "reason": "_user_image_display_text's three function-local imports (fastapi, hermes_cli.web_routers.files, hermes_cli.web_server) sit in one try/except ImportError: return None, marked '# fork:', so a native-image history row loads on the phone profile without fastapi and shows its stored text; the three deleted lines are the re-indented imports. Ledger row HELD PR in docs/agent-runtime-harness/planned/upstream-footprint-ledger.md. Control: tests/tui_gateway/test_image_history_display_downstream.py.",
+      "owner_ruling": "2026-10-18, owner: an ImportError guard in upstream tui_gateway/session_history.py::_user_image_display_text"
     }
   ]
 }
