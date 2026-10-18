@@ -386,7 +386,9 @@ def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifa
     A notify failure is downgraded to a ``warnings[]`` entry on the success
     envelope — the publish itself already landed and must not be failed.
     """
-    if credential is None:
+    if credential is None or not credential.has_backend_realm:
+        # A local realm's credential (``local:<id>``) has no backend realm row,
+        # so there is no notify route and no ``realm:`` channel to fan out on.
         return []
     commit = _git(repo, "rev-parse", "HEAD", check=False).strip()
     counts: dict[str, int] = {}

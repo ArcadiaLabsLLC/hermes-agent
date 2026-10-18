@@ -13,7 +13,7 @@ from hermes_time import now
 
 from agent_runtime.models import Realm
 from agent_runtime.realm_membership import CredentialSubject, RealmSyncCredential, select_membership_provider
-from agent_runtime.realm_sync import RealmSyncError
+from agent_runtime.realm_sync import RealmMembershipProvider, RealmSyncError
 from agent_runtime.realm_sync.git import _authorize
 
 
@@ -63,3 +63,44 @@ def test_authorize_refuses_a_course_credential_on_a_repo_less_local_realm():
     with pytest.raises(RealmSyncError) as excinfo:
         _authorize(_realm("crs_42"), "publish", None, _credential("course:crs_42"))
     assert excinfo.value.code == "sync_auth_failed"
+
+
+# --- local realms (backend 02 §4c): the credential's SOURCE changes, the stub stays ---
+
+
+def test_a_local_ref_parses_as_a_local_realm_subject():
+    credential = _credential("local:alpha")
+    assert credential.subject is CredentialSubject.LOCAL_REALM
+    assert credential.subject_id == "alpha"
+    assert credential.has_backend_realm is False
+
+
+def test_a_local_realm_keeps_the_allow_stub_under_its_own_local_credential():
+    realm = _realm("alpha", ref="https://git.test.invalid/personal.git")
+    provider = select_membership_provider(realm, _credential("local:alpha"))
+    assert type(provider) is RealmMembershipProvider
+    _authorize(realm, "publish", None, _credential("local:alpha"))  # no raise
+
+
+@pytest.mark.parametrize(
+    ("realm", "realm_id"),
+    [
+        (_realm("alpha"), "local:beta"),  # another local realm's credential
+        (_realm("alpha", server_id="srv_1"), "local:alpha"),  # a local credential on a server realm
+    ],
+)
+def test_a_local_credential_admits_only_its_own_server_less_realm(realm, realm_id):
+    with pytest.raises(RealmSyncError) as excinfo:
+        _authorize(realm, "pull", None, _credential(realm_id))
+    assert excinfo.value.code == "sync_auth_failed"
+
+
+def test_publish_never_posts_the_backend_notify_for_a_local_credential(monkeypatch, tmp_path):
+    import agent_runtime.realm_membership as membership
+    from agent_runtime.realm_sync.publish import _notify_publish
+
+    calls: list[str] = []
+    monkeypatch.setattr(membership, "_request_json", lambda method, url, **_: calls.append(url) or (404, None))
+    warnings = _notify_publish(_realm("alpha"), repo=tmp_path, artifacts=[], credential=_credential("local:alpha"))
+    assert calls == []
+    assert warnings == []

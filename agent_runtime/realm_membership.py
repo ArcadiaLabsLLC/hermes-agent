@@ -58,14 +58,19 @@ class CredentialSubject(str, Enum):
     """What the frozen credential's ``realm_id`` names (backend 02 §5, §4c;
     education git-course lane Stage 5). The key was never renamed — a subject
     ref rides in it: ``course:<id>`` is an education git course's clone
-    credential and never authorizes a realm."""
+    credential and never authorizes a realm; ``local:<hermes realm id>`` is a
+    LOCAL (server-less) realm's credential from ``POST /api/me/realms/local:<id>/
+    sync/credential`` — the personal repo's git authorization, no backend realm
+    row."""
 
     SERVER_REALM = "realm"
+    LOCAL_REALM = "local"
     COURSE = "course"
 
 
 #: ``realm_id`` prefix -> the subject it names; no prefix is a server realm id.
 _SUBJECT_PREFIXES: dict[str, CredentialSubject] = {
+    "local:": CredentialSubject.LOCAL_REALM,
     "course:": CredentialSubject.COURSE,
 }
 
@@ -135,9 +140,18 @@ class RealmSyncCredential:
         return self.realm_id
 
     def admits_realm(self, realm: Realm) -> bool:
-        """Whether this credential was minted for ``realm``. A course credential
-        admits no realm."""
+        """Whether this credential was minted for ``realm``: a server realm by its
+        id, a server-less realm by ``local:<id>`` (or its bare id, the pre-§4c
+        shape). A course credential admits no realm."""
+        if self.subject is CredentialSubject.LOCAL_REALM:
+            return not realm.server_id and self.subject_id == realm.id
         return self.subject is CredentialSubject.SERVER_REALM and self.subject_id == realm.id
+
+    @property
+    def has_backend_realm(self) -> bool:
+        """Whether the backend holds a realm row for this subject, so the
+        ``/realms/{id}/…`` routes (publish notify) exist. A local realm has none."""
+        return self.subject is CredentialSubject.SERVER_REALM
 
     def git_extra_config(self) -> list[str]:
         """Per-invocation git config — never written to .git/config, never logged."""
