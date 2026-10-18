@@ -48,6 +48,7 @@ from tests._downstream.plugin_discovery_cache import (  # noqa: F401 — autouse
     _plugin_discovery_cache,
     cold_plugin_discovery,
 )
+from tests._downstream.version_info_scope import _version_info_scope  # noqa: F401 — autouse (q-chain)
 from tests._downstream.git_audit import (  # noqa: F401 — hook re-exports (opt-in, design sweep D3.16)
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
@@ -61,7 +62,7 @@ from tests._downstream.child_job import (  # noqa: F401 — hook and fixture re-
     _children_die_with_the_test,
     pytest_configure_child_job,
 )
-from tests._downstream import registry_write_fence
+from tests._downstream import child_startup, registry_write_fence
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -75,6 +76,8 @@ from tests._downstream.id_markers.reasons import (
 
 # Process-wide, at import: no test in this process writes the real Windows registry.
 registry_write_fence.install()
+# Process-wide, at import: every child a test spawns inherits the start-up shortcut (q-chain).
+child_startup.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
