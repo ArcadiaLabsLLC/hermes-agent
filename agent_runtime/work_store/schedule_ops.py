@@ -23,7 +23,7 @@ __layer__ = "lanes"
 __all__ = ["OPS", "execute"]
 
 
-def _key(params: Mapping[str, Any]) -> str:
+def _schedule_key(params: Mapping[str, Any]) -> str:
     key = str(params.get("key") or "").strip()
     if not key:
         raise WorkRefused(Reason.INVALID, "key is required")
@@ -41,7 +41,7 @@ def _trigger(params: Mapping[str, Any]) -> Trigger:
 
 
 def _arm(scheduler: ServeTickScheduler, params: Mapping[str, Any], armed_by: str) -> dict[str, Any]:
-    key = _key(params)
+    key = _schedule_key(params)
     raw_action = params.get("action")
     if not isinstance(raw_action, Mapping):
         raise WorkRefused(Reason.INVALID, "action is required")
@@ -51,7 +51,7 @@ def _arm(scheduler: ServeTickScheduler, params: Mapping[str, Any], armed_by: str
 
 
 def _disarm(scheduler: ServeTickScheduler, params: Mapping[str, Any], _armed_by: str) -> dict[str, Any]:
-    key = _key(params)
+    key = _schedule_key(params)
     return {"key": key, "disarmed": scheduler.disarm(key)}
 
 

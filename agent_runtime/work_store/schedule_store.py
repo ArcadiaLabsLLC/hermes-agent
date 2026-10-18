@@ -168,7 +168,7 @@ def save(record: ScheduleRecord) -> None:
     write_json_atomic(path, record.wire())
 
 
-def _read(path: Path) -> ScheduleRecord | None:
+def _read_record(path: Path) -> ScheduleRecord | None:
     try:
         return ScheduleRecord.from_wire(json.loads(path.read_text(encoding="utf-8")))
     except FileNotFoundError:
@@ -181,7 +181,7 @@ def _read(path: Path) -> ScheduleRecord | None:
 def load_one(key: str) -> ScheduleRecord | None:
     """The record armed under ``key``; a different key on the same file name refuses ``schedule_invalid``."""
 
-    record = _read(_path(key))
+    record = _read_record(_path(key))
     if record is not None and record.key != key:
         raise WorkRefused(Reason.SCHEDULE_INVALID, f"schedule key {key!r} collides with {record.key!r}")
     return record
@@ -193,7 +193,7 @@ def load_all() -> list[ScheduleRecord]:
     base = paths.schedules_dir()
     if not base.is_dir():
         return []
-    records = [record for record in map(_read, sorted(base.glob("*.json"))) if record is not None]
+    records = [record for record in map(_read_record, sorted(base.glob("*.json"))) if record is not None]
     return sorted(records, key=lambda record: record.key)
 
 
