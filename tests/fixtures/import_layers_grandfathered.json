@@ -66,6 +66,7 @@
   "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_persist_dispatch",
   "scripts/generate_agent_runtime_stream_fixtures.py|tools.async_delegation|_transaction",
   "tests/_downstream/hermes_cli_conftest/isolation.py|hermes_constants|_get_platform_default_hermes_home",
+  "tests/_downstream/plugin_module_keep.py|hermes_cli.plugins_loader|_evict_modules",
   "tools/tool_defs_observability.py|tools.registry.registry|_generation"
  ],
  "private_upstream_imports": [
