@@ -39,6 +39,7 @@ __all__ = [
     "_collect_config_authorities",
     "_collect_skill_registries",
     "_collect_event_rotation",
+    "_collect_lens_store",
     "_fingerprint_over",
     "build_input_fingerprint",
     "build_stamp_token",
@@ -63,9 +64,9 @@ def build_input_fingerprint() -> CoreFingerprint | None:
     loud refusal here, because the alternative is serving unlabeled stale as
     authoritative.
 
-    The seven input classes, each resolved through the authority the BUILD
+    The eight input classes, each resolved through the authority the BUILD
     reads through (§6.1's first mitigation — one authority, no second list).
-    Four of them resolve HOME-RELATIVE and are therefore taken under
+    Five of them resolve HOME-RELATIVE and are therefore taken under
     :func:`_pinned_to_fingerprint_home`, so the answer is a function of the
     store and of the home this process resolved once, never of the
     ``HERMES_HOME`` the build itself exports mid-walk. Which classes are pinned
@@ -344,7 +345,26 @@ def _collect_event_rotation(entries: list[FingerprintEntry]) -> bool:
     return True
 
 
-#: The seven input classes, IN ORDER (the order is the entries' order before
+def _collect_lens_store(entries: list[FingerprintEntry]) -> bool:
+    """Input class 8 — the Lens store the frame's ``lens`` section folds.
+
+    Resolved through ``lens.store.default_path()`` plus its WAL siblings (the
+    store runs WAL, so a write lands in ``-wal`` first). PINNED: it hangs off
+    the HERMES home. An absent store is the stable ``-1/-1`` entry.
+    """
+
+    try:
+        from ..lens.store import default_path
+
+        with _pinned_to_fingerprint_home():
+            lens_db = default_path()
+        _db_entries(lens_db, entries)
+    except Exception:
+        return False
+    return True
+
+
+#: The eight input classes, IN ORDER (the order is the entries' order before
 #: :func:`_fingerprint_over` sorts them, and the order refusals are met in).
 #: ``pinned`` states whether the class resolves HOME-RELATIVE and is therefore
 #: taken under :func:`_pinned_to_fingerprint_home` — part of the specification,
@@ -358,6 +378,7 @@ INPUT_CLASSES: tuple[InputClass, ...] = (
     InputClass("config_authorities", pinned=True, collect=_collect_config_authorities),
     InputClass("skill_registries", pinned=True, collect=_collect_skill_registries),
     InputClass("event_rotation", pinned=False, collect=_collect_event_rotation),
+    InputClass("lens_store", pinned=True, collect=_collect_lens_store),
 )
 
 
