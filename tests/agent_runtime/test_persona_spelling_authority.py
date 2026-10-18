@@ -730,7 +730,7 @@ def test_redeliver_is_reachable_from_the_cli(isolate_agent_runtime_root):
 # --------------------------------------------------------------------------- #
 
 
-def _retired_root(db, *, persona_id="dev", placement_id="dev_agent_retired"):
+def _retired_root(db, *, persona_id="dev", placement_id="dev_agent_retired_agent_1"):
     """A placement instance with its own chat root, then retired: the root stays."""
 
     store = PersonaInstanceStore()

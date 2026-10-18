@@ -453,7 +453,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### The ghost agent — filed 2026-09-11 from the office removal-lane fix
 
-- **`RT-AGENT-CREATE-REFUSES-UNMARKED` — `agent.create` refuses an unmarked placement id; the office write lane accepts one, and that pair is how the ghost was minted** · `hermes` · `perform_agent_create` answers `placement_id_not_discriminable` ("supply the `<persona-token>_agent_<hex8>` shape"), but `PersonaInstanceStore.add_instance` takes any token and `OfficeStore.upsert_actor` will place the result, so `persona instance create` + a scene save produces an instance-backed actor with no marker — `personainst_chara_a2_7b31d0e4`, the 09-11 ghost. Either the second route should mint marked ids or the create door's refusal is protecting a discriminator nothing else relies on any more. Needs a ruling, not a patch; the launcher no longer depends on the marker for its archive lane. · `agent_runtime/agent_create/`, `agent_runtime/persona_assignments.py` `add_instance`; the pin that the refusal still exists is `test_the_placement_verb_really_does_refuse_this_id_shape` in `tests/agent_runtime/test_persona_instance_unplaced.py`. · RULED 2026-10-15 owner: mark ids everywhere, so there is one id shape and one rule · READY 2026-10-16 · **TAKEN 2026-10-18 w2-office**
 
 ### Runtime observability — filed 2026-09-06 from the post-rebuild field run
 

@@ -296,7 +296,7 @@ def test_bare_persona_out_of_scope_siblings_are_not_counted(tmp_path, monkeypatc
     _seed_dev_scoped(
         monkeypatch,
         tmp_path,
-        [("dev_far_1", "ws_far_1"), ("dev_far_2", "ws_far_2")],
+        [("dev_far_1_agent_1", "ws_far_1"), ("dev_far_2_agent_1", "ws_far_2")],
         active="ws_home",
     )
     out = _run_bare_dev(capsys)
@@ -312,7 +312,7 @@ def test_bare_persona_two_in_scope_duplicates_still_refused_with_only_those(tmp_
     _seed_dev_scoped(
         monkeypatch,
         tmp_path,
-        [("dev_agent_2", "ws_home"), ("dev_agent_3", "ws_home"), ("dev_far", "ws_far")],
+        [("dev_agent_2", "ws_home"), ("dev_agent_3", "ws_home"), ("dev_far_agent_1", "ws_far")],
         active="ws_home",
     )
     out = _run_bare_dev(capsys)
@@ -322,7 +322,7 @@ def test_bare_persona_two_in_scope_duplicates_still_refused_with_only_those(tmp_
     assert handles == {"personainst_dev_agent_2", "personainst_dev_agent_3"}
     # The shadowed canonical row and the out-of-scope placement are both excluded.
     assert "personainst_dev" not in handles
-    assert "personainst_dev_far" not in handles
+    assert "personainst_dev_far_agent_1" not in handles
 
 
 def test_explicit_handle_targeting_out_of_scope_instance_is_allowed(tmp_path, monkeypatch, capsys):
@@ -332,10 +332,10 @@ def test_explicit_handle_targeting_out_of_scope_instance_is_allowed(tmp_path, mo
     _seed_dev_scoped(
         monkeypatch,
         tmp_path,
-        [("dev_agent_2", "ws_home"), ("dev_far", "ws_far")],
+        [("dev_agent_2", "ws_home"), ("dev_far_agent_1", "ws_far")],
         active="ws_home",
     )
-    out = _run_bare_dev(capsys, persona="personainst_dev_far")
+    out = _run_bare_dev(capsys, persona="personainst_dev_far_agent_1")
     assert "ambiguous_target" not in _emitted_error_kinds(out)
 
 
@@ -444,7 +444,7 @@ def test_bare_persona_canonical_with_no_placement_routes_to_canonical(tmp_path, 
         _mission_chat_target_decision,
     )
 
-    store = _seed_dev_scoped(monkeypatch, tmp_path, [("dev_far", "ws_far")], active="ws_home")
+    store = _seed_dev_scoped(monkeypatch, tmp_path, [("dev_far_agent_1", "ws_far")], active="ws_home")
     decision = _mission_chat_target_decision(
         instance_store=store,
         normalized_persona="dev",

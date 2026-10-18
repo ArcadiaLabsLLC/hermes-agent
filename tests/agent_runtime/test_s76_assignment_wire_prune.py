@@ -141,7 +141,7 @@ def test_the_instance_row_keeps_the_assignment_pointer_the_launcher_parses():
 
     _seed_persona()
     instance = PersonaInstanceStore().add_instance(
-        persona_id="dev", placement_id="wire_prune", display_name="Dev"
+        persona_id="dev", placement_id="wire_prune_agent_1", display_name="Dev"
     )
     rows = build_snapshot()["persona_instances"]
     assert "current_assignment_id" in rows[instance.id]
