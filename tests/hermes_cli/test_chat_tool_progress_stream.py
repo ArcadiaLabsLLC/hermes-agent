@@ -274,7 +274,7 @@ def test_upstream_compaction_status_reaches_the_stream_as_context_compaction_fra
     log = EventLog()
     sink = ChatProgressSink(session_id="chat_1", persona_id="dev", event_log=log, on_trace=emitter.progress)
     status = StatusEmitter(SimpleNamespace(progress_callback=sink.callback()), {})
-    agent = SimpleNamespace(status_callback=status.emit)
+    agent = SimpleNamespace(status_callback=status.sink())
 
     agent.status_callback("lifecycle", "Preflight: loading tools")
     agent.status_callback("lifecycle", COMPACTION_STATUS)

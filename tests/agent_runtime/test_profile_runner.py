@@ -61,7 +61,7 @@ class ProviderTimingAgent(FakeAgent):
         self.status_callback = kwargs.get("status_callback")
 
     def run_conversation(self, user_message, system_message=None, task_id=None):
-        self.status_callback(
+        self.status_callback.receipt(
             {
                 "type": "run.progress",
                 "phase": "timing",
@@ -77,7 +77,7 @@ class ProviderTimingAgent(FakeAgent):
                 },
             }
         )
-        self.status_callback(
+        self.status_callback.receipt(
             {
                 "type": "run.progress",
                 "phase": "timing",

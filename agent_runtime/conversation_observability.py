@@ -3,6 +3,8 @@ import logging
 import time
 from typing import Any, Optional
 
+from agent_runtime.receipt_sink import agent_receipt_callback
+
 __layer__ = "policy"
 
 CONVERSATION_REQUEST_ASSEMBLED_STEP = "conversation_request_assembled"
@@ -68,7 +70,7 @@ def _emit_conversation_timing(
     **extra: Any,
 ) -> int:
     duration_ms = max(0, int((time.perf_counter() - started) * 1000))
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is not None:
         try:
             callback(
@@ -104,7 +106,7 @@ def _emit_request_assembled_marker(agent: Any, **extra: Any) -> None:
     first-mark-wins keeps the first attempt's instant.
     """
 
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is None:
         return
     try:
@@ -138,7 +140,7 @@ def _emit_phase_marker(agent: Any, step: str) -> None:
         from agent_runtime.request_build_timing import note_preflight_done
 
         note_preflight_done(agent)
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is None:
         return
     try:

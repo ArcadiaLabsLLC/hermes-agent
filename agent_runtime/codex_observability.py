@@ -53,6 +53,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterator
 
+from agent_runtime.receipt_sink import agent_receipt_callback
+
 __layer__ = "stores"
 
 logger = logging.getLogger(__name__)
@@ -110,7 +112,7 @@ def _emit_provider_timing(
     timing_values: Dict[str, int] | None = None,
     **extra: Any,
 ) -> None:
-    callback = getattr(agent, "status_callback", None)
+    callback = agent_receipt_callback(agent)
     if callback is None:
         return
     try:

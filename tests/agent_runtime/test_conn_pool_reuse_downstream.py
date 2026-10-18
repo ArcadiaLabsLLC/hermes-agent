@@ -25,6 +25,7 @@ import pytest
 
 from agent import process_bootstrap
 from agent_runtime import provider_preconnect
+from agent_runtime.receipt_sink import ReceiptSink
 
 MODEL = "gpt-5.6-luna"
 
@@ -196,7 +197,7 @@ def test_a_prewarmed_first_turn_has_no_lead_in(server):
         if isinstance(payload, dict) and isinstance(payload.get("timing_values"), dict):
             values.append(payload["timing_values"])
 
-    agent = _agent(server, status_callback=_status)
+    agent = _agent(server, status_callback=ReceiptSink(_status))
     i18n.reset_language_cache()
     timing: dict = {}
     warm_first_turn_paths(agent, timing)

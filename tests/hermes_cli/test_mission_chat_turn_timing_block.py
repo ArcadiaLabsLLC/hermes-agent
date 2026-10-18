@@ -531,7 +531,7 @@ def test_the_provider_span_rides_from_the_dispatch_middleware_to_the_block():
 
     timing: dict = {}
     emitter = StatusEmitter(SimpleNamespace(progress_callback=None), timing)
-    agent = SimpleNamespace(status_callback=emitter.emit)
+    agent = SimpleNamespace(status_callback=emitter.sink())
     with bind_persona_turn_agent(agent):
         assert conversation_observability.time_provider_dispatch(
             None, lambda: "reply", api_call_count=1, api_mode="codex_responses",

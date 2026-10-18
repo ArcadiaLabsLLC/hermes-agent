@@ -42,6 +42,7 @@ from agent_runtime.conversation_observability import (
     CONVERSATION_PROVIDER_RETURNED_STEP,
     _emit_phase_marker,
 )
+from agent_runtime.receipt_sink import ReceiptSink
 
 _LOOP_STAMP_STEPS = (
     CONVERSATION_STARTED_STEP,
@@ -506,7 +507,7 @@ def test_the_loop_marker_and_the_mapper_agree_on_the_step():
     from agent_runtime.conversation_observability import _emit_request_assembled_marker
 
     captured: list[dict] = []
-    agent = SimpleNamespace(status_callback=captured.append)
+    agent = SimpleNamespace(status_callback=ReceiptSink(captured.append))
     _emit_request_assembled_marker(agent, api_call_count=1)
     assert len(captured) == 1
     marks = TurnPhaseMarks(monotonic=_TickClock(), wall_now=lambda: "stamp")

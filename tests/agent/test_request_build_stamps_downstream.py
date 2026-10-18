@@ -15,6 +15,7 @@ import pytest
 
 from agent_runtime.conversation_observability import CONVERSATION_PREFLIGHT_DONE_STEP, _emit_phase_marker
 from agent_runtime.request_build_timing import REQUEST_BUILD_PARTS, REQUEST_BUILD_STEP, timing_value_key
+from agent_runtime.receipt_sink import ReceiptSink
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def agent(tmp_path, monkeypatch):
     built._cached_system_prompt = "SYS"
     built._empty_content_retries = 0
     built.payloads = []
-    built.status_callback = built.payloads.append
+    built.status_callback = ReceiptSink(built.payloads.append)
     return built
 
 
@@ -75,7 +76,7 @@ def test_the_runner_records_the_split_into_profile_timing(agent):
 
     timing: dict = {}
     emitter = StatusEmitter(type("R", (), {"progress_callback": None})(), timing)
-    agent.status_callback = emitter.emit
+    agent.status_callback = emitter.sink()
     _emit_phase_marker(agent, CONVERSATION_PREFLIGHT_DONE_STEP)
     _build(agent)
 
@@ -88,5 +89,5 @@ def test_a_raising_status_callback_never_fails_the_build(agent):
     def boom(_payload):
         raise RuntimeError("sink down")
 
-    agent.status_callback = boom
+    agent.status_callback = ReceiptSink(boom)
     assert _build(agent).action == "fallthrough"

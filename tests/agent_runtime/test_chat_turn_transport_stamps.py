@@ -35,6 +35,7 @@ from agent_runtime.mission_chat_phases import (
     turn_timing_block,
 )
 from agent_runtime.transport_phase_trace import install_transport_phase_trace
+from agent_runtime.receipt_sink import ReceiptSink
 
 _NEW_MARKS = (
     "conversation_started",
@@ -101,7 +102,7 @@ def local_server():
 
 
 def _agent(steps: list[str]):
-    return SimpleNamespace(status_callback=lambda payload: steps.append(payload.get("step")))
+    return SimpleNamespace(status_callback=ReceiptSink(lambda payload: steps.append(payload.get("step"))))
 
 
 def test_a_live_request_announces_client_sent_and_headers_but_no_tls(local_server):
@@ -166,7 +167,7 @@ class _AnthropicHost:
     api_mode = "chat_completions"  # skip the credential refresh: this pins the stamp seam only
 
     def __init__(self, steps, cached=None):
-        self.status_callback = lambda payload: steps.append(payload.get("step"))
+        self.status_callback = ReceiptSink(lambda payload: steps.append(payload.get("step")))
         self._cached = cached
         self.built = []
 
@@ -216,7 +217,7 @@ class _OpenAIHost:
         import threading as _threading
 
         self.api_mode = api_mode
-        self.status_callback = lambda payload: steps.append(payload.get("step"))
+        self.status_callback = ReceiptSink(lambda payload: steps.append(payload.get("step")))
         self._cached = cached
         self._client_kwargs = {"base_url": "http://127.0.0.1/v1"}
         self._lock = _threading.RLock()

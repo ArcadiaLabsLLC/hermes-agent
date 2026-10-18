@@ -22,6 +22,7 @@ import pytest
 
 from agent_runtime.conversation_observability import CONVERSATION_REQUEST_ASSEMBLED_STEP
 from agent_runtime.persona_turn_binding import bind_persona_turn_agent
+from agent_runtime.receipt_sink import ReceiptSink
 
 
 @pytest.fixture()
@@ -66,7 +67,7 @@ def _run_observed(loop_agent, *, bound: bool) -> list[str]:
         if isinstance(payload, dict) and payload.get("step") == "conversation_provider_dispatch":
             order.append("span")
 
-    loop_agent.status_callback = _observe
+    loop_agent.status_callback = ReceiptSink(_observe)
 
     def _provider_call(*args, **kwargs):
         order.append("provider_call")
