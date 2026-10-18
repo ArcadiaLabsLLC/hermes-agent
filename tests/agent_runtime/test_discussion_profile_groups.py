@@ -10,7 +10,7 @@ from agent_runtime.discussions.rpc import execute
 from agent_runtime.discussions.run_values import DiscussionError
 from agent_runtime.discussions.service import DiscussionService
 from tests.agent_runtime.conversation_support import WorkerFactory
-from tests.agent_runtime.test_discussion_runtime import wait_until
+from tests.agent_runtime.test_discussion_runtime import room_timings, wait_until
 
 pytestmark = pytest.mark.timeout(90)
 
@@ -23,7 +23,7 @@ def groups(tmp_path):
     conversations = ConversationService(tmp_path / "runtime", "install", profile_home=lambda p: tmp_path / p,
                                       worker_factory=factory)
     context = NativeContext(tmp_path / "runtime", tmp_path / "home", "install")
-    service = DiscussionService(context, active_poll_interval=.02, conversations=lambda: conversations)
+    service = DiscussionService(context, **room_timings(), conversations=lambda: conversations)
     service.start()
     yield service, conversations, factory, tmp_path
     service.close()
