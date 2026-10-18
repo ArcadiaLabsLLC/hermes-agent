@@ -19,8 +19,38 @@ import sys
 from pathlib import Path
 
 COVERAGE_RC_ENV = "HERMES_TEST_COVERAGE_RC"
+#: test files whose red writes real machine state (the user PATH, the registry): run once,
+#: alone, never re-run (``run_once``). One repo-relative path per line; ``#`` starts the why.
+RUN_ONCE_LIST = Path(__file__).resolve().parent / "test_files_run_once.txt"
 #: the argument that makes this file a Job Object wrapper (``__main__``)
 JOB_FLAG = "--job"
+
+
+def run_once_list(path: Path = RUN_ONCE_LIST) -> frozenset[str]:
+    """The listed files (repo-relative POSIX); a missing list is empty."""
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(entry for line in lines if (entry := line.split("#", 1)[0].strip()))
+
+
+def run_once(file: Path, listed: frozenset[str] | None = None) -> bool:
+    """Whether ``file`` is on the run-once list: the upstream runner's retry loop stops on it
+    (``run_tests_parallel._run_one_file``), so a red that wrote the user PATH writes it once
+    (build-1011-B5 D3.15: the install.ps1 fence mutation wrote it twice). The bundled runner
+    runs a listed file alone and never shards it (``run_tests_bundled.load_unbundled``)."""
+
+    listed = run_once_list() if listed is None else listed
+    if not listed:
+        return False
+    rel = Path(os.path.relpath(_abs(file), RUN_ONCE_LIST.parent.parent)).as_posix()
+    return rel in listed
+
+
+def _abs(file) -> str:
+    return os.path.abspath(str(file))
 
 
 def job_prefix() -> list[str]:
@@ -31,9 +61,51 @@ def job_prefix() -> list[str]:
     return [sys.executable, "-I", "-S", str(Path(__file__).resolve()), JOB_FLAG, "--"]
 
 
-def pytest_argv(file: Path, pytest_args: list[str]) -> list[str]:
+#: pytest short flags that consume the next token (the upstream runner's ``PYTEST_VALUE_FLAGS``)
+_VALUE_FLAGS = frozenset({"-k", "-m", "-p", "-o", "-c", "-r", "-W"})
+
+
+def _file_key(path) -> str:
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def node_selectors(argv: list[str]) -> tuple[dict[str, list[str]], str | None]:
+    """The node ids named on the runner's command line, by file, and the ``-k`` expression
+    the upstream runner injects for them (its node-id translation: every file runs with
+    ``-k <leaf or leaf…>``, so a file named beside a node id ran 0 tests — q-runner,
+    2026-10-18). Tokens after ``--`` and values of value-taking flags are not paths."""
+
+    nodes: dict[str, list[str]] = {}
+    leaves: list[str] = []
+    previous = ""
+    for token in argv:
+        if token == "--":
+            break
+        if "::" in token and not token.startswith("-") and previous not in _VALUE_FLAGS:
+            file_part, _, selector = token.partition("::")
+            nodes.setdefault(_file_key(file_part), []).append(selector)
+            leaves.append(selector.rsplit("::", 1)[-1].split("[", 1)[0])
+        previous = token
+    return nodes, (" or ".join(dict.fromkeys(leaves)) if leaves else None)
+
+
+def _select_nodes(file: Path, pytest_args: list[str], argv: list[str]) -> tuple[list[str], list[str]]:
+    """``(targets, pytest_args)`` for one file: when the upstream runner injected its node-id
+    ``-k``, drop it and name the file's own node ids instead (a file named plainly runs whole)."""
+
+    nodes, expr = node_selectors(argv)
+    pair = next((i for i in range(len(pytest_args) - 1) if pytest_args[i:i + 2] == ["-k", expr]), None)
+    if expr is None or pair is None:
+        return [str(file)], pytest_args
+    args = pytest_args[:pair] + pytest_args[pair + 2:]
+    selectors = nodes.get(_file_key(file))
+    return ([f"{file}::{sel}" for sel in selectors] if selectors else [str(file)]), args
+
+
+def pytest_argv(file: Path, pytest_args: list[str], argv: list[str] | None = None) -> list[str]:
     """``python -m pytest <file> …``, wrapped in ``coverage run`` when asked, and in
-    the Job Object wrapper on Windows (``job_prefix``).
+    the Job Object wrapper on Windows (``job_prefix``). A file the command line named
+    by node id runs those nodes; every other file runs whole (``_select_nodes``).
 
     The coverage wrap is the seam ``scripts/unreachable_branch_report.py`` measures
     through. Without it the report would have to re-implement ``run_tests.sh``'s
@@ -49,7 +121,8 @@ def pytest_argv(file: Path, pytest_args: list[str]) -> list[str]:
     """
     rcfile = os.environ.get(COVERAGE_RC_ENV, "").strip()
     prefix = ["-m", "coverage", "run", f"--rcfile={rcfile}"] if rcfile else []
-    return [*job_prefix(), sys.executable, *prefix, "-m", "pytest", str(file), *pytest_args]
+    targets, pytest_args = _select_nodes(file, pytest_args, sys.argv[1:] if argv is None else argv)
+    return [*job_prefix(), sys.executable, *prefix, "-m", "pytest", *targets, *pytest_args]
 
 
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9

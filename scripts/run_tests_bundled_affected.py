@@ -8,7 +8,10 @@ when (``select_affected``):
 * its LATEST record in the gate store (``deps.jsonl`` / ``modsets.jsonl``) names a
   changed path: a module the FILE loaded or named itself (``mown``: ``loaded <path>
   (recorded)`` / ``imports <path> (recorded)`` — the recorder's ``mods_own`` and
-  ``mods_ref``, exact), or, for a record written before the recorder kept those, a
+  ``mods_ref``, exact) or a module of that set which imports a changed path directly
+  (``loaded <m> (recorded), which reaches <path>``: an earlier bundle member loaded
+  the changed module, so no event named it for this file), or, for a record written
+  before the recorder kept those, a
   module its process imported that the file's own import chain also reaches
   (``imports <path>`` / ``reaches <path> (import chain)``; a recorded module set is
   the whole process's, see ``ImportGraph``), a non-``.py`` file it opened
@@ -314,6 +317,8 @@ def select_affected(
             why = hit and (f"imports {hit} (recorded)" if hit in named else f"loaded {hit} (recorded)")
             if hit in named:
                 direct.add(rel)
+            if why is None:  # a module it loaded or named reaches the change, which an earlier member loaded
+                why = _via_recorded(record, modsets, reached, changed)
         else:
             in_mods = set().union(*(digest_hits.get(d, set()) for d in record.mods))
             covered.update(in_mods)
@@ -356,6 +361,17 @@ def select_affected(
         if pick.group == REST and (pick.rel in direct or rel_direct(reached, pick.rel)):
             pick.group = DIRECT
     return sel
+
+
+def _via_recorded(record, modsets, reached: Mapping[str, Tuple[str, bool]], changed: set) -> Optional[str]:
+    """A module the file loaded or named itself whose import chain reaches a changed module
+    within ``REACH_DEPTH`` hops: CPython fires ``import`` once per process, so when an earlier
+    bundle member already loaded the changed module, the file's own set names only the
+    intermediate (r-recorder ``1bf2272916``; q-runner 2026-10-18)."""
+
+    mine = set().union(*(modsets.get(d, ()) for d in record.mown))
+    via = min((p for p in mine - changed - {record.rel} if p in reached and reached[p][1]), default=None)
+    return via and f"loaded {via} (recorded), which reaches {reached[via][0]}"
 
 
 def _listing_counts(records: Iterable["cache.StoredDeps"], dirs: Mapping[str, str]) -> Dict[str, int]:
@@ -435,12 +451,21 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
     rc = 0
     first_red: List[str] = []
     for number, wave in enumerate(waves, 1):
-        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], durations,
-                       first_red, started)
+        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], os_keyed(durations),
+                       first_red, started, store.runs)
         if rc and args.fail_fast:
             print(f"--fail-fast: stopped after wave {number} of {len(waves)} ({wave_name(wave)})")
             return rc
     return rc
+
+
+def os_keyed(durations: Mapping[str, float]) -> Dict[str, float]:
+    """The store's POSIX-keyed durations in the runner's spelling too (``run_tests_parallel._format_file``:
+    OS separators), as the gate hands them over (``GateRun.durations``). Without it every
+    estimate on Windows was the 30 s default: no file ran solo, none sharded, and the
+    100-190 s files sat in path-ordered bundles in series (q-runner 2026-10-18)."""
+
+    return {**durations, **{str(Path(rel)): s for rel, s in durations.items()}}
 
 
 def fail_fast_waves(picks: Sequence[Pick]) -> List[List[Pick]]:
@@ -457,8 +482,15 @@ def wave_name(wave: Sequence[Pick]) -> str:
 
 
 def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List[Path], durations,
-              first_red: List[str], run_started: float) -> int:
+              first_red: List[str], run_started: float, runs: Path) -> int:
     done = [0]
+    # the gate's solo policy and shard plan (known reds once, alone; a slow file split by node id
+    # when the wave is tail-bound): a hub-module edit selects a few 100-190 s files (q-runner)
+    known = runner.plan.load_known_reds(repo_root, runs)
+    policy = runner._solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known,
+                                 runner.plan.load_timed_out(repo_root, runs))
+    policy = runner._with_shards(policy, files, repo_root, durations, args.jobs, runs)
+    print(f"wave: {len(files)} file(s), {policy.shards.line()}, -j {args.jobs}", flush=True)
 
     def progress(outcome) -> None:
         done[0] += 1
@@ -475,9 +507,11 @@ def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List
     started = time.monotonic()
     result = runner.run(
         files, pytest_args, repo_root, jobs=args.jobs, bundle_size=args.bundle_size,
-        unbundled=runner.load_unbundled(args.unbundled_list), flat_timeout=args.file_timeout,
+        unbundled=runner.unbundled_files(args.unbundled_list), flat_timeout=args.file_timeout,
         retries=args.file_retries, durations=durations, bundle_seconds=args.bundle_seconds,
-        solo_seconds=args.solo_seconds, on_outcome=progress,
+        solo_seconds=args.solo_seconds, known_reds=known, solo_policy=policy, on_outcome=progress,
     )
     elapsed = time.monotonic() - started
+    for line in policy.closing_lines():  # unsharded-list candidates
+        print(line)
     return runner._print_summary(result, files, repo_root, elapsed, args.jobs, result.ledger.summary(args.jobs))

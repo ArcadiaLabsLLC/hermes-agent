@@ -178,6 +178,39 @@ def test_an_import_system_listing_is_recorded_apart_from_a_plain_listing_with_th
     assert {"pkgx", "sub"} <= i.inames, "the last dotted component of every module the process tried"
 
 
+_FILE_WALKED = '''
+import os
+
+def test_lists_its_own_folder_on_purpose():
+    assert "data" in os.listdir(os.path.join(os.path.dirname(__file__), "..", "..", "walked"))
+'''
+
+
+@pytest.mark.timeout(150)
+def test_pytest_collection_walk_is_no_listing_but_a_tests_own_listing_is(tmp_path):
+    """q-runner 2026-10-18: pytest's collection lists the root, ``tests`` and the file's own
+    folder (6,733 of 6,736 store records listed ``.``), so any new top-level or sibling file
+    missed every green. Those listings are pytest's walk, not the file's: dropped."""
+
+    root = tmp_path / "proj"
+    (root / "tests" / "sub").mkdir(parents=True)
+    (root / "walked" / "data").mkdir(parents=True)
+    (root / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (root / "tests" / "sub" / "test_w.py").write_text(_FILE_WALKED, encoding="utf-8")
+    (root / "tests" / "sub" / "test_sibling.py").write_text("def test_x():\n    pass\n", encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(_PLUGIN_DIR), str(root)])}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "hermes_dep_record",
+         f"--hermes-gate-deps={tmp_path / 'deps'}", "tests/sub/test_w.py"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    w = cache.DepsCollector(tmp_path / "deps").poll()["tests/sub/test_w.py"]
+    assert not {".", "tests", "tests/sub"} & w.dirs, f"pytest's collection walk recorded as a listing: {sorted(w.dirs)}"
+    assert "walked" in w.dirs, "the test's own listing keeps its whole key"
+
+
 def test_the_store_is_the_primary_checkouts_unless_overridden(tmp_path):
     primary, worktree = tmp_path / "primary", tmp_path / "landing"
     assert cache.gate_store_dir(worktree, primary) == primary / ".pytest_cache" / "hermes_gate"
@@ -207,6 +240,23 @@ def test_a_spawn_event_names_its_program_for_every_event_shape():
     assert trail.spawned_program("os.exec", ("/bin/sh", ["sh"], {})) == "/bin/sh"
     assert trail.spawned_program("os.spawn", (0, "node", ["node"], {})) == "node"
     assert trail.spawned_program("os.system", ("echo hi",)) == ""
+    spaced = '"C:\Program Files\Py\python.exe" -c pass'  # Windows audits a quoted command line
+    assert trail.spawned_program("subprocess.Popen", (None, spaced, None, None)) == "C:\Program Files\Py\python.exe"
+    assert trail.is_python(trail.spawned_program("subprocess.Popen", (None, spaced, None, None)))
+
+
+def test_the_run_report_classifies_a_program_through_the_recorder(monkeypatch):
+    """q-runner 2026-10-18: program classification has ONE owner (``hermes_dep_trail``); the
+    run report's ``program_kind`` reads and judges through it, so the two never disagree."""
+
+    monkeypatch.syspath_prepend(str(_PLUGIN_DIR))
+    import hermes_bundle_report as report
+    import hermes_dep_trail as trail
+
+    assert report.first_program is trail.first_program and report.is_python is trail.is_python
+    spaced = '"C:\Program Files\Py\python.exe" -c pass'
+    assert report.program_kind(spaced) == "python"
+    assert report.program_kind(["git", "status"]) == "git" and report.program_kind("node x.js") == "other"
 
 
 _FX_CONFTEST = '''

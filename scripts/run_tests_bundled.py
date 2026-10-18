@@ -95,6 +95,7 @@ def _load_sibling(name: str):
 
 
 rtp = _load_sibling("run_tests_parallel")
+_fork = _load_sibling("_fork_runner")  # the fork door: the run-once list (a red that writes machine state)
 vias = _load_sibling("run_tests_bundled_via")  # the typed via, first: every sibling imports it
 plan = _load_sibling("run_tests_bundled_plan")  # skip list, budget bundles, run ledger, known reds
 solo = _load_sibling("run_tests_bundled_solo")  # what one single-file process runs with (fast-gate §2)
@@ -113,6 +114,13 @@ def load_unbundled(path: Path) -> set[str]:
     observed diff that put the file there); a missing file is an empty list."""
 
     return set(scope.load_path_list(path))
+
+
+def unbundled_files(path: Path) -> set[str]:
+    """What a run keeps out of bundles: the unbundled list plus the run-once list (a red
+    that writes real machine state runs once, alone: ``scripts/_fork_runner.py::run_once``)."""
+
+    return load_unbundled(path) | set(_fork.run_once_list())
 
 
 def _group_key(rel: str) -> tuple[str, ...]:
@@ -459,16 +467,18 @@ def _solo_policy(
 
 
 def _with_shards(
-    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int
+    policy: solo.SoloPolicy, files: Sequence[Path], repo_root: Path, durations: dict[str, float], jobs: int,
+    runs: Path,
 ) -> solo.SoloPolicy:
     """``policy`` with the run's shard plan (fast-gate §3): files cached green ≥ 90 s
-    with ≥ 2k recorded tests split k ways when the run is tail-bound; never a
-    known red, never a file on ``scripts/test_files_unsharded.txt``."""
+    with ≥ 2k recorded tests (``runs``: the gate store's run record) split k ways
+    when the run is tail-bound; never a known red, never a file on
+    ``scripts/test_files_unsharded.txt``."""
 
     estimates = {_rel(f, repo_root): _estimate(f, repo_root, durations) for f in files}
     green = {rel: solo.green_seconds(durations, rel) for rel in estimates}
-    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST)
-    shards = shard.plan_shards(estimates, green, plan.last_record(repo_root).get("tests") or {}, jobs, exclude)
+    exclude = policy.known | scope.load_path_list(repo_root / shard.UNSHARDED_LIST) | _fork.run_once_list()
+    shards = shard.plan_shards(estimates, green, shard.recorded_tests(runs), jobs, exclude)
     return dataclasses.replace(policy, shards=shards, joiner=shard.ShardJoin(shards, policy.rel_of))
 
 
@@ -863,10 +873,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     # the skip list's deselects are keyed (its file is a runner input), so they never turn the cache off
     gate = _gate.GateRun.start(args, repo_root, files, roots, pytest_args, keyed_args=deselect)
     durations = gate.durations(rtp._load_durations)
-    unbundled = load_unbundled(args.unbundled_list)
+    unbundled = unbundled_files(args.unbundled_list)
     known_reds, timed_out = gate.known_reds, gate.timed_out
     policy = _solo_policy(repo_root, args.file_timeout, args.file_retries, durations, known_reds, timed_out)
-    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs)
+    policy = _with_shards(policy, gate.to_run, repo_root, durations, args.jobs, gate.store.runs)
     print(
         f"Bundled runner: {len(files)} test files, bundles of ≤{args.bundle_size} files / ≤{args.bundle_seconds:g}s, "
         f"solo over {args.solo_seconds:g}s, {len(unbundled)} listed unbundled, {len(policy.known)} known red "

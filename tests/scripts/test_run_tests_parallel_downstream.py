@@ -426,3 +426,48 @@ def test_multiple_absolute_paths_split_on_pathsep(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stdout
     assert "Discovered 2 test files" in proc.stdout, proc.stdout
+
+
+def test_a_file_named_beside_a_node_id_runs_whole_and_the_node_runs_alone(tmp_path, monkeypatch) -> None:
+    """q-runner 2026-10-18: upstream's node-id translation hands EVERY file ``-k <leaf>``, so
+    ``run_tests.sh tests/a.py::test_x tests/b.py`` ran b.py's 0 tests and summed 1 as green.
+    The fork door drops that injected ``-k`` and names the node id on its own file only."""
+    from scripts import _fork_runner
+
+    monkeypatch.delenv(_fork_runner.COVERAGE_RC_ENV, raising=False)
+    monkeypatch.chdir(tmp_path)
+    argv = ["-j", "2", "tests/a.py::TestA::test_x[case]", "tests/b.py", "-q"]
+    injected = ["-q", "-k", "test_x"]
+    a, b = (tmp_path / "tests" / "a.py"), (tmp_path / "tests" / "b.py")
+    tail = len(_job_prefix()) + 3  # job prefix, python, -m, pytest
+    assert _fork_runner.pytest_argv(a, injected, argv)[tail:] == [f"{a}::TestA::test_x[case]", "-q"]
+    assert _fork_runner.pytest_argv(b, injected, argv)[tail:] == [str(b), "-q"]
+    # the caller's own -k (upstream injects nothing then) is never touched
+    assert _fork_runner.pytest_argv(b, ["-k", "other"], argv)[tail:] == [str(b), "-k", "other"]
+    assert _fork_runner.pytest_argv(b, injected, ["tests/b.py"])[tail:] == [str(b), *injected]
+
+
+def test_a_run_once_file_red_is_never_re_run_and_the_bundled_runner_runs_it_alone(tmp_path: Path, monkeypatch) -> None:
+    """build-1011-B5 D3.15: a red that writes the user PATH wrote it twice, because the runner
+    re-runs a red file. A file on ``scripts/test_files_run_once.txt`` runs once (q-runner 2026-10-18)."""
+    from scripts import _fork_runner
+
+    repo_root = Path(__file__).resolve().parents[2]
+    listed = repo_root / "tests" / "scripts" / "test_install_ps1_path_fence_downstream.py"
+    assert "tests/scripts/test_install_ps1_path_fence_downstream.py" in _fork_runner.run_once_list()
+    assert _fork_runner.run_once(listed) and not _fork_runner.run_once(repo_root / "tests" / "x" / "test_y.py")
+
+    mod = _load_runner_module()
+    calls: list[Path] = []
+
+    def fake_once(file, pytest_args, repo_root, file_timeout):
+        calls.append(file)
+        return file, 1, "E assert False", {"passed": 0, "failed": 1}, 1.0
+
+    monkeypatch.setattr(mod, "_run_one_file_once", fake_once)
+    _f, rc, _output, _summary, _wall = mod._run_one_file(listed, [], repo_root, 5.0, 1)
+    assert rc == 1 and calls == [listed], "a run-once red is reported from its one attempt"
+
+    from scripts import run_tests_bundled as bundled
+
+    assert "tests/scripts/test_install_ps1_path_fence_downstream.py" in bundled.unbundled_files(tmp_path / "none.txt")

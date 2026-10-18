@@ -87,6 +87,30 @@ class ShardPlan:
         return [(typed_via.Via.shard(i, k), ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
 
 
+def recorded_tests(runs: Path) -> Dict[str, int]:
+    """rel → test count, folded over every line of the gate store's run record
+    (``runs.jsonl``; the newest line wins per file). The planner read the retired
+    ``.pytest_cache/hermes_bundled_runs.jsonl`` after the record moved into the store,
+    so it never saw a count, never sharded, and each run carried an empty ``tests``
+    forward (q-runner 2026-10-18: 216 counts across 37 store lines, 0 in the last)."""
+
+    import json
+
+    out: Dict[str, int] = {}
+    try:
+        lines = runs.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        try:
+            tests = json.loads(line).get("tests")
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(tests, dict):
+            out.update({str(rel): int(n) for rel, n in tests.items() if isinstance(n, int)})
+    return out
+
+
 def plan_shards(
     estimates: Mapping[str, float],
     green: Mapping[str, Optional[float]],
