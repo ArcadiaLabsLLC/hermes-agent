@@ -1,6 +1,6 @@
 """The autouse SessionDB template's contract (design sweep D3.11).
 
-``tests/agent_runtime/_session_db_template.py`` is autouse for this directory:
+``tests/_downstream/session_db_template.py`` is autouse for ``tests/agent_runtime``:
 a WRITER open of an absent store is seeded from the module's template, a READ
 open of an absent store is untouched (it still fails and creates nothing), and
 a test marked ``fresh_schema_path`` gets the production ``__init__`` alone.
@@ -13,7 +13,7 @@ import pytest
 
 def test_a_writer_open_of_an_absent_store_is_seeded_from_the_module_template(tmp_path):
     import hermes_state
-    from tests.agent_runtime import _session_db_template as template
+    from tests._downstream import session_db_template as template
 
     path = tmp_path / "chat" / "state.db"
     hermes_state.SessionDB(db_path=path).close()

@@ -2,7 +2,7 @@
 
 A ``SessionDB`` writer-opened on a path that does not exist yet runs the whole
 schema and FTS script: 0.8-1.0 s on the workstation, against ~0.02 s to copy a
-finished file (``tests/agent_runtime/_session_db_template.py``). Which test
+finished file (``tests/_downstream/session_db_template.py``). Which test
 files pay that, and how often, is a RUN fact, not a reading: production paths
 open stores the test never names. This plugin writes it down.
 
