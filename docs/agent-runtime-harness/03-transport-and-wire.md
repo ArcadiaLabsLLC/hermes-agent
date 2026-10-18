@@ -1503,6 +1503,28 @@ report supplies them. No new account endpoint or auth flow is introduced.
 code. `tests/agent_runtime/test_provider_account_metadata.py` proves transport
 parity, nulls, secret exclusion, existing Nous projection and Codex account matching.
 
+### Provider usage/reset contract
+
+Two doors carry account usage, and both read upstream's own fetchers. Every
+window is `{label, used_percent, reset_at|resets_at, scope}`: `scope: account`
+means exhausting it exhausts the login, `model` caps one model family only
+(upstream `AccountUsageWindow.scope`). Usage is a percent; no upstream fetcher
+reports an absolute used/limit pair, so none is invented.
+
+- `runtime.provider.usage` (`provider_account._usage_view`): one provider's
+  provider-wide snapshot, fetched on call.
+- The model facts (`session_model_catalog.facts`, so both
+  `runtime.operator.conversation.models` and the native conversation reads) carry
+  `provider_usage: {provider_id: usage}` — upstream `hermes_cli.inventory`'s
+  `usage` block verbatim, cache-only with a queued refresh: `{windows}` for a
+  single-account provider, `{accounts: [{id, label, windows, state, resets_at}]}`
+  for a multi-entry credential pool (`state` ready/limited/unknown/unavailable;
+  `resets_at` the latest exhausted account window or live cooldown). A provider
+  with no fresh snapshot is absent. `test_session_model_catalog_usage` pins it.
+
+Session token totals (`usage` beside it) are a different meaning: cumulative
+counters of the session lineage, not quota and not per turn.
+
 ## Open rows
 
 - **Single-transport collapse is half-done** — the hub lane is primary and

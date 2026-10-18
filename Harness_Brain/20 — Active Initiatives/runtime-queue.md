@@ -829,7 +829,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-15 (lane e-triage: blockers with no row)
 
-- [ ] **Publish an exact provider usage/reset contract (per-credential window, used/limit, reset time) on the runtime wire, so the Launcher's usage menu and companion rows stop inferring it.** · runtime / providers · launcher companion row "Qualify an exact runtime usage/reset contract…" waits on it · found 2026-10-15 lane e-triage · DEFERRED 2026-10-16: owner 2026-10-15 on the launcher companion row — the hermes half can wait and is not on hermes' next wave **TAKEN 2026-10-18 r-wire**
 
 ## Filed on arrival — 2026-10-15 (launcher lane w1015e-mc-l)
 
