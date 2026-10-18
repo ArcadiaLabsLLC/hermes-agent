@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from types import SimpleNamespace
 from typing import Any
 
@@ -243,8 +243,9 @@ class PersonaTurnExecutor:
     def settled(self, entry: send_queue.QueuedSend, exit_code: int, payload: dict | None) -> None:
         """``RunnerPolicy.on_settle``: a queued send ended; report it when it ended a Work run.
 
-        On a root bound to an ``UNTIL_DONE`` run every settle — the run's own or an operator's — is the
-        goal's after-turn hook; the run is reported only when the hook ends it.
+        On a root bound to an ``UNTIL_DONE`` run every settle — the run's own or an operator's, queued or
+        direct (:func:`goal_turns.direct_entry`) — is the goal's after-turn hook; the run is reported only
+        when the hook ends it. A turn no Work run owns goes to the root's chat goal, if it has one.
         """
 
         bound = chat_goal.binding(entry.root_session_id)
@@ -261,10 +262,29 @@ class PersonaTurnExecutor:
         origin = entry.args.get(send_queue.ORIGIN_ARG)
         request_id = origin.get("work") if isinstance(origin, dict) else None
         if not request_id:
+            goal_turns.after_chat_goal_turn(entry, payload, goals=self._goals, enqueue=self._enqueue,
+                                            wake=self._wake or _wake_runner)
             return
         rows = tuple(RowRef(*map(str, item)) for item in origin.get("rows") or [] if len(item) == 3)
         self._report(str(request_id), entry.root_session_id, entry.client_message_id, entry.queued_at, rows,
                      outcome_of(exit_code, payload, rows))
+
+    def direct_settled(self, root: str, cmid: str, exit_code: int, payload: dict | None,
+                       args_of: Callable[[], Mapping[str, Any]]) -> None:
+        """The serve's direct-turn settle: a send that ran outside the queue reaches :meth:`settled` once.
+
+        Only a root with a goal (a bound run, or an active chat goal) pays for ``args_of`` — the parse of
+        the turn's argv its continuation would be queued from.
+        """
+
+        if chat_goal.binding(root) is None and not self._goals(root).is_active():
+            return
+        self.settled(goal_turns.direct_entry(root, cmid, args_of()), exit_code, payload)
+
+    def wake_parked(self) -> int:
+        """The serve's waker for a judge ``wait`` (``goal_turns.wake_parked``), run on the engine's tick."""
+
+        return goal_turns.wake_parked(goals=self._goals, enqueue=self._enqueue, wake=self._wake or _wake_runner)
 
     def _report(self, request_id: str, root: str, cmid: str, queued_at: str, rows: tuple[RowRef, ...],
                 outcome: Outcome) -> None:

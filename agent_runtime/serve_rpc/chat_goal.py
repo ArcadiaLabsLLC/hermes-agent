@@ -13,8 +13,8 @@ from typing import Any
 
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.chat_goal import GoalOp
-from agent_runtime.serve_rpc.protocol import DEFERRED, ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, \
-    ERR_NOT_FOUND, err, ok
+from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, \
+    defer_or_refuse, err, ok
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
@@ -39,10 +39,8 @@ def _goal_reply(rid: Any, op: str, params: dict) -> dict:
 
 def _goal_method(op: str):
     def handle(rid, params, context):
-        reply = lambda: _goal_reply(rid, op, dict(params or {}))
-        if context.spawn_reply is None or not context.spawn_reply(reply):
-            return err(rid, ERR_CONFLICT, "The runtime is unavailable.", {"reason": "runtime_stopping"})
-        return DEFERRED
+        return defer_or_refuse(rid, GOAL_METHOD_PREFIX + op, context,
+                               lambda: _goal_reply(rid, op, dict(params or {})))
     return handle
 
 

@@ -15,12 +15,24 @@ upstream's gates and judge (``evaluate_after_turn``) in the run's workdir and th
 
 A reply's own ``work_report`` that says ``blocked`` or ``stopped`` ends the run at once; a ``done``
 report is believed only when the judge agrees (a failing gate is evidence it is not done).
-Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_end``.
+
+A turn that never sat in the queue — a DIRECT operator send on an idle root — reaches the same hook
+from the serve's direct-turn settle (``settle_push.SettlePush._record_turn_settle``) as
+:func:`direct_entry`: an operator turn with no queue entry. A queued turn reaches it only from the
+runner's ``on_settle``, so no turn is evaluated twice. A root with an active goal and NO run bound
+(``runtime.chat.goal.set``) goes through :func:`after_chat_goal_turn`: the judge, then a continuation
+queued from the settled turn's own arguments (origin ``chat_goal``), never a Work report.
+A judge ``wait`` parks the run on upstream's barrier (a pid, a process session, a deadline). Upstream's
+CLI polls that barrier when idle; the serve's poll is :func:`wake_parked`, run on the Work engine's
+tick, which continues a parked run whose barrier lifted and whose root has nothing queued.
+Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_end | chat_goal_continue |
+chat_goal_hold | chat_goal_settle``.
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
@@ -32,7 +44,16 @@ from .executor import Assignment, RowEnding, RunStatus, Verdict
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
-__all__ = ["DECISION_ENDINGS", "after_turn", "arm_run", "first_cmid", "run_status", "stop_run"]
+__all__ = [
+    "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
+    "first_cmid", "run_status", "stop_run", "wake_parked",
+]
+
+#: The origin key a chat goal's own continuation carries (``user_initiated=False`` when it settles).
+CHAT_GOAL_ORIGIN = "chat_goal"
+#: Arguments of the settled turn a chat goal's continuation does NOT inherit: each names that one send.
+_NOT_CARRIED = frozenset({send_queue.ORIGIN_ARG, "idempotency_key", "retry_of", "images", "clarify_token",
+                          "title", "new_session"})
 
 _RECOMMEND_BLOCKED = "re-scope the row, or resume the goal with runtime.chat.goal.resume"
 
@@ -57,11 +78,14 @@ def _stopped(decision: Mapping[str, Any], report: RowEnding | None) -> RowEnding
     return RowEnding(Verdict.STOPPED, reason=f"goal {decision.get('verdict') or 'ended'}: {why}")
 
 
-#: A judge decision that does NOT continue → the run's ending; ``None`` keeps the run (a parked wait).
+#: A judge decision that does NOT continue → the run's ending; ``None`` keeps the run parked: the judge's
+#: ``wait`` sets a barrier, and ``waiting`` is a turn that settled while one still held. Either way the run
+#: resumes when :func:`wake_parked` finds the barrier lifted (or another turn settles on the root).
 DECISION_ENDINGS: dict[str, Callable[[Mapping[str, Any], RowEnding | None], RowEnding | None]] = {
     "done": _done,
     "blocked": _blocked,
     "wait": lambda decision, report: None,
+    "waiting": lambda decision, report: None,
 }
 
 
@@ -179,3 +203,86 @@ def after_turn(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, paylo
     receipts.emit("work.goal_end", root=bound.root_session_id, request_id=bound.request_id,
                   verdict=ending.verdict.value, turns=bound.turns + 1)
     return ending
+
+
+def direct_entry(root: str, cmid: str, args: Mapping[str, Any] | None = None) -> send_queue.QueuedSend:
+    """A turn that ran OUTSIDE the queue (a direct send), shaped as the entry the hook reads: no origin."""
+
+    return send_queue.QueuedSend(root_session_id=root, client_message_id=cmid, seq=0, queued_at="",
+                                 args=dict(args or {}))
+
+
+def _chat_goal_cmid(after_cmid: str) -> str:
+    """Deterministic per predecessor, so a replayed hook converges on the one queued continuation."""
+
+    return "goal-" + hashlib.sha256(after_cmid.encode("utf-8")).hexdigest()[:16]
+
+
+def after_chat_goal_turn(entry: send_queue.QueuedSend, payload: dict | None, *, goals: Callable[[str], Any],
+                         enqueue: Callable[..., Any], wake: Callable[[], None]) -> bool:
+    """A terminal turn on a root with an active goal and no Work run bound: judge it, maybe go on.
+
+    True when the root's goal was evaluated. A failed turn is not judged (there is no reply to judge).
+    """
+
+    root = entry.root_session_id
+    origin = entry.args.get(send_queue.ORIGIN_ARG)
+    if chat_goal.binding(root) is not None or (isinstance(origin, dict) and origin.get("work")):
+        return False
+    goal = goals(root)
+    if not goal.is_active() or outcome_from_payload(payload).refusal_class:
+        return False
+    own = isinstance(origin, dict) and origin.get(CHAT_GOAL_ORIGIN) is True
+    decision = goal.evaluate_after_turn(str((payload or {}).get("reply") or ""), user_initiated=not own)
+    if not decision.get("should_continue"):
+        receipts.emit("work.chat_goal_settle", root=root, verdict=str(decision.get("verdict")))
+        return True
+    waiting = [e for e in send_queue.entries(root) if e.client_message_id != entry.client_message_id]
+    if waiting:
+        receipts.emit("work.chat_goal_hold", root=root, waiting=len(waiting))
+        return True
+    cmid = _chat_goal_cmid(entry.client_message_id)
+    base = {key: value for key, value in entry.args.items() if key not in _NOT_CARRIED}
+    carried = dict(origin) if isinstance(origin, dict) else {"owner": None, "gateway": False}
+    prompt = str(decision.get("continuation_prompt") or goal.next_continuation_prompt())
+    enqueue(root, cmid, {**base, "message": prompt, "client_message_id": cmid,
+                         send_queue.ORIGIN_ARG: {**carried, CHAT_GOAL_ORIGIN: True}})
+    wake()
+    receipts.emit("work.chat_goal_continue", root=root, cmid=cmid)
+    return True
+
+
+def _parked(goal: Any) -> bool:
+    """The goal is active and carries a barrier (upstream ``GoalState.waiting_*``), lifted or not."""
+
+    state = getattr(goal, "state", None)
+    if state is None or getattr(state, "status", None) != "active":
+        return False
+    return (getattr(state, "waiting_on_pid", None) is not None
+            or getattr(state, "waiting_on_session", None) is not None or bool(getattr(state, "waiting_until", 0)))
+
+
+def wake_parked(*, goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None]) -> int:
+    """``RT-GOAL-WAIT-WAKER``: continue every bound run whose judge ``wait`` barrier has lifted.
+
+    A run is parked when it is held, not stopping, its root has no send queued or running (that send's
+    settle evaluates on its own), and its goal carries a barrier. ``is_waiting()`` is upstream's own test
+    (pid alive, session still running, deadline ahead, the age cap) and clears a lifted barrier. Returns
+    how many runs were continued.
+    """
+
+    woken = 0
+    for bound in chat_goal.bindings():
+        root = bound.root_session_id
+        if not bound.held or bound.stopping or send_queue.entries(root):
+            continue
+        goal = goals(root)
+        if not _parked(goal) or goal.is_waiting():
+            continue
+        prompt = goal.next_continuation_prompt()
+        if not prompt:
+            continue
+        _forge(bound, direct_entry(root, bound.cmid), str(prompt), enqueue=enqueue, wake=wake)
+        receipts.emit("work.goal_wake", root=root, request_id=bound.request_id)
+        woken += 1
+    return woken

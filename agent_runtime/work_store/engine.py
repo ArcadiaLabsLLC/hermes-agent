@@ -463,11 +463,14 @@ def start_work_engine(
     interval_s: float = TICK_SECONDS,
     engine: WorkEngine | None = None,
     home: Path | str | None = None,
+    on_tick: Callable[[], Any] | None = None,
 ) -> threading.Thread:
     """Tick ``engine`` on a daemon thread until ``stop_event``; a failed tick is logged, never fatal.
 
     ``home`` is the serve's request home (the queued-send runner's), bound around every tick so the
-    run records, the queue and the settles are read where the runner writes them.
+    run records, the queue and the settles are read where the runner writes them. ``on_tick`` runs after
+    each tick under the same home (the serve passes the executor's parked-goal waker); its failure is
+    logged like a tick's.
     """
 
     if engine is None:
@@ -481,6 +484,8 @@ def start_work_engine(
             try:
                 with home_scope(home):
                     engine.tick()
+                    if on_tick is not None:
+                        on_tick()
             except Exception:
                 logger.warning("work engine tick failed", exc_info=True)
             stop_event.wait(interval_s)

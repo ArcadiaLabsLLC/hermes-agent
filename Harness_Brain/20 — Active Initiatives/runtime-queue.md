@@ -30,15 +30,16 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-10-18 (lane w5-misc, branch `w5/misc`)
+
+- **`RT-RPC-DEFER-OR-INLINE-HANDWRITTEN` — nine method handlers hand-write the defer-else-answer-inline shape (`context is not None and context.spawn_reply is not None and context.spawn_reply(deferred_reply(...))`, else build on the reader lane): the sibling of the defer-or-refuse class `defer_or_refuse` closed** · fork / serve RPC · `agent_runtime/serve_rpc/console_operations.py`, `instance_history.py`, `operator_conversation.py`, `operator_history.py`, `operator_inspection.py`, `operator_subagents.py`, `realm.py`, `speech.py` (two) · one `defer_or_inline(rid, method_name, context, build)` door beside `serve_rpc/protocol.py::defer_or_refuse`, MOVE the nine onto it, wire byte-identical · READY 2026-10-18
+- **`RT-CHAT-GOAL-WAIT-NO-WAKER` — a chat goal set by `runtime.chat.goal.set` (no Work run bound) that the judge parks on `wait` has no waker: `goal_turns.wake_parked` scans only `chat_goal.bindings()`, and an unbound goal persists no turn template to forge its continuation from, so it resumes only when another turn settles on the root** · fork / Work + chat goal · `agent_runtime/work_store/goal_turns.py::wake_parked`, `::after_chat_goal_turn` · persist the settled turn's args per chat-goal root when the judge parks it, and let the waker forge from them (origin `chat_goal`) · READY 2026-10-18
+
 ### Filed on arrival — 2026-10-18 (land w4)
 
-- **`RT-RPC-DEFER-OR-STOPPING-HANDWRITTEN` — three lanes hand-write the same deferred-method factory (spawn the reply on the reader lane, else refuse `runtime_stopping`) instead of one door beside `serve_rpc/protocol.py::deferred_reply`, and none routes its build through `deferred_reply`'s fault boundary; the third copy reached the W0-G3 helper-name gate at land w4 as a second `_handler`** · fork / serve RPC · `agent_runtime/serve_rpc/chat_goal.py::_goal_method`, `agent_runtime/work/rpc.py::_handler`, `agent_runtime/conversations/rpc.py` · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
-- **`RT-GOAL-DIRECT-SEND-HOOK` — a goal advances only on QUEUED turns: the after-turn hook rides the queued-send runner's `on_settle`, so a direct operator send on an idle bound root, and a chat goal set by `runtime.chat.goal.set` with no Work run, never reach `evaluate_after_turn`** · fork / chat RPC · `agent_runtime/work_store/goal_turns.py` docstring; `hermes_cli/harness_parts/serve/settle_push.py::_record_turn_settle` is the direct-turn settle · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
-- **`RT-GOAL-WAIT-WAKER` — a judge `wait` decision parks a bound Work run with no waker (upstream's gateway polls the barrier; the serve does not), so the run holds until another turn settles on its root** · fork / Work · `agent_runtime/work_store/goal_turns.py::DECISION_ENDINGS` · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
 
 ### Filed on arrival — 2026-10-18 (lane w4-fold, branch `w4/fold`)
 
-- **`RT-LENS-WATCHER-ON-CACHED-CORE` — The snapshot's `lens.watcher` is process memory (`poller.WATCHER`), not a core-cache input: a core served from the cache (boot, stale-first hydrate) carries the watcher state of the build that persisted it, so a stopped or restarted poller reads as it was until a Lens store write or another input moves the key** · fork / lens + core_cache · `agent_runtime/lens/snapshot_fold.py::watcher_state`; `agent_runtime/core_cache/fingerprint.py::INPUT_CLASSES` · overlay the live watcher on the served core in the serve (as `running_work` is overlaid), or drop `watcher` from the pushed section and keep it method-lane only · READY 2026-10-18 · **TAKEN 2026-10-18 w5-misc**
 
 ### Filed on arrival — 2026-10-18 (landing land-w2)
 

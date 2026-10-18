@@ -167,6 +167,13 @@ def outcome_from_result_lines(lines: Iterable[str]) -> TurnOutcome:
     are read; anything else contributes nothing.
     """
 
+    data = payload_from_result_lines(lines)
+    return TurnOutcome() if data is None else _outcome_from(data)
+
+
+def payload_from_result_lines(lines: Iterable[str]) -> dict[str, Any] | None:
+    """The LAST JSON-object line a chat turn printed (its result, or ``chat.final``), or None."""
+
     for line in reversed(list(lines)):
         text = str(line or "").strip()
         if not text.startswith("{") or len(text) > _MAX_RESULT_LINE_CHARS:
@@ -176,8 +183,8 @@ def outcome_from_result_lines(lines: Iterable[str]) -> TurnOutcome:
         except (TypeError, ValueError):
             continue
         if isinstance(data, dict):
-            return _outcome_from(data)
-    return TurnOutcome()
+            return data
+    return None
 
 
 def outcome_from_payload(data: Any) -> TurnOutcome:
