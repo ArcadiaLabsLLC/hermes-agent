@@ -333,7 +333,15 @@ def _resolve() -> BuildStamp:
     # here rather than lazily on first read because the ``ready`` frame and the
     # register row are both written before any client can ask, and a digest
     # resolved later would put two different answers on one boot.
-    tree: CodeTree = code_tree_for(root)
+    # The two probes are independent reads, so the code tree runs beside the
+    # status probe instead of before it: the boot pays the slower of the two
+    # (``ls-tree`` 180-205 ms, ``status`` 90-270 ms, lane h5-boot 2026-10-18)
+    # rather than their sum. ``code_tree_for`` never raises.
+    tree_box: list[CodeTree] = []
+    tree_thread = threading.Thread(
+        target=lambda: tree_box.append(code_tree_for(root)), name="build-stamp-code-tree", daemon=True
+    )
+    tree_thread.start()
 
     # ``--no-optional-locks`` + ``-uno``: a status probe on the boot path must
     # not take the index lock (it would race a human's git in the same
@@ -342,6 +350,8 @@ def _resolve() -> BuildStamp:
     status, status_reason = _git(
         root, ["--no-optional-locks", "status", "--porcelain", "-uno"], allow_empty=True
     )
+    tree_thread.join()
+    tree: CodeTree = tree_box[0] if tree_box else CodeTree(code_tree=None, reason="git_error", entry_count=None)
     if status is None:
         return BuildStamp(
             commit=commit,
