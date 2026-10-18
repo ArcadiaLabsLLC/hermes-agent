@@ -69,7 +69,6 @@ def test_the_rendered_index_keeps_the_persona_category_in_full_and_names_the_res
     _write_skill(skills, "software-development/debugging", "debugging", "Find a root cause.")
     _write_skill(skills, "creative/comic", "comic", "Draw a comic strip.")
     _write_skill(skills, "solo-skill", "solo-skill", "An uncategorised skill.")
-    monkeypatch.setattr(_pb, "get_all_skills_dirs", lambda: [skills], raising=False)
 
     demote = compact_skill_categories(["plan-writing", "debugging"], roots=[skills])
     assert demote == frozenset({"creative", "solo-skill"})

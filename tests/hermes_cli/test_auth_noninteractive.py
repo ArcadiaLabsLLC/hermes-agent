@@ -299,3 +299,17 @@ def test_auth_login_unknown_provider(home, capsys):
     assert rc == 1
     event = json.loads(capsys.readouterr().out.strip())
     assert event["code"] == "unknown_provider"
+
+
+def test_a_custom_pool_key_without_a_label_takes_upstreams_default_label(home):
+    """A custom pool has no env var, so the key lands as a manual pool entry.
+
+    Found by ``scripts/upstream_retirement_scan.py`` (arm imports, 2026-10-18): this path
+    imported ``hermes_cli.auth_commands._api_key_default_label``, which upstream inlined
+    on 2026-09-02, so every unlabelled custom-pool set-key raised ImportError.
+    MUTATION (kill): restore that import — red with ImportError.
+    """
+    ack = nia.set_key("custom:q-stale-pool", SENTINEL)
+
+    assert ack["key_var"] is None
+    assert ack["label"] == "api-key-1"

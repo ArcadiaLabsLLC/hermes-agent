@@ -21,6 +21,7 @@ removal path, not an edit to ``uninstall.py``.
 
 from __future__ import annotations
 
+import logging
 import ntpath
 
 try:  # pragma: no cover - platform gate
@@ -28,11 +29,9 @@ try:  # pragma: no cover - platform gate
 except ImportError:  # not on Windows
     winreg = None  # type: ignore
 
-try:
-    from hermes_logging import log_warn  # type: ignore
-except Exception:  # pragma: no cover - logging is best-effort here
-    def log_warn(msg: str) -> None:  # type: ignore
-        pass
+# ``hermes_logging`` never exported a ``log_warn``: the import this replaced always fell
+# through to a no-op, so a failed PATH write was silent.
+log_warn = logging.getLogger(__name__).warning
 
 _ENV_KEY = "Environment"
 
