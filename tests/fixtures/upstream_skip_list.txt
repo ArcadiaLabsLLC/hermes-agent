@@ -781,6 +781,7 @@ tests/hermes_cli/test_plan_reconciliation_windows_live.py · unused: upstream up
 tests/hermes_cli/test_platform_actions.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_plugin_doctor_desktop_copy.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_quarantine_orphan_rescue.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
+tests/hermes_cli/test_restart_plan_reconciliation.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue; missed by 743ef9c138) · e6899c8090
 tests/hermes_cli/test_review_update_runtime.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_send_cmd.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_serve_runtime_inventory.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
