@@ -16,6 +16,7 @@ from agent_runtime import paths, relay_policy
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import resolve_mission_chat_max_seconds
+from agent_runtime.context_build_receipt import ContextBuildLaps
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
     mark_from_trace_payload as _mark_turn_phase_from_trace_payload,
@@ -134,7 +135,10 @@ class _RunPhases:
         # lineage from SessionDB (the sole continuation authority), and until
         # this span it hid inside ``context_built`` beside the skill preload.
         _history_started = time.monotonic()
+        # r-turn: the span's remaining parts, as exclusive laps on a log receipt (never a durable key).
+        laps = ContextBuildLaps()
         runtime_registry = persona_chat_runtime_registry()
+        laps.lap("registry")
         # lineage-stamp S3: a resident actor whose stamped history is still current
         # hands that history over; any write to the lineage since moves the stamp.
         reused = _resident_native_history(runtime_registry, session_db, session_id)
@@ -144,6 +148,7 @@ class _RunPhases:
         else:
             active_session_id = _persona_chat_native_tip(session_db, session_id)
             native_history = _persona_chat_native_history(session_db, active_session_id)
+        laps.lap("history_read")
         history_read = native_history
         abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
         kept_history = [
@@ -153,6 +158,7 @@ class _RunPhases:
             )
         ]
         native_history = safe_native_history(kept_history)
+        laps.lap("abandoned_filter")
         self.active_session_id = active_session_id
         self.native_history = native_history
         self.pre_admit_timings.update(
@@ -166,6 +172,7 @@ class _RunPhases:
             session_db, session_id, active_session_id, history_read,
             safe_history=native_history if len(kept_history) == len(history_read or []) else None,
         )
+        laps.lap("revision")
         self.runtime_registry = runtime_registry
         self.chat_message = self.message
         # Relay sender attribution: resolve who sent this incoming message ONCE
@@ -186,6 +193,7 @@ class _RunPhases:
             relay_chain_in=self.relay_chain_in,
         )
         self.relay_sender_marker = relay_sender_marker
+        laps.lap("relay_marker")
 
         # The WHOLE per-turn context — wall budget, capability account, situational
         # HUD + delivery, skill preload envelope, workspace AGENTS.md, runtime
@@ -218,6 +226,8 @@ class _RunPhases:
         # h-warm-phases: a root this map has not seen is read from the process registry cache when
         # it holds one, and re-walked off-thread after this turn's ``request_sent``.
         self.turn_root_registries: dict[str, Any] = TurnRootRegistries()
+        session_model_config = _session_model_config(session_db, session_id)
+        laps.lap("model_config")
 
         self.turn_context = build_mission_chat_turn_context(
             persona=self.persona,
@@ -226,7 +236,7 @@ class _RunPhases:
             session_id=session_id,
             native_history=native_history,
             model_selection=self.model_selection,
-            session_model_config=_session_model_config(session_db, session_id),
+            session_model_config=session_model_config,
             max_seconds=resolve_mission_chat_max_seconds(getattr(args, "max_seconds", None)),
             relay_deadline_epoch=self.relay_deadline,
             relay_chain=self.turn_relay_chain,
@@ -235,6 +245,8 @@ class _RunPhases:
             surface_prompt=getattr(args, "surface_prompt", "") or "",
             root_registries=self.turn_root_registries,
         )
+        laps.lap("builder")
+        laps.emit(getattr(self, "client_message_id", None), source="read" if reused is None else "resident")
         self.turn_phases.mark("context_built")
 
     def _observe(self) -> None:

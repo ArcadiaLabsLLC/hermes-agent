@@ -544,3 +544,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-18 (lane q-stale)
 
 - [ ] **`tests/tooling/test_downstream_size_ceiling.py::test_no_new_file_crosses_the_ceiling` is red on `main`: `scripts/run_tests_bundled_cache.py` is over 800 code lines and not grandfathered (NEW since 1bf2272916, r-recorder); split it to a layout** · fork / suite · q-stale tests/tooling run 2026-10-18 (file untouched by the lane) · READY
+## Filed on arrival — 2026-10-18 (lane r-turn)
+
+- [ ] **Test homes carry no `config.yaml`, so every `load_config_readonly()` in them rebuilds the defaults (~2 ms; upstream `_load_config_impl` caches nothing without a config file) and every SQLite open pays it through `resolve_journal_mode`: `test_discussion_runtime` 72.5 s → 41.2 s with a one-line `config.yaml` in its homes** · fork-hygiene / session chain · evidence: runtime-queue row "Every SQLite open re-resolves the journal mode" (re-measured 2026-10-18) · lane: the chain's isolated home writes a minimal `config.yaml` (a contract promise with its killing mutation), or the files that open SQLite in a loop do
