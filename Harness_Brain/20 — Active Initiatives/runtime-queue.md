@@ -837,7 +837,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 - **`RT-RUNTIME-LENS-PREVIEW-RETURNS` — `runtime.lens.preview` returns the raw source read and never applies `typed_reading`, so a preview shows a value the poller would store as a `type_mismatch`/`implausible` gap (L0 remainder, hermes `q/r-lens` 285cef8e99)** · fork / lens · lane r-lens report 2026-10-18 · READY 2026-10-18 · **TAKEN 2026-10-18 w2-lens**
 
 ### Filed on arrival — 2026-10-18 (lane q-reds, branch `q/q-reds`)
-- **`RT-WINDOWS-SOURCE-HERMES-UPDATE` — On Windows a source `hermes update`'s `--prepared` completion child refuses its own bootstrap's checkout lease ("its owner exited but a process it started still holds the checkout"), so the tail is always owed** · upstream-owned (`hermes_cli/update_completion.py::_prepare`, `hermes_cli/source_completion.py::complete_source_checkout`) · red on pure tag v0.22.2 `d923a5eb48`: 5 of the 9 `tests/hermes_cli/test_update_completion_process.py` reds now xfailed in `tests/_downstream/id_markers/upstream_reds_v0222.py` (`_COMPLETION_ROWS`) · upstream issue; the strict xfail retires on its fix · READY 2026-10-18 · **TAKEN 2026-10-18 w2-reds**
 
 ### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)
 ### Filed on arrival — 2026-10-18 (lane q-stale, branch `q/q-stale`)

@@ -24,7 +24,7 @@ tests/hermes_cli/test_source_check.py · P0: in flight at both 2026-10-05 workst
 tests/hermes_cli/test_source_launcher_publication.py · P0: same freeze set; republishes the running hermes.exe (h10-fhrel verdict) · ee5f49b943
 tests/hermes_cli/test_source_release_channels.py · P0: same freeze set · ee5f49b943
 tests/hermes_cli/test_source_release_probe.py · P0: same freeze set · ee5f49b943
-tests/hermes_cli/test_update_completion_process.py · upstream: nondeterministic on Windows - 8-9 of its update-completion tests red on the pure tag v0.21.6 and on main, a different set each run (lock and child-process timing), so per-test strict marks XPASS; re-run bare at each release (2026-10-10) · d923a5eb48
+tests/hermes_cli/test_update_completion_process.py · unused: upstream updater and release tooling (ADR 0015); also red on Windows on the pure tag (RT-WINDOWS-SOURCE-HERMES-UPDATE: the --prepared child refuses its bootstrap's checkout lease; strict xfails in upstream_reds_v0222._COMPLETION_ROWS) · d923a5eb48
 
 # unused (ADR 0015) - features the fork does not ship; one row per upstream file, listed 2026-10-17
 # unused: desktop/Electron app and installers
