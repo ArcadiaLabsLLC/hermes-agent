@@ -78,6 +78,8 @@ REASON_DEST_NOT_EMPTY = "dest_not_empty"
 REASON_UNKNOWN_STEP = "unknown_step"
 REASON_STEP_NOT_RUNNABLE = "step_not_runnable"
 REASON_SLOT_UNBOUND_HERE = "slot_unbound_here"
+#: A ``repo.local`` slot (the Work default brain) has no remote to clone from.
+REASON_SLOT_LOCAL_ONLY = "slot_local_only"
 REASON_STEP_RUNNING = "step_running"
 REASON_STALE_REQUEST = "stale_request"
 
@@ -187,6 +189,8 @@ def clone_slot(workspace_id: str, slot: str, dest_path: str, *, issued_at: str, 
     declared = live_slots(load_document(workspace_id)).get(slot)
     if declared is None:
         raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{workspace_id} declares no slot {slot!r}")
+    if (declared.get("repo") or {}).get("local") is True:
+        raise SlotRefused(REASON_SLOT_LOCAL_ONLY, f"{slot} is a local slot with no clone URL; it lives on one machine")
     held = bound_path(slot)
     if held is not None and held.is_dir():
         raise SlotRefused(REASON_SLOT_ALREADY_BOUND, f"{slot} is bound here at {held}; Locate rebinds it")

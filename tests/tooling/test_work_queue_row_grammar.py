@@ -21,7 +21,10 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
   after it. Rows still missing a blocker ID are a RATCHET (``BLOCKER_ID_CEILING``) that may
   only fall;
 * no retired status word (``VERDICT``, ``DESIGN``, ``OWNER``, ``PLAN``, ``VERIFY``)
-  opening a segment, and every ``RULED`` record dated.
+  opening a segment, and every ``RULED`` record dated;
+* at most one ``assignee: persona:<token>`` segment (token ``[A-Za-z0-9_.-]+``), and no
+  ``assignee:`` segment in any other shape (amendment 2026-10-18, Work W1);
+* an ID opening ``WORK-`` is an engine-minted ``WORK-<6>``: six base32 characters ``[A-Z2-7]``.
 
 Segments split on `` · `` outside code spans. ``**TAKEN <date> <who>**`` is a claim,
 never a status.
@@ -44,6 +47,8 @@ ROW_ID = re.compile(r"^- \*\*`([^`]*)` — ")
 ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.S)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
+ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
+WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 BLOCKED_REASONS = ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane")
 LANE_REASONS = ("backend", "hermes", "launcher", "another lane")
@@ -110,6 +115,8 @@ def row_defects(line: str) -> list[str]:
         defects.append("no ID: the bold lead must open with `` `<ID>` — ``")
     elif not ID_SHAPE.match(match.group(1)):
         defects.append(f"ID `{match.group(1)}` is not ^[A-Z0-9][A-Z0-9._-]*$")
+    elif match.group(1).startswith("WORK-") and not WORK_ID.match(match.group(1)):
+        defects.append(f"ID `{match.group(1)}` opens WORK- but is not WORK-<6> (six base32 characters)")
     lead = line.index("**")
     if line.find("**", lead + 2) == -1:
         defects.append("the bold lead does not close on this line")
@@ -130,6 +137,10 @@ def row_defects(line: str) -> list[str]:
             defects.append(f"retired status word opens a segment: {segment[:40]!r}")
         if segment.startswith("RULED") and not RULED.match(segment):
             defects.append(f"undated RULED record: {segment[:40]!r}")
+        if segment.startswith("assignee:") and not ASSIGNEE.match(segment):
+            defects.append(f"assignee shape: {segment[:40]!r}; the segment is `assignee: persona:<token>`")
+    if sum(1 for s in segments[1:] if ASSIGNEE.match(s)) > 1:
+        defects.append("2 assignee segments; at most one")
     return defects
 
 
@@ -190,6 +201,8 @@ VALID = [
     "- **`FORK-F.1` — unscoped** · NEEDS PLAN 2026-10-18: the shape of `a · b` **TAKEN 2026-10-18 q**",
     "- **`FORK-G` — other lane** · BLOCKED 2026-10-18: another lane — the next landing",
     "- **`FORK-H` — launcher** · BLOCKED 2026-10-18: launcher — `MC-ROW` lands the painter first",
+    "- **`RT-I` — assigned** · assignee: persona:pi_alice_01 · READY 2026-10-18",
+    "- **`WORK-A2B3C4` — minted** · assignee: persona:alice · READY 2026-10-18 · **TAKEN 2026-10-18 persona:pi_alice_01**",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -205,6 +218,10 @@ DEFECTS = {
     "- **`RT-A` — design** · DESIGN · NEEDS PLAN 2026-10-18: x": "retired",
     "- **`RT-A` — ruled** · RULED owner: x · READY 2026-10-18": "undated RULED",
     "- **`RT-A` — open lead · READY 2026-10-18": "does not close",
+    "- **`RT-A` — bad assignee** · assignee: bob · READY 2026-10-18": "assignee shape",
+    "- **`RT-A` — two assignees** · assignee: persona:a · assignee: persona:b · READY 2026-10-18": "2 assignee",
+    "- **`WORK-abc` — bad mint** · READY 2026-10-18": "is not",
+    "- **`WORK-ABCDE` — short mint** · READY 2026-10-18": "WORK-<6>",
 }
 
 
@@ -221,6 +238,40 @@ def test_each_defect_class_is_caught(line: str, expected: str) -> None:
 def test_a_wrapped_row_is_caught() -> None:
     text = "---\ntype: queue\n---\n- **`RT-A` — wrapped** · READY 2026-10-18\n  and the rest of it\n"
     assert any("next line" in d for d in queue_rows(text)[0][2])
+
+
+FIXTURES = REPO / "tests" / "fixtures" / "work_queue"
+#: Rows the launcher's canonical ``grammar_valid.md`` accepts that this vault's lint refuses on
+#: purpose (ADR 0011 § Row grammar: "no `- [ ] ` checkbox"), with the defect each must name. The
+#: ID is read wherever the bold lead opens, so a checkbox row still names itself.
+STRICTER_HERE = {"FX-CHECKBOX": "checkbox"}
+
+
+def _fixture_rows(name: str) -> list[tuple[str | None, str, list[str]]]:
+    """(ID or None, line, defects) per row of a shared fixture; a duplicate ID is a defect of each copy."""
+
+    rows = [
+        (m.group(1) if (m := re.search(r"\*\*`([^`]*)` — ", line)) else None, line, defects)
+        for _, line, defects in queue_rows((FIXTURES / name).read_text(encoding="utf-8"))
+    ]
+    ids = [row_id for row_id, _, _ in rows if row_id]
+    return [
+        (row_id, line, defects + (["duplicate ID"] if row_id and ids.count(row_id) > 1 else []))
+        for row_id, line, defects in rows
+    ]
+
+
+def test_the_shared_fixtures_pass_and_fail_as_the_launcher_says() -> None:
+    valid, broken = _fixture_rows("grammar_valid.md"), _fixture_rows("grammar_defects.md")
+    assert len(valid) >= 19 and len(broken) >= 11, "a moved or emptied fixture must not pass silently"
+    wrong = [f"valid {row_id}: {defects}" for row_id, _, defects in valid if row_id not in STRICTER_HERE and defects]
+    wrong += [
+        f"valid {row_id}: expected {STRICTER_HERE[row_id]!r}, got {defects}"
+        for row_id, _, defects in valid
+        if row_id in STRICTER_HERE and not any(STRICTER_HERE[row_id] in d for d in defects)
+    ]
+    wrong += [f"defect row passes: {line[:80]}" for _, line, defects in broken if not defects]
+    assert not wrong, "\n".join(wrong)
 
 
 # --- the vault ---

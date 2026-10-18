@@ -675,6 +675,32 @@ def workspace_slots_path(workspace_id: str) -> Path:
     return workspace_slots_dir() / f"{safe_path_token(workspace_id)}.json"
 
 
+def work_dir() -> Path:
+    """Work's machine-local state (plan ``work-on-markdown-2026-10-18.md`` §4): never synced."""
+
+    return store_root() / "work"
+
+
+def work_workspace_dir(workspace_id: str) -> Path:
+    return work_dir() / safe_path_token(workspace_id)
+
+
+def default_brain_dir(workspace_id: str) -> Path:
+    """The auto-created default brain of a workspace that binds no repo with a brain (§4)."""
+
+    return work_workspace_dir(workspace_id) / "brain"
+
+
+def work_worktree_dir(workspace_id: str, slot: str) -> Path:
+    """Hermes's own worktree of a slot's checkout (§5) — under ``worktrees/``, never inside the default brain."""
+
+    return work_workspace_dir(workspace_id) / "worktrees" / safe_path_token(slot)
+
+
+def work_runs_dir(workspace_id: str) -> Path:
+    return work_workspace_dir(workspace_id) / "runs"
+
+
 def realm_path(realm_id: str) -> Path:
     return realms_dir() / f"{safe_path_token(realm_id)}.json"
 
