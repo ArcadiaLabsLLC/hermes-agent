@@ -59,7 +59,7 @@ second authority for one fact.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +76,11 @@ WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
 WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
 WORKDIR_SOURCE_USER_HOME = "user_home"
 WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
+#: A batch lane's worktree (dispatcher plan §2.2, B5): the run names it, it outranks the ladder.
+WORKDIR_SOURCE_RUN_OVERRIDE = "run_override"
+
+#: The turn argument a queued send carries its per-run workdir in (``work_store.persona_turn``).
+RUN_WORKDIR_ARG = "run_workdir"
 
 #: Why a requested path was refused. Typed rather than free text so the
 #: transition table is assertable.
@@ -313,6 +318,24 @@ def mission_chat_workdir_for_persona(
         primary_slot_path=primary_slot_path,
         home_fallback=_home_or_none(),
     )
+
+
+def with_run_override(workdir: MissionChatWorkdir, override: str | None) -> MissionChatWorkdir:
+    """``workdir`` with a run's own directory on top (a batch lane runs in its worktree, plan §2.2 B5).
+
+    A real absolute directory wins over every rung; one that is not keeps the ladder's answer and adds a
+    typed issue row, the same never-fail-a-turn rule as a configured workdir. No override: unchanged.
+    """
+
+    requested = str(override or "").strip()
+    if not requested:
+        return workdir
+    reason = _refusal(requested)
+    if reason is None:
+        return MissionChatWorkdir(path=_resolved(requested), source=WORKDIR_SOURCE_RUN_OVERRIDE, issues=workdir.issues)
+    issue = MissionChatWorkdirIssue(requested=requested, source=WORKDIR_SOURCE_RUN_OVERRIDE, reason=reason,
+                                    config_key=RUN_WORKDIR_ARG, fell_back_to=workdir.source)
+    return replace(workdir, issues=(*workdir.issues, issue))
 
 
 def _home_or_none() -> str | None:

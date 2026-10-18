@@ -1749,7 +1749,7 @@ refusal shape are Work's; replies carry `version: 1`, `install_id`, `owner`.
 | `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` | `batch_missing` |
 | `runtime.batch.stop` | `batch_id`, `lane?` (omitted: abort the batch) | `batch` | `state_transition_invalid`, `batch_missing` |
 | `runtime.batch.land` | `batch_id`, `persona?` | `batch` | `state_transition_invalid`, `landing_in_progress`, `not_owner_machine` |
-| `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `not_built` (the push is `RT-DISPATCH-B5-LANE-EXECUTOR`'s) |
+| `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `landing_in_progress`, `push_contended` (the tip moved since the merge: land again), `worktree_dirty`, `push_refused` |
 
 A batch is its manifest note, `<default brain>/50 — Agent Handoffs/batches/<BATCH-id>.md` (frontmatter
 `type: batch`, `owner_machine`; one appended line per lane per state), its lane briefs beside it, and its
@@ -1761,6 +1761,17 @@ running lane WAITS for the turn (`STOP_REQUESTED`; the settle ends it `STOPPED`,
 are never automated. The W3 engine skips a row a live batch lane holds. Receipts: `batch.planned |
 started | lane_refused | waiting_box | lane_settled | stop_requested | ready_to_land | landing |
 awaiting_approval | landing_red | landed | aborted`. Phone bundles omit the module.
+
+Lanes run in worktrees (B5, `agent_runtime/batch/lane_executor.py::BatchLaneExecutor` over the persona-turn
+executor, `lane_git.py` for the git). A work lane of slot `S` works in `<clone's parent>/.worktrees/<clone
+name>-<batch>-<lane>` on `q/<batch>/<lane>`, cut from the fetched tip (or from the branch of the same-slot
+lane it is sequenced after); its brief (the playbook's skeleton, ≤ 40 lines with the `work_report` ask) is
+written to the `-scratch` directory beside it and sent as the persona's turn, which runs there
+(`run_workdir`, on top of the workdir ladder). The settle reads the lane's commits from git (`base..branch`).
+`land` cuts `land/<batch>` per slot the batch touched and merges each `REPORTED` lane `--no-ff` in order (a
+conflict is aborted and named in the landing brief); `approve` (`lander.py::GitLander`) checks every slot
+(clean, the fetched tip an ancestor) before it pushes each landing HEAD fast-forward. `land` and `approve`
+hold `locks.batch_landing_lock` (one landing per machine). Receipt: `batch.lane_site`.
 
 ### Schedule methods — the serve's scheduler
 

@@ -501,6 +501,7 @@ def build_mission_chat_turn_context(
     surface_prompt: str = "",
     resolvers: MissionChatTurnResolvers = DEFAULT_RESOLVERS,
     root_registries: dict[str, Any] | None = None,
+    run_workdir: str | None = None,
 ) -> MissionChatTurnContext:
     """Resolve one mission-chat turn's whole context. Order is load-bearing.
 
@@ -534,7 +535,7 @@ def build_mission_chat_turn_context(
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
     slot_context, workspace_agents, workspace_agents_receipt, workdir = _turn_workspace(
-        resolvers, persona, instance, agents_file)
+        resolvers, persona, instance, agents_file, run_workdir)
 
     # Composed ONCE, then folded two ways: the composite is the reuse key the
     # registry compares, the per-component digests are what let a mismatch name
@@ -635,7 +636,7 @@ def build_mission_chat_turn_context(
 
 
 def _turn_workspace(
-    resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any
+    resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any, run_workdir: str | None = None
 ) -> tuple[Any, Any, dict[str, Any] | None, Any]:
     """``(slot context, workspace agents, its receipt, workdir)``: the turn's workspace facts, each once.
 
@@ -643,9 +644,11 @@ def _turn_workspace(
     in hand — the persona, the loaded ``AGENTS.md`` pointer, the primary slot's path. Under an
     assignment the slot sections are then deduplicated against the cwd chain the prompt
     builder injects for that workdir (D1.12 S2), BEFORE the receipt is composed so the receipt
-    (and the signature it folds into) names what the prompt carries.
+    (and the signature it folds into) names what the prompt carries. A run's own ``run_workdir`` (a
+    batch lane's worktree, dispatcher plan §2.2 B5) goes on top of the ladder's answer.
     """
 
+    from .mission_chat_workdir import with_run_override
     from .persona_slots import slot_context_for_prompt
 
     slot_context = resolvers.load_slot_context(instance)
@@ -654,10 +657,10 @@ def _turn_workspace(
         workdir = resolvers.mission_chat_workdir(
             persona, workspace_agents_path=_workspace_agents_path(None, workspace_agents), primary_slot_path=None
         )
-        return None, workspace_agents, receipt, workdir
-    workdir = resolvers.mission_chat_workdir(
+        return None, workspace_agents, receipt, with_run_override(workdir, run_workdir)
+    workdir = with_run_override(resolvers.mission_chat_workdir(
         persona, workspace_agents_path=None, primary_slot_path=slot_context.primary_path
-    )
+    ), run_workdir)
     slot_context = slot_context_for_prompt(slot_context, persona=persona, workdir=workdir)
     workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)
     return slot_context, workspace_agents, receipt, workdir

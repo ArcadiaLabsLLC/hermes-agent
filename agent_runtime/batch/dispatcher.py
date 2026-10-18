@@ -17,8 +17,11 @@ through the W2 writer before or after the side effect it records:
   the lane line records ``STOP_REQUESTED`` and the settle ends the lane ``STOPPED``; ``stop`` with no lane
   aborts the batch (every claim released ``DEFERRED``);
 * ``land`` (manual only) runs the landing lane; ``approve`` (manual only) is the ONLY door to
-  ``LANDED`` — the push is the ``Lander``'s, which B5 (``RT-DISPATCH-B5-LANE-EXECUTOR``) builds; until
-  then it refuses ``not_built``.
+  ``LANDED`` — the push is the ``Lander``'s (``lander.GitLander``, B5; a dispatcher built with none
+  refuses ``not_built``). Both hold ``locks.batch_landing_lock``: one landing per machine.
+
+The serve's executor is ``lane_executor.BatchLaneExecutor`` (B5): every lane, the landing included, works
+in its own worktree beside the slot's clone, as one persona turn there.
 
 Multi-device (§3.5): the machine that started a batch owns it (``owner_machine``); only it runs lanes,
 lands or approves (``not_owner_machine``); any machine may read it and ``stop`` (a release is a row op
@@ -30,7 +33,8 @@ the writer's ``work.row_*`` and the executor's ``work.exec_*``.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -78,10 +82,23 @@ class Lander(Protocol):
 
 
 class UnbuiltLander:
-    """B2 has no landing worktree; ``RT-DISPATCH-B5-LANE-EXECUTOR`` builds the push behind ``approve``."""
+    """A dispatcher built without a lander cannot push: ``approve`` refuses ``not_built`` (the serve's has one)."""
 
     def push(self, batch: Batch) -> str:
-        raise WorkRefused(Reason.NOT_BUILT, "RT-DISPATCH-B5-LANE-EXECUTOR builds the landing push")
+        raise WorkRefused(Reason.NOT_BUILT, "this dispatcher has no lander bound")
+
+
+@contextmanager
+def _one_landing(batch_id: str) -> Iterator[None]:
+    """``locks.batch_landing_lock`` as a typed refusal: another landing holds this machine."""
+
+    from ..locks import HarnessLockUnavailable, batch_landing_lock
+
+    try:
+        with batch_landing_lock():
+            yield
+    except HarnessLockUnavailable as busy:
+        raise WorkRefused(Reason.LANDING_IN_PROGRESS, f"{batch_id}: another landing holds this machine") from busy
 
 
 def idle_box(*, cpu_max: float = 50.0, python_max: int = 20) -> bool:
@@ -361,6 +378,10 @@ class BatchDispatcher:
     # ── land and approve: the operator's alone ───────────────────────────
 
     def land(self, workspace_id: str, batch_id: str, *, persona: str | None = None) -> Batch:
+        with _one_landing(batch_id):
+            return self._land(workspace_id, batch_id, persona)
+
+    def _land(self, workspace_id: str, batch_id: str, persona: str | None) -> Batch:
         batch = self.load(workspace_id, batch_id)
         self._own(batch)
         busy = self._landing_elsewhere(batch_id)
@@ -381,7 +402,8 @@ class BatchDispatcher:
         batch = self.load(workspace_id, batch_id)
         self._own(batch)
         state = move(BATCH_MOVES, batch.state, BatchEvent.APPROVE)
-        sha = self._lander.push(batch)
+        with _one_landing(batch_id):
+            sha = self._lander.push(batch)
         self.manifests.append(workspace_id, batch_id, [self._batch_line(state, {"landing_sha": sha})],
                               f"{batch_id}:landed")
         receipts.emit("batch.landed", workspace_id=workspace_id, batch_id=batch_id, landing_sha=sha)
@@ -458,13 +480,25 @@ def _workspace_ids() -> list[str]:
     return workspace_ids()
 
 
-def default_dispatcher(*, executor: Executor | None = None, lander: Lander | None = None) -> BatchDispatcher:
-    """The serve's dispatcher: the boards, the default brain's manifests, the persona-turn executor."""
+def default_dispatcher(*, persona: Any = None, executor: Executor | None = None,
+                       lander: Lander | None = None) -> BatchDispatcher:
+    """The serve's dispatcher: the boards, the default brain's manifests, lanes in worktrees (B5).
+
+    ``persona`` is the serve's ``PersonaTurnExecutor`` (its settles carry every lane's turn); the lane
+    executor wraps it and the dispatcher hears the lane executor's settles, commits included.
+    """
 
     from ..work_store.persona_turn import PersonaTurnExecutor
     from .board_source import BoardSource
+    from .lander import GitLander
+    from .lane_executor import BatchLaneExecutor
     from .manifest import BrainManifestStore
 
-    return BatchDispatcher(source_for=BoardSource, manifests=BrainManifestStore(),
-                           executor=executor or PersonaTurnExecutor(), machine=this_machine, roster=_workspace_roster,
-                           slot_roles=_slot_roles, budget_for=_budget, lander=lander, workspaces=_workspace_ids)
+    manifests = BrainManifestStore()
+    executor = executor or BatchLaneExecutor(inner=persona or PersonaTurnExecutor(), manifests=manifests,
+                                             workspaces=_workspace_ids)
+    built = BatchDispatcher(source_for=BoardSource, manifests=manifests, executor=executor, machine=this_machine,
+                            roster=_workspace_roster, slot_roles=_slot_roles, budget_for=_budget,
+                            lander=lander or GitLander(), workspaces=_workspace_ids)
+    executor.on_settle(built.settled)
+    return built

@@ -24,6 +24,7 @@ from agent_runtime.mission_chat_phases import (
     phase_timing_marker_step,
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
+from agent_runtime.mission_chat_workdir import RUN_WORKDIR_ARG
 from agent_runtime.mission_chat_turns.journal import (
     mark_stale_inflight_turns_interrupted,
     persist_mission_chat_turn,
@@ -245,6 +246,7 @@ class _RunPhases:
             agents_file=getattr(args, "agents_file", None),
             surface_prompt=getattr(args, "surface_prompt", "") or "",
             root_registries=self.turn_root_registries,
+            run_workdir=getattr(args, RUN_WORKDIR_ARG, None),
         )
         laps.lap("builder")
         laps.emit(getattr(self, "client_message_id", None), source="read" if reused is None else "resident")

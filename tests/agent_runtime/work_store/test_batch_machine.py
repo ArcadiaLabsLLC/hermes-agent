@@ -71,7 +71,7 @@ def test_approve_is_the_only_door_to_main():
     assert landed.state is BatchState.LANDED and landed.landing_sha == "f00dfeed" and lander.pushed == [batch.id]
 
 
-def test_approve_refuses_not_built_until_b5_and_keeps_waiting():
+def test_approve_without_a_bound_lander_refuses_not_built_and_keeps_waiting():
     d, batch = started(FakeSource(rows("Fork-owned")))
     settle_all(d, batch)
     d.land(WS, batch.id)
