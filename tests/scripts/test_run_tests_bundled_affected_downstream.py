@@ -158,3 +158,55 @@ def test_a_source_walker_is_counted_not_run_and_a_data_file_it_opened_selects_it
 
     assert sel.walkers == [T_OTHER] and T_OTHER not in sel.picks
     assert sel.picks[T_FAR].why == "opened docs/table.md"
+
+
+def _own_store(tmp_path: Path) -> cache.GateStore:
+    """Every process imported MOD; T_CHAIN loaded it itself, T_DIRECT named it, the rest neither."""
+
+    store = cache.GateStore(tmp_path / "gate")
+    session = {MOD, "agent_runtime/helper.py", "agent_runtime/outer.py", "hermes_cli/config.py"}
+    own = {T_CHAIN: ({MOD}, set()), T_DIRECT: (set(), {MOD}), T_FAR: (set(), set()), T_OTHER: (set(), set())}
+    store.write_deps({
+        rel: cache.FileDeps(paths={rel}, mods=set(session), mods_own=loaded, mods_ref=named,
+                            own_records=1, deps_records=1)
+        for rel, (loaded, named) in own.items()
+    }, "run-1")
+    return store
+
+
+def test_a_record_with_its_own_modules_selects_exactly_the_files_that_loaded_or_named_the_module(tmp_path):
+    store = _own_store(tmp_path)
+    imports = {**IMPORTS, T_OTHER: {"agent_runtime.helper"}}  # two static hops: the old reach picked it
+    sel = affected.select_affected(
+        [T_DIRECT, T_CHAIN, T_FAR, T_OTHER], affected.Change({MOD}), store.load_deps(), store.load_modsets(),
+        affected.ImportGraph(imports),
+    )
+
+    assert sel.picks[T_CHAIN].why == f"loaded {MOD} (recorded)"
+    assert sel.picks[T_DIRECT].why == f"imports {MOD} (recorded)"
+    assert sel.picks[T_DIRECT].group == affected.DIRECT
+    assert T_OTHER not in sel.picks and T_FAR not in sel.picks
+    assert sel.uncovered == []
+
+
+def test_a_module_only_the_session_loaded_falls_back_to_the_reach_rules(tmp_path):
+    store = _own_store(tmp_path)
+    helper = "agent_runtime/helper.py"  # in every process's set, in no file's own
+    sel = affected.select_affected(
+        [T_DIRECT, T_CHAIN, T_FAR, T_OTHER], affected.Change({helper}), store.load_deps(), store.load_modsets(),
+        affected.ImportGraph(IMPORTS),
+    )
+
+    assert sel.uncovered == [helper]
+    assert sel.picks[T_CHAIN].why == f"reach rule: imports {helper}"
+    assert set(sel.picks) == {T_CHAIN}
+
+
+def test_fail_fast_runs_edited_and_direct_importers_first_and_the_slowest_last():
+    picks = [affected.Pick("e", "edited", affected.EDITED), affected.Pick("d", "x", affected.DIRECT),
+             affected.Pick("r", "y", affected.REST)]
+    waves = affected.fail_fast_waves(picks)
+
+    assert [[p.rel for p in w] for w in waves] == [["e", "d"], ["r"]]
+    assert affected.wave_name(waves[0]) == "edited + direct importers"
+    assert affected.fail_fast_waves(picks[2:]) == [[picks[2]]]

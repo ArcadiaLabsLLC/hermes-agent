@@ -6,9 +6,12 @@ when (``select_affected``):
 
 * you edited it (``edited``);
 * its LATEST record in the gate store (``deps.jsonl`` / ``modsets.jsonl``) names a
-  changed path: a module its process imported that the file's own import chain also
-  reaches (``imports <path>`` / ``reaches <path> (import chain)``; a recorded module
-  set is the whole process's, see ``ImportGraph``), a non-``.py`` file it opened
+  changed path: a module the FILE loaded or named itself (``mown``: ``loaded <path>
+  (recorded)`` / ``imports <path> (recorded)`` — the recorder's ``mods_own`` and
+  ``mods_ref``, exact), or, for a record written before the recorder kept those, a
+  module its process imported that the file's own import chain also reaches
+  (``imports <path>`` / ``reaches <path> (import chain)``; a recorded module set is
+  the whole process's, see ``ImportGraph``), a non-``.py`` file it opened
   itself (``opened <path>``; the session's opens are the chain's), or a directory it listed that a changed path was added to or removed
   from (``lists <dir>/``; a directory most records list is the session's listing, and
   one the file sits in is its collection's: neither counts; an import-listed one counts when the path's stem is a name the
@@ -18,7 +21,10 @@ when (``select_affected``):
   no import reach: that is a whole-tree source walker or a module first loaded deeper
   than two hops — 70 of 180 files for ``agent_runtime/locks.py``, 310 of 370 for
   ``tools/checkpoint_manager.py`` (2026-10-17). Counted in the header, never run;
-* a changed path no record names (a new module, a file nothing recorded) reaches it
+* a changed path no record names — a ``mown`` record names only what the file loaded
+  or named itself, so a module the session or an earlier member loaded and the file
+  reaches only through another module is named by none (a new module, a file nothing
+  recorded) — reaches it
   by the ``--scope fork`` reach rules, for that path only — its convention source, a
   ``conftest.py`` above it, a direct import (``reach rule: …``); a test file with no
   record is judged by the same rules against every changed path;
@@ -34,7 +40,9 @@ NOT selected for: the landing gate (``--scope fork``) is the backstop. The run w
 NOTHING to the gate store (no dependency record, no green, no run line); it keeps a
 static-import memo beside it (``MEMO_NAME``). Order: edited files, then direct
 importers, then the rest, each fastest-first by ``durations.json``; with
-``--fail-fast`` each group runs as its own wave and a red wave stops the run. With
+``--fail-fast`` the edited files and direct importers run as the first wave, the rest
+as the second, the first red is printed the moment it lands, and a red wave stops the
+run. With
 ``--cache-dry-run`` it lists the selection and runs nothing.
 """
 
@@ -284,7 +292,6 @@ def select_affected(
         found = changed.intersection(paths)
         if found:
             digest_hits[digest] = found
-            covered.update(found)
     churn_dirs = {(rel.rsplit("/", 1)[0] if "/" in rel else "."): rel for rel in change.churned}
     listing = _listing_counts(deps.values(), churn_dirs)
     churn_dirs = {d: rel for d, rel in churn_dirs.items() if listing.get(d, 0) <= SESSION_DIR_SHARE * len(deps)}
@@ -293,13 +300,24 @@ def select_affected(
     for rel in sorted(changed & test_set):
         sel.picks[rel] = Pick(rel, "edited", EDITED)
     sentinel: List[str] = []
+    direct: set = set()  # named a changed module in its own namespace
     for rel in sorted(test_set & set(deps)):
         record = deps[rel]
         covered.update(changed.intersection(record.paths))
         own = record.keep if record.fx is not None else record.paths  # the session's opens are the chain's
         opened = sorted(changed.intersection(own))
-        in_mods = set().union(*(digest_hits.get(d, set()) for d in record.mods))
-        why = _reach_why(reached[rel]) if rel in reached and reached[rel][0] in in_mods else None
+        if record.mown is not None:  # what the file loaded or named itself: exact
+            loaded = set().union(*(digest_hits.get(d, set()) for d in record.mown))
+            named = set().union(*(digest_hits.get(d, set()) for d in record.mref))
+            covered.update(loaded)
+            hit = min(loaded, key=lambda p: (p not in named, p), default=None)
+            why = hit and (f"imports {hit} (recorded)" if hit in named else f"loaded {hit} (recorded)")
+            if hit in named:
+                direct.add(rel)
+        else:
+            in_mods = set().union(*(digest_hits.get(d, set()) for d in record.mods))
+            covered.update(in_mods)
+            why = _reach_why(reached[rel]) if rel in reached and reached[rel][0] in in_mods else None
         if why is None and any(not p.endswith(".py") for p in opened):
             why = f"opened {next(p for p in opened if not p.endswith('.py'))}"
         if why is None:
@@ -335,7 +353,7 @@ def select_affected(
         del sel.picks[rel]
         sel.skipped.append(rel)
     for pick in sel.picks.values():
-        if pick.group == REST and rel_direct(reached, pick.rel):
+        if pick.group == REST and (pick.rel in direct or rel_direct(reached, pick.rel)):
             pick.group = DIRECT
     return sel
 
@@ -413,17 +431,33 @@ def main(args, repo_root: Path, runner, pytest_args: List[str]) -> int:
         [str(runner._PLUGIN_DIR)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     )
     pytest_args = pytest_args + runner.plan.deselect_args(skip_rows, set())
-    waves = [[p for p in picks if p.group == g] for g in GROUP_NAMES] if args.fail_fast else [picks]
+    waves = fail_fast_waves(picks) if args.fail_fast else [picks]
     rc = 0
-    for wave in (w for w in waves if w):
-        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], durations)
+    first_red: List[str] = []
+    for number, wave in enumerate(waves, 1):
+        rc = _run_wave(args, repo_root, runner, pytest_args, [by_rel[p.rel] for p in wave], durations,
+                       first_red, started)
         if rc and args.fail_fast:
-            print(f"--fail-fast: stopped after the {GROUP_NAMES[wave[0].group]} wave")
+            print(f"--fail-fast: stopped after wave {number} of {len(waves)} ({wave_name(wave)})")
             return rc
     return rc
 
 
-def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List[Path], durations) -> int:
+def fail_fast_waves(picks: Sequence[Pick]) -> List[List[Pick]]:
+    """``--fail-fast``: the edited files and direct importers first, the rest second; each
+    keeps ``ordered``'s fastest-first order, so the slowest files run last."""
+
+    first = [p for p in picks if p.group in (EDITED, DIRECT)]
+    rest = [p for p in picks if p.group == REST]
+    return [w for w in (first, rest) if w]
+
+
+def wave_name(wave: Sequence[Pick]) -> str:
+    return " + ".join(GROUP_NAMES[g] for g in sorted({p.group for p in wave}))
+
+
+def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List[Path], durations,
+              first_red: List[str], run_started: float) -> int:
     done = [0]
 
     def progress(outcome) -> None:
@@ -432,6 +466,10 @@ def _run_wave(args, repo_root: Path, runner, pytest_args: List[str], files: List
         print(f"[{done[0]:>5}/{len(files)}] {status} {runner._rel(outcome.file, repo_root)} "
               f"({outcome.via}, {outcome.seconds:.1f}s) {outcome.summary}", flush=True)
         if outcome.rc != 0:
+            if not first_red:
+                first_red.append(runner._rel(outcome.file, repo_root))
+                print(f"=== first red: {first_red[0]} ({time.monotonic() - run_started:.1f}s into the run) ===",
+                      flush=True)
             runner.rtp._print_inline_failure(outcome.file, outcome.output, repo_root, pytest_args)
 
     started = time.monotonic()
