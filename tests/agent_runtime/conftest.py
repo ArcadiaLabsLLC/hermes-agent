@@ -167,6 +167,25 @@ def reset_chat_lane_tool_form_memo():
 
 
 @pytest.fixture(autouse=True)
+def in_process_gateway_methods_follow_the_method_table():
+    """Re-arm the in-process peer's once-per-process method install after every test.
+
+    ``in_process_peer._install_gateway_methods`` registers ``eternia.skills.*`` into
+    ``tui_gateway.server._methods`` once and sets ``_installed``. The root conftest's
+    ``_reset_tui_gateway_server_state`` restores ``_methods`` to its pre-test snapshot,
+    which drops those methods whenever the server was imported before the test (any
+    earlier file in the process, e.g. ``test_native_worker_app_function_lifetime.py``),
+    while the flag stays set: the next test's ``eternia.skills.list`` answered -32601
+    "unknown method" (``native_refusal``). The flag follows the table it guards.
+    """
+
+    yield
+    peer = sys.modules.get("agent_runtime.conversations.in_process_peer")
+    if peer is not None:
+        peer._installed = False
+
+
+@pytest.fixture(autouse=True)
 def reset_profile_runner_runtime_resolve_cache():
     """Keep the T6 runtime-resolve memo from crossing test boundaries.
 

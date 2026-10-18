@@ -46,7 +46,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-15 (lane w1015h-rt-h)
 
-- [ ] **`tests/agent_runtime/test_native_conversation_in_process.py::test_a_b_a_turns_sessions_and_recovery_with_no_child_process[shared-provider]` reds (`ConversationError: native_refusal` on `service.skills(..., "list")` after a completed turn) when it runs after `test_native_worker_app_function_lifetime.py`, `test_tool_blocks.py` and `tests/tui_gateway/test_contract_catalog.py` in one process; 4 passed alone. Reproduced on `origin/main` `0917affed5a` with no lane change applied: a process-global leak from one of those three into the in-process worker's skills inspection** · `fork / suite` · lane: bisect the three, then restore the leaked global in that test's teardown · bisected 2026-10-15 (w1015j-hermes): only `tests/agent_runtime/test_native_worker_app_function_lifetime.py` + the node reds, about 1 run in 5, and the one red's traceback was not kept — loop the pair with full output until it reds, then read the refusal · READY 2026-10-16 · BLOCKED quiet box: a timeout/flake judgment, run as lane r-reds-b once the box is idle (owner 2026-10-16) **TAKEN 2026-10-18 r-quiet**
 
 ## Filed on arrival — 2026-10-15 (landing land-w1015j-h, reds proven on `origin/main` `88414c8d13e`)
 
